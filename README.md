@@ -1,36 +1,125 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wallet → Social Lookup
+
+A Next.js application that takes a CSV of Ethereum wallet addresses and finds associated social profiles (Twitter/X and Farcaster). Perfect for community outreach, airdrop targeting, and identifying key influencers among token holders.
+
+## Features
+
+- **Batch Wallet Lookup**: Upload a CSV with wallet addresses and get social profiles for all of them
+- **Multiple Data Sources**: Aggregates data from Web3.bio, Neynar, and ENS text records
+- **Holdings & Priority Scoring**: Auto-detects value/balance columns and calculates outreach priority based on holdings × follower reach
+- **Smart Filtering**: Filter by Twitter-only results or Top Influencers (1K+ Farcaster followers)
+- **Click-to-Copy**: Truncated wallet addresses with one-click clipboard copy
+- **Export Options**:
+  - Full CSV export with all data, sorted by priority score
+  - Twitter List export (.txt) for bulk Twitter list imports
+- **Caching**: 24-hour result caching via Neon PostgreSQL
+- **Lookup History**: Save and reload previous lookups
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- (Optional) Neon PostgreSQL database for caching
+- (Optional) Neynar API key for Farcaster data
+- (Optional) Web3.bio API key for higher rate limits
+
+### Environment Variables
+
+Create a `.env.local` file:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Optional: Neon database for caching and history
+DATABASE_URL=postgres://...
+
+# Optional: Neynar API for Farcaster lookups
+NEYNAR_API_KEY=your-api-key
+
+# Optional: Web3.bio API key
+WEB3BIO_API_KEY=your-api-key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) to use the app.
 
-## Learn More
+### Database Setup (Optional)
 
-To learn more about Next.js, take a look at the following resources:
+If using Neon for caching:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run db:push
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. **Prepare your CSV**: Include a column named `wallet` or `address` with Ethereum addresses. Optionally include value/holdings columns.
+2. **Upload**: Drag and drop or click to upload your CSV
+3. **Configure**: Toggle ENS onchain lookup (slower but more accurate), history saving
+4. **Start Lookup**: Click "Start Lookup" and watch the progress
+5. **Analyze**: Sort by Priority, Holdings, or FC Followers to find your best outreach targets
+6. **Export**: Download full CSV or Twitter handles list
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Framework**: Next.js 16 with App Router
+- **Database**: Neon PostgreSQL with Drizzle ORM
+- **Styling**: Tailwind CSS v4
+- **UI Components**: Radix UI primitives
+- **APIs**: Web3.bio, Neynar, ENS
+
+---
+
+## Changelog
+
+### 2025-01-13
+
+**Add holdings, priority score, and enhanced export features** (`c1c77e2`)
+- Holdings/Value column: auto-detects value columns from CSV (Peak index DTF value, balance, holdings, etc.), displays with $X,XXX.XX formatting
+- Priority Score column: calculates `holdings × log₁₀(fcFollowers + 1)` with 5-bar visual indicator
+- Top Influencers filter: quick filter button for accounts with 1K+ Farcaster followers
+- Click-to-copy wallet: truncated `0x1234...abcd` display with clipboard copy and "Copied!" toast
+- Twitter List export: new button to generate `.txt` file with @handles (one per line) for Twitter list import
+- Enhanced CSV export: includes all columns (wallet, ens, holdings, twitter, farcaster, fc_followers, priority_score, source), sorted by priority score descending
+
+**Format codebase with Prettier** (`2bd28ff`)
+- Added Prettier configuration and formatted all source files
+
+### Previous Updates
+
+**Add Web3.bio API key support** (`f75c0fd`)
+- Support for Web3.bio API key to increase rate limits
+
+**Add warning for ENS with large wallet batches** (`2fc0aa4`)
+- Show warning when using ENS lookup with >1000 wallets (may timeout)
+
+**Speed up lookups to avoid Vercel timeout** (`b7e6899`)
+- Optimized batch processing to complete within Vercel's function timeout limits
+
+**Add ENS text record lookups for onchain Twitter handles** (`b38f945`)
+- Query ENS text records directly onchain for the most accurate Twitter handle data
+- Optional toggle (slower but more reliable than API sources)
+
+**Add Neon database integration for caching and history** (`96f3780`)
+- 24-hour result caching to speed up repeated lookups
+- Lookup history feature to save and reload previous searches
+
+**Initial commit: Wallet Social Lookup app** (`0ecff9d`)
+- Core wallet-to-social lookup functionality
+- Web3.bio and Neynar API integration
+- CSV upload and export
+
+---
+
+## License
+
+MIT
+
+## Author
+
+Made with care by [@starl3xx](https://x.com/starl3xx)
