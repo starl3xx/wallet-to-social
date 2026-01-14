@@ -10,7 +10,11 @@ interface ExportButtonProps {
   disabled?: boolean;
 }
 
-export function ExportButton({ results, extraColumns = [], disabled }: ExportButtonProps) {
+export function ExportButton({
+  results,
+  extraColumns = [],
+  disabled,
+}: ExportButtonProps) {
   const handleExport = () => {
     const headers = [
       'wallet',

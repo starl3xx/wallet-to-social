@@ -59,7 +59,10 @@ export async function fetchNeynarBatch(
   }
 }
 
-export function parseNeynarUser(users: NeynarUser[] | undefined, wallet: string): NeynarResult | null {
+export function parseNeynarUser(
+  users: NeynarUser[] | undefined,
+  wallet: string
+): NeynarResult | null {
   if (!users || users.length === 0) return null;
 
   // Get the first user (primary)

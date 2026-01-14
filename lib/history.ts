@@ -19,8 +19,8 @@ export async function saveLookup(
   const db = getDb();
   if (!db) return null;
 
-  const twitterFound = results.filter(r => r.twitter_handle).length;
-  const farcasterFound = results.filter(r => r.farcaster).length;
+  const twitterFound = results.filter((r) => r.twitter_handle).length;
+  const farcasterFound = results.filter((r) => r.farcaster).length;
 
   const [inserted] = await db
     .insert(lookupHistory)
@@ -46,7 +46,7 @@ export async function getLookupHistory(limit = 10): Promise<SavedLookup[]> {
     .orderBy(desc(lookupHistory.createdAt))
     .limit(limit);
 
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     name: row.name,
     walletCount: row.walletCount,

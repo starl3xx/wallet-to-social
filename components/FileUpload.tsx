@@ -136,9 +136,7 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
             </>
           )}
 
-          {error && (
-            <p className="text-sm text-destructive mt-4">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive mt-4">{error}</p>}
         </div>
       </CardContent>
     </Card>

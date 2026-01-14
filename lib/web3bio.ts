@@ -30,19 +30,24 @@ export interface Web3BioResult {
 const RATE_LIMIT_DELAY = 20; // ms between batches
 const MAX_CONCURRENT = 50; // Higher with API key
 
-export async function fetchWeb3BioProfile(walletOrEns: string): Promise<Web3BioProfile[] | null> {
+export async function fetchWeb3BioProfile(
+  walletOrEns: string
+): Promise<Web3BioProfile[] | null> {
   try {
     const headers: Record<string, string> = {
-      'Accept': 'application/json',
+      Accept: 'application/json',
     };
 
     if (process.env.WEB3BIO_API_KEY) {
       headers['X-API-Key'] = process.env.WEB3BIO_API_KEY;
     }
 
-    const response = await fetch(`https://api.web3.bio/profile/${walletOrEns}`, {
-      headers,
-    });
+    const response = await fetch(
+      `https://api.web3.bio/profile/${walletOrEns}`,
+      {
+        headers,
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -59,7 +64,10 @@ export async function fetchWeb3BioProfile(walletOrEns: string): Promise<Web3BioP
   }
 }
 
-export function parseWeb3BioProfiles(profiles: Web3BioProfile[] | null, wallet: string): Web3BioResult | null {
+export function parseWeb3BioProfiles(
+  profiles: Web3BioProfile[] | null,
+  wallet: string
+): Web3BioResult | null {
   if (!profiles || profiles.length === 0) return null;
 
   const result: Web3BioResult = {
@@ -78,14 +86,17 @@ export function parseWeb3BioProfiles(profiles: Web3BioProfile[] | null, wallet: 
       const cleaned = cleanTwitterHandle(profile.links.twitter.handle);
       if (cleaned) {
         result.twitter_handle = cleaned;
-        result.twitter_url = profile.links.twitter.link || `https://x.com/${cleaned}`;
+        result.twitter_url =
+          profile.links.twitter.link || `https://x.com/${cleaned}`;
       }
     }
 
     // Get Farcaster
     if (profile.links?.farcaster?.handle) {
       result.farcaster = profile.links.farcaster.handle;
-      result.farcaster_url = profile.links.farcaster.link || `https://warpcast.com/${profile.links.farcaster.handle}`;
+      result.farcaster_url =
+        profile.links.farcaster.link ||
+        `https://warpcast.com/${profile.links.farcaster.handle}`;
     }
 
     // Get Lens
@@ -100,7 +111,13 @@ export function parseWeb3BioProfiles(profiles: Web3BioProfile[] | null, wallet: 
   }
 
   // Only return if we found something useful
-  if (result.ens_name || result.twitter_handle || result.farcaster || result.lens || result.github) {
+  if (
+    result.ens_name ||
+    result.twitter_handle ||
+    result.farcaster ||
+    result.lens ||
+    result.github
+  ) {
     return result;
   }
 

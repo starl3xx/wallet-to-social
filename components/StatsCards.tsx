@@ -22,7 +22,11 @@ export function StatsCards({ results }: StatsCardsProps) {
   const cards = [
     { title: 'Total Wallets', value: stats.total, color: 'text-foreground' },
     { title: 'Twitter Found', value: stats.twitter, color: 'text-blue-500' },
-    { title: 'Farcaster Found', value: stats.farcaster, color: 'text-purple-500' },
+    {
+      title: 'Farcaster Found',
+      value: stats.farcaster,
+      color: 'text-purple-500',
+    },
     { title: 'Any Social', value: stats.anySocial, color: 'text-green-500' },
   ];
 

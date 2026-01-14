@@ -11,9 +11,10 @@ interface ProgressBarProps {
 }
 
 export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
-  const percentage = progress.total > 0
-    ? Math.round((progress.processed / progress.total) * 100)
-    : 0;
+  const percentage =
+    progress.total > 0
+      ? Math.round((progress.processed / progress.total) * 100)
+      : 0;
 
   return (
     <Card>
@@ -22,10 +23,12 @@ export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">
-                Processing {progress.processed.toLocaleString()} / {progress.total.toLocaleString()} wallets
+                Processing {progress.processed.toLocaleString()} /{' '}
+                {progress.total.toLocaleString()} wallets
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Found {progress.twitterFound.toLocaleString()} Twitter handles, {progress.farcasterFound.toLocaleString()} Farcaster profiles
+                Found {progress.twitterFound.toLocaleString()} Twitter handles,{' '}
+                {progress.farcasterFound.toLocaleString()} Farcaster profiles
               </p>
             </div>
             {progress.status === 'processing' && onCancel && (
@@ -42,9 +45,7 @@ export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
               {percentage}% complete
             </span>
             {progress.message && (
-              <span className="text-muted-foreground">
-                {progress.message}
-              </span>
+              <span className="text-muted-foreground">{progress.message}</span>
             )}
           </div>
         </div>

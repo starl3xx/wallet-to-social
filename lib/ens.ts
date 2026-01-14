@@ -51,20 +51,26 @@ export async function getENSTextRecords(ensName: string): Promise<{
   email: string | null;
 }> {
   const provider = getProvider();
-  const result = { twitter: null as string | null, url: null as string | null, github: null as string | null, email: null as string | null };
+  const result = {
+    twitter: null as string | null,
+    url: null as string | null,
+    github: null as string | null,
+    email: null as string | null,
+  };
 
   try {
     const resolver = await provider.getResolver(ensName);
     if (!resolver) return result;
 
-    const [twitter1, twitter2, twitter3, url, github, email] = await Promise.allSettled([
-      resolver.getText('com.twitter'),
-      resolver.getText('twitter'),
-      resolver.getText('vnd.twitter'),
-      resolver.getText('url'),
-      resolver.getText('com.github'),
-      resolver.getText('email'),
-    ]);
+    const [twitter1, twitter2, twitter3, url, github, email] =
+      await Promise.allSettled([
+        resolver.getText('com.twitter'),
+        resolver.getText('twitter'),
+        resolver.getText('vnd.twitter'),
+        resolver.getText('url'),
+        resolver.getText('com.github'),
+        resolver.getText('email'),
+      ]);
 
     // Find first valid Twitter handle
     for (const t of [twitter1, twitter2, twitter3]) {
@@ -137,7 +143,7 @@ export async function batchLookupENS(
     const batch = wallets.slice(i, i + batchSize);
 
     const batchResults = await Promise.allSettled(
-      batch.map(wallet => lookupWalletENS(wallet))
+      batch.map((wallet) => lookupWalletENS(wallet))
     );
 
     for (const result of batchResults) {
@@ -154,7 +160,7 @@ export async function batchLookupENS(
 
     // Small delay between batches
     if (i + batchSize < wallets.length) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 

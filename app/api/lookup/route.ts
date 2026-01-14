@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
 
       try {
         const body: LookupRequest = await request.json();
-        const { wallets, originalData = {}, saveToHistory = false, historyName, includeENS = false } = body;
+        const {
+          wallets,
+          originalData = {},
+          saveToHistory = false,
+          historyName,
+          includeENS = false,
+        } = body;
 
         if (!wallets || wallets.length === 0) {
           sendEvent('error', { message: 'No wallets provided' });
@@ -81,19 +87,27 @@ export async function POST(request: NextRequest) {
             }
 
             // Filter to uncached wallets only
-            uncachedWallets = wallets.filter(w => !cached.has(w.toLowerCase()));
+            uncachedWallets = wallets.filter(
+              (w) => !cached.has(w.toLowerCase())
+            );
 
             sendEvent('progress', {
               stage: 'cache',
               processed: wallets.length,
               total: wallets.length,
-              twitterFound: Array.from(cached.values()).filter(r => r.twitter_handle).length,
-              farcasterFound: Array.from(cached.values()).filter(r => r.farcaster).length,
+              twitterFound: Array.from(cached.values()).filter(
+                (r) => r.twitter_handle
+              ).length,
+              farcasterFound: Array.from(cached.values()).filter(
+                (r) => r.farcaster
+              ).length,
               message: `Cache: ${cacheHits} hits, ${uncachedWallets.length} to lookup`,
             });
           } catch (error) {
             console.error('Cache error:', error);
-            sendEvent('warning', { message: 'Cache unavailable, fetching all wallets' });
+            sendEvent('warning', {
+              message: 'Cache unavailable, fetching all wallets',
+            });
           }
         }
 
@@ -111,16 +125,19 @@ export async function POST(request: NextRequest) {
             });
 
             try {
-              const ensResults = await batchLookupENS(uncachedWallets, (processed, found) => {
-                sendEvent('progress', {
-                  stage: 'ens',
-                  processed,
-                  total: uncachedWallets.length,
-                  twitterFound: found,
-                  farcasterFound: 0,
-                  message: `ENS: ${processed}/${uncachedWallets.length} processed`,
-                });
-              });
+              const ensResults = await batchLookupENS(
+                uncachedWallets,
+                (processed, found) => {
+                  sendEvent('progress', {
+                    stage: 'ens',
+                    processed,
+                    total: uncachedWallets.length,
+                    twitterFound: found,
+                    farcasterFound: 0,
+                    message: `ENS: ${processed}/${uncachedWallets.length} processed`,
+                  });
+                }
+              );
 
               // Merge ENS results (highest priority for Twitter)
               for (const [wallet, data] of ensResults) {
@@ -136,7 +153,9 @@ export async function POST(request: NextRequest) {
               }
             } catch (error) {
               console.error('ENS lookup error:', error);
-              sendEvent('warning', { message: 'ENS lookup failed - continuing with other sources' });
+              sendEvent('warning', {
+                message: 'ENS lookup failed - continuing with other sources',
+              });
             }
           }
 
@@ -150,16 +169,19 @@ export async function POST(request: NextRequest) {
             message: 'Starting Web3.bio lookups...',
           });
 
-          const web3BioResults = await batchFetchWeb3Bio(uncachedWallets, (processed, found) => {
-            sendEvent('progress', {
-              stage: 'web3bio',
-              processed,
-              total: uncachedWallets.length,
-              twitterFound: found,
-              farcasterFound: 0,
-              message: `Web3.bio: ${processed}/${uncachedWallets.length} processed`,
-            });
-          });
+          const web3BioResults = await batchFetchWeb3Bio(
+            uncachedWallets,
+            (processed, found) => {
+              sendEvent('progress', {
+                stage: 'web3bio',
+                processed,
+                total: uncachedWallets.length,
+                twitterFound: found,
+                farcasterFound: 0,
+                message: `Web3.bio: ${processed}/${uncachedWallets.length} processed`,
+              });
+            }
+          );
 
           // Merge Web3.bio results (fills gaps from ENS)
           for (const [wallet, data] of web3BioResults) {
@@ -211,7 +233,8 @@ export async function POST(request: NextRequest) {
                 const existing = results.get(wallet)!;
                 results.set(wallet, {
                   ...existing,
-                  twitter_handle: existing.twitter_handle || data.twitter_handle,
+                  twitter_handle:
+                    existing.twitter_handle || data.twitter_handle,
                   twitter_url: existing.twitter_url || data.twitter_url,
                   farcaster: data.farcaster || existing.farcaster,
                   farcaster_url: data.farcaster_url || existing.farcaster_url,
@@ -229,7 +252,8 @@ export async function POST(request: NextRequest) {
             }
           } else {
             sendEvent('warning', {
-              message: 'Neynar API key not configured - skipping Farcaster lookups',
+              message:
+                'Neynar API key not configured - skipping Farcaster lookups',
             });
           }
 
@@ -237,12 +261,16 @@ export async function POST(request: NextRequest) {
           if (dbConfigured) {
             try {
               const newResults = uncachedWallets
-                .map(w => results.get(w.toLowerCase())!)
-                .filter(r => r.source.length > 0 && !r.source.includes('cache'));
+                .map((w) => results.get(w.toLowerCase())!)
+                .filter(
+                  (r) => r.source.length > 0 && !r.source.includes('cache')
+                );
 
               if (newResults.length > 0) {
                 await cacheWalletResults(newResults);
-                sendEvent('info', { message: `Cached ${newResults.length} new results` });
+                sendEvent('info', {
+                  message: `Cached ${newResults.length} new results`,
+                });
               }
             } catch (error) {
               console.error('Cache write error:', error);
@@ -252,7 +280,9 @@ export async function POST(request: NextRequest) {
 
         // Calculate final stats
         const finalResults = Array.from(results.values());
-        const twitterCount = finalResults.filter((r) => r.twitter_handle).length;
+        const twitterCount = finalResults.filter(
+          (r) => r.twitter_handle
+        ).length;
         const farcasterCount = finalResults.filter((r) => r.farcaster).length;
 
         // Save to history if requested
@@ -281,7 +311,8 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Lookup error:', error);
         sendEvent('error', {
-          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          message:
+            error instanceof Error ? error.message : 'Unknown error occurred',
         });
       } finally {
         controller.close();

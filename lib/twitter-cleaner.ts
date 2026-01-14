@@ -1,4 +1,6 @@
-export function cleanTwitterHandle(handle: string | null | undefined): string | null {
+export function cleanTwitterHandle(
+  handle: string | null | undefined
+): string | null {
   if (!handle) return null;
 
   let clean = handle.toLowerCase().trim();

@@ -4,12 +4,14 @@ import type { WalletSocialResult } from './types';
 
 const CACHE_TTL_HOURS = 24;
 
-export async function getCachedWallets(wallets: string[]): Promise<Map<string, WalletSocialResult>> {
+export async function getCachedWallets(
+  wallets: string[]
+): Promise<Map<string, WalletSocialResult>> {
   const db = getDb();
   if (!db || wallets.length === 0) return new Map();
 
   const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
-  const lowercaseWallets = wallets.map(w => w.toLowerCase());
+  const lowercaseWallets = wallets.map((w) => w.toLowerCase());
 
   try {
     const cached = await db
@@ -44,12 +46,14 @@ export async function getCachedWallets(wallets: string[]): Promise<Map<string, W
   }
 }
 
-export async function cacheWalletResults(results: WalletSocialResult[]): Promise<void> {
+export async function cacheWalletResults(
+  results: WalletSocialResult[]
+): Promise<void> {
   const db = getDb();
   if (!db || results.length === 0) return;
 
   try {
-    const rows: NewWalletCache[] = results.map(r => ({
+    const rows: NewWalletCache[] = results.map((r) => ({
       wallet: r.wallet.toLowerCase(),
       ensName: r.ens_name ?? null,
       twitterHandle: r.twitter_handle ?? null,
@@ -97,9 +101,7 @@ export async function cleanExpiredCache(): Promise<number> {
   const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
 
   try {
-    await db
-      .delete(walletCache)
-      .where(lt(walletCache.cachedAt, cutoff));
+    await db.delete(walletCache).where(lt(walletCache.cachedAt, cutoff));
 
     return 0;
   } catch (error) {
@@ -108,7 +110,10 @@ export async function cleanExpiredCache(): Promise<number> {
   }
 }
 
-export async function getCacheStats(): Promise<{ total: number; recentHits: number }> {
+export async function getCacheStats(): Promise<{
+  total: number;
+  recentHits: number;
+}> {
   const db = getDb();
   if (!db) return { total: 0, recentHits: 0 };
 
@@ -116,7 +121,7 @@ export async function getCacheStats(): Promise<{ total: number; recentHits: numb
     const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
 
     const all = await db.select().from(walletCache);
-    const valid = all.filter(row => row.cachedAt >= cutoff);
+    const valid = all.filter((row) => row.cachedAt >= cutoff);
 
     return {
       total: all.length,

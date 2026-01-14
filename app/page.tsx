@@ -17,7 +17,9 @@ type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
 export default function Home() {
   const [state, setState] = useState<AppState>('upload');
   const [wallets, setWallets] = useState<string[]>([]);
-  const [originalData, setOriginalData] = useState<Record<string, Record<string, string>>>({});
+  const [originalData, setOriginalData] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [extraColumns, setExtraColumns] = useState<string[]>([]);
   const [results, setResults] = useState<WalletSocialResult[]>([]);
   const [progress, setProgress] = useState<LookupProgress>({
@@ -202,12 +204,15 @@ export default function Home() {
     setState('upload');
   }, []);
 
-  const handleLoadHistory = useCallback((loadedResults: WalletSocialResult[]) => {
-    setResults(loadedResults);
-    setExtraColumns([]);
-    setCacheHits(0);
-    setState('complete');
-  }, []);
+  const handleLoadHistory = useCallback(
+    (loadedResults: WalletSocialResult[]) => {
+      setResults(loadedResults);
+      setExtraColumns([]);
+      setCacheHits(0);
+      setState('complete');
+    },
+    []
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,7 +220,8 @@ export default function Home() {
         <header className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Wallet → Social lookup</h1>
           <p className="text-muted-foreground">
-            Upload a CSV of Ethereum wallet addresses to find associated 𝕏/Twitter + Farcaster profiles
+            Upload a CSV of Ethereum wallet addresses to find associated
+            𝕏/Twitter + Farcaster profiles
           </p>
         </header>
 
@@ -269,13 +275,18 @@ export default function Home() {
                       onChange={(e) => setIncludeENS(e.target.checked)}
                       className="rounded"
                     />
-                    <label htmlFor="includeENS" className="text-sm" title="Query ENS text records onchain for Twitter handles (slower but most accurate)">
+                    <label
+                      htmlFor="includeENS"
+                      className="text-sm"
+                      title="Query ENS text records onchain for Twitter handles (slower but most accurate)"
+                    >
                       ENS onchain lookup
                     </label>
                   </div>
                   {includeENS && wallets.length > 1000 && (
                     <span className="text-xs text-amber-600 dark:text-amber-400">
-                      ⚠️ ENS is slow for {wallets.length.toLocaleString()} wallets - may timeout
+                      ⚠️ ENS is slow for {wallets.length.toLocaleString()}{' '}
+                      wallets - may timeout
                     </span>
                   )}
                   {saveToHistory && (

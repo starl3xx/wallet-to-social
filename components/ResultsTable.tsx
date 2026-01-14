@@ -18,10 +18,18 @@ interface ResultsTableProps {
   extraColumns?: string[];
 }
 
-type SortField = 'wallet' | 'twitter_handle' | 'farcaster' | 'fc_followers' | 'ens_name';
+type SortField =
+  | 'wallet'
+  | 'twitter_handle'
+  | 'farcaster'
+  | 'fc_followers'
+  | 'ens_name';
 type SortDirection = 'asc' | 'desc';
 
-export function ResultsTable({ results, extraColumns = [] }: ResultsTableProps) {
+export function ResultsTable({
+  results,
+  extraColumns = [],
+}: ResultsTableProps) {
   const [search, setSearch] = useState('');
   const [showOnlyTwitter, setShowOnlyTwitter] = useState(false);
   const [sortField, setSortField] = useState<SortField>('wallet');
@@ -171,7 +179,9 @@ export function ResultsTable({ results, extraColumns = [] }: ResultsTableProps) 
                 filteredAndSorted.map((result) => (
                   <TableRow key={result.wallet}>
                     <TableCell className="font-mono text-xs">
-                      <span title={result.wallet}>{truncateWallet(result.wallet)}</span>
+                      <span title={result.wallet}>
+                        {truncateWallet(result.wallet)}
+                      </span>
                     </TableCell>
                     <TableCell>{result.ens_name || '-'}</TableCell>
                     {extraColumns.map((col) => (
@@ -182,7 +192,10 @@ export function ResultsTable({ results, extraColumns = [] }: ResultsTableProps) 
                     <TableCell>
                       {result.twitter_handle ? (
                         <a
-                          href={result.twitter_url || `https://x.com/${result.twitter_handle}`}
+                          href={
+                            result.twitter_url ||
+                            `https://x.com/${result.twitter_handle}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-500 hover:underline"
@@ -196,7 +209,10 @@ export function ResultsTable({ results, extraColumns = [] }: ResultsTableProps) 
                     <TableCell>
                       {result.farcaster ? (
                         <a
-                          href={result.farcaster_url || `https://warpcast.com/${result.farcaster}`}
+                          href={
+                            result.farcaster_url ||
+                            `https://warpcast.com/${result.farcaster}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-purple-500 hover:underline"

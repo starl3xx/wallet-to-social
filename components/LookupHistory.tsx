@@ -88,10 +88,12 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
           >
             <div>
               <p className="font-medium text-sm">
-                {lookup.name || `${lookup.walletCount.toLocaleString()} wallets`}
+                {lookup.name ||
+                  `${lookup.walletCount.toLocaleString()} wallets`}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDate(lookup.createdAt)} · {lookup.twitterFound} Twitter, {lookup.farcasterFound} Farcaster
+                {formatDate(lookup.createdAt)} · {lookup.twitterFound} Twitter,{' '}
+                {lookup.farcasterFound} Farcaster
               </p>
             </div>
             <Button

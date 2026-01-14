@@ -56,7 +56,11 @@ export function parseCSV(content: string): ParseResult {
   }
 
   if (rows.length === 0) {
-    return { rows: [], headers: [], error: 'No valid wallet addresses found in CSV' };
+    return {
+      rows: [],
+      headers: [],
+      error: 'No valid wallet addresses found in CSV',
+    };
   }
 
   // Deduplicate by wallet address
@@ -66,7 +70,9 @@ export function parseCSV(content: string): ParseResult {
 
   return {
     rows: uniqueRows,
-    headers: headers.filter((_, i) => i !== walletColumnIndex || headers[i].toLowerCase() !== 'wallet'),
+    headers: headers.filter(
+      (_, i) => i !== walletColumnIndex || headers[i].toLowerCase() !== 'wallet'
+    ),
   };
 }
 
@@ -101,7 +107,10 @@ function isValidEthAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
 
-export function exportToCSV(data: Record<string, unknown>[], headers: string[]): string {
+export function exportToCSV(
+  data: Record<string, unknown>[],
+  headers: string[]
+): string {
   const csvRows: string[] = [];
 
   // Add header row
