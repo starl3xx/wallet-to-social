@@ -42,6 +42,7 @@ export default function Home() {
   const [lookupName, setLookupName] = useState('');
   const [notifyOnComplete, setNotifyOnComplete] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -89,6 +90,7 @@ export default function Home() {
     setResults([]);
     setCacheHits(0);
     setJobId(null);
+    setDisplayedProcessed(0);
     setProgress({
       total: wallets.length,
       processed: 0,
@@ -209,6 +211,28 @@ export default function Home() {
       }
     };
   }, [jobId, state, notifyOnComplete]);
+
+  // Animate progress counter smoothly toward real value
+  useEffect(() => {
+    if (state !== 'processing') {
+      setDisplayedProcessed(progress.processed);
+      return;
+    }
+
+    // If we're behind the real progress, animate toward it
+    if (displayedProcessed < progress.processed) {
+      const diff = progress.processed - displayedProcessed;
+      const increment = Math.max(1, Math.ceil(diff / 20)); // Catch up in ~20 frames
+
+      const timer = setTimeout(() => {
+        setDisplayedProcessed((prev) =>
+          Math.min(prev + increment, progress.processed)
+        );
+      }, 50); // 20fps animation
+
+      return () => clearTimeout(timer);
+    }
+  }, [displayedProcessed, progress.processed, state]);
 
   const handleCancel = useCallback(() => {
     // Stop polling
@@ -377,7 +401,7 @@ export default function Home() {
 
           {/* Processing State */}
           {state === 'processing' && (
-            <ProgressBar progress={progress} onCancel={handleCancel} />
+            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} onCancel={handleCancel} />
           )}
 
           {/* Error State */}

@@ -7,13 +7,15 @@ import type { LookupProgress } from '@/lib/types';
 
 interface ProgressBarProps {
   progress: LookupProgress;
+  displayedProcessed?: number;
   onCancel?: () => void;
 }
 
-export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
+export function ProgressBar({ progress, displayedProcessed, onCancel }: ProgressBarProps) {
+  const processed = displayedProcessed ?? progress.processed;
   const percentage =
     progress.total > 0
-      ? Math.round((progress.processed / progress.total) * 100)
+      ? Math.round((processed / progress.total) * 100)
       : 0;
 
   return (
@@ -23,7 +25,7 @@ export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">
-                Processing {progress.processed.toLocaleString()} /{' '}
+                Processing {processed.toLocaleString()} /{' '}
                 {progress.total.toLocaleString()} wallets
               </p>
               <p className="text-sm text-muted-foreground mt-1">

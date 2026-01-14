@@ -79,6 +79,10 @@ npm run db:push
 
 ### 2025-01-14
 
+**Smooth progress bar animation**
+- Progress counter animates smoothly instead of jumping in chunks
+- Creates responsive feel during batch processing
+
 **Add background job queue for large wallet lookups**
 - New job queue system handles batches of any size without timeout
 - Vercel Cron worker processes jobs in chunks (2000 wallets per invocation)
