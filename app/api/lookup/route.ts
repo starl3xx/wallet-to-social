@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar } from '@/lib/neynar';
+import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
 import type { WalletSocialResult } from '@/lib/types';
@@ -13,6 +14,7 @@ interface LookupRequest {
   originalData?: Record<string, Record<string, string>>;
   saveToHistory?: boolean;
   historyName?: string;
+  includeENS?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
 
       try {
         const body: LookupRequest = await request.json();
-        const { wallets, originalData = {}, saveToHistory = false, historyName } = body;
+        const { wallets, originalData = {}, saveToHistory = false, historyName, includeENS = false } = body;
 
         if (!wallets || wallets.length === 0) {
           sendEvent('error', { message: 'No wallets provided' });
@@ -97,6 +99,48 @@ export async function POST(request: NextRequest) {
 
         // Only fetch uncached wallets
         if (uncachedWallets.length > 0) {
+          // ENS lookups (optional, most reliable for Twitter)
+          if (includeENS) {
+            sendEvent('progress', {
+              stage: 'ens',
+              processed: 0,
+              total: uncachedWallets.length,
+              twitterFound: 0,
+              farcasterFound: 0,
+              message: 'Starting ENS onchain lookups...',
+            });
+
+            try {
+              const ensResults = await batchLookupENS(uncachedWallets, (processed, found) => {
+                sendEvent('progress', {
+                  stage: 'ens',
+                  processed,
+                  total: uncachedWallets.length,
+                  twitterFound: found,
+                  farcasterFound: 0,
+                  message: `ENS: ${processed}/${uncachedWallets.length} processed`,
+                });
+              });
+
+              // Merge ENS results (highest priority for Twitter)
+              for (const [wallet, data] of ensResults) {
+                const existing = results.get(wallet)!;
+                results.set(wallet, {
+                  ...existing,
+                  ens_name: data.ensName || existing.ens_name,
+                  twitter_handle: data.twitter || existing.twitter_handle,
+                  twitter_url: data.twitterUrl || existing.twitter_url,
+                  github: data.github || existing.github,
+                  source: [...existing.source, 'ens'],
+                });
+              }
+            } catch (error) {
+              console.error('ENS lookup error:', error);
+              sendEvent('warning', { message: 'ENS lookup failed - continuing with other sources' });
+            }
+          }
+
+          // Web3.bio lookups
           sendEvent('progress', {
             stage: 'web3bio',
             processed: 0,
@@ -106,7 +150,6 @@ export async function POST(request: NextRequest) {
             message: 'Starting Web3.bio lookups...',
           });
 
-          // Fetch from Web3.bio
           const web3BioResults = await batchFetchWeb3Bio(uncachedWallets, (processed, found) => {
             sendEvent('progress', {
               stage: 'web3bio',
@@ -118,19 +161,21 @@ export async function POST(request: NextRequest) {
             });
           });
 
-          // Merge Web3.bio results
+          // Merge Web3.bio results (fills gaps from ENS)
           for (const [wallet, data] of web3BioResults) {
             const existing = results.get(wallet)!;
             results.set(wallet, {
               ...existing,
-              ens_name: data.ens_name || existing.ens_name,
-              twitter_handle: data.twitter_handle || existing.twitter_handle,
-              twitter_url: data.twitter_url || existing.twitter_url,
+              ens_name: existing.ens_name || data.ens_name,
+              twitter_handle: existing.twitter_handle || data.twitter_handle,
+              twitter_url: existing.twitter_url || data.twitter_url,
               farcaster: data.farcaster || existing.farcaster,
               farcaster_url: data.farcaster_url || existing.farcaster_url,
               lens: data.lens || existing.lens,
-              github: data.github || existing.github,
-              source: [...existing.source, 'web3bio'],
+              github: existing.github || data.github,
+              source: existing.source.includes('web3bio')
+                ? existing.source
+                : [...existing.source, 'web3bio'],
             });
           }
 
@@ -179,7 +224,7 @@ export async function POST(request: NextRequest) {
             } catch (error) {
               console.error('Neynar fetch error:', error);
               sendEvent('warning', {
-                message: 'Neynar API error - continuing with Web3.bio results only',
+                message: 'Neynar API error - continuing with other results',
               });
             }
           } else {

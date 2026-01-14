@@ -30,6 +30,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [cacheHits, setCacheHits] = useState(0);
   const [saveToHistory, setSaveToHistory] = useState(true);
+  const [includeENS, setIncludeENS] = useState(false);
   const [lookupName, setLookupName] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -89,6 +90,7 @@ export default function Home() {
           originalData,
           saveToHistory,
           historyName: lookupName || undefined,
+          includeENS,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -175,7 +177,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName]);
+  }, [wallets, originalData, saveToHistory, lookupName, includeENS]);
 
   const handleCancel = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -189,6 +191,7 @@ export default function Home() {
     setError(null);
     setCacheHits(0);
     setLookupName('');
+    setIncludeENS(false);
     setProgress({
       total: 0,
       processed: 0,
@@ -245,7 +248,7 @@ export default function Home() {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-4 pt-2 border-t">
+                <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -256,6 +259,18 @@ export default function Home() {
                     />
                     <label htmlFor="saveHistory" className="text-sm">
                       Save to history
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="includeENS"
+                      checked={includeENS}
+                      onChange={(e) => setIncludeENS(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label htmlFor="includeENS" className="text-sm" title="Query ENS text records onchain for Twitter handles (slower but most accurate)">
+                      ENS onchain lookup
                     </label>
                   </div>
                   {saveToHistory && (
