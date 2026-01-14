@@ -1,0 +1,54 @@
+'use client';
+
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import type { LookupProgress } from '@/lib/types';
+
+interface ProgressBarProps {
+  progress: LookupProgress;
+  onCancel?: () => void;
+}
+
+export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
+  const percentage = progress.total > 0
+    ? Math.round((progress.processed / progress.total) * 100)
+    : 0;
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                Processing {progress.processed.toLocaleString()} / {progress.total.toLocaleString()} wallets
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Found {progress.twitterFound.toLocaleString()} Twitter handles, {progress.farcasterFound.toLocaleString()} Farcaster profiles
+              </p>
+            </div>
+            {progress.status === 'processing' && onCancel && (
+              <Button variant="outline" size="sm" onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
+          </div>
+
+          <Progress value={percentage} className="h-2" />
+
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {percentage}% complete
+            </span>
+            {progress.message && (
+              <span className="text-muted-foreground">
+                {progress.message}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
