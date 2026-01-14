@@ -122,4 +122,4 @@ MIT
 
 ## Author
 
-Made with care by [@starl3xx](https://x.com/starl3xx)
+made with 🌠 by [@starl3xx](https://x.com/starl3xx)
