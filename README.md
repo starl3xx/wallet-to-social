@@ -77,6 +77,20 @@ npm run db:push
 
 ## Changelog
 
+### 2025-01-14
+
+**Add permanent social graph database** (`868e2bd`)
+- New `social_graph` table stores all wallets with discovered social accounts permanently
+- Merge & update strategy: new data fills gaps, follower counts update, existing data preserved
+- Enrichment: backfills results from social graph after API calls complete
+- Indexed on twitter_handle, farcaster, ens_name, fc_followers for future query capabilities
+- Tracks firstSeenAt, lastUpdatedAt, and lookupCount per wallet
+
+**Add dark mode with system preference toggle** (`9c414c0`)
+- Dark mode support with automatic system preference detection
+- Toggle cycles through System/Light/Dark modes
+- Preference saved to localStorage
+
 ### 2025-01-13
 
 **Add holdings, priority score, and enhanced export features** (`c1c77e2`)
