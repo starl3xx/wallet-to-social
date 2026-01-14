@@ -48,6 +48,10 @@ export function ProgressBar({ progress, onCancel }: ProgressBarProps) {
               <span className="text-muted-foreground">{progress.message}</span>
             )}
           </div>
+
+          <p className="text-xs text-muted-foreground text-center pt-2 border-t">
+            Processing in background — you can close this tab and check History later
+          </p>
         </div>
       </CardContent>
     </Card>

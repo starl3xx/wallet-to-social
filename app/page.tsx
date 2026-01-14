@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
@@ -11,6 +11,11 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseFile } from '@/lib/file-parser';
+import {
+  canNotify,
+  requestPermission,
+  sendNotification,
+} from '@/lib/notifications';
 import type { WalletSocialResult, LookupProgress } from '@/lib/types';
 
 type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
@@ -35,6 +40,9 @@ export default function Home() {
   const [saveToHistory, setSaveToHistory] = useState(true);
   const [includeENS, setIncludeENS] = useState(false);
   const [lookupName, setLookupName] = useState('');
+  const [notifyOnComplete, setNotifyOnComplete] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleFileLoaded = useCallback(async (file: File) => {
@@ -80,18 +88,19 @@ export default function Home() {
     setState('processing');
     setResults([]);
     setCacheHits(0);
+    setJobId(null);
     setProgress({
       total: wallets.length,
       processed: 0,
       twitterFound: 0,
       farcasterFound: 0,
       status: 'processing',
+      message: 'Submitting job...',
     });
 
-    abortControllerRef.current = new AbortController();
-
     try {
-      const response = await fetch('/api/lookup', {
+      // Submit job to queue
+      const response = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,98 +110,124 @@ export default function Home() {
           historyName: lookupName || undefined,
           includeENS,
         }),
-        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
+        const error = await response.json();
+        throw new Error(error.error || `HTTP error: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-
-          const eventMatch = line.match(/^event: (.+)$/m);
-          const dataMatch = line.match(/^data: (.+)$/m);
-
-          if (!eventMatch || !dataMatch) continue;
-
-          const event = eventMatch[1];
-          const data = JSON.parse(dataMatch[1]);
-
-          switch (event) {
-            case 'progress':
-              setProgress((prev) => ({
-                ...prev,
-                processed: data.processed,
-                twitterFound: data.twitterFound,
-                farcasterFound: data.farcasterFound,
-                message: data.message,
-              }));
-              break;
-
-            case 'complete':
-              setResults(data.results);
-              setCacheHits(data.stats.cacheHits || 0);
-              setProgress((prev) => ({
-                ...prev,
-                status: 'complete',
-                processed: data.stats.total,
-                twitterFound: data.stats.twitterFound,
-                farcasterFound: data.stats.farcasterFound,
-              }));
-              setState('complete');
-              break;
-
-            case 'warning':
-              console.warn('Warning:', data.message);
-              break;
-
-            case 'info':
-              console.info('Info:', data.message);
-              break;
-
-            case 'error':
-              throw new Error(data.message);
-          }
-        }
-      }
+      const { jobId: newJobId } = await response.json();
+      setJobId(newJobId);
+      setProgress((prev) => ({
+        ...prev,
+        message: 'Job queued - processing will start shortly...',
+      }));
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setProgress((prev) => ({ ...prev, status: 'cancelled' }));
-        setState('ready');
-        return;
-      }
-
-      console.error('Lookup error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Job submission error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit job');
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
   }, [wallets, originalData, saveToHistory, lookupName, includeENS]);
 
+  // Poll for job status when jobId is set
+  useEffect(() => {
+    if (!jobId || state !== 'processing') {
+      return;
+    }
+
+    const pollJobStatus = async () => {
+      try {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Update progress
+        setProgress((prev) => ({
+          ...prev,
+          processed: data.progress.processed,
+          total: data.progress.total,
+          twitterFound: data.stats.twitterFound,
+          farcasterFound: data.stats.farcasterFound,
+          message: data.progress.stage
+            ? `Processing: ${data.progress.stage} (${data.progress.processed}/${data.progress.total})`
+            : `Processing ${data.progress.processed}/${data.progress.total} wallets...`,
+        }));
+
+        if (data.status === 'completed') {
+          // Job complete - stop polling and show results
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+
+          setResults(data.results || []);
+          setCacheHits(data.stats.cacheHits || 0);
+          setProgress((prev) => ({
+            ...prev,
+            status: 'complete',
+            processed: data.progress.total,
+          }));
+          setState('complete');
+
+          // Send browser notification if enabled
+          if (notifyOnComplete) {
+            sendNotification('Lookup Complete', {
+              body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
+            });
+          }
+        } else if (data.status === 'failed') {
+          // Job failed - stop polling and show error
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+
+          setError(data.error || 'Job failed');
+          setProgress((prev) => ({ ...prev, status: 'error' }));
+          setState('error');
+        }
+        // If still pending/processing, continue polling
+      } catch (err) {
+        console.error('Poll error:', err);
+        // Don't stop polling on transient errors
+      }
+    };
+
+    // Poll immediately, then every 2 seconds
+    pollJobStatus();
+    pollingRef.current = setInterval(pollJobStatus, 2000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [jobId, state, notifyOnComplete]);
+
   const handleCancel = useCallback(() => {
-    abortControllerRef.current?.abort();
+    // Stop polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setJobId(null);
+    setProgress((prev) => ({ ...prev, status: 'cancelled' }));
+    setState('ready');
   }, []);
 
   const handleReset = useCallback(() => {
+    // Stop any active polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setJobId(null);
     setWallets([]);
     setOriginalData({});
     setExtraColumns([]);
@@ -297,9 +332,33 @@ export default function Home() {
                   </div>
                   {includeENS && wallets.length > 1000 && (
                     <span className="text-xs text-amber-600 dark:text-amber-400">
-                      ⚠️ ENS is slow for {wallets.length.toLocaleString()}{' '}
-                      wallets - may timeout
+                      Note: ENS lookups are slower for large batches
                     </span>
+                  )}
+                  {canNotify() && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="notifyOnComplete"
+                        checked={notifyOnComplete}
+                        onChange={async (e) => {
+                          if (e.target.checked) {
+                            const granted = await requestPermission();
+                            setNotifyOnComplete(granted);
+                          } else {
+                            setNotifyOnComplete(false);
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <label
+                        htmlFor="notifyOnComplete"
+                        className="text-sm"
+                        title="Get a browser notification when lookup finishes"
+                      >
+                        Notify when done
+                      </label>
+                    </div>
                   )}
                   {saveToHistory && (
                     <Input

@@ -69,6 +69,42 @@ export const socialGraph = pgTable(
   ]
 );
 
+// Background job queue for large lookups
+export const lookupJobs = pgTable(
+  'lookup_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    status: text('status').notNull().default('pending'), // pending | processing | completed | failed
+    wallets: text('wallets').array().notNull(), // full wallet list
+    originalData: jsonb('original_data'), // CSV extra columns
+    options: jsonb('options').notNull(), // {includeENS, saveToHistory, historyName}
+
+    // Progress tracking
+    processedCount: integer('processed_count').default(0).notNull(),
+    currentStage: text('current_stage'), // cache | web3bio | neynar | ens
+    partialResults: jsonb('partial_results'), // results so far (for resume)
+
+    // Stats
+    twitterFound: integer('twitter_found').default(0).notNull(),
+    farcasterFound: integer('farcaster_found').default(0).notNull(),
+    cacheHits: integer('cache_hits').default(0).notNull(),
+
+    // Timestamps
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+    // Error handling
+    errorMessage: text('error_message'),
+    retryCount: integer('retry_count').default(0).notNull(),
+  },
+  (table) => [
+    index('lookup_jobs_status_idx').on(table.status),
+    index('lookup_jobs_created_at_idx').on(table.createdAt),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -76,3 +112,5 @@ export type LookupHistory = typeof lookupHistory.$inferSelect;
 export type NewLookupHistory = typeof lookupHistory.$inferInsert;
 export type SocialGraph = typeof socialGraph.$inferSelect;
 export type NewSocialGraph = typeof socialGraph.$inferInsert;
+export type LookupJob = typeof lookupJobs.$inferSelect;
+export type NewLookupJob = typeof lookupJobs.$inferInsert;

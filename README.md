@@ -79,6 +79,21 @@ npm run db:push
 
 ### 2025-01-14
 
+**Add background job queue for large wallet lookups**
+- New job queue system handles batches of any size without timeout
+- Vercel Cron worker processes jobs in chunks (2000 wallets per invocation)
+- Jobs persist in database and resume automatically if interrupted
+- Frontend polls for progress instead of SSE streaming
+- Users can close browser tab and retrieve results from History later
+- New `lookup_jobs` table tracks job status, progress, and partial results
+- New API endpoints: `POST /api/jobs`, `GET /api/jobs/[id]`, `POST /api/jobs/worker`
+
+**Add browser notification on lookup complete**
+- Opt-in checkbox to receive browser notification when long lookups finish
+- Uses native Web Notifications API (no dependencies)
+- Shows count of Twitter/Farcaster accounts found
+- Click notification to focus the app tab
+
 **Add Excel (.xlsx) file upload support**
 - New file format support: upload .xlsx files in addition to CSV
 - Unified file parser abstraction (`lib/file-parser.ts`) for extensibility
