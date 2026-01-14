@@ -7,6 +7,7 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
 import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseCSV } from '@/lib/csv-parser';
@@ -218,11 +219,16 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Wallet → Social lookup</h1>
-          <p className="text-muted-foreground">
-            Upload a CSV of Ethereum wallet addresses to find associated
-            𝕏/Twitter + Farcaster profiles
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Wallet → Social lookup</h1>
+              <p className="text-muted-foreground">
+                Upload a CSV of Ethereum wallet addresses to find associated
+                𝕏/Twitter + Farcaster profiles
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="space-y-6">
@@ -378,7 +384,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="underline hover:text-foreground"
             >
-              starl3xx
+              @starl3xx
             </a>
           </p>
         </footer>
