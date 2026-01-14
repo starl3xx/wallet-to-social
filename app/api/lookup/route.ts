@@ -4,6 +4,11 @@ import { batchFetchNeynar } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
+import {
+  findHoldingsColumn,
+  parseHoldingsValue,
+  calculatePriorityScore,
+} from '@/lib/csv-parser';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -48,13 +53,29 @@ export async function POST(request: NextRequest) {
         const neynarApiKey = process.env.NEYNAR_API_KEY;
         const dbConfigured = !!process.env.DATABASE_URL;
 
-        // Initialize results with original data
+        // Detect holdings column from original data
+        const firstWallet = wallets[0]?.toLowerCase();
+        const firstData = originalData[firstWallet] || {};
+        const dataColumns = Object.keys(firstData);
+        const holdingsColumn = findHoldingsColumn(dataColumns);
+
+        // Initialize results with original data and parsed holdings
         for (const wallet of wallets) {
           const walletLower = wallet.toLowerCase();
+          const walletData = originalData[walletLower] || {};
+
+          // Parse holdings from the detected column
+          let holdings: number | undefined;
+          if (holdingsColumn && walletData[holdingsColumn]) {
+            holdings =
+              parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
+          }
+
           results.set(walletLower, {
             wallet: walletLower,
             source: [],
-            ...(originalData[walletLower] || {}),
+            holdings,
+            ...walletData,
           });
         }
 
@@ -276,6 +297,15 @@ export async function POST(request: NextRequest) {
               console.error('Cache write error:', error);
             }
           }
+        }
+
+        // Calculate priority scores for all results
+        for (const [wallet, result] of results) {
+          result.priority_score = calculatePriorityScore(
+            result.holdings,
+            result.fc_followers
+          );
+          results.set(wallet, result);
         }
 
         // Calculate final stats

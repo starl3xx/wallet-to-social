@@ -6,6 +6,8 @@ export interface WalletSocialResult {
   farcaster?: string;
   farcaster_url?: string;
   fc_followers?: number;
+  holdings?: number;
+  priority_score?: number;
   lens?: string;
   github?: string;
   source: string[];

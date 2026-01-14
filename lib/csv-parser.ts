@@ -107,6 +107,60 @@ function isValidEthAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
 
+// Column names that indicate holdings/value data
+const HOLDINGS_COLUMN_PATTERNS = [
+  'peak index dtf value',
+  'dtf value',
+  'value',
+  'balance',
+  'holdings',
+  'amount',
+  'usd',
+  'usd_value',
+  'usd value',
+  'total',
+  'total_value',
+  'portfolio',
+];
+
+export function findHoldingsColumn(headers: string[]): string | null {
+  const lowerHeaders = headers.map((h) => h.toLowerCase().trim());
+
+  for (const pattern of HOLDINGS_COLUMN_PATTERNS) {
+    const index = lowerHeaders.findIndex(
+      (h) => h === pattern || h.includes(pattern)
+    );
+    if (index !== -1) {
+      return headers[index];
+    }
+  }
+
+  return null;
+}
+
+export function parseHoldingsValue(value: string | undefined): number | null {
+  if (!value) return null;
+
+  // Remove currency symbols, commas, and whitespace
+  const cleaned = value.replace(/[$,\s]/g, '').trim();
+
+  // Try to parse as number
+  const num = parseFloat(cleaned);
+
+  if (isNaN(num)) return null;
+
+  return num;
+}
+
+export function calculatePriorityScore(
+  holdings: number | undefined,
+  fcFollowers: number | undefined
+): number {
+  const h = holdings || 1;
+  const f = fcFollowers || 1;
+  return h * Math.log10(f + 1);
+}
+
 export function exportToCSV(
   data: Record<string, unknown>[],
   headers: string[]
