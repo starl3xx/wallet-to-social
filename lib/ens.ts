@@ -126,8 +126,8 @@ export async function lookupWalletENS(wallet: string): Promise<ENSResult> {
 export async function batchLookupENS(
   wallets: string[],
   onProgress?: (completed: number, found: number) => void,
-  batchSize = 5,
-  delayMs = 200
+  batchSize = 20,
+  delayMs = 50
 ): Promise<Map<string, ENSResult>> {
   const results = new Map<string, ENSResult>();
   let completed = 0;
@@ -136,20 +136,23 @@ export async function batchLookupENS(
   for (let i = 0; i < wallets.length; i += batchSize) {
     const batch = wallets.slice(i, i + batchSize);
 
-    const batchResults = await Promise.all(
+    const batchResults = await Promise.allSettled(
       batch.map(wallet => lookupWalletENS(wallet))
     );
 
     for (const result of batchResults) {
-      if (result.twitter || result.ensName) {
-        results.set(result.wallet, result);
-        if (result.twitter) found++;
+      if (result.status === 'fulfilled') {
+        const data = result.value;
+        if (data.twitter || data.ensName) {
+          results.set(data.wallet, data);
+          if (data.twitter) found++;
+        }
       }
       completed++;
-      onProgress?.(completed, found);
     }
+    onProgress?.(completed, found);
 
-    // Rate limit delay
+    // Small delay between batches
     if (i + batchSize < wallets.length) {
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }

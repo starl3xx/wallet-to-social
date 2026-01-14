@@ -27,8 +27,8 @@ export interface Web3BioResult {
   source: string;
 }
 
-const RATE_LIMIT_DELAY = 100; // ms between requests
-const MAX_CONCURRENT = 10;
+const RATE_LIMIT_DELAY = 50; // ms between batches
+const MAX_CONCURRENT = 20;
 
 export async function fetchWeb3BioProfile(walletOrEns: string): Promise<Web3BioProfile[] | null> {
   try {

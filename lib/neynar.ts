@@ -23,8 +23,8 @@ export interface NeynarResult {
   source: string;
 }
 
-const BATCH_SIZE = 100; // Neynar supports up to 350, but we use smaller batches for reliability
-const RATE_LIMIT_DELAY = 500; // ms between batches
+const BATCH_SIZE = 200; // Neynar supports up to 350
+const RATE_LIMIT_DELAY = 200; // ms between batches
 
 export async function fetchNeynarBatch(
   addresses: string[],
