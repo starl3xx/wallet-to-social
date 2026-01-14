@@ -77,7 +77,7 @@ npm run db:push
 
 ## Changelog
 
-### 2025-01-15
+### 2025-01-14
 
 **Add Excel (.xlsx) file upload support**
 - New file format support: upload .xlsx files in addition to CSV
