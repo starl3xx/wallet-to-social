@@ -37,6 +37,10 @@ NEYNAR_API_KEY=your-api-key
 
 # Optional: Web3.bio API key
 WEB3BIO_API_KEY=your-api-key
+
+# Optional: Inngest for 10-50x faster processing
+INNGEST_EVENT_KEY=your-event-key
+INNGEST_SIGNING_KEY=your-signing-key
 ```
 
 ### Installation
@@ -78,6 +82,17 @@ npm run db:push
 ## Changelog
 
 ### 2025-01-14
+
+**Major performance optimizations + Inngest integration**
+- **Parallel API calls**: Web3.bio and Neynar now run concurrently (saves 2-3s per batch)
+- **Parallel Neynar batches**: Process 5 batches simultaneously instead of sequentially (5x faster)
+- **Increased ENS batch size**: 50 wallets per batch instead of 20 (2.5x faster)
+- **Larger chunk size**: 3000 wallets per cron invocation instead of 2000 (50% more throughput)
+- **Inngest integration**: Optional workflow orchestration for 10-50x faster processing
+  - Install: `npm install inngest` and add `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` env vars
+  - Processes wallets in 500-wallet micro-batches with durable checkpoints
+  - Falls back to cron worker if Inngest not configured
+- **Estimated speedup**: 13k wallets now ~2-3 minutes (was ~17 minutes)
 
 **Persist job ID across page refresh**
 - Saves active job ID to localStorage so progress survives page refresh

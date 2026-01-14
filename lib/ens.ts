@@ -132,7 +132,7 @@ export async function lookupWalletENS(wallet: string): Promise<ENSResult> {
 export async function batchLookupENS(
   wallets: string[],
   onProgress?: (completed: number, found: number) => void,
-  batchSize = 20,
+  batchSize = 50, // Increased from 20 for faster processing
   delayMs = 50
 ): Promise<Map<string, ENSResult>> {
   const results = new Map<string, ENSResult>();

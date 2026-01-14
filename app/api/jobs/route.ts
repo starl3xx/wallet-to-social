@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJob } from '@/lib/job-processor';
+import { inngest } from '@/inngest/client';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +44,18 @@ export async function POST(request: NextRequest) {
       saveToHistory,
       historyName,
     });
+
+    // Trigger Inngest function for immediate processing
+    // Falls back to cron worker if Inngest is not configured
+    try {
+      await inngest.send({
+        name: 'wallet/lookup.requested',
+        data: { jobId },
+      });
+    } catch (error) {
+      // Inngest not configured or failed - cron worker will pick up the job
+      console.log('Inngest trigger skipped (cron will process):', error instanceof Error ? error.message : error);
+    }
 
     return NextResponse.json({
       jobId,

@@ -2,7 +2,7 @@ import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
-import { batchFetchNeynar } from '@/lib/neynar';
+import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
@@ -20,7 +20,7 @@ import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 
 // Process up to this many wallets per cron invocation
-const CHUNK_SIZE = 2000;
+const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
 
 export interface JobOptions {
   includeENS?: boolean;
@@ -170,10 +170,20 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         }
       }
 
-      // Web3.bio lookups
-      await updateJobStage(db, jobId, 'web3bio');
-      const web3BioResults = await batchFetchWeb3Bio(uncachedWallets);
+      // Web3.bio + Neynar lookups in parallel
+      await updateJobStage(db, jobId, 'web3bio+neynar');
 
+      const [web3BioResults, neynarResults] = await Promise.all([
+        batchFetchWeb3Bio(uncachedWallets),
+        neynarApiKey
+          ? batchFetchNeynar(uncachedWallets, neynarApiKey).catch((error) => {
+              console.error('Neynar fetch error:', error);
+              return new Map<string, NeynarResult>();
+            })
+          : Promise.resolve(new Map<string, NeynarResult>()),
+      ]);
+
+      // Apply Web3.bio results
       for (const [wallet, data] of web3BioResults) {
         const existing = results.get(wallet)!;
         results.set(wallet, {
@@ -191,32 +201,20 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         });
       }
 
-      // Neynar lookups
-      if (neynarApiKey) {
-        await updateJobStage(db, jobId, 'neynar');
-        try {
-          const neynarResults = await batchFetchNeynar(
-            uncachedWallets,
-            neynarApiKey
-          );
-
-          for (const [wallet, data] of neynarResults) {
-            const existing = results.get(wallet)!;
-            results.set(wallet, {
-              ...existing,
-              twitter_handle: existing.twitter_handle || data.twitter_handle,
-              twitter_url: existing.twitter_url || data.twitter_url,
-              farcaster: data.farcaster || existing.farcaster,
-              farcaster_url: data.farcaster_url || existing.farcaster_url,
-              fc_followers: data.fc_followers,
-              source: existing.source.includes('neynar')
-                ? existing.source
-                : [...existing.source, 'neynar'],
-            });
-          }
-        } catch (error) {
-          console.error('Neynar fetch error:', error);
-        }
+      // Apply Neynar results (if available)
+      for (const [wallet, data] of neynarResults) {
+        const existing = results.get(wallet)!;
+        results.set(wallet, {
+          ...existing,
+          twitter_handle: existing.twitter_handle || data.twitter_handle,
+          twitter_url: existing.twitter_url || data.twitter_url,
+          farcaster: data.farcaster || existing.farcaster,
+          farcaster_url: data.farcaster_url || existing.farcaster_url,
+          fc_followers: data.fc_followers,
+          source: existing.source.includes('neynar')
+            ? existing.source
+            : [...existing.source, 'neynar'],
+        });
       }
 
       // Cache newly fetched results

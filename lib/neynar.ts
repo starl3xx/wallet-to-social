@@ -24,7 +24,8 @@ export interface NeynarResult {
 }
 
 const BATCH_SIZE = 200; // Neynar supports up to 350
-const RATE_LIMIT_DELAY = 200; // ms between batches
+const RATE_LIMIT_DELAY = 200; // ms between concurrent batch rounds
+const CONCURRENT_BATCHES = 5; // Process 5 batches in parallel
 
 export async function fetchNeynarBatch(
   addresses: string[],
@@ -102,13 +103,30 @@ export async function batchFetchNeynar(
   let processed = 0;
   let found = 0;
 
-  // Process in batches
+  // Split wallets into batches of BATCH_SIZE
+  const batches: string[][] = [];
   for (let i = 0; i < wallets.length; i += BATCH_SIZE) {
-    const batch = wallets.slice(i, i + BATCH_SIZE);
+    batches.push(wallets.slice(i, i + BATCH_SIZE));
+  }
 
-    try {
-      const response = await fetchNeynarBatch(batch, apiKey);
+  // Process CONCURRENT_BATCHES in parallel
+  for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+    const concurrentBatches = batches.slice(i, i + CONCURRENT_BATCHES);
 
+    const batchPromises = concurrentBatches.map(async (batch) => {
+      try {
+        const response = await fetchNeynarBatch(batch, apiKey);
+        return { batch, response, error: null };
+      } catch (error) {
+        console.error(`Neynar batch failed:`, error);
+        return { batch, response: null, error };
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+
+    // Process results from all concurrent batches
+    for (const { batch, response } of batchResults) {
       if (response) {
         for (const wallet of batch) {
           const walletLower = wallet.toLowerCase();
@@ -121,16 +139,13 @@ export async function batchFetchNeynar(
           }
         }
       }
-    } catch (error) {
-      // Continue processing even if one batch fails
-      console.error(`Batch ${i / BATCH_SIZE + 1} failed:`, error);
+      processed += batch.length;
     }
 
-    processed += batch.length;
     onProgress?.(processed, found);
 
-    // Rate limit delay between batches
-    if (i + BATCH_SIZE < wallets.length) {
+    // Rate limit delay between concurrent rounds
+    if (i + CONCURRENT_BATCHES < batches.length) {
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY));
     }
   }
