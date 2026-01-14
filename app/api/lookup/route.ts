@@ -5,6 +5,11 @@ import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
 import {
+  upsertSocialGraph,
+  getSocialGraphData,
+  socialGraphToResult,
+} from '@/lib/social-graph';
+import {
   findHoldingsColumn,
   parseHoldingsValue,
   calculatePriorityScore,
@@ -299,6 +304,64 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Enrich results with social graph data (backfill gaps from permanent storage)
+        if (dbConfigured) {
+          try {
+            const graphData = await getSocialGraphData(wallets);
+
+            if (graphData.size > 0) {
+              let enriched = 0;
+              for (const [wallet, result] of results) {
+                const stored = graphData.get(wallet);
+                if (stored) {
+                  const storedData = socialGraphToResult(stored);
+                  let wasEnriched = false;
+
+                  // Only fill gaps - don't overwrite fresh API data
+                  if (!result.ens_name && storedData.ens_name) {
+                    result.ens_name = storedData.ens_name;
+                    wasEnriched = true;
+                  }
+                  if (!result.twitter_handle && storedData.twitter_handle) {
+                    result.twitter_handle = storedData.twitter_handle;
+                    result.twitter_url = storedData.twitter_url;
+                    wasEnriched = true;
+                  }
+                  if (!result.farcaster && storedData.farcaster) {
+                    result.farcaster = storedData.farcaster;
+                    result.farcaster_url = storedData.farcaster_url;
+                    result.fc_followers = storedData.fc_followers;
+                    wasEnriched = true;
+                  }
+                  if (!result.lens && storedData.lens) {
+                    result.lens = storedData.lens;
+                    wasEnriched = true;
+                  }
+                  if (!result.github && storedData.github) {
+                    result.github = storedData.github;
+                    wasEnriched = true;
+                  }
+
+                  if (wasEnriched) {
+                    result.source = [...result.source, 'graph'];
+                    enriched++;
+                  }
+
+                  results.set(wallet, result);
+                }
+              }
+
+              if (enriched > 0) {
+                sendEvent('info', {
+                  message: `Enriched ${enriched} results from social graph`,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Social graph enrichment error:', error);
+          }
+        }
+
         // Calculate priority scores for all results
         for (const [wallet, result] of results) {
           result.priority_score = calculatePriorityScore(
@@ -323,6 +386,31 @@ export async function POST(request: NextRequest) {
             if (savedId) historyId = savedId;
           } catch (error) {
             console.error('History save error:', error);
+          }
+        }
+
+        // Persist positive results to social graph (permanent storage)
+        if (dbConfigured) {
+          try {
+            const positiveResults = finalResults.filter(
+              (r) =>
+                r.twitter_handle ||
+                r.farcaster ||
+                r.lens ||
+                r.github ||
+                r.ens_name
+            );
+
+            if (positiveResults.length > 0) {
+              const saved = await upsertSocialGraph(positiveResults);
+              if (saved > 0) {
+                sendEvent('info', {
+                  message: `Updated ${saved} entries in social graph`,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Social graph persist error:', error);
           }
         }
 

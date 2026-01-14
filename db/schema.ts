@@ -42,8 +42,37 @@ export const lookupHistory = pgTable(
   (table) => [index('lookup_history_created_at_idx').on(table.createdAt)]
 );
 
+// Permanent social graph - stores wallets with discovered social accounts
+export const socialGraph = pgTable(
+  'social_graph',
+  {
+    wallet: text('wallet').primaryKey(), // lowercase eth address
+    ensName: text('ens_name'),
+    twitterHandle: text('twitter_handle'),
+    twitterUrl: text('twitter_url'),
+    farcaster: text('farcaster'),
+    farcasterUrl: text('farcaster_url'),
+    fcFollowers: integer('fc_followers'),
+    fcFid: integer('fc_fid'),
+    lens: text('lens'),
+    github: text('github'),
+    sources: text('sources').array(), // ['web3bio', 'neynar', 'ens']
+    firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
+    lastUpdatedAt: timestamp('last_updated_at').defaultNow().notNull(),
+    lookupCount: integer('lookup_count').default(1).notNull(),
+  },
+  (table) => [
+    index('social_graph_twitter_idx').on(table.twitterHandle),
+    index('social_graph_farcaster_idx').on(table.farcaster),
+    index('social_graph_ens_idx').on(table.ensName),
+    index('social_graph_fc_followers_idx').on(table.fcFollowers),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
 export type LookupHistory = typeof lookupHistory.$inferSelect;
 export type NewLookupHistory = typeof lookupHistory.$inferInsert;
+export type SocialGraph = typeof socialGraph.$inferSelect;
+export type NewSocialGraph = typeof socialGraph.$inferInsert;
