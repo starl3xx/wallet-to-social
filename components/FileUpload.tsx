@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 interface FileUploadProps {
-  onFileLoaded: (content: string, fileName: string) => void;
+  onFileLoaded: (file: File) => void;
   disabled?: boolean;
 }
 
@@ -18,21 +18,14 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
     (file: File) => {
       setError(null);
 
-      if (!file.name.endsWith('.csv')) {
-        setError('Please upload a CSV file');
+      const ext = file.name.toLowerCase().split('.').pop();
+      if (ext !== 'csv' && ext !== 'xlsx') {
+        setError('Please upload a CSV or Excel (.xlsx) file');
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setFileName(file.name);
-        onFileLoaded(content, file.name);
-      };
-      reader.onerror = () => {
-        setError('Failed to read file');
-      };
-      reader.readAsText(file);
+      setFileName(file.name);
+      onFileLoaded(file);
     },
     [onFileLoaded]
   );
@@ -115,22 +108,20 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
             </div>
           ) : (
             <>
-              <p className="text-lg font-medium mb-2">
-                Drop your CSV file here
-              </p>
+              <p className="text-lg font-medium mb-2">Drop your file here</p>
               <p className="text-sm text-muted-foreground mb-4">
-                or click to browse
+                Supports CSV and Excel (.xlsx)
               </p>
               <label>
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx"
                   onChange={handleInputChange}
                   className="hidden"
                   disabled={disabled}
                 />
                 <Button variant="outline" asChild>
-                  <span>Upload CSV</span>
+                  <span>Upload File</span>
                 </Button>
               </label>
             </>

@@ -77,6 +77,16 @@ npm run db:push
 
 ## Changelog
 
+### 2025-01-15
+
+**Add Excel (.xlsx) file upload support**
+- New file format support: upload .xlsx files in addition to CSV
+- Unified file parser abstraction (`lib/file-parser.ts`) for extensibility
+- Uses `read-excel-file` library (~50KB) for efficient Excel parsing
+- Auto-detects wallet/address column in Excel files (same logic as CSV)
+- Preserves extra columns from Excel files
+- 10MB file size limit with clear error messaging
+
 ### 2025-01-14
 
 **Add permanent social graph database** (`868e2bd`)

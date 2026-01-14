@@ -10,7 +10,7 @@ import { LookupHistory } from '@/components/LookupHistory';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { parseCSV } from '@/lib/csv-parser';
+import { parseFile } from '@/lib/file-parser';
 import type { WalletSocialResult, LookupProgress } from '@/lib/types';
 
 type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
@@ -37,37 +37,43 @@ export default function Home() {
   const [lookupName, setLookupName] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleFileLoaded = useCallback((content: string, _fileName: string) => {
+  const handleFileLoaded = useCallback(async (file: File) => {
     setError(null);
-    const result = parseCSV(content);
 
-    if (result.error) {
-      setError(result.error);
-      setState('error');
-      return;
-    }
+    try {
+      const result = await parseFile(file);
 
-    const walletList = result.rows.map((r) => r.wallet);
-    setWallets(walletList);
-
-    // Store original data (extra columns)
-    const dataMap: Record<string, Record<string, string>> = {};
-    const cols: string[] = [];
-
-    for (const row of result.rows) {
-      const extra: Record<string, string> = {};
-      for (const [key, value] of Object.entries(row)) {
-        if (key !== 'wallet' && value) {
-          extra[key] = value;
-          if (!cols.includes(key)) cols.push(key);
-        }
+      if (result.error) {
+        setError(result.error);
+        setState('error');
+        return;
       }
-      dataMap[row.wallet] = extra;
-    }
 
-    setOriginalData(dataMap);
-    setExtraColumns(cols);
-    setState('ready');
+      const walletList = result.rows.map((r) => r.wallet);
+      setWallets(walletList);
+
+      // Store original data (extra columns)
+      const dataMap: Record<string, Record<string, string>> = {};
+      const cols: string[] = [];
+
+      for (const row of result.rows) {
+        const extra: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row)) {
+          if (key !== 'wallet' && value) {
+            extra[key] = value;
+            if (!cols.includes(key)) cols.push(key);
+          }
+        }
+        dataMap[row.wallet] = extra;
+      }
+
+      setOriginalData(dataMap);
+      setExtraColumns(cols);
+      setState('ready');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to parse file');
+      setState('error');
+    }
   }, []);
 
   const startLookup = useCallback(async () => {
