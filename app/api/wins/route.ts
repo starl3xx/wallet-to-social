@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const completedJobs = await db
       .select({
         id: lookupJobs.id,
-        walletCount: sql<number>`array_length(${lookupJobs.wallets}, 1)`,
+        walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
         twitterFound: lookupJobs.twitterFound,
         farcasterFound: lookupJobs.farcasterFound,
         completedAt: lookupJobs.completedAt,

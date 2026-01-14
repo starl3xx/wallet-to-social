@@ -80,7 +80,7 @@ export const lookupJobs = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     status: text('status').notNull().default('pending'), // pending | processing | completed | failed
     userId: text('user_id'), // localStorage ID until profiles exist
-    wallets: text('wallets').array().notNull(), // full wallet list
+    wallets: jsonb('wallets').notNull().$type<string[]>(), // full wallet list as JSONB array
     originalData: jsonb('original_data'), // CSV extra columns
     options: jsonb('options').notNull(), // {includeENS, saveToHistory, historyName}
 
