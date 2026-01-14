@@ -27,15 +27,21 @@ export interface Web3BioResult {
   source: string;
 }
 
-const RATE_LIMIT_DELAY = 50; // ms between batches
-const MAX_CONCURRENT = 20;
+const RATE_LIMIT_DELAY = 20; // ms between batches
+const MAX_CONCURRENT = 50; // Higher with API key
 
 export async function fetchWeb3BioProfile(walletOrEns: string): Promise<Web3BioProfile[] | null> {
   try {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+
+    if (process.env.WEB3BIO_API_KEY) {
+      headers['X-API-Key'] = process.env.WEB3BIO_API_KEY;
+    }
+
     const response = await fetch(`https://api.web3.bio/profile/${walletOrEns}`, {
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
