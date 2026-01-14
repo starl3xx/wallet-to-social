@@ -41,7 +41,60 @@ export default function Home() {
   const [includeENS, setIncludeENS] = useState(false);
   const [lookupName, setLookupName] = useState('');
   const [notifyOnComplete, setNotifyOnComplete] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobId, setJobIdState] = useState<string | null>(null);
+
+  // Persist jobId to localStorage so it survives page refresh
+  const setJobId = (id: string | null) => {
+    setJobIdState(id);
+    if (id) {
+      localStorage.setItem('currentJobId', id);
+    } else {
+      localStorage.removeItem('currentJobId');
+    }
+  };
+
+  // Restore jobId from localStorage on mount
+  useEffect(() => {
+    const savedJobId = localStorage.getItem('currentJobId');
+    if (savedJobId) {
+      // Check if job still exists and get its status
+      fetch(`/api/jobs/${savedJobId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.status === 'completed') {
+            // Job finished while away - show results
+            setResults(data.results || []);
+            setCacheHits(data.stats?.cacheHits || 0);
+            setState('complete');
+            localStorage.removeItem('currentJobId');
+          } else if (data.status === 'failed') {
+            // Job failed
+            setError(data.error || 'Job failed');
+            setState('error');
+            localStorage.removeItem('currentJobId');
+          } else if (data.status === 'pending' || data.status === 'processing') {
+            // Job still running - resume watching
+            setJobIdState(savedJobId);
+            setProgress({
+              total: data.progress.total,
+              processed: data.progress.processed,
+              twitterFound: data.stats.twitterFound,
+              farcasterFound: data.stats.farcasterFound,
+              status: 'processing',
+            });
+            setStartTime(Date.now() - (data.progress.processed / data.progress.total) * 60000); // Estimate start time
+            setState('processing');
+          } else {
+            // Unknown status or job not found - clear
+            localStorage.removeItem('currentJobId');
+          }
+        })
+        .catch(() => {
+          // Job not found - clear
+          localStorage.removeItem('currentJobId');
+        });
+    }
+  }, []);
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -198,6 +251,7 @@ export default function Home() {
             pollingRef.current = null;
           }
 
+          setJobId(null); // Clear localStorage
           setResults(data.results || []);
           setCacheHits(data.stats.cacheHits || 0);
           setProgress((prev) => ({
@@ -220,6 +274,7 @@ export default function Home() {
             pollingRef.current = null;
           }
 
+          setJobId(null); // Clear localStorage
           setError(data.error || 'Job failed');
           setProgress((prev) => ({ ...prev, status: 'error' }));
           setState('error');

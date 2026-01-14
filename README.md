@@ -79,6 +79,11 @@ npm run db:push
 
 ### 2025-01-14
 
+**Persist job ID across page refresh**
+- Saves active job ID to localStorage so progress survives page refresh
+- Automatically restores in-progress job state on page load
+- Fixes issue where refreshing the page would lose connection to running job
+
 **Add estimated processing time**
 - Shows estimated time when file is uploaded (based on wallet count)
 - Shows time remaining during processing (based on actual rate)
