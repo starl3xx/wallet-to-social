@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getUserId } from '@/lib/user-id';
 import type { WalletSocialResult } from '@/lib/types';
 
 interface SavedLookup {
@@ -27,7 +28,8 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
   useEffect(() => {
     async function fetchHistory() {
       try {
-        const res = await fetch('/api/history?limit=5');
+        const userId = getUserId();
+        const res = await fetch(`/api/history?limit=5&userId=${userId}`);
         if (!res.ok) {
           if (res.status === 503) {
             setError('Database not configured');
@@ -52,7 +54,7 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Recent Lookups</CardTitle>
+          <CardTitle className="text-lg">Recent lookups</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -78,7 +80,7 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Recent Lookups</CardTitle>
+        <CardTitle className="text-lg">Recent lookups</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {history.map((lookup) => (

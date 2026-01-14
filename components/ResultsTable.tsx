@@ -306,14 +306,13 @@ export function ResultsTable({
                 >
                   Priority <SortIcon field="priority_score" />
                 </TableHead>
-                <TableHead>Source</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAndSorted.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={9 + extraColumns.length}
+                    colSpan={8 + extraColumns.length}
                     className="text-center text-muted-foreground py-8"
                   >
                     No results found
@@ -395,9 +394,6 @@ export function ResultsTable({
                     </TableCell>
                     <TableCell>
                       <PriorityIndicator score={result.priority_score} />
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {result.source.join(', ')}
                     </TableCell>
                   </TableRow>
                 ))

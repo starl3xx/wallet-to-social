@@ -83,6 +83,14 @@ npm run db:push
 
 ### 2025-01-14
 
+**User-specific history + public wins showcase**
+- **Private "Recent lookups"**: Each user only sees their own lookup history (localStorage ID until profiles)
+- **"Recently processed" showcase**: Public tiles showing successful lookups (>10% social rate) as social proof
+  - Updates every 3 minutes via polling
+  - Shows wallet count, Twitter/Farcaster counts, and social hit rate %
+- **Removed data source references**: Cleaner UI without Web3.bio/Neynar attribution in footer and results table
+- **New database columns**: `user_id` on `lookup_history` and `lookup_jobs` tables
+
 **Major performance optimizations + Inngest integration**
 - **Parallel API calls**: Web3.bio and Neynar now run concurrently (saves 2-3s per batch)
 - **Parallel Neynar batches**: Process 5 batches simultaneously instead of sequentially (5x faster)

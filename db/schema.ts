@@ -33,13 +33,17 @@ export const lookupHistory = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name'), // optional user-provided name
+    userId: text('user_id'), // localStorage ID until profiles exist
     walletCount: integer('wallet_count').notNull(),
     twitterFound: integer('twitter_found').notNull(),
     farcasterFound: integer('farcaster_found').notNull(),
     results: jsonb('results').notNull(), // full results array
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('lookup_history_created_at_idx').on(table.createdAt)]
+  (table) => [
+    index('lookup_history_created_at_idx').on(table.createdAt),
+    index('lookup_history_user_id_idx').on(table.userId),
+  ]
 );
 
 // Permanent social graph - stores wallets with discovered social accounts
@@ -75,6 +79,7 @@ export const lookupJobs = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     status: text('status').notNull().default('pending'), // pending | processing | completed | failed
+    userId: text('user_id'), // localStorage ID until profiles exist
     wallets: text('wallets').array().notNull(), // full wallet list
     originalData: jsonb('original_data'), // CSV extra columns
     options: jsonb('options').notNull(), // {includeENS, saveToHistory, historyName}

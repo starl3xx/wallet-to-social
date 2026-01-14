@@ -7,7 +7,9 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
 import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
+import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { getUserId } from '@/lib/user-id';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseFile } from '@/lib/file-parser';
@@ -195,6 +197,7 @@ export default function Home() {
           saveToHistory,
           historyName: lookupName || undefined,
           includeENS,
+          userId: getUserId(),
         }),
       });
 
@@ -386,8 +389,9 @@ export default function Home() {
         <main className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
-            <div className="grid gap-6 md:grid-cols-[1fr,300px]">
+            <div className="space-y-6">
               <FileUpload onFileLoaded={handleFileLoaded} />
+              <RecentWins />
               <LookupHistory onLoadLookup={handleLoadHistory} />
             </div>
           )}
@@ -533,28 +537,7 @@ export default function Home() {
           )}
         </main>
 
-        <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground space-y-2">
-          <p>
-            Data sourced from{' '}
-            <a
-              href="https://web3.bio"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              Web3.bio
-            </a>
-            {' and '}
-            <a
-              href="https://neynar.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              Neynar
-            </a>
-            {' · Results cached for 24 hours'}
-          </p>
+        <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
           <p>
             made with 🌠 by{' '}
             <a

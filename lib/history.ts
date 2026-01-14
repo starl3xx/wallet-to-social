@@ -1,5 +1,5 @@
 import { getDb, lookupHistory } from '@/db';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
 export interface SavedLookup {
@@ -14,7 +14,8 @@ export interface SavedLookup {
 
 export async function saveLookup(
   results: WalletSocialResult[],
-  name?: string
+  name?: string,
+  userId?: string
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
@@ -26,6 +27,7 @@ export async function saveLookup(
     .insert(lookupHistory)
     .values({
       name: name ?? null,
+      userId: userId ?? null,
       walletCount: results.length,
       twitterFound,
       farcasterFound,
@@ -36,13 +38,20 @@ export async function saveLookup(
   return inserted.id;
 }
 
-export async function getLookupHistory(limit = 10): Promise<SavedLookup[]> {
+export async function getLookupHistory(
+  limit = 10,
+  userId?: string
+): Promise<SavedLookup[]> {
   const db = getDb();
   if (!db) return [];
+
+  // Filter by userId if provided
+  const whereClause = userId ? eq(lookupHistory.userId, userId) : undefined;
 
   const rows = await db
     .select()
     .from(lookupHistory)
+    .where(whereClause)
     .orderBy(desc(lookupHistory.createdAt))
     .limit(limit);
 

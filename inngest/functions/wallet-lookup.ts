@@ -26,6 +26,7 @@ interface JobOptions {
   includeENS?: boolean;
   saveToHistory?: boolean;
   historyName?: string;
+  userId?: string;
 }
 
 // Define the event type
@@ -380,7 +381,7 @@ export const walletLookup = inngest.createFunction(
       // Save to history if requested
       if (options.saveToHistory) {
         try {
-          await saveLookup(allResults, options.historyName);
+          await saveLookup(allResults, options.historyName, options.userId);
         } catch (error) {
           console.error('History save error:', error);
         }

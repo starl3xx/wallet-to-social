@@ -26,6 +26,7 @@ export interface JobOptions {
   includeENS?: boolean;
   saveToHistory?: boolean;
   historyName?: string;
+  userId?: string;
 }
 
 export interface ProcessResult {
@@ -378,7 +379,7 @@ async function finalizeJobWithResults(
   // Save to history if requested
   if (options.saveToHistory) {
     try {
-      await saveLookup(results, options.historyName);
+      await saveLookup(results, options.historyName, options.userId || job.userId || undefined);
     } catch (error) {
       console.error('History save error:', error);
     }
@@ -445,6 +446,7 @@ export async function createJob(
       wallets,
       originalData,
       options,
+      userId: options.userId,
     })
     .returning({ id: lookupJobs.id });
 

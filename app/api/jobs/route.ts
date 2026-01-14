@@ -10,6 +10,7 @@ interface JobRequest {
   saveToHistory?: boolean;
   historyName?: string;
   includeENS?: boolean;
+  userId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       saveToHistory = false,
       historyName,
       includeENS = false,
+      userId,
     } = body;
 
     if (!wallets || wallets.length === 0) {
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest) {
       includeENS,
       saveToHistory,
       historyName,
+      userId,
     });
 
     // Trigger Inngest function for immediate processing

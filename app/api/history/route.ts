@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const userId = searchParams.get('userId') || undefined;
 
-    const history = await getLookupHistory(Math.min(limit, 50));
+    const history = await getLookupHistory(Math.min(limit, 50), userId);
 
     return NextResponse.json({ history });
   } catch (error) {
