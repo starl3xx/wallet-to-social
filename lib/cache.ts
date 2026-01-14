@@ -1,5 +1,5 @@
 import { getDb, walletCache, type NewWalletCache } from '@/db';
-import { inArray, lt } from 'drizzle-orm';
+import { inArray, lt, sql } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
 const CACHE_TTL_HOURS = 24;
@@ -76,16 +76,16 @@ export async function cacheWalletResults(
         .onConflictDoUpdate({
           target: walletCache.wallet,
           set: {
-            ensName: batch[0].ensName,
-            twitterHandle: batch[0].twitterHandle,
-            twitterUrl: batch[0].twitterUrl,
-            farcaster: batch[0].farcaster,
-            farcasterUrl: batch[0].farcasterUrl,
-            fcFollowers: batch[0].fcFollowers,
-            lens: batch[0].lens,
-            github: batch[0].github,
-            sources: batch[0].sources,
-            cachedAt: new Date(),
+            ensName: sql`EXCLUDED.ens_name`,
+            twitterHandle: sql`EXCLUDED.twitter_handle`,
+            twitterUrl: sql`EXCLUDED.twitter_url`,
+            farcaster: sql`EXCLUDED.farcaster`,
+            farcasterUrl: sql`EXCLUDED.farcaster_url`,
+            fcFollowers: sql`EXCLUDED.fc_followers`,
+            lens: sql`EXCLUDED.lens`,
+            github: sql`EXCLUDED.github`,
+            sources: sql`EXCLUDED.sources`,
+            cachedAt: sql`EXCLUDED.cached_at`,
           },
         });
     }
