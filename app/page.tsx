@@ -6,7 +6,9 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
 import { StatsCards } from '@/components/StatsCards';
+import { LookupHistory } from '@/components/LookupHistory';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { parseCSV } from '@/lib/csv-parser';
 import type { WalletSocialResult, LookupProgress } from '@/lib/types';
 
@@ -26,6 +28,9 @@ export default function Home() {
     status: 'idle',
   });
   const [error, setError] = useState<string | null>(null);
+  const [cacheHits, setCacheHits] = useState(0);
+  const [saveToHistory, setSaveToHistory] = useState(true);
+  const [lookupName, setLookupName] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleFileLoaded = useCallback((content: string, _fileName: string) => {
@@ -64,6 +69,7 @@ export default function Home() {
   const startLookup = useCallback(async () => {
     setState('processing');
     setResults([]);
+    setCacheHits(0);
     setProgress({
       total: wallets.length,
       processed: 0,
@@ -78,7 +84,12 @@ export default function Home() {
       const response = await fetch('/api/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallets, originalData }),
+        body: JSON.stringify({
+          wallets,
+          originalData,
+          saveToHistory,
+          historyName: lookupName || undefined,
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -128,6 +139,7 @@ export default function Home() {
 
             case 'complete':
               setResults(data.results);
+              setCacheHits(data.stats.cacheHits || 0);
               setProgress((prev) => ({
                 ...prev,
                 status: 'complete',
@@ -140,6 +152,10 @@ export default function Home() {
 
             case 'warning':
               console.warn('Warning:', data.message);
+              break;
+
+            case 'info':
+              console.info('Info:', data.message);
               break;
 
             case 'error':
@@ -159,7 +175,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData]);
+  }, [wallets, originalData, saveToHistory, lookupName]);
 
   const handleCancel = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -171,6 +187,8 @@ export default function Home() {
     setExtraColumns([]);
     setResults([]);
     setError(null);
+    setCacheHits(0);
+    setLookupName('');
     setProgress({
       total: 0,
       processed: 0,
@@ -179,6 +197,13 @@ export default function Home() {
       status: 'idle',
     });
     setState('upload');
+  }, []);
+
+  const handleLoadHistory = useCallback((loadedResults: WalletSocialResult[]) => {
+    setResults(loadedResults);
+    setExtraColumns([]);
+    setCacheHits(0);
+    setState('complete');
   }, []);
 
   return (
@@ -194,27 +219,54 @@ export default function Home() {
         <main className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
-            <FileUpload onFileLoaded={handleFileLoaded} />
+            <div className="grid gap-6 md:grid-cols-[1fr,300px]">
+              <FileUpload onFileLoaded={handleFileLoaded} />
+              <LookupHistory onLoadLookup={handleLoadHistory} />
+            </div>
           )}
 
           {/* Ready State */}
           {state === 'ready' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div>
-                  <p className="font-medium">
-                    {wallets.length.toLocaleString()} wallet addresses loaded
-                  </p>
-                  {extraColumns.length > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Extra columns: {extraColumns.join(', ')}
+              <div className="p-4 bg-muted rounded-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">
+                      {wallets.length.toLocaleString()} wallet addresses loaded
                     </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
+                    {extraColumns.length > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Extra columns: {extraColumns.join(', ')}
+                      </p>
+                    )}
+                  </div>
                   <Button variant="outline" onClick={handleReset}>
                     Choose different file
                   </Button>
+                </div>
+
+                <div className="flex items-center gap-4 pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="saveHistory"
+                      checked={saveToHistory}
+                      onChange={(e) => setSaveToHistory(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label htmlFor="saveHistory" className="text-sm">
+                      Save to history
+                    </label>
+                  </div>
+                  {saveToHistory && (
+                    <Input
+                      placeholder="Lookup name (optional)"
+                      value={lookupName}
+                      onChange={(e) => setLookupName(e.target.value)}
+                      className="max-w-xs"
+                    />
+                  )}
+                  <div className="flex-1" />
                   <Button onClick={startLookup}>Start Lookup</Button>
                 </div>
               </div>
@@ -243,7 +295,14 @@ export default function Home() {
           {state === 'complete' && results.length > 0 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Results</h2>
+                <div>
+                  <h2 className="text-xl font-semibold">Results</h2>
+                  {cacheHits > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {cacheHits.toLocaleString()} results from cache (24h)
+                    </p>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleReset}>
                     New Lookup
@@ -258,7 +317,7 @@ export default function Home() {
           )}
         </main>
 
-        <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
+        <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground space-y-2">
           <p>
             Data sourced from{' '}
             <a
@@ -277,6 +336,18 @@ export default function Home() {
               className="underline hover:text-foreground"
             >
               Neynar
+            </a>
+            {' · Results cached for 24 hours'}
+          </p>
+          <p>
+            made with 🌠 by{' '}
+            <a
+              href="https://x.com/starl3xx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              starl3xx
             </a>
           </p>
         </footer>
