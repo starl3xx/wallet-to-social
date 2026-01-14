@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wallet Social Lookup",
-  description: "Find Twitter and Farcaster profiles from Ethereum wallet addresses",
+  title: "Wallet → Social lookup",
+  description: "Find 𝕏/Twitter + Farcaster profiles from Ethereum wallet addresses",
 };
 
 export default function RootLayout({

@@ -210,9 +210,9 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Wallet Social Lookup</h1>
+          <h1 className="text-3xl font-bold mb-2">Wallet → Social lookup</h1>
           <p className="text-muted-foreground">
-            Upload a CSV of Ethereum wallet addresses to find associated Twitter and Farcaster profiles
+            Upload a CSV of Ethereum wallet addresses to find associated 𝕏/Twitter + Farcaster profiles
           </p>
         </header>
 
