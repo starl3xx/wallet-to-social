@@ -43,7 +43,37 @@ export default function Home() {
   const [notifyOnComplete, setNotifyOnComplete] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Estimate processing time: ~2 min per 1000 wallets (conservative)
+  const estimateTime = (walletCount: number): string => {
+    const minutes = Math.ceil((walletCount / 1000) * 2);
+    if (minutes < 1) return 'less than a minute';
+    if (minutes === 1) return '~1 minute';
+    if (minutes < 60) return `~${minutes} minutes`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    if (remainingMins === 0) return `~${hours} hour${hours > 1 ? 's' : ''}`;
+    return `~${hours}h ${remainingMins}m`;
+  };
+
+  // Calculate time remaining based on actual processing rate
+  const getTimeRemaining = (): string | null => {
+    if (!startTime || progress.processed === 0) return null;
+    const elapsed = (Date.now() - startTime) / 1000; // seconds
+    const rate = progress.processed / elapsed; // wallets per second
+    if (rate <= 0) return null;
+    const remaining = (progress.total - progress.processed) / rate;
+    const minutes = Math.ceil(remaining / 60);
+    if (minutes < 1) return 'less than a minute';
+    if (minutes === 1) return '~1 minute remaining';
+    if (minutes < 60) return `~${minutes} minutes remaining`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    if (remainingMins === 0) return `~${hours}h remaining`;
+    return `~${hours}h ${remainingMins}m remaining`;
+  };
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleFileLoaded = useCallback(async (file: File) => {
@@ -91,6 +121,7 @@ export default function Home() {
     setCacheHits(0);
     setJobId(null);
     setDisplayedProcessed(0);
+    setStartTime(Date.now());
     setProgress({
       total: wallets.length,
       processed: 0,
@@ -252,6 +283,7 @@ export default function Home() {
       pollingRef.current = null;
     }
     setJobId(null);
+    setStartTime(null);
     setWallets([]);
     setOriginalData({});
     setExtraColumns([]);
@@ -313,6 +345,9 @@ export default function Home() {
                   <div>
                     <p className="font-medium">
                       {wallets.length.toLocaleString()} wallet addresses loaded
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Estimated processing time: {estimateTime(wallets.length)}
                     </p>
                     {extraColumns.length > 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -401,7 +436,7 @@ export default function Home() {
 
           {/* Processing State */}
           {state === 'processing' && (
-            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} onCancel={handleCancel} />
+            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} />
           )}
 
           {/* Error State */}

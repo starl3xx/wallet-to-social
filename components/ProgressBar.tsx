@@ -8,10 +8,11 @@ import type { LookupProgress } from '@/lib/types';
 interface ProgressBarProps {
   progress: LookupProgress;
   displayedProcessed?: number;
+  timeRemaining?: string | null;
   onCancel?: () => void;
 }
 
-export function ProgressBar({ progress, displayedProcessed, onCancel }: ProgressBarProps) {
+export function ProgressBar({ progress, displayedProcessed, timeRemaining, onCancel }: ProgressBarProps) {
   const processed = displayedProcessed ?? progress.processed;
   const percentage =
     progress.total > 0
@@ -45,6 +46,7 @@ export function ProgressBar({ progress, displayedProcessed, onCancel }: Progress
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
               {percentage}% complete
+              {timeRemaining && ` · ${timeRemaining}`}
             </span>
             {progress.message && (
               <span className="text-muted-foreground">{progress.message}</span>

@@ -79,6 +79,10 @@ npm run db:push
 
 ### 2025-01-14
 
+**Add estimated processing time**
+- Shows estimated time when file is uploaded (based on wallet count)
+- Shows time remaining during processing (based on actual rate)
+
 **Smooth progress bar animation**
 - Progress counter animates smoothly instead of jumping in chunks
 - Creates responsive feel during batch processing
