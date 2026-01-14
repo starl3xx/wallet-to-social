@@ -273,6 +273,11 @@ export default function Home() {
                       ENS onchain lookup
                     </label>
                   </div>
+                  {includeENS && wallets.length > 1000 && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                      ⚠️ ENS is slow for {wallets.length.toLocaleString()} wallets - may timeout
+                    </span>
+                  )}
                   {saveToHistory && (
                     <Input
                       placeholder="Lookup name (optional)"
