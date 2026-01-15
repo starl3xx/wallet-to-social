@@ -81,7 +81,7 @@ export function RecentWins() {
             key={win.id}
             className="flex-shrink-0 w-44 p-4 bg-muted/50 rounded-lg border border-border/50
                        border-l-2 border-l-green-500/60
-                       hover:scale-[1.02] hover:shadow-md hover:border-border/80
+                       hover:scale-[1.02] hover:shadow-md hover:border-border/80 hover:border-l-green-500
                        transition-all duration-150 ease-out cursor-default
                        origin-left"
             style={{
