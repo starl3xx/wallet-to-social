@@ -138,6 +138,26 @@ export default function AddressableComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Lookup History</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                    </td>
+                    <td className="py-4 pl-4">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Add to Lookups</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </td>
+                  </tr>
+                  <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Ad Attribution</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -194,6 +214,7 @@ export default function AddressableComparison() {
               <li>Upload your CSV of wallet addresses</li>
               <li>We check ENS, Web3.bio, and Neynar</li>
               <li>Export Twitter handles and Farcaster profiles</li>
+              <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>
             <p className="text-muted-foreground">
               Match rates average 15-25% (6-10x industry average) because we
@@ -224,6 +245,10 @@ export default function AddressableComparison() {
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                     <span>You have a specific campaign or project</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <span>You want to grow lookups over time</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />

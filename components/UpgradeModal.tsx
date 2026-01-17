@@ -27,6 +27,7 @@ const FEATURES = {
     'Basic data sources',
     'Basic CSV export',
     'Twitter/Farcaster handles',
+    '1 saved lookup',
   ],
   pro: [
     'Up to 10,000 wallets',
@@ -35,6 +36,8 @@ const FEATURES = {
     'FC follower counts',
     'Priority score ranking',
     'Twitter list export',
+    'Full lookup history',
+    'Add addresses to lookups',
   ],
   unlimited: [
     'Unlimited wallets',
@@ -43,6 +46,8 @@ const FEATURES = {
     'FC follower counts',
     'Priority score ranking',
     'Twitter list export',
+    'Full lookup history',
+    'Add addresses to lookups',
     'Priority support',
   ],
 };

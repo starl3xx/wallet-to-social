@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 interface FileUploadProps {
   onFileLoaded: (file: File) => void;
   disabled?: boolean;
+  compact?: boolean;
 }
 
-export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
+export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,26 +72,28 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
           : 'border-muted-foreground/25 hover:border-muted-foreground/50'
       } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
     >
-      <CardContent className="p-8">
+      <CardContent className={compact ? 'p-4' : 'p-8'}>
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           className="flex flex-col items-center justify-center text-center"
         >
-          <svg
-            className="w-12 h-12 text-muted-foreground mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
+          {!compact && (
+            <svg
+              className="w-12 h-12 text-muted-foreground mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+          )}
 
           {fileName ? (
             <div className="space-y-2">
@@ -108,10 +111,14 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
             </div>
           ) : (
             <>
-              <p className="text-lg font-medium mb-2">Drop your file here</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Supports CSV and Excel (.xlsx)
+              <p className={`${compact ? 'text-sm' : 'text-lg'} font-medium mb-2`}>
+                {compact ? 'Drop file or click to upload' : 'Drop your file here'}
               </p>
+              {!compact && (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Supports CSV and Excel (.xlsx)
+                </p>
+              )}
               <label>
                 <input
                   type="file"
@@ -120,7 +127,7 @@ export function FileUpload({ onFileLoaded, disabled }: FileUploadProps) {
                   className="hidden"
                   disabled={disabled}
                 />
-                <Button variant="outline" asChild>
+                <Button variant="outline" size={compact ? 'sm' : 'default'} asChild>
                   <span>Upload File</span>
                 </Button>
               </label>

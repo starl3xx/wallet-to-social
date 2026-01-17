@@ -1,5 +1,5 @@
 import { getDb, lookupHistory } from '@/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
 export interface SavedLookup {
@@ -78,7 +78,8 @@ export interface LookupSummary {
 
 export async function getHistorySummaries(
   limit = 10,
-  userId?: string
+  userId?: string,
+  offset = 0
 ): Promise<LookupSummary[]> {
   const db = getDb();
   if (!db) return [];
@@ -97,9 +98,24 @@ export async function getHistorySummaries(
     .from(lookupHistory)
     .where(whereClause)
     .orderBy(desc(lookupHistory.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
 
   return rows;
+}
+
+export async function getHistoryCount(userId?: string): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const whereClause = userId ? eq(lookupHistory.userId, userId) : undefined;
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(lookupHistory)
+    .where(whereClause);
+
+  return result?.count || 0;
 }
 
 export async function getLookupById(id: string): Promise<SavedLookup | null> {
@@ -124,4 +140,28 @@ export async function getLookupById(id: string): Promise<SavedLookup | null> {
     results: row.results as WalletSocialResult[],
     createdAt: row.createdAt,
   };
+}
+
+export async function updateLookup(
+  id: string,
+  results: WalletSocialResult[]
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+
+  const twitterFound = results.filter((r) => r.twitter_handle).length;
+  const farcasterFound = results.filter((r) => r.farcaster).length;
+
+  const updated = await db
+    .update(lookupHistory)
+    .set({
+      walletCount: results.length,
+      twitterFound,
+      farcasterFound,
+      results: results,
+    })
+    .where(eq(lookupHistory.id, id))
+    .returning({ id: lookupHistory.id });
+
+  return updated.length > 0;
 }

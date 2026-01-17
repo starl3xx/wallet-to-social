@@ -11,6 +11,7 @@ import { LookupHistory } from '@/components/LookupHistory';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { AddAddressesModal } from '@/components/AddAddressesModal';
 import { AccessBanner } from '@/components/AccessBanner';
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
@@ -58,6 +59,11 @@ export default function Home() {
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
+
+  // Add addresses modal state
+  const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
+  const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
+  const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
 
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
@@ -367,7 +373,56 @@ export default function Home() {
           }
 
           setJobId(null); // Clear localStorage
-          setResults(data.results || []);
+
+          // Check if we need to merge with an existing lookup
+          const pendingMergeLookupId = localStorage.getItem('pendingMergeLookupId');
+          if (pendingMergeLookupId) {
+            localStorage.removeItem('pendingMergeLookupId');
+
+            // Fetch existing results and merge
+            try {
+              const existingRes = await fetch(`/api/history/${pendingMergeLookupId}`);
+              if (existingRes.ok) {
+                const existingData = await existingRes.json();
+                const existingResults: WalletSocialResult[] = existingData.results || [];
+                const newResults: WalletSocialResult[] = data.results || [];
+
+                // Merge results (new takes precedence, merge sources)
+                const resultMap = new Map<string, WalletSocialResult>();
+                existingResults.forEach(r => resultMap.set(r.wallet.toLowerCase(), r));
+                newResults.forEach(r => {
+                  const key = r.wallet.toLowerCase();
+                  const existing = resultMap.get(key);
+                  if (existing) {
+                    // Merge sources
+                    const mergedSources = [...new Set([...existing.source, ...r.source])];
+                    resultMap.set(key, { ...existing, ...r, source: mergedSources });
+                  } else {
+                    resultMap.set(key, r);
+                  }
+                });
+                const mergedResults = Array.from(resultMap.values());
+
+                // Update the lookup in the database
+                await fetch(`/api/history/${pendingMergeLookupId}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ results: mergedResults }),
+                });
+
+                setResults(mergedResults);
+              } else {
+                // Fallback to just showing new results
+                setResults(data.results || []);
+              }
+            } catch (err) {
+              console.error('Failed to merge results:', err);
+              setResults(data.results || []);
+            }
+          } else {
+            setResults(data.results || []);
+          }
+
           setCacheHits(data.stats.cacheHits || 0);
           setProgress((prev) => ({
             ...prev,
@@ -484,6 +539,97 @@ export default function Home() {
     []
   );
 
+  // Handle opening the add addresses modal
+  const handleOpenAddAddresses = useCallback(async (lookupId: string) => {
+    // Fetch the existing results for this lookup
+    try {
+      const res = await fetch(`/api/history/${lookupId}`);
+      if (!res.ok) throw new Error('Failed to fetch lookup');
+      const data = await res.json();
+      const existingWallets = (data.results as WalletSocialResult[]).map(r => r.wallet);
+      setAddAddressesLookupId(lookupId);
+      setAddAddressesExistingWallets(existingWallets);
+      setShowAddAddressesModal(true);
+    } catch (err) {
+      console.error('Failed to load lookup for add addresses:', err);
+    }
+  }, []);
+
+  // Handle adding addresses to existing lookup
+  const handleAddToLookup = useCallback(async (lookupId: string, newAddresses: string[]) => {
+    if (newAddresses.length === 0) return;
+
+    // Set up for processing the new addresses
+    setWallets(newAddresses);
+    setOriginalData({});
+    setExtraColumns([]);
+    setState('processing');
+    setResults([]);
+    setCacheHits(0);
+    setJobId(null);
+    setDisplayedProcessed(0);
+    setStartTime(Date.now());
+    setProgress({
+      total: newAddresses.length,
+      processed: 0,
+      twitterFound: 0,
+      farcasterFound: 0,
+      status: 'processing',
+      message: 'Submitting job...',
+    });
+
+    try {
+      // Submit job for new addresses only (don't save to history, we'll merge)
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wallets: newAddresses,
+          originalData: {},
+          saveToHistory: false, // Don't save - we'll merge
+          includeENS,
+          userId: getUserId(),
+          email: userEmail || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.upgradeRequired) {
+          setShowUpgradeModal(true);
+          setState('ready');
+          return;
+        }
+        throw new Error(errorData.error || `HTTP error: ${response.status}`);
+      }
+
+      const { jobId: newJobId } = await response.json();
+
+      // Store the lookup ID we're updating for when job completes
+      localStorage.setItem('pendingMergeLookupId', lookupId);
+
+      setJobId(newJobId);
+      setProgress((prev) => ({
+        ...prev,
+        message: 'Job queued - processing will start shortly...',
+      }));
+    } catch (err) {
+      console.error('Job submission error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit job');
+      setProgress((prev) => ({ ...prev, status: 'error' }));
+      setState('error');
+    }
+  }, [includeENS, userEmail]);
+
+  // Handle creating new lookup from modal
+  const handleCreateNewFromModal = useCallback((addresses: string[]) => {
+    if (addresses.length === 0) return;
+    setWallets(addresses);
+    setOriginalData({});
+    setExtraColumns([]);
+    setState('ready');
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -540,6 +686,18 @@ export default function Home() {
           onRestoreAccess={handleRestoreAccess}
         />
 
+        {/* Add Addresses Modal */}
+        {addAddressesLookupId && (
+          <AddAddressesModal
+            open={showAddAddressesModal}
+            onOpenChange={setShowAddAddressesModal}
+            lookupId={addAddressesLookupId}
+            existingWallets={addAddressesExistingWallets}
+            onAddToLookup={handleAddToLookup}
+            onCreateNewLookup={handleCreateNewFromModal}
+          />
+        )}
+
         <main className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
@@ -590,7 +748,7 @@ export default function Home() {
               </div>
 
               <RecentWins />
-              <LookupHistory onLoadLookup={handleLoadHistory} />
+              <LookupHistory onLoadLookup={handleLoadHistory} userTier={userTier} onAddAddresses={handleOpenAddAddresses} />
             </div>
           )}
 
