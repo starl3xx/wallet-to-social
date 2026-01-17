@@ -13,7 +13,8 @@ A Next.js application that takes a CSV of Ethereum wallet addresses and finds as
   - Full CSV export with all data, sorted by priority score
   - Twitter List export (.txt) for bulk Twitter list imports
 - **Caching**: 24-hour result caching via Neon PostgreSQL
-- **Lookup History**: Save and reload previous lookups
+- **Lookup History**: Save and reload previous lookups (tiered: free gets 1, pro/unlimited get full history)
+- **Add to Lookups**: Grow existing lookups by adding more addresses over time (Pro+)
 
 ## Getting Started
 
@@ -82,6 +83,17 @@ npm run db:push
 ## Changelog
 
 ### 2025-01-17
+
+**My Lookups: Tiered history + Add addresses feature**
+- **Renamed "Recent Lookups" to "My Lookups"**: Better reflects user ownership
+- **Tiered history visibility**: Free users see 1 lookup, Pro/Unlimited see full history with pagination
+- **Add addresses to lookups (Pro+)**: Click "+" on any lookup to add more addresses
+  - New AddAddressesModal with file upload and paste support
+  - Deduplicates addresses already in the lookup
+  - Merges new results with existing, preserving source tracking
+  - Choose to add to existing lookup or create new one
+- **Updated Upgrade modal**: Now lists history and add-to-lookups as Pro+ features
+- **Updated vs/addressable page**: New comparison rows for Lookup History and Add to Lookups
 
 **Admin dashboard enhancements**
 - **Tabbed admin UI**: New tabs for Activity, Jobs, History, and Users management
