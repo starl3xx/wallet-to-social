@@ -81,6 +81,23 @@ npm run db:push
 
 ## Changelog
 
+### 2025-01-17
+
+**Admin dashboard enhancements**
+- **Tabbed admin UI**: New tabs for Activity, Jobs, History, and Users management
+- **Activity tab**: View/hide/delete completed jobs from public Live Activity feed
+- **Jobs tab**: Monitor all jobs, filter by status, retry failed jobs, cancel stuck ones
+- **History tab**: View/search/delete lookup history by user ID
+- **Users tab**: View users by tier, change tiers via dropdown for manual upgrades
+- **Hidden jobs**: New `hidden` column to hide spam/test lookups from public feed
+- **New admin endpoints**: `/api/admin/activity`, `/api/admin/jobs`, `/api/admin/history`, `/api/admin/users`
+
+**UX improvements**
+- **Wallet limit warning**: Shows banner when uploaded file exceeds tier limit (before clicking Start)
+- **Updated time estimates**: Processing now shows ~10s per 1K wallets (was incorrectly showing ~2min)
+- **Fixed Live Activity rate**: Now shows deduplicated "any social" rate (14.5%) instead of inflated sum (22%)
+- **New `any_social_found` column**: Tracks unique wallets with Twitter OR Farcaster (not double-counting)
+
 ### 2025-01-14
 
 **User-specific history + public wins showcase**
