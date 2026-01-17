@@ -471,8 +471,15 @@ export default function Home() {
                 </h1>
               </div>
               <p className="text-muted-foreground">
-                Upload a CSV of Ethereum wallet addresses to find associated
-                𝕏/Twitter + Farcaster profiles
+                Turn your wallet list into Twitter handles and Farcaster
+                profiles. No sales calls. No subscriptions.{' '}
+                <a
+                  href="/vs/addressable"
+                  className="underline hover:text-foreground"
+                >
+                  Simple alternative to Addressable
+                </a>
+                .
               </p>
             </div>
             <div className="flex items-center gap-3">
