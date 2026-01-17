@@ -341,11 +341,7 @@ export default function AddressableComparison() {
           {/* Footer */}
           <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
             <p>
-              made with{' '}
-              <span role="img" aria-label="sparkle">
-                ✨
-              </span>{' '}
-              by{' '}
+              made with 🌠 by{' '}
               <a
                 href="https://x.com/starl3xx"
                 target="_blank"
