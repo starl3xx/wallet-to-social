@@ -136,7 +136,7 @@ export const RecentWins = memo(function RecentWins() {
                     {win.walletCount.toLocaleString()}
                   </p>
                   <p className="text-xs text-muted-foreground -mt-0.5">
-                    wallets
+                    wallets processed
                   </p>
                 </div>
                 <span className={`
