@@ -168,24 +168,21 @@ export default function Home() {
     return `~${hours}h ${remainingMins}m`;
   };
 
+  // Extract all valid Ethereum addresses from text (anywhere in the text)
+  const extractAddresses = (text: string): string[] => {
+    if (!text.trim()) return [];
+    const matches = text.match(/0x[a-fA-F0-9]{40}/gi) || [];
+    return [...new Set(matches.map(addr => addr.toLowerCase()))];
+  };
+
   // Count valid Ethereum addresses in pasted text
   const countValidAddresses = (text: string): number => {
-    if (!text.trim()) return 0;
-    return text
-      .split(/\r?\n/)
-      .filter(line => /^0x[a-fA-F0-9]{40}$/i.test(line.trim()))
-      .length;
+    return extractAddresses(text).length;
   };
 
   // Handle loading addresses from paste input
   const handlePasteAddresses = useCallback(() => {
-    const lines = pasteText.trim().split(/\r?\n/);
-    const validAddresses = lines
-      .map(line => line.trim().toLowerCase())
-      .filter(line => /^0x[a-fA-F0-9]{40}$/.test(line));
-
-    // Deduplicate
-    const unique = [...new Set(validAddresses)];
+    const unique = extractAddresses(pasteText);
 
     if (unique.length === 0) {
       setError('No valid Ethereum addresses found');
@@ -569,7 +566,7 @@ export default function Home() {
                     <textarea
                       value={pasteText}
                       onChange={(e) => setPasteText(e.target.value)}
-                      placeholder={"Paste wallet addresses (one per line)\n0x1234...\n0xabcd..."}
+                      placeholder={"Paste wallet addresses in any format\n0x1234..., 0xabcd...\nor one per line\nor mixed with other text"}
                       className="w-full h-40 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
                     />
                     <div className="flex items-center justify-between">
