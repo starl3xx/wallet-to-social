@@ -472,7 +472,7 @@ export default function Home() {
               </div>
               <p className="text-muted-foreground">
                 Turn your wallet list into Twitter handles and Farcaster
-                profiles. No sales calls. No subscriptions.{' '}
+                profiles.{' '}
                 <a
                   href="/vs/addressable"
                   className="underline hover:text-foreground"
