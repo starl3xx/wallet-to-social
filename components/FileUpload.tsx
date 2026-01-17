@@ -116,7 +116,7 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
               </p>
               {!compact && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Supports CSV and Excel (.xlsx)
+                  We&apos;ll find the wallets and do the rest
                 </p>
               )}
               <label>
