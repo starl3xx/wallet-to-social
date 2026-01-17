@@ -453,11 +453,11 @@ export default function Home() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div
-                className={`flex items-center gap-3 mb-2 ${state !== 'upload' ? 'cursor-pointer' : ''}`}
-                onClick={state !== 'upload' ? handleReset : undefined}
-                role={state !== 'upload' ? 'button' : undefined}
-                tabIndex={state !== 'upload' ? 0 : undefined}
-                onKeyDown={state !== 'upload' ? (e) => e.key === 'Enter' && handleReset() : undefined}
+                className="flex items-center gap-3 mb-2 cursor-pointer"
+                onClick={handleReset}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleReset()}
               >
                 <Image
                   src="/icon.png"
@@ -466,7 +466,7 @@ export default function Home() {
                   height={40}
                   className="rounded-lg"
                 />
-                <h1 className={`text-3xl font-bold ${state !== 'upload' ? 'hover:text-accent-brand transition-colors' : ''}`}>
+                <h1 className="text-3xl font-bold hover:text-accent-brand transition-colors">
                   walletlink.social
                 </h1>
               </div>
