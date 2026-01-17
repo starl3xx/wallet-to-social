@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { WalletSocialResult } from '@/lib/types';
 
@@ -7,8 +8,8 @@ interface StatsCardsProps {
   results: WalletSocialResult[];
 }
 
-export function StatsCards({ results }: StatsCardsProps) {
-  const stats = {
+export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps) {
+  const stats = useMemo(() => ({
     total: results.length,
     twitter: results.filter((r) => r.twitter_handle).length,
     farcaster: results.filter((r) => r.farcaster).length,
@@ -17,7 +18,7 @@ export function StatsCards({ results }: StatsCardsProps) {
     anySocial: results.filter(
       (r) => r.twitter_handle || r.farcaster || r.lens || r.github
     ).length,
-  };
+  }), [results]);
 
   const cards = [
     { title: 'Total Wallets', value: stats.total, color: 'text-foreground', badgeColor: '' },
@@ -54,4 +55,4 @@ export function StatsCards({ results }: StatsCardsProps) {
       ))}
     </div>
   );
-}
+});

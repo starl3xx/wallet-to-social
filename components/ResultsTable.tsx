@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import {
   Table,
   TableBody,
@@ -31,7 +31,7 @@ type SortField =
   | 'priority_score';
 type SortDirection = 'asc' | 'desc';
 
-export function ResultsTable({
+export const ResultsTable = memo(function ResultsTable({
   results,
   extraColumns = [],
   userTier = 'free',
@@ -165,16 +165,17 @@ export function ResultsTable({
     return value.toFixed(1);
   };
 
+  // Memoize max score calculation - avoids recalculating for every row
+  const maxScore = useMemo(
+    () => Math.max(...results.map((r) => r.priority_score || 0), 1),
+    [results]
+  );
+
   // Get priority level for visual indicator (0-5 scale based on distribution)
   const getPriorityLevel = useCallback(
     (score: number | undefined): number => {
       if (score === undefined || score === 0) return 0;
 
-      // Calculate max score for relative scaling
-      const maxScore = Math.max(
-        ...results.map((r) => r.priority_score || 0),
-        1
-      );
       const normalizedScore = score / maxScore;
 
       if (normalizedScore >= 0.8) return 5;
@@ -183,7 +184,7 @@ export function ResultsTable({
       if (normalizedScore >= 0.2) return 2;
       return 1;
     },
-    [results]
+    [maxScore]
   );
 
   const PriorityIndicator = ({ score }: { score: number | undefined }) => {
@@ -432,4 +433,4 @@ export function ResultsTable({
       </div>
     </div>
   );
-}
+});

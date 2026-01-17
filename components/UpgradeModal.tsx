@@ -125,7 +125,7 @@ export function UpgradeModal({
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                setError(null);
+                if (error) setError(null); // Only clear error if there was one
               }}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}

@@ -66,6 +66,42 @@ export async function getLookupHistory(
   }));
 }
 
+// Lightweight version that only fetches summary columns (no JSONB results)
+export interface LookupSummary {
+  id: string;
+  name: string | null;
+  walletCount: number;
+  twitterFound: number;
+  farcasterFound: number;
+  createdAt: Date;
+}
+
+export async function getHistorySummaries(
+  limit = 10,
+  userId?: string
+): Promise<LookupSummary[]> {
+  const db = getDb();
+  if (!db) return [];
+
+  const whereClause = userId ? eq(lookupHistory.userId, userId) : undefined;
+
+  const rows = await db
+    .select({
+      id: lookupHistory.id,
+      name: lookupHistory.name,
+      walletCount: lookupHistory.walletCount,
+      twitterFound: lookupHistory.twitterFound,
+      farcasterFound: lookupHistory.farcasterFound,
+      createdAt: lookupHistory.createdAt,
+    })
+    .from(lookupHistory)
+    .where(whereClause)
+    .orderBy(desc(lookupHistory.createdAt))
+    .limit(limit);
+
+  return rows;
+}
+
 export async function getLookupById(id: string): Promise<SavedLookup | null> {
   const db = getDb();
   if (!db) return null;

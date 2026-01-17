@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import { exportToCSV } from '@/lib/csv-parser';
@@ -13,7 +14,7 @@ interface ExportButtonProps {
   onUpgradeClick?: () => void;
 }
 
-export function ExportButton({
+export const ExportButton = memo(function ExportButton({
   results,
   extraColumns = [],
   disabled,
@@ -21,9 +22,11 @@ export function ExportButton({
   onUpgradeClick,
 }: ExportButtonProps) {
   const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
-  // Sort results by priority score descending for export
-  const sortedResults = [...results].sort(
-    (a, b) => (b.priority_score || 0) - (a.priority_score || 0)
+
+  // Memoize sorted results - only recalculate when results change
+  const sortedResults = useMemo(
+    () => [...results].sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0)),
+    [results]
   );
 
   const handleExportCSV = () => {
@@ -150,4 +153,4 @@ export function ExportButton({
       </Button>
     </div>
   );
-}
+});

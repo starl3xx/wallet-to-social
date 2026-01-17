@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,7 +13,7 @@ interface ProgressBarProps {
   onCancel?: () => void;
 }
 
-export function ProgressBar({ progress, displayedProcessed, timeRemaining, onCancel }: ProgressBarProps) {
+export const ProgressBar = memo(function ProgressBar({ progress, displayedProcessed, timeRemaining, onCancel }: ProgressBarProps) {
   const processed = displayedProcessed ?? progress.processed;
   const percentage =
     progress.total > 0
@@ -60,4 +61,4 @@ export function ProgressBar({ progress, displayedProcessed, timeRemaining, onCan
       </CardContent>
     </Card>
   );
-}
+});

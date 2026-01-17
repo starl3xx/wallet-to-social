@@ -139,6 +139,11 @@ export default function Home() {
       .catch(console.error);
   }, []);
 
+  // Memoized callback for opening upgrade modal - avoids creating new function on each render
+  const handleOpenUpgradeModal = useCallback(() => {
+    setShowUpgradeModal(true);
+  }, []);
+
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -291,17 +296,32 @@ export default function Home() {
 
         const data = await response.json();
 
-        // Update progress
-        setProgress((prev) => ({
-          ...prev,
-          processed: data.progress.processed,
-          total: data.progress.total,
-          twitterFound: data.stats.twitterFound,
-          farcasterFound: data.stats.farcasterFound,
-          message: data.progress.stage
+        // Only update progress if values actually changed - prevents unnecessary re-renders
+        setProgress((prev) => {
+          const newMessage = data.progress.stage
             ? `Processing: ${data.progress.stage} (${data.progress.processed}/${data.progress.total})`
-            : `Processing ${data.progress.processed}/${data.progress.total} wallets...`,
-        }));
+            : `Processing ${data.progress.processed}/${data.progress.total} wallets...`;
+
+          // Check if any values changed
+          if (
+            prev.processed === data.progress.processed &&
+            prev.total === data.progress.total &&
+            prev.twitterFound === data.stats.twitterFound &&
+            prev.farcasterFound === data.stats.farcasterFound &&
+            prev.message === newMessage
+          ) {
+            return prev; // Return same reference - no re-render
+          }
+
+          return {
+            ...prev,
+            processed: data.progress.processed,
+            total: data.progress.total,
+            twitterFound: data.stats.twitterFound,
+            farcasterFound: data.stats.farcasterFound,
+            message: newMessage,
+          };
+        });
 
         if (data.status === 'completed') {
           // Job complete - stop polling and show results
@@ -459,7 +479,7 @@ export default function Home() {
               <AccessBanner
                 tier={userTier}
                 isWhitelisted={isWhitelisted}
-                onUpgradeClick={() => setShowUpgradeModal(true)}
+                onUpgradeClick={handleOpenUpgradeModal}
               />
               <ThemeToggle />
             </div>
@@ -620,7 +640,7 @@ export default function Home() {
                     results={results}
                     extraColumns={extraColumns}
                     userTier={userTier}
-                    onUpgradeClick={() => setShowUpgradeModal(true)}
+                    onUpgradeClick={handleOpenUpgradeModal}
                   />
                 </div>
               </div>
@@ -630,7 +650,7 @@ export default function Home() {
                 results={results}
                 extraColumns={extraColumns}
                 userTier={userTier}
-                onUpgradeClick={() => setShowUpgradeModal(true)}
+                onUpgradeClick={handleOpenUpgradeModal}
               />
             </div>
           )}

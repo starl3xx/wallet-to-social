@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getUserId } from '@/lib/user-id';
 import type { WalletSocialResult } from '@/lib/types';
 
-interface SavedLookup {
+interface LookupSummary {
   id: string;
   name: string | null;
   walletCount: number;
   twitterFound: number;
   farcasterFound: number;
-  results: WalletSocialResult[];
   createdAt: string;
 }
 
@@ -20,16 +19,18 @@ interface LookupHistoryProps {
   onLoadLookup: (results: WalletSocialResult[]) => void;
 }
 
-export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
-  const [history, setHistory] = useState<SavedLookup[]>([]);
+export const LookupHistory = memo(function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
+  const [history, setHistory] = useState<LookupSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchHistory() {
       try {
         const userId = getUserId();
-        const res = await fetch(`/api/history?limit=5&userId=${userId}`);
+        // Fetch summaries only (no full results JSONB)
+        const res = await fetch(`/api/history?limit=5&userId=${userId}&summaryOnly=true`);
         if (!res.ok) {
           if (res.status === 503) {
             setError('Database not configured');
@@ -49,6 +50,21 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
 
     fetchHistory();
   }, []);
+
+  // Lazy load full results only when user clicks "Load"
+  const handleLoadLookup = useCallback(async (id: string) => {
+    setLoadingId(id);
+    try {
+      const res = await fetch(`/api/history/${id}`);
+      if (!res.ok) throw new Error('Failed to load');
+      const { results } = await res.json();
+      onLoadLookup(results);
+    } catch (err) {
+      console.error('Failed to load lookup:', err);
+    } finally {
+      setLoadingId(null);
+    }
+  }, [onLoadLookup]);
 
   if (loading) {
     return (
@@ -101,13 +117,14 @@ export function LookupHistory({ onLoadLookup }: LookupHistoryProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onLoadLookup(lookup.results)}
+              onClick={() => handleLoadLookup(lookup.id)}
+              disabled={loadingId === lookup.id}
             >
-              Load
+              {loadingId === lookup.id ? 'Loading...' : 'Load'}
             </Button>
           </div>
         ))}
       </CardContent>
     </Card>
   );
-}
+});
