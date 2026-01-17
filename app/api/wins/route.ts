@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 
 export interface RecentWin {
   id: string;
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     // Query completed jobs with >10% social hit rate
     // Social rate = (twitterFound + farcasterFound) / walletCount
     // We need to calculate this and filter
+    // Filter out hidden jobs from public feed
     const completedJobs = await db
       .select({
         id: lookupJobs.id,
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest) {
         completedAt: lookupJobs.completedAt,
       })
       .from(lookupJobs)
-      .where(eq(lookupJobs.status, 'completed'))
+      .where(
+        and(eq(lookupJobs.status, 'completed'), eq(lookupJobs.hidden, false))
+      )
       .orderBy(desc(lookupJobs.completedAt))
       .limit(limit * 2); // Fetch extra to filter
 

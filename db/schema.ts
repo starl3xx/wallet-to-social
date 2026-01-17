@@ -6,6 +6,7 @@ import {
   jsonb,
   uuid,
   index,
+  boolean,
 } from 'drizzle-orm/pg-core';
 
 // Cache individual wallet social lookups (24h TTL)
@@ -103,6 +104,9 @@ export const lookupJobs = pgTable(
     // Error handling
     errorMessage: text('error_message'),
     retryCount: integer('retry_count').default(0).notNull(),
+
+    // Admin visibility
+    hidden: boolean('hidden').default(false).notNull(),
   },
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),

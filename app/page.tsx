@@ -148,10 +148,14 @@ export default function Home() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Estimate processing time: ~2 min per 1000 wallets (conservative)
+  // Estimate processing time: ~10 seconds per 1000 wallets (conservative)
+  // Actual: ~7s worst case, ~4.5s with typical cache hits
+  // Web3.bio + Neynar run in parallel, cache speeds things up significantly
   const estimateTime = (walletCount: number): string => {
-    const minutes = Math.ceil((walletCount / 1000) * 2);
-    if (minutes < 1) return 'less than a minute';
+    const seconds = Math.ceil((walletCount / 1000) * 10) + 5; // 10s per 1K + 5s overhead
+    if (seconds < 30) return 'less than 30 seconds';
+    if (seconds < 60) return 'less than a minute';
+    const minutes = Math.ceil(seconds / 60);
     if (minutes === 1) return '~1 minute';
     if (minutes < 60) return `~${minutes} minutes`;
     const hours = Math.floor(minutes / 60);
@@ -515,6 +519,30 @@ export default function Home() {
           {/* Ready State */}
           {state === 'ready' && (
             <div className="space-y-4">
+              {/* Wallet limit warning */}
+              {wallets.length > TIER_LIMITS[userTier] && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between gap-4">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    Your file has{' '}
+                    <span className="font-semibold">
+                      {wallets.length.toLocaleString()}
+                    </span>{' '}
+                    wallets but the {userTier} plan allows a maximum of{' '}
+                    <span className="font-semibold">
+                      {TIER_LIMITS[userTier].toLocaleString()}
+                    </span>
+                    . Upgrade to process all wallets.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="shrink-0"
+                  >
+                    Upgrade
+                  </Button>
+                </div>
+              )}
+
               <div className="p-4 bg-muted rounded-lg space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
