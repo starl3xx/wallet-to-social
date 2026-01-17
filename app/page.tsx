@@ -431,7 +431,15 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Wallet → Social lookup</h1>
+              <h1
+                className="text-3xl font-bold mb-2 cursor-pointer hover:text-accent-brand transition-colors"
+                onClick={state !== 'upload' ? handleReset : undefined}
+                role={state !== 'upload' ? 'button' : undefined}
+                tabIndex={state !== 'upload' ? 0 : undefined}
+                onKeyDown={state !== 'upload' ? (e) => e.key === 'Enter' && handleReset() : undefined}
+              >
+                Wallet → Social lookup
+              </h1>
               <p className="text-muted-foreground">
                 Upload a CSV of Ethereum wallet addresses to find associated
                 𝕏/Twitter + Farcaster profiles
