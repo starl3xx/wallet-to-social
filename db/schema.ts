@@ -110,6 +110,37 @@ export const lookupJobs = pgTable(
   ]
 );
 
+// Users table for tiered pricing
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').unique().notNull(),
+    tier: text('tier').notNull().default('free'), // 'free' | 'pro' | 'unlimited'
+    stripeCustomerId: text('stripe_customer_id'),
+    stripePaymentId: text('stripe_payment_id'),
+    paidAt: timestamp('paid_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('users_email_idx').on(table.email)]
+);
+
+// Whitelist for unlimited access (admin-managed)
+export const whitelist = pgTable(
+  'whitelist',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email'),
+    wallet: text('wallet'),
+    note: text('note'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('whitelist_email_idx').on(table.email),
+    index('whitelist_wallet_idx').on(table.wallet),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -119,3 +150,7 @@ export type SocialGraph = typeof socialGraph.$inferSelect;
 export type NewSocialGraph = typeof socialGraph.$inferInsert;
 export type LookupJob = typeof lookupJobs.$inferSelect;
 export type NewLookupJob = typeof lookupJobs.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Whitelist = typeof whitelist.$inferSelect;
+export type NewWhitelist = typeof whitelist.$inferInsert;

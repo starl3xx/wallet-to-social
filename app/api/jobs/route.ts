@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJob } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
+import { getUserAccess } from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +12,8 @@ interface JobRequest {
   historyName?: string;
   includeENS?: boolean;
   userId?: string;
+  email?: string;
+  wallet?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -23,6 +26,8 @@ export async function POST(request: NextRequest) {
       historyName,
       includeENS = false,
       userId,
+      email,
+      wallet,
     } = body;
 
     if (!wallets || wallets.length === 0) {
@@ -40,12 +45,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create job in database
+    // Check user access and tier limits
+    const access = await getUserAccess(email, wallet);
+
+    if (wallets.length > access.walletLimit) {
+      return NextResponse.json(
+        {
+          error: `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`,
+          upgradeRequired: true,
+          tier: access.tier,
+          limit: access.walletLimit,
+          requested: wallets.length,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Create job in database with tier context
     const jobId = await createJob(wallets, originalData, {
-      includeENS,
+      includeENS: includeENS && access.canUseENS,
       saveToHistory,
       historyName,
       userId,
+      tier: access.tier,
+      canUseNeynar: access.canUseNeynar,
+      canUseENS: access.canUseENS,
     });
 
     // Trigger Inngest function for immediate processing

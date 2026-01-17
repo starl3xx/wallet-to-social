@@ -9,7 +9,10 @@ import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { UpgradeModal } from '@/components/UpgradeModal';
+import { AccessBanner } from '@/components/AccessBanner';
 import { getUserId } from '@/lib/user-id';
+import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseFile } from '@/lib/file-parser';
@@ -44,6 +47,12 @@ export default function Home() {
   const [lookupName, setLookupName] = useState('');
   const [notifyOnComplete, setNotifyOnComplete] = useState(false);
   const [jobId, setJobIdState] = useState<string | null>(null);
+
+  // User access state
+  const [userTier, setUserTier] = useState<UserTier>('free');
+  const [isWhitelisted, setIsWhitelisted] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
@@ -97,6 +106,38 @@ export default function Home() {
         });
     }
   }, []);
+
+  // Check user access level on mount
+  useEffect(() => {
+    const email = localStorage.getItem('user_email');
+    if (email) {
+      setUserEmail(email);
+      fetch(`/api/auth/check-access?email=${encodeURIComponent(email)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.tier) {
+            setUserTier(data.tier);
+            setIsWhitelisted(data.isWhitelisted || false);
+          }
+        })
+        .catch(console.error);
+    }
+  }, []);
+
+  // Handle restore access from upgrade modal
+  const handleRestoreAccess = useCallback((email: string) => {
+    setUserEmail(email);
+    fetch(`/api/auth/check-access?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.tier) {
+          setUserTier(data.tier);
+          setIsWhitelisted(data.isWhitelisted || false);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -171,6 +212,13 @@ export default function Home() {
   }, []);
 
   const startLookup = useCallback(async () => {
+    // Check tier limit before starting
+    const walletLimit = TIER_LIMITS[userTier];
+    if (wallets.length > walletLimit) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setState('processing');
     setResults([]);
     setCacheHits(0);
@@ -198,12 +246,19 @@ export default function Home() {
           historyName: lookupName || undefined,
           includeENS,
           userId: getUserId(),
+          email: userEmail || undefined,
         }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `HTTP error: ${response.status}`);
+        const errorData = await response.json();
+        // Handle upgrade required response
+        if (errorData.upgradeRequired) {
+          setShowUpgradeModal(true);
+          setState('ready');
+          return;
+        }
+        throw new Error(errorData.error || `HTTP error: ${response.status}`);
       }
 
       const { jobId: newJobId } = await response.json();
@@ -218,7 +273,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName, includeENS]);
+  }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail]);
 
   // Poll for job status when jobId is set
   useEffect(() => {
@@ -382,9 +437,25 @@ export default function Home() {
                 𝕏/Twitter + Farcaster profiles
               </p>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-3">
+              <AccessBanner
+                tier={userTier}
+                isWhitelisted={isWhitelisted}
+                onUpgradeClick={() => setShowUpgradeModal(true)}
+              />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          open={showUpgradeModal}
+          onOpenChange={setShowUpgradeModal}
+          currentTier={userTier}
+          walletCount={wallets.length > 0 ? wallets.length : undefined}
+          onRestoreAccess={handleRestoreAccess}
+        />
 
         <main className="space-y-6">
           {/* Upload State */}
@@ -527,12 +598,22 @@ export default function Home() {
                   <Button variant="outline" onClick={handleReset}>
                     New Lookup
                   </Button>
-                  <ExportButton results={results} extraColumns={extraColumns} />
+                  <ExportButton
+                    results={results}
+                    extraColumns={extraColumns}
+                    userTier={userTier}
+                    onUpgradeClick={() => setShowUpgradeModal(true)}
+                  />
                 </div>
               </div>
 
               <StatsCards results={results} />
-              <ResultsTable results={results} extraColumns={extraColumns} />
+              <ResultsTable
+                results={results}
+                extraColumns={extraColumns}
+                userTier={userTier}
+                onUpgradeClick={() => setShowUpgradeModal(true)}
+              />
             </div>
           )}
         </main>

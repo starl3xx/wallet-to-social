@@ -11,11 +11,14 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Lock } from 'lucide-react';
 import type { WalletSocialResult } from '@/lib/types';
 
 interface ResultsTableProps {
   results: WalletSocialResult[];
   extraColumns?: string[];
+  userTier?: 'free' | 'pro' | 'unlimited';
+  onUpgradeClick?: () => void;
 }
 
 type SortField =
@@ -31,7 +34,10 @@ type SortDirection = 'asc' | 'desc';
 export function ResultsTable({
   results,
   extraColumns = [],
+  userTier = 'free',
+  onUpgradeClick,
 }: ResultsTableProps) {
+  const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
   const [search, setSearch] = useState('');
   const [showOnlyTwitter, setShowOnlyTwitter] = useState(false);
   const [showTopInfluencers, setShowTopInfluencers] = useState(false);
@@ -388,12 +394,34 @@ export function ResultsTable({
                       )}
                     </TableCell>
                     <TableCell>
-                      {result.fc_followers !== undefined
-                        ? result.fc_followers.toLocaleString()
-                        : '-'}
+                      {isPaidTier ? (
+                        result.fc_followers !== undefined
+                          ? result.fc_followers.toLocaleString()
+                          : '-'
+                      ) : (
+                        <button
+                          onClick={onUpgradeClick}
+                          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Upgrade to see FC followers"
+                        >
+                          <Lock className="h-3 w-3" />
+                          <span className="text-xs">Upgrade</span>
+                        </button>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <PriorityIndicator score={result.priority_score} />
+                      {isPaidTier ? (
+                        <PriorityIndicator score={result.priority_score} />
+                      ) : (
+                        <button
+                          onClick={onUpgradeClick}
+                          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Upgrade to see priority score"
+                        >
+                          <Lock className="h-3 w-3" />
+                          <span className="text-xs">Upgrade</span>
+                        </button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

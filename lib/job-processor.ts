@@ -27,6 +27,9 @@ export interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
+  tier?: 'free' | 'pro' | 'unlimited';
+  canUseNeynar?: boolean;
+  canUseENS?: boolean;
 }
 
 export interface ProcessResult {
@@ -149,8 +152,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     if (uncachedWallets.length > 0) {
-      // ENS lookups (optional)
-      if (options.includeENS) {
+      // ENS lookups (optional, requires paid tier)
+      if (options.includeENS && options.canUseENS !== false) {
         await updateJobStage(db, jobId, 'ens');
         try {
           const ensResults = await batchLookupENS(uncachedWallets);
@@ -172,11 +175,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Web3.bio + Neynar lookups in parallel
-      await updateJobStage(db, jobId, 'web3bio+neynar');
+      // Neynar requires paid tier
+      const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
+      await updateJobStage(db, jobId, canUseNeynar ? 'web3bio+neynar' : 'web3bio');
 
       const [web3BioResults, neynarResults] = await Promise.all([
         batchFetchWeb3Bio(uncachedWallets),
-        neynarApiKey
+        canUseNeynar
           ? batchFetchNeynar(uncachedWallets, neynarApiKey).catch((error) => {
               console.error('Neynar fetch error:', error);
               return new Map<string, NeynarResult>();
@@ -267,12 +272,18 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       console.error('Social graph enrichment error:', error);
     }
 
-    // Calculate priority scores
+    // Calculate priority scores (paid tiers only)
     for (const [wallet, result] of results) {
-      result.priority_score = calculatePriorityScore(
-        result.holdings,
-        result.fc_followers
-      );
+      if (options.tier === 'free') {
+        // Free tier doesn't get premium data
+        result.priority_score = undefined;
+        result.fc_followers = undefined;
+      } else {
+        result.priority_score = calculatePriorityScore(
+          result.holdings,
+          result.fc_followers
+        );
+      }
       results.set(wallet, result);
     }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Lock } from 'lucide-react';
 import { exportToCSV } from '@/lib/csv-parser';
 import type { WalletSocialResult } from '@/lib/types';
 
@@ -8,13 +9,18 @@ interface ExportButtonProps {
   results: WalletSocialResult[];
   extraColumns?: string[];
   disabled?: boolean;
+  userTier?: 'free' | 'pro' | 'unlimited';
+  onUpgradeClick?: () => void;
 }
 
 export function ExportButton({
   results,
   extraColumns = [],
   disabled,
+  userTier = 'free',
+  onUpgradeClick,
 }: ExportButtonProps) {
+  const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
   // Sort results by priority score descending for export
   const sortedResults = [...results].sort(
     (a, b) => (b.priority_score || 0) - (a.priority_score || 0)
@@ -91,22 +97,41 @@ export function ExportButton({
 
   return (
     <div className="flex gap-2">
-      <Button
-        variant="outline"
-        onClick={handleExportTwitterList}
-        disabled={disabled || twitterCount === 0}
-        title={`Export ${twitterCount} Twitter handles`}
-      >
-        <svg
-          className="w-4 h-4 mr-2"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
+      {isPaidTier ? (
+        <Button
+          variant="outline"
+          onClick={handleExportTwitterList}
+          disabled={disabled || twitterCount === 0}
+          title={`Export ${twitterCount} Twitter handles`}
         >
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-        </svg>
-        Export Twitter List ({twitterCount})
-      </Button>
+          <svg
+            className="w-4 h-4 mr-2"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          Export Twitter List ({twitterCount})
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          onClick={onUpgradeClick}
+          title="Upgrade to export Twitter list"
+        >
+          <Lock className="w-4 h-4 mr-2" />
+          <svg
+            className="w-4 h-4 mr-1"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          Twitter List (Pro)
+        </Button>
+      )}
       <Button onClick={handleExportCSV} disabled={disabled || results.length === 0}>
         <svg
           className="w-4 h-4 mr-2"
