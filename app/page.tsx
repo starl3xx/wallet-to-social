@@ -55,6 +55,10 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // Paste addresses mode
+  const [showPasteInput, setShowPasteInput] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
     setJobIdState(id);
@@ -163,6 +167,37 @@ export default function Home() {
     if (remainingMins === 0) return `~${hours} hour${hours > 1 ? 's' : ''}`;
     return `~${hours}h ${remainingMins}m`;
   };
+
+  // Count valid Ethereum addresses in pasted text
+  const countValidAddresses = (text: string): number => {
+    if (!text.trim()) return 0;
+    return text
+      .split(/\r?\n/)
+      .filter(line => /^0x[a-fA-F0-9]{40}$/i.test(line.trim()))
+      .length;
+  };
+
+  // Handle loading addresses from paste input
+  const handlePasteAddresses = useCallback(() => {
+    const lines = pasteText.trim().split(/\r?\n/);
+    const validAddresses = lines
+      .map(line => line.trim().toLowerCase())
+      .filter(line => /^0x[a-fA-F0-9]{40}$/.test(line));
+
+    // Deduplicate
+    const unique = [...new Set(validAddresses)];
+
+    if (unique.length === 0) {
+      setError('No valid Ethereum addresses found');
+      return;
+    }
+
+    setWallets(unique);
+    setOriginalData({});
+    setExtraColumns([]);
+    setState('ready');
+    setShowPasteInput(false);
+  }, [pasteText]);
 
   // Calculate time remaining based on actual processing rate
   const getTimeRemaining = (): string | null => {
@@ -430,6 +465,8 @@ export default function Home() {
     setCacheHits(0);
     setLookupName('');
     setIncludeENS(false);
+    setShowPasteInput(false);
+    setPasteText('');
     setProgress({
       total: 0,
       processed: 0,
@@ -511,6 +548,50 @@ export default function Home() {
           {state === 'upload' && (
             <div className="space-y-6">
               <FileUpload onFileLoaded={handleFileLoaded} />
+
+              {/* Paste alternative */}
+              <div className="text-center">
+                <div className="flex items-center gap-4 my-4">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-sm text-muted-foreground">or</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+
+                {!showPasteInput ? (
+                  <button
+                    onClick={() => setShowPasteInput(true)}
+                    className="text-sm text-muted-foreground hover:text-foreground underline"
+                  >
+                    Don&apos;t have a spreadsheet? Paste a list of addresses instead
+                  </button>
+                ) : (
+                  <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
+                    <textarea
+                      value={pasteText}
+                      onChange={(e) => setPasteText(e.target.value)}
+                      placeholder={"Paste wallet addresses (one per line)\n0x1234...\n0xabcd..."}
+                      className="w-full h-40 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {countValidAddresses(pasteText)} valid addresses detected
+                      </span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setShowPasteInput(false);
+                          setPasteText('');
+                        }}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handlePasteAddresses} disabled={countValidAddresses(pasteText) === 0}>
+                          Load Addresses
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <RecentWins />
               <LookupHistory onLoadLookup={handleLoadHistory} />
             </div>

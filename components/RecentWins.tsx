@@ -167,7 +167,8 @@ export const RecentWins = memo(function RecentWins() {
                 <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {win.socialRate}%
                 </span>
-                <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded whitespace-nowrap">
+                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded whitespace-nowrap">
+                  <span className="inline-block mr-0.5">&#9650;</span>
                   {Math.round(win.socialRate / 2.5)}x industry avg
                 </span>
               </div>
