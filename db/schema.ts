@@ -93,6 +93,7 @@ export const lookupJobs = pgTable(
     // Stats
     twitterFound: integer('twitter_found').default(0).notNull(),
     farcasterFound: integer('farcaster_found').default(0).notNull(),
+    anySocialFound: integer('any_social_found').default(0).notNull(),
     cacheHits: integer('cache_hits').default(0).notNull(),
 
     // Timestamps

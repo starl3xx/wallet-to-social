@@ -37,6 +37,7 @@ export interface ProcessResult {
   processedCount: number;
   twitterFound: number;
   farcasterFound: number;
+  anySocialFound: number;
   cacheHits: number;
   error?: string;
 }
@@ -48,7 +49,7 @@ export interface ProcessResult {
 export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   const db = getDb();
   if (!db) {
-    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, cacheHits: 0, error: 'Database not configured' };
+    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, anySocialFound: 0, cacheHits: 0, error: 'Database not configured' };
   }
 
   // Load job from DB
@@ -59,11 +60,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     .limit(1);
 
   if (!job) {
-    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, cacheHits: 0, error: 'Job not found' };
+    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, anySocialFound: 0, cacheHits: 0, error: 'Job not found' };
   }
 
   if (job.status === 'completed' || job.status === 'failed') {
-    return { completed: true, processedCount: job.processedCount, twitterFound: job.twitterFound, farcasterFound: job.farcasterFound, cacheHits: job.cacheHits };
+    return { completed: true, processedCount: job.processedCount, twitterFound: job.twitterFound, farcasterFound: job.farcasterFound, anySocialFound: job.anySocialFound, cacheHits: job.cacheHits };
   }
 
   // Mark as processing
@@ -291,6 +292,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     const chunkResults = walletsToProcess.map((w) => results.get(w.toLowerCase())!);
     const twitterFound = job.twitterFound + chunkResults.filter((r) => r.twitter_handle).length;
     const farcasterFound = job.farcasterFound + chunkResults.filter((r) => r.farcaster).length;
+    const anySocialFound = job.anySocialFound + chunkResults.filter((r) => r.twitter_handle || r.farcaster).length;
 
     const newProcessedCount = startIndex + walletsToProcess.length;
     const allResults = Array.from(results.values());
@@ -300,12 +302,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     if (isComplete) {
       // Finalize: save to history and social graph
-      await finalizeJobWithResults(db, job, allResults, twitterFound, farcasterFound, cacheHits);
+      await finalizeJobWithResults(db, job, allResults, twitterFound, farcasterFound, anySocialFound, cacheHits);
       return {
         completed: true,
         processedCount: newProcessedCount,
         twitterFound,
         farcasterFound,
+        anySocialFound,
         cacheHits,
       };
     }
@@ -318,6 +321,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         partialResults: allResults,
         twitterFound,
         farcasterFound,
+        anySocialFound,
         cacheHits,
         updatedAt: new Date(),
       })
@@ -328,6 +332,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       processedCount: newProcessedCount,
       twitterFound,
       farcasterFound,
+      anySocialFound,
       cacheHits,
     };
   } catch (error) {
@@ -349,6 +354,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       processedCount: job.processedCount,
       twitterFound: job.twitterFound,
       farcasterFound: job.farcasterFound,
+      anySocialFound: job.anySocialFound,
       cacheHits: job.cacheHits,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
@@ -372,6 +378,7 @@ async function finalizeJob(db: any, job: LookupJob): Promise<ProcessResult> {
     results,
     job.twitterFound,
     job.farcasterFound,
+    job.anySocialFound,
     job.cacheHits
   );
 }
@@ -383,6 +390,7 @@ async function finalizeJobWithResults(
   results: WalletSocialResult[],
   twitterFound: number,
   farcasterFound: number,
+  anySocialFound: number,
   cacheHits: number
 ): Promise<ProcessResult> {
   const options = job.options as JobOptions;
@@ -423,6 +431,7 @@ async function finalizeJobWithResults(
       partialResults: results,
       twitterFound,
       farcasterFound,
+      anySocialFound,
       cacheHits,
       completedAt: new Date(),
       updatedAt: new Date(),
@@ -434,6 +443,7 @@ async function finalizeJobWithResults(
     processedCount: job.wallets.length,
     twitterFound,
     farcasterFound,
+    anySocialFound,
     cacheHits,
   };
 }

@@ -23,8 +23,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
 
     // Query completed jobs with >10% social hit rate
-    // Social rate = (twitterFound + farcasterFound) / walletCount
-    // We need to calculate this and filter
+    // Social rate = anySocialFound / walletCount (unique wallets with any social)
     // Filter out hidden jobs from public feed
     const completedJobs = await db
       .select({
@@ -32,6 +31,7 @@ export async function GET(request: NextRequest) {
         walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
         twitterFound: lookupJobs.twitterFound,
         farcasterFound: lookupJobs.farcasterFound,
+        anySocialFound: lookupJobs.anySocialFound,
         completedAt: lookupJobs.completedAt,
       })
       .from(lookupJobs)
@@ -45,14 +45,15 @@ export async function GET(request: NextRequest) {
     const wins: RecentWin[] = completedJobs
       .filter((job) => {
         if (!job.walletCount || job.walletCount === 0) return false;
-        const anyFound = job.twitterFound + job.farcasterFound;
-        // Use unique social accounts (some have both twitter and farcaster)
+        // Use anySocialFound for unique count, fallback to sum for old jobs
+        const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
         const socialRate = anyFound / job.walletCount;
         return socialRate > 0.1; // >10%
       })
       .slice(0, limit)
       .map((job) => {
-        const anyFound = job.twitterFound + job.farcasterFound;
+        // Use anySocialFound for unique count, fallback to sum for old jobs
+        const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
         const socialRate = Math.round((anyFound / job.walletCount) * 100);
         return {
           id: job.id,
