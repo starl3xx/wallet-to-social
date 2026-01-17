@@ -55,7 +55,7 @@ export function AccessBanner({
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-muted/50 border text-sm whitespace-nowrap flex-shrink-0">
       <span className="text-muted-foreground">
-        Free ({TIER_LIMITS.free.toLocaleString()})
+        Free ({TIER_LIMITS.free.toLocaleString()} wallets)
       </span>
       <Button
         variant="ghost"
