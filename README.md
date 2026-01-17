@@ -1,4 +1,4 @@
-# Wallet → Social Lookup
+# walletlink.social
 
 A Next.js application that takes a CSV of Ethereum wallet addresses and finds associated social profiles (Twitter/X and Farcaster). Perfect for community outreach, airdrop targeting, and identifying key influencers among token holders.
 

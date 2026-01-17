@@ -51,6 +51,10 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 
 **Always update the changelog in README.md when making commits.** Add a dated entry under `## Changelog` with a brief description and bullet points of changes.
 
+## UI Guidelines
+
+- **Never reference API providers in the UI** (e.g., Web3.bio, Neynar). Use generic terms like "all data sources" instead. API details are implementation details that users don't need to see.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local`:

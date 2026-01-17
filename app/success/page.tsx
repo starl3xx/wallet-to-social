@@ -147,7 +147,7 @@ function SuccessContent() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500" />
-                    All APIs (Web3.bio + Neynar)
+                    All data sources
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500" />
@@ -171,7 +171,7 @@ function SuccessContent() {
               )}
 
               <Button asChild className="w-full">
-                <Link href="/">Start Using Wallet → Social</Link>
+                <Link href="/">Start Using walletlink.social</Link>
               </Button>
             </>
           )}

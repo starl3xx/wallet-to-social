@@ -441,13 +441,13 @@ export default function Home() {
               >
                 <Image
                   src="/icon.png"
-                  alt="Wallet to Social"
+                  alt="walletlink.social"
                   width={40}
                   height={40}
                   className="rounded-lg"
                 />
                 <h1 className={`text-3xl font-bold ${state !== 'upload' ? 'hover:text-accent-brand transition-colors' : ''}`}>
-                  Wallet → Social
+                  walletlink.social
                 </h1>
               </div>
               <p className="text-muted-foreground">
