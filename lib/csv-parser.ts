@@ -16,29 +16,47 @@ export function parseCSV(content: string): ParseResult {
     return { rows: [], headers: [], error: 'Empty CSV file' };
   }
 
-  // Parse header row
-  const headers = parseCSVLine(lines[0]);
+  // Parse all lines to detect wallet column
+  const parsedLines = lines.map((line) => parseCSVLine(line));
 
-  // Find wallet column (look for 'wallet' or use first column)
-  let walletColumnIndex = headers.findIndex(
-    (h) => h.toLowerCase() === 'wallet' || h.toLowerCase() === 'address'
-  );
+  // Find the column with the most valid Ethereum addresses
+  const walletColumnIndex = detectWalletColumn(parsedLines);
 
   if (walletColumnIndex === -1) {
-    // Use first column as wallet
-    walletColumnIndex = 0;
+    return {
+      rows: [],
+      headers: [],
+      error: 'No valid wallet addresses found in CSV',
+    };
+  }
+
+  // Check if first row contains a valid address (headerless file)
+  const firstRowValue = parsedLines[0]?.[walletColumnIndex]?.trim();
+  const hasHeader = !isValidEthAddress(firstRowValue || '');
+
+  // Determine headers
+  let headers: string[];
+  let dataStartIndex: number;
+
+  if (hasHeader) {
+    headers = parsedLines[0];
+    dataStartIndex = 1;
+  } else {
+    // Generate placeholder headers (Column A, Column B, etc.)
+    const columnCount = Math.max(...parsedLines.map((l) => l.length));
+    headers = Array.from({ length: columnCount }, (_, i) =>
+      String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) : '')
+    );
+    dataStartIndex = 0;
   }
 
   const rows: WalletRow[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    const values = parseCSVLine(line);
+  for (let i = dataStartIndex; i < parsedLines.length; i++) {
+    const values = parsedLines[i];
     const wallet = values[walletColumnIndex]?.trim();
 
-    // Validate wallet address (basic check for Ethereum address)
+    // Validate wallet address
     if (!wallet || !isValidEthAddress(wallet)) {
       continue;
     }
@@ -70,10 +88,36 @@ export function parseCSV(content: string): ParseResult {
 
   return {
     rows: uniqueRows,
-    headers: headers.filter(
-      (_, i) => i !== walletColumnIndex || headers[i].toLowerCase() !== 'wallet'
-    ),
+    headers: headers.filter((_, i) => i !== walletColumnIndex),
   };
+}
+
+/**
+ * Scan all columns to find which one contains the most valid Ethereum addresses.
+ * Returns the column index, or -1 if no valid addresses found.
+ */
+function detectWalletColumn(parsedLines: string[][]): number {
+  if (parsedLines.length === 0) return -1;
+
+  const columnCount = Math.max(...parsedLines.map((l) => l.length));
+  let bestColumn = -1;
+  let bestCount = 0;
+
+  for (let col = 0; col < columnCount; col++) {
+    let validCount = 0;
+    for (const line of parsedLines) {
+      const value = line[col]?.trim();
+      if (value && isValidEthAddress(value)) {
+        validCount++;
+      }
+    }
+    if (validCount > bestCount) {
+      bestCount = validCount;
+      bestColumn = col;
+    }
+  }
+
+  return bestColumn;
 }
 
 function parseCSVLine(line: string): string[] {
