@@ -14,9 +14,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Wallet → Social lookup',
+  title: 'Wallet → Social',
   description:
     'Find 𝕏/Twitter + Farcaster profiles from Ethereum wallet addresses',
+  openGraph: {
+    title: 'Wallet → Social',
+    description: 'Find 𝕏/Twitter + Farcaster profiles from Ethereum wallet addresses',
+    images: ['/icon.png'],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Wallet → Social',
+    description: 'Find 𝕏/Twitter + Farcaster profiles from Ethereum wallet addresses',
+    images: ['/icon.png'],
+  },
 };
 
 export default function RootLayout({

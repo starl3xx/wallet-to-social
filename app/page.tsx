@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { FileUpload } from '@/components/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
@@ -431,15 +432,24 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1
-                className="text-3xl font-bold mb-2 cursor-pointer hover:text-accent-brand transition-colors"
+              <div
+                className={`flex items-center gap-3 mb-2 ${state !== 'upload' ? 'cursor-pointer' : ''}`}
                 onClick={state !== 'upload' ? handleReset : undefined}
                 role={state !== 'upload' ? 'button' : undefined}
                 tabIndex={state !== 'upload' ? 0 : undefined}
                 onKeyDown={state !== 'upload' ? (e) => e.key === 'Enter' && handleReset() : undefined}
               >
-                Wallet → Social lookup
-              </h1>
+                <Image
+                  src="/icon.png"
+                  alt="Wallet to Social"
+                  width={40}
+                  height={40}
+                  className="rounded-lg"
+                />
+                <h1 className={`text-3xl font-bold ${state !== 'upload' ? 'hover:text-accent-brand transition-colors' : ''}`}>
+                  Wallet → Social
+                </h1>
+              </div>
               <p className="text-muted-foreground">
                 Upload a CSV of Ethereum wallet addresses to find associated
                 𝕏/Twitter + Farcaster profiles
