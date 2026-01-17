@@ -84,8 +84,8 @@ npm run db:push
 
 ### 2025-01-17
 
-**My Lookups: Tiered history + Add addresses feature**
-- **Renamed "Recent Lookups" to "My Lookups"**: Better reflects user ownership
+**My lookups: Tiered history + Add addresses feature**
+- **Renamed "Recent Lookups" to "My lookups"**: Better reflects user ownership
 - **Tiered history visibility**: Free users see 1 lookup, Pro/Unlimited see full history with pagination
 - **Add addresses to lookups (Pro+)**: Click "+" on any lookup to add more addresses
   - New AddAddressesModal with file upload and paste support

@@ -106,7 +106,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">My Lookups</CardTitle>
+          <CardTitle className="text-lg">My lookups</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -132,7 +132,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">My Lookups</CardTitle>
+        <CardTitle className="text-lg">My lookups</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {history.map((lookup) => (

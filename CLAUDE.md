@@ -56,6 +56,7 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 - **Never reference API providers in the UI** (e.g., Web3.bio, Neynar). Use generic terms like "all data sources" instead. API details are implementation details that users don't need to see.
 - **Social proof should show comparisons, not progress** - When displaying match rates (e.g., 22%), don't use progress bars (makes it look incomplete). Instead show the number prominently with context like "9x avg" comparing to industry average (~2.5%).
 - **Header logo is always clickable** - Returns user to homepage from any state.
+- **Sentence case for headings** - Use "My lookups" not "My Lookups". Only capitalize the first word and proper nouns.
 
 ## Performance Patterns
 
