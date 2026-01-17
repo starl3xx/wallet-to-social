@@ -98,6 +98,48 @@ npm run db:push
 - **Fixed Live Activity rate**: Now shows deduplicated "any social" rate (14.5%) instead of inflated sum (22%)
 - **New `any_social_found` column**: Tracks unique wallets with Twitter OR Farcaster (not double-counting)
 
+### 2025-01-16
+
+**SEO & positioning**
+- **Addressable alternative positioning**: New `/vs/addressable` comparison page
+- **SEO meta tags**: Optimized title, description, and Open Graph tags for search visibility
+- **Comparison content**: Feature comparison showing advantages over Addressable
+
+**Live Activity improvements**
+- **Industry average comparison**: Shows "9x industry avg" badge (vs ~2.5% baseline)
+- **Cleaner copy**: Simplified homepage messaging and AccessBanner text
+
+### 2025-01-15
+
+**Tiered pricing with Stripe integration**
+- **Three tiers**: Free (1,000 wallets), Pro (10,000 wallets, $149), Unlimited ($420)
+- **Stripe Checkout**: One-time payment flow with automatic tier upgrade
+- **Admin whitelist**: Manual unlimited access grants via `/admin` dashboard
+- **Access control**: Tier-based limits enforced on frontend and backend
+- **User database**: New `users` and `whitelist` tables for access management
+
+**UI overhaul - Stripe-inspired design**
+- **New color scheme**: Indigo accent color (`#635bff`) replacing green
+- **Card-based layout**: Clean cards with subtle shadows and borders
+- **Improved typography**: Better hierarchy and spacing throughout
+- **Dark mode polish**: Refined dark theme with proper contrast
+- **Consistent styling**: Buttons, inputs, and badges unified
+
+**Rebrand to walletlink.social**
+- **New domain**: Rebranded from previous name to walletlink.social
+- **App icon**: Custom wallet emoji icon as favicon and header logo
+- **Header clickable**: Logo/title returns to homepage from any state
+
+**Performance optimizations**
+- **Table virtualization**: ResultsTable uses `@tanstack/react-virtual` for 13K+ rows
+- **Component memoization**: React.memo, useMemo, useCallback throughout
+- **Reduced re-renders**: Optimized polling to avoid unnecessary state updates
+
+**Live Activity redesign**
+- **Card-based tiles**: Horizontal scrolling cards showing recent lookups
+- **Pulsing indicator**: Green dot animation for "live" feel
+- **Social proof**: Shows wallet count, Twitter/FC found, and match rate %
+
 ### 2025-01-14
 
 **User-specific history + public wins showcase**
