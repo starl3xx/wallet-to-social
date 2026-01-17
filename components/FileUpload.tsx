@@ -115,9 +115,10 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
                 {compact ? 'Drop file or click to upload' : 'Drop your file with Ethereum addresses here'}
               </p>
               {!compact && (
-                <p className="text-sm text-muted-foreground mb-4">
-                  We&apos;ll find the wallets and do the rest
-                </p>
+                <div className="text-sm text-muted-foreground mb-4">
+                  <p>We&apos;ll find the wallets and do the rest</p>
+                  <p className="text-xs mt-1">Supports CSV and Excel (.xlsx)</p>
+                </div>
               )}
               <label>
                 <input
