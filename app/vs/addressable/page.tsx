@@ -300,20 +300,20 @@ export default function AddressableComparison() {
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
-                  <p className="text-muted-foreground">Up to 1,000 wallets</p>
+                  <p className="text-muted-foreground">Up to 1,000 wallets/lookup</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pro</p>
                   <p className="text-2xl font-bold">$149</p>
                   <p className="text-muted-foreground">
-                    Up to 10,000 wallets (one-time)
+                    Up to 10,000 wallets/lookup (one-time)
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Unlimited</p>
                   <p className="text-2xl font-bold">$420</p>
                   <p className="text-muted-foreground">
-                    Unlimited wallets forever
+                    Unlimited wallets/lookup forever
                   </p>
                 </div>
               </div>

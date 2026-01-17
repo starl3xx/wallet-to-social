@@ -23,14 +23,14 @@ interface UpgradeModalProps {
 
 const FEATURES = {
   free: [
-    'Up to 1,000 wallets',
+    'Up to 1,000 wallets/lookup',
     'Basic data sources',
     'Basic CSV export',
     'Twitter/Farcaster handles',
     '1 saved lookup',
   ],
   pro: [
-    'Up to 10,000 wallets',
+    'Up to 10,000 wallets/lookup',
     'All data sources',
     'ENS onchain lookups',
     'FC follower counts',
@@ -40,7 +40,7 @@ const FEATURES = {
     'Add addresses to lookups',
   ],
   unlimited: [
-    'Unlimited wallets',
+    'Unlimited wallets/lookup',
     'All data sources',
     'ENS onchain lookups',
     'FC follower counts',
