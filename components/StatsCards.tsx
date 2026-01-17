@@ -20,14 +20,15 @@ export function StatsCards({ results }: StatsCardsProps) {
   };
 
   const cards = [
-    { title: 'Total Wallets', value: stats.total, color: 'text-foreground' },
-    { title: 'Twitter Found', value: stats.twitter, color: 'text-blue-500' },
+    { title: 'Total Wallets', value: stats.total, color: 'text-foreground', badgeColor: '' },
+    { title: 'Twitter Found', value: stats.twitter, color: 'text-blue-500', badgeColor: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
     {
       title: 'Farcaster Found',
       value: stats.farcaster,
       color: 'text-purple-500',
+      badgeColor: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
     },
-    { title: 'Any Social', value: stats.anySocial, color: 'text-green-500' },
+    { title: 'Any Social', value: stats.anySocial, color: 'text-emerald-500', badgeColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
   ];
 
   return (
@@ -44,9 +45,9 @@ export function StatsCards({ results }: StatsCardsProps) {
               {card.value.toLocaleString()}
             </p>
             {card.title !== 'Total Wallets' && stats.total > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
+              <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-md ${card.badgeColor}`}>
                 {((card.value / stats.total) * 100).toFixed(1)}% of total
-              </p>
+              </span>
             )}
           </CardContent>
         </Card>

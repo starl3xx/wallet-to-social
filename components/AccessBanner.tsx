@@ -17,9 +17,9 @@ export function AccessBanner({
 }: AccessBannerProps) {
   if (isWhitelisted) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 text-sm">
-        <Sparkles className="h-4 w-4 text-yellow-500" />
-        <span className="font-medium text-yellow-600 dark:text-yellow-400">
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-sm">
+        <Sparkles className="h-4 w-4 text-amber-500" />
+        <span className="font-medium text-amber-600 dark:text-amber-400">
           Whitelisted
         </span>
       </div>
@@ -28,7 +28,7 @@ export function AccessBanner({
 
   if (tier === 'unlimited') {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 text-sm">
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-sm">
         <Crown className="h-4 w-4 text-purple-500" />
         <span className="font-medium text-purple-600 dark:text-purple-400">
           Unlimited
@@ -39,7 +39,7 @@ export function AccessBanner({
 
   if (tier === 'pro') {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 text-sm">
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-sm">
         <Zap className="h-4 w-4 text-blue-500" />
         <span className="font-medium text-blue-600 dark:text-blue-400">
           Pro

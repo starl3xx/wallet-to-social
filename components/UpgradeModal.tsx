@@ -24,13 +24,13 @@ interface UpgradeModalProps {
 const FEATURES = {
   free: [
     'Up to 1,000 wallets',
-    'Web3.bio API only',
+    'Basic data sources',
     'Basic CSV export',
     'Twitter/Farcaster handles',
   ],
   pro: [
     'Up to 10,000 wallets',
-    'All APIs (Web3.bio + Neynar)',
+    'All data sources',
     'ENS onchain lookups',
     'FC follower counts',
     'Priority score ranking',
@@ -38,7 +38,7 @@ const FEATURES = {
   ],
   unlimited: [
     'Unlimited wallets',
-    'All APIs (Web3.bio + Neynar)',
+    'All data sources',
     'ENS onchain lookups',
     'FC follower counts',
     'Priority score ranking',
@@ -136,11 +136,16 @@ export function UpgradeModal({
             {/* Pro tier */}
             <div className="rounded-lg border p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-blue-500" />
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
+                    <Zap className="h-5 w-5 text-blue-500" />
+                  </div>
                   <h3 className="font-semibold">Pro</h3>
                 </div>
-                <span className="text-2xl font-bold">${TIER_PRICES.pro}</span>
+                <div className="text-right">
+                  <span className="text-3xl font-bold">${TIER_PRICES.pro}</span>
+                  <span className="text-sm text-muted-foreground ml-1">one-time</span>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 Up to {TIER_LIMITS.pro.toLocaleString()} wallets
@@ -148,7 +153,9 @@ export function UpgradeModal({
               <ul className="space-y-2">
                 {FEATURES.pro.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <div className="rounded-full bg-success-light p-0.5">
+                      <Check className="h-3 w-3 text-success-foreground" />
+                    </div>
                     {feature}
                   </li>
                 ))}
@@ -170,16 +177,21 @@ export function UpgradeModal({
             </div>
 
             {/* Unlimited tier */}
-            <div className="rounded-lg border-2 border-primary p-4 space-y-4 relative">
-              <div className="absolute -top-3 left-4 bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-medium">
+            <div className="rounded-lg border-2 border-accent-brand p-4 space-y-4 relative">
+              <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
                 Best Value
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Crown className="h-5 w-5 text-yellow-500" />
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
+                    <Crown className="h-5 w-5 text-amber-500" />
+                  </div>
                   <h3 className="font-semibold">Unlimited</h3>
                 </div>
-                <span className="text-2xl font-bold">${TIER_PRICES.unlimited}</span>
+                <div className="text-right">
+                  <span className="text-3xl font-bold">${TIER_PRICES.unlimited}</span>
+                  <span className="text-sm text-muted-foreground ml-1">one-time</span>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 Unlimited wallets forever
@@ -187,7 +199,9 @@ export function UpgradeModal({
               <ul className="space-y-2">
                 {FEATURES.unlimited.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <div className="rounded-full bg-success-light p-0.5">
+                      <Check className="h-3 w-3 text-success-foreground" />
+                    </div>
                     {feature}
                   </li>
                 ))}
