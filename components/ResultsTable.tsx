@@ -1,14 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { useState, useMemo, useCallback, memo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
@@ -31,6 +24,8 @@ type SortField =
   | 'priority_score';
 type SortDirection = 'asc' | 'desc';
 
+const ROW_HEIGHT = 44; // Fixed row height for virtualization
+
 export const ResultsTable = memo(function ResultsTable({
   results,
   extraColumns = [],
@@ -45,10 +40,24 @@ export const ResultsTable = memo(function ResultsTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null);
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
   // Check if any results have holdings data
   const hasHoldings = useMemo(
     () => results.some((r) => r.holdings !== undefined && r.holdings > 0),
     [results]
+  );
+
+  // Filter extra columns once
+  const filteredExtraColumns = useMemo(
+    () =>
+      extraColumns.filter(
+        (col) =>
+          !col.toLowerCase().includes('value') &&
+          !col.toLowerCase().includes('balance') &&
+          !col.toLowerCase().includes('holdings')
+      ),
+    [extraColumns]
   );
 
   const filteredAndSorted = useMemo(() => {
@@ -123,28 +132,37 @@ export const ResultsTable = memo(function ResultsTable({
     sortDirection,
   ]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
+  // Virtualizer for efficient rendering of large lists
+  const virtualizer = useVirtualizer({
+    count: filteredAndSorted.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10, // Render 10 extra rows above/below viewport
+  });
+
+  const handleSort = useCallback((field: SortField) => {
+    setSortField((currentField) => {
+      if (currentField === field) {
+        setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+        return field;
+      }
       // Default to descending for numeric fields
-      if (
-        field === 'fc_followers' ||
-        field === 'holdings' ||
-        field === 'priority_score'
-      ) {
+      if (field === 'fc_followers' || field === 'holdings' || field === 'priority_score') {
         setSortDirection('desc');
       } else {
         setSortDirection('asc');
       }
-    }
-  };
+      return field;
+    });
+  }, []);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
-  };
+  const SortIcon = useCallback(
+    ({ field }: { field: SortField }) => {
+      if (sortField !== field) return null;
+      return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
+    },
+    [sortField, sortDirection]
+  );
 
   const truncateWallet = (wallet: string) => {
     return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
@@ -165,19 +183,16 @@ export const ResultsTable = memo(function ResultsTable({
     return value.toFixed(1);
   };
 
-  // Memoize max score calculation - avoids recalculating for every row
+  // Memoize max score calculation
   const maxScore = useMemo(
     () => Math.max(...results.map((r) => r.priority_score || 0), 1),
     [results]
   );
 
-  // Get priority level for visual indicator (0-5 scale based on distribution)
   const getPriorityLevel = useCallback(
     (score: number | undefined): number => {
       if (score === undefined || score === 0) return 0;
-
       const normalizedScore = score / maxScore;
-
       if (normalizedScore >= 0.8) return 5;
       if (normalizedScore >= 0.6) return 4;
       if (normalizedScore >= 0.4) return 3;
@@ -187,35 +202,35 @@ export const ResultsTable = memo(function ResultsTable({
     [maxScore]
   );
 
-  const PriorityIndicator = ({ score }: { score: number | undefined }) => {
+  const PriorityIndicator = memo(function PriorityIndicator({
+    score,
+  }: {
+    score: number | undefined;
+  }) {
     const level = getPriorityLevel(score);
     if (level === 0) return <span className="text-muted-foreground">-</span>;
-
-    const bars = Array(5)
-      .fill(0)
-      .map((_, i) => (
-        <div
-          key={i}
-          className={`w-1 h-3 rounded-sm ${
-            i < level ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
-          }`}
-        />
-      ));
 
     return (
       <div
         className="flex items-center gap-0.5 cursor-help"
         title={`Priority: ${formatPriorityScore(score)} (Based on holdings × follower reach)`}
       >
-        {bars}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className={`w-1 h-3 rounded-sm ${
+              i < level ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+            }`}
+          />
+        ))}
         <span className="ml-2 text-xs text-muted-foreground">
           {formatPriorityScore(score)}
         </span>
       </div>
     );
-  };
+  });
 
-  const handleCopyWallet = async (wallet: string) => {
+  const handleCopyWallet = useCallback(async (wallet: string) => {
     try {
       await navigator.clipboard.writeText(wallet);
       setCopiedWallet(wallet);
@@ -223,7 +238,12 @@ export const ResultsTable = memo(function ResultsTable({
     } catch (err) {
       console.error('Failed to copy:', err);
     }
-  };
+  }, []);
+
+  // Calculate column count for grid
+  const baseColumns = 6; // wallet, ens, twitter, farcaster, fc_followers, priority
+  const columnCount =
+    baseColumns + (hasHoldings ? 1 : 0) + filteredExtraColumns.length;
 
   return (
     <div className="space-y-4">
@@ -254,81 +274,99 @@ export const ResultsTable = memo(function ResultsTable({
       </div>
 
       <div className="border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('wallet')}
-                >
-                  Wallet <SortIcon field="wallet" />
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('ens_name')}
-                >
-                  ENS <SortIcon field="ens_name" />
-                </TableHead>
-                {hasHoldings && (
-                  <TableHead
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleSort('holdings')}
+        {/* Header */}
+        <div className="bg-muted/50 border-b">
+          <div
+            className="grid text-sm font-medium text-muted-foreground"
+            style={{
+              gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+            }}
+          >
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('wallet')}
+            >
+              Wallet <SortIcon field="wallet" />
+            </div>
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('ens_name')}
+            >
+              ENS <SortIcon field="ens_name" />
+            </div>
+            {hasHoldings && (
+              <div
+                className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('holdings')}
+              >
+                Holdings <SortIcon field="holdings" />
+              </div>
+            )}
+            {filteredExtraColumns.map((col) => (
+              <div key={col} className="px-4 py-3">
+                {col}
+              </div>
+            ))}
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('twitter_handle')}
+            >
+              Twitter <SortIcon field="twitter_handle" />
+            </div>
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('farcaster')}
+            >
+              Farcaster <SortIcon field="farcaster" />
+            </div>
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('fc_followers')}
+            >
+              FC Followers <SortIcon field="fc_followers" />
+            </div>
+            <div
+              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => handleSort('priority_score')}
+              title="Based on holdings × follower reach"
+            >
+              Priority <SortIcon field="priority_score" />
+            </div>
+          </div>
+        </div>
+
+        {/* Virtualized body */}
+        <div
+          ref={parentRef}
+          className="overflow-auto"
+          style={{ height: Math.min(filteredAndSorted.length * ROW_HEIGHT, 600) }}
+        >
+          {filteredAndSorted.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No results found
+            </div>
+          ) : (
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const result = filteredAndSorted[virtualRow.index];
+                return (
+                  <div
+                    key={result.wallet}
+                    className="absolute top-0 left-0 w-full grid items-center border-b border-border/50 hover:bg-muted/30 transition-colors"
+                    style={{
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                      gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+                    }}
                   >
-                    Holdings <SortIcon field="holdings" />
-                  </TableHead>
-                )}
-                {extraColumns
-                  .filter(
-                    (col) =>
-                      !col.toLowerCase().includes('value') &&
-                      !col.toLowerCase().includes('balance') &&
-                      !col.toLowerCase().includes('holdings')
-                  )
-                  .map((col) => (
-                    <TableHead key={col}>{col}</TableHead>
-                  ))}
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('twitter_handle')}
-                >
-                  Twitter <SortIcon field="twitter_handle" />
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('farcaster')}
-                >
-                  Farcaster <SortIcon field="farcaster" />
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('fc_followers')}
-                >
-                  FC Followers <SortIcon field="fc_followers" />
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('priority_score')}
-                  title="Based on holdings × follower reach"
-                >
-                  Priority <SortIcon field="priority_score" />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSorted.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8 + extraColumns.length}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    No results found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAndSorted.map((result) => (
-                  <TableRow key={result.wallet}>
-                    <TableCell className="font-mono text-xs">
+                    {/* Wallet */}
+                    <div className="px-4 py-2 font-mono text-xs">
                       <button
                         className="relative hover:text-blue-500 cursor-pointer transition-colors"
                         onClick={() => handleCopyWallet(result.wallet)}
@@ -336,31 +374,34 @@ export const ResultsTable = memo(function ResultsTable({
                       >
                         {truncateWallet(result.wallet)}
                         {copiedWallet === result.wallet && (
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
                             Copied!
                           </span>
                         )}
                       </button>
-                    </TableCell>
-                    <TableCell>{result.ens_name || '-'}</TableCell>
+                    </div>
+
+                    {/* ENS */}
+                    <div className="px-4 py-2 text-sm truncate">
+                      {result.ens_name || '-'}
+                    </div>
+
+                    {/* Holdings */}
                     {hasHoldings && (
-                      <TableCell className="font-mono text-sm">
+                      <div className="px-4 py-2 font-mono text-sm">
                         {formatHoldings(result.holdings)}
-                      </TableCell>
+                      </div>
                     )}
-                    {extraColumns
-                      .filter(
-                        (col) =>
-                          !col.toLowerCase().includes('value') &&
-                          !col.toLowerCase().includes('balance') &&
-                          !col.toLowerCase().includes('holdings')
-                      )
-                      .map((col) => (
-                        <TableCell key={col}>
-                          {(result[col] as string) || '-'}
-                        </TableCell>
-                      ))}
-                    <TableCell>
+
+                    {/* Extra columns */}
+                    {filteredExtraColumns.map((col) => (
+                      <div key={col} className="px-4 py-2 text-sm truncate">
+                        {(result[col] as string) || '-'}
+                      </div>
+                    ))}
+
+                    {/* Twitter */}
+                    <div className="px-4 py-2 text-sm">
                       {result.twitter_handle ? (
                         <a
                           href={
@@ -376,8 +417,10 @@ export const ResultsTable = memo(function ResultsTable({
                       ) : (
                         '-'
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </div>
+
+                    {/* Farcaster */}
+                    <div className="px-4 py-2 text-sm">
                       {result.farcaster ? (
                         <a
                           href={
@@ -393,12 +436,16 @@ export const ResultsTable = memo(function ResultsTable({
                       ) : (
                         '-'
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </div>
+
+                    {/* FC Followers */}
+                    <div className="px-4 py-2 text-sm">
                       {isPaidTier ? (
-                        result.fc_followers !== undefined
-                          ? result.fc_followers.toLocaleString()
-                          : '-'
+                        result.fc_followers !== undefined ? (
+                          result.fc_followers.toLocaleString()
+                        ) : (
+                          '-'
+                        )
                       ) : (
                         <button
                           onClick={onUpgradeClick}
@@ -409,8 +456,10 @@ export const ResultsTable = memo(function ResultsTable({
                           <span className="text-xs">Upgrade</span>
                         </button>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </div>
+
+                    {/* Priority */}
+                    <div className="px-4 py-2 text-sm">
                       {isPaidTier ? (
                         <PriorityIndicator score={result.priority_score} />
                       ) : (
@@ -423,12 +472,12 @@ export const ResultsTable = memo(function ResultsTable({
                           <span className="text-xs">Upgrade</span>
                         </button>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

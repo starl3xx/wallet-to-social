@@ -162,20 +162,14 @@ export const RecentWins = memo(function RecentWins() {
                 </div>
               </div>
 
-              {/* Success rate bar */}
-              <div className="mt-3 pt-3 border-t border-border/50">
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-muted-foreground">Match rate</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {win.socialRate}%
-                  </span>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(win.socialRate, 100)}%` }}
-                  />
-                </div>
+              {/* Match rate vs industry comparison */}
+              <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
+                <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  {win.socialRate}%
+                </span>
+                <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  {Math.round(win.socialRate / 2.5)}x avg
+                </span>
               </div>
             </div>
           );
