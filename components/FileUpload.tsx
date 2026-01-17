@@ -112,7 +112,7 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
           ) : (
             <>
               <p className={`${compact ? 'text-sm' : 'text-lg'} font-medium mb-2`}>
-                {compact ? 'Drop file or click to upload' : 'Drop your file here'}
+                {compact ? 'Drop file or click to upload' : 'Drop your file with Ethereum addresses here'}
               </p>
               {!compact && (
                 <p className="text-sm text-muted-foreground mb-4">
