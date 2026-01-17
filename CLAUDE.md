@@ -54,6 +54,36 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 ## UI Guidelines
 
 - **Never reference API providers in the UI** (e.g., Web3.bio, Neynar). Use generic terms like "all data sources" instead. API details are implementation details that users don't need to see.
+- **Social proof should show comparisons, not progress** - When displaying match rates (e.g., 22%), don't use progress bars (makes it look incomplete). Instead show the number prominently with context like "9x avg" comparing to industry average (~2.5%).
+- **Header logo is always clickable** - Returns user to homepage from any state.
+
+## Performance Patterns
+
+This app handles large datasets (10K+ wallets). Key patterns used:
+
+### Component Memoization
+- Wrap child components with `React.memo()` to prevent re-renders when parent state changes
+- Use `useMemo` for expensive calculations (filtering, sorting, stats)
+- Use `useCallback` for event handlers passed as props
+- Avoid inline arrow functions in JSX props (defeats memoization)
+
+### Table Virtualization
+- `ResultsTable` uses `@tanstack/react-virtual` for large lists
+- Only renders ~35 visible rows instead of 13K+ DOM elements
+- CSS Grid layout (required for virtualization, can't virtualize `<tbody>`)
+- 10-row overscan for smooth scrolling
+
+### Polling Optimization
+- Compare values before calling setState to avoid unnecessary re-renders
+- Return same reference from functional setState when values unchanged
+
+### Lazy Loading
+- History API supports `summaryOnly=true` to fetch metadata without full JSONB results
+- Full results fetched on-demand via `/api/history/[id]`
+
+### Animation Performance
+- Modal uses 2 animations (fade + scale) instead of 5
+- Duration reduced to 150ms for snappier feel
 
 ## Environment Variables
 
