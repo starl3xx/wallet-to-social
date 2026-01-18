@@ -130,11 +130,12 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').unique().notNull(),
-    tier: text('tier').notNull().default('free'), // 'free' | 'pro' | 'unlimited'
+    tier: text('tier').notNull().default('free'), // 'free' | 'starter' | 'pro' | 'unlimited'
     stripeCustomerId: text('stripe_customer_id'),
     stripePaymentId: text('stripe_payment_id'),
     paidAt: timestamp('paid_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    walletsUsed: integer('wallets_used').default(0).notNull(), // cumulative usage for starter tier
   },
   (table) => [index('users_email_idx').on(table.email)]
 );

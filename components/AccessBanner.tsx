@@ -1,21 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Crown, Sparkles, LogIn, LogOut, ChevronDown } from 'lucide-react';
+import { Zap, Crown, Sparkles, LogIn, LogOut, ChevronDown, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TIER_LIMITS } from '@/lib/access';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 
 interface AccessBannerProps {
-  tier: 'free' | 'pro' | 'unlimited';
+  tier: 'free' | 'starter' | 'pro' | 'unlimited';
   isWhitelisted?: boolean;
+  walletsRemaining?: number | null;
   onUpgradeClick?: () => void;
 }
 
 export function AccessBanner({
   tier,
   isWhitelisted,
+  walletsRemaining,
   onUpgradeClick,
 }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -102,6 +104,22 @@ export function AccessBanner({
           <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
           <span className="font-medium text-purple-600 dark:text-purple-400">
             Unlimited
+          </span>
+        </div>
+      );
+    }
+
+    if (tier === 'starter') {
+      return (
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-xs sm:text-sm">
+          <Rocket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+            Starter
+          </span>
+          <span className="text-muted-foreground hidden sm:inline">
+            {walletsRemaining !== null && walletsRemaining !== undefined
+              ? `${walletsRemaining.toLocaleString()} left`
+              : '10,000 total'}
           </span>
         </div>
       );

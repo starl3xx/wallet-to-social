@@ -28,7 +28,7 @@ export interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
-  tier?: 'free' | 'pro' | 'unlimited';
+  tier?: 'free' | 'starter' | 'pro' | 'unlimited';
   canUseNeynar?: boolean;
   canUseENS?: boolean;
   inputSource?: InputSource;
@@ -276,8 +276,9 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     // Calculate priority scores (paid tiers only)
+    const isPaidTier = options.tier === 'starter' || options.tier === 'pro' || options.tier === 'unlimited';
     for (const [wallet, result] of results) {
-      if (options.tier === 'free') {
+      if (!isPaidTier) {
         // Free tier doesn't get premium data
         result.priority_score = undefined;
         result.fc_followers = undefined;

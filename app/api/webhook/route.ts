@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = session.customer_email || session.metadata?.email;
-  const tier = session.metadata?.tier as 'pro' | 'unlimited' | undefined;
+  const tier = session.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
 
   if (!email || !tier) {
     console.error('Missing email or tier in checkout session:', session.id);
@@ -80,7 +80,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.log(`Upgraded user ${email} to ${tier}`);
 
     // Track payment completed event
-    const amountCents = tier === 'pro' ? 14900 : tier === 'unlimited' ? 42000 : 0;
+    const amountCents = tier === 'starter' ? 4900 : tier === 'pro' ? 14900 : tier === 'unlimited' ? 42000 : 0;
     trackEvent('payment_completed', {
       userId: email,
       metadata: {
@@ -98,7 +98,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   const email = paymentIntent.metadata?.email;
-  const tier = paymentIntent.metadata?.tier as 'pro' | 'unlimited' | undefined;
+  const tier = paymentIntent.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
 
   if (!email || !tier) {
     // This is expected for non-upgrade payments

@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (tier !== 'pro' && tier !== 'unlimited') {
+    if (tier !== 'starter' && tier !== 'pro' && tier !== 'unlimited') {
       return NextResponse.json(
-        { error: 'Invalid tier. Must be "pro" or "unlimited"' },
+        { error: 'Invalid tier. Must be "starter", "pro", or "unlimited"' },
         { status: 400 }
       );
     }

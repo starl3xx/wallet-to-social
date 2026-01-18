@@ -334,11 +334,18 @@ export default function AddressableComparison() {
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-3 gap-4 text-sm">
+              <div className="grid sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
                   <p className="text-muted-foreground">Up to 1,000 wallets/lookup</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Starter</p>
+                  <p className="text-2xl font-bold">$49</p>
+                  <p className="text-muted-foreground">
+                    10,000 wallets total (one-time)
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pro</p>

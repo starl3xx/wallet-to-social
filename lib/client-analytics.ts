@@ -69,7 +69,7 @@ export const Analytics = {
   upgradeModalViewed: (trigger: string, currentTier: string) =>
     trackClientEvent('upgrade_modal_viewed', { trigger, currentTier }),
 
-  checkoutStarted: (tier: 'pro' | 'unlimited') =>
+  checkoutStarted: (tier: 'starter' | 'pro' | 'unlimited') =>
     trackClientEvent('checkout_started', { tier }),
 
   limitHit: (tier: string, limit: number, attempted: number) =>

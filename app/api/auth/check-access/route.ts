@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
       walletLimitFormatted: access.walletLimit === Infinity
         ? 'Unlimited'
         : access.walletLimit.toLocaleString(),
+      walletQuota: access.walletQuota,
+      walletsUsed: access.walletsUsed,
+      walletsRemaining: access.walletsRemaining,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,
     });
