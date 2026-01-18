@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
-import { eq, desc, sql, and } from 'drizzle-orm';
+import { eq, desc, sql, and, gte } from 'drizzle-orm';
 
 export interface RecentWin {
   id: string;
@@ -22,9 +22,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '10', 10);
 
-    // Query completed jobs with >8% social hit rate
+    // Query completed jobs with >8% social hit rate from the last 7 days
     // Social rate = anySocialFound / walletCount (unique wallets with any social)
     // Filter out hidden jobs from public feed
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const completedJobs = await db
       .select({
         id: lookupJobs.id,
@@ -36,7 +39,11 @@ export async function GET(request: NextRequest) {
       })
       .from(lookupJobs)
       .where(
-        and(eq(lookupJobs.status, 'completed'), eq(lookupJobs.hidden, false))
+        and(
+          eq(lookupJobs.status, 'completed'),
+          eq(lookupJobs.hidden, false),
+          gte(lookupJobs.completedAt, sevenDaysAgo)
+        )
       )
       .orderBy(desc(lookupJobs.completedAt))
       .limit(limit * 2); // Fetch extra to filter
