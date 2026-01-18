@@ -240,7 +240,7 @@ export default function BlazeComparison() {
             </p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>Upload your CSV of wallet addresses</li>
-              <li>We check ENS, Web3.bio, and Neynar</li>
+              <li>We aggregate multiple data sources for accuracy</li>
               <li>Export Twitter handles and Farcaster profiles</li>
               <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>

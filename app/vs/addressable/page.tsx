@@ -87,7 +87,7 @@ export default function AddressableComparison() {
 
           {/* Quick Summary */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Quick Comparison</h2>
+            <h2 className="text-2xl font-semibold mb-6">Quick comparison</h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -154,6 +154,25 @@ export default function AddressableComparison() {
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Limited
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Priority Score</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                    </td>
+                    <td className="py-4 pl-4">
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -231,7 +250,7 @@ export default function AddressableComparison() {
             </p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>Upload your CSV of wallet addresses</li>
-              <li>We check ENS, Web3.bio, and Neynar</li>
+              <li>We aggregate multiple data sources for accuracy</li>
               <li>Export Twitter handles and Farcaster profiles</li>
               <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>
@@ -244,7 +263,7 @@ export default function AddressableComparison() {
 
           {/* When to choose each */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">When to Choose Each</h2>
+            <h2 className="text-2xl font-semibold mb-6">When to choose each</h2>
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* walletlink.social */}
@@ -311,7 +330,7 @@ export default function AddressableComparison() {
 
           {/* Pricing Comparison */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing Breakdown</h2>
+            <h2 className="text-2xl font-semibold mb-6">Pricing breakdown</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
