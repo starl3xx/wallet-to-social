@@ -118,6 +118,25 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'retry' || action === 'rerun') {
+      // Get original job to merge options
+      const [originalJob] = await db
+        .select({ options: lookupJobs.options })
+        .from(lookupJobs)
+        .where(eq(lookupJobs.id, id))
+        .limit(1);
+
+      if (!originalJob) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      }
+
+      // Merge current access defaults into original options
+      // This ensures reruns use latest provider settings (e.g., Neynar now enabled for free users)
+      const originalOptions = originalJob.options as Record<string, unknown>;
+      const updatedOptions = {
+        ...originalOptions,
+        canUseNeynar: true, // All tiers now have Neynar access
+      };
+
       // Reset failed or completed job to pending to reprocess
       const [updated] = await db
         .update(lookupJobs)
@@ -134,6 +153,7 @@ export async function POST(request: NextRequest) {
           startedAt: null,
           completedAt: null,
           updatedAt: new Date(),
+          options: updatedOptions,
         })
         .where(eq(lookupJobs.id, id))
         .returning({ id: lookupJobs.id, status: lookupJobs.status });
