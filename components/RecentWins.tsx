@@ -107,7 +107,7 @@ export const RecentWins = memo(function RecentWins() {
         </h3>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+      <div className="flex gap-3 overflow-x-auto pt-1 pb-2 -mx-1 px-1 -mt-1">
         {wins.map((win, index) => {
           const recent = isRecent(win.completedAt);
           return (
