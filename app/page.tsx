@@ -17,6 +17,7 @@ import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Pencil, Plus, Check, X } from 'lucide-react';
 import { parseFile } from '@/lib/file-parser';
 import {
   canNotify,
@@ -65,6 +66,12 @@ export default function Home() {
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
   const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
 
+  // Current lookup tracking (for results view)
+  const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
+  const [currentLookupName, setCurrentLookupName] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
     setJobIdState(id);
@@ -87,6 +94,8 @@ export default function Home() {
             // Job finished while away - show results
             setResults(data.results || []);
             setCacheHits(data.stats?.cacheHits || 0);
+            // Note: We don't have the lookup ID here, but the name would need to be stored
+            // For now, load from history to get full edit/add functionality
             setState('complete');
             localStorage.removeItem('currentJobId');
           } else if (data.status === 'failed') {
@@ -439,6 +448,10 @@ export default function Home() {
             status: 'complete',
             processed: data.progress.total,
           }));
+          // Set lookup name for exports (but no ID means no edit/add addresses until loaded from history)
+          if (saveToHistory && lookupName) {
+            setCurrentLookupName(lookupName);
+          }
           setState('complete');
 
           // Send browser notification if enabled
@@ -476,7 +489,7 @@ export default function Home() {
         pollingRef.current = null;
       }
     };
-  }, [jobId, state, notifyOnComplete]);
+  }, [jobId, state, notifyOnComplete, saveToHistory, lookupName]);
 
   // Animate progress counter smoothly toward real value
   useEffect(() => {
@@ -529,6 +542,10 @@ export default function Home() {
     setIncludeENS(false);
     setShowPasteInput(false);
     setPasteText('');
+    setCurrentLookupId(null);
+    setCurrentLookupName(null);
+    setIsEditingName(false);
+    setEditNameValue('');
     setProgress({
       total: 0,
       processed: 0,
@@ -540,10 +557,12 @@ export default function Home() {
   }, []);
 
   const handleLoadHistory = useCallback(
-    (loadedResults: WalletSocialResult[]) => {
+    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null) => {
       setResults(loadedResults);
       setExtraColumns([]);
       setCacheHits(0);
+      setCurrentLookupId(lookupId || null);
+      setCurrentLookupName(lookupName || null);
       setState('complete');
     },
     []
@@ -639,6 +658,37 @@ export default function Home() {
     setExtraColumns([]);
     setState('ready');
   }, []);
+
+  // Handle saving the lookup name
+  const handleSaveLookupName = useCallback(async () => {
+    if (!currentLookupId) return;
+
+    try {
+      const res = await fetch(`/api/history/${currentLookupId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editNameValue }),
+      });
+
+      if (res.ok) {
+        setCurrentLookupName(editNameValue || null);
+        setIsEditingName(false);
+      }
+    } catch (err) {
+      console.error('Failed to save lookup name:', err);
+    }
+  }, [currentLookupId, editNameValue]);
+
+  // Handle opening add addresses from results view
+  const handleAddAddressesFromResults = useCallback(async () => {
+    if (!currentLookupId) return;
+
+    // Use current results as the existing wallets
+    const existingWallets = results.map(r => r.wallet);
+    setAddAddressesLookupId(currentLookupId);
+    setAddAddressesExistingWallets(existingWallets);
+    setShowAddAddressesModal(true);
+  }, [currentLookupId, results]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -906,7 +956,58 @@ export default function Home() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold">Results</h2>
+                  {/* Lookup name with edit capability */}
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        placeholder="Enter lookup name..."
+                        className="max-w-xs h-8"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveLookupName();
+                          if (e.key === 'Escape') setIsEditingName(false);
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleSaveLookupName}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsEditingName(false)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-semibold">
+                        {currentLookupName || 'Results'}
+                      </h2>
+                      {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditNameValue(currentLookupName || '');
+                            setIsEditingName(true);
+                          }}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          title="Edit lookup name"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   {cacheHits > 0 && (
                     <p className="text-sm text-muted-foreground">
                       {cacheHits.toLocaleString()} results from cache (24h)
@@ -914,6 +1015,17 @@ export default function Home() {
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {/* Add addresses button (paid users only, when viewing a saved lookup) */}
+                  {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                    <Button
+                      variant="outline"
+                      onClick={handleAddAddressesFromResults}
+                      title="Add more addresses to this lookup"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add addresses
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={handleReset}>
                     New Lookup
                   </Button>
@@ -922,6 +1034,7 @@ export default function Home() {
                     extraColumns={extraColumns}
                     userTier={userTier}
                     onUpgradeClick={handleOpenUpgradeModal}
+                    lookupName={currentLookupName}
                   />
                 </div>
               </div>

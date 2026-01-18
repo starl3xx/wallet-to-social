@@ -17,7 +17,7 @@ interface LookupSummary {
 }
 
 interface LookupHistoryProps {
-  onLoadLookup: (results: WalletSocialResult[]) => void;
+  onLoadLookup: (results: WalletSocialResult[], lookupId?: string, lookupName?: string | null) => void;
   userTier: UserTier;
   onAddAddresses?: (lookupId: string, existingWallets: string[]) => void;
 }
@@ -88,13 +88,13 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
   }, [history.length, loadingMore, totalCount, userTier]);
 
   // Lazy load full results only when user clicks "Load"
-  const handleLoadLookup = useCallback(async (id: string) => {
+  const handleLoadLookup = useCallback(async (id: string, name: string | null) => {
     setLoadingId(id);
     try {
       const res = await fetch(`/api/history/${id}`);
       if (!res.ok) throw new Error('Failed to load');
       const { results } = await res.json();
-      onLoadLookup(results);
+      onLoadLookup(results, id, name);
     } catch (err) {
       console.error('Failed to load lookup:', err);
     } finally {
@@ -165,7 +165,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleLoadLookup(lookup.id)}
+                onClick={() => handleLoadLookup(lookup.id, lookup.name)}
                 disabled={loadingId === lookup.id}
               >
                 {loadingId === lookup.id ? 'Loading...' : 'Load'}

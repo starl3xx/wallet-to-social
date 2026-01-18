@@ -115,7 +115,7 @@ export function AddAddressesModal({
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent className="max-w-lg">
         <ModalHeader>
-          <ModalTitle>Add Addresses</ModalTitle>
+          <ModalTitle>Add addresses</ModalTitle>
           <ModalDescription>
             {step === 'input'
               ? 'Upload a file or paste addresses to add to this lookup.'

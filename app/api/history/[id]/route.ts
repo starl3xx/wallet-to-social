@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLookupById, updateLookup } from '@/lib/history';
+import { getLookupById, updateLookup, updateLookupName } from '@/lib/history';
 import type { WalletSocialResult } from '@/lib/types';
 
 export async function GET(
@@ -48,14 +48,6 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const results: WalletSocialResult[] = body.results;
-
-    if (!results || !Array.isArray(results)) {
-      return NextResponse.json(
-        { error: 'Invalid results format' },
-        { status: 400 }
-      );
-    }
 
     // Check if lookup exists
     const existing = await getLookupById(id);
@@ -63,6 +55,27 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'Lookup not found' },
         { status: 404 }
+      );
+    }
+
+    // Handle name update
+    if (typeof body.name === 'string') {
+      const success = await updateLookupName(id, body.name);
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Failed to update lookup name' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // Handle results update
+    const results: WalletSocialResult[] = body.results;
+    if (!results || !Array.isArray(results)) {
+      return NextResponse.json(
+        { error: 'Invalid request - must include name or results' },
+        { status: 400 }
       );
     }
 

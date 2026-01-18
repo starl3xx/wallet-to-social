@@ -13,6 +13,7 @@ interface ExportButtonProps {
   disabled?: boolean;
   userTier?: 'free' | 'pro' | 'unlimited';
   onUpgradeClick?: () => void;
+  lookupName?: string | null;
 }
 
 export const ExportButton = memo(function ExportButton({
@@ -21,8 +22,24 @@ export const ExportButton = memo(function ExportButton({
   disabled,
   userTier = 'free',
   onUpgradeClick,
+  lookupName,
 }: ExportButtonProps) {
   const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
+
+  // Generate filename base from lookup name or default
+  const getFilenameBase = (prefix: string) => {
+    const date = new Date().toISOString().slice(0, 10);
+    if (lookupName) {
+      // Sanitize lookup name for filename: replace special chars, limit length
+      const sanitized = lookupName
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .slice(0, 50);
+      return `${sanitized}-${date}`;
+    }
+    return `${prefix}-${date}`;
+  };
 
   // Memoize sorted results - only recalculate when results change
   const sortedResults = useMemo(
@@ -69,7 +86,7 @@ export const ExportButton = memo(function ExportButton({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `walletlink-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `${getFilenameBase('walletlink-export')}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -96,7 +113,7 @@ export const ExportButton = memo(function ExportButton({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `twitter-handles-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.download = `${getFilenameBase('twitter-handles')}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

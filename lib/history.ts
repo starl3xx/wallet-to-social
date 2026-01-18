@@ -165,3 +165,19 @@ export async function updateLookup(
 
   return updated.length > 0;
 }
+
+export async function updateLookupName(
+  id: string,
+  name: string
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+
+  const updated = await db
+    .update(lookupHistory)
+    .set({ name })
+    .where(eq(lookupHistory.id, id))
+    .returning({ id: lookupHistory.id });
+
+  return updated.length > 0;
+}
