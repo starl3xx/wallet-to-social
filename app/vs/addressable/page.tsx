@@ -435,7 +435,7 @@ export default function AddressableComparison() {
         {/* Footer */}
         <footer className="container mx-auto max-w-4xl px-4 py-6 border-t text-center text-sm text-muted-foreground">
           <p className="flex items-center justify-center gap-2">
-            made with 🌠 by
+            made with 🌠 by @starl3xx
             <a
               href="https://x.com/starl3xx"
               target="_blank"
