@@ -4,14 +4,22 @@ import Link from 'next/link';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'walletlink.social vs Blaze: Wallet-to-Social Lookup Comparison (2025)',
+  title: 'walletlink.social vs Blaze: Comparison (2025)',
   description:
-    'Compare walletlink.social and Blaze for wallet-to-Twitter lookups. See why teams choose dedicated lookup tools over CRM platforms with buried features.',
+    'Compare walletlink.social and Blaze for wallet-to-Twitter lookups. See why crypto teams choose dedicated lookup tools over Web3 CRM platforms with buried features.',
+  keywords: ['Blaze alternative', 'wallet to Twitter', 'Web3 CRM comparison', 'wallet lookup tool', 'crypto marketing'],
   openGraph: {
-    title: 'walletlink.social vs Blaze Comparison',
+    title: 'walletlink.social vs Blaze: Which is Right for You?',
     description:
-      'Compare wallet-to-social lookup tools. One-time payment vs monthly CRM subscription. See which is right for your crypto marketing needs.',
+      'Compare wallet-to-social lookup tools. One-time $149 vs $79/month CRM subscription. See which is right for your crypto marketing needs.',
     type: 'article',
+    url: 'https://walletlink.social/vs/blaze',
+    siteName: 'walletlink.social',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'walletlink.social vs Blaze Comparison',
+    description: 'One-time payment vs monthly CRM subscription for wallet-to-Twitter lookups.',
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/blaze',
@@ -23,13 +31,24 @@ const jsonLd = {
   '@type': 'Article',
   headline: 'walletlink.social vs Blaze: Which is Right for You?',
   description:
-    'Detailed comparison of wallet-to-social lookup tools for crypto marketing teams.',
+    'Detailed comparison of wallet-to-social lookup tools for crypto marketing teams. Compare pricing, features, and use cases.',
   author: {
     '@type': 'Organization',
     name: 'walletlink.social',
+    url: 'https://walletlink.social',
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'walletlink.social',
+    url: 'https://walletlink.social',
+  },
+  mainEntityOfPage: {
+    '@type': 'WebPage',
+    '@id': 'https://walletlink.social/vs/blaze',
   },
   datePublished: '2025-01-01',
   dateModified: new Date().toISOString().split('T')[0],
+  keywords: 'Blaze alternative, wallet to Twitter, Web3 CRM, wallet lookup',
 };
 
 export default function BlazeComparison() {
@@ -40,7 +59,7 @@ export default function BlazeComparison() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <div className="min-h-screen bg-background">
-        <div className="container mx-auto py-12 px-4 max-w-4xl">
+        <article className="container mx-auto py-12 px-4 max-w-4xl">
           {/* Header */}
           <header className="mb-12">
             <Link
@@ -366,21 +385,44 @@ export default function BlazeComparison() {
             </Link>
           </section>
 
-          {/* Footer */}
-          <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
-            <p>
-              made with 🌠 by{' '}
-              <a
-                href="https://x.com/starl3xx"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-foreground"
-              >
-                @starl3xx
-              </a>
-            </p>
-          </footer>
-        </div>
+          {/* Related Comparisons */}
+          <nav className="py-8 border-t" aria-label="Related comparisons">
+            <h2 className="text-lg font-semibold mb-4">Related comparisons</h2>
+            <ul className="flex flex-wrap gap-4 text-sm">
+              <li>
+                <Link
+                  href="/vs/addressable"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  walletlink.social vs Addressable
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/vs/holder"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  walletlink.social vs Holder
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </article>
+
+        {/* Footer */}
+        <footer className="container mx-auto max-w-4xl px-4 py-6 border-t text-center text-sm text-muted-foreground">
+          <p>
+            made with 🌠 by{' '}
+            <a
+              href="https://x.com/starl3xx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              @starl3xx
+            </a>
+          </p>
+        </footer>
       </div>
     </>
   );
