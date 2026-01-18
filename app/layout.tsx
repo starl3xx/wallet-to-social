@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
-  title: 'Wallet to Twitter Lookup | Addressable Alternative | walletlink.social',
+  title: 'Find Your DeFi Users & NFT Holders on Twitter | walletlink.social',
   description:
-    'Turn wallet addresses into Twitter & Farcaster profiles instantly. No sales calls, no subscriptions. One-time payment starting at $149. Upload CSV, get socials.',
+    'Find your DeFi users and NFT holders on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement. No sales calls—instant access.',
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -28,27 +28,28 @@ export const metadata: Metadata = {
   keywords: [
     'addressable alternative',
     'wallet to twitter lookup',
-    'ethereum wallet twitter',
-    'wallet to social lookup',
-    'farcaster wallet lookup',
-    'crypto wallet social profiles',
-    'web3 wallet to twitter',
-    'ens to twitter',
+    'find nft holders twitter',
+    'defi user outreach',
     'token holder outreach',
+    'airdrop targeting twitter',
+    'dao member twitter',
+    'nft community marketing',
+    'find defi users social',
+    'crypto wallet social profiles',
   ],
   openGraph: {
-    title: 'walletlink.social - Wallet to Social Lookup',
+    title: 'Find Your DeFi Users & NFT Holders on Twitter',
     description:
-      'Find Twitter & Farcaster profiles from Ethereum wallet addresses. The simple alternative to Addressable. No subscriptions, instant access.',
+      'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. No sales calls.',
     images: ['/icon.png'],
     type: 'website',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social - Wallet to Social Lookup',
+    title: 'Find Your DeFi Users & NFT Holders on Twitter',
     description:
-      'Find Twitter & Farcaster profiles from Ethereum wallet addresses. The simple alternative to Addressable. No subscriptions, instant access.',
+      'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement.',
     images: ['/icon.png'],
     creator: '@starl3xx',
   },
@@ -68,7 +69,7 @@ const jsonLd = {
   applicationCategory: 'WebApplication',
   operatingSystem: 'Web',
   description:
-    'Turn wallet addresses into Twitter & Farcaster profiles. The simple alternative to Addressable.',
+    'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup tool for token holder outreach, airdrop campaigns, and DAO engagement.',
   offers: [
     {
       '@type': 'Offer',

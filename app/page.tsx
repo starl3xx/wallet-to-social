@@ -723,8 +723,8 @@ export default function Home() {
                 </h1>
               </div>
               <p className="text-muted-foreground">
-                Turn your wallet list into Twitter handles and Farcaster
-                profiles.{' '}
+                Find your DeFi users and NFT holders on Twitter. Reach token
+                holders, run airdrop campaigns, engage your DAO.{' '}
                 <a
                   href="/vs/addressable"
                   className="underline hover:text-foreground"
