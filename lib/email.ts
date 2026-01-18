@@ -4,7 +4,8 @@ import { Resend } from 'resend';
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-const FROM_EMAIL = 'Wallet to Social <noreply@walletlink.social>';
+const FROM_EMAIL = 'walletlink.social <noreply@walletlink.social>';
+const BASE_URL = process.env.NEXT_PUBLIC_URL || 'https://walletlink.social';
 
 /**
  * Send a magic link email for authentication
@@ -18,14 +19,13 @@ export async function sendMagicLink(
     return { success: false, error: 'Email service not configured' };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-  const magicLink = `${baseUrl}/api/auth/verify?token=${token}`;
+  const magicLink = `${BASE_URL}/api/auth/verify?token=${token}`;
 
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: 'Sign in to Wallet to Social',
+      subject: 'Sign in to walletlink.social',
       html: getMagicLinkEmailHtml(magicLink),
       text: getMagicLinkEmailText(magicLink),
     });
@@ -62,11 +62,12 @@ function getMagicLinkEmailHtml(magicLink: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign in to Wallet to Social</title>
+  <title>Sign in to walletlink.social</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <h1 style="font-size: 24px; font-weight: 600; margin: 0;">Wallet to Social</h1>
+    <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 8px; margin-bottom: 16px;">
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0;">walletlink.social</h1>
   </div>
 
   <p style="font-size: 16px; margin-bottom: 24px;">
@@ -93,7 +94,7 @@ function getMagicLinkEmailHtml(magicLink: string): string {
   <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;">
 
   <p style="font-size: 12px; color: #999; text-align: center;">
-    Wallet to Social — Batch resolve wallet addresses to social profiles
+    walletlink.social — Find your DeFi users and NFT holders on Twitter
   </p>
 </body>
 </html>
@@ -105,7 +106,7 @@ function getMagicLinkEmailHtml(magicLink: string): string {
  */
 function getMagicLinkEmailText(magicLink: string): string {
   return `
-Sign in to Wallet to Social
+Sign in to walletlink.social
 
 Click the link below to sign in to your account. This link will expire in 15 minutes.
 
@@ -114,6 +115,6 @@ ${magicLink}
 If you didn't request this email, you can safely ignore it.
 
 ---
-Wallet to Social — Batch resolve wallet addresses to social profiles
+walletlink.social — Find your DeFi users and NFT holders on Twitter
 `.trim();
 }
