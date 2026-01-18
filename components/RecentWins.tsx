@@ -140,7 +140,7 @@ export const RecentWins = memo(function RecentWins() {
                   </p>
                 </div>
                 <span className={`
-                  text-[10px] font-medium px-1.5 py-0.5 rounded-md
+                  text-[10px] font-medium px-1.5 py-0.5 rounded-md whitespace-nowrap
                   ${recent
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                     : 'bg-muted text-muted-foreground'
