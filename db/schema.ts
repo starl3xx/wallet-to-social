@@ -209,6 +209,46 @@ export const dailyStats = pgTable(
 );
 
 // ============================================================================
+// Authentication
+// ============================================================================
+
+// Auth sessions (30-day expiry)
+export const authSessions = pgTable(
+  'auth_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 of session token
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    userAgent: text('user_agent'),
+  },
+  (table) => [
+    index('auth_sessions_user_id_idx').on(table.userId),
+    index('auth_sessions_expires_at_idx').on(table.expiresAt),
+  ]
+);
+
+// Magic link tokens (15-minute expiry)
+export const magicLinkTokens = pgTable(
+  'magic_link_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 of token
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('magic_link_tokens_email_idx').on(table.email),
+    index('magic_link_tokens_expires_at_idx').on(table.expiresAt),
+  ]
+);
+
+// ============================================================================
 // Public API Infrastructure
 // ============================================================================
 
@@ -331,3 +371,7 @@ export type ApiUsage = typeof apiUsage.$inferSelect;
 export type NewApiUsage = typeof apiUsage.$inferInsert;
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
 export type NewRateLimitBucket = typeof rateLimitBuckets.$inferInsert;
+export type AuthSession = typeof authSessions.$inferSelect;
+export type NewAuthSession = typeof authSessions.$inferInsert;
+export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
+export type NewMagicLinkToken = typeof magicLinkTokens.$inferInsert;

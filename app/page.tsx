@@ -13,6 +13,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { AddAddressesModal } from '@/components/AddAddressesModal';
 import { AccessBanner } from '@/components/AccessBanner';
+import { useAuth } from '@/components/AuthProvider';
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
@@ -51,10 +52,11 @@ export default function Home() {
   const [notifyOnComplete, setNotifyOnComplete] = useState(false);
   const [jobId, setJobIdState] = useState<string | null>(null);
 
-  // User access state
-  const [userTier, setUserTier] = useState<UserTier>('free');
-  const [isWhitelisted, setIsWhitelisted] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  // User access state from AuthProvider
+  const { user } = useAuth();
+  const userTier: UserTier = user?.tier || 'free';
+  const isWhitelisted = user?.isWhitelisted || false;
+  const userEmail = user?.email || null;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Paste addresses mode
@@ -137,37 +139,6 @@ export default function Home() {
           localStorage.removeItem('currentJobId');
         });
     }
-  }, []);
-
-  // Check user access level on mount
-  useEffect(() => {
-    const email = localStorage.getItem('user_email');
-    if (email) {
-      setUserEmail(email);
-      fetch(`/api/auth/check-access?email=${encodeURIComponent(email)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.tier) {
-            setUserTier(data.tier);
-            setIsWhitelisted(data.isWhitelisted || false);
-          }
-        })
-        .catch(console.error);
-    }
-  }, []);
-
-  // Handle restore access from upgrade modal
-  const handleRestoreAccess = useCallback((email: string) => {
-    setUserEmail(email);
-    fetch(`/api/auth/check-access?email=${encodeURIComponent(email)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.tier) {
-          setUserTier(data.tier);
-          setIsWhitelisted(data.isWhitelisted || false);
-        }
-      })
-      .catch(console.error);
   }, []);
 
   // Memoized callback for opening upgrade modal - avoids creating new function on each render
@@ -751,7 +722,6 @@ export default function Home() {
           onOpenChange={setShowUpgradeModal}
           currentTier={userTier}
           walletCount={wallets.length > 0 ? wallets.length : undefined}
-          onRestoreAccess={handleRestoreAccess}
         />
 
         {/* Add Addresses Modal */}

@@ -19,7 +19,6 @@ interface UpgradeModalProps {
   onOpenChange: (open: boolean) => void;
   currentTier?: string;
   walletCount?: number;
-  onRestoreAccess?: (email: string) => void;
 }
 
 const FEATURES = {
@@ -58,12 +57,10 @@ export function UpgradeModal({
   onOpenChange,
   currentTier = 'free',
   walletCount,
-  onRestoreAccess,
 }: UpgradeModalProps) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState<'pro' | 'unlimited' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showRestore, setShowRestore] = useState(false);
 
   // Track modal view when opened
   useEffect(() => {
@@ -107,17 +104,6 @@ export function UpgradeModal({
       setError(err instanceof Error ? err.message : 'Checkout failed');
       setLoading(null);
     }
-  };
-
-  const handleRestore = () => {
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email');
-      return;
-    }
-
-    localStorage.setItem('user_email', email);
-    onRestoreAccess?.(email);
-    onOpenChange(false);
   };
 
   return (
@@ -241,26 +227,6 @@ export function UpgradeModal({
             </div>
           </div>
 
-          {/* Restore access link */}
-          <div className="text-center pt-2">
-            {showRestore ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Enter the email you used for payment:
-                </p>
-                <Button variant="outline" size="sm" onClick={handleRestore}>
-                  Restore access
-                </Button>
-              </div>
-            ) : (
-              <button
-                className="text-sm text-muted-foreground hover:text-foreground underline"
-                onClick={() => setShowRestore(true)}
-              >
-                Already paid? Restore access
-              </button>
-            )}
-          </div>
         </div>
       </ModalContent>
     </Modal>
