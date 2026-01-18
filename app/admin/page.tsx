@@ -22,10 +22,8 @@ import {
   Zap,
   Sparkles,
   Eye,
-  EyeOff,
   RefreshCw,
   XCircle,
-  Activity,
   Briefcase,
   History,
   Search,
@@ -47,10 +45,11 @@ import {
   SystemHealth,
   UniversalSearch,
   WalletEnrichment,
+  LookupDashboard,
 } from '@/components/admin';
 
 // Tab types - Analytics tabs first, then Operations tabs
-type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'activity' | 'jobs' | 'history' | 'users' | 'enrichment';
+type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
 
 // Interfaces
 interface WhitelistEntry {
@@ -59,16 +58,6 @@ interface WhitelistEntry {
   wallet: string | null;
   note: string | null;
   createdAt: string;
-}
-
-interface ActivityJob {
-  id: string;
-  walletCount: number;
-  twitterFound: number;
-  farcasterFound: number;
-  anySocialFound: number;
-  completedAt: string;
-  hidden: boolean;
 }
 
 interface JobEntry {
@@ -142,10 +131,6 @@ export default function AdminPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Activity state
-  const [activityJobs, setActivityJobs] = useState<ActivityJob[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Jobs state
   const [jobs, setJobs] = useState<JobEntry[]>([]);
@@ -207,23 +192,6 @@ export default function AdminPage() {
       setAuthState('error');
     }
   }, []);
-
-  // Fetch activity jobs
-  const fetchActivity = useCallback(async () => {
-    setActivityLoading(true);
-    try {
-      const response = await fetch('/api/admin/activity', {
-        headers: { 'x-admin-password': password },
-      });
-      if (!response.ok) throw new Error('Failed to fetch activity');
-      const data = await response.json();
-      setActivityJobs(data.jobs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load activity');
-    } finally {
-      setActivityLoading(false);
-    }
-  }, [password]);
 
   // Fetch all jobs
   const fetchJobs = useCallback(async () => {
@@ -290,9 +258,6 @@ export default function AdminPage() {
     if (authState !== 'authenticated') return;
 
     switch (activeTab) {
-      case 'activity':
-        if (activityJobs.length === 0) fetchActivity();
-        break;
       case 'jobs':
         if (jobs.length === 0) fetchJobs();
         break;
@@ -306,11 +271,9 @@ export default function AdminPage() {
   }, [
     activeTab,
     authState,
-    activityJobs.length,
     jobs.length,
     historyEntries.length,
     usersList.length,
-    fetchActivity,
     fetchJobs,
     fetchHistory,
     fetchUsers,
@@ -381,49 +344,6 @@ export default function AdminPage() {
       if (stats) {
         setStats({ ...stats, whitelisted: stats.whitelisted - 1 });
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete');
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  // Activity handlers
-  const handleToggleHidden = async (id: string, hidden: boolean) => {
-    setTogglingId(id);
-    try {
-      const response = await fetch('/api/admin/activity', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-password': password,
-        },
-        body: JSON.stringify({ id, hidden: !hidden }),
-      });
-
-      if (!response.ok) throw new Error('Failed to toggle visibility');
-
-      setActivityJobs((prev) =>
-        prev.map((job) => (job.id === id ? { ...job, hidden: !hidden } : job))
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle');
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const handleDeleteActivity = async (id: string) => {
-    setDeletingId(id);
-    try {
-      const response = await fetch(`/api/admin/activity?id=${id}`, {
-        method: 'DELETE',
-        headers: { 'x-admin-password': password },
-      });
-
-      if (!response.ok) throw new Error('Failed to delete');
-
-      setActivityJobs((prev) => prev.filter((job) => job.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     } finally {
@@ -752,112 +672,6 @@ export default function AdminPage() {
         </CardContent>
       </Card>
     </>
-  );
-
-  const renderActivityTab = () => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Live activity ({activityJobs.length})</CardTitle>
-        <Button variant="outline" size="sm" onClick={fetchActivity} disabled={activityLoading}>
-          {activityLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {activityLoading && activityJobs.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : activityJobs.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No activity yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Wallets</TableHead>
-                  <TableHead>Twitter</TableHead>
-                  <TableHead>Farcaster</TableHead>
-                  <TableHead>Match Rate</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Hidden</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activityJobs.map((job) => {
-                  // Use anySocialFound for unique count, fallback to max for old jobs
-                  const anyFound =
-                    job.anySocialFound > 0
-                      ? job.anySocialFound
-                      : Math.max(job.twitterFound, job.farcasterFound);
-                  const matchRate =
-                    job.walletCount > 0 ? Math.round((anyFound / job.walletCount) * 100) : 0;
-                  return (
-                    <TableRow key={job.id} className={job.hidden ? 'opacity-50' : ''}>
-                      <TableCell className="font-mono text-xs">
-                        {job.id.slice(0, 8)}...
-                      </TableCell>
-                      <TableCell>{job.walletCount.toLocaleString()}</TableCell>
-                      <TableCell>{job.twitterFound}</TableCell>
-                      <TableCell>{job.farcasterFound}</TableCell>
-                      <TableCell>{matchRate}%</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {job.completedAt
-                          ? new Date(job.completedAt).toLocaleString()
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {job.hidden ? (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-green-500" />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleToggleHidden(job.id, job.hidden)}
-                            disabled={togglingId === job.id}
-                            title={job.hidden ? 'Show' : 'Hide'}
-                          >
-                            {togglingId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : job.hidden ? (
-                              <Eye className="h-4 w-4" />
-                            ) : (
-                              <EyeOff className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleDeleteActivity(job.id)}
-                            disabled={deletingId === job.id}
-                          >
-                            {deletingId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 
   const renderJobsTab = () => (
@@ -1418,13 +1232,13 @@ export default function AdminPage() {
             Whitelist
           </Button>
           <Button
-            variant={activeTab === 'activity' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('activity')}
+            variant={activeTab === 'dashboard' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('dashboard')}
             className="flex items-center gap-2"
             size="sm"
           >
-            <Activity className="h-4 w-4" />
-            Activity
+            <BarChart3 className="h-4 w-4" />
+            Dashboard
           </Button>
           <Button
             variant={activeTab === 'jobs' ? 'default' : 'outline'}
@@ -1442,7 +1256,7 @@ export default function AdminPage() {
             size="sm"
           >
             <History className="h-4 w-4" />
-            History
+            Saved lookups
           </Button>
           <Button
             variant={activeTab === 'users' ? 'default' : 'outline'}
@@ -1478,7 +1292,7 @@ export default function AdminPage() {
 
         {/* Tab content - Operations */}
         {activeTab === 'whitelist' && renderWhitelistTab()}
-        {activeTab === 'activity' && renderActivityTab()}
+        {activeTab === 'dashboard' && <LookupDashboard password={password} />}
         {activeTab === 'jobs' && renderJobsTab()}
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}
