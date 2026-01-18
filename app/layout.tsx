@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   title: 'Wallet to Twitter Lookup | Addressable Alternative | walletlink.social',
   description:
     'Turn wallet addresses into Twitter & Farcaster profiles instantly. No sales calls, no subscriptions. One-time payment starting at $149. Upload CSV, get socials.',
+  icons: {
+    icon: [
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
   keywords: [
     'addressable alternative',
     'wallet to twitter lookup',
