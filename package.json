@@ -2,6 +2,7 @@
   "name": "wallet-to-social",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,10 +11,17 @@
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "ralph:init": "node src/db/init.js",
+    "ralph:seed": "node src/db/seed.js",
+    "ralph:reset": "rm -f data/content.db && npm run ralph:init && npm run ralph:seed",
+    "ralph:status": "node src/db/status.js",
+    "ralph:content": "node src/content/list.js",
+    "ralph:test": "node src/test.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "sql.js": "^1.11.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
