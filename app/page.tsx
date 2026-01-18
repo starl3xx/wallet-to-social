@@ -97,14 +97,24 @@ export default function Home() {
           } else if (data.status === 'pending' || data.status === 'processing') {
             // Job still running - resume watching
             setJobIdState(savedJobId);
+
+            // Build message with stage info (same format as polling)
+            const message = data.progress.stage
+              ? `Processing: ${data.progress.stage} (${data.progress.processed}/${data.progress.total})`
+              : `Processing ${data.progress.processed}/${data.progress.total} wallets...`;
+
             setProgress({
               total: data.progress.total,
               processed: data.progress.processed,
               twitterFound: data.stats.twitterFound,
               farcasterFound: data.stats.farcasterFound,
               status: 'processing',
+              message,
             });
-            setStartTime(Date.now() - (data.progress.processed / data.progress.total) * 60000); // Estimate start time
+
+            // Estimate start time based on progress for time remaining calculation
+            const progressRatio = data.progress.total > 0 ? data.progress.processed / data.progress.total : 0;
+            setStartTime(Date.now() - progressRatio * 60000);
             setState('processing');
           } else {
             // Unknown status or job not found - clear
