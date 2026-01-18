@@ -318,11 +318,19 @@ export default function Home() {
     }
   }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail, inputSource]);
 
+  // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
+  const pollIntervalRef = useRef(2000);
+  const lastProgressRef = useRef(0);
+
   // Poll for job status when jobId is set
   useEffect(() => {
     if (!jobId || state !== 'processing') {
       return;
     }
+
+    // Reset polling interval when starting
+    pollIntervalRef.current = 2000;
+    lastProgressRef.current = 0;
 
     const pollJobStatus = async () => {
       try {
@@ -332,6 +340,17 @@ export default function Home() {
         }
 
         const data = await response.json();
+
+        // Adaptive backoff: if no progress, increase interval (up to 5s)
+        // Reset to 2s when progress is detected
+        if (data.progress.processed === lastProgressRef.current) {
+          // No progress - increase polling interval
+          pollIntervalRef.current = Math.min(pollIntervalRef.current + 500, 5000);
+        } else {
+          // Progress detected - reset to fast polling
+          pollIntervalRef.current = 2000;
+          lastProgressRef.current = data.progress.processed;
+        }
 
         // Only update progress if values actually changed - prevents unnecessary re-renders
         setProgress((prev) => {
@@ -363,7 +382,7 @@ export default function Home() {
         if (data.status === 'completed') {
           // Job complete - stop polling and show results
           if (pollingRef.current) {
-            clearInterval(pollingRef.current);
+            clearTimeout(pollingRef.current);
             pollingRef.current = null;
           }
 
@@ -439,7 +458,7 @@ export default function Home() {
         } else if (data.status === 'failed') {
           // Job failed - stop polling and show error
           if (pollingRef.current) {
-            clearInterval(pollingRef.current);
+            clearTimeout(pollingRef.current);
             pollingRef.current = null;
           }
 
@@ -448,20 +467,29 @@ export default function Home() {
           setProgress((prev) => ({ ...prev, status: 'error' }));
           setState('error');
         }
-        // If still pending/processing, continue polling
+        // If still pending/processing, schedule next poll with adaptive interval
+        scheduleNextPoll();
       } catch (err) {
         console.error('Poll error:', err);
-        // Don't stop polling on transient errors
+        // Don't stop polling on transient errors - schedule with current interval
+        scheduleNextPoll();
       }
     };
 
-    // Poll immediately, then every 2 seconds
+    // Schedule next poll with adaptive interval (using setTimeout for dynamic timing)
+    const scheduleNextPoll = () => {
+      if (pollingRef.current) {
+        clearTimeout(pollingRef.current);
+      }
+      pollingRef.current = setTimeout(pollJobStatus, pollIntervalRef.current) as unknown as NodeJS.Timeout;
+    };
+
+    // Poll immediately, then use adaptive interval
     pollJobStatus();
-    pollingRef.current = setInterval(pollJobStatus, 2000);
 
     return () => {
       if (pollingRef.current) {
-        clearInterval(pollingRef.current);
+        clearTimeout(pollingRef.current);
         pollingRef.current = null;
       }
     };
@@ -492,7 +520,7 @@ export default function Home() {
   const handleCancel = useCallback(() => {
     // Stop polling
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
     setJobId(null);
@@ -503,7 +531,7 @@ export default function Home() {
   const handleReset = useCallback(() => {
     // Stop any active polling
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
     setJobId(null);

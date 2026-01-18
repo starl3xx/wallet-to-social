@@ -547,3 +547,37 @@ export async function getNextPendingJob(): Promise<LookupJob | null> {
 
   return processingJob || null;
 }
+
+/**
+ * Get multiple pending jobs to process in parallel
+ * This allows the cron worker to clear the queue faster
+ */
+export async function getNextPendingJobs(limit: number = 5): Promise<LookupJob[]> {
+  const db = getDb();
+  if (!db) {
+    return [];
+  }
+
+  // Get pending jobs first
+  const pendingJobs = await db
+    .select()
+    .from(lookupJobs)
+    .where(eq(lookupJobs.status, 'pending'))
+    .orderBy(lookupJobs.createdAt)
+    .limit(limit);
+
+  if (pendingJobs.length >= limit) {
+    return pendingJobs;
+  }
+
+  // Also check for processing jobs (in case previous worker died)
+  const remainingLimit = limit - pendingJobs.length;
+  const processingJobs = await db
+    .select()
+    .from(lookupJobs)
+    .where(eq(lookupJobs.status, 'processing'))
+    .orderBy(lookupJobs.createdAt)
+    .limit(remainingLimit);
+
+  return [...pendingJobs, ...processingJobs];
+}

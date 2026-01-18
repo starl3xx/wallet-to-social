@@ -27,19 +27,49 @@ export interface NeynarResult {
 const BATCH_SIZE = 200; // Neynar supports up to 350
 const RATE_LIMIT_DELAY = 200; // ms between concurrent batch rounds
 const CONCURRENT_BATCHES = 5; // Process 5 batches in parallel
+const API_TIMEOUT_MS = 15000; // 15 second timeout to prevent hanging requests
+
+/**
+ * Creates an AbortController with a timeout
+ * Returns both the controller and a cleanup function
+ */
+function createTimeoutController(timeoutMs: number): {
+  controller: AbortController;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    controller,
+    cleanup: () => clearTimeout(timeoutId),
+  };
+}
 
 export async function fetchNeynarBatch(
   addresses: string[],
   apiKey: string
 ): Promise<Record<string, NeynarUser[]> | null> {
+  // Filter out empty/invalid addresses and ensure lowercase
+  const validAddresses = addresses
+    .filter((addr) => addr && addr.length === 42 && addr.startsWith('0x'))
+    .map((addr) => addr.toLowerCase());
+
+  // Return empty if no valid addresses
+  if (validAddresses.length === 0) {
+    return {};
+  }
+
+  const { controller, cleanup } = createTimeoutController(API_TIMEOUT_MS);
+
   try {
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${addresses.join(',')}`,
+      `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${validAddresses.join(',')}`,
       {
         headers: {
           accept: 'application/json',
           'x-api-key': apiKey,
         },
+        signal: controller.signal,
       }
     );
 
@@ -50,14 +80,25 @@ export async function fetchNeynarBatch(
       if (response.status === 429) {
         throw new Error('Neynar rate limited');
       }
+      if (response.status === 404) {
+        // 404 can happen if none of the addresses have Farcaster accounts
+        // This is not an error - just return empty result
+        return {};
+      }
       throw new Error(`Neynar API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Neynar request timed out');
+      throw new Error('Neynar request timed out');
+    }
     console.error('Error fetching Neynar batch:', error);
     throw error;
+  } finally {
+    cleanup();
   }
 }
 

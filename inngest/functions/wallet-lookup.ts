@@ -45,8 +45,9 @@ export const walletLookup = inngest.createFunction(
   {
     id: 'wallet-lookup',
     // Allow multiple jobs to run concurrently
+    // Increased from 10 to handle 50+ concurrent customers
     concurrency: {
-      limit: 10,
+      limit: 100,
     },
     // Retry on failure
     retries: 3,
@@ -133,7 +134,7 @@ export const walletLookup = inngest.createFunction(
     let resultsMap = new Map<string, WalletSocialResult>(results);
 
     // Step 3: Check cache
-    const { cachedCount, uncachedWallets } = await step.run('check-cache', async () => {
+    const cacheResult = await step.run('check-cache', async () => {
       let cached = new Map<string, WalletSocialResult>();
       try {
         cached = await getCachedWallets(allWallets);
@@ -141,10 +142,11 @@ export const walletLookup = inngest.createFunction(
         console.error('Cache error:', error);
       }
 
-      // Apply cached results
+      // Apply cached results to a copy of resultsMap
+      const updatedMap = new Map(resultsMap);
       for (const [wallet, data] of cached) {
-        const existing = resultsMap.get(wallet)!;
-        resultsMap.set(wallet, {
+        const existing = updatedMap.get(wallet)!;
+        updatedMap.set(wallet, {
           ...existing,
           ...data,
           source: [...data.source, 'cache'],
@@ -155,18 +157,15 @@ export const walletLookup = inngest.createFunction(
       return {
         cachedCount: cached.size,
         uncachedWallets: uncached,
-        // Update results with cache hits
-        updatedResults: Array.from(resultsMap.entries()),
+        // Return the updated results with cache hits applied
+        updatedResults: Array.from(updatedMap.entries()),
       };
     });
 
-    // Update results map with cache hits
-    resultsMap = new Map(uncachedWallets.length > 0 ? results : []);
-    // Re-apply cache step results
-    const cacheStepResults = await step.run('apply-cache-results', async () => {
-      // This is a workaround for serialization - reload from step result
-      return { cachedCount, uncachedWallets };
-    });
+    // FIXED: Use updatedResults from cache step instead of original results
+    // This ensures cache hits are preserved across Inngest step boundaries
+    resultsMap = new Map<string, WalletSocialResult>(cacheResult.updatedResults);
+    const { cachedCount, uncachedWallets } = cacheResult;
 
     // Update progress in DB
     await step.run('update-progress-cache', async () => {

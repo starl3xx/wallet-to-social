@@ -49,6 +49,8 @@ export const lookupHistory = pgTable(
   (table) => [
     index('lookup_history_created_at_idx').on(table.createdAt),
     index('lookup_history_user_id_idx').on(table.userId),
+    // Composite index for user's history sorted by date (most common query pattern)
+    index('lookup_history_user_created_idx').on(table.userId, table.createdAt),
   ]
 );
 
@@ -117,6 +119,8 @@ export const lookupJobs = pgTable(
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),
     index('lookup_jobs_created_at_idx').on(table.createdAt),
+    // Composite index for efficient "get next pending job" queries
+    index('lookup_jobs_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
