@@ -94,7 +94,7 @@ function getMagicLinkEmailHtml(magicLink: string): string {
   <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;">
 
   <p style="font-size: 12px; color: #999; text-align: center;">
-    walletlink.social — Turn your wallet list into Twitter handles and Farcaster profiles
+    walletlink.social — "Turn your wallet list into Twitter handles and Farcaster profiles."
   </p>
 </body>
 </html>
@@ -115,6 +115,6 @@ ${magicLink}
 If you didn't request this email, you can safely ignore it.
 
 ---
-walletlink.social — Turn your wallet list into Twitter handles and Farcaster profiles
+walletlink.social — "Turn your wallet list into Twitter handles and Farcaster profiles."
 `.trim();
 }
