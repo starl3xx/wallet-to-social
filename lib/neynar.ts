@@ -34,7 +34,7 @@ export async function fetchNeynarBatch(
 ): Promise<Record<string, NeynarUser[]> | null> {
   try {
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addresses.join(',')}`,
+      `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${addresses.join(',')}`,
       {
         headers: {
           accept: 'application/json',
