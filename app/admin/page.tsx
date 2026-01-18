@@ -48,6 +48,7 @@ interface ActivityJob {
   walletCount: number;
   twitterFound: number;
   farcasterFound: number;
+  anySocialFound: number;
   completedAt: string;
   hidden: boolean;
 }
@@ -720,12 +721,13 @@ export default function AdminPage() {
               </TableHeader>
               <TableBody>
                 {activityJobs.map((job) => {
+                  // Use anySocialFound for unique count, fallback to max for old jobs
+                  const anyFound =
+                    job.anySocialFound > 0
+                      ? job.anySocialFound
+                      : Math.max(job.twitterFound, job.farcasterFound);
                   const matchRate =
-                    job.walletCount > 0
-                      ? Math.round(
-                          ((job.twitterFound + job.farcasterFound) / job.walletCount) * 100
-                        )
-                      : 0;
+                    job.walletCount > 0 ? Math.round((anyFound / job.walletCount) * 100) : 0;
                   return (
                     <TableRow key={job.id} className={job.hidden ? 'opacity-50' : ''}>
                       <TableCell className="font-mono text-xs">

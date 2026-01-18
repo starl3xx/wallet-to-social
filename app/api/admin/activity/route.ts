@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
         twitterFound: lookupJobs.twitterFound,
         farcasterFound: lookupJobs.farcasterFound,
+        anySocialFound: lookupJobs.anySocialFound,
         completedAt: lookupJobs.completedAt,
         hidden: lookupJobs.hidden,
       })
