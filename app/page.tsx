@@ -701,8 +701,8 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <div
                 className="flex items-center gap-3 mb-2 cursor-pointer"
                 onClick={handleReset}
@@ -715,13 +715,13 @@ export default function Home() {
                   alt="walletlink.social"
                   width={40}
                   height={40}
-                  className="rounded-lg"
+                  className="rounded-lg flex-shrink-0"
                 />
-                <h1 className="text-3xl font-bold hover:text-accent-brand transition-colors">
+                <h1 className="text-2xl sm:text-3xl font-bold hover:text-accent-brand transition-colors">
                   walletlink.social
                 </h1>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm sm:text-base">
                 Turn your wallet list into Twitter handles and Farcaster profiles.{' '}
                 <a
                   href="/vs/addressable"
@@ -732,7 +732,7 @@ export default function Home() {
                 .
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <AccessBanner
                 tier={userTier}
                 isWhitelisted={isWhitelisted}

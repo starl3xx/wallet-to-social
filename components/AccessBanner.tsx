@@ -38,10 +38,10 @@ export function AccessBanner({
         <div className="relative">
           <button
             onClick={() => setShowDropdown(!showDropdown)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-md text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
-            <span className="max-w-[150px] truncate">{user.email}</span>
-            <ChevronDown className="h-3.5 w-3.5" />
+            <span className="max-w-[80px] sm:max-w-[150px] truncate">{user.email}</span>
+            <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           </button>
 
           {showDropdown && (
@@ -71,11 +71,12 @@ export function AccessBanner({
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-sm gap-1.5"
+          className="h-6 sm:h-7 px-1.5 sm:px-2 text-xs sm:text-sm gap-1 sm:gap-1.5"
           onClick={() => setAuthModalOpen(true)}
         >
-          <LogIn className="h-3.5 w-3.5" />
-          Sign in
+          <LogIn className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          <span className="hidden sm:inline">Sign in</span>
+          <span className="sm:hidden">Login</span>
         </Button>
         <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
       </>
@@ -86,8 +87,8 @@ export function AccessBanner({
   const TierBadge = () => {
     if (isWhitelisted) {
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-sm">
-          <Sparkles className="h-4 w-4 text-amber-500" />
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-xs sm:text-sm">
+          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
           <span className="font-medium text-amber-600 dark:text-amber-400">
             Whitelisted
           </span>
@@ -97,8 +98,8 @@ export function AccessBanner({
 
     if (tier === 'unlimited') {
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-sm">
-          <Crown className="h-4 w-4 text-purple-500" />
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-xs sm:text-sm">
+          <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
           <span className="font-medium text-purple-600 dark:text-purple-400">
             Unlimited
           </span>
@@ -108,12 +109,12 @@ export function AccessBanner({
 
     if (tier === 'pro') {
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-sm">
-          <Zap className="h-4 w-4 text-blue-500" />
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-xs sm:text-sm">
+          <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
           <span className="font-medium text-blue-600 dark:text-blue-400">
             Pro
           </span>
-          <span className="text-muted-foreground">
+          <span className="text-muted-foreground hidden sm:inline">
             {TIER_LIMITS.pro.toLocaleString()} wallets
           </span>
         </div>
@@ -122,18 +123,20 @@ export function AccessBanner({
 
     // Free tier - show upgrade CTA
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border text-sm">
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-muted/50 border text-xs sm:text-sm">
         <span className="text-muted-foreground">
-          Free ({TIER_LIMITS.free.toLocaleString()} wallets)
+          <span className="sm:hidden">Free</span>
+          <span className="hidden sm:inline">Free ({TIER_LIMITS.free.toLocaleString()} wallets)</span>
         </span>
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-xs"
+          className="h-5 sm:h-6 px-1.5 sm:px-2 text-xs"
           onClick={onUpgradeClick}
         >
-          <Zap className="h-3 w-3 mr-1" />
-          Upgrade
+          <Zap className="h-3 w-3 mr-0.5 sm:mr-1" />
+          <span className="hidden sm:inline">Upgrade</span>
+          <span className="sm:hidden">+</span>
         </Button>
       </div>
     );
