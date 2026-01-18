@@ -26,6 +26,18 @@
 | `bulk wallet lookup` | Solution seeking | Low | Medium |
 | `token holder outreach` | Use case | Medium | Medium |
 
+### Use Case Keywords (High Value)
+| Keyword | Search Intent | Difficulty | Priority |
+|---------|--------------|------------|----------|
+| `find nft holders twitter` | Solution seeking | Low | **HIGH** |
+| `defi user outreach` | Use case | Low | **HIGH** |
+| `nft community marketing` | Use case | Medium | **HIGH** |
+| `airdrop targeting twitter` | Use case | Low | Medium |
+| `dao member twitter` | Solution seeking | Low | Medium |
+| `token holder marketing` | Use case | Medium | Medium |
+| `find nft collectors social` | Solution seeking | Low | Medium |
+| `defi protocol marketing` | Use case | Medium | Medium |
+
 ### Long-tail Keywords (Blog/Content)
 | Keyword | Content Type |
 |---------|-------------|
