@@ -16,6 +16,7 @@ import {
   parseHoldingsValue,
   calculatePriorityScore,
 } from '@/lib/csv-parser';
+import { trackEvent } from '@/lib/analytics';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 
@@ -423,6 +424,7 @@ async function finalizeJobWithResults(
   }
 
   // Mark job as complete
+  const completedAt = new Date();
   await db
     .update(lookupJobs)
     .set({
@@ -433,10 +435,29 @@ async function finalizeJobWithResults(
       farcasterFound,
       anySocialFound,
       cacheHits,
-      completedAt: new Date(),
+      completedAt,
       updatedAt: new Date(),
     })
     .where(eq(lookupJobs.id, job.id));
+
+  // Track lookup completed event
+  const durationMs = completedAt.getTime() - (job.startedAt?.getTime() || job.createdAt.getTime());
+  const matchRate = job.wallets.length > 0 ? (anySocialFound / job.wallets.length) * 100 : 0;
+
+  trackEvent('lookup_completed', {
+    userId: options.userId || job.userId || undefined,
+    metadata: {
+      jobId: job.id,
+      walletCount: job.wallets.length,
+      twitterFound,
+      farcasterFound,
+      anySocialFound,
+      cacheHits,
+      matchRate: Math.round(matchRate * 100) / 100,
+      durationMs,
+      tier: options.tier,
+    },
+  });
 
   return {
     completed: true,

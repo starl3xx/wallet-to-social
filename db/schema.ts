@@ -7,6 +7,8 @@ import {
   uuid,
   index,
   boolean,
+  date,
+  numeric,
 } from 'drizzle-orm/pg-core';
 
 // Cache individual wallet social lookups (24h TTL)
@@ -146,6 +148,63 @@ export const whitelist = pgTable(
   ]
 );
 
+// Analytics events for behavior tracking
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventType: text('event_type').notNull(), // 'page_view', 'csv_upload', 'lookup_started', etc.
+    userId: text('user_id'), // localStorage ID or email
+    sessionId: text('session_id'), // Browser session ID
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(), // Event-specific data
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('analytics_events_type_created_idx').on(table.eventType, table.createdAt),
+    index('analytics_events_user_id_idx').on(table.userId),
+    index('analytics_events_session_id_idx').on(table.sessionId),
+  ]
+);
+
+// API performance metrics
+export const apiMetrics = pgTable(
+  'api_metrics',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    provider: text('provider').notNull(), // 'web3bio', 'neynar', 'ens'
+    latencyMs: integer('latency_ms'),
+    statusCode: integer('status_code'),
+    errorMessage: text('error_message'),
+    walletCount: integer('wallet_count'), // Number of wallets in batch
+    jobId: uuid('job_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('api_metrics_provider_created_idx').on(table.provider, table.createdAt),
+    index('api_metrics_job_id_idx').on(table.jobId),
+  ]
+);
+
+// Daily aggregated statistics (computed nightly)
+export const dailyStats = pgTable(
+  'daily_stats',
+  {
+    date: date('date').primaryKey(),
+    totalLookups: integer('total_lookups').default(0).notNull(),
+    totalWalletsProcessed: integer('total_wallets_processed').default(0).notNull(),
+    uniqueUsers: integer('unique_users').default(0).notNull(),
+    newUsers: integer('new_users').default(0).notNull(),
+    revenueCents: integer('revenue_cents').default(0).notNull(),
+    proPurchases: integer('pro_purchases').default(0).notNull(),
+    unlimitedPurchases: integer('unlimited_purchases').default(0).notNull(),
+    avgMatchRate: numeric('avg_match_rate', { precision: 5, scale: 2 }),
+    cacheHitRate: numeric('cache_hit_rate', { precision: 5, scale: 2 }),
+    avgLatencyMs: integer('avg_latency_ms'),
+    errorCount: integer('error_count').default(0).notNull(),
+    computedAt: timestamp('computed_at').defaultNow().notNull(),
+  }
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -159,3 +218,9 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Whitelist = typeof whitelist.$inferSelect;
 export type NewWhitelist = typeof whitelist.$inferInsert;
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+export type NewAnalyticsEvent = typeof analyticsEvents.$inferInsert;
+export type ApiMetric = typeof apiMetrics.$inferSelect;
+export type NewApiMetric = typeof apiMetrics.$inferInsert;
+export type DailyStat = typeof dailyStats.$inferSelect;
+export type NewDailyStat = typeof dailyStats.$inferInsert;

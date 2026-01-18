@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Modal,
   ModalContent,
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, Zap, Crown, Loader2 } from 'lucide-react';
 import { TIER_LIMITS, TIER_PRICES } from '@/lib/access';
+import { Analytics } from '@/lib/client-analytics';
 
 interface UpgradeModalProps {
   open: boolean;
@@ -64,6 +65,14 @@ export function UpgradeModal({
   const [error, setError] = useState<string | null>(null);
   const [showRestore, setShowRestore] = useState(false);
 
+  // Track modal view when opened
+  useEffect(() => {
+    if (open) {
+      const trigger = walletCount ? 'limit' : 'feature';
+      Analytics.upgradeModalViewed(trigger, currentTier);
+    }
+  }, [open, walletCount, currentTier]);
+
   const handleUpgrade = async (tier: 'pro' | 'unlimited') => {
     if (!email || !email.includes('@')) {
       setError('Please enter a valid email');
@@ -72,6 +81,9 @@ export function UpgradeModal({
 
     setLoading(tier);
     setError(null);
+
+    // Track checkout started
+    Analytics.checkoutStarted(tier);
 
     try {
       const response = await fetch('/api/checkout', {

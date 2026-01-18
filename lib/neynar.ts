@@ -1,4 +1,5 @@
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { trackApiCall } from './analytics';
 
 export interface NeynarUser {
   fid: number;
@@ -97,11 +98,15 @@ export function parseNeynarUser(
 export async function batchFetchNeynar(
   wallets: string[],
   apiKey: string,
-  onProgress?: (processed: number, found: number) => void
+  onProgress?: (processed: number, found: number) => void,
+  jobId?: string
 ): Promise<Map<string, NeynarResult>> {
   const results = new Map<string, NeynarResult>();
   let processed = 0;
   let found = 0;
+  const startTime = Date.now();
+  let errorCount = 0;
+  let lastError: string | undefined;
 
   // Split wallets into batches of BATCH_SIZE
   const batches: string[][] = [];
@@ -119,6 +124,8 @@ export async function batchFetchNeynar(
         return { batch, response, error: null };
       } catch (error) {
         console.error(`Neynar batch failed:`, error);
+        errorCount++;
+        lastError = error instanceof Error ? error.message : 'Unknown error';
         return { batch, response: null, error };
       }
     });
@@ -149,6 +156,16 @@ export async function batchFetchNeynar(
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY));
     }
   }
+
+  // Track API metrics for the batch
+  const latencyMs = Date.now() - startTime;
+  trackApiCall('neynar', {
+    latencyMs,
+    statusCode: errorCount > 0 ? 500 : 200,
+    errorMessage: lastError,
+    walletCount: wallets.length,
+    jobId,
+  });
 
   return results;
 }

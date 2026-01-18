@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createJob } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
 import { getUserAccess } from '@/lib/access';
+import { trackEvent } from '@/lib/analytics';
 
 export const runtime = 'nodejs';
 
@@ -49,6 +50,16 @@ export async function POST(request: NextRequest) {
     const access = await getUserAccess(email, wallet);
 
     if (wallets.length > access.walletLimit) {
+      // Track limit hit event
+      trackEvent('limit_hit', {
+        userId: email || userId,
+        metadata: {
+          tier: access.tier,
+          limit: access.walletLimit,
+          attempted: wallets.length,
+        },
+      });
+
       return NextResponse.json(
         {
           error: `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`,
@@ -70,6 +81,18 @@ export async function POST(request: NextRequest) {
       tier: access.tier,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,
+    });
+
+    // Track lookup started event
+    trackEvent('lookup_started', {
+      userId: email || userId,
+      metadata: {
+        jobId,
+        walletCount: wallets.length,
+        tier: access.tier,
+        includeENS: includeENS && access.canUseENS,
+        saveToHistory,
+      },
     });
 
     // Trigger Inngest function for immediate processing

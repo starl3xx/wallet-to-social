@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { constructWebhookEvent } from '@/lib/stripe';
 import { upgradeUser } from '@/lib/access';
+import { trackEvent } from '@/lib/analytics';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -77,6 +78,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   try {
     await upgradeUser(email, tier, customerId, paymentIntentId);
     console.log(`Upgraded user ${email} to ${tier}`);
+
+    // Track payment completed event
+    const amountCents = tier === 'pro' ? 14900 : tier === 'unlimited' ? 42000 : 0;
+    trackEvent('payment_completed', {
+      userId: email,
+      metadata: {
+        tier,
+        amountCents,
+        stripeSessionId: session.id,
+        stripeCustomerId: customerId,
+      },
+    });
   } catch (error) {
     console.error('Failed to upgrade user:', error);
     throw error;

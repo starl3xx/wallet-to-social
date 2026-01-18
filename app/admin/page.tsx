@@ -29,10 +29,23 @@ import {
   Briefcase,
   History,
   Search,
+  BarChart3,
+  TrendingUp,
+  DollarSign,
+  Wrench,
+  Gauge,
 } from 'lucide-react';
+import {
+  ExecutivePulse,
+  UserBehavior,
+  GrowthRetention,
+  RevenueDashboard,
+  SystemHealth,
+  UniversalSearch,
+} from '@/components/admin';
 
-// Tab types
-type Tab = 'whitelist' | 'activity' | 'jobs' | 'history' | 'users';
+// Tab types - Analytics tabs first, then Operations tabs
+type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'activity' | 'jobs' | 'history' | 'users';
 
 // Interfaces
 interface WhitelistEntry {
@@ -100,7 +113,7 @@ type AuthState = 'password' | 'loading' | 'authenticated' | 'error';
 export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>('password');
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>('whitelist');
+  const [activeTab, setActiveTab] = useState<Tab>('pulse');
   const [error, setError] = useState<string | null>(null);
 
   // Whitelist state
@@ -1100,14 +1113,22 @@ export default function AdminPage() {
     </Card>
   );
 
+  // Handle metric click from pulse dashboard
+  const handleMetricClick = (metric: string) => {
+    if (metric === 'jobs') setActiveTab('jobs');
+    else if (metric === 'behavior') setActiveTab('behavior');
+    else if (metric === 'revenue') setActiveTab('revenue');
+    else if (metric === 'health') setActiveTab('health');
+  };
+
   // Main admin view
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <div className="container mx-auto py-8 px-4 max-w-7xl">
         <header className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage whitelist, activity, jobs, history, and users
+            Analytics, monitoring, and operational tools
           </p>
         </header>
 
@@ -1126,12 +1147,68 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Tab navigation */}
+        {/* Tab navigation - Analytics section */}
+        <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Analytics
+        </div>
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          <Button
+            variant={activeTab === 'pulse' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('pulse')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <Gauge className="h-4 w-4" />
+            Pulse
+          </Button>
+          <Button
+            variant={activeTab === 'behavior' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('behavior')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Behavior
+          </Button>
+          <Button
+            variant={activeTab === 'growth' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('growth')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <TrendingUp className="h-4 w-4" />
+            Growth
+          </Button>
+          <Button
+            variant={activeTab === 'revenue' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('revenue')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <DollarSign className="h-4 w-4" />
+            Revenue
+          </Button>
+          <Button
+            variant={activeTab === 'health' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('health')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <Wrench className="h-4 w-4" />
+            Health
+          </Button>
+        </div>
+
+        {/* Tab navigation - Operations section */}
+        <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Operations
+        </div>
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           <Button
             variant={activeTab === 'whitelist' ? 'default' : 'outline'}
             onClick={() => setActiveTab('whitelist')}
             className="flex items-center gap-2"
+            size="sm"
           >
             <Sparkles className="h-4 w-4" />
             Whitelist
@@ -1140,6 +1217,7 @@ export default function AdminPage() {
             variant={activeTab === 'activity' ? 'default' : 'outline'}
             onClick={() => setActiveTab('activity')}
             className="flex items-center gap-2"
+            size="sm"
           >
             <Activity className="h-4 w-4" />
             Activity
@@ -1148,6 +1226,7 @@ export default function AdminPage() {
             variant={activeTab === 'jobs' ? 'default' : 'outline'}
             onClick={() => setActiveTab('jobs')}
             className="flex items-center gap-2"
+            size="sm"
           >
             <Briefcase className="h-4 w-4" />
             Jobs
@@ -1156,6 +1235,7 @@ export default function AdminPage() {
             variant={activeTab === 'history' ? 'default' : 'outline'}
             onClick={() => setActiveTab('history')}
             className="flex items-center gap-2"
+            size="sm"
           >
             <History className="h-4 w-4" />
             History
@@ -1164,13 +1244,26 @@ export default function AdminPage() {
             variant={activeTab === 'users' ? 'default' : 'outline'}
             onClick={() => setActiveTab('users')}
             className="flex items-center gap-2"
+            size="sm"
           >
             <Users className="h-4 w-4" />
             Users
           </Button>
         </div>
 
-        {/* Tab content */}
+        {/* Tab content - Analytics */}
+        {activeTab === 'pulse' && (
+          <div className="space-y-6">
+            <ExecutivePulse password={password} onMetricClick={handleMetricClick} />
+            <UniversalSearch password={password} />
+          </div>
+        )}
+        {activeTab === 'behavior' && <UserBehavior password={password} />}
+        {activeTab === 'growth' && <GrowthRetention password={password} />}
+        {activeTab === 'revenue' && <RevenueDashboard password={password} />}
+        {activeTab === 'health' && <SystemHealth password={password} />}
+
+        {/* Tab content - Operations */}
         {activeTab === 'whitelist' && renderWhitelistTab()}
         {activeTab === 'activity' && renderActivityTab()}
         {activeTab === 'jobs' && renderJobsTab()}

@@ -1,4 +1,5 @@
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { trackApiCall } from './analytics';
 
 export interface Web3BioProfile {
   address: string;
@@ -126,11 +127,14 @@ export function parseWeb3BioProfiles(
 
 export async function batchFetchWeb3Bio(
   wallets: string[],
-  onProgress?: (processed: number, found: number) => void
+  onProgress?: (processed: number, found: number) => void,
+  jobId?: string
 ): Promise<Map<string, Web3BioResult>> {
   const results = new Map<string, Web3BioResult>();
   let processed = 0;
   let found = 0;
+  const startTime = Date.now();
+  let errorCount = 0;
 
   // Process in batches with rate limiting
   for (let i = 0; i < wallets.length; i += MAX_CONCURRENT) {
@@ -149,13 +153,27 @@ export async function batchFetchWeb3Bio(
       onProgress?.(processed, found);
     });
 
-    await Promise.all(batchPromises);
+    try {
+      await Promise.all(batchPromises);
+    } catch (error) {
+      errorCount++;
+    }
 
     // Rate limit delay between batches
     if (i + MAX_CONCURRENT < wallets.length) {
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY));
     }
   }
+
+  // Track API metrics for the batch
+  const latencyMs = Date.now() - startTime;
+  trackApiCall('web3bio', {
+    latencyMs,
+    statusCode: errorCount > 0 ? 500 : 200,
+    errorMessage: errorCount > 0 ? `${errorCount} requests failed` : undefined,
+    walletCount: wallets.length,
+    jobId,
+  });
 
   return results;
 }

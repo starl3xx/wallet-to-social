@@ -4,6 +4,7 @@ import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import { exportToCSV } from '@/lib/csv-parser';
+import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
 
 interface ExportButtonProps {
@@ -30,6 +31,9 @@ export const ExportButton = memo(function ExportButton({
   );
 
   const handleExportCSV = () => {
+    // Track export click
+    Analytics.exportClicked('csv', results.length);
+
     const headers = [
       'wallet',
       'ens_name',
@@ -82,6 +86,9 @@ export const ExportButton = memo(function ExportButton({
       alert('No Twitter handles found to export');
       return;
     }
+
+    // Track export click
+    Analytics.exportClicked('twitter', twitterHandles.length);
 
     // Create text file with one handle per line
     const content = twitterHandles.join('\n');
