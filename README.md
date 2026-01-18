@@ -84,6 +84,11 @@ npm run db:push
 
 ### 2025-01-17
 
+**New comparison pages**
+- **`/vs/blaze`**: Compare against Blaze Web3 CRM ($79/month) - highlights Farcaster support and one-time pricing
+- **`/vs/holder`**: Compare against Holder.xyz wallet messaging platform - emphasizes lookup focus vs CRM
+- **SEO improvements**: Shortened titles, added keywords, Twitter cards, enhanced JSON-LD, internal linking between all /vs/ pages
+
 **My lookups: Tiered history + Add addresses feature**
 - **Renamed "Recent Lookups" to "My lookups"**: Better reflects user ownership
 - **Tiered history visibility**: Free users see 1 lookup, Pro/Unlimited see full history with pagination
@@ -103,10 +108,13 @@ npm run db:push
 - **Users tab**: View users by tier, change tiers via dropdown for manual upgrades
 - **Hidden jobs**: New `hidden` column to hide spam/test lookups from public feed
 - **New admin endpoints**: `/api/admin/activity`, `/api/admin/jobs`, `/api/admin/history`, `/api/admin/users`
+- **Fixed match rate calculation**: Now uses `anySocialFound` instead of double-counting Twitter + Farcaster
 
 **UX improvements**
 - **Wallet limit warning**: Shows banner when uploaded file exceeds tier limit (before clicking Start)
 - **Updated time estimates**: Processing now shows ~10s per 1K wallets (was incorrectly showing ~2min)
+- **Live Activity filter**: Now hides lookups with fewer than 25 wallets
+- **Copy refinements**: "Farcaster" instead of "FC", curly apostrophes, sentence case headings
 - **Fixed Live Activity rate**: Now shows deduplicated "any social" rate (14.5%) instead of inflated sum (22%)
 - **New `any_social_found` column**: Tracks unique wallets with Twitter OR Farcaster (not double-counting)
 
