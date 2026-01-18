@@ -6,6 +6,7 @@ import {
   jsonb,
   uuid,
   index,
+  uniqueIndex,
   boolean,
   date,
   numeric,
@@ -205,6 +206,102 @@ export const dailyStats = pgTable(
   }
 );
 
+// ============================================================================
+// Public API Infrastructure
+// ============================================================================
+
+// API subscription plans
+export const apiPlans = pgTable('api_plans', {
+  id: text('id').primaryKey(), // 'developer', 'startup', 'enterprise'
+  name: text('name').notNull(),
+  priceMonthly: integer('price_monthly').notNull(), // in cents
+  requestsPerMinute: integer('requests_per_minute').notNull(),
+  requestsPerDay: integer('requests_per_day').notNull(),
+  requestsPerMonth: integer('requests_per_month').notNull(),
+  maxBatchSize: integer('max_batch_size').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// API keys for external developers
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull().unique(), // SHA-256 hash of the actual key
+    keyPrefix: text('key_prefix').notNull(), // First 8 chars for identification (e.g., "wts_live_")
+    name: text('name').notNull(), // User-provided name for the key
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    plan: text('plan')
+      .notNull()
+      .references(() => apiPlans.id),
+
+    // Rate limits (can override plan defaults)
+    rateLimit: integer('rate_limit'), // requests per minute (null = use plan default)
+    dailyLimit: integer('daily_limit'), // requests per day
+    monthlyLimit: integer('monthly_limit'), // requests per month
+
+    // Status tracking
+    isActive: boolean('is_active').default(true).notNull(),
+    lastUsedAt: timestamp('last_used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at'),
+    revokedAt: timestamp('revoked_at'),
+  },
+  (table) => [
+    index('api_keys_user_id_idx').on(table.userId),
+    index('api_keys_key_idx').on(table.key),
+    index('api_keys_is_active_idx').on(table.isActive),
+  ]
+);
+
+// API usage tracking for billing and analytics
+export const apiUsage = pgTable(
+  'api_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    apiKeyId: uuid('api_key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(), // e.g., '/v1/wallet/0x...'
+    method: text('method').notNull(), // GET, POST
+    walletCount: integer('wallet_count').default(1).notNull(), // For batch endpoints
+    responseStatus: integer('response_status').notNull(),
+    latencyMs: integer('latency_ms').notNull(),
+    creditsUsed: integer('credits_used').default(1).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('api_usage_api_key_id_idx').on(table.apiKeyId),
+    index('api_usage_created_at_idx').on(table.createdAt),
+    index('api_usage_api_key_created_idx').on(table.apiKeyId, table.createdAt),
+  ]
+);
+
+// Rate limit buckets for sliding window tracking
+export const rateLimitBuckets = pgTable(
+  'rate_limit_buckets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    apiKeyId: uuid('api_key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    bucketType: text('bucket_type').notNull(), // 'minute', 'day', 'month'
+    bucketKey: text('bucket_key').notNull(), // e.g., '2024-01-15T14:30' for minute, '2024-01-15' for day
+    count: integer('count').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('rate_limit_buckets_lookup_idx').on(
+      table.apiKeyId,
+      table.bucketType,
+      table.bucketKey
+    ),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -224,3 +321,11 @@ export type ApiMetric = typeof apiMetrics.$inferSelect;
 export type NewApiMetric = typeof apiMetrics.$inferInsert;
 export type DailyStat = typeof dailyStats.$inferSelect;
 export type NewDailyStat = typeof dailyStats.$inferInsert;
+export type ApiPlan = typeof apiPlans.$inferSelect;
+export type NewApiPlan = typeof apiPlans.$inferInsert;
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
+export type ApiUsage = typeof apiUsage.$inferSelect;
+export type NewApiUsage = typeof apiUsage.$inferInsert;
+export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+export type NewRateLimitBucket = typeof rateLimitBuckets.$inferInsert;
