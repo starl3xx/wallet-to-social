@@ -181,6 +181,24 @@ All responses include rate limit headers:
 
 ### 2025-01-18
 
+**New Starter tier + API optimization**
+
+- **Starter tier ($49)**: New entry-level paid tier with 10,000 wallets cumulative (total across all lookups)
+  - All Pro features (ENS, follower counts, priority scoring, history)
+  - Quota-based instead of per-lookup limits
+  - `wallets_used` column tracks cumulative usage
+- **API pipeline optimization**: Neynar runs first (fast batch API), then Web3Bio only for wallets without Twitter
+  - Expected 30-60% reduction in Web3Bio API calls
+  - Separate stage indicators: `neynar` then `web3bio` instead of `web3bio+neynar`
+- **PROJECT_OVERVIEW.md**: New comprehensive context document for LLMs
+
+**Database migration required**:
+```sql
+ALTER TABLE users ADD COLUMN wallets_used INTEGER NOT NULL DEFAULT 0;
+```
+
+---
+
 **Scalability audit: fixes for high-load scenarios**
 
 Critical fixes (P0):
