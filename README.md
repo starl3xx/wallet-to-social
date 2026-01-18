@@ -15,6 +15,7 @@ A Next.js application that takes a CSV of Ethereum wallet addresses and finds as
 - **Caching**: 24-hour result caching via Neon PostgreSQL
 - **Lookup History**: Save and reload previous lookups (tiered: free gets 1, pro/unlimited get full history)
 - **Add to Lookups**: Grow existing lookups by adding more addresses over time (Pro+)
+- **Public API**: Subscription-based API access to social_graph data for developers (see [API docs](#public-api))
 
 ## Getting Started
 
@@ -80,9 +81,128 @@ npm run db:push
 
 ---
 
+## Public API
+
+The social_graph data is available via a subscription API for developers building wallet-to-social integrations.
+
+### Pricing
+
+| Plan | Price | Rate Limit | Daily | Monthly | Batch Size |
+|------|-------|------------|-------|---------|------------|
+| Developer | $49/mo | 60/min | 5K | 50K | 50 |
+| Startup | $199/mo | 300/min | 50K | 500K | 200 |
+| Enterprise | $799/mo | 1000/min | Unlimited | Unlimited | 1000 |
+
+### Authentication
+
+Include your API key in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer wts_live_xxxxxxxx" \
+  https://walletlink.social/api/v1/wallet/0x123...
+```
+
+### Endpoints
+
+#### Single Wallet Lookup
+```
+GET /api/v1/wallet/{address}
+```
+Returns social profiles for a single wallet address. **1 credit**
+
+#### Batch Lookup
+```
+POST /api/v1/batch
+Content-Type: application/json
+
+{ "wallets": ["0x123...", "0x456..."] }
+```
+Returns social profiles for multiple wallets (up to plan limit). **1 credit per wallet**
+
+#### Reverse Twitter Lookup
+```
+GET /api/v1/reverse/twitter/{handle}
+```
+Find all wallets associated with a Twitter handle. **2 credits**
+
+#### Reverse Farcaster Lookup
+```
+GET /api/v1/reverse/farcaster/{username}
+```
+Find all wallets associated with a Farcaster username. **2 credits**
+
+#### Stats
+```
+GET /api/v1/stats
+```
+Get dataset statistics (total wallets, coverage by platform). **Free**
+
+#### Usage
+```
+GET /api/v1/usage
+```
+Get your API key usage stats and rate limit status. **Free**
+
+### Response Format
+
+```json
+{
+  "data": {
+    "wallet": "0x123...",
+    "ens_name": "vitalik.eth",
+    "twitter": { "handle": "vitalikbuterin", "url": "https://twitter.com/vitalikbuterin" },
+    "farcaster": { "username": "vitalik", "followers": 123456, "fid": 5650 },
+    "lens": "vitalik.lens",
+    "github": "vbuterin",
+    "sources": ["web3bio", "neynar", "ens"]
+  },
+  "meta": { "wallet": "0x123...", "found": true }
+}
+```
+
+### Rate Limit Headers
+
+All responses include rate limit headers:
+- `X-RateLimit-Limit`: Requests allowed per minute
+- `X-RateLimit-Remaining`: Requests remaining in current window
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+- `Retry-After`: Seconds to wait (only on 429 responses)
+
+### Getting an API Key
+
+1. Create a key: `POST /api/developer/keys` with `{ "email": "you@example.com", "name": "My App", "plan": "developer" }`
+2. Save the returned `api_key` - it's only shown once
+3. View plans: `GET /api/developer/plans`
+4. Check usage: `GET /api/developer/usage?email=you@example.com`
+
+---
+
 ## Changelog
 
 ### 2025-01-17
+
+**Public API infrastructure**
+- **Subscription API product**: New `/api/v1/` endpoints for external developers to access social_graph data
+- **API key management**: Generate, validate, revoke, and rotate API keys with SHA-256 hashing
+- **Three pricing tiers**: Developer ($49/mo), Startup ($199/mo), Enterprise ($799/mo)
+- **Rate limiting**: Multi-tier sliding window limits (per-minute, daily, monthly) with `X-RateLimit-*` headers
+- **Usage tracking**: Per-request analytics for billing and monitoring
+- **Core endpoints**:
+  - `GET /api/v1/wallet/[address]` - Single wallet lookup (1 credit)
+  - `POST /api/v1/batch` - Batch lookup up to plan limit (1 credit/wallet)
+  - `GET /api/v1/reverse/twitter/[handle]` - Find wallets by Twitter (2 credits)
+  - `GET /api/v1/reverse/farcaster/[username]` - Find wallets by Farcaster (2 credits)
+  - `GET /api/v1/stats` - Dataset statistics (free)
+  - `GET /api/v1/usage` - API key usage stats (free)
+- **Developer endpoints**: `/api/developer/keys`, `/api/developer/plans`, `/api/developer/usage`
+- **New database tables**: `api_plans`, `api_keys`, `api_usage`, `rate_limit_buckets`
+
+**Processing modal redesign**
+- **Animated activity indicators**: Spinning ring + pulse effect shows processing even at 0%
+- **Pipeline visualization**: 4-stage progress (Cache → Web3.bio → Farcaster → ENS) with active stage highlighting
+- **Shimmer effects**: Progress bar has animated shimmer and sliding gradient when idle
+- **Color-coded stats**: Twitter (sky) and Farcaster (violet) badges pulse when finding new matches
+- **Job restoration fix**: Returning to page now properly restores stage info and animations
 
 **New comparison pages**
 - **`/vs/blaze`**: Compare against Blaze Web3 CRM ($79/month) - highlights Farcaster support and one-time pricing
