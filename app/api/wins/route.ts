@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+    // Move wallet count filter to SQL to avoid fetching disqualified jobs
+    // Fetch extra rows to allow for social rate filtering in JS
     const completedJobs = await db
       .select({
         id: lookupJobs.id,
@@ -42,16 +44,17 @@ export async function GET(request: NextRequest) {
         and(
           eq(lookupJobs.status, 'completed'),
           eq(lookupJobs.hidden, false),
-          gte(lookupJobs.completedAt, sevenDaysAgo)
+          gte(lookupJobs.completedAt, sevenDaysAgo),
+          sql`jsonb_array_length(${lookupJobs.wallets}) >= 25`
         )
       )
       .orderBy(desc(lookupJobs.completedAt))
-      .limit(limit * 2); // Fetch extra to filter
+      .limit(limit * 5); // Fetch more to allow for social rate filtering
 
-    // Filter for >=25 wallets and >8% social rate
+    // Filter for >8% social rate (calculation requires JS logic)
     const wins: RecentWin[] = completedJobs
       .filter((job) => {
-        if (!job.walletCount || job.walletCount < 25) return false;
+        if (!job.walletCount) return false;
         // Use anySocialFound for unique count, fallback to sum for old jobs
         const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
         const socialRate = anyFound / job.walletCount;
