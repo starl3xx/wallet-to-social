@@ -418,15 +418,29 @@ export default function BlazeComparison() {
 
         {/* Footer */}
         <footer className="container mx-auto max-w-4xl px-4 py-6 border-t text-center text-sm text-muted-foreground">
-          <p>
-            made with 🌠 by{' '}
+          <p className="flex items-center justify-center gap-2">
+            made with 🌠 by
             <a
               href="https://x.com/starl3xx"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-foreground"
+              className="hover:text-foreground transition-colors"
+              title="@starl3xx on X"
             >
-              @starl3xx
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+            <a
+              href="https://warpcast.com/starl3xx.eth"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-500 hover:text-purple-400 transition-colors"
+              title="@starl3xx.eth on Farcaster"
+            >
+              <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">
+                <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
+              </svg>
             </a>
           </p>
         </footer>
