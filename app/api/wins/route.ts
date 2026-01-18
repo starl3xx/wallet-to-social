@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '10', 10);
 
-    // Query completed jobs with >10% social hit rate
+    // Query completed jobs with >8% social hit rate
     // Social rate = anySocialFound / walletCount (unique wallets with any social)
     // Filter out hidden jobs from public feed
     const completedJobs = await db
@@ -41,14 +41,14 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(lookupJobs.completedAt))
       .limit(limit * 2); // Fetch extra to filter
 
-    // Filter for >=25 wallets and >10% social rate
+    // Filter for >=25 wallets and >8% social rate
     const wins: RecentWin[] = completedJobs
       .filter((job) => {
         if (!job.walletCount || job.walletCount < 25) return false;
         // Use anySocialFound for unique count, fallback to sum for old jobs
         const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
         const socialRate = anyFound / job.walletCount;
-        return socialRate > 0.1; // >10%
+        return socialRate > 0.08; // >8%
       })
       .slice(0, limit)
       .map((job) => {

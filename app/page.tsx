@@ -461,7 +461,7 @@ export default function Home() {
 
           // Send browser notification if enabled
           if (notifyOnComplete) {
-            sendNotification('Lookup Complete', {
+            sendNotification('Lookup complete', {
               body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
             });
           }
@@ -807,7 +807,7 @@ export default function Home() {
                           Cancel
                         </Button>
                         <Button size="sm" onClick={handlePasteAddresses} disabled={countValidAddresses(pasteText) === 0}>
-                          Load Addresses
+                          Load addresses
                         </Button>
                       </div>
                     </div>
@@ -935,7 +935,7 @@ export default function Home() {
                     />
                   )}
                   <div className="flex-1" />
-                  <Button onClick={startLookup}>Start Lookup</Button>
+                  <Button onClick={startLookup}>Start lookup</Button>
                 </div>
               </div>
             </div>
@@ -1035,7 +1035,7 @@ export default function Home() {
                     </Button>
                   )}
                   <Button variant="outline" onClick={handleReset}>
-                    New Lookup
+                    New lookup
                   </Button>
                   <ExportButton
                     results={results}

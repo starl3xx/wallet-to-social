@@ -93,7 +93,7 @@ function SuccessContent() {
               <div className="flex justify-center mb-4">
                 <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
               </div>
-              <CardTitle>Verifying Payment...</CardTitle>
+              <CardTitle>Verifying payment...</CardTitle>
             </>
           )}
 
@@ -104,7 +104,7 @@ function SuccessContent() {
                   <Check className="h-12 w-12 text-green-500" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">Payment Successful!</CardTitle>
+              <CardTitle className="text-2xl">Payment successful!</CardTitle>
             </>
           )}
 
@@ -115,7 +115,7 @@ function SuccessContent() {
                   <Loader2 className="h-12 w-12 text-yellow-500" />
                 </div>
               </div>
-              <CardTitle>Verification Pending</CardTitle>
+              <CardTitle>Verification pending</CardTitle>
             </>
           )}
         </CardHeader>

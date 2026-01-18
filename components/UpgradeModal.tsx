@@ -124,7 +124,7 @@ export function UpgradeModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent className="max-w-3xl">
         <ModalHeader>
-          <ModalTitle className="text-2xl">Upgrade Your Plan</ModalTitle>
+          <ModalTitle className="text-2xl">Upgrade your plan</ModalTitle>
           <ModalDescription>
             {walletCount
               ? `Your file has ${walletCount.toLocaleString()} wallets. ${currentTier === 'free' ? 'Free tier is limited to 1,000 wallets.' : ''}`
@@ -196,7 +196,7 @@ export function UpgradeModal({
             {/* Unlimited tier */}
             <div className="rounded-lg border-2 border-accent-brand p-4 space-y-4 relative">
               <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
-                Best Value
+                Best value
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -249,7 +249,7 @@ export function UpgradeModal({
                   Enter the email you used for payment:
                 </p>
                 <Button variant="outline" size="sm" onClick={handleRestore}>
-                  Restore Access
+                  Restore access
                 </Button>
               </div>
             ) : (

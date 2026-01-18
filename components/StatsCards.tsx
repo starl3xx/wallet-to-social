@@ -21,15 +21,15 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
   }), [results]);
 
   const cards = [
-    { title: 'Total Wallets', value: stats.total, color: 'text-foreground', badgeColor: '' },
-    { title: 'Twitter Found', value: stats.twitter, color: 'text-blue-500', badgeColor: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
+    { title: 'Total wallets', value: stats.total, color: 'text-foreground', badgeColor: '' },
+    { title: 'Twitter found', value: stats.twitter, color: 'text-blue-500', badgeColor: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
     {
-      title: 'Farcaster Found',
+      title: 'Farcaster found',
       value: stats.farcaster,
       color: 'text-purple-500',
       badgeColor: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
     },
-    { title: 'Any Social', value: stats.anySocial, color: 'text-emerald-500', badgeColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
+    { title: 'Any social', value: stats.anySocial, color: 'text-emerald-500', badgeColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
   ];
 
   return (
@@ -45,7 +45,7 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
             <p className={`text-2xl font-bold ${card.color}`}>
               {card.value.toLocaleString()}
             </p>
-            {card.title !== 'Total Wallets' && stats.total > 0 && (
+            {card.title !== 'Total wallets' && stats.total > 0 && (
               <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-md ${card.badgeColor}`}>
                 {((card.value / stats.total) * 100).toFixed(1)}% of total
               </span>

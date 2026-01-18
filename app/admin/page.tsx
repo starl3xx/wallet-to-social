@@ -564,7 +564,7 @@ export default function AdminPage() {
             <div className="flex justify-center mb-4">
               <Lock className="h-12 w-12 text-muted-foreground" />
             </div>
-            <CardTitle>Admin Access</CardTitle>
+            <CardTitle>Admin access</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -643,7 +643,7 @@ export default function AdminPage() {
       {/* Add to whitelist form */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Add to Whitelist</CardTitle>
+          <CardTitle>Add to whitelist</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="space-y-4">
@@ -685,7 +685,7 @@ export default function AdminPage() {
       {/* Whitelist table */}
       <Card>
         <CardHeader>
-          <CardTitle>Whitelist Entries ({entries.length})</CardTitle>
+          <CardTitle>Whitelist entries ({entries.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {entries.length === 0 ? (
@@ -745,7 +745,7 @@ export default function AdminPage() {
   const renderActivityTab = () => (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Live Activity ({activityJobs.length})</CardTitle>
+        <CardTitle>Live activity ({activityJobs.length})</CardTitle>
         <Button variant="outline" size="sm" onClick={fetchActivity} disabled={activityLoading}>
           {activityLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -935,7 +935,7 @@ export default function AdminPage() {
                               size="icon-sm"
                               onClick={() => fetchJobResults(job.id)}
                               disabled={viewingJobId === job.id && jobResultsLoading}
-                              title="View Results"
+                              title="View results"
                             >
                               {viewingJobId === job.id && jobResultsLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -951,7 +951,7 @@ export default function AdminPage() {
                               size="icon-sm"
                               onClick={() => handleJobAction(job.id, 'rerun')}
                               disabled={actioningJobId === job.id}
-                              title="Rerun Job"
+                              title="Rerun job"
                             >
                               {actioningJobId === job.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1009,7 +1009,7 @@ export default function AdminPage() {
           <Card className="w-full max-w-5xl max-h-[80vh] flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between border-b">
               <div>
-                <CardTitle>Job Results</CardTitle>
+                <CardTitle>Job results</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Job ID: {viewingJobId.slice(0, 8)}... • {jobResults?.length || 0} results
                 </p>
@@ -1104,7 +1104,7 @@ export default function AdminPage() {
   const renderHistoryTab = () => (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle>Lookup History ({historyEntries.length})</CardTitle>
+        <CardTitle>Lookup history ({historyEntries.length})</CardTitle>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1318,7 +1318,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-7xl">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold mb-2">Admin dashboard</h1>
           <p className="text-muted-foreground">
             Analytics, monitoring, and operational tools
           </p>

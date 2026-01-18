@@ -129,7 +129,7 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
                   disabled={disabled}
                 />
                 <Button variant="outline" size={compact ? 'sm' : 'default'} asChild>
-                  <span>Upload File</span>
+                  <span>Upload file</span>
                 </Button>
               </label>
             </>

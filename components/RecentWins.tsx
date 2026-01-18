@@ -103,7 +103,7 @@ export const RecentWins = memo(function RecentWins() {
       <div className="flex items-center gap-2">
         <LiveDot />
         <h3 className="text-sm font-medium text-muted-foreground tracking-wide uppercase">
-          Live Activity
+          Live activity
         </h3>
       </div>
 

@@ -268,7 +268,7 @@ export const ResultsTable = memo(function ResultsTable({
           size="sm"
           onClick={() => setShowTopInfluencers(!showTopInfluencers)}
         >
-          {showTopInfluencers ? 'Top Influencers (1K+)' : 'Top Influencers'}
+          {showTopInfluencers ? 'Top influencers (1K+)' : 'Top influencers'}
         </Button>
         <span className="text-sm text-muted-foreground">
           {filteredAndSorted.length.toLocaleString()} results
