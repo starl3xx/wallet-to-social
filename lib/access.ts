@@ -215,7 +215,7 @@ export async function addToWhitelist(
       wallet: entry.wallet?.toLowerCase(),
       note: entry.note,
     })
-    .returning({ id: whitelist.id });
+    .returning();
 
   return result.id;
 }
@@ -230,7 +230,7 @@ export async function removeFromWhitelist(id: string): Promise<boolean> {
   const result = await db
     .delete(whitelist)
     .where(eq(whitelist.id, id))
-    .returning({ id: whitelist.id });
+    .returning();
 
   return result.length > 0;
 }

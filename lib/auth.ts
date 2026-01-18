@@ -221,7 +221,7 @@ export async function deleteSession(token: string): Promise<boolean> {
     const result = await db
       .delete(authSessions)
       .where(eq(authSessions.tokenHash, tokenHash))
-      .returning({ id: authSessions.id });
+      .returning();
 
     return result.length > 0;
   } catch (error) {
@@ -267,14 +267,14 @@ export async function cleanupExpiredAuth(): Promise<{
     const deletedSessions = await db
       .delete(authSessions)
       .where(lt(authSessions.expiresAt, now))
-      .returning({ id: authSessions.id });
+      .returning();
 
     // Delete expired or used magic link tokens older than 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const deletedTokens = await db
       .delete(magicLinkTokens)
       .where(lt(magicLinkTokens.createdAt, oneDayAgo))
-      .returning({ id: magicLinkTokens.id });
+      .returning();
 
     return {
       sessionsDeleted: deletedSessions.length,

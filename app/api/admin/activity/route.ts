@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest) {
       .update(lookupJobs)
       .set({ hidden })
       .where(eq(lookupJobs.id, id))
-      .returning({ id: lookupJobs.id, hidden: lookupJobs.hidden });
+      .returning();
 
     if (!updated) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
@@ -108,7 +108,7 @@ export async function DELETE(request: NextRequest) {
     const [deleted] = await db
       .delete(lookupJobs)
       .where(eq(lookupJobs.id, id))
-      .returning({ id: lookupJobs.id });
+      .returning();
 
     if (!deleted) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });

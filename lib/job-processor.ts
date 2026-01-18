@@ -496,7 +496,7 @@ export async function createJob(
       options,
       userId: options.userId,
     })
-    .returning({ id: lookupJobs.id });
+    .returning();
 
   return job.id;
 }

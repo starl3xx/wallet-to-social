@@ -37,7 +37,7 @@ export async function saveLookup(
       results: results,
       inputSource: inputSource ?? null,
     })
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return inserted.id;
 }
@@ -165,7 +165,7 @@ export async function updateLookup(
       results: results,
     })
     .where(eq(lookupHistory.id, id))
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return updated.length > 0;
 }
@@ -181,7 +181,7 @@ export async function updateLookupName(
     .update(lookupHistory)
     .set({ name })
     .where(eq(lookupHistory.id, id))
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return updated.length > 0;
 }
