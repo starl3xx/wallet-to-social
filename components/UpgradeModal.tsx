@@ -148,14 +148,14 @@ export function UpgradeModal({
           <div className="grid gap-4 md:grid-cols-3">
             {/* Starter tier */}
             <div className="rounded-lg border p-4 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
                     <Rocket className="h-5 w-5 text-emerald-500" />
                   </div>
                   <h3 className="font-semibold">Starter</h3>
                 </div>
-                <div className="text-right">
+                <div className="text-right whitespace-nowrap">
                   <span className="text-3xl font-bold">${TIER_PRICES.starter}</span>
                   <span className="text-sm text-muted-foreground ml-1">one-time</span>
                 </div>
@@ -192,14 +192,14 @@ export function UpgradeModal({
 
             {/* Pro tier */}
             <div className="rounded-lg border p-4 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
                     <Zap className="h-5 w-5 text-blue-500" />
                   </div>
                   <h3 className="font-semibold">Pro</h3>
                 </div>
-                <div className="text-right">
+                <div className="text-right whitespace-nowrap">
                   <span className="text-3xl font-bold">${TIER_PRICES.pro}</span>
                   <span className="text-sm text-muted-foreground ml-1">one-time</span>
                 </div>
@@ -234,18 +234,18 @@ export function UpgradeModal({
             </div>
 
             {/* Unlimited tier */}
-            <div className="rounded-lg border-2 border-accent-brand p-4 space-y-4 relative">
+            <div className="rounded-lg border-2 border-accent-brand p-4 pt-6 space-y-4 relative">
               <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
                 Best value
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
                     <Crown className="h-5 w-5 text-amber-500" />
                   </div>
                   <h3 className="font-semibold">Unlimited</h3>
                 </div>
-                <div className="text-right">
+                <div className="text-right whitespace-nowrap">
                   <span className="text-3xl font-bold">${TIER_PRICES.unlimited}</span>
                   <span className="text-sm text-muted-foreground ml-1">one-time</span>
                 </div>
