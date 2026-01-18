@@ -13,6 +13,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { AddAddressesModal } from '@/components/AddAddressesModal';
 import { AccessBanner } from '@/components/AccessBanner';
+import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
@@ -68,6 +69,10 @@ export default function Home() {
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
   const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
+
+  // Auth modal for rate limit prompts
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
@@ -298,6 +303,13 @@ export default function Home() {
         // Handle upgrade required response
         if (errorData.upgradeRequired) {
           setShowUpgradeModal(true);
+          setState('ready');
+          return;
+        }
+        // Handle rate limit response
+        if (response.status === 429) {
+          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
+          setShowAuthModal(true);
           setState('ready');
           return;
         }
@@ -636,6 +648,13 @@ export default function Home() {
           setState('ready');
           return;
         }
+        // Handle rate limit response
+        if (response.status === 429) {
+          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
+          setShowAuthModal(true);
+          setState('ready');
+          return;
+        }
         throw new Error(errorData.error || `HTTP error: ${response.status}`);
       }
 
@@ -762,6 +781,12 @@ export default function Home() {
             onCreateNewLookup={handleCreateNewFromModal}
           />
         )}
+
+        {/* Auth Modal for rate limit prompts */}
+        <AuthModal open={showAuthModal} onOpenChange={(open) => {
+          setShowAuthModal(open);
+          if (!open) setRateLimitMessage(null);
+        }} />
 
         <main className="space-y-6">
           {/* Upload State */}

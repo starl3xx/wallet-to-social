@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createJob } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import {
+  checkIpRateLimit,
+  getClientIp,
+  formatRateLimitHeaders,
+} from '@/lib/ip-rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +26,30 @@ interface JobRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Check for authenticated session - authenticated users bypass IP rate limits
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+
+  // Apply IP rate limiting only for unauthenticated requests
+  if (!session.user) {
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkIpRateLimit(clientIp, '/api/jobs');
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. Sign in for unlimited access.',
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: formatRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
+  }
+
   try {
     const body: JobRequest = await request.json();
     const {

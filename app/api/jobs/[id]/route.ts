@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getJob } from '@/lib/job-processor';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -18,9 +20,29 @@ export async function GET(
       );
     }
 
+    // Require authenticated session
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+    if (!sessionToken) {
+      return NextResponse.json(
+        { error: 'Login required' },
+        { status: 401 }
+      );
+    }
+
+    const session = await validateSession(sessionToken);
+    if (!session.user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired session' },
+        { status: 401 }
+      );
+    }
+
     const job = await getJob(id);
 
-    if (!job) {
+    // Return 404 for both "not found" and "not owned" (prevents enumeration)
+    if (!job || job.userId !== session.user.id) {
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }

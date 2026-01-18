@@ -349,6 +349,28 @@ export const rateLimitBuckets = pgTable(
   ]
 );
 
+// IP-based rate limit buckets for unauthenticated UI endpoints
+export const ipRateLimitBuckets = pgTable(
+  'ip_rate_limit_buckets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ipAddress: text('ip_address').notNull(),
+    endpoint: text('endpoint').notNull(), // '/api/lookup', '/api/jobs'
+    bucketKey: text('bucket_key').notNull(), // e.g., '2024-01-15T14' for hourly buckets
+    count: integer('count').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('ip_rate_limit_buckets_lookup_idx').on(
+      table.ipAddress,
+      table.endpoint,
+      table.bucketKey
+    ),
+    index('ip_rate_limit_buckets_created_at_idx').on(table.createdAt),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -376,6 +398,8 @@ export type ApiUsage = typeof apiUsage.$inferSelect;
 export type NewApiUsage = typeof apiUsage.$inferInsert;
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
 export type NewRateLimitBucket = typeof rateLimitBuckets.$inferInsert;
+export type IpRateLimitBucket = typeof ipRateLimitBuckets.$inferSelect;
+export type NewIpRateLimitBucket = typeof ipRateLimitBuckets.$inferInsert;
 export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
 export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;

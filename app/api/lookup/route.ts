@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
@@ -14,6 +15,12 @@ import {
   parseHoldingsValue,
   calculatePriorityScore,
 } from '@/lib/csv-parser';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import {
+  checkIpRateLimit,
+  getClientIp,
+  formatRateLimitHeaders,
+} from '@/lib/ip-rate-limiter';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -28,6 +35,29 @@ interface LookupRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Check for authenticated session - authenticated users bypass IP rate limits
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+
+  // Apply IP rate limiting only for unauthenticated requests
+  if (!session.user) {
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkIpRateLimit(clientIp, '/api/lookup');
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. Sign in for unlimited access.',
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: formatRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
+  }
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
