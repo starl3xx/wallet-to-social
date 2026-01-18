@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const token = searchParams.get('token');
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://walletlink.social';
 
   // Helper to redirect with error
   const redirectWithError = (error: string) => {
