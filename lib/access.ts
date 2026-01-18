@@ -69,7 +69,7 @@ export async function getUserAccess(
     tier: 'free',
     isWhitelisted: false,
     walletLimit: TIER_LIMITS.free,
-    canUseNeynar: false,
+    canUseNeynar: true,
     canUseENS: false,
   };
 
@@ -104,7 +104,7 @@ export async function getUserAccess(
           tier,
           isWhitelisted: false,
           walletLimit: TIER_LIMITS[tier],
-          canUseNeynar: isPaid,
+          canUseNeynar: true,
           canUseENS: isPaid,
         };
       }

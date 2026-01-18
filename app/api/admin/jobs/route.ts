@@ -13,7 +13,7 @@ function isAuthorized(request: NextRequest): boolean {
   return password === ADMIN_PASSWORD;
 }
 
-// GET: List all jobs with optional status filter
+// GET: List all jobs with optional status filter, or get single job with results
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,8 +26,43 @@ export async function GET(request: NextRequest) {
 
   try {
     const searchParams = request.nextUrl.searchParams;
+    const jobId = searchParams.get('id');
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
+
+    // If specific job ID requested, return full job with results
+    if (jobId) {
+      const [job] = await db
+        .select()
+        .from(lookupJobs)
+        .where(eq(lookupJobs.id, jobId))
+        .limit(1);
+
+      if (!job) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        job: {
+          id: job.id,
+          status: job.status,
+          walletCount: job.wallets?.length || 0,
+          processedCount: job.processedCount,
+          currentStage: job.currentStage,
+          twitterFound: job.twitterFound,
+          farcasterFound: job.farcasterFound,
+          anySocialFound: job.anySocialFound,
+          cacheHits: job.cacheHits,
+          userId: job.userId,
+          createdAt: job.createdAt,
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+          errorMessage: job.errorMessage,
+          retryCount: job.retryCount,
+          results: job.partialResults || [],
+        },
+      });
+    }
 
     let query = db
       .select({
@@ -82,8 +117,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ID and action required' }, { status: 400 });
     }
 
-    if (action === 'retry') {
-      // Reset failed job to pending
+    if (action === 'retry' || action === 'rerun') {
+      // Reset failed or completed job to pending to reprocess
       const [updated] = await db
         .update(lookupJobs)
         .set({
@@ -92,6 +127,10 @@ export async function POST(request: NextRequest) {
           processedCount: 0,
           currentStage: null,
           partialResults: null,
+          twitterFound: 0,
+          farcasterFound: 0,
+          anySocialFound: 0,
+          cacheHits: 0,
           startedAt: null,
           completedAt: null,
           updatedAt: new Date(),

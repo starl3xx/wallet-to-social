@@ -34,6 +34,9 @@ import {
   DollarSign,
   Wrench,
   Gauge,
+  Play,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ExecutivePulse,
@@ -108,6 +111,17 @@ interface Stats {
   whitelisted: number;
 }
 
+interface WalletResult {
+  wallet: string;
+  twitter_handle?: string;
+  twitter_url?: string;
+  farcaster?: string;
+  farcaster_url?: string;
+  ens_name?: string;
+  fc_followers?: number;
+  source?: string[];
+}
+
 type AuthState = 'password' | 'loading' | 'authenticated' | 'error';
 
 export default function AdminPage() {
@@ -135,6 +149,9 @@ export default function AdminPage() {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobStatusFilter, setJobStatusFilter] = useState<string>('');
   const [actioningJobId, setActioningJobId] = useState<string | null>(null);
+  const [viewingJobId, setViewingJobId] = useState<string | null>(null);
+  const [jobResults, setJobResults] = useState<WalletResult[] | null>(null);
+  const [jobResultsLoading, setJobResultsLoading] = useState(false);
 
   // History state
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
@@ -412,7 +429,7 @@ export default function AdminPage() {
   };
 
   // Jobs handlers
-  const handleJobAction = async (id: string, action: 'retry' | 'cancel') => {
+  const handleJobAction = async (id: string, action: 'retry' | 'cancel' | 'rerun') => {
     setActioningJobId(id);
     try {
       const response = await fetch('/api/admin/jobs', {
@@ -432,6 +449,30 @@ export default function AdminPage() {
     } finally {
       setActioningJobId(null);
     }
+  };
+
+  // Fetch job results for viewing
+  const fetchJobResults = async (jobId: string) => {
+    setViewingJobId(jobId);
+    setJobResultsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/jobs?id=${jobId}`, {
+        headers: { 'x-admin-password': password },
+      });
+      if (!response.ok) throw new Error('Failed to fetch job results');
+      const data = await response.json();
+      setJobResults(data.job.results || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load results');
+      setViewingJobId(null);
+    } finally {
+      setJobResultsLoading(false);
+    }
+  };
+
+  const closeJobResults = () => {
+    setViewingJobId(null);
+    setJobResults(null);
   };
 
   // History handlers
@@ -805,124 +846,256 @@ export default function AdminPage() {
   );
 
   const renderJobsTab = () => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle>Jobs ({jobs.length})</CardTitle>
-        <div className="flex items-center gap-2">
-          <select
-            className="px-3 py-1.5 text-sm border rounded-md bg-background"
-            value={jobStatusFilter}
-            onChange={(e) => {
-              setJobStatusFilter(e.target.value);
-              setJobs([]); // Clear to trigger refetch
-            }}
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-          </select>
-          <Button variant="outline" size="sm" onClick={fetchJobs} disabled={jobsLoading}>
-            {jobsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {jobsLoading && jobs.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle>Jobs ({jobs.length})</CardTitle>
+          <div className="flex items-center gap-2">
+            <select
+              className="px-3 py-1.5 text-sm border rounded-md bg-background"
+              value={jobStatusFilter}
+              onChange={(e) => {
+                setJobStatusFilter(e.target.value);
+                setJobs([]); // Clear to trigger refetch
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={fetchJobs} disabled={jobsLoading}>
+              {jobsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-        ) : jobs.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No jobs found</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Wallets</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Error</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => (
-                  <TableRow key={job.id}>
-                    <TableCell className="font-mono text-xs">
-                      {job.id.slice(0, 8)}...
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={job.status} />
-                    </TableCell>
-                    <TableCell>{job.walletCount.toLocaleString()}</TableCell>
-                    <TableCell>
-                      {job.processedCount}/{job.walletCount}
-                    </TableCell>
-                    <TableCell>{job.currentStage || '-'}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {job.userId ? `${job.userId.slice(0, 8)}...` : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(job.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell
-                      className="text-xs text-destructive max-w-[200px] truncate"
-                      title={job.errorMessage || ''}
-                    >
-                      {job.errorMessage || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {job.status === 'failed' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleJobAction(job.id, 'retry')}
-                            disabled={actioningJobId === job.id}
-                            title="Retry"
-                          >
-                            {actioningJobId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4 text-blue-500" />
-                            )}
-                          </Button>
-                        )}
-                        {(job.status === 'pending' || job.status === 'processing') && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleJobAction(job.id, 'cancel')}
-                            disabled={actioningJobId === job.id}
-                            title="Cancel"
-                          >
-                            {actioningJobId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-destructive" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+        </CardHeader>
+        <CardContent>
+          {jobsLoading && jobs.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : jobs.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No jobs found</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Wallets</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Stage</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Error</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {jobs.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell className="font-mono text-xs">
+                        {job.id.slice(0, 8)}...
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={job.status} />
+                      </TableCell>
+                      <TableCell>{job.walletCount.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {job.processedCount}/{job.walletCount}
+                      </TableCell>
+                      <TableCell>{job.currentStage || '-'}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {job.userId ? `${job.userId.slice(0, 8)}...` : '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {new Date(job.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell
+                        className="text-xs text-destructive max-w-[200px] truncate"
+                        title={job.errorMessage || ''}
+                      >
+                        {job.errorMessage || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {/* View Results - for completed or partially processed jobs */}
+                          {job.processedCount > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => fetchJobResults(job.id)}
+                              disabled={viewingJobId === job.id && jobResultsLoading}
+                              title="View Results"
+                            >
+                              {viewingJobId === job.id && jobResultsLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-blue-500" />
+                              )}
+                            </Button>
+                          )}
+                          {/* Rerun - for completed jobs */}
+                          {job.status === 'completed' && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleJobAction(job.id, 'rerun')}
+                              disabled={actioningJobId === job.id}
+                              title="Rerun Job"
+                            >
+                              {actioningJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="h-4 w-4 text-green-500" />
+                              )}
+                            </Button>
+                          )}
+                          {/* Retry - for failed jobs */}
+                          {job.status === 'failed' && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleJobAction(job.id, 'retry')}
+                              disabled={actioningJobId === job.id}
+                              title="Retry"
+                            >
+                              {actioningJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 text-orange-500" />
+                              )}
+                            </Button>
+                          )}
+                          {/* Cancel - for pending or processing jobs */}
+                          {(job.status === 'pending' || job.status === 'processing') && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleJobAction(job.id, 'cancel')}
+                              disabled={actioningJobId === job.id}
+                              title="Cancel"
+                            >
+                              {actioningJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Job Results Modal */}
+      {viewingJobId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-5xl max-h-[80vh] flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between border-b">
+              <div>
+                <CardTitle>Job Results</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Job ID: {viewingJobId.slice(0, 8)}... • {jobResults?.length || 0} results
+                </p>
+              </div>
+              <Button variant="ghost" size="icon-sm" onClick={closeJobResults}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-0">
+              {jobResultsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !jobResults || jobResults.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No results found</p>
+              ) : (
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead>Wallet</TableHead>
+                      <TableHead>ENS</TableHead>
+                      <TableHead>Twitter</TableHead>
+                      <TableHead>Farcaster</TableHead>
+                      <TableHead>FC Followers</TableHead>
+                      <TableHead>Sources</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {jobResults.map((result, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-mono text-xs">
+                          {result.wallet.slice(0, 6)}...{result.wallet.slice(-4)}
+                        </TableCell>
+                        <TableCell>{result.ens_name || '-'}</TableCell>
+                        <TableCell>
+                          {result.twitter_handle ? (
+                            <a
+                              href={result.twitter_url || `https://x.com/${result.twitter_handle}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline flex items-center gap-1"
+                            >
+                              @{result.twitter_handle}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {result.farcaster ? (
+                            <a
+                              href={result.farcaster_url || `https://warpcast.com/${result.farcaster}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-purple-500 hover:underline flex items-center gap-1"
+                            >
+                              @{result.farcaster}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {result.fc_followers?.toLocaleString() || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {result.source?.map((s) => (
+                              <span
+                                key={s}
+                                className="px-1.5 py-0.5 text-xs rounded bg-muted"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </>
   );
 
   const renderHistoryTab = () => (
