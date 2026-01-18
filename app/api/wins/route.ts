@@ -41,10 +41,10 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(lookupJobs.completedAt))
       .limit(limit * 2); // Fetch extra to filter
 
-    // Filter for >10% social rate and format response
+    // Filter for >=25 wallets and >10% social rate
     const wins: RecentWin[] = completedJobs
       .filter((job) => {
-        if (!job.walletCount || job.walletCount === 0) return false;
+        if (!job.walletCount || job.walletCount < 25) return false;
         // Use anySocialFound for unique count, fallback to sum for old jobs
         const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
         const socialRate = anyFound / job.walletCount;
