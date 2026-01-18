@@ -179,6 +179,32 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2025-01-17 (Evening)
+
+**Admin Wallet Enrichment feature**
+- **Manual wallet enrichment**: New "Enrichment" tab in admin panel for adding/editing social data
+  - Search any wallet address to view existing social_graph data
+  - Add Twitter, Farcaster, or ENS manually with 'manual' source tag
+  - Recent manual edits list for quick reference
+- **New API endpoint**: `POST /api/admin/social-graph` for admin wallet enrichment
+
+**New matches notifications**
+- **Enrichment badges**: "X new matches" badge appears on lookups when wallets have been enriched since last view
+- **Row highlighting**: Enriched wallets highlighted with green background + "NEW" badge in results table
+- **View tracking**: `lastViewedAt` timestamp tracks when users load lookups for accurate "new" detection
+- **Automatic clearing**: Badges clear after user views the lookup (read-receipt pattern)
+
+**Input source tracking**
+- **Source column in admin history**: Shows whether lookup came from "File" (upload) or "Paste" (text input)
+- **Color-coded badges**: Blue for file uploads, purple for text input
+- **New database column**: `input_source` on `lookup_history` table
+
+**Database migrations required**:
+```sql
+ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMP;
+ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
+```
+
 ### 2025-01-17
 
 **Public API infrastructure**

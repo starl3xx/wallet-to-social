@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLookupById, updateLookup, updateLookupName } from '@/lib/history';
+import { getLookupById, updateLookup, updateLookupName, markLookupViewed, getLookupLastViewedAt } from '@/lib/history';
+import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import type { WalletSocialResult } from '@/lib/types';
 
 export async function GET(
@@ -24,7 +25,23 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ results: lookup.results });
+    // Get the lastViewedAt BEFORE we update it (to find enrichments since last view)
+    const lastViewedAt = await getLookupLastViewedAt(id);
+
+    // Find wallets enriched since last view
+    let enrichedWallets: string[] = [];
+    if (lastViewedAt) {
+      const wallets = (lookup.results as WalletSocialResult[]).map((r) => r.wallet);
+      enrichedWallets = await getEnrichedWalletsSince(wallets, lastViewedAt);
+    }
+
+    // Update lastViewedAt timestamp (mark as viewed NOW)
+    await markLookupViewed(id);
+
+    return NextResponse.json({
+      results: lookup.results,
+      enrichedWallets, // wallets that were updated since last view
+    });
   } catch (error) {
     console.error('History fetch error:', error);
     return NextResponse.json(

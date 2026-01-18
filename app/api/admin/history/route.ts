@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         twitterFound: lookupHistory.twitterFound,
         farcasterFound: lookupHistory.farcasterFound,
         createdAt: lookupHistory.createdAt,
+        inputSource: lookupHistory.inputSource,
       })
       .from(lookupHistory)
       .orderBy(desc(lookupHistory.createdAt))

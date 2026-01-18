@@ -5,7 +5,7 @@ import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
-import { saveLookup } from '@/lib/history';
+import { saveLookup, type InputSource } from '@/lib/history';
 import {
   upsertSocialGraph,
   getSocialGraphData,
@@ -31,6 +31,7 @@ export interface JobOptions {
   tier?: 'free' | 'pro' | 'unlimited';
   canUseNeynar?: boolean;
   canUseENS?: boolean;
+  inputSource?: InputSource;
 }
 
 export interface ProcessResult {
@@ -399,7 +400,12 @@ async function finalizeJobWithResults(
   // Save to history if requested
   if (options.saveToHistory) {
     try {
-      await saveLookup(results, options.historyName, options.userId || job.userId || undefined);
+      await saveLookup(
+        results,
+        options.historyName,
+        options.userId || job.userId || undefined,
+        options.inputSource
+      );
     } catch (error) {
       console.error('History save error:', error);
     }

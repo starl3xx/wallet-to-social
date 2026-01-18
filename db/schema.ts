@@ -43,6 +43,8 @@ export const lookupHistory = pgTable(
     farcasterFound: integer('farcaster_found').notNull(),
     results: jsonb('results').notNull(), // full results array
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    lastViewedAt: timestamp('last_viewed_at'), // when user last loaded this lookup
+    inputSource: text('input_source'), // 'file_upload' | 'text_input' | 'api'
   },
   (table) => [
     index('lookup_history_created_at_idx').on(table.createdAt),

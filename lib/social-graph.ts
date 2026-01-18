@@ -167,6 +167,150 @@ export function socialGraphToResult(
 }
 
 /**
+ * Upsert wallet with 'manual' source (admin enrichment)
+ * This allows admins to manually add/edit social data for any wallet.
+ * The 'manual' source takes precedence and is tracked separately.
+ */
+export async function upsertManualSocialGraph(
+  wallet: string,
+  data: { twitterHandle?: string; farcaster?: string; ensName?: string }
+): Promise<SocialGraph | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const walletLower = wallet.toLowerCase();
+
+  try {
+    // Fetch existing record to merge
+    const existing = await db
+      .select()
+      .from(socialGraph)
+      .where(sql`${socialGraph.wallet} = ${walletLower}`)
+      .limit(1);
+
+    const prev = existing[0];
+
+    // Merge sources, adding 'manual' if not present
+    const newSources = mergeSources(['manual'], prev?.sources);
+
+    const row: NewSocialGraph = {
+      wallet: walletLower,
+      ensName: data.ensName || prev?.ensName || null,
+      twitterHandle: data.twitterHandle || prev?.twitterHandle || null,
+      twitterUrl: data.twitterHandle ? `https://x.com/${data.twitterHandle}` : prev?.twitterUrl || null,
+      farcaster: data.farcaster || prev?.farcaster || null,
+      farcasterUrl: data.farcaster ? `https://warpcast.com/${data.farcaster}` : prev?.farcasterUrl || null,
+      fcFollowers: prev?.fcFollowers ?? null,
+      fcFid: prev?.fcFid ?? null,
+      lens: prev?.lens || null,
+      github: prev?.github || null,
+      sources: newSources,
+      firstSeenAt: prev?.firstSeenAt ?? new Date(),
+      lastUpdatedAt: new Date(),
+      lookupCount: (prev?.lookupCount ?? 0) + 1,
+    };
+
+    const [result] = await db
+      .insert(socialGraph)
+      .values(row)
+      .onConflictDoUpdate({
+        target: socialGraph.wallet,
+        set: {
+          ensName: sql`COALESCE(EXCLUDED.ens_name, ${socialGraph.ensName})`,
+          twitterHandle: sql`COALESCE(EXCLUDED.twitter_handle, ${socialGraph.twitterHandle})`,
+          twitterUrl: sql`COALESCE(EXCLUDED.twitter_url, ${socialGraph.twitterUrl})`,
+          farcaster: sql`COALESCE(EXCLUDED.farcaster, ${socialGraph.farcaster})`,
+          farcasterUrl: sql`COALESCE(EXCLUDED.farcaster_url, ${socialGraph.farcasterUrl})`,
+          sources: sql`EXCLUDED.sources`,
+          lastUpdatedAt: sql`EXCLUDED.last_updated_at`,
+          lookupCount: sql`${socialGraph.lookupCount} + 1`,
+        },
+      })
+      .returning();
+
+    return result;
+  } catch (error) {
+    console.error('Manual social graph upsert error:', error);
+    return null;
+  }
+}
+
+/**
+ * Find wallets that have been updated/enriched since a given date
+ * Used to show "new matches" notifications for users
+ */
+export async function getEnrichedWalletsSince(
+  wallets: string[],
+  since: Date
+): Promise<string[]> {
+  const db = getDb();
+  if (!db || wallets.length === 0) return [];
+
+  const lowercaseWallets = wallets.map((w) => w.toLowerCase());
+
+  try {
+    const rows = await db
+      .select({ wallet: socialGraph.wallet })
+      .from(socialGraph)
+      .where(
+        sql`${socialGraph.wallet} IN ${lowercaseWallets} AND ${socialGraph.lastUpdatedAt} > ${since}`
+      );
+
+    return rows.map((r) => r.wallet);
+  } catch (error) {
+    console.error('Enriched wallets query error:', error);
+    return [];
+  }
+}
+
+/**
+ * Get a single wallet from social_graph by address
+ */
+export async function getSocialGraphWallet(
+  wallet: string
+): Promise<SocialGraph | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db
+      .select()
+      .from(socialGraph)
+      .where(sql`${socialGraph.wallet} = ${wallet.toLowerCase()}`)
+      .limit(1);
+
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Social graph wallet lookup error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get recent manual edits from social_graph (for admin UI)
+ */
+export async function getRecentManualEdits(
+  limit = 10
+): Promise<SocialGraph[]> {
+  const db = getDb();
+  if (!db) return [];
+
+  try {
+    const rows = await db
+      .select()
+      .from(socialGraph)
+      .where(sql`'manual' = ANY(${socialGraph.sources})`)
+      .orderBy(sql`${socialGraph.lastUpdatedAt} DESC`)
+      .limit(limit);
+
+    return rows;
+  } catch (error) {
+    console.error('Recent manual edits query error:', error);
+    return [];
+  }
+}
+
+/**
  * Get stats about the social graph
  */
 export async function getSocialGraphStats(): Promise<{

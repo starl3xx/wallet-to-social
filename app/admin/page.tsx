@@ -37,6 +37,7 @@ import {
   Play,
   X,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
 import {
   ExecutivePulse,
@@ -45,10 +46,11 @@ import {
   RevenueDashboard,
   SystemHealth,
   UniversalSearch,
+  WalletEnrichment,
 } from '@/components/admin';
 
 // Tab types - Analytics tabs first, then Operations tabs
-type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'activity' | 'jobs' | 'history' | 'users';
+type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'activity' | 'jobs' | 'history' | 'users' | 'enrichment';
 
 // Interfaces
 interface WhitelistEntry {
@@ -93,6 +95,7 @@ interface HistoryEntry {
   twitterFound: number;
   farcasterFound: number;
   createdAt: string;
+  inputSource: string | null;
 }
 
 interface UserEntry {
@@ -1148,6 +1151,7 @@ export default function AdminPage() {
                 <TableRow>
                   <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Wallets</TableHead>
                   <TableHead>Twitter</TableHead>
                   <TableHead>Farcaster</TableHead>
@@ -1163,6 +1167,21 @@ export default function AdminPage() {
                       {entry.id.slice(0, 8)}...
                     </TableCell>
                     <TableCell>{entry.name || '-'}</TableCell>
+                    <TableCell>
+                      {entry.inputSource ? (
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          entry.inputSource === 'file_upload'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                            : entry.inputSource === 'text_input'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                        }`}>
+                          {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>{entry.walletCount.toLocaleString()}</TableCell>
                     <TableCell>{entry.twitterFound}</TableCell>
                     <TableCell>{entry.farcasterFound}</TableCell>
@@ -1422,6 +1441,15 @@ export default function AdminPage() {
             <Users className="h-4 w-4" />
             Users
           </Button>
+          <Button
+            variant={activeTab === 'enrichment' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('enrichment')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <Pencil className="h-4 w-4" />
+            Enrichment
+          </Button>
         </div>
 
         {/* Tab content - Analytics */}
@@ -1442,6 +1470,7 @@ export default function AdminPage() {
         {activeTab === 'jobs' && renderJobsTab()}
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}
+        {activeTab === 'enrichment' && <WalletEnrichment password={password} />}
       </div>
     </div>
   );

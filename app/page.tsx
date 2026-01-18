@@ -60,6 +60,7 @@ export default function Home() {
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [inputSource, setInputSource] = useState<'file_upload' | 'text_input'>('file_upload');
 
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
@@ -71,6 +72,7 @@ export default function Home() {
   const [currentLookupName, setCurrentLookupName] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
+  const [enrichedWallets, setEnrichedWallets] = useState<Set<string>>(new Set());
 
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
@@ -217,6 +219,7 @@ export default function Home() {
     setWallets(unique);
     setOriginalData({});
     setExtraColumns([]);
+    setInputSource('text_input');
     setState('ready');
     setShowPasteInput(false);
   }, [pasteText]);
@@ -271,6 +274,7 @@ export default function Home() {
 
       setOriginalData(dataMap);
       setExtraColumns(cols);
+      setInputSource('file_upload');
       setState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
@@ -314,6 +318,7 @@ export default function Home() {
           includeENS,
           userId: getUserId(),
           email: userEmail || undefined,
+          inputSource,
         }),
       });
 
@@ -340,7 +345,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail]);
+  }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail, inputSource]);
 
   // Poll for job status when jobId is set
   useEffect(() => {
@@ -546,6 +551,7 @@ export default function Home() {
     setCurrentLookupName(null);
     setIsEditingName(false);
     setEditNameValue('');
+    setEnrichedWallets(new Set());
     setProgress({
       total: 0,
       processed: 0,
@@ -557,12 +563,14 @@ export default function Home() {
   }, []);
 
   const handleLoadHistory = useCallback(
-    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null) => {
+    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
       setResults(loadedResults);
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
+      // Convert array to Set for efficient lookup
+      setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
       setState('complete');
     },
     []
@@ -1045,6 +1053,7 @@ export default function Home() {
                 extraColumns={extraColumns}
                 userTier={userTier}
                 onUpgradeClick={handleOpenUpgradeModal}
+                enrichedWallets={enrichedWallets}
               />
             </div>
           )}

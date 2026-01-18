@@ -15,6 +15,7 @@ interface JobRequest {
   userId?: string;
   email?: string;
   wallet?: string;
+  inputSource?: 'file_upload' | 'text_input' | 'api';
 }
 
 export async function POST(request: NextRequest) {
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
       userId,
       email,
       wallet,
+      inputSource,
     } = body;
 
     if (!wallets || wallets.length === 0) {
@@ -81,6 +83,7 @@ export async function POST(request: NextRequest) {
       tier: access.tier,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,
+      inputSource,
     });
 
     // Track lookup started event

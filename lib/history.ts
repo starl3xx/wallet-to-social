@@ -1,5 +1,5 @@
-import { getDb, lookupHistory } from '@/db';
-import { desc, eq, sql } from 'drizzle-orm';
+import { getDb, lookupHistory, socialGraph } from '@/db';
+import { desc, eq, sql, inArray } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
 export interface SavedLookup {
@@ -12,10 +12,13 @@ export interface SavedLookup {
   createdAt: Date;
 }
 
+export type InputSource = 'file_upload' | 'text_input' | 'api';
+
 export async function saveLookup(
   results: WalletSocialResult[],
   name?: string,
-  userId?: string
+  userId?: string,
+  inputSource?: InputSource
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
@@ -32,6 +35,7 @@ export async function saveLookup(
       twitterFound,
       farcasterFound,
       results: results,
+      inputSource: inputSource ?? null,
     })
     .returning({ id: lookupHistory.id });
 
@@ -180,4 +184,98 @@ export async function updateLookupName(
     .returning({ id: lookupHistory.id });
 
   return updated.length > 0;
+}
+
+/**
+ * Mark a lookup as viewed, updating the lastViewedAt timestamp
+ */
+export async function markLookupViewed(id: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .update(lookupHistory)
+      .set({ lastViewedAt: new Date() })
+      .where(eq(lookupHistory.id, id));
+  } catch (error) {
+    console.error('Mark lookup viewed error:', error);
+  }
+}
+
+/**
+ * Get lastViewedAt timestamp for a lookup
+ */
+export async function getLookupLastViewedAt(id: string): Promise<Date | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db
+      .select({ lastViewedAt: lookupHistory.lastViewedAt })
+      .from(lookupHistory)
+      .where(eq(lookupHistory.id, id))
+      .limit(1);
+
+    return rows[0]?.lastViewedAt || null;
+  } catch (error) {
+    console.error('Get lookup last viewed error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get enrichment counts for multiple lookups
+ * Returns a map of lookupId -> number of wallets enriched since lastViewedAt
+ */
+export async function getEnrichmentCounts(
+  lookupIds: string[]
+): Promise<Map<string, number>> {
+  const db = getDb();
+  const result = new Map<string, number>();
+  if (!db || lookupIds.length === 0) return result;
+
+  try {
+    // First, get all lookups with their lastViewedAt and results
+    const lookups = await db
+      .select({
+        id: lookupHistory.id,
+        lastViewedAt: lookupHistory.lastViewedAt,
+        results: lookupHistory.results,
+      })
+      .from(lookupHistory)
+      .where(inArray(lookupHistory.id, lookupIds));
+
+    // For each lookup, count wallets enriched since lastViewedAt
+    for (const lookup of lookups) {
+      // If never viewed, skip (no "new" enrichments to show)
+      if (!lookup.lastViewedAt) {
+        result.set(lookup.id, 0);
+        continue;
+      }
+
+      const results = lookup.results as WalletSocialResult[];
+      const wallets = results.map((r) => r.wallet.toLowerCase());
+
+      if (wallets.length === 0) {
+        result.set(lookup.id, 0);
+        continue;
+      }
+
+      // Count wallets in social_graph updated after lastViewedAt
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(socialGraph)
+        .where(
+          sql`${socialGraph.wallet} IN ${wallets} AND ${socialGraph.lastUpdatedAt} > ${lookup.lastViewedAt}`
+        );
+
+      result.set(lookup.id, countResult?.count || 0);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Get enrichment counts error:', error);
+    return result;
+  }
 }

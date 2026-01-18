@@ -16,8 +16,12 @@ interface LookupSummary {
   createdAt: string;
 }
 
+interface EnrichmentCounts {
+  [lookupId: string]: number;
+}
+
 interface LookupHistoryProps {
-  onLoadLookup: (results: WalletSocialResult[], lookupId?: string, lookupName?: string | null) => void;
+  onLoadLookup: (results: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWallets?: string[]) => void;
   userTier: UserTier;
   onAddAddresses?: (lookupId: string, existingWallets: string[]) => void;
 }
@@ -36,14 +40,15 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [enrichmentCounts, setEnrichmentCounts] = useState<EnrichmentCounts>({});
 
   useEffect(() => {
     async function fetchHistory() {
       try {
         const userId = getUserId();
         const limit = getHistoryLimit(userTier);
-        // Fetch summaries only (no full results JSONB), include count for pagination
-        const res = await fetch(`/api/history?limit=${limit}&userId=${userId}&summaryOnly=true&includeCount=true`);
+        // Fetch summaries only (no full results JSONB), include count for pagination and enrichment counts
+        const res = await fetch(`/api/history?limit=${limit}&userId=${userId}&summaryOnly=true&includeCount=true&includeEnrichment=true`);
         if (!res.ok) {
           if (res.status === 503) {
             setError('Database not configured');
@@ -56,6 +61,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
         setHistory(data.history);
         setTotalCount(data.totalCount || 0);
         setHasMore(data.history.length < (data.totalCount || 0));
+        setEnrichmentCounts(data.enrichmentCounts || {});
       } catch {
         setError('Failed to load history');
       } finally {
@@ -93,8 +99,10 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
     try {
       const res = await fetch(`/api/history/${id}`);
       if (!res.ok) throw new Error('Failed to load');
-      const { results } = await res.json();
-      onLoadLookup(results, id, name);
+      const { results, enrichedWallets } = await res.json();
+      onLoadLookup(results, id, name, enrichedWallets || []);
+      // Clear the enrichment count for this lookup since user just viewed it
+      setEnrichmentCounts((prev) => ({ ...prev, [id]: 0 }));
     } catch (err) {
       console.error('Failed to load lookup:', err);
     } finally {
@@ -135,44 +143,54 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
         <CardTitle className="text-lg">My lookups</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {history.map((lookup) => (
-          <div
-            key={lookup.id}
-            className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-          >
-            <div>
-              <p className="font-medium text-sm">
-                {lookup.name ||
-                  `${lookup.walletCount.toLocaleString()} wallets`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(lookup.createdAt)} · {lookup.twitterFound} Twitter,{' '}
-                {lookup.farcasterFound} Farcaster
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {onAddAddresses && userTier !== 'free' && (
+        {history.map((lookup) => {
+          const enrichmentCount = enrichmentCounts[lookup.id] || 0;
+          return (
+            <div
+              key={lookup.id}
+              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">
+                    {lookup.name ||
+                      `${lookup.walletCount.toLocaleString()} wallets`}
+                  </p>
+                  {enrichmentCount > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                      {enrichmentCount} new match{enrichmentCount !== 1 ? 'es' : ''}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formatDate(lookup.createdAt)} · {lookup.twitterFound} Twitter,{' '}
+                  {lookup.farcasterFound} Farcaster
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {onAddAddresses && userTier !== 'free' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onAddAddresses(lookup.id, [])}
+                    title="Add more addresses to this lookup"
+                    className="px-2"
+                  >
+                    +
+                  </Button>
+                )}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => onAddAddresses(lookup.id, [])}
-                  title="Add more addresses to this lookup"
-                  className="px-2"
+                  onClick={() => handleLoadLookup(lookup.id, lookup.name)}
+                  disabled={loadingId === lookup.id}
                 >
-                  +
+                  {loadingId === lookup.id ? 'Loading...' : 'Load'}
                 </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLoadLookup(lookup.id, lookup.name)}
-                disabled={loadingId === lookup.id}
-              >
-                {loadingId === lookup.id ? 'Loading...' : 'Load'}
-              </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Free tier upgrade prompt */}
         {userTier === 'free' && totalCount > 1 && (

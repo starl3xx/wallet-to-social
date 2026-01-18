@@ -12,6 +12,7 @@ interface ResultsTableProps {
   extraColumns?: string[];
   userTier?: 'free' | 'pro' | 'unlimited';
   onUpgradeClick?: () => void;
+  enrichedWallets?: Set<string>; // Wallets that have been enriched since last view
 }
 
 type SortField =
@@ -31,6 +32,7 @@ export const ResultsTable = memo(function ResultsTable({
   extraColumns = [],
   userTier = 'free',
   onUpgradeClick,
+  enrichedWallets,
 }: ResultsTableProps) {
   const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
   const [search, setSearch] = useState('');
@@ -355,10 +357,15 @@ export const ResultsTable = memo(function ResultsTable({
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const result = filteredAndSorted[virtualRow.index];
+                const isEnriched = enrichedWallets?.has(result.wallet.toLowerCase());
                 return (
                   <div
                     key={result.wallet}
-                    className="absolute top-0 left-0 w-full grid items-center border-b border-border/50 hover:bg-muted/30 transition-colors"
+                    className={`absolute top-0 left-0 w-full grid items-center border-b border-border/50 transition-colors ${
+                      isEnriched
+                        ? 'bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50'
+                        : 'hover:bg-muted/30'
+                    }`}
                     style={{
                       height: `${virtualRow.size}px`,
                       transform: `translateY(${virtualRow.start}px)`,
@@ -367,18 +374,25 @@ export const ResultsTable = memo(function ResultsTable({
                   >
                     {/* Wallet */}
                     <div className="px-4 py-2 font-mono text-xs">
-                      <button
-                        className="relative hover:text-blue-500 cursor-pointer transition-colors"
-                        onClick={() => handleCopyWallet(result.wallet)}
-                        title={`${result.wallet}\nClick to copy`}
-                      >
-                        {truncateWallet(result.wallet)}
-                        {copiedWallet === result.wallet && (
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                            Copied!
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="relative hover:text-blue-500 cursor-pointer transition-colors"
+                          onClick={() => handleCopyWallet(result.wallet)}
+                          title={`${result.wallet}\nClick to copy`}
+                        >
+                          {truncateWallet(result.wallet)}
+                          {copiedWallet === result.wallet && (
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                              Copied!
+                            </span>
+                          )}
+                        </button>
+                        {isEnriched && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-green-500 text-white">
+                            NEW
                           </span>
                         )}
-                      </button>
+                      </div>
                     </div>
 
                     {/* ENS */}
