@@ -540,7 +540,14 @@ export default function AdminPage() {
   };
 
   // Tier badge helper
-  const TierBadge = ({ tier }: { tier: string }) => {
+  const TierBadge = ({ tier, isWhitelisted }: { tier: string; isWhitelisted?: boolean }) => {
+    if (isWhitelisted) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+          whitelisted
+        </span>
+      );
+    }
     const colors: Record<string, string> = {
       free: 'bg-gray-100 text-gray-800',
       pro: 'bg-blue-100 text-blue-800',
@@ -554,6 +561,11 @@ export default function AdminPage() {
       </span>
     );
   };
+
+  // Get set of whitelisted emails for quick lookup
+  const whitelistedEmails = new Set(
+    entries.filter(e => e.email).map(e => e.email!.toLowerCase())
+  );
 
   // Password screen
   if (authState === 'password') {
@@ -1267,7 +1279,7 @@ export default function AdminPage() {
                   <TableRow key={user.id}>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <TierBadge tier={user.tier} />
+                      <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {user.stripeCustomerId
