@@ -32,7 +32,7 @@ import {
   DollarSign,
   Wrench,
   Gauge,
-  Play,
+  RotateCcw,
   X,
   ExternalLink,
   Pencil,
@@ -782,7 +782,7 @@ export default function AdminPage() {
                               {actioningJobId === job.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Play className="h-4 w-4 text-green-500" />
+                                <RotateCcw className="h-4 w-4 text-green-500" />
                               )}
                             </Button>
                           )}
