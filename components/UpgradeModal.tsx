@@ -34,8 +34,6 @@ const FEATURES = {
     'All data sources',
     'ENS onchain lookups',
     'Farcaster follower counts',
-    'Priority score ranking',
-    'Twitter list export',
     'Full lookup history',
     'Add addresses to lookups',
   ],
