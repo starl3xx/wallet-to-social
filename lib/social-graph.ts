@@ -1,11 +1,153 @@
 import {
   getDb,
   socialGraph,
+  socialGraphHistory,
   type SocialGraph,
   type NewSocialGraph,
+  type NewSocialGraphHistory,
 } from '@/db';
 import { inArray, sql } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
+
+// Default staleness period in days
+const STALE_AFTER_DAYS = 30;
+
+/**
+ * Calculate data quality score (0-100) based on sources and verification status
+ * Higher scores indicate more reliable data
+ */
+function calculateQualityScore(
+  sources: string[],
+  hasTwitter: boolean,
+  hasFarcaster: boolean
+): number {
+  let score = 0;
+
+  // Base score for having data
+  if (hasTwitter) score += 20;
+  if (hasFarcaster) score += 20;
+
+  // Source reliability bonuses
+  for (const source of sources) {
+    switch (source) {
+      case 'ens': // Onchain ENS text records - highest confidence
+      case 'ens_onchain':
+        score += 30;
+        break;
+      case 'neynar': // Neynar provides verified Farcaster data with linked socials
+        score += 25;
+        break;
+      case 'web3bio': // Aggregated data - good but less direct
+        score += 15;
+        break;
+      case 'manual': // Admin-verified data
+        score += 35;
+        break;
+      default:
+        score += 5; // Unknown sources get minimal credit
+    }
+  }
+
+  // Cap at 100
+  return Math.min(100, score);
+}
+
+/**
+ * Determine if Twitter data is verified (from high-confidence source)
+ */
+function isTwitterVerified(sources: string[]): boolean {
+  // Twitter is considered verified if it comes from ENS onchain or manual verification
+  return sources.some(
+    (s) => s === 'ens' || s === 'ens_onchain' || s === 'manual'
+  );
+}
+
+/**
+ * Determine if Farcaster data is verified (from high-confidence source)
+ */
+function isFarcasterVerified(sources: string[]): boolean {
+  // Farcaster is considered verified if it comes from Neynar (direct API) or manual
+  return sources.some((s) => s === 'neynar' || s === 'manual');
+}
+
+/**
+ * Calculate stale_at timestamp (default: 30 days from now)
+ */
+function calculateStaleAt(): Date {
+  const staleAt = new Date();
+  staleAt.setDate(staleAt.getDate() + STALE_AFTER_DAYS);
+  return staleAt;
+}
+
+/**
+ * Log a change to the social_graph_history table for audit trail
+ */
+async function logHistoryChange(
+  wallet: string,
+  fieldChanged: string,
+  oldValue: string | null | undefined,
+  newValue: string | null | undefined,
+  changeSource: string | null
+): Promise<void> {
+  // Only log if there's an actual change
+  if (oldValue === newValue) return;
+  if (!oldValue && !newValue) return;
+
+  const db = getDb();
+  if (!db) return;
+
+  try {
+    const historyEntry: NewSocialGraphHistory = {
+      wallet: wallet.toLowerCase(),
+      fieldChanged,
+      oldValue: oldValue ?? null,
+      newValue: newValue ?? null,
+      changeSource,
+    };
+
+    await db.insert(socialGraphHistory).values(historyEntry);
+  } catch (error) {
+    // Don't fail the main operation if history logging fails
+    console.error('Social graph history log error:', error);
+  }
+}
+
+/**
+ * Log multiple field changes efficiently
+ */
+async function logHistoryChanges(
+  wallet: string,
+  changes: Array<{
+    field: string;
+    oldValue: string | null | undefined;
+    newValue: string | null | undefined;
+  }>,
+  changeSource: string | null
+): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+
+  // Filter to only actual changes
+  const actualChanges = changes.filter(
+    (c) => c.oldValue !== c.newValue && (c.oldValue || c.newValue)
+  );
+
+  if (actualChanges.length === 0) return;
+
+  try {
+    const historyEntries: NewSocialGraphHistory[] = actualChanges.map((c) => ({
+      wallet: wallet.toLowerCase(),
+      fieldChanged: c.field,
+      oldValue: c.oldValue ?? null,
+      newValue: c.newValue ?? null,
+      changeSource,
+    }));
+
+    await db.insert(socialGraphHistory).values(historyEntries);
+  } catch (error) {
+    console.error('Social graph history batch log error:', error);
+  }
+}
 
 /**
  * Check if a result has at least one social account worth storing
@@ -42,6 +184,8 @@ function mergeSources(
  * - Only stores wallets with at least one social account
  * - Merges new data with existing, never overwrites with empty values
  * - Updates follower counts and timestamps
+ * - Sets data quality scores and verification flags
+ * - Logs changes to audit trail
  */
 export async function upsertSocialGraph(
   results: WalletSocialResult[]
@@ -64,27 +208,117 @@ export async function upsertSocialGraph(
 
     const existingMap = new Map(existing.map((e) => [e.wallet, e]));
 
+    // Collect changes for audit logging
+    const allChanges: Array<{
+      wallet: string;
+      changes: Array<{
+        field: string;
+        oldValue: string | null | undefined;
+        newValue: string | null | undefined;
+      }>;
+      changeSource: string | null;
+    }> = [];
+
     // Prepare upsert rows with merge logic
     const rows: NewSocialGraph[] = validResults.map((r) => {
       const walletLower = r.wallet.toLowerCase();
       const prev = existingMap.get(walletLower);
 
+      // Calculate merged values
+      const newTwitter = r.twitter_handle || prev?.twitterHandle || null;
+      const newFarcaster = r.farcaster || prev?.farcaster || null;
+      const newEnsName = r.ens_name || prev?.ensName || null;
+      const newLens = r.lens || prev?.lens || null;
+      const newGithub = r.github || prev?.github || null;
+
+      // Merge sources
+      const mergedSources = mergeSources(r.source, prev?.sources);
+
+      // Calculate quality metadata
+      const qualityScore = calculateQualityScore(
+        mergedSources,
+        !!newTwitter,
+        !!newFarcaster
+      );
+      const twitterVerified =
+        prev?.twitterVerified || isTwitterVerified(r.source ?? []);
+      const farcasterVerified =
+        prev?.farcasterVerified || isFarcasterVerified(r.source ?? []);
+
+      // Track changes for audit log
+      const changes: Array<{
+        field: string;
+        oldValue: string | null | undefined;
+        newValue: string | null | undefined;
+      }> = [];
+
+      if (prev?.twitterHandle !== newTwitter) {
+        changes.push({
+          field: 'twitter_handle',
+          oldValue: prev?.twitterHandle,
+          newValue: newTwitter,
+        });
+      }
+      if (prev?.farcaster !== newFarcaster) {
+        changes.push({
+          field: 'farcaster',
+          oldValue: prev?.farcaster,
+          newValue: newFarcaster,
+        });
+      }
+      if (prev?.ensName !== newEnsName) {
+        changes.push({
+          field: 'ens_name',
+          oldValue: prev?.ensName,
+          newValue: newEnsName,
+        });
+      }
+      if (prev?.lens !== newLens) {
+        changes.push({
+          field: 'lens',
+          oldValue: prev?.lens,
+          newValue: newLens,
+        });
+      }
+      if (prev?.github !== newGithub) {
+        changes.push({
+          field: 'github',
+          oldValue: prev?.github,
+          newValue: newGithub,
+        });
+      }
+
+      if (changes.length > 0) {
+        // Use the primary source from the incoming data for the change source
+        const changeSource = r.source?.[0] ?? null;
+        allChanges.push({ wallet: walletLower, changes, changeSource });
+      }
+
       return {
         wallet: walletLower,
-        ensName: r.ens_name || prev?.ensName || null,
-        twitterHandle: r.twitter_handle || prev?.twitterHandle || null,
+        ensName: newEnsName,
+        twitterHandle: newTwitter,
         twitterUrl: r.twitter_url || prev?.twitterUrl || null,
-        farcaster: r.farcaster || prev?.farcaster || null,
+        farcaster: newFarcaster,
         farcasterUrl: r.farcaster_url || prev?.farcasterUrl || null,
         // Always update follower counts if we have new data
         fcFollowers: r.fc_followers ?? prev?.fcFollowers ?? null,
-        fcFid: (r as Record<string, unknown>).fc_fid as number | null ?? prev?.fcFid ?? null,
-        lens: r.lens || prev?.lens || null,
-        github: r.github || prev?.github || null,
-        sources: mergeSources(r.source, prev?.sources),
+        fcFid:
+          ((r as Record<string, unknown>).fc_fid as number | null) ??
+          prev?.fcFid ??
+          null,
+        lens: newLens,
+        github: newGithub,
+        sources: mergedSources,
         firstSeenAt: prev?.firstSeenAt ?? new Date(),
         lastUpdatedAt: new Date(),
         lookupCount: (prev?.lookupCount ?? 0) + 1,
+        // Quality metadata
+        twitterVerified,
+        farcasterVerified,
+        dataQualityScore: qualityScore,
+        lastVerificationAt: new Date(),
+        staleAt: calculateStaleAt(),
       };
     });
 
@@ -111,11 +345,24 @@ export async function upsertSocialGraph(
             sources: sql`EXCLUDED.sources`,
             lastUpdatedAt: sql`EXCLUDED.last_updated_at`,
             lookupCount: sql`${socialGraph.lookupCount} + 1`,
+            // Quality metadata updates
+            twitterVerified: sql`EXCLUDED.twitter_verified OR ${socialGraph.twitterVerified}`,
+            farcasterVerified: sql`EXCLUDED.farcaster_verified OR ${socialGraph.farcasterVerified}`,
+            dataQualityScore: sql`GREATEST(EXCLUDED.data_quality_score, ${socialGraph.dataQualityScore})`,
+            lastVerificationAt: sql`EXCLUDED.last_verification_at`,
+            staleAt: sql`EXCLUDED.stale_at`,
           },
         });
 
       upserted += batch.length;
     }
+
+    // Log changes to audit trail (fire and forget - don't block on this)
+    Promise.all(
+      allChanges.map((c) =>
+        logHistoryChanges(c.wallet, c.changes, c.changeSource)
+      )
+    ).catch((error) => console.error('Audit log batch error:', error));
 
     return upserted;
   } catch (error) {
@@ -170,6 +417,7 @@ export function socialGraphToResult(
  * Upsert wallet with 'manual' source (admin enrichment)
  * This allows admins to manually add/edit social data for any wallet.
  * The 'manual' source takes precedence and is tracked separately.
+ * Manual edits set verified flags and highest quality score.
  */
 export async function upsertManualSocialGraph(
   wallet: string,
@@ -193,13 +441,51 @@ export async function upsertManualSocialGraph(
     // Merge sources, adding 'manual' if not present
     const newSources = mergeSources(['manual'], prev?.sources);
 
+    // Calculate merged values
+    const newTwitter = data.twitterHandle || prev?.twitterHandle || null;
+    const newFarcaster = data.farcaster || prev?.farcaster || null;
+    const newEnsName = data.ensName || prev?.ensName || null;
+
+    // Track changes for audit log
+    const changes: Array<{
+      field: string;
+      oldValue: string | null | undefined;
+      newValue: string | null | undefined;
+    }> = [];
+
+    if (data.twitterHandle && prev?.twitterHandle !== data.twitterHandle) {
+      changes.push({
+        field: 'twitter_handle',
+        oldValue: prev?.twitterHandle,
+        newValue: data.twitterHandle,
+      });
+    }
+    if (data.farcaster && prev?.farcaster !== data.farcaster) {
+      changes.push({
+        field: 'farcaster',
+        oldValue: prev?.farcaster,
+        newValue: data.farcaster,
+      });
+    }
+    if (data.ensName && prev?.ensName !== data.ensName) {
+      changes.push({
+        field: 'ens_name',
+        oldValue: prev?.ensName,
+        newValue: data.ensName,
+      });
+    }
+
     const row: NewSocialGraph = {
       wallet: walletLower,
-      ensName: data.ensName || prev?.ensName || null,
-      twitterHandle: data.twitterHandle || prev?.twitterHandle || null,
-      twitterUrl: data.twitterHandle ? `https://x.com/${data.twitterHandle}` : prev?.twitterUrl || null,
-      farcaster: data.farcaster || prev?.farcaster || null,
-      farcasterUrl: data.farcaster ? `https://warpcast.com/${data.farcaster}` : prev?.farcasterUrl || null,
+      ensName: newEnsName,
+      twitterHandle: newTwitter,
+      twitterUrl: data.twitterHandle
+        ? `https://x.com/${data.twitterHandle}`
+        : prev?.twitterUrl || null,
+      farcaster: newFarcaster,
+      farcasterUrl: data.farcaster
+        ? `https://warpcast.com/${data.farcaster}`
+        : prev?.farcasterUrl || null,
       fcFollowers: prev?.fcFollowers ?? null,
       fcFid: prev?.fcFid ?? null,
       lens: prev?.lens || null,
@@ -208,6 +494,12 @@ export async function upsertManualSocialGraph(
       firstSeenAt: prev?.firstSeenAt ?? new Date(),
       lastUpdatedAt: new Date(),
       lookupCount: (prev?.lookupCount ?? 0) + 1,
+      // Manual edits get highest verification status
+      twitterVerified: !!newTwitter,
+      farcasterVerified: !!newFarcaster,
+      dataQualityScore: 100, // Manual verification = highest confidence
+      lastVerificationAt: new Date(),
+      staleAt: calculateStaleAt(),
     };
 
     const [result] = await db
@@ -224,9 +516,22 @@ export async function upsertManualSocialGraph(
           sources: sql`EXCLUDED.sources`,
           lastUpdatedAt: sql`EXCLUDED.last_updated_at`,
           lookupCount: sql`${socialGraph.lookupCount} + 1`,
+          // Manual verification always sets highest quality
+          twitterVerified: sql`EXCLUDED.twitter_verified OR ${socialGraph.twitterVerified}`,
+          farcasterVerified: sql`EXCLUDED.farcaster_verified OR ${socialGraph.farcasterVerified}`,
+          dataQualityScore: sql`100`,
+          lastVerificationAt: sql`EXCLUDED.last_verification_at`,
+          staleAt: sql`EXCLUDED.stale_at`,
         },
       })
       .returning();
+
+    // Log changes to audit trail
+    if (changes.length > 0) {
+      logHistoryChanges(walletLower, changes, 'manual').catch((error) =>
+        console.error('Manual edit audit log error:', error)
+      );
+    }
 
     return result;
   } catch (error) {

@@ -72,12 +72,19 @@ export const socialGraph = pgTable(
     firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
     lastUpdatedAt: timestamp('last_updated_at').defaultNow().notNull(),
     lookupCount: integer('lookup_count').default(1).notNull(),
+    // Data quality metadata (Phase 1)
+    twitterVerified: boolean('twitter_verified').default(false), // High-confidence data from ENS onchain
+    farcasterVerified: boolean('farcaster_verified').default(false), // High-confidence data from Neynar
+    dataQualityScore: integer('data_quality_score').default(0), // 0-100 confidence score
+    lastVerificationAt: timestamp('last_verification_at'), // When data was last verified
+    staleAt: timestamp('stale_at'), // When data should be refreshed
   },
   (table) => [
     index('social_graph_twitter_idx').on(table.twitterHandle),
     index('social_graph_farcaster_idx').on(table.farcaster),
     index('social_graph_ens_idx').on(table.ensName),
     index('social_graph_fc_followers_idx').on(table.fcFollowers),
+    index('social_graph_stale_at_idx').on(table.staleAt), // For finding stale records to refresh
   ]
 );
 
@@ -371,6 +378,29 @@ export const ipRateLimitBuckets = pgTable(
   ]
 );
 
+// ============================================================================
+// Audit Trail (Phase 4)
+// ============================================================================
+
+// Track changes to social_graph for debugging and pattern detection
+export const socialGraphHistory = pgTable(
+  'social_graph_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    wallet: text('wallet').notNull(),
+    fieldChanged: text('field_changed').notNull(), // 'twitter_handle', 'farcaster', 'ens_name', etc.
+    oldValue: text('old_value'),
+    newValue: text('new_value'),
+    changedAt: timestamp('changed_at').defaultNow().notNull(),
+    changeSource: text('change_source'), // 'web3bio', 'neynar', 'ens_onchain', 'manual'
+  },
+  (table) => [
+    index('social_graph_history_wallet_idx').on(table.wallet),
+    index('social_graph_history_changed_at_idx').on(table.changedAt),
+    index('social_graph_history_field_changed_idx').on(table.fieldChanged),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -404,3 +434,5 @@ export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
 export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
 export type NewMagicLinkToken = typeof magicLinkTokens.$inferInsert;
+export type SocialGraphHistory = typeof socialGraphHistory.$inferSelect;
+export type NewSocialGraphHistory = typeof socialGraphHistory.$inferInsert;

@@ -76,6 +76,12 @@ export async function GET(
       github: socialGraph.github,
       sources: socialGraph.sources,
       lastUpdatedAt: socialGraph.lastUpdatedAt,
+      // Quality metadata
+      twitterVerified: socialGraph.twitterVerified,
+      farcasterVerified: socialGraph.farcasterVerified,
+      dataQualityScore: socialGraph.dataQualityScore,
+      lastVerificationAt: socialGraph.lastVerificationAt,
+      staleAt: socialGraph.staleAt,
     })
     .from(socialGraph)
     .where(eq(socialGraph.wallet, normalizedAddress))
@@ -116,6 +122,7 @@ export async function GET(
     data.twitter = {
       handle: result.twitterHandle,
       url: result.twitterUrl || `https://twitter.com/${result.twitterHandle}`,
+      verified: result.twitterVerified ?? false,
     };
   }
   if (result.farcaster) {
@@ -124,11 +131,33 @@ export async function GET(
       url: result.farcasterUrl || `https://warpcast.com/${result.farcaster}`,
       followers: result.fcFollowers,
       fid: result.fcFid,
+      verified: result.farcasterVerified ?? false,
     };
   }
   if (result.lens) data.lens = result.lens;
   if (result.github) data.github = result.github;
   if (result.sources) data.sources = result.sources;
+
+  // Add quality metadata
+  data.quality = {
+    score: result.dataQualityScore ?? 0,
+    last_verified: result.lastVerificationAt?.toISOString() ?? null,
+  };
+
+  // Check staleness
+  const now = new Date();
+  const isStale = result.staleAt && now > result.staleAt;
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const isOld = result.lastUpdatedAt && result.lastUpdatedAt < thirtyDaysAgo;
+  const dataIsStale = isStale || isOld;
+
+  // Build headers with staleness info if needed
+  const stalenessHeaders = dataIsStale
+    ? {
+        'X-Data-Staleness': 'stale',
+        'X-Last-Updated': result.lastUpdatedAt?.toISOString() ?? '',
+      }
+    : {};
 
   return apiSuccess(
     {
@@ -137,8 +166,9 @@ export async function GET(
         wallet: normalizedAddress,
         found: true,
         last_updated: result.lastUpdatedAt?.toISOString(),
+        stale: dataIsStale,
       },
     },
-    { ...context.rateLimitHeaders, ...corsHeaders }
+    { ...context.rateLimitHeaders, ...corsHeaders, ...stalenessHeaders }
   );
 }
