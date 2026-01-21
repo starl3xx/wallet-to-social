@@ -56,6 +56,7 @@ const FEATURES = {
     'Twitter list export',
     'Full lookup history',
     'Add addresses to lookups',
+    'Import from contract address',
     'Priority support',
   ],
 };
