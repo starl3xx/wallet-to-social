@@ -5,6 +5,7 @@ import type { WalletSocialResult } from './types';
 export interface SavedLookup {
   id: string;
   name: string | null;
+  userId: string | null;
   walletCount: number;
   twitterFound: number;
   farcasterFound: number;
@@ -37,7 +38,7 @@ export async function saveLookup(
       results: results,
       inputSource: inputSource ?? null,
     })
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return inserted.id;
 }
@@ -62,6 +63,7 @@ export async function getLookupHistory(
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
+    userId: row.userId,
     walletCount: row.walletCount,
     twitterFound: row.twitterFound,
     farcasterFound: row.farcasterFound,
@@ -138,6 +140,7 @@ export async function getLookupById(id: string): Promise<SavedLookup | null> {
   return {
     id: row.id,
     name: row.name,
+    userId: row.userId,
     walletCount: row.walletCount,
     twitterFound: row.twitterFound,
     farcasterFound: row.farcasterFound,
@@ -165,7 +168,7 @@ export async function updateLookup(
       results: results,
     })
     .where(eq(lookupHistory.id, id))
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return updated.length > 0;
 }
@@ -181,7 +184,7 @@ export async function updateLookupName(
     .update(lookupHistory)
     .set({ name })
     .where(eq(lookupHistory.id, id))
-    .returning({ id: lookupHistory.id });
+    .returning();
 
   return updated.length > 0;
 }

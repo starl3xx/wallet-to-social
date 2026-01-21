@@ -80,7 +80,7 @@ export async function DELETE(request: NextRequest) {
     const [deleted] = await db
       .delete(lookupHistory)
       .where(eq(lookupHistory.id, id))
-      .returning({ id: lookupHistory.id });
+      .returning();
 
     if (!deleted) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });

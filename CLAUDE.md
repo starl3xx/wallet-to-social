@@ -47,9 +47,20 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 
 Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both token holdings and social reach.
 
-## Changelog
+## Documentation Updates
 
-**Always update the changelog in README.md when making commits.** Add a dated entry under `## Changelog` with a brief description and bullet points of changes.
+**Always update documentation when making commits:**
+
+1. **README.md** - Add a dated entry under `## Changelog` with bullet points of changes
+2. **PROJECT_OVERVIEW.md** - Update if changes affect:
+   - Architecture or data flow
+   - Database schema
+   - API endpoints
+   - Environment variables
+   - Tier/pricing structure
+   - Key files or their responsibilities
+
+Keep both files in sync so LLMs have accurate context about the codebase.
 
 ## UI Guidelines
 

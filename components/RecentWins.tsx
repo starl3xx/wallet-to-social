@@ -14,8 +14,8 @@ interface RecentWin {
 // X/Twitter icon SVG
 const XIcon = ({ className }: { className?: string }) => (
   <svg
-    width="12"
-    height="12"
+    width="14"
+    height="14"
     viewBox="0 0 24 24"
     fill="currentColor"
     className={className}
@@ -27,13 +27,30 @@ const XIcon = ({ className }: { className?: string }) => (
 // Farcaster logo SVG
 const FarcasterIcon = ({ className }: { className?: string }) => (
   <svg
-    width="12"
-    height="10"
+    width="14"
+    height="12"
     viewBox="0 0 200 175"
     fill="currentColor"
     className={className}
   >
     <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
+  </svg>
+);
+
+// Checkmark icon for "win" indicator
+const CheckIcon = ({ className }: { className?: string }) => (
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="3"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <polyline points="20 6 9 17 4 12" />
   </svg>
 );
 
@@ -103,13 +120,14 @@ export const RecentWins = memo(function RecentWins() {
       <div className="flex items-center gap-2">
         <LiveDot />
         <h3 className="text-sm font-medium text-muted-foreground tracking-wide uppercase">
-          Live activity
+          Recent activity
         </h3>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+      <div className="flex gap-3 overflow-x-auto pt-1 pb-2 -mx-1 px-1 -mt-1">
         {wins.map((win, index) => {
           const recent = isRecent(win.completedAt);
+          const totalFound = win.twitterFound + win.farcasterFound;
           return (
             <div
               key={win.id}
@@ -129,18 +147,18 @@ export const RecentWins = memo(function RecentWins() {
                 opacity: 0,
               }}
             >
-              {/* Header: Wallet count + time */}
-              <div className="flex items-start justify-between gap-2 mb-3">
+              {/* Header: Total found (hero number) + time */}
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <p className="text-lg font-semibold tabular-nums tracking-tight">
-                    {win.walletCount.toLocaleString()}
+                  <p className="text-2xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
+                    {totalFound.toLocaleString()}
                   </p>
                   <p className="text-xs text-muted-foreground -mt-0.5">
-                    wallets processed
+                    socials found
                   </p>
                 </div>
                 <span className={`
-                  text-[10px] font-medium px-1.5 py-0.5 rounded-md
+                  text-[10px] font-medium px-1.5 py-0.5 rounded-md whitespace-nowrap
                   ${recent
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                     : 'bg-muted text-muted-foreground'
@@ -150,26 +168,26 @@ export const RecentWins = memo(function RecentWins() {
                 </span>
               </div>
 
-              {/* Stats row */}
-              <div className="flex items-center gap-4 text-sm">
+              {/* Breakdown row */}
+              <div className="flex items-center gap-3 text-sm mb-3">
                 <div className="flex items-center gap-1.5" title="Twitter/X found">
                   <XIcon className="text-foreground/70" />
-                  <span className="font-medium tabular-nums">{win.twitterFound}</span>
+                  <span className="font-medium tabular-nums text-muted-foreground">{win.twitterFound.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1.5" title="Farcaster found">
                   <FarcasterIcon className="text-purple-500" />
-                  <span className="font-medium tabular-nums">{win.farcasterFound}</span>
+                  <span className="font-medium tabular-nums text-muted-foreground">{win.farcasterFound.toLocaleString()}</span>
                 </div>
               </div>
 
-              {/* Match rate vs industry comparison */}
-              <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
-                <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {win.socialRate}%
+              {/* Footer: wallet count + consistent "win" badge */}
+              <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {win.walletCount.toLocaleString()} wallets
                 </span>
-                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded whitespace-nowrap">
-                  <span className="inline-block mr-0.5">&#9650;</span>
-                  {Math.round(win.socialRate / 2.5)}x industry avg
+                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                  <CheckIcon />
+                  {win.socialRate}% hit rate
                 </span>
               </div>
             </div>

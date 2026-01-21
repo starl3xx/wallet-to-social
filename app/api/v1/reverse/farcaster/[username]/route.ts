@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import {
@@ -22,6 +22,9 @@ const corsHeaders = {
 
 // Reverse lookups cost 2 credits
 const CREDITS_COST = 2;
+
+// Maximum results per request
+const MAX_RESULTS = 100;
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
@@ -65,7 +68,17 @@ export async function GET(
     );
   }
 
-  // Find all wallets with this Farcaster username
+  // Get total count first (for truncation detection)
+  const [countResult] = await db
+    .select({
+      count: sql<number>`COUNT(*)::int`,
+    })
+    .from(socialGraph)
+    .where(eq(socialGraph.farcaster, normalizedUsername));
+
+  const totalCount = countResult?.count ?? 0;
+
+  // Find all wallets with this Farcaster username (limited)
   const results = await db
     .select({
       wallet: socialGraph.wallet,
@@ -80,10 +93,16 @@ export async function GET(
       github: socialGraph.github,
       sources: socialGraph.sources,
       lastUpdatedAt: socialGraph.lastUpdatedAt,
+      // Quality metadata
+      twitterVerified: socialGraph.twitterVerified,
+      farcasterVerified: socialGraph.farcasterVerified,
+      dataQualityScore: socialGraph.dataQualityScore,
     })
     .from(socialGraph)
     .where(eq(socialGraph.farcaster, normalizedUsername))
-    .limit(100); // Reasonable limit for reverse lookups
+    .limit(MAX_RESULTS);
+
+  const truncated = totalCount > MAX_RESULTS;
 
   // Track usage
   trackApiUsage({
@@ -102,7 +121,9 @@ export async function GET(
         data: [],
         meta: {
           username: normalizedUsername,
-          found: 0,
+          total_count: 0,
+          returned_count: 0,
+          truncated: false,
         },
       },
       { ...context.rateLimitHeaders, ...corsHeaders }
@@ -120,6 +141,7 @@ export async function GET(
       item.twitter = {
         handle: result.twitterHandle,
         url: result.twitterUrl || `https://twitter.com/${result.twitterHandle}`,
+        verified: result.twitterVerified ?? false,
       };
     }
     item.farcaster = {
@@ -127,10 +149,12 @@ export async function GET(
       url: result.farcasterUrl || `https://warpcast.com/${result.farcaster}`,
       followers: result.fcFollowers,
       fid: result.fcFid,
+      verified: result.farcasterVerified ?? false,
     };
     if (result.lens) item.lens = result.lens;
     if (result.github) item.github = result.github;
     if (result.sources) item.sources = result.sources;
+    item.quality_score = result.dataQualityScore ?? 0;
 
     return item;
   });
@@ -140,7 +164,9 @@ export async function GET(
       data,
       meta: {
         username: normalizedUsername,
-        found: results.length,
+        total_count: totalCount,
+        returned_count: results.length,
+        truncated,
       },
     },
     { ...context.rateLimitHeaders, ...corsHeaders }

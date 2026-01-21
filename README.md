@@ -179,6 +179,51 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2025-01-18
+
+**New Starter tier + API optimization**
+
+- **Starter tier ($49)**: New entry-level paid tier with 10,000 wallets cumulative (total across all lookups)
+  - All Pro features (ENS, follower counts, priority scoring, history)
+  - Quota-based instead of per-lookup limits
+  - `wallets_used` column tracks cumulative usage
+- **API pipeline optimization**: Neynar runs first (fast batch API), then Web3Bio only for wallets without Twitter
+  - Expected 30-60% reduction in Web3Bio API calls
+  - Separate stage indicators: `neynar` then `web3bio` instead of `web3bio+neynar`
+- **PROJECT_OVERVIEW.md**: New comprehensive context document for LLMs
+
+**Database migration required**:
+```sql
+ALTER TABLE users ADD COLUMN wallets_used INTEGER NOT NULL DEFAULT 0;
+```
+
+---
+
+**Scalability audit: fixes for high-load scenarios**
+
+Critical fixes (P0):
+- **Inngest concurrency**: Increased from 10 to 100 concurrent jobs - 50 jobs now start in ~5s vs ~250s
+- **API timeouts**: Added 15-second timeouts to all external API calls (Web3.bio, Neynar, ENS) - prevents jobs from hanging indefinitely
+- **Rate limit race condition**: Fixed with atomic UPSERT - accurate counting under high concurrency
+- **Connection pooling**: Added optional Neon pooler support (`USE_CONNECTION_POOLING=true`) - reduces p95 latency from 200-500ms to 50-100ms
+- **Cache state loss bug**: Fixed Inngest step serialization issue that was discarding cache hits - 2-3x faster processing
+
+High priority fixes (P1):
+- **Debounced search**: 300ms debounce on ResultsTable search - eliminates 1-2s lag with 10K+ results
+- **Parallel cron processing**: Process 5 jobs simultaneously instead of 1 - 5x faster queue clearing
+- **Adaptive polling**: Starts at 2s, increases to 5s when idle - ~60% reduction in server requests
+- **Composite indexes**: Added `(status, created_at)` and `(user_id, created_at)` indexes for faster queries
+- **COUNT aggregates**: Replaced full table scans with `COUNT(*) FILTER` - ~99% faster stats queries
+
+Additional fix:
+- **Neynar 404 handling**: Gracefully handles batches where no addresses have Farcaster accounts
+
+**Database migrations required**:
+```sql
+CREATE INDEX IF NOT EXISTS lookup_jobs_status_created_idx ON lookup_jobs (status, created_at);
+CREATE INDEX IF NOT EXISTS lookup_history_user_created_idx ON lookup_history (user_id, created_at);
+```
+
 ### 2025-01-17 (Evening)
 
 **Admin Wallet Enrichment feature**

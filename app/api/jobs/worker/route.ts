@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getNextPendingJob, processJobChunk } from '@/lib/job-processor';
+import { getNextPendingJobs, processJobChunk } from '@/lib/job-processor';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max per invocation
 
+// Process up to 5 jobs in parallel to clear queue faster
+const PARALLEL_JOB_LIMIT = 5;
+
 /**
  * Cron worker endpoint - called by Vercel Cron every minute.
- * Processes one job at a time, up to 2000 wallets per invocation.
+ * Processes multiple jobs in parallel for faster queue clearing.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -28,29 +31,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get next job to process
-    const job = await getNextPendingJob();
+    // Get multiple pending jobs to process in parallel
+    const jobs = await getNextPendingJobs(PARALLEL_JOB_LIMIT);
 
-    if (!job) {
+    if (jobs.length === 0) {
       return NextResponse.json({
         message: 'No pending jobs',
         processed: false,
+        jobCount: 0,
       });
     }
 
-    console.log(`Processing job ${job.id}: ${job.processedCount}/${job.wallets.length} wallets`);
+    console.log(`Processing ${jobs.length} jobs in parallel`);
 
-    // Process a chunk of the job
-    const result = await processJobChunk(job.id);
+    // Process all jobs in parallel
+    const results = await Promise.all(
+      jobs.map(async (job) => {
+        console.log(`Processing job ${job.id}: ${job.processedCount}/${job.wallets.length} wallets`);
+        try {
+          const result = await processJobChunk(job.id);
+          console.log(`Job ${job.id} chunk complete:`, result);
+          return {
+            jobId: job.id,
+            walletCount: job.wallets.length,
+            ...result,
+          };
+        } catch (error) {
+          console.error(`Job ${job.id} failed:`, error);
+          return {
+            jobId: job.id,
+            walletCount: job.wallets.length,
+            completed: true,
+            processedCount: job.processedCount,
+            twitterFound: job.twitterFound,
+            farcasterFound: job.farcasterFound,
+            anySocialFound: job.anySocialFound,
+            cacheHits: job.cacheHits,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      })
+    );
 
-    console.log(`Job ${job.id} chunk complete:`, result);
+    const totalProcessed = results.reduce((sum, r) => sum + (r.processedCount || 0), 0);
+    const completedCount = results.filter((r) => r.completed).length;
 
     return NextResponse.json({
-      jobId: job.id,
-      ...result,
-      message: result.completed
-        ? 'Job completed'
-        : `Processed ${result.processedCount} of ${job.wallets.length} wallets`,
+      message: `Processed ${jobs.length} jobs (${completedCount} completed)`,
+      jobCount: jobs.length,
+      totalProcessed,
+      completedCount,
+      results,
     });
   } catch (error) {
     console.error('Worker error:', error);

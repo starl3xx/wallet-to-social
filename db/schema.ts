@@ -49,6 +49,8 @@ export const lookupHistory = pgTable(
   (table) => [
     index('lookup_history_created_at_idx').on(table.createdAt),
     index('lookup_history_user_id_idx').on(table.userId),
+    // Composite index for user's history sorted by date (most common query pattern)
+    index('lookup_history_user_created_idx').on(table.userId, table.createdAt),
   ]
 );
 
@@ -70,12 +72,19 @@ export const socialGraph = pgTable(
     firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
     lastUpdatedAt: timestamp('last_updated_at').defaultNow().notNull(),
     lookupCount: integer('lookup_count').default(1).notNull(),
+    // Data quality metadata (Phase 1)
+    twitterVerified: boolean('twitter_verified').default(false), // High-confidence data from ENS onchain
+    farcasterVerified: boolean('farcaster_verified').default(false), // High-confidence data from Neynar
+    dataQualityScore: integer('data_quality_score').default(0), // 0-100 confidence score
+    lastVerificationAt: timestamp('last_verification_at'), // When data was last verified
+    staleAt: timestamp('stale_at'), // When data should be refreshed
   },
   (table) => [
     index('social_graph_twitter_idx').on(table.twitterHandle),
     index('social_graph_farcaster_idx').on(table.farcaster),
     index('social_graph_ens_idx').on(table.ensName),
     index('social_graph_fc_followers_idx').on(table.fcFollowers),
+    index('social_graph_stale_at_idx').on(table.staleAt), // For finding stale records to refresh
   ]
 );
 
@@ -117,6 +126,8 @@ export const lookupJobs = pgTable(
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),
     index('lookup_jobs_created_at_idx').on(table.createdAt),
+    // Composite index for efficient "get next pending job" queries
+    index('lookup_jobs_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
@@ -126,11 +137,12 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').unique().notNull(),
-    tier: text('tier').notNull().default('free'), // 'free' | 'pro' | 'unlimited'
+    tier: text('tier').notNull().default('free'), // 'free' | 'starter' | 'pro' | 'unlimited'
     stripeCustomerId: text('stripe_customer_id'),
     stripePaymentId: text('stripe_payment_id'),
     paidAt: timestamp('paid_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    walletsUsed: integer('wallets_used').default(0).notNull(), // cumulative usage for starter tier
   },
   (table) => [index('users_email_idx').on(table.email)]
 );
@@ -344,6 +356,51 @@ export const rateLimitBuckets = pgTable(
   ]
 );
 
+// IP-based rate limit buckets for unauthenticated UI endpoints
+export const ipRateLimitBuckets = pgTable(
+  'ip_rate_limit_buckets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ipAddress: text('ip_address').notNull(),
+    endpoint: text('endpoint').notNull(), // '/api/lookup', '/api/jobs'
+    bucketKey: text('bucket_key').notNull(), // e.g., '2024-01-15T14' for hourly buckets
+    count: integer('count').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('ip_rate_limit_buckets_lookup_idx').on(
+      table.ipAddress,
+      table.endpoint,
+      table.bucketKey
+    ),
+    index('ip_rate_limit_buckets_created_at_idx').on(table.createdAt),
+  ]
+);
+
+// ============================================================================
+// Audit Trail (Phase 4)
+// ============================================================================
+
+// Track changes to social_graph for debugging and pattern detection
+export const socialGraphHistory = pgTable(
+  'social_graph_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    wallet: text('wallet').notNull(),
+    fieldChanged: text('field_changed').notNull(), // 'twitter_handle', 'farcaster', 'ens_name', etc.
+    oldValue: text('old_value'),
+    newValue: text('new_value'),
+    changedAt: timestamp('changed_at').defaultNow().notNull(),
+    changeSource: text('change_source'), // 'web3bio', 'neynar', 'ens_onchain', 'manual'
+  },
+  (table) => [
+    index('social_graph_history_wallet_idx').on(table.wallet),
+    index('social_graph_history_changed_at_idx').on(table.changedAt),
+    index('social_graph_history_field_changed_idx').on(table.fieldChanged),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -371,7 +428,11 @@ export type ApiUsage = typeof apiUsage.$inferSelect;
 export type NewApiUsage = typeof apiUsage.$inferInsert;
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
 export type NewRateLimitBucket = typeof rateLimitBuckets.$inferInsert;
+export type IpRateLimitBucket = typeof ipRateLimitBuckets.$inferSelect;
+export type NewIpRateLimitBucket = typeof ipRateLimitBuckets.$inferInsert;
 export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
 export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
 export type NewMagicLinkToken = typeof magicLinkTokens.$inferInsert;
+export type SocialGraphHistory = typeof socialGraphHistory.$inferSelect;
+export type NewSocialGraphHistory = typeof socialGraphHistory.$inferInsert;

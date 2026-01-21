@@ -2,23 +2,35 @@ import { getDb } from '@/db';
 import { users, whitelist } from '@/db/schema';
 import { eq, or, sql } from 'drizzle-orm';
 
-export type UserTier = 'free' | 'pro' | 'unlimited';
+export type UserTier = 'free' | 'starter' | 'pro' | 'unlimited';
 
 export interface UserAccess {
   tier: UserTier;
   isWhitelisted: boolean;
-  walletLimit: number;
+  walletLimit: number;       // per-lookup limit
+  walletQuota: number | null; // total cumulative quota (starter only)
+  walletsUsed: number;       // cumulative wallets processed
+  walletsRemaining: number | null; // quota - used (starter only)
   canUseNeynar: boolean;
   canUseENS: boolean;
 }
 
 export const TIER_LIMITS: Record<UserTier, number> = {
   free: 1000,
+  starter: 10000,  // per-lookup limit (same as pro)
   pro: 10000,
   unlimited: Infinity,
 };
 
-export const TIER_PRICES: Record<'pro' | 'unlimited', number> = {
+export const TIER_QUOTA: Record<UserTier, number | null> = {
+  free: null,      // no cumulative quota
+  starter: 10000,  // 10,000 total
+  pro: null,       // no cumulative quota
+  unlimited: null,
+};
+
+export const TIER_PRICES: Record<'starter' | 'pro' | 'unlimited', number> = {
+  starter: 49,
   pro: 149,
   unlimited: 420,
 };
@@ -69,6 +81,9 @@ export async function getUserAccess(
     tier: 'free',
     isWhitelisted: false,
     walletLimit: TIER_LIMITS.free,
+    walletQuota: null,
+    walletsUsed: 0,
+    walletsRemaining: null,
     canUseNeynar: true,
     canUseENS: false,
   };
@@ -84,6 +99,9 @@ export async function getUserAccess(
         tier: 'unlimited',
         isWhitelisted: true,
         walletLimit: Infinity,
+        walletQuota: null,
+        walletsUsed: 0,
+        walletsRemaining: null,
         canUseNeynar: true,
         canUseENS: true,
       };
@@ -99,11 +117,18 @@ export async function getUserAccess(
 
       if (user) {
         const tier = user.tier as UserTier;
-        const isPaid = tier === 'pro' || tier === 'unlimited';
+        const isPaid = tier === 'starter' || tier === 'pro' || tier === 'unlimited';
+        const quota = TIER_QUOTA[tier];
+        const walletsUsed = user.walletsUsed ?? 0;
+        const walletsRemaining = quota !== null ? Math.max(0, quota - walletsUsed) : null;
+
         return {
           tier,
           isWhitelisted: false,
           walletLimit: TIER_LIMITS[tier],
+          walletQuota: quota,
+          walletsUsed,
+          walletsRemaining,
           canUseNeynar: true,
           canUseENS: isPaid,
         };
@@ -149,7 +174,7 @@ export async function getOrCreateUser(email: string) {
  */
 export async function upgradeUser(
   email: string,
-  tier: 'pro' | 'unlimited',
+  tier: 'starter' | 'pro' | 'unlimited',
   stripeCustomerId: string,
   stripePaymentId: string
 ): Promise<void> {
@@ -159,6 +184,7 @@ export async function upgradeUser(
   const normalizedEmail = email.toLowerCase();
 
   // Upsert user with new tier
+  // For starter tier, reset walletsUsed to 0 on purchase
   await db
     .insert(users)
     .values({
@@ -167,6 +193,7 @@ export async function upgradeUser(
       stripeCustomerId,
       stripePaymentId,
       paidAt: new Date(),
+      walletsUsed: 0, // Reset usage on upgrade
     })
     .onConflictDoUpdate({
       target: users.email,
@@ -175,6 +202,8 @@ export async function upgradeUser(
         stripeCustomerId,
         stripePaymentId,
         paidAt: new Date(),
+        // Reset walletsUsed only for starter tier upgrades
+        ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
       },
     });
 }
@@ -215,7 +244,7 @@ export async function addToWhitelist(
       wallet: entry.wallet?.toLowerCase(),
       note: entry.note,
     })
-    .returning({ id: whitelist.id });
+    .returning();
 
   return result.id;
 }
@@ -230,7 +259,7 @@ export async function removeFromWhitelist(id: string): Promise<boolean> {
   const result = await db
     .delete(whitelist)
     .where(eq(whitelist.id, id))
-    .returning({ id: whitelist.id });
+    .returning();
 
   return result.length > 0;
 }
@@ -246,11 +275,27 @@ export async function getWhitelistEntries() {
 }
 
 /**
+ * Increment walletsUsed counter for starter tier users
+ */
+export async function incrementWalletsUsed(
+  email: string,
+  count: number
+): Promise<void> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+
+  await db
+    .update(users)
+    .set({ walletsUsed: sql`${users.walletsUsed} + ${count}` })
+    .where(eq(users.email, email.toLowerCase()));
+}
+
+/**
  * Get stats for admin dashboard
  */
 export async function getAccessStats() {
   const db = getDb();
-  if (!db) return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+  if (!db) return { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
 
   try {
     const userStats = await db
@@ -265,7 +310,7 @@ export async function getAccessStats() {
       .select({ count: sql<number>`count(*)::int` })
       .from(whitelist);
 
-    const stats = { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    const stats = { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
     for (const row of userStats) {
       if (row.tier in stats) {
         stats[row.tier as keyof typeof stats] = row.count;
@@ -276,6 +321,6 @@ export async function getAccessStats() {
     return stats;
   } catch (error) {
     console.error('Stats error:', error);
-    return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    return { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
   }
 }

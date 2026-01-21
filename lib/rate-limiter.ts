@@ -82,6 +82,7 @@ function getLimit(type: BucketType, key: ApiKey, plan: ApiPlan): number {
 /**
  * Checks rate limit for a single bucket type
  * Returns null if unlimited (-1)
+ * Uses atomic UPSERT to prevent race conditions under concurrent load
  */
 async function checkBucket(
   apiKeyId: string,
@@ -103,71 +104,44 @@ async function checkBucket(
   const bucketKey = getBucketKey(type);
   const resetAt = getResetTime(type);
 
-  // Check if bucket exists
-  const [existingBucket] = await db
-    .select()
-    .from(rateLimitBuckets)
-    .where(
-      and(
-        eq(rateLimitBuckets.apiKeyId, apiKeyId),
-        eq(rateLimitBuckets.bucketType, type),
-        eq(rateLimitBuckets.bucketKey, bucketKey)
-      )
-    )
-    .limit(1);
-
   let count: number;
 
-  if (existingBucket) {
-    // Update existing bucket
-    if (increment > 0) {
-      await db
-        .update(rateLimitBuckets)
-        .set({
-          count: existingBucket.count + increment,
+  if (increment > 0) {
+    // Use atomic UPSERT to prevent race conditions
+    // ON CONFLICT updates count atomically, preventing undercounting under concurrency
+    const result = await db
+      .insert(rateLimitBuckets)
+      .values({
+        apiKeyId,
+        bucketType: type,
+        bucketKey,
+        count: increment,
+      })
+      .onConflictDoUpdate({
+        target: [rateLimitBuckets.apiKeyId, rateLimitBuckets.bucketType, rateLimitBuckets.bucketKey],
+        set: {
+          count: sql`${rateLimitBuckets.count} + ${increment}`,
           updatedAt: new Date(),
-        })
-        .where(eq(rateLimitBuckets.id, existingBucket.id));
-    }
-    count = existingBucket.count + increment;
+        },
+      })
+      .returning();
+
+    count = result[0]?.count ?? increment;
   } else {
-    // Insert new bucket
-    if (increment > 0) {
-      try {
-        await db.insert(rateLimitBuckets).values({
-          apiKeyId,
-          bucketType: type,
-          bucketKey,
-          count: increment,
-        });
-      } catch {
-        // Race condition - another request created the bucket, re-query
-        const [bucket] = await db
-          .select()
-          .from(rateLimitBuckets)
-          .where(
-            and(
-              eq(rateLimitBuckets.apiKeyId, apiKeyId),
-              eq(rateLimitBuckets.bucketType, type),
-              eq(rateLimitBuckets.bucketKey, bucketKey)
-            )
-          )
-          .limit(1);
-        if (bucket) {
-          await db
-            .update(rateLimitBuckets)
-            .set({
-              count: bucket.count + increment,
-              updatedAt: new Date(),
-            })
-            .where(eq(rateLimitBuckets.id, bucket.id));
-          count = bucket.count + increment;
-        } else {
-          count = increment;
-        }
-      }
-    }
-    count = increment;
+    // Just reading, no increment needed
+    const [existingBucket] = await db
+      .select()
+      .from(rateLimitBuckets)
+      .where(
+        and(
+          eq(rateLimitBuckets.apiKeyId, apiKeyId),
+          eq(rateLimitBuckets.bucketType, type),
+          eq(rateLimitBuckets.bucketKey, bucketKey)
+        )
+      )
+      .limit(1);
+
+    count = existingBucket?.count ?? 0;
   }
 
   const remaining = Math.max(0, limit - count);

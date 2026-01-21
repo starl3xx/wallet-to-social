@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createJob } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
-import { getUserAccess } from '@/lib/access';
+import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import {
+  checkIpRateLimit,
+  getClientIp,
+  formatRateLimitHeaders,
+} from '@/lib/ip-rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +26,30 @@ interface JobRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Check for authenticated session - authenticated users bypass IP rate limits
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+
+  // Apply IP rate limiting only for unauthenticated requests
+  if (!session.user) {
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkIpRateLimit(clientIp, '/api/jobs');
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. Sign in for unlimited access.',
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: formatRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
+  }
+
   try {
     const body: JobRequest = await request.json();
     const {
@@ -51,24 +82,40 @@ export async function POST(request: NextRequest) {
     // Check user access and tier limits
     const access = await getUserAccess(email, wallet);
 
-    if (wallets.length > access.walletLimit) {
+    // Calculate effective limit considering cumulative quota
+    let effectiveLimit = access.walletLimit;
+    if (access.walletsRemaining !== null) {
+      // Starter tier: can't exceed remaining quota
+      effectiveLimit = Math.min(access.walletLimit, access.walletsRemaining);
+    }
+
+    if (wallets.length > effectiveLimit) {
       // Track limit hit event
       trackEvent('limit_hit', {
         userId: email || userId,
         metadata: {
           tier: access.tier,
-          limit: access.walletLimit,
+          limit: effectiveLimit,
           attempted: wallets.length,
+          walletsRemaining: access.walletsRemaining,
         },
       });
 
+      // Customize error message for starter tier
+      const errorMessage = access.walletsRemaining !== null
+        ? `You have ${access.walletsRemaining.toLocaleString()} wallets remaining in your Starter quota`
+        : `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`;
+
       return NextResponse.json(
         {
-          error: `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`,
+          error: errorMessage,
           upgradeRequired: true,
           tier: access.tier,
-          limit: access.walletLimit,
+          limit: effectiveLimit,
           requested: wallets.length,
+          walletsRemaining: access.walletsRemaining,
+          walletQuota: access.walletQuota,
+          walletsUsed: access.walletsUsed,
         },
         { status: 403 }
       );
@@ -86,6 +133,11 @@ export async function POST(request: NextRequest) {
       inputSource,
     });
 
+    // For starter tier, increment usage counter
+    if (access.tier === 'starter' && email) {
+      await incrementWalletsUsed(email, wallets.length);
+    }
+
     // Track lookup started event
     trackEvent('lookup_started', {
       userId: email || userId,
@@ -95,6 +147,9 @@ export async function POST(request: NextRequest) {
         tier: access.tier,
         includeENS: includeENS && access.canUseENS,
         saveToHistory,
+        walletsRemaining: access.walletsRemaining !== null
+          ? access.walletsRemaining - wallets.length
+          : null,
       },
     });
 

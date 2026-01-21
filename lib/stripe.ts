@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
-export type CheckoutTier = 'pro' | 'unlimited';
+export type CheckoutTier = 'starter' | 'pro' | 'unlimited';
 
 interface CheckoutSessionResult {
   url: string;
@@ -25,7 +25,9 @@ export async function createCheckoutSession(
   const priceId =
     tier === 'unlimited'
       ? process.env.STRIPE_PRICE_UNLIMITED
-      : process.env.STRIPE_PRICE_PRO;
+      : tier === 'pro'
+        ? process.env.STRIPE_PRICE_PRO
+        : process.env.STRIPE_PRICE_STARTER;
 
   if (!priceId) {
     throw new Error(`Price not configured for tier: ${tier}`);
@@ -104,6 +106,7 @@ export async function getCheckoutSession(
 export function isStripeConfigured(): boolean {
   return !!(
     process.env.STRIPE_SECRET_KEY &&
+    process.env.STRIPE_PRICE_STARTER &&
     process.env.STRIPE_PRICE_PRO &&
     process.env.STRIPE_PRICE_UNLIMITED
   );

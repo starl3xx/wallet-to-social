@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
-  title: 'Find Your DeFi Users & NFT Holders on Twitter | walletlink.social',
+  title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
   description:
     'Find your DeFi users and NFT holders on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement. No sales calls—instant access.',
   icons: {
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     'crypto wallet social profiles',
   ],
   openGraph: {
-    title: 'Find Your DeFi Users & NFT Holders on Twitter',
+    title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
     description:
       'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. No sales calls.',
     images: ['/icon.png'],
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Find Your DeFi Users & NFT Holders on Twitter',
+    title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
     description:
       'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement.',
     images: ['/icon.png'],
@@ -77,14 +77,21 @@ const jsonLd = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: 'Up to 1,000 wallets',
+      description: 'Up to 1,000 wallets per lookup',
+    },
+    {
+      '@type': 'Offer',
+      name: 'Starter',
+      price: '49',
+      priceCurrency: 'USD',
+      description: '10,000 wallets total - one-time payment',
     },
     {
       '@type': 'Offer',
       name: 'Pro',
       price: '149',
       priceCurrency: 'USD',
-      description: 'Up to 10,000 wallets - one-time payment',
+      description: 'Up to 10,000 wallets per lookup - one-time payment',
     },
     {
       '@type': 'Offer',

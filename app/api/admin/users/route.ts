@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest) {
       .update(users)
       .set({ tier })
       .where(eq(users.id, id))
-      .returning({ id: users.id, email: users.email, tier: users.tier });
+      .returning();
 
     if (!updated) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

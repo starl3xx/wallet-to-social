@@ -30,10 +30,29 @@ export interface Web3BioResult {
 
 const RATE_LIMIT_DELAY = 20; // ms between batches
 const MAX_CONCURRENT = 50; // Higher with API key
+const API_TIMEOUT_MS = 15000; // 15 second timeout to prevent hanging requests
+
+/**
+ * Creates an AbortController with a timeout
+ * Returns both the controller and a cleanup function
+ */
+function createTimeoutController(timeoutMs: number): {
+  controller: AbortController;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    controller,
+    cleanup: () => clearTimeout(timeoutId),
+  };
+}
 
 export async function fetchWeb3BioProfile(
   walletOrEns: string
 ): Promise<Web3BioProfile[] | null> {
+  const { controller, cleanup } = createTimeoutController(API_TIMEOUT_MS);
+
   try {
     const headers: Record<string, string> = {
       Accept: 'application/json',
@@ -47,6 +66,7 @@ export async function fetchWeb3BioProfile(
       `https://api.web3.bio/profile/${walletOrEns}`,
       {
         headers,
+        signal: controller.signal,
       }
     );
 
@@ -60,8 +80,14 @@ export async function fetchWeb3BioProfile(
     const data = await response.json();
     return Array.isArray(data) ? data : [data];
   } catch (error) {
-    console.error(`Error fetching Web3.bio profile for ${walletOrEns}:`, error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`Web3.bio request timed out for ${walletOrEns}`);
+    } else {
+      console.error(`Error fetching Web3.bio profile for ${walletOrEns}:`, error);
+    }
     return null;
+  } finally {
+    cleanup();
   }
 }
 

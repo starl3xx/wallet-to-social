@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
           options: updatedOptions,
         })
         .where(eq(lookupJobs.id, id))
-        .returning({ id: lookupJobs.id, status: lookupJobs.status });
+        .returning();
 
       if (!updated) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date(),
         })
         .where(eq(lookupJobs.id, id))
-        .returning({ id: lookupJobs.id, status: lookupJobs.status });
+        .returning();
 
       if (!updated) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });

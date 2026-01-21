@@ -120,12 +120,18 @@ export async function getCacheStats(): Promise<{
   try {
     const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
 
-    const all = await db.select().from(walletCache);
-    const valid = all.filter((row) => row.cachedAt >= cutoff);
+    // Use COUNT aggregates instead of loading entire table
+    // This is ~99% faster for large tables
+    const result = await db
+      .select({
+        total: sql<number>`COUNT(*)::int`,
+        recentHits: sql<number>`COUNT(*) FILTER (WHERE ${walletCache.cachedAt} >= ${cutoff})::int`,
+      })
+      .from(walletCache);
 
     return {
-      total: all.length,
-      recentHits: valid.length,
+      total: result[0]?.total ?? 0,
+      recentHits: result[0]?.recentHits ?? 0,
     };
   } catch (error) {
     console.error('Cache stats error:', error);

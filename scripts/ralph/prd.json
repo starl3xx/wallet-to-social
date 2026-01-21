@@ -1,0 +1,194 @@
+{
+  "projectName": "wallet-to-social-marketing",
+  "description": "Autonomous AI copywriter for wallet-to-social content marketing. Ralph creates blog posts, case studies, social content, and newsletters to promote the wallet-to-social resolution tool.",
+  "branchName": "ralph/content-sprint-1",
+  "userStories": [
+    {
+      "id": "SETUP-001",
+      "title": "Initialize database and verify setup",
+      "description": "Set up the content database with wallet-to-social seed data",
+      "acceptanceCriteria": [
+        "Run npm install successfully",
+        "Run npm run ralph:reset to initialize database",
+        "Run npm run ralph:status shows trends, research, and communications",
+        "Run npm run ralph:test passes all checks"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Foundation story - database must exist before content work begins"
+    },
+    {
+      "id": "PLAN-001",
+      "title": "Create content plan for Farcaster integration launch",
+      "description": "Review COMM-1 (Farcaster Integration) and create a comprehensive blog post plan",
+      "acceptanceCriteria": [
+        "Read communication details from database (id=1)",
+        "Create content plan entry in database with type 'blog'",
+        "Link plan to communication (based_on_comm_id=1)",
+        "Include Web3/crypto keywords in the plan",
+        "Update communication status to 'assigned'"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Farcaster is hot right now. This is a timely announcement."
+    },
+    {
+      "id": "WRITE-001",
+      "title": "Write Farcaster integration announcement blog",
+      "description": "Write the first draft announcing Farcaster support in wallet-to-social",
+      "acceptanceCriteria": [
+        "Create draft in drafts table linked to plan",
+        "Draft is at least 800 words",
+        "Includes all key messages from the communication",
+        "Explains why Farcaster matters for wallet identity",
+        "Save markdown file to content/drafts/",
+        "Update content plan status to 'writing'"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Tone: Excited but technical. Speak to Web3 builders."
+    },
+    {
+      "id": "PLAN-002",
+      "title": "Plan thought leadership on wallet identity trends",
+      "description": "Use TREND-1 (Farcaster Growth) and RESEARCH-1 (Match Rate Benchmarks) for a thought leadership piece",
+      "acceptanceCriteria": [
+        "Read trend id=1 and research id=1 from database",
+        "Create content plan entry with type 'blog'",
+        "Link to both trend and research",
+        "Title should capture the wallet identity thesis",
+        "Include 5+ SEO keywords for Web3 identity"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Position wallet-to-social as THE solution for the wallet identity problem"
+    },
+    {
+      "id": "WRITE-002",
+      "title": "Write thought leadership on wallet identity",
+      "description": "Write a data-driven blog post about why wallets are becoming social profiles",
+      "acceptanceCriteria": [
+        "Draft is 1500+ words (long-form for SEO)",
+        "Incorporates match rate data from research",
+        "References Farcaster growth trend",
+        "Explains the problem token projects face",
+        "Positions wallet-to-social as the solution",
+        "Save to content/drafts/"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "This is the flagship content piece. Make it shareable."
+    },
+    {
+      "id": "REVIEW-001",
+      "title": "Review and improve Farcaster launch blog",
+      "description": "Self-review the Farcaster announcement, improve it, add meta description",
+      "acceptanceCriteria": [
+        "Re-read the draft from WRITE-001",
+        "Create version 2 with improvements",
+        "Add 3 headline variations",
+        "Add meta description (under 160 chars)",
+        "Update plan status to 'review'",
+        "Record improvements in drafts table"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Be critical. Strengthen the hook and CTAs."
+    },
+    {
+      "id": "PUBLISH-001",
+      "title": "Finalize and publish Farcaster launch blog",
+      "description": "Final edits and publish the Farcaster integration announcement",
+      "acceptanceCriteria": [
+        "Final content saved to content/published/",
+        "Entry created in published table",
+        "Meta description included",
+        "Update plan status to 'published'",
+        "Update communication status to 'completed'",
+        "Log activity in agent_log table"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "First published piece for wallet-to-social!"
+    },
+    {
+      "id": "PLAN-003",
+      "title": "Plan DAO governance case study",
+      "description": "Create content plan for the DAO governance case study (COMM-2)",
+      "acceptanceCriteria": [
+        "Read communication id=2 from database",
+        "Create plan for 'case_study' content type",
+        "Include governance and participation keywords",
+        "Link to communication",
+        "Update communication status to 'assigned'"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Case studies are high-converting. Focus on the 4x governance improvement."
+    },
+    {
+      "id": "WRITE-003",
+      "title": "Write DAO governance case study",
+      "description": "Write a compelling case study showing how a DAO increased participation",
+      "acceptanceCriteria": [
+        "Follow challenge-solution-results structure",
+        "Include the 4x governance participation metric",
+        "Explain how wallet-to-social enabled direct outreach",
+        "Include placeholder quotes from DAO leaders",
+        "1000+ words",
+        "Save to content/drafts/"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Format: Challenge → Discovery → Implementation → Results"
+    },
+    {
+      "id": "SOCIAL-001",
+      "title": "Create social media content batch",
+      "description": "Write 5 Twitter/Farcaster posts promoting walletlink.social",
+      "acceptanceCriteria": [
+        "Create content plan with type 'social'",
+        "Write 5 distinct posts with different angles",
+        "Each post under 280 characters",
+        "Include relevant hashtags (#Web3 #Farcaster #DAO)",
+        "Mix of product, educational, and engagement posts",
+        "Save to content/drafts/"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Vary the angles: problem/solution, data point, question, testimonial style"
+    },
+    {
+      "id": "NEWSLETTER-001",
+      "title": "Draft launch newsletter",
+      "description": "Create a newsletter announcing the Farcaster integration and sharing trends",
+      "acceptanceCriteria": [
+        "Create plan with type 'newsletter'",
+        "Lead with Farcaster integration news",
+        "Include 2 relevant Web3 trends",
+        "Add CTA to try walletlink.social",
+        "Write 3 subject line options",
+        "500-800 words total"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Newsletter should provide value beyond just product news"
+    },
+    {
+      "id": "METRICS-001",
+      "title": "Log final content metrics and learnings",
+      "description": "Review all work done, log metrics, document what worked",
+      "acceptanceCriteria": [
+        "Count total content pieces created",
+        "Calculate total word count written",
+        "Log summary to agent_log table",
+        "Update progress.txt with learnings",
+        "Document effective patterns for Web3 audience",
+        "All tests pass: npm run ralph:test"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Final story - capture learnings for future content sprints"
+    }
+  ]
+}

@@ -3,7 +3,8 @@
 import { useEffect, useState, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getUserId } from '@/lib/user-id';
+import { AuthModal } from '@/components/AuthModal';
+import { useAuth } from '@/components/AuthProvider';
 import type { WalletSocialResult } from '@/lib/types';
 import type { UserTier } from '@/lib/access';
 
@@ -33,23 +34,36 @@ const getHistoryLimit = (tier: UserTier): number => {
 };
 
 export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTier, onAddAddresses }: LookupHistoryProps) {
+  const { user } = useAuth();
   const [history, setHistory] = useState<LookupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requiresAuth, setRequiresAuth] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [enrichmentCounts, setEnrichmentCounts] = useState<EnrichmentCounts>({});
 
   useEffect(() => {
     async function fetchHistory() {
+      // Skip fetching if not logged in
+      if (!user) {
+        setLoading(false);
+        setRequiresAuth(true);
+        return;
+      }
+
       try {
-        const userId = getUserId();
         const limit = getHistoryLimit(userTier);
-        // Fetch summaries only (no full results JSONB), include count for pagination and enrichment counts
-        const res = await fetch(`/api/history?limit=${limit}&userId=${userId}&summaryOnly=true&includeCount=true&includeEnrichment=true`);
+        // Server uses session for userId, no need to pass it
+        const res = await fetch(`/api/history?limit=${limit}&summaryOnly=true&includeCount=true&includeEnrichment=true`);
         if (!res.ok) {
+          if (res.status === 401) {
+            setRequiresAuth(true);
+            return;
+          }
           if (res.status === 503) {
             setError('Database not configured');
           } else {
@@ -62,6 +76,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
         setTotalCount(data.totalCount || 0);
         setHasMore(data.history.length < (data.totalCount || 0));
         setEnrichmentCounts(data.enrichmentCounts || {});
+        setRequiresAuth(false);
       } catch {
         setError('Failed to load history');
       } finally {
@@ -70,7 +85,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
     }
 
     fetchHistory();
-  }, [userTier]);
+  }, [userTier, user]);
 
   // Load more history (for pro/unlimited users)
   const handleLoadMore = useCallback(async () => {
@@ -78,10 +93,9 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
 
     setLoadingMore(true);
     try {
-      const userId = getUserId();
       const limit = 10;
       const offset = history.length;
-      const res = await fetch(`/api/history?limit=${limit}&offset=${offset}&userId=${userId}&summaryOnly=true`);
+      const res = await fetch(`/api/history?limit=${limit}&offset=${offset}&summaryOnly=true`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setHistory(prev => [...prev, ...data.history]);
@@ -120,6 +134,28 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
           <p className="text-sm text-muted-foreground">Loading...</p>
         </CardContent>
       </Card>
+    );
+  }
+
+  // Show sign-in prompt when user is not authenticated
+  if (requiresAuth) {
+    return (
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">My lookups</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Sign in to save and view your lookup history.
+            </p>
+            <Button size="sm" onClick={() => setShowAuthModal(true)}>
+              Sign in
+            </Button>
+          </CardContent>
+        </Card>
+        <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
+      </>
     );
   }
 

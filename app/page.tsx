@@ -13,6 +13,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { AddAddressesModal } from '@/components/AddAddressesModal';
 import { AccessBanner } from '@/components/AccessBanner';
+import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
@@ -68,6 +69,10 @@ export default function Home() {
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
   const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
+
+  // Auth modal for rate limit prompts
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
@@ -301,6 +306,13 @@ export default function Home() {
           setState('ready');
           return;
         }
+        // Handle rate limit response
+        if (response.status === 429) {
+          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
+          setShowAuthModal(true);
+          setState('ready');
+          return;
+        }
         throw new Error(errorData.error || `HTTP error: ${response.status}`);
       }
 
@@ -318,11 +330,19 @@ export default function Home() {
     }
   }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail, inputSource]);
 
+  // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
+  const pollIntervalRef = useRef(2000);
+  const lastProgressRef = useRef(0);
+
   // Poll for job status when jobId is set
   useEffect(() => {
     if (!jobId || state !== 'processing') {
       return;
     }
+
+    // Reset polling interval when starting
+    pollIntervalRef.current = 2000;
+    lastProgressRef.current = 0;
 
     const pollJobStatus = async () => {
       try {
@@ -332,6 +352,17 @@ export default function Home() {
         }
 
         const data = await response.json();
+
+        // Adaptive backoff: if no progress, increase interval (up to 5s)
+        // Reset to 2s when progress is detected
+        if (data.progress.processed === lastProgressRef.current) {
+          // No progress - increase polling interval
+          pollIntervalRef.current = Math.min(pollIntervalRef.current + 500, 5000);
+        } else {
+          // Progress detected - reset to fast polling
+          pollIntervalRef.current = 2000;
+          lastProgressRef.current = data.progress.processed;
+        }
 
         // Only update progress if values actually changed - prevents unnecessary re-renders
         setProgress((prev) => {
@@ -363,7 +394,7 @@ export default function Home() {
         if (data.status === 'completed') {
           // Job complete - stop polling and show results
           if (pollingRef.current) {
-            clearInterval(pollingRef.current);
+            clearTimeout(pollingRef.current);
             pollingRef.current = null;
           }
 
@@ -439,7 +470,7 @@ export default function Home() {
         } else if (data.status === 'failed') {
           // Job failed - stop polling and show error
           if (pollingRef.current) {
-            clearInterval(pollingRef.current);
+            clearTimeout(pollingRef.current);
             pollingRef.current = null;
           }
 
@@ -448,20 +479,29 @@ export default function Home() {
           setProgress((prev) => ({ ...prev, status: 'error' }));
           setState('error');
         }
-        // If still pending/processing, continue polling
+        // If still pending/processing, schedule next poll with adaptive interval
+        scheduleNextPoll();
       } catch (err) {
         console.error('Poll error:', err);
-        // Don't stop polling on transient errors
+        // Don't stop polling on transient errors - schedule with current interval
+        scheduleNextPoll();
       }
     };
 
-    // Poll immediately, then every 2 seconds
+    // Schedule next poll with adaptive interval (using setTimeout for dynamic timing)
+    const scheduleNextPoll = () => {
+      if (pollingRef.current) {
+        clearTimeout(pollingRef.current);
+      }
+      pollingRef.current = setTimeout(pollJobStatus, pollIntervalRef.current) as unknown as NodeJS.Timeout;
+    };
+
+    // Poll immediately, then use adaptive interval
     pollJobStatus();
-    pollingRef.current = setInterval(pollJobStatus, 2000);
 
     return () => {
       if (pollingRef.current) {
-        clearInterval(pollingRef.current);
+        clearTimeout(pollingRef.current);
         pollingRef.current = null;
       }
     };
@@ -492,7 +532,7 @@ export default function Home() {
   const handleCancel = useCallback(() => {
     // Stop polling
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
     setJobId(null);
@@ -503,7 +543,7 @@ export default function Home() {
   const handleReset = useCallback(() => {
     // Stop any active polling
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
     setJobId(null);
@@ -608,6 +648,13 @@ export default function Home() {
           setState('ready');
           return;
         }
+        // Handle rate limit response
+        if (response.status === 429) {
+          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
+          setShowAuthModal(true);
+          setState('ready');
+          return;
+        }
         throw new Error(errorData.error || `HTTP error: ${response.status}`);
       }
 
@@ -673,8 +720,8 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <div
                 className="flex items-center gap-3 mb-2 cursor-pointer"
                 onClick={handleReset}
@@ -687,13 +734,13 @@ export default function Home() {
                   alt="walletlink.social"
                   width={40}
                   height={40}
-                  className="rounded-lg"
+                  className="rounded-lg flex-shrink-0"
                 />
-                <h1 className="text-3xl font-bold hover:text-accent-brand transition-colors">
+                <h1 className="text-2xl sm:text-3xl font-bold hover:text-accent-brand transition-colors">
                   walletlink.social
                 </h1>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm sm:text-base">
                 Turn your wallet list into Twitter handles and Farcaster profiles.{' '}
                 <a
                   href="/vs/addressable"
@@ -704,7 +751,7 @@ export default function Home() {
                 .
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <AccessBanner
                 tier={userTier}
                 isWhitelisted={isWhitelisted}
@@ -734,6 +781,12 @@ export default function Home() {
             onCreateNewLookup={handleCreateNewFromModal}
           />
         )}
+
+        {/* Auth Modal for rate limit prompts */}
+        <AuthModal open={showAuthModal} onOpenChange={(open) => {
+          setShowAuthModal(open);
+          if (!open) setRateLimitMessage(null);
+        }} />
 
         <main className="space-y-6">
           {/* Upload State */}
@@ -1029,15 +1082,29 @@ export default function Home() {
         </main>
 
         <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
-          <p>
-            made with 🌠 by{' '}
+          <p className="flex items-center justify-center gap-2">
+            made with 🌠 by @starl3xx
             <a
               href="https://x.com/starl3xx"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-foreground"
+              className="hover:text-foreground transition-colors"
+              title="@starl3xx on X"
             >
-              @starl3xx
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+            <a
+              href="https://warpcast.com/starl3xx.eth"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-500 hover:text-purple-400 transition-colors"
+              title="@starl3xx.eth on Farcaster"
+            >
+              <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">
+                <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
+              </svg>
             </a>
           </p>
         </footer>

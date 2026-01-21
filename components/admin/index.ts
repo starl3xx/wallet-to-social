@@ -6,3 +6,4 @@ export { SystemHealth } from './SystemHealth';
 export { UniversalSearch } from './UniversalSearch';
 export { Sparkline } from './Sparkline';
 export { WalletEnrichment } from './WalletEnrichment';
+export { LookupDashboard } from './LookupDashboard';

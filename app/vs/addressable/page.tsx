@@ -87,7 +87,7 @@ export default function AddressableComparison() {
 
           {/* Quick Summary */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Quick Comparison</h2>
+            <h2 className="text-2xl font-semibold mb-6">Quick comparison</h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -154,6 +154,25 @@ export default function AddressableComparison() {
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Limited
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Priority Score</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                    </td>
+                    <td className="py-4 pl-4">
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -231,7 +250,7 @@ export default function AddressableComparison() {
             </p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>Upload your CSV of wallet addresses</li>
-              <li>We check ENS, Web3.bio, and Neynar</li>
+              <li>We aggregate multiple data sources for accuracy</li>
               <li>Export Twitter handles and Farcaster profiles</li>
               <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>
@@ -244,7 +263,7 @@ export default function AddressableComparison() {
 
           {/* When to choose each */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">When to Choose Each</h2>
+            <h2 className="text-2xl font-semibold mb-6">When to choose each</h2>
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* walletlink.social */}
@@ -311,15 +330,22 @@ export default function AddressableComparison() {
 
           {/* Pricing Comparison */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing Breakdown</h2>
+            <h2 className="text-2xl font-semibold mb-6">Pricing breakdown</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-3 gap-4 text-sm">
+              <div className="grid sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
                   <p className="text-muted-foreground">Up to 1,000 wallets/lookup</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Starter</p>
+                  <p className="text-2xl font-bold">$49</p>
+                  <p className="text-muted-foreground">
+                    10,000 wallets total (one-time)
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pro</p>
@@ -408,15 +434,29 @@ export default function AddressableComparison() {
 
         {/* Footer */}
         <footer className="container mx-auto max-w-4xl px-4 py-6 border-t text-center text-sm text-muted-foreground">
-          <p>
-            made with 🌠 by{' '}
+          <p className="flex items-center justify-center gap-2">
+            made with 🌠 by @starl3xx
             <a
               href="https://x.com/starl3xx"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-foreground"
+              className="hover:text-foreground transition-colors"
+              title="@starl3xx on X"
             >
-              @starl3xx
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+            <a
+              href="https://warpcast.com/starl3xx.eth"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-500 hover:text-purple-400 transition-colors"
+              title="@starl3xx.eth on Farcaster"
+            >
+              <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">
+                <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
+              </svg>
             </a>
           </p>
         </footer>

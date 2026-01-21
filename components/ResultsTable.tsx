@@ -1,11 +1,29 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo, useRef } from 'react';
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import type { WalletSocialResult } from '@/lib/types';
+
+/**
+ * Custom hook for debouncing a value
+ * Prevents expensive operations (like filtering 10K rows) on every keystroke
+ */
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 interface ResultsTableProps {
   results: WalletSocialResult[];
@@ -36,6 +54,8 @@ export const ResultsTable = memo(function ResultsTable({
 }: ResultsTableProps) {
   const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
   const [search, setSearch] = useState('');
+  // Debounce search to prevent re-filtering on every keystroke (300ms delay)
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [showOnlyTwitter, setShowOnlyTwitter] = useState(false);
   const [showTopInfluencers, setShowTopInfluencers] = useState(false);
   const [sortField, setSortField] = useState<SortField>('priority_score');
@@ -77,9 +97,9 @@ export const ResultsTable = memo(function ResultsTable({
       );
     }
 
-    // Apply search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
+    // Apply search filter (using debounced value to prevent lag on every keystroke)
+    if (debouncedSearch) {
+      const searchLower = debouncedSearch.toLowerCase();
       filtered = filtered.filter(
         (r) =>
           r.wallet.toLowerCase().includes(searchLower) ||
@@ -127,7 +147,7 @@ export const ResultsTable = memo(function ResultsTable({
     return filtered;
   }, [
     results,
-    search,
+    debouncedSearch,
     showOnlyTwitter,
     showTopInfluencers,
     sortField,

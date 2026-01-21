@@ -7,6 +7,8 @@ const RPC_ENDPOINTS = [
   'https://ethereum.publicnode.com',
 ];
 
+const RPC_TIMEOUT_MS = 15000; // 15 second timeout for RPC calls
+
 let providerIndex = 0;
 
 function getProvider(): ethers.JsonRpcProvider {
@@ -18,6 +20,21 @@ function getProvider(): ethers.JsonRpcProvider {
 
 function rotateProvider() {
   providerIndex++;
+}
+
+/**
+ * Wraps a promise with a timeout
+ * Rejects with a timeout error if the promise doesn't resolve in time
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]);
 }
 
 // Text record keys where Twitter handles are stored (per ENSIP-5)
@@ -36,9 +53,16 @@ export interface ENSResult {
 export async function getENSName(wallet: string): Promise<string | null> {
   const provider = getProvider();
   try {
-    const name = await provider.lookupAddress(wallet);
+    const name = await withTimeout(
+      provider.lookupAddress(wallet),
+      RPC_TIMEOUT_MS,
+      `ENS lookup timed out for ${wallet}`
+    );
     return name;
   } catch (error) {
+    if (error instanceof Error && error.message.includes('timed out')) {
+      console.error(error.message);
+    }
     rotateProvider();
     return null;
   }
@@ -59,17 +83,22 @@ export async function getENSTextRecords(ensName: string): Promise<{
   };
 
   try {
-    const resolver = await provider.getResolver(ensName);
+    const resolver = await withTimeout(
+      provider.getResolver(ensName),
+      RPC_TIMEOUT_MS,
+      `ENS resolver lookup timed out for ${ensName}`
+    );
     if (!resolver) return result;
 
+    // Wrap each text record lookup with timeout and use Promise.allSettled
     const [twitter1, twitter2, twitter3, url, github, email] =
       await Promise.allSettled([
-        resolver.getText('com.twitter'),
-        resolver.getText('twitter'),
-        resolver.getText('vnd.twitter'),
-        resolver.getText('url'),
-        resolver.getText('com.github'),
-        resolver.getText('email'),
+        withTimeout(resolver.getText('com.twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(resolver.getText('twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(resolver.getText('vnd.twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(resolver.getText('url'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(resolver.getText('com.github'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(resolver.getText('email'), RPC_TIMEOUT_MS, 'getText timeout'),
       ]);
 
     // Find first valid Twitter handle
@@ -89,6 +118,9 @@ export async function getENSTextRecords(ensName: string): Promise<{
 
     return result;
   } catch (error) {
+    if (error instanceof Error && error.message.includes('timed out')) {
+      console.error(error.message);
+    }
     rotateProvider();
     return result;
   }
