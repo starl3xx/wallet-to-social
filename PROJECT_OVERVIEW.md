@@ -75,7 +75,8 @@ wallet-to-social/
 │   ├── UpgradeModal.tsx      # Pricing/checkout modal
 │   ├── AccessBanner.tsx      # Tier badge display
 │   ├── LookupHistory.tsx     # Saved lookups sidebar
-│   └── admin/                # Admin dashboard components
+│   └── admin/
+│       └── LookupDashboard.tsx  # Usage metrics & analytics dashboard
 ├── lib/
 │   ├── job-processor.ts      # Core lookup processing logic
 │   ├── web3bio.ts            # Web3.bio API client
@@ -85,7 +86,9 @@ wallet-to-social/
 │   ├── stripe.ts             # Stripe checkout
 │   ├── cache.ts              # 24h wallet cache
 │   ├── social-graph.ts       # Permanent social data storage
-│   └── analytics.ts          # Event tracking
+│   ├── analytics.ts          # Event tracking
+│   ├── ip-rate-limiter.ts    # IP-based rate limiting for UI endpoints
+│   └── dashboard-analytics.ts # Admin dashboard metrics
 └── db/
     ├── schema.ts             # Drizzle schema definitions
     └── index.ts              # Database connection
@@ -138,6 +141,7 @@ Export to CSV or Twitter list
 | `api_keys` | External API keys with SHA-256 hashing |
 | `api_usage` | Per-request usage tracking |
 | `rate_limit_buckets` | Sliding window rate limiting |
+| `ip_rate_limit_buckets` | IP-based rate limiting for unauthenticated endpoints (hourly buckets) |
 
 ### Analytics Tables
 
@@ -233,7 +237,7 @@ Main page orchestrating:
 ### Admin
 | Endpoint | Purpose |
 |----------|---------|
-| `/api/admin/dashboard` | Aggregated stats |
+| `/api/admin/dashboard` | Usage metrics, match analytics, performance stats (supports `?period=today\|week\|month`) |
 | `/api/admin/users` | User management |
 | `/api/admin/jobs` | Job management |
 | `/api/admin/whitelist` | Whitelist management |
@@ -330,7 +334,13 @@ npm run dev                 # Start dev server
 
 ---
 
-## Recent Changes (2025-01-18)
+## Recent Changes (2025-01-21)
+
+- **Admin analytics dashboard**: New Dashboard tab with usage metrics, match analytics, and performance monitoring
+- **IP-based rate limiting**: 3 requests/hour on lookup endpoints to prevent abuse
+- **Dashboard analytics lib**: Time-period aggregations with comparison to previous period
+
+### 2025-01-18
 
 - **API pipeline optimization**: Neynar runs first, Web3Bio only for uncovered wallets
 - **Starter tier**: New $49 tier with 10K cumulative wallet quota

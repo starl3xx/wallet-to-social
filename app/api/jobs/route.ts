@@ -22,7 +22,7 @@ interface JobRequest {
   userId?: string;
   email?: string;
   wallet?: string;
-  inputSource?: 'file_upload' | 'text_input' | 'api';
+  inputSource?: 'file_upload' | 'text_input' | 'contract_import' | 'api';
 }
 
 export async function POST(request: NextRequest) {

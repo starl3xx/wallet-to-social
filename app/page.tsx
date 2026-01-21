@@ -12,6 +12,7 @@ import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { AddAddressesModal } from '@/components/AddAddressesModal';
+import { ContractImportModal } from '@/components/ContractImportModal';
 import { AccessBanner } from '@/components/AccessBanner';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
@@ -63,10 +64,13 @@ export default function Home() {
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [inputSource, setInputSource] = useState<'file_upload' | 'text_input'>('file_upload');
+  const [inputSource, setInputSource] = useState<'file_upload' | 'text_input' | 'contract_import'>('file_upload');
 
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
+
+  // Contract import modal state (Unlimited tier only)
+  const [showContractImportModal, setShowContractImportModal] = useState(false);
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
   const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
 
@@ -685,6 +689,16 @@ export default function Home() {
     setState('ready');
   }, []);
 
+  // Handle importing wallets from contract address
+  const handleContractImport = useCallback((importedWallets: string[]) => {
+    if (importedWallets.length === 0) return;
+    setWallets(importedWallets);
+    setOriginalData({});
+    setExtraColumns([]);
+    setInputSource('contract_import');
+    setState('ready');
+  }, []);
+
   // Handle saving the lookup name
   const handleSaveLookupName = useCallback(async () => {
     if (!currentLookupId) return;
@@ -788,6 +802,13 @@ export default function Home() {
           if (!open) setRateLimitMessage(null);
         }} />
 
+        {/* Contract Import Modal (Unlimited tier only) */}
+        <ContractImportModal
+          open={showContractImportModal}
+          onOpenChange={setShowContractImportModal}
+          onImport={handleContractImport}
+        />
+
         <main className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
@@ -836,6 +857,27 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* Contract import option (Unlimited tier only) */}
+              {userTier === 'unlimited' && (
+                <div className="text-center">
+                  <div className="flex items-center gap-4 my-4">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-sm text-muted-foreground">or</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowContractImportModal(true)}
+                    className="gap-2"
+                  >
+                    Import from contract address
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Import all holders of an ERC-20 token or NFT collection
+                  </p>
+                </div>
+              )}
 
               <RecentWins />
               <LookupHistory onLoadLookup={handleLoadHistory} userTier={userTier} onAddAddresses={handleOpenAddAddresses} />

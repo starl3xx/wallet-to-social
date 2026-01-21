@@ -179,6 +179,40 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2025-01-21
+
+**Admin analytics dashboard + IP rate limiting**
+
+- **Admin analytics dashboard**: New "Dashboard" tab in admin panel with comprehensive usage metrics
+  - Period selector: Today / Last 7 days / Last 30 days with comparison to previous period
+  - Usage metrics: Lookups, wallets processed, match rate, avg processing time (with % change)
+  - Match analytics: Twitter/Farcaster/any rates with progress bars and 7-day sparkline trends
+  - Performance monitoring: Queue status (pending/running), success rate, stage distribution
+  - Recent activity table: Last 5 completed jobs with match stats
+  - New endpoint: `GET /api/admin/dashboard?period=today|week|month`
+- **IP-based rate limiting**: Prevents abuse from unauthenticated users
+  - 3 requests per hour on `/api/lookup` and `/api/jobs` per IP address
+  - Atomic UPSERT prevents race conditions under concurrent load
+  - Supports proxy headers: `x-forwarded-for`, `x-vercel-forwarded-for`, `cf-connecting-ip`
+  - Returns standard rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, etc.)
+  - Fails open if database unavailable (allows requests but logs warning)
+  - New table: `ip_rate_limit_buckets` with hourly bucket granularity
+
+**Database migration required**:
+```sql
+CREATE TABLE IF NOT EXISTS ip_rate_limit_buckets (
+  ip_address TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  bucket_key TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (ip_address, endpoint, bucket_key)
+);
+```
+
+---
+
 ### 2025-01-18
 
 **New Starter tier + API optimization**

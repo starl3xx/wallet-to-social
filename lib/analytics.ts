@@ -22,7 +22,9 @@ export type AnalyticsEventType =
   | 'checkout_started'
   | 'payment_completed'
   | 'limit_hit'
-  | 'user_registered';
+  | 'user_registered'
+  | 'contract_import_blocked'
+  | 'contract_import_success';
 
 // API provider names
 export type ApiProvider = 'web3bio' | 'neynar' | 'ens';

@@ -1000,9 +1000,11 @@ export default function AdminPage() {
                             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                             : entry.inputSource === 'text_input'
                             ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                            : entry.inputSource === 'contract_import'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
                             : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                         }`}>
-                          {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource}
+                          {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource === 'contract_import' ? 'Contract' : entry.inputSource}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
