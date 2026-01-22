@@ -122,11 +122,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create job in database with tier context
+    // Use session user ID for authenticated users (ensures history is linked correctly)
+    const effectiveUserId = session.user?.id || userId;
+
     const jobId = await createJob(wallets, originalData, {
       includeENS: includeENS && access.canUseENS,
       saveToHistory,
       historyName,
-      userId,
+      userId: effectiveUserId,
       tier: access.tier,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,
@@ -140,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     // Track lookup started event
     trackEvent('lookup_started', {
-      userId: email || userId,
+      userId: effectiveUserId || email,
       metadata: {
         jobId,
         walletCount: wallets.length,
