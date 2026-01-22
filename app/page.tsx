@@ -26,6 +26,7 @@ import {
   canNotify,
   requestPermission,
   sendNotification,
+  getPermissionStatus,
 } from '@/lib/notifications';
 import type { WalletSocialResult, LookupProgress } from '@/lib/types';
 
@@ -51,7 +52,10 @@ export default function Home() {
   const [saveToHistory, setSaveToHistory] = useState(true);
   const [includeENS, setIncludeENS] = useState(false);
   const [lookupName, setLookupName] = useState('');
-  const [notifyOnComplete, setNotifyOnComplete] = useState(false);
+  const [notifyOnComplete, setNotifyOnComplete] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('notifyOnComplete') === 'true';
+  });
   const [jobId, setJobIdState] = useState<string | null>(null);
 
   // User access state from AuthProvider
@@ -111,6 +115,14 @@ export default function Home() {
             // For now, load from history to get full edit/add functionality
             setState('complete');
             localStorage.removeItem('currentJobId');
+
+            // Update title to show completion (job finished while away)
+            document.title = `✓ Lookup complete - walletlink.social`;
+            const resetTitle = () => {
+              document.title = 'walletlink.social';
+              window.removeEventListener('focus', resetTitle);
+            };
+            window.addEventListener('focus', resetTitle);
           } else if (data.status === 'failed') {
             // Job failed
             setError(data.error || 'Job failed');
@@ -467,9 +479,30 @@ export default function Home() {
 
           // Send browser notification if enabled
           if (notifyOnComplete) {
-            sendNotification('Lookup complete', {
-              body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
-            });
+            const permissionStatus = getPermissionStatus();
+            if (permissionStatus === 'granted') {
+              sendNotification('Lookup complete', {
+                body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
+              });
+            } else {
+              console.log('Notification permission not granted:', permissionStatus);
+            }
+
+            // Also update page title as a reliable fallback (works when tab is backgrounded)
+            const originalTitle = document.title;
+            document.title = `✓ Lookup complete - ${data.stats.twitterFound} Twitter, ${data.stats.farcasterFound} Farcaster`;
+            // Reset title when user focuses the window
+            const resetTitle = () => {
+              document.title = originalTitle;
+              window.removeEventListener('focus', resetTitle);
+            };
+            window.addEventListener('focus', resetTitle);
+            // Also reset after 30 seconds in case they don't switch back
+            setTimeout(() => {
+              if (document.title.startsWith('✓')) {
+                document.title = originalTitle;
+              }
+            }, 30000);
           }
         } else if (data.status === 'failed') {
           // Job failed - stop polling and show error
@@ -975,8 +1008,10 @@ export default function Home() {
                           if (e.target.checked) {
                             const granted = await requestPermission();
                             setNotifyOnComplete(granted);
+                            localStorage.setItem('notifyOnComplete', granted.toString());
                           } else {
                             setNotifyOnComplete(false);
+                            localStorage.setItem('notifyOnComplete', 'false');
                           }
                         }}
                         className="rounded"
