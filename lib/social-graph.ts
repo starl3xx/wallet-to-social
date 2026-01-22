@@ -536,7 +536,8 @@ export async function upsertManualSocialGraph(
     return result;
   } catch (error) {
     console.error('Manual social graph upsert error:', error);
-    return null;
+    // Re-throw to allow API to see actual error
+    throw error;
   }
 }
 

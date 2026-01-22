@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       return NextResponse.json(
-        { error: 'Failed to save social graph data' },
+        { error: 'Failed to save social graph data - no result returned' },
         { status: 500 }
       );
     }
@@ -100,8 +100,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Social graph update error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to update social graph' },
+      { error: `Failed to update social graph: ${errorMessage}` },
       { status: 500 }
     );
   }
