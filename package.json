@@ -21,11 +21,11 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "sql.js": "^1.11.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-virtual": "^3.13.18",
+    "@vercel/analytics": "^1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.1",
@@ -37,6 +37,7 @@
     "react-dom": "19.2.3",
     "read-excel-file": "^6.0.1",
     "resend": "^6.7.0",
+    "sql.js": "^1.11.0",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0"
   },
