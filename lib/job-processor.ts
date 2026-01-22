@@ -438,10 +438,13 @@ async function finalizeJobWithResults(
     );
 
     if (positiveResults.length > 0) {
-      await upsertSocialGraph(positiveResults);
+      const upsertedCount = await upsertSocialGraph(positiveResults);
+      console.log(`Social graph: persisted ${upsertedCount} of ${positiveResults.length} wallets`);
     }
   } catch (error) {
-    console.error('Social graph persist error:', error);
+    // Log prominently but don't fail the job - results are still in lookup_history
+    console.error('CRITICAL: Social graph persist failed:', error);
+    console.error('Wallets with social data will not be enriched in future lookups');
   }
 
   // Mark job as complete

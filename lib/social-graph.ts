@@ -366,8 +366,12 @@ export async function upsertSocialGraph(
 
     return upserted;
   } catch (error) {
-    console.error('Social graph upsert error:', error);
-    return 0;
+    // Log detailed error for debugging
+    console.error('Social graph upsert error:', error instanceof Error ? error.message : error);
+    if (error instanceof Error && error.message.includes('column')) {
+      console.error('This may indicate a schema mismatch - try running: npm run db:push');
+    }
+    throw error;
   }
 }
 
