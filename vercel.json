@@ -3,6 +3,10 @@
     {
       "path": "/api/jobs/worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-stale",
+      "schedule": "0 3 * * *"
     }
   ]
 }

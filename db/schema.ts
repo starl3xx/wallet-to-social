@@ -120,6 +120,10 @@ export const lookupJobs = pgTable(
     errorMessage: text('error_message'),
     retryCount: integer('retry_count').default(0).notNull(),
 
+    // Social graph write status tracking (Phase 2)
+    socialGraphWriteStatus: text('social_graph_write_status'), // 'success' | 'partial' | 'failed' | null
+    socialGraphWriteErrors: text('social_graph_write_errors').array(), // Array of error messages
+
     // Admin visibility
     hidden: boolean('hidden').default(false).notNull(),
   },

@@ -24,7 +24,13 @@ export type AnalyticsEventType =
   | 'limit_hit'
   | 'user_registered'
   | 'contract_import_blocked'
-  | 'contract_import_success';
+  | 'contract_import_success'
+  // Social graph tracking events (Phase 3)
+  | 'social_graph_hit'        // Served from high-quality graph data, skipped API
+  | 'social_graph_miss'       // Not in graph or low quality, needed API
+  | 'social_graph_stale'      // In graph but needed refresh
+  | 'social_graph_write_success'
+  | 'social_graph_write_failed';
 
 // API provider names
 export type ApiProvider = 'web3bio' | 'neynar' | 'ens';

@@ -7,9 +7,10 @@ import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup, type InputSource } from '@/lib/history';
 import {
-  upsertSocialGraph,
-  getSocialGraphData,
+  upsertSocialGraphWithRetry,
+  getSocialGraphWithQuality,
   socialGraphToResult,
+  type SocialGraphQualityResult,
 } from '@/lib/social-graph';
 import {
   findHoldingsColumn,
@@ -128,14 +129,99 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     let cacheHits = job.cacheHits;
+    let graphHits = 0;
     let uncachedWallets = walletsToProcess;
 
-    // Update stage
+    // =========================================================================
+    // STEP 1: Check social_graph FIRST (primary data source)
+    // High-quality records are trusted completely, reducing API calls
+    // =========================================================================
+    await updateJobStage(db, jobId, 'graph');
+
+    const walletsNeedingLookup: string[] = [];
+    try {
+      const graphResults = await getSocialGraphWithQuality(walletsToProcess);
+
+      for (const [wallet, graphResult] of graphResults) {
+        const existing = results.get(wallet)!;
+
+        if (graphResult.quality === 'high' && graphResult.data && !graphResult.needsRefresh) {
+          // Trust high-quality data completely - skip all API calls for this wallet
+          const storedData = socialGraphToResult(graphResult.data);
+          results.set(wallet, {
+            ...existing,
+            ens_name: storedData.ens_name || existing.ens_name,
+            twitter_handle: storedData.twitter_handle || existing.twitter_handle,
+            twitter_url: storedData.twitter_url || existing.twitter_url,
+            farcaster: storedData.farcaster || existing.farcaster,
+            farcaster_url: storedData.farcaster_url || existing.farcaster_url,
+            fc_followers: storedData.fc_followers || existing.fc_followers,
+            lens: storedData.lens || existing.lens,
+            github: storedData.github || existing.github,
+            source: [...existing.source, 'graph'],
+          });
+          graphHits++;
+        } else if (graphResult.quality === 'medium' && graphResult.data) {
+          // Medium quality: use as base but still consider API refresh
+          const storedData = socialGraphToResult(graphResult.data);
+          results.set(wallet, {
+            ...existing,
+            ens_name: storedData.ens_name || existing.ens_name,
+            twitter_handle: storedData.twitter_handle || existing.twitter_handle,
+            twitter_url: storedData.twitter_url || existing.twitter_url,
+            farcaster: storedData.farcaster || existing.farcaster,
+            farcaster_url: storedData.farcaster_url || existing.farcaster_url,
+            fc_followers: storedData.fc_followers || existing.fc_followers,
+            lens: storedData.lens || existing.lens,
+            github: storedData.github || existing.github,
+            source: [...existing.source, 'graph'],
+          });
+          // Medium quality still needs lookup to potentially refresh data
+          walletsNeedingLookup.push(wallet);
+        } else {
+          // Low, stale, or missing - needs full lookup
+          walletsNeedingLookup.push(wallet);
+        }
+      }
+    } catch (error) {
+      console.error('Social graph lookup error:', error);
+      // On error, fall back to looking up all wallets
+      walletsNeedingLookup.push(...walletsToProcess);
+    }
+
+    // Track social graph hit rate for this chunk
+    if (graphHits > 0) {
+      trackEvent('social_graph_hit', {
+        userId: options.userId || job.userId || undefined,
+        metadata: {
+          jobId: job.id,
+          hitCount: graphHits,
+          totalWallets: walletsToProcess.length,
+          hitRate: Math.round((graphHits / walletsToProcess.length) * 100),
+        },
+      });
+    }
+
+    const misses = walletsNeedingLookup.length;
+    if (misses > 0) {
+      trackEvent('social_graph_miss', {
+        userId: options.userId || job.userId || undefined,
+        metadata: {
+          jobId: job.id,
+          missCount: misses,
+          totalWallets: walletsToProcess.length,
+        },
+      });
+    }
+
+    // =========================================================================
+    // STEP 2: Check cache for wallets that need lookup
+    // =========================================================================
     await updateJobStage(db, jobId, 'cache');
 
-    // Check cache
+    // Check cache for wallets not served by high-quality graph data
     try {
-      const cached = await getCachedWallets(walletsToProcess);
+      const cached = await getCachedWallets(walletsNeedingLookup);
       cacheHits += cached.size;
 
       for (const [wallet, data] of cached) {
@@ -143,17 +229,21 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         results.set(wallet, {
           ...existing,
           ...data,
-          source: [...data.source, 'cache'],
+          source: [...existing.source, 'cache'],
         });
       }
 
-      uncachedWallets = walletsToProcess.filter(
+      uncachedWallets = walletsNeedingLookup.filter(
         (w) => !cached.has(w.toLowerCase())
       );
     } catch (error) {
       console.error('Cache error:', error);
+      uncachedWallets = walletsNeedingLookup;
     }
 
+    // =========================================================================
+    // STEP 3: Call external APIs for remaining uncached wallets
+    // =========================================================================
     if (uncachedWallets.length > 0) {
       // ENS lookups (optional, requires paid tier)
       if (options.includeENS && options.canUseENS !== false) {
@@ -254,40 +344,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
     }
 
-    // Enrich from social graph
-    try {
-      const graphData = await getSocialGraphData(walletsToProcess);
-
-      for (const [wallet, result] of results) {
-        const stored = graphData.get(wallet);
-        if (stored) {
-          const storedData = socialGraphToResult(stored);
-
-          if (!result.ens_name && storedData.ens_name) {
-            result.ens_name = storedData.ens_name;
-          }
-          if (!result.twitter_handle && storedData.twitter_handle) {
-            result.twitter_handle = storedData.twitter_handle;
-            result.twitter_url = storedData.twitter_url;
-          }
-          if (!result.farcaster && storedData.farcaster) {
-            result.farcaster = storedData.farcaster;
-            result.farcaster_url = storedData.farcaster_url;
-            result.fc_followers = storedData.fc_followers;
-          }
-          if (!result.lens && storedData.lens) {
-            result.lens = storedData.lens;
-          }
-          if (!result.github && storedData.github) {
-            result.github = storedData.github;
-          }
-
-          results.set(wallet, result);
-        }
-      }
-    } catch (error) {
-      console.error('Social graph enrichment error:', error);
-    }
+    // Social graph enrichment is now done FIRST (see STEP 1 above)
+    // This ensures we use high-quality cached data before calling external APIs
 
     // Calculate priority scores (paid tiers only)
     const isPaidTier = options.tier === 'starter' || options.tier === 'pro' || options.tier === 'unlimited';
@@ -426,28 +484,52 @@ async function finalizeJobWithResults(
     }
   }
 
-  // Persist positive results to social graph
-  try {
-    const positiveResults = results.filter(
-      (r) =>
-        r.twitter_handle ||
-        r.farcaster ||
-        r.lens ||
-        r.github ||
-        r.ens_name
-    );
+  // Persist positive results to social graph with retry logic
+  let socialGraphWriteStatus: 'success' | 'partial' | 'failed' | null = null;
+  let socialGraphWriteErrors: string[] = [];
 
-    if (positiveResults.length > 0) {
-      const upsertedCount = await upsertSocialGraph(positiveResults);
-      console.log(`Social graph: persisted ${upsertedCount} of ${positiveResults.length} wallets`);
+  const positiveResults = results.filter(
+    (r) =>
+      r.twitter_handle ||
+      r.farcaster ||
+      r.lens ||
+      r.github ||
+      r.ens_name
+  );
+
+  if (positiveResults.length > 0) {
+    const writeResult = await upsertSocialGraphWithRetry(positiveResults);
+
+    // Determine write status
+    if (writeResult.failed === 0) {
+      socialGraphWriteStatus = 'success';
+      console.log(`Social graph: persisted ${writeResult.succeeded} of ${positiveResults.length} wallets`);
+    } else if (writeResult.succeeded > 0) {
+      socialGraphWriteStatus = 'partial';
+      socialGraphWriteErrors = writeResult.errors;
+      console.warn(`Social graph: partial write - ${writeResult.succeeded} succeeded, ${writeResult.failed} failed`);
+    } else {
+      socialGraphWriteStatus = 'failed';
+      socialGraphWriteErrors = writeResult.errors;
+      console.error('CRITICAL: Social graph persist completely failed:', writeResult.errors);
     }
-  } catch (error) {
-    // Log prominently but don't fail the job - results are still in lookup_history
-    console.error('CRITICAL: Social graph persist failed:', error);
-    console.error('Wallets with social data will not be enriched in future lookups');
+
+    // Track write failures in analytics
+    if (writeResult.failed > 0) {
+      trackEvent('lookup_completed', {
+        userId: options.userId || job.userId || undefined,
+        metadata: {
+          jobId: job.id,
+          eventSubtype: 'social_graph_write_failed',
+          failed: writeResult.failed,
+          succeeded: writeResult.succeeded,
+          errors: writeResult.errors,
+        },
+      });
+    }
   }
 
-  // Mark job as complete
+  // Mark job as complete with write status
   const completedAt = new Date();
   await db
     .update(lookupJobs)
@@ -461,6 +543,8 @@ async function finalizeJobWithResults(
       cacheHits,
       completedAt,
       updatedAt: new Date(),
+      socialGraphWriteStatus,
+      socialGraphWriteErrors: socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
     })
     .where(eq(lookupJobs.id, job.id));
 
@@ -480,6 +564,7 @@ async function finalizeJobWithResults(
       matchRate: Math.round(matchRate * 100) / 100,
       durationMs,
       tier: options.tier,
+      socialGraphWriteStatus,
     },
   });
 
