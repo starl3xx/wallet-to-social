@@ -623,27 +623,36 @@ export default function Home() {
 
       if (needsFidEnrichment.length > 0) {
         try {
-          // Fetch missing FIDs from Neynar
+          // Fetch missing FIDs from Neynar in batches
           const usernames = needsFidEnrichment.map(r => r.farcaster!);
-          const response = await fetch('/api/enrich-fids', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usernames }),
-          });
+          const BATCH_SIZE = 100;
+          const allFids: Record<string, number> = {};
 
-          if (response.ok) {
-            const { fids } = await response.json();
-            // Merge FIDs into results
-            enrichedResults = loadedResults.map(r => {
-              if (r.farcaster && !r.fc_fid) {
-                const fid = fids[r.farcaster.toLowerCase()];
-                if (fid) {
-                  return { ...r, fc_fid: fid };
-                }
-              }
-              return r;
+          // Process in batches
+          for (let i = 0; i < usernames.length; i += BATCH_SIZE) {
+            const batch = usernames.slice(i, i + BATCH_SIZE);
+            const response = await fetch('/api/enrich-fids', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ usernames: batch }),
             });
+
+            if (response.ok) {
+              const { fids } = await response.json();
+              Object.assign(allFids, fids);
+            }
           }
+
+          // Merge FIDs into results
+          enrichedResults = loadedResults.map(r => {
+            if (r.farcaster && !r.fc_fid) {
+              const fid = allFids[r.farcaster.toLowerCase()];
+              if (fid) {
+                return { ...r, fc_fid: fid };
+              }
+            }
+            return r;
+          });
         } catch (err) {
           console.error('Failed to enrich FIDs:', err);
           // Continue with original results if enrichment fails
