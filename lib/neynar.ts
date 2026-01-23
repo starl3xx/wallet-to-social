@@ -214,3 +214,68 @@ export async function batchFetchNeynar(
 export function isNeynarConfigured(): boolean {
   return !!process.env.NEYNAR_API_KEY;
 }
+
+/**
+ * Fetch FIDs for a list of Farcaster usernames
+ * Uses Neynar's bulk user lookup by username
+ * Returns a map of username -> fid
+ */
+export async function fetchFidsByUsernames(
+  usernames: string[],
+  apiKey: string
+): Promise<Map<string, number>> {
+  const results = new Map<string, number>();
+
+  if (usernames.length === 0) return results;
+
+  // Neynar's user/by_username endpoint only supports one at a time,
+  // but we can use the search endpoint or bulk lookup
+  // Using individual lookups with concurrency control
+  const CONCURRENT_REQUESTS = 10;
+  const DELAY_BETWEEN_BATCHES = 100;
+
+  for (let i = 0; i < usernames.length; i += CONCURRENT_REQUESTS) {
+    const batch = usernames.slice(i, i + CONCURRENT_REQUESTS);
+
+    const promises = batch.map(async (username) => {
+      try {
+        const { controller, cleanup } = createTimeoutController(5000);
+        const response = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`,
+          {
+            headers: {
+              accept: 'application/json',
+              'x-api-key': apiKey,
+            },
+            signal: controller.signal,
+          }
+        );
+        cleanup();
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user?.fid) {
+            return { username, fid: data.user.fid as number };
+          }
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    });
+
+    const batchResults = await Promise.all(promises);
+    for (const result of batchResults) {
+      if (result) {
+        results.set(result.username.toLowerCase(), result.fid);
+      }
+    }
+
+    // Rate limit between batches
+    if (i + CONCURRENT_REQUESTS < usernames.length) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+    }
+  }
+
+  return results;
+}

@@ -615,8 +615,42 @@ export default function Home() {
   }, []);
 
   const handleLoadHistory = useCallback(
-    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
-      setResults(loadedResults);
+    async (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
+      // Check for results that have farcaster username but no fc_fid
+      const needsFidEnrichment = loadedResults.filter(r => r.farcaster && !r.fc_fid);
+
+      let enrichedResults = loadedResults;
+
+      if (needsFidEnrichment.length > 0) {
+        try {
+          // Fetch missing FIDs from Neynar
+          const usernames = needsFidEnrichment.map(r => r.farcaster!);
+          const response = await fetch('/api/enrich-fids', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usernames }),
+          });
+
+          if (response.ok) {
+            const { fids } = await response.json();
+            // Merge FIDs into results
+            enrichedResults = loadedResults.map(r => {
+              if (r.farcaster && !r.fc_fid) {
+                const fid = fids[r.farcaster.toLowerCase()];
+                if (fid) {
+                  return { ...r, fc_fid: fid };
+                }
+              }
+              return r;
+            });
+          }
+        } catch (err) {
+          console.error('Failed to enrich FIDs:', err);
+          // Continue with original results if enrichment fails
+        }
+      }
+
+      setResults(enrichedResults);
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
