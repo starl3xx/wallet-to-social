@@ -291,16 +291,31 @@ export function exportLogAsCSV(log: DMLogEntry[]): string {
 
 /**
  * Validate Warpcast API key format
+ * Keys typically start with wc_secret_ followed by a long hex string
  */
 export function validateApiKey(apiKey: string): boolean {
-  // Warpcast API keys are typically long alphanumeric strings
+  // Accept wc_secret_ prefix format or general long alphanumeric
+  if (apiKey.startsWith('wc_secret_')) {
+    return apiKey.length >= 40;
+  }
   return apiKey.length >= 20 && /^[a-zA-Z0-9_-]+$/.test(apiKey);
 }
 
 /**
- * Test API key via server proxy (avoids CORS issues)
+ * Test API key - validates format for wc_secret_ keys
+ * The /v2/me endpoint doesn't work with Direct Cast API keys,
+ * so we validate format and test on first actual send
  */
 export async function testApiKey(apiKey: string): Promise<{ valid: boolean; error?: string; username?: string }> {
+  // For wc_secret_ keys, just validate format - API test doesn't work
+  if (apiKey.startsWith('wc_secret_')) {
+    if (validateApiKey(apiKey)) {
+      return { valid: true };
+    }
+    return { valid: false, error: 'Invalid key format' };
+  }
+
+  // For other key formats, try the API test
   try {
     const response = await fetch('/api/farcaster-dm', {
       method: 'POST',
