@@ -190,6 +190,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (errorMessage.includes('403 Forbidden') || errorMessage.includes('not enabled')) {
+      console.error('Network not enabled in API provider:', errorMessage);
+      return NextResponse.json(
+        { error: 'This network is not currently supported. Please try Ethereum.' },
+        { status: 503 }
+      );
+    }
+
     // Log the full error for debugging
     console.error('Unhandled contract holders error:', {
       message: errorMessage,

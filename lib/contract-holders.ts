@@ -75,18 +75,18 @@ async function withTimeout<T>(
 
 /**
  * Get a provider for the specified chain
+ * Uses Alchemy for Ethereum, public RPCs for Base (unless Alchemy Base is configured)
  */
 function getProvider(chain: SupportedChain): ethers.JsonRpcProvider {
   const alchemyKey = process.env.ALCHEMY_KEY;
 
-  if (alchemyKey) {
-    const alchemyEndpoint = chain === 'ethereum'
-      ? `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`
-      : `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`;
-    return new ethers.JsonRpcProvider(alchemyEndpoint);
+  // For Ethereum, prefer Alchemy if available
+  if (chain === 'ethereum' && alchemyKey) {
+    return new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
   }
 
-  // Fallback to public RPC
+  // For Base, use public RPCs by default (Alchemy Base requires separate enablement)
+  // This avoids the "BASE_MAINNET is not enabled" error
   const endpoints = RPC_ENDPOINTS[chain];
   return new ethers.JsonRpcProvider(endpoints[0]);
 }
