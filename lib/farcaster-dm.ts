@@ -168,20 +168,29 @@ export async function sendBatchDMs(
     log: [],
   };
 
-  onProgress(progress);
+  // Helper to emit progress with new object reference (required for React re-render)
+  const emitProgress = () => {
+    onProgress({
+      ...progress,
+      failedRecipients: [...progress.failedRecipients],
+      log: [...progress.log],
+    });
+  };
+
+  emitProgress();
 
   for (let i = 0; i < recipients.length; i++) {
     // Check for cancellation
     if (signal?.aborted) {
       progress.status = 'cancelled';
-      onProgress(progress);
+      emitProgress();
       return progress;
     }
 
     const recipient = recipients[i];
     const renderedMessage = renderTemplate(messageTemplate, recipient);
     progress.currentUsername = recipient.username;
-    onProgress(progress);
+    emitProgress();
 
     let success = false;
     let lastError: string | undefined;
@@ -191,7 +200,7 @@ export async function sendBatchDMs(
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (signal?.aborted) {
         progress.status = 'cancelled';
-        onProgress(progress);
+        emitProgress();
         return progress;
       }
 
@@ -218,7 +227,7 @@ export async function sendBatchDMs(
         });
         progress.failed++;
         progress.failedRecipients.push(recipient);
-        onProgress(progress);
+        emitProgress();
         return progress;
       }
 
@@ -252,7 +261,7 @@ export async function sendBatchDMs(
       progress.failedRecipients.push(recipient);
     }
 
-    onProgress(progress);
+    emitProgress();
 
     // Rate limit delay before next DM
     if (i < recipients.length - 1) {
@@ -262,7 +271,7 @@ export async function sendBatchDMs(
 
   progress.status = 'complete';
   progress.currentUsername = undefined;
-  onProgress(progress);
+  emitProgress();
 
   return progress;
 }
