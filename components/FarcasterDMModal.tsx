@@ -191,11 +191,17 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
     URL.revokeObjectURL(url);
   }, [progress]);
 
-  // Preview message with first recipient
+  // Preview message - prefer recipient with holdings data if available
+  const previewRecipient = useMemo(() => {
+    if (recipients.length === 0) return null;
+    // Find first recipient with holdings, or fall back to first
+    return recipients.find(r => r.holdings !== undefined) || recipients[0];
+  }, [recipients]);
+
   const previewMessage = useMemo(() => {
-    if (recipients.length === 0) return message;
-    return renderTemplate(message, recipients[0]);
-  }, [message, recipients]);
+    if (!previewRecipient) return message;
+    return renderTemplate(message, previewRecipient);
+  }, [message, previewRecipient]);
 
   // Can proceed to next step?
   const canContinue = apiKey.trim().length > 0 && message.trim().length > 0;
@@ -390,10 +396,18 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
 
             {/* Preview message */}
             <div className="space-y-2">
-              <p className="text-sm font-medium">Preview (for @{recipients[0]?.username}):</p>
+              <p className="text-sm font-medium">Preview (for @{previewRecipient?.username}):</p>
               <div className="p-3 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap border">
                 {previewMessage || <span className="text-muted-foreground italic">Empty message</span>}
               </div>
+              {previewRecipient && (
+                <p className="text-xs text-muted-foreground">
+                  Data for this user: username="{previewRecipient.username}"
+                  {previewRecipient.holdings !== undefined && `, holdings=${previewRecipient.holdings.toLocaleString()}`}
+                  {previewRecipient.ens && `, ens="${previewRecipient.ens}"`}
+                  {!previewRecipient.holdings && !previewRecipient.ens && ' (no holdings/ENS data)'}
+                </p>
+              )}
             </div>
 
             {/* Warning */}
