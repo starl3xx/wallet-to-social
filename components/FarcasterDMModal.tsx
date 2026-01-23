@@ -304,10 +304,19 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
               <div className="p-3 bg-muted rounded-lg text-sm space-y-2">
                 <p className="font-medium">How to get your API key:</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Open Warpcast app on your phone</li>
-                  <li>Go to Settings (gear icon)</li>
-                  <li>Tap Developer → API Keys</li>
-                  <li>Create a new key and paste it here</li>
+                  <li>
+                    Go to{' '}
+                    <a
+                      href="https://warpcast.com/~/developers/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-foreground underline hover:no-underline"
+                    >
+                      warpcast.com/~/developers/api-keys
+                    </a>
+                  </li>
+                  <li>Sign in with your Farcaster account</li>
+                  <li>Create a new API key and paste it here</li>
                 </ol>
                 <p className="text-xs text-muted-foreground mt-2">
                   Your API key is stored locally in your browser and never sent to our servers.
