@@ -85,6 +85,7 @@ export default function Home() {
 
   // Farcaster DM modal (Unlimited tier only)
   const [showFarcasterDMModal, setShowFarcasterDMModal] = useState(false);
+  const [enrichingFids, setEnrichingFids] = useState(false);
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
@@ -615,58 +616,77 @@ export default function Home() {
   }, []);
 
   const handleLoadHistory = useCallback(
-    async (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
-      // Check for results that have farcaster username but no fc_fid
-      const needsFidEnrichment = loadedResults.filter(r => r.farcaster && !r.fc_fid);
-
-      let enrichedResults = loadedResults;
-
-      if (needsFidEnrichment.length > 0) {
-        try {
-          // Fetch missing FIDs from Neynar in batches
-          const usernames = needsFidEnrichment.map(r => r.farcaster!);
-          const BATCH_SIZE = 100;
-          const allFids: Record<string, number> = {};
-
-          // Process in batches
-          for (let i = 0; i < usernames.length; i += BATCH_SIZE) {
-            const batch = usernames.slice(i, i + BATCH_SIZE);
-            const response = await fetch('/api/enrich-fids', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ usernames: batch }),
-            });
-
-            if (response.ok) {
-              const { fids } = await response.json();
-              Object.assign(allFids, fids);
-            }
-          }
-
-          // Merge FIDs into results
-          enrichedResults = loadedResults.map(r => {
-            if (r.farcaster && !r.fc_fid) {
-              const fid = allFids[r.farcaster.toLowerCase()];
-              if (fid) {
-                return { ...r, fc_fid: fid };
-              }
-            }
-            return r;
-          });
-        } catch (err) {
-          console.error('Failed to enrich FIDs:', err);
-          // Continue with original results if enrichment fails
-        }
-      }
-
-      setResults(enrichedResults);
+    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
+      // Show results immediately
+      setResults(loadedResults);
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
-      // Convert array to Set for efficient lookup
       setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
       setState('complete');
+
+      // Check for results that have farcaster username but no fc_fid
+      const needsFidEnrichment = loadedResults.filter(r => r.farcaster && !r.fc_fid);
+
+      // Enrich FIDs in background (don't block UI)
+      if (needsFidEnrichment.length > 0) {
+        setEnrichingFids(true);
+
+        const enrichFids = async () => {
+          try {
+            const usernames = needsFidEnrichment.map(r => r.farcaster!);
+            const BATCH_SIZE = 100;
+            const allFids: Record<string, number> = {};
+
+            // Process batches in parallel (max 3 concurrent)
+            const batches: string[][] = [];
+            for (let i = 0; i < usernames.length; i += BATCH_SIZE) {
+              batches.push(usernames.slice(i, i + BATCH_SIZE));
+            }
+
+            const CONCURRENT = 3;
+            for (let i = 0; i < batches.length; i += CONCURRENT) {
+              const concurrentBatches = batches.slice(i, i + CONCURRENT);
+              const responses = await Promise.all(
+                concurrentBatches.map(batch =>
+                  fetch('/api/enrich-fids', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usernames: batch }),
+                  }).then(r => r.ok ? r.json() : null).catch(() => null)
+                )
+              );
+
+              for (const data of responses) {
+                if (data?.fids) {
+                  Object.assign(allFids, data.fids);
+                }
+              }
+            }
+
+            // Update results with enriched FIDs
+            if (Object.keys(allFids).length > 0) {
+              setResults(prev => prev.map(r => {
+                if (r.farcaster && !r.fc_fid) {
+                  const fid = allFids[r.farcaster.toLowerCase()];
+                  if (fid) {
+                    return { ...r, fc_fid: fid };
+                  }
+                }
+                return r;
+              }));
+            }
+          } catch (err) {
+            console.error('Failed to enrich FIDs:', err);
+          } finally {
+            setEnrichingFids(false);
+          }
+        };
+
+        // Run in background
+        enrichFids();
+      }
     },
     []
   );
@@ -1176,16 +1196,21 @@ export default function Home() {
                   )}
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {/* DM Farcaster users button (Unlimited tier only, when FC users exist) */}
-                  {userTier === 'unlimited' && results.some(r => r.fc_fid) && (
+                  {/* DM Farcaster users button (Unlimited tier only, when FC users exist or enriching) */}
+                  {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
                     <Button
                       variant="outline"
                       onClick={() => setShowFarcasterDMModal(true)}
+                      disabled={enrichingFids}
                       title="Send DMs to Farcaster users"
                       className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:hover:bg-purple-950"
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users
+                      {enrichingFids ? (
+                        <>Loading FIDs...</>
+                      ) : (
+                        <>DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users</>
+                      )}
                     </Button>
                   )}
                   {/* Add addresses button (paid users only, when viewing a saved lookup) */}
