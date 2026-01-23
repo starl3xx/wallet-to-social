@@ -1,6 +1,7 @@
 /**
- * Client-side Farcaster DM sending library
- * Uses Warpcast API directly from browser - user's API key never touches server
+ * Farcaster DM sending library
+ * Uses server proxy to avoid CORS issues with Warpcast API
+ * API key is passed through but never stored on server
  */
 
 import type { WalletSocialResult } from './types';
@@ -100,7 +101,7 @@ export function extractDMRecipients(results: WalletSocialResult[]): DMRecipient[
 }
 
 /**
- * Send a single Farcaster DM via Warpcast API
+ * Send a single Farcaster DM via server proxy (avoids CORS issues)
  * Returns { success: true } or { success: false, error: string }
  */
 export async function sendFarcasterDM(
@@ -111,41 +112,27 @@ export async function sendFarcasterDM(
   const idempotencyKey = generateIdempotencyKey();
 
   try {
-    const response = await fetch('https://api.warpcast.com/v2/ext-send-direct-cast', {
-      method: 'PUT',
+    const response = await fetch('/api/farcaster-dm', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        action: 'send',
+        apiKey,
         recipientFid,
         message,
         idempotencyKey,
       }),
     });
 
-    if (response.ok) {
+    const data = await response.json();
+
+    if (data.success) {
       return { success: true };
     }
 
-    // Handle specific error codes
-    if (response.status === 401) {
-      return { success: false, error: 'Invalid API key' };
-    }
-    if (response.status === 429) {
-      return { success: false, error: 'Rate limited' };
-    }
-    if (response.status === 400) {
-      // Try to parse error message
-      try {
-        const data = await response.json();
-        return { success: false, error: data.message || 'Bad request (user may not accept DMs)' };
-      } catch {
-        return { success: false, error: 'Bad request (user may not accept DMs)' };
-      }
-    }
-
-    return { success: false, error: `HTTP ${response.status}` };
+    return { success: false, error: data.error || 'Unknown error' };
   } catch (err) {
     return {
       success: false,
@@ -311,24 +298,27 @@ export function validateApiKey(apiKey: string): boolean {
 }
 
 /**
- * Test API key by making a simple authenticated request
+ * Test API key via server proxy (avoids CORS issues)
  */
-export async function testApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+export async function testApiKey(apiKey: string): Promise<{ valid: boolean; error?: string; username?: string }> {
   try {
-    // Use the user profile endpoint to test the key
-    const response = await fetch('https://api.warpcast.com/v2/me', {
+    const response = await fetch('/api/farcaster-dm', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        action: 'test',
+        apiKey,
+      }),
     });
 
-    if (response.ok) {
-      return { valid: true };
+    const data = await response.json();
+
+    if (data.valid) {
+      return { valid: true, username: data.username };
     }
-    if (response.status === 401) {
-      return { valid: false, error: 'Invalid API key' };
-    }
-    return { valid: false, error: `Unexpected response: ${response.status}` };
+    return { valid: false, error: data.error || 'Invalid API key' };
   } catch (err) {
     return { valid: false, error: err instanceof Error ? err.message : 'Network error' };
   }
