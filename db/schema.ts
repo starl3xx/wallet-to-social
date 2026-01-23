@@ -23,6 +23,7 @@ export const walletCache = pgTable(
     farcaster: text('farcaster'),
     farcasterUrl: text('farcaster_url'),
     fcFollowers: integer('fc_followers'),
+    fcFid: integer('fc_fid'),
     lens: text('lens'),
     github: text('github'),
     sources: text('sources').array(), // ['web3bio', 'neynar']

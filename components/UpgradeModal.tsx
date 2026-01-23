@@ -57,6 +57,7 @@ const FEATURES = {
     'Full lookup history',
     'Add addresses to lookups',
     'Import from contract address',
+    'Mass Farcaster DMs',
     'Priority support',
   ],
 };

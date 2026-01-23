@@ -15,6 +15,13 @@
       "when": 1768877848297,
       "tag": "0001_nappy_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769195217654,
+      "tag": "0002_empty_lockheed",
+      "breakpoints": true
     }
   ]
 }

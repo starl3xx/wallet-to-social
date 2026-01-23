@@ -156,6 +156,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             farcaster: storedData.farcaster || existing.farcaster,
             farcaster_url: storedData.farcaster_url || existing.farcaster_url,
             fc_followers: storedData.fc_followers || existing.fc_followers,
+            fc_fid: storedData.fc_fid || existing.fc_fid,
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
             source: [...existing.source, 'graph'],
@@ -172,6 +173,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             farcaster: storedData.farcaster || existing.farcaster,
             farcaster_url: storedData.farcaster_url || existing.farcaster_url,
             fc_followers: storedData.fc_followers || existing.fc_followers,
+            fc_fid: storedData.fc_fid || existing.fc_fid,
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
             source: [...existing.source, 'graph'],
@@ -291,6 +293,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             farcaster: data.farcaster || existing.farcaster,
             farcaster_url: data.farcaster_url || existing.farcaster_url,
             fc_followers: data.fc_followers,
+            fc_fid: data.fc_fid,
             source: existing.source.includes('neynar')
               ? existing.source
               : [...existing.source, 'neynar'],

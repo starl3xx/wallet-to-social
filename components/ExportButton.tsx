@@ -65,6 +65,7 @@ export const ExportButton = memo(function ExportButton({
       'twitter_url',
       'farcaster',
       'farcaster_url',
+      'fc_fid',
       'fc_followers',
       'priority_score',
       'lens',

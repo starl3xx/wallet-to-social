@@ -15,12 +15,13 @@ import { AddAddressesModal } from '@/components/AddAddressesModal';
 import { ContractImportModal } from '@/components/ContractImportModal';
 import { AccessBanner } from '@/components/AccessBanner';
 import { AuthModal } from '@/components/AuthModal';
+import { FarcasterDMModal } from '@/components/FarcasterDMModal';
 import { useAuth } from '@/components/AuthProvider';
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Pencil, Plus, Check, X } from 'lucide-react';
+import { Pencil, Plus, Check, X, Send } from 'lucide-react';
 import { parseFile } from '@/lib/file-parser';
 import {
   canNotify,
@@ -81,6 +82,9 @@ export default function Home() {
   // Auth modal for rate limit prompts
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+
+  // Farcaster DM modal (Unlimited tier only)
+  const [showFarcasterDMModal, setShowFarcasterDMModal] = useState(false);
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
@@ -842,6 +846,13 @@ export default function Home() {
           onImport={handleContractImport}
         />
 
+        {/* Farcaster DM Modal (Unlimited tier only) */}
+        <FarcasterDMModal
+          open={showFarcasterDMModal}
+          onOpenChange={setShowFarcasterDMModal}
+          results={results}
+        />
+
         <main className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
@@ -1121,7 +1132,19 @@ export default function Home() {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {/* DM Farcaster users button (Unlimited tier only, when FC users exist) */}
+                  {userTier === 'unlimited' && results.some(r => r.fc_fid) && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFarcasterDMModal(true)}
+                      title="Send DMs to Farcaster users"
+                      className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:hover:bg-purple-950"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users
+                    </Button>
+                  )}
                   {/* Add addresses button (paid users only, when viewing a saved lookup) */}
                   {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
                     <Button

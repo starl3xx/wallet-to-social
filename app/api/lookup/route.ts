@@ -295,6 +295,7 @@ export async function POST(request: NextRequest) {
                   farcaster: data.farcaster || existing.farcaster,
                   farcaster_url: data.farcaster_url || existing.farcaster_url,
                   fc_followers: data.fc_followers,
+                  fc_fid: data.fc_fid,
                   source: existing.source.includes('neynar')
                     ? existing.source
                     : [...existing.source, 'neynar'],
@@ -361,6 +362,7 @@ export async function POST(request: NextRequest) {
                     result.farcaster = storedData.farcaster;
                     result.farcaster_url = storedData.farcaster_url;
                     result.fc_followers = storedData.fc_followers;
+                    result.fc_fid = storedData.fc_fid;
                     wasEnriched = true;
                   }
                   if (!result.lens && storedData.lens) {

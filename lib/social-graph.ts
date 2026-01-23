@@ -653,6 +653,7 @@ export function socialGraphToResult(
     farcaster: record.farcaster ?? undefined,
     farcaster_url: record.farcasterUrl ?? undefined,
     fc_followers: record.fcFollowers ?? undefined,
+    fc_fid: record.fcFid ?? undefined,
     lens: record.lens ?? undefined,
     github: record.github ?? undefined,
   };
