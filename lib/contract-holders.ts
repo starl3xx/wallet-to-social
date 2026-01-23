@@ -53,10 +53,10 @@ const ALCHEMY_ENDPOINTS: Record<SupportedChain, string> = {
   base: 'https://base-mainnet.g.alchemy.com/nft/v3',
 };
 
-// Moralis chain IDs
+// Moralis chain IDs (use hex format for better compatibility)
 const MORALIS_CHAIN_IDS: Record<SupportedChain, string> = {
-  ethereum: 'eth',
-  base: 'base',
+  ethereum: '0x1',
+  base: '0x2105',
 };
 
 /**
@@ -192,6 +192,11 @@ async function getERC721Holders(
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('Alchemy API error response:', {
+      status: response.status,
+      body: errorText,
+      url: url.replace(alchemyKey, '***'),
+    });
     throw new Error(`Alchemy API error: ${response.status} - ${errorText}`);
   }
 
@@ -253,6 +258,11 @@ async function getERC20Holders(
         throw new Error('RATE_LIMIT');
       }
       const errorText = await response.text();
+      console.error('Moralis API error response:', {
+        status: response.status,
+        body: errorText,
+        url: url.toString().replace(moralisKey, '***'),
+      });
       throw new Error(`Moralis API error: ${response.status} - ${errorText}`);
     }
 

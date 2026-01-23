@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         status: 404,
       },
       RATE_LIMIT: {
-        message: 'Too many requests, please try again',
+        message: 'Too many requests, please try again in a moment',
         status: 429,
       },
     };
@@ -166,7 +166,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generic error
+    // Check for API-specific errors and provide helpful messages
+    if (errorMessage.includes('Moralis API error')) {
+      console.error('Moralis API failed:', errorMessage);
+      return NextResponse.json(
+        { error: 'Token holder service temporarily unavailable. Please try again.' },
+        { status: 503 }
+      );
+    }
+
+    if (errorMessage.includes('Alchemy API error')) {
+      console.error('Alchemy API failed:', errorMessage);
+      return NextResponse.json(
+        { error: 'NFT holder service temporarily unavailable. Please try again.' },
+        { status: 503 }
+      );
+    }
+
+    if (errorMessage.includes('timed out')) {
+      return NextResponse.json(
+        { error: 'Request timed out. The contract may have too many holders.' },
+        { status: 504 }
+      );
+    }
+
+    // Log the full error for debugging
+    console.error('Unhandled contract holders error:', {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // Generic error with the actual message in dev
     return NextResponse.json(
       { error: 'Failed to fetch contract holders. Please try again.' },
       { status: 500 }
