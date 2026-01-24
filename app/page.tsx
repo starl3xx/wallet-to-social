@@ -1289,6 +1289,19 @@ export default function Home() {
               </svg>
             </a>
           </p>
+          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+            <a href="/vs/addressable" className="hover:text-foreground transition-colors">
+              vs Addressable
+            </a>
+            <span>|</span>
+            <a href="/vs/blaze" className="hover:text-foreground transition-colors">
+              vs Blaze
+            </a>
+            <span>|</span>
+            <a href="/vs/holder" className="hover:text-foreground transition-colors">
+              vs Holder
+            </a>
+          </div>
         </footer>
       </div>
     </div>

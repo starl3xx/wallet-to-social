@@ -109,6 +109,53 @@ const jsonLd = {
   },
 };
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
+    {
+      '@type': 'Question',
+      name: 'What is walletlink.social?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'walletlink.social is a wallet-to-social lookup tool that helps you find Twitter handles and Farcaster profiles for Ethereum wallet addresses. Upload a list of wallets and instantly get their linked social accounts for token holder outreach, airdrop campaigns, and community engagement.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What is the match rate for wallet-to-social lookups?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'walletlink.social achieves a 22% average match rate, which is 9x higher than the industry average of 2.5%. This is possible by combining multiple data sources including ENS records, Farcaster verified addresses, and other onchain identity providers.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How much does walletlink.social cost?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'walletlink.social offers a free tier (1,000 wallets), Starter ($49 one-time for 10,000 wallets), Pro ($149 one-time for 10,000 wallets per lookup with history), and Unlimited ($420 one-time for unlimited wallets forever). All paid plans are one-time payments, not subscriptions.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How is walletlink.social different from Addressable?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. walletlink.social also includes Farcaster lookups which Addressable does not offer.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Does walletlink.social support Farcaster?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes, walletlink.social supports both Twitter/X and Farcaster lookups. It returns Farcaster usernames, follower counts, and FIDs (Farcaster IDs) which can be used for direct messaging via Warpcast or other Farcaster clients.',
+      },
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -120,6 +167,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       </head>
       <body
