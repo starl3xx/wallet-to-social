@@ -440,14 +440,6 @@ export default function AddressableComparison() {
                   walletlink.social vs Blaze
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/vs/holder"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Holder
-                </Link>
-              </li>
             </ul>
           </nav>
         </article>

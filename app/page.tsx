@@ -1297,10 +1297,6 @@ export default function Home() {
             <a href="/vs/blaze" className="hover:text-foreground transition-colors">
               vs Blaze
             </a>
-            <span>|</span>
-            <a href="/vs/holder" className="hover:text-foreground transition-colors">
-              vs Holder
-            </a>
           </div>
         </footer>
       </div>
