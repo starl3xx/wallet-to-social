@@ -115,9 +115,15 @@ Returns social profiles for a single wallet address. **1 credit**
 POST /api/v1/batch
 Content-Type: application/json
 
-{ "wallets": ["0x123...", "0x456..."] }
+{ 
+  "wallets": ["0x123...", "0x456..."],
+  "fresh": false  // Optional: true = fresh API lookups, false = cached only (default)
+}
 ```
 Returns social profiles for multiple wallets (up to plan limit). **1 credit per wallet**
+
+- `fresh: false` (default): Returns cached data from social graph (fastest)
+- `fresh: true`: Performs fresh API lookups from Web3.bio and Neynar (slower but most up-to-date)
 
 #### Reverse Twitter Lookup
 ```
@@ -178,6 +184,17 @@ All responses include rate limit headers:
 ---
 
 ## Changelog
+
+### 2026-01-30
+
+**Enhanced batch lookup endpoint with fresh lookup option**
+
+- **Batch endpoint enhancement**: `/api/v1/batch` now supports fresh API lookups via `fresh: true` parameter
+  - Default behavior unchanged: returns cached social graph data (fastest)
+  - `fresh: true`: performs real-time API calls to Web3.bio and Neynar (slower but most current)
+  - Maintains backward compatibility - existing integrations continue to work
+  - Includes cache hit metrics in response when using fresh lookups
+  - Proper rate limiting and credit usage for both modes
 
 ### 2025-01-21
 

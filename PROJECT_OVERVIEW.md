@@ -228,7 +228,7 @@ Main page orchestrating:
 | Endpoint | Method | Credits | Purpose |
 |----------|--------|---------|---------|
 | `/api/v1/wallet/[address]` | GET | 1 | Single wallet lookup |
-| `/api/v1/batch` | POST | 1/wallet | Batch lookup |
+| `/api/v1/batch` | POST | 1/wallet | Batch lookup (cached + optional fresh) |
 | `/api/v1/reverse/twitter/[handle]` | GET | 2 | Find wallets by Twitter |
 | `/api/v1/reverse/farcaster/[username]` | GET | 2 | Find wallets by Farcaster |
 | `/api/v1/stats` | GET | Free | Dataset statistics |
