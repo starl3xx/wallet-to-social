@@ -9,6 +9,7 @@
 
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
+import { sql } from 'drizzle-orm';
 import { knownAgents } from '../db/schema';
 import seedData from '../data/seed-agents.json';
 
@@ -19,8 +20,8 @@ async function main() {
     process.exit(1);
   }
 
-  const sql = neon(databaseUrl);
-  const db = drizzle(sql);
+  const neonClient = neon(databaseUrl);
+  const db = drizzle(neonClient);
 
   console.log(`Seeding ${seedData.length} known agents...`);
 
@@ -44,12 +45,12 @@ async function main() {
       .onConflictDoUpdate({
         target: knownAgents.wallet,
         set: {
-          name: knownAgents.name, // Will be overwritten by EXCLUDED in SQL
-          framework: knownAgents.framework,
-          agentType: knownAgents.agentType,
-          tokenSymbol: knownAgents.tokenSymbol,
-          twitterHandle: knownAgents.twitterHandle,
-          farcaster: knownAgents.farcaster,
+          name: sql`EXCLUDED.name`,
+          framework: sql`EXCLUDED.framework`,
+          agentType: sql`EXCLUDED.agent_type`,
+          tokenSymbol: sql`EXCLUDED.token_symbol`,
+          twitterHandle: sql`EXCLUDED.twitter_handle`,
+          farcaster: sql`EXCLUDED.farcaster`,
           updatedAt: new Date(),
         },
       });

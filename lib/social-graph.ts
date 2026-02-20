@@ -285,8 +285,8 @@ async function upsertSocialGraphWithTransaction(
             dataQualityScore: sql`GREATEST(EXCLUDED.data_quality_score, ${socialGraph.dataQualityScore})`,
             lastVerificationAt: sql`EXCLUDED.last_verification_at`,
             staleAt: sql`EXCLUDED.stale_at`,
-            // Agent fields — use COALESCE to never overwrite with null
-            isAgent: sql`COALESCE(EXCLUDED.is_agent, ${socialGraph.isAgent})`,
+            // Agent fields — use OR for booleans (COALESCE doesn't work since false is non-null)
+            isAgent: sql`EXCLUDED.is_agent OR ${socialGraph.isAgent}`,
             agentName: sql`COALESCE(EXCLUDED.agent_name, ${socialGraph.agentName})`,
             agentFramework: sql`COALESCE(EXCLUDED.agent_framework, ${socialGraph.agentFramework})`,
             agentType: sql`COALESCE(EXCLUDED.agent_type, ${socialGraph.agentType})`,
@@ -426,14 +426,14 @@ function prepareUpsertData(
       dataQualityScore: qualityScore,
       lastVerificationAt: new Date(),
       staleAt: calculateStaleAt(),
-      // Agent fields
-      isAgent: r.is_agent ?? prev?.isAgent ?? false,
+      // Agent fields — use || for booleans so false doesn't shadow a prior true
+      isAgent: r.is_agent || prev?.isAgent || false,
       agentName: r.agent_name ?? prev?.agentName ?? null,
       agentFramework: r.agent_framework ?? prev?.agentFramework ?? null,
       agentType: r.agent_type ?? prev?.agentType ?? null,
       agentTokenSymbol: r.agent_token_symbol ?? prev?.agentTokenSymbol ?? null,
       agentDetectionSource: prev?.agentDetectionSource ?? null,
-      agentVerified: r.agent_verified ?? prev?.agentVerified ?? false,
+      agentVerified: r.agent_verified || prev?.agentVerified || false,
     };
   });
 
