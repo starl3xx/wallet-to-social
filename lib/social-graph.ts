@@ -285,6 +285,14 @@ async function upsertSocialGraphWithTransaction(
             dataQualityScore: sql`GREATEST(EXCLUDED.data_quality_score, ${socialGraph.dataQualityScore})`,
             lastVerificationAt: sql`EXCLUDED.last_verification_at`,
             staleAt: sql`EXCLUDED.stale_at`,
+            // Agent fields — use COALESCE to never overwrite with null
+            isAgent: sql`COALESCE(EXCLUDED.is_agent, ${socialGraph.isAgent})`,
+            agentName: sql`COALESCE(EXCLUDED.agent_name, ${socialGraph.agentName})`,
+            agentFramework: sql`COALESCE(EXCLUDED.agent_framework, ${socialGraph.agentFramework})`,
+            agentType: sql`COALESCE(EXCLUDED.agent_type, ${socialGraph.agentType})`,
+            agentTokenSymbol: sql`COALESCE(EXCLUDED.agent_token_symbol, ${socialGraph.agentTokenSymbol})`,
+            agentDetectionSource: sql`COALESCE(EXCLUDED.agent_detection_source, ${socialGraph.agentDetectionSource})`,
+            agentVerified: sql`EXCLUDED.agent_verified OR ${socialGraph.agentVerified}`,
           },
         });
 
@@ -418,6 +426,14 @@ function prepareUpsertData(
       dataQualityScore: qualityScore,
       lastVerificationAt: new Date(),
       staleAt: calculateStaleAt(),
+      // Agent fields
+      isAgent: r.is_agent ?? prev?.isAgent ?? false,
+      agentName: r.agent_name ?? prev?.agentName ?? null,
+      agentFramework: r.agent_framework ?? prev?.agentFramework ?? null,
+      agentType: r.agent_type ?? prev?.agentType ?? null,
+      agentTokenSymbol: r.agent_token_symbol ?? prev?.agentTokenSymbol ?? null,
+      agentDetectionSource: prev?.agentDetectionSource ?? null,
+      agentVerified: r.agent_verified ?? prev?.agentVerified ?? false,
     };
   });
 
@@ -656,6 +672,12 @@ export function socialGraphToResult(
     fc_fid: record.fcFid ?? undefined,
     lens: record.lens ?? undefined,
     github: record.github ?? undefined,
+    is_agent: record.isAgent ?? undefined,
+    agent_name: record.agentName ?? undefined,
+    agent_framework: record.agentFramework ?? undefined,
+    agent_type: record.agentType ?? undefined,
+    agent_token_symbol: record.agentTokenSymbol ?? undefined,
+    agent_verified: record.agentVerified ?? undefined,
   };
 }
 

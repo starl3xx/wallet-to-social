@@ -28,6 +28,14 @@ export const walletCache = pgTable(
     github: text('github'),
     sources: text('sources').array(), // ['web3bio', 'neynar']
     cachedAt: timestamp('cached_at').defaultNow().notNull(),
+    // Agent detection metadata
+    isAgent: boolean('is_agent').default(false),
+    agentName: text('agent_name'),
+    agentFramework: text('agent_framework'),
+    agentType: text('agent_type'),
+    agentTokenSymbol: text('agent_token_symbol'),
+    agentDetectionSource: text('agent_detection_source'),
+    agentVerified: boolean('agent_verified').default(false),
   },
   (table) => [index('wallet_cache_cached_at_idx').on(table.cachedAt)]
 );
@@ -79,6 +87,14 @@ export const socialGraph = pgTable(
     dataQualityScore: integer('data_quality_score').default(0), // 0-100 confidence score
     lastVerificationAt: timestamp('last_verification_at'), // When data was last verified
     staleAt: timestamp('stale_at'), // When data should be refreshed
+    // Agent detection metadata
+    isAgent: boolean('is_agent').default(false),
+    agentName: text('agent_name'), // "aixbt", "Luna", "Truth Terminal"
+    agentFramework: text('agent_framework'), // "virtuals" | "elizaos" | "olas" | "custom" | null
+    agentType: text('agent_type'), // "trading" | "social" | "defi" | "nft" | null
+    agentTokenSymbol: text('agent_token_symbol'), // "$AIXBT", "$LUNA"
+    agentDetectionSource: text('agent_detection_source'), // "known_list" | "bio_keyword" | "onchain_heuristic" | "manual"
+    agentVerified: boolean('agent_verified').default(false),
   },
   (table) => [
     index('social_graph_twitter_idx').on(table.twitterHandle),
@@ -86,6 +102,27 @@ export const socialGraph = pgTable(
     index('social_graph_ens_idx').on(table.ensName),
     index('social_graph_fc_followers_idx').on(table.fcFollowers),
     index('social_graph_stale_at_idx').on(table.staleAt), // For finding stale records to refresh
+    index('social_graph_is_agent_idx').on(table.isAgent),
+    index('social_graph_agent_framework_idx').on(table.agentFramework),
+  ]
+);
+
+// Curated seed data of known AI agent wallets
+export const knownAgents = pgTable(
+  'known_agents',
+  {
+    wallet: text('wallet').primaryKey(), // lowercase eth address
+    name: text('name').notNull(), // "aixbt", "Luna", "Truth Terminal"
+    framework: text('framework'), // "virtuals" | "elizaos" | "olas" | "custom"
+    agentType: text('agent_type'), // "trading" | "social" | "defi" | "nft"
+    tokenSymbol: text('token_symbol'), // "$AIXBT", "$LUNA"
+    twitterHandle: text('twitter_handle'),
+    farcaster: text('farcaster'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('known_agents_framework_idx').on(table.framework),
   ]
 );
 
@@ -441,3 +478,5 @@ export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
 export type NewMagicLinkToken = typeof magicLinkTokens.$inferInsert;
 export type SocialGraphHistory = typeof socialGraphHistory.$inferSelect;
 export type NewSocialGraphHistory = typeof socialGraphHistory.$inferInsert;
+export type KnownAgent = typeof knownAgents.$inferSelect;
+export type NewKnownAgent = typeof knownAgents.$inferInsert;

@@ -855,7 +855,7 @@ export default function Home() {
                 </h1>
               </div>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Turn your wallet list into Twitter handles and Farcaster profiles.{' '}
+                Turn your wallet list into Twitter handles and Farcaster profiles. Resolve AI agent wallets too.{' '}
                 <a
                   href="/vs/addressable"
                   className="underline hover:text-foreground"
@@ -1296,6 +1296,10 @@ export default function Home() {
             <span>|</span>
             <a href="/vs/blaze" className="hover:text-foreground transition-colors">
               vs Blaze
+            </a>
+            <span>|</span>
+            <a href="/vs/cookie" className="hover:text-foreground transition-colors">
+              vs Cookie.fun
             </a>
           </div>
         </footer>

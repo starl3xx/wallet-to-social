@@ -37,6 +37,12 @@ export async function getCachedWallets(
         lens: row.lens ?? undefined,
         github: row.github ?? undefined,
         source: row.sources ?? [],
+        is_agent: row.isAgent ?? undefined,
+        agent_name: row.agentName ?? undefined,
+        agent_framework: row.agentFramework ?? undefined,
+        agent_type: row.agentType ?? undefined,
+        agent_token_symbol: row.agentTokenSymbol ?? undefined,
+        agent_verified: row.agentVerified ?? undefined,
       });
     }
 
@@ -67,6 +73,13 @@ export async function cacheWalletResults(
       github: r.github ?? null,
       sources: r.source,
       cachedAt: new Date(),
+      isAgent: r.is_agent ?? false,
+      agentName: r.agent_name ?? null,
+      agentFramework: r.agent_framework ?? null,
+      agentType: r.agent_type ?? null,
+      agentTokenSymbol: r.agent_token_symbol ?? null,
+      agentDetectionSource: null, // Detection source not stored in cache
+      agentVerified: r.agent_verified ?? false,
     }));
 
     // Upsert in batches of 100
@@ -89,6 +102,13 @@ export async function cacheWalletResults(
             github: sql`EXCLUDED.github`,
             sources: sql`EXCLUDED.sources`,
             cachedAt: sql`EXCLUDED.cached_at`,
+            isAgent: sql`EXCLUDED.is_agent`,
+            agentName: sql`EXCLUDED.agent_name`,
+            agentFramework: sql`EXCLUDED.agent_framework`,
+            agentType: sql`EXCLUDED.agent_type`,
+            agentTokenSymbol: sql`EXCLUDED.agent_token_symbol`,
+            agentDetectionSource: sql`EXCLUDED.agent_detection_source`,
+            agentVerified: sql`EXCLUDED.agent_verified`,
           },
         });
     }

@@ -58,6 +58,7 @@ export const ResultsTable = memo(function ResultsTable({
   const debouncedSearch = useDebouncedValue(search, 300);
   const [showOnlyTwitter, setShowOnlyTwitter] = useState(false);
   const [showTopInfluencers, setShowTopInfluencers] = useState(false);
+  const [showOnlyAgents, setShowOnlyAgents] = useState(false);
   const [sortField, setSortField] = useState<SortField>('priority_score');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null);
@@ -95,6 +96,11 @@ export const ResultsTable = memo(function ResultsTable({
       filtered = filtered.filter(
         (r) => r.fc_followers !== undefined && r.fc_followers >= 1000
       );
+    }
+
+    // Apply Agents only filter
+    if (showOnlyAgents) {
+      filtered = filtered.filter((r) => r.is_agent === true);
     }
 
     // Apply search filter (using debounced value to prevent lag on every keystroke)
@@ -150,6 +156,7 @@ export const ResultsTable = memo(function ResultsTable({
     debouncedSearch,
     showOnlyTwitter,
     showTopInfluencers,
+    showOnlyAgents,
     sortField,
     sortDirection,
   ]);
@@ -290,6 +297,15 @@ export const ResultsTable = memo(function ResultsTable({
         >
           {showTopInfluencers ? 'Top influencers (1K+)' : 'Top influencers'}
         </Button>
+        {results.some((r) => r.is_agent) && (
+          <Button
+            variant={showOnlyAgents ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowOnlyAgents(!showOnlyAgents)}
+          >
+            {showOnlyAgents ? 'Showing agents only' : 'Agents only'}
+          </Button>
+        )}
         <span className="text-sm text-muted-foreground">
           {filteredAndSorted.length.toLocaleString()} results
         </span>
@@ -407,6 +423,27 @@ export const ResultsTable = memo(function ResultsTable({
                             </span>
                           )}
                         </button>
+                        {result.is_agent && (
+                          <span
+                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded text-white ${
+                              result.agent_framework === 'virtuals'
+                                ? 'bg-purple-500'
+                                : result.agent_framework === 'elizaos'
+                                  ? 'bg-blue-500'
+                                  : result.agent_framework === 'olas'
+                                    ? 'bg-emerald-500'
+                                    : 'bg-gray-500'
+                            }`}
+                            title={[
+                              result.agent_name,
+                              result.agent_framework && `Framework: ${result.agent_framework}`,
+                              result.agent_type && `Type: ${result.agent_type}`,
+                              result.agent_token_symbol,
+                            ].filter(Boolean).join(' | ')}
+                          >
+                            {result.agent_name || 'Agent'}
+                          </span>
+                        )}
                         {isEnriched && (
                           <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-green-500 text-white">
                             NEW
