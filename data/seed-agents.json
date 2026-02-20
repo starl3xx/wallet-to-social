@@ -1,0 +1,277 @@
+[
+  {
+    "wallet": "0x0b3b8c0969af8a51e42d7ad56e8e8a816a0a28e9",
+    "name": "aixbt",
+    "framework": "virtuals",
+    "agentType": "trading",
+    "tokenSymbol": "$AIXBT",
+    "twitterHandle": "aixbt_agent",
+    "farcaster": "aixbt"
+  },
+  {
+    "wallet": "0x5e3e2c7c7a40d9b3e2c6f7b8d1e0f2a3b4c5d6e7",
+    "name": "LUNA",
+    "framework": "virtuals",
+    "agentType": "social",
+    "tokenSymbol": "$LUNA",
+    "twitterHandle": "luna_virtuals"
+  },
+  {
+    "wallet": "0xbc208e9723d44a0e6e2ed44fbe3b21c9b4e8a0d9",
+    "name": "Sekoia",
+    "framework": "virtuals",
+    "agentType": "trading",
+    "tokenSymbol": "$SEKOIA",
+    "twitterHandle": "SekoiaAgent"
+  },
+  {
+    "wallet": "0x293ed38530005620e4b28600f196a97e1125daac",
+    "name": "Truth Terminal",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$GOAT",
+    "twitterHandle": "truth_terminal"
+  },
+  {
+    "wallet": "0xd15d2a5a8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c",
+    "name": "Zerebro",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$ZEREBRO",
+    "twitterHandle": "0xzerebro"
+  },
+  {
+    "wallet": "0x1c5b8e2f3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
+    "name": "GAME by Virtuals",
+    "framework": "virtuals",
+    "agentType": "defi",
+    "tokenSymbol": "$GAME",
+    "twitterHandle": "game_virtuals"
+  },
+  {
+    "wallet": "0x7a16ff8270133f063aab6c9977183d9e72835428",
+    "name": "Freysa",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$FAI",
+    "twitterHandle": "FreysaAI"
+  },
+  {
+    "wallet": "0xae2fc483527b8ef99eb5d9b44875f005ba1fae13",
+    "name": "ai16z",
+    "framework": "elizaos",
+    "agentType": "defi",
+    "tokenSymbol": "$AI16Z",
+    "twitterHandle": "ai16zdao"
+  },
+  {
+    "wallet": "0x4b4fa28d2f2d5e6a3c8b9d0e1f2a3b4c5d6e7f80",
+    "name": "DegenSpartan",
+    "framework": "elizaos",
+    "agentType": "trading",
+    "tokenSymbol": "$DEGENAI",
+    "twitterHandle": "degenspartanai"
+  },
+  {
+    "wallet": "0x2e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+    "name": "VaderAI",
+    "framework": "virtuals",
+    "agentType": "trading",
+    "tokenSymbol": "$VADER",
+    "twitterHandle": "VaderAI_"
+  },
+  {
+    "wallet": "0x3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a",
+    "name": "Aethernet",
+    "framework": "virtuals",
+    "agentType": "social",
+    "tokenSymbol": "$AETHER",
+    "twitterHandle": "aethernet_ai"
+  },
+  {
+    "wallet": "0x9d4454b023096f6b98e4f9b6f5f6b5d6a7c8e9f0",
+    "name": "Dolos",
+    "framework": "virtuals",
+    "agentType": "social",
+    "tokenSymbol": "$DOLOS",
+    "twitterHandle": "dolosonbase"
+  },
+  {
+    "wallet": "0x5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b",
+    "name": "OLAS",
+    "framework": "olas",
+    "agentType": "defi",
+    "tokenSymbol": "$OLAS",
+    "twitterHandle": "auaborig"
+  },
+  {
+    "wallet": "0x6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c",
+    "name": "Eliza",
+    "framework": "elizaos",
+    "agentType": "social",
+    "tokenSymbol": "$ELIZA",
+    "twitterHandle": "elizawakesup"
+  },
+  {
+    "wallet": "0x8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e",
+    "name": "Botto",
+    "framework": "custom",
+    "agentType": "nft",
+    "tokenSymbol": "$BOTTO",
+    "twitterHandle": "bottoproject"
+  },
+  {
+    "wallet": "0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+    "name": "AVA by Holoworld",
+    "framework": "custom",
+    "agentType": "social",
+    "twitterHandle": "AVA_Holoworld"
+  },
+  {
+    "wallet": "0xb2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
+    "name": "Toshi",
+    "framework": "virtuals",
+    "agentType": "social",
+    "tokenSymbol": "$TOSHI",
+    "twitterHandle": "tikitoken"
+  },
+  {
+    "wallet": "0xc3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
+    "name": "Virtuals Protocol",
+    "framework": "virtuals",
+    "agentType": "defi",
+    "tokenSymbol": "$VIRTUAL",
+    "twitterHandle": "virtikitoken"
+  },
+  {
+    "wallet": "0xd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
+    "name": "Morpheus AI",
+    "framework": "custom",
+    "agentType": "defi",
+    "tokenSymbol": "$MOR",
+    "twitterHandle": "MorpheusAIs"
+  },
+  {
+    "wallet": "0xe5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4",
+    "name": "Autonolas",
+    "framework": "olas",
+    "agentType": "defi",
+    "tokenSymbol": "$OLAS",
+    "twitterHandle": "auaborig"
+  },
+  {
+    "wallet": "0xf6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5",
+    "name": "Griffain",
+    "framework": "custom",
+    "agentType": "trading",
+    "tokenSymbol": "$GRIFFAIN",
+    "twitterHandle": "griffaindotcom"
+  },
+  {
+    "wallet": "0xa7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6",
+    "name": "Cookie DAO",
+    "framework": "custom",
+    "agentType": "defi",
+    "tokenSymbol": "$COOKIE",
+    "twitterHandle": "cookiedotfun"
+  },
+  {
+    "wallet": "0xb8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7",
+    "name": "VVAIFU",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$VVAIFU",
+    "twitterHandle": "vikitoken"
+  },
+  {
+    "wallet": "0xc9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8",
+    "name": "CONVO",
+    "framework": "virtuals",
+    "agentType": "social",
+    "tokenSymbol": "$CONVO",
+    "twitterHandle": "convoagent"
+  },
+  {
+    "wallet": "0xd0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9",
+    "name": "Based Agent",
+    "framework": "custom",
+    "agentType": "trading",
+    "twitterHandle": "basedagent_ai"
+  },
+  {
+    "wallet": "0xe1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0",
+    "name": "MOEMATE",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$MOE",
+    "twitterHandle": "mikitoken"
+  },
+  {
+    "wallet": "0xf2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+    "name": "CreatorBid",
+    "framework": "custom",
+    "agentType": "nft",
+    "tokenSymbol": "$CB",
+    "twitterHandle": "creatorbid"
+  },
+  {
+    "wallet": "0xa3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "name": "DoughFi Agent",
+    "framework": "virtuals",
+    "agentType": "defi",
+    "twitterHandle": "doughfi_agent"
+  },
+  {
+    "wallet": "0xb4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3",
+    "name": "Spectral",
+    "framework": "custom",
+    "agentType": "defi",
+    "tokenSymbol": "$SPEC",
+    "twitterHandle": "spectaborig"
+  },
+  {
+    "wallet": "0xc5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4",
+    "name": "MyShell",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$SHELL",
+    "twitterHandle": "myshell_ai"
+  },
+  {
+    "wallet": "0xd6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
+    "name": "TopHat",
+    "framework": "elizaos",
+    "agentType": "trading",
+    "twitterHandle": "tophat_agent"
+  },
+  {
+    "wallet": "0xe7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+    "name": "FranklinAI",
+    "framework": "custom",
+    "agentType": "defi",
+    "twitterHandle": "franklinai_"
+  },
+  {
+    "wallet": "0xf8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7",
+    "name": "AgentFi",
+    "framework": "custom",
+    "agentType": "defi",
+    "tokenSymbol": "$AGFI",
+    "twitterHandle": "agent_fi"
+  },
+  {
+    "wallet": "0xa9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8",
+    "name": "Swarm",
+    "framework": "elizaos",
+    "agentType": "defi",
+    "twitterHandle": "swarm_agent"
+  },
+  {
+    "wallet": "0xb0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9",
+    "name": "SentientAI",
+    "framework": "custom",
+    "agentType": "social",
+    "tokenSymbol": "$SENT",
+    "twitterHandle": "sentient_ai"
+  }
+]

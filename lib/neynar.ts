@@ -7,6 +7,11 @@ export interface NeynarUser {
   display_name: string;
   follower_count: number;
   pfp_url?: string;
+  profile?: {
+    bio?: {
+      text?: string;
+    };
+  };
   verified_accounts?: Array<{
     platform: string;
     username: string;
@@ -19,6 +24,7 @@ export interface NeynarResult {
   farcaster_url?: string;
   fc_followers?: number;
   fc_fid?: number;
+  fc_bio?: string;
   twitter_handle?: string;
   twitter_url?: string;
   source: string;
@@ -117,6 +123,7 @@ export function parseNeynarUser(
     farcaster_url: `https://warpcast.com/${user.username}`,
     fc_followers: user.follower_count,
     fc_fid: user.fid,
+    fc_bio: user.profile?.bio?.text ?? undefined,
     source: 'neynar',
   };
 

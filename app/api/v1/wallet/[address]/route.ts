@@ -82,6 +82,13 @@ export async function GET(
       dataQualityScore: socialGraph.dataQualityScore,
       lastVerificationAt: socialGraph.lastVerificationAt,
       staleAt: socialGraph.staleAt,
+      // Agent metadata
+      isAgent: socialGraph.isAgent,
+      agentName: socialGraph.agentName,
+      agentFramework: socialGraph.agentFramework,
+      agentType: socialGraph.agentType,
+      agentTokenSymbol: socialGraph.agentTokenSymbol,
+      agentVerified: socialGraph.agentVerified,
     })
     .from(socialGraph)
     .where(eq(socialGraph.wallet, normalizedAddress))
@@ -137,6 +144,18 @@ export async function GET(
   if (result.lens) data.lens = result.lens;
   if (result.github) data.github = result.github;
   if (result.sources) data.sources = result.sources;
+
+  // Agent metadata
+  if (result.isAgent) {
+    data.agent = {
+      is_agent: true,
+      name: result.agentName ?? undefined,
+      framework: result.agentFramework ?? undefined,
+      type: result.agentType ?? undefined,
+      token_symbol: result.agentTokenSymbol ?? undefined,
+      verified: result.agentVerified ?? false,
+    };
+  }
 
   // Add quality metadata
   data.quality = {

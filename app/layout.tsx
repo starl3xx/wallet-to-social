@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
-  title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
+  title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
   description:
-    'Find your DeFi users and NFT holders on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement. No sales calls—instant access.',
+    'Find your DeFi users, NFT holders, and AI agents on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement. Identify AI agent wallets from Virtuals, ElizaOS, and more. No sales calls—instant access.',
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -38,20 +38,25 @@ export const metadata: Metadata = {
     'nft community marketing',
     'find defi users social',
     'crypto wallet social profiles',
+    'ai agent wallet lookup',
+    'virtuals protocol agents',
+    'elizaos agent wallets',
+    'identify ai agents onchain',
+    'agent wallet to twitter',
   ],
   openGraph: {
-    title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
+    title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
-      'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. No sales calls.',
+      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically. No sales calls.',
     images: ['/icon.png'],
     type: 'website',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social — Find your DeFi users & NFT holders on Twitter',
+    title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
-      'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement.',
+      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically.',
     images: ['/icon.png'],
     creator: '@starl3xx',
   },
@@ -71,7 +76,7 @@ const jsonLd = {
   applicationCategory: 'WebApplication',
   operatingSystem: 'Web',
   description:
-    'Find your DeFi users and NFT holders on Twitter. Wallet-to-social lookup tool for token holder outreach, airdrop campaigns, and DAO engagement.',
+    'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup tool for token holder outreach, airdrop campaigns, and DAO engagement. Automatically identifies AI agent wallets.',
   offers: [
     {
       '@type': 'Offer',
@@ -151,6 +156,14 @@ const faqSchema = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'Yes, walletlink.social supports both Twitter/X and Farcaster lookups. It returns Farcaster usernames, follower counts, and FIDs (Farcaster IDs) which can be used for direct messaging via Warpcast or other Farcaster clients.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Can walletlink.social identify AI agent wallets?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes, walletlink.social automatically identifies AI agent wallets from platforms like Virtuals Protocol, ElizaOS, and Olas. Agent wallets are flagged with their name, framework, and token symbol. This helps you distinguish between human users and AI agents in your wallet lists.',
       },
     },
   ],

@@ -126,6 +126,13 @@ export async function POST(request: NextRequest) {
       github: socialGraph.github,
       sources: socialGraph.sources,
       lastUpdatedAt: socialGraph.lastUpdatedAt,
+      // Agent metadata
+      isAgent: socialGraph.isAgent,
+      agentName: socialGraph.agentName,
+      agentFramework: socialGraph.agentFramework,
+      agentType: socialGraph.agentType,
+      agentTokenSymbol: socialGraph.agentTokenSymbol,
+      agentVerified: socialGraph.agentVerified,
     })
     .from(socialGraph)
     .where(inArray(socialGraph.wallet, uniqueWallets));
@@ -171,6 +178,18 @@ export async function POST(request: NextRequest) {
     if (result.lens) item.lens = result.lens;
     if (result.github) item.github = result.github;
     if (result.sources) item.sources = result.sources;
+
+    // Agent metadata
+    if (result.isAgent) {
+      item.agent = {
+        is_agent: true,
+        name: result.agentName ?? undefined,
+        framework: result.agentFramework ?? undefined,
+        type: result.agentType ?? undefined,
+        token_symbol: result.agentTokenSymbol ?? undefined,
+        verified: result.agentVerified ?? false,
+      };
+    }
 
     data.push(item);
   }

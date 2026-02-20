@@ -18,6 +18,7 @@ import {
   calculatePriorityScore,
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
+import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 
@@ -133,6 +134,30 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     let uncachedWallets = walletsToProcess;
 
     // =========================================================================
+    // STEP 0: Check known_agents table (highest confidence agent detection)
+    // Pre-populate agent fields for known wallets before any API calls
+    // =========================================================================
+    try {
+      const knownAgentResults = await detectKnownAgents(walletsToProcess);
+      for (const [wallet, agentData] of knownAgentResults) {
+        const existing = results.get(wallet);
+        if (existing) {
+          results.set(wallet, {
+            ...existing,
+            is_agent: agentData.is_agent,
+            agent_name: agentData.agent_name,
+            agent_framework: agentData.agent_framework,
+            agent_type: agentData.agent_type,
+            agent_token_symbol: agentData.agent_token_symbol,
+            agent_verified: agentData.agent_verified,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Known agents detection error:', error);
+    }
+
+    // =========================================================================
     // STEP 1: Check social_graph FIRST (primary data source)
     // High-quality records are trusted completely, reducing API calls
     // =========================================================================
@@ -160,6 +185,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
             source: [...existing.source, 'graph'],
+            // Merge agent fields from social graph (don't overwrite known_list data)
+            is_agent: existing.is_agent || storedData.is_agent,
+            agent_name: existing.agent_name || storedData.agent_name,
+            agent_framework: existing.agent_framework || storedData.agent_framework,
+            agent_type: existing.agent_type || storedData.agent_type,
+            agent_token_symbol: existing.agent_token_symbol || storedData.agent_token_symbol,
+            agent_verified: existing.agent_verified || storedData.agent_verified,
           });
           graphHits++;
         } else if (graphResult.quality === 'medium' && graphResult.data) {
@@ -177,6 +209,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
             source: [...existing.source, 'graph'],
+            // Merge agent fields from social graph
+            is_agent: existing.is_agent || storedData.is_agent,
+            agent_name: existing.agent_name || storedData.agent_name,
+            agent_framework: existing.agent_framework || storedData.agent_framework,
+            agent_type: existing.agent_type || storedData.agent_type,
+            agent_token_symbol: existing.agent_token_symbol || storedData.agent_token_symbol,
+            agent_verified: existing.agent_verified || storedData.agent_verified,
           });
           // Medium quality still needs lookup to potentially refresh data
           walletsNeedingLookup.push(wallet);
@@ -283,7 +322,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           console.error('Neynar fetch error:', error);
         }
 
-        // Apply Neynar results immediately
+        // Apply Neynar results immediately (including bio for agent detection)
         for (const [wallet, data] of neynarResults) {
           const existing = results.get(wallet)!;
           results.set(wallet, {
@@ -294,10 +333,26 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             farcaster_url: data.farcaster_url || existing.farcaster_url,
             fc_followers: data.fc_followers,
             fc_fid: data.fc_fid,
+            fc_bio: data.fc_bio,
             source: existing.source.includes('neynar')
               ? existing.source
               : [...existing.source, 'neynar'],
           });
+        }
+
+        // Post-processing: Bio-based agent detection for wallets not already identified
+        for (const [wallet, data] of neynarResults) {
+          const existing = results.get(wallet);
+          if (existing && !existing.is_agent && data.fc_bio) {
+            const bioResult = detectAgentFromBio(data.fc_bio);
+            if (bioResult) {
+              results.set(wallet, {
+                ...existing,
+                is_agent: true,
+                agent_verified: false,
+              });
+            }
+          }
         }
       }
 
