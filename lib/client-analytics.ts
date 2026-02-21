@@ -60,7 +60,7 @@ export const Analytics = {
   lookupCompleted: (walletCount: number, matchRate: number, durationMs: number) =>
     trackClientEvent('lookup_completed', { walletCount, matchRate, durationMs }),
 
-  exportClicked: (format: 'csv' | 'twitter', resultCount: number) =>
+  exportClicked: (format: 'csv' | 'twitter' | 'share_twitter' | 'share_farcaster', resultCount: number) =>
     trackClientEvent('export_clicked', { format, resultCount }),
 
   historySaved: (lookupId: string, walletCount: number) =>

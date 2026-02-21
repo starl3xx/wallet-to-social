@@ -48,7 +48,6 @@ export const metadata: Metadata = {
     title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
       'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically. No sales calls.',
-    images: ['/icon.png'],
     type: 'website',
     siteName: 'walletlink.social',
   },
@@ -57,7 +56,6 @@ export const metadata: Metadata = {
     title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
       'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically.',
-    images: ['/icon.png'],
     creator: '@starl3xx',
   },
   alternates: {
