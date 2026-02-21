@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getAllPosts } from '@/lib/blog';
 
+// Revalidate every hour so scheduled posts appear on time
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Blog - walletlink.social',
   description:
@@ -67,6 +70,9 @@ export default function BlogIndex() {
                 className="group border rounded-lg p-6 hover:border-foreground/20 transition-colors"
               >
                 <Link href={`/blog/${post.slug}`} className="block">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
                   <h2 className="text-2xl font-semibold mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     {post.title}
                   </h2>

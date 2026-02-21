@@ -25,8 +25,16 @@ function getMarkdownFiles(dir: string): string[] {
   return fs.readdirSync(dir).filter((f) => f.endsWith('.md') && f !== '.gitkeep');
 }
 
+function isPublishable(data: Record<string, unknown>): boolean {
+  if (!data.published) return false;
+  if (!data.publish_date) return true;
+  const publishDate = new Date(data.publish_date as string);
+  return publishDate <= new Date();
+}
+
 export function getAllPosts(): BlogPost[] {
   const files = getMarkdownFiles(PUBLISHED_DIR);
+  const today = new Date();
 
   return files
     .map((filename) => {
@@ -34,7 +42,7 @@ export function getAllPosts(): BlogPost[] {
       const raw = fs.readFileSync(filePath, 'utf-8');
       const { data, content } = matter(raw);
 
-      if (!data.published) return null;
+      if (!isPublishable(data)) return null;
 
       return {
         slug: slugify(filename),
@@ -43,7 +51,7 @@ export function getAllPosts(): BlogPost[] {
         headlineVariations: data.headline_variations,
         content,
         html: marked(content) as string,
-        publishedAt: data.date || '2025-01-01',
+        publishedAt: (data.publish_date as string) || (data.date as string) || '2025-01-01',
       };
     })
     .filter(Boolean) as BlogPost[];
@@ -56,6 +64,8 @@ export function getPostBySlug(slug: string): BlogPost | null {
   const raw = fs.readFileSync(filePath, 'utf-8');
   const { data, content } = matter(raw);
 
+  if (!isPublishable(data)) return null;
+
   return {
     slug,
     title: data.title || slug,
@@ -63,7 +73,7 @@ export function getPostBySlug(slug: string): BlogPost | null {
     headlineVariations: data.headline_variations,
     content,
     html: marked(content) as string,
-    publishedAt: data.date || '2025-01-01',
+    publishedAt: (data.publish_date as string) || (data.date as string) || '2025-01-01',
   };
 }
 
@@ -74,7 +84,7 @@ export function getAllSlugs(): string[] {
       const filePath = path.join(PUBLISHED_DIR, filename);
       const raw = fs.readFileSync(filePath, 'utf-8');
       const { data } = matter(raw);
-      if (!data.published) return null;
+      if (!isPublishable(data)) return null;
       return slugify(filename);
     })
     .filter(Boolean) as string[];

@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { getPostBySlug } from '@/lib/blog';
 
 export const runtime = 'nodejs';
@@ -10,6 +12,9 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
   const { slug } = await params;
   const post = getPostBySlug(slug);
   const title = post?.title || 'walletlink.social Blog';
+
+  const logoBuffer = readFileSync(join(process.cwd(), 'public', 'icon.png'));
+  const logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
 
   return new ImageResponse(
     (
@@ -34,20 +39,12 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
             marginBottom: '40px',
           }}
         >
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-            }}
-          >
-            🔗
-          </div>
+          <img
+            src={logoBase64}
+            width={40}
+            height={40}
+            style={{ borderRadius: '8px' }}
+          />
           <span style={{ fontSize: '24px', fontWeight: 600, color: '#a3a3a3' }}>
             walletlink.social
           </span>

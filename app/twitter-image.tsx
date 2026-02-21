@@ -5,7 +5,11 @@ export const alt = 'walletlink.social — Wallet-to-social lookup for crypto tea
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-export default function TwitterImage() {
+export default async function TwitterImage() {
+  const logoData = await fetch(
+    new URL('../public/icon.png', import.meta.url)
+  ).then((res) => res.arrayBuffer());
+
   return new ImageResponse(
     (
       <div
@@ -30,20 +34,12 @@ export default function TwitterImage() {
             marginBottom: '40px',
           }}
         >
-          <div
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '28px',
-            }}
-          >
-            🔗
-          </div>
+          <img
+            src={logoData as unknown as string}
+            width={56}
+            height={56}
+            style={{ borderRadius: '12px' }}
+          />
           <span
             style={{
               fontSize: '32px',
