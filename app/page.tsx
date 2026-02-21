@@ -855,7 +855,7 @@ export default function Home() {
                 </h1>
               </div>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Turn your wallet list into Twitter handles and Farcaster profiles. Resolve AI agent wallets too.{' '}
+                Turn your wallet list into Twitter handles and Farcaster profiles. Detect 13,000+ known AI agent wallets instantly.{' '}
                 <a
                   href="/vs/addressable"
                   className="underline hover:text-foreground"

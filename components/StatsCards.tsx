@@ -15,6 +15,7 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
     farcaster: results.filter((r) => r.farcaster).length,
     lens: results.filter((r) => r.lens).length,
     github: results.filter((r) => r.github).length,
+    agents: results.filter((r) => r.is_agent).length,
     anySocial: results.filter(
       (r) => r.twitter_handle || r.farcaster || r.lens || r.github
     ).length,
@@ -29,11 +30,12 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
       color: 'text-purple-500',
       badgeColor: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
     },
+    { title: 'Agents detected', value: stats.agents, color: 'text-orange-500', badgeColor: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' },
     { title: 'Any social', value: stats.anySocial, color: 'text-emerald-500', badgeColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader className="pb-2">

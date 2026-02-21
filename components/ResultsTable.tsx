@@ -428,11 +428,13 @@ export const ResultsTable = memo(function ResultsTable({
                             className={`px-1.5 py-0.5 text-[10px] font-medium rounded text-white ${
                               result.agent_framework === 'virtuals'
                                 ? 'bg-purple-500'
-                                : result.agent_framework === 'elizaos'
-                                  ? 'bg-blue-500'
-                                  : result.agent_framework === 'olas'
-                                    ? 'bg-emerald-500'
-                                    : 'bg-gray-500'
+                                : result.agent_framework === 'erc8004'
+                                  ? 'bg-amber-500'
+                                  : result.agent_framework === 'elizaos'
+                                    ? 'bg-blue-500'
+                                    : result.agent_framework === 'olas'
+                                      ? 'bg-emerald-500'
+                                      : 'bg-gray-500'
                             }`}
                             title={[
                               result.agent_name,

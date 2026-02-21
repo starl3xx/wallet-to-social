@@ -71,6 +71,10 @@ export const ExportButton = memo(function ExportButton({
       'lens',
       'github',
       'source',
+      'is_agent',
+      'agent_name',
+      'agent_framework',
+      'agent_token_symbol',
     ];
 
     const data = sortedResults.map((result) => ({
@@ -78,6 +82,10 @@ export const ExportButton = memo(function ExportButton({
       holdings: result.holdings?.toFixed(2) || '',
       priority_score: result.priority_score?.toFixed(2) || '',
       source: result.source.join(','),
+      is_agent: result.is_agent ? 'true' : '',
+      agent_name: result.agent_name || '',
+      agent_framework: result.agent_framework || '',
+      agent_token_symbol: result.agent_token_symbol || '',
     }));
 
     const csv = exportToCSV(data, headers);
