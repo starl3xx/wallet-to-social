@@ -131,9 +131,13 @@ function isValidEthAddress(addr: string): boolean {
 // Virtuals Protocol Scraper
 // ============================================================================
 
-async function fetchVirtualsAgent(
-  id: number
-): Promise<ScrapedAgent[] | null> {
+/** Result distinguishes "not found" (404/no wallet) from "error" (timeout/network) */
+type FetchResult =
+  | { status: 'ok'; agents: ScrapedAgent[] }
+  | { status: 'skip' }  // 404, no wallet, or no data
+  | { status: 'error' }; // timeout, network failure, bad response
+
+async function fetchVirtualsAgent(id: number): Promise<FetchResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), VIRTUALS_TIMEOUT_MS);
 
@@ -143,12 +147,12 @@ async function fetchVirtualsAgent(
       headers: { Accept: 'application/json' },
     });
 
-    if (res.status === 404) return null;
-    if (!res.ok) return null;
+    if (res.status === 404) return { status: 'skip' };
+    if (!res.ok) return { status: 'error' };
 
     const json = (await res.json()) as VirtualsApiResponse;
     const d = json.data;
-    if (!d || !d.name) return null;
+    if (!d || !d.name) return { status: 'skip' };
 
     // Extract Twitter handle from socials
     const twitterRaw =
@@ -184,9 +188,11 @@ async function fetchVirtualsAgent(
       });
     }
 
-    return agents.length > 0 ? agents : null;
+    return agents.length > 0
+      ? { status: 'ok', agents }
+      : { status: 'skip' };
   } catch {
-    return null;
+    return { status: 'error' };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -212,16 +218,21 @@ async function scrapeVirtuals(): Promise<Map<string, ScrapedAgent>> {
 
     for (const result of settled) {
       fetched++;
-      if (result.status === 'fulfilled' && result.value) {
-        for (const agent of result.value) {
+      if (result.status === 'rejected') {
+        errors++;
+        continue;
+      }
+      const fetchResult = result.value;
+      if (fetchResult.status === 'error') {
+        errors++;
+      } else if (fetchResult.status === 'ok') {
+        for (const agent of fetchResult.agents) {
           // First writer wins (don't overwrite if already scraped)
           if (!results.has(agent.wallet)) {
             results.set(agent.wallet, agent);
             found++;
           }
         }
-      } else if (result.status === 'rejected') {
-        errors++;
       }
     }
 
@@ -277,14 +288,15 @@ function extractHolAgent(hit: HolHit): ScrapedAgent | null {
   // Skip registries we don't want
   if (HOL_SKIP_REGISTRIES.has(hit.registry?.toLowerCase())) return null;
 
-  // Get wallet address — check id (virtuals-protocol uses wallet as id),
-  // then endpoints.customEndpoints.wallet, then metadata.ownerAddress
-  const wallet =
-    (isValidEthAddress(hit.id) ? hit.id : null) ??
-    hit.endpoints?.customEndpoints?.wallet ??
-    hit.metadata?.ownerAddress ??
-    null;
-  if (!wallet || !isValidEthAddress(wallet)) return null;
+  // Get wallet address — check each candidate individually to avoid
+  // a non-null invalid string (e.g. "") blocking valid lower-priority sources
+  const candidates = [
+    hit.id,
+    hit.endpoints?.customEndpoints?.wallet,
+    hit.metadata?.ownerAddress,
+  ];
+  const wallet = candidates.find((c) => c != null && isValidEthAddress(c));
+  if (!wallet) return null;
 
   // Extract Twitter from profile socials if available
   let twitterHandle: string | null = null;
