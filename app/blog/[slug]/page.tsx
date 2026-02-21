@@ -5,6 +5,9 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
 
+// Revalidate every hour so scheduled posts appear on time
+export const revalidate = 3600;
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -74,13 +77,13 @@ export default async function BlogPost({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <div className="min-h-screen bg-background">
-        <article className="container mx-auto py-12 px-4 max-w-4xl">
-          {/* Header */}
-          <header className="mb-12">
+        {/* Hero banner */}
+        <div className="bg-gradient-to-br from-neutral-950 via-[#1a1a2e] to-neutral-950 text-white">
+          <div className="container mx-auto px-4 max-w-4xl py-16">
             <div className="flex items-center gap-4 mb-8">
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
               >
                 <Image
                   src="/icon.png"
@@ -91,23 +94,33 @@ export default async function BlogPost({ params }: Props) {
                 />
                 <span className="text-sm font-medium">walletlink.social</span>
               </Link>
-              <span className="text-muted-foreground">/</span>
+              <span className="text-neutral-600">/</span>
               <Link
                 href="/blog"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-neutral-400 hover:text-white transition-colors"
               >
                 Blog
               </Link>
             </div>
 
-            <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
-            <p className="text-xl text-muted-foreground">{post.description}</p>
-          </header>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+              {post.title}
+            </h1>
+            <p className="text-xl text-neutral-400 max-w-2xl">
+              {post.description}
+            </p>
+            <div className="mt-6 flex items-center gap-4 text-sm text-neutral-500">
+              <span>{new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            </div>
+          </div>
+        </div>
 
+        <article className="container mx-auto py-12 px-4 max-w-4xl">
           {/* Content */}
           <div
             className="prose prose-lg dark:prose-invert max-w-none
               prose-headings:font-semibold
+              prose-h1:hidden
               prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4
               prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
               prose-p:text-muted-foreground prose-p:leading-relaxed
