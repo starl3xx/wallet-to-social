@@ -6,6 +6,7 @@ import { FileUpload } from '@/components/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
+import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
 import { RecentWins } from '@/components/RecentWins';
@@ -1234,6 +1235,11 @@ export default function Home() {
                     onUpgradeClick={handleOpenUpgradeModal}
                     lookupName={currentLookupName}
                   />
+                  <ShareButtons
+                    twitterCount={results.filter((r) => r.twitter_handle).length}
+                    farcasterCount={results.filter((r) => r.farcaster).length}
+                    totalWallets={results.length}
+                  />
                 </div>
               </div>
 
@@ -1290,6 +1296,10 @@ export default function Home() {
             </a>
           </p>
           <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+            <a href="/blog" className="hover:text-foreground transition-colors">
+              Blog
+            </a>
+            <span>|</span>
             <a href="/vs/addressable" className="hover:text-foreground transition-colors">
               vs Addressable
             </a>

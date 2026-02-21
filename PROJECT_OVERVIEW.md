@@ -334,7 +334,17 @@ npm run dev                 # Start dev server
 
 ---
 
-## Recent Changes (2025-01-21)
+## Recent Changes (2026-02-21)
+
+- **Blog infrastructure**: New `/blog` and `/blog/[slug]` routes rendering markdown from `content/published/`
+- **Blog utility**: `lib/blog.ts` using `gray-matter` + `marked` for frontmatter parsing and markdown rendering
+- **Share buttons**: Twitter/X and Farcaster share buttons on results page (`components/ShareButtons.tsx`)
+- **Dynamic OG images**: `opengraph-image.tsx` and `twitter-image.tsx` at root (1200x630), plus per-post OG images at `/blog/[slug]/opengraph-image.tsx`
+- **Sitemap update**: Added `/blog`, blog post URLs, and missing `/vs/cookie` to sitemap
+- **Footer update**: Added "Blog" link to footer navigation
+- **Dependencies**: Added `gray-matter`, `marked`, `@tailwindcss/typography`
+
+### 2025-01-21
 
 - **Admin analytics dashboard**: New Dashboard tab with usage metrics, match analytics, and performance monitoring
 - **IP-based rate limiting**: 3 requests/hour on lookup endpoints to prevent abuse
