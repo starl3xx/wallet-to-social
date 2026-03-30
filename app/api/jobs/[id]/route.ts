@@ -20,29 +20,23 @@ export async function GET(
       );
     }
 
-    // Require authenticated session
+    // Check for authenticated session (optional — unauthenticated users can
+    // poll jobs they created since job IDs are unguessable UUIDs)
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        { error: 'Login required' },
-        { status: 401 }
-      );
-    }
-
-    const session = await validateSession(sessionToken);
-    if (!session.user) {
-      return NextResponse.json(
-        { error: 'Invalid or expired session' },
-        { status: 401 }
-      );
-    }
+    const session = sessionToken ? await validateSession(sessionToken) : { user: null };
 
     const job = await getJob(id);
 
-    // Return 404 for both "not found" and "not owned" (prevents enumeration)
-    if (!job || job.userId !== session.user.id) {
+    if (!job) {
+      return NextResponse.json(
+        { error: 'Job not found' },
+        { status: 404 }
+      );
+    }
+
+    // For authenticated users, verify ownership
+    if (session.user && job.userId && job.userId !== session.user.id) {
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }
