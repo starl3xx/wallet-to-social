@@ -77,7 +77,9 @@ export async function getSocialGraphWithQuality(
 
     for (const record of rows) {
       const quality = classifyQuality(record, now);
-      const needsRefresh = quality === 'stale' || quality === 'low' || quality === 'missing';
+      const isStale = record.staleAt != null && record.staleAt < now;
+      // High-quality stale records are served but flagged for background refresh
+      const needsRefresh = quality === 'stale' || quality === 'low' || quality === 'missing' || isStale;
 
       results.set(record.wallet, {
         wallet: record.wallet,
@@ -95,22 +97,28 @@ export async function getSocialGraphWithQuality(
 }
 
 /**
- * Classify the quality of a social graph record
+ * Classify the quality of a social graph record.
+ * Quality score takes precedence over staleness — high-quality data is still
+ * trustworthy when stale (wallet-to-social mappings rarely change). The
+ * needsRefresh flag in getSocialGraphWithQuality handles background refresh.
  */
 function classifyQuality(record: SocialGraph, now: Date): DataQuality {
-  // Check if stale first
-  if (record.staleAt && record.staleAt < now) {
-    return 'stale';
-  }
+  const isStale = record.staleAt != null && record.staleAt < now;
 
   // High quality: score >= 70 (verified sources like ENS onchain, Neynar, manual)
+  // Serve even when stale — needsRefresh will trigger a background refresh
   if (record.dataQualityScore && record.dataQualityScore >= 70) {
     return 'high';
   }
 
   // Medium quality: has verified flags OR frequently looked up
   if (record.twitterVerified || record.farcasterVerified || (record.lookupCount && record.lookupCount > 3)) {
-    return 'medium';
+    return isStale ? 'stale' : 'medium';
+  }
+
+  // Stale low-quality data should be refreshed
+  if (isStale) {
+    return 'stale';
   }
 
   // Low quality: in DB but no verification

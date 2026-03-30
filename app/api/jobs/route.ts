@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createJob } from '@/lib/job-processor';
+import { createJob, processJobChunk } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
@@ -10,6 +10,9 @@ import {
   getClientIp,
   formatRateLimitHeaders,
 } from '@/lib/ip-rate-limiter';
+
+// Jobs with this many wallets or fewer are processed inline (no cron wait)
+const INLINE_PROCESSING_THRESHOLD = 10;
 
 export const runtime = 'nodejs';
 
@@ -156,16 +159,24 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Trigger Inngest function for immediate processing
-    // Falls back to cron worker if Inngest is not configured
-    try {
-      await inngest.send({
-        name: 'wallet/lookup.requested',
-        data: { jobId },
-      });
-    } catch (error) {
-      // Inngest not configured or failed - cron worker will pick up the job
-      console.log('Inngest trigger skipped (cron will process):', error instanceof Error ? error.message : error);
+    // Small jobs: process inline to avoid cron queue wait (~45s avg)
+    // Large jobs: trigger Inngest or fall back to cron worker
+    if (wallets.length <= INLINE_PROCESSING_THRESHOLD) {
+      try {
+        await processJobChunk(jobId);
+      } catch (error) {
+        console.error('Inline processing error (cron will retry):', error instanceof Error ? error.message : error);
+      }
+    } else {
+      try {
+        await inngest.send({
+          name: 'wallet/lookup.requested',
+          data: { jobId },
+        });
+      } catch (error) {
+        // Inngest not configured or failed - cron worker will pick up the job
+        console.log('Inngest trigger skipped (cron will process):', error instanceof Error ? error.message : error);
+      }
     }
 
     return NextResponse.json({
