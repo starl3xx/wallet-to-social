@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { FileUpload } from '@/components/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -11,13 +12,15 @@ import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { UpgradeModal } from '@/components/UpgradeModal';
-import { AddAddressesModal } from '@/components/AddAddressesModal';
-import { ContractImportModal } from '@/components/ContractImportModal';
 import { AccessBanner } from '@/components/AccessBanner';
-import { AuthModal } from '@/components/AuthModal';
-import { FarcasterDMModal } from '@/components/FarcasterDMModal';
 import { useAuth } from '@/components/AuthProvider';
+
+// Lazy-load modals — not needed until user interaction
+const UpgradeModal = dynamic(() => import('@/components/UpgradeModal').then(m => ({ default: m.UpgradeModal })));
+const AddAddressesModal = dynamic(() => import('@/components/AddAddressesModal').then(m => ({ default: m.AddAddressesModal })));
+const ContractImportModal = dynamic(() => import('@/components/ContractImportModal').then(m => ({ default: m.ContractImportModal })));
+const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ default: m.AuthModal })));
+const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
 import { getUserId } from '@/lib/user-id';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
@@ -53,6 +56,7 @@ export default function Home() {
   const [cacheHits, setCacheHits] = useState(0);
   const [saveToHistory, setSaveToHistory] = useState(true);
   const [includeENS, setIncludeENS] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
   const [lookupName, setLookupName] = useState('');
   const [notifyOnComplete, setNotifyOnComplete] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -314,6 +318,7 @@ export default function Home() {
           saveToHistory,
           historyName: lookupName || undefined,
           includeENS,
+          fastMode,
           userId: getUserId(),
           email: userEmail || undefined,
           inputSource,
@@ -350,7 +355,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName, includeENS, userTier, userEmail, inputSource]);
+  }, [wallets, originalData, saveToHistory, lookupName, includeENS, fastMode, userTier, userEmail, inputSource]);
 
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
@@ -624,6 +629,7 @@ export default function Home() {
     setCacheHits(0);
     setLookupName('');
     setIncludeENS(false);
+    setFastMode(false);
     setShowPasteInput(false);
     setPasteText('');
     setCurrentLookupId(null);
@@ -766,6 +772,7 @@ export default function Home() {
           originalData: {},
           saveToHistory: false, // Don't save - we'll merge
           includeENS,
+          fastMode,
           userId: getUserId(),
           email: userEmail || undefined,
         }),
@@ -804,7 +811,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [includeENS, userEmail]);
+  }, [includeENS, fastMode, userEmail]);
 
   // Handle creating new lookup from modal
   const handleCreateNewFromModal = useCallback((addresses: string[]) => {
@@ -1098,6 +1105,22 @@ export default function Home() {
                       Note: ENS lookups are slower for large batches
                     </span>
                   )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="fastMode"
+                      checked={fastMode}
+                      onChange={(e) => setFastMode(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label
+                      htmlFor="fastMode"
+                      className="text-sm"
+                      title="Skip slower lookups for near-instant results. Gets Farcaster + verified Twitter only."
+                    >
+                      Fast mode
+                    </label>
+                  </div>
                   {canNotify() && (
                     <div className="flex items-center gap-2">
                       <input

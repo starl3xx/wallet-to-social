@@ -27,6 +27,7 @@ const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
 
 export interface JobOptions {
   includeENS?: boolean;
+  fastMode?: boolean;
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
@@ -368,10 +369,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Filter wallets that still need Twitter lookup after ENS + Neynar
-      const walletsNeedingWeb3Bio = uncachedWallets.filter((wallet) => {
-        const existing = results.get(wallet.toLowerCase());
-        return !existing?.twitter_handle;
-      });
+      // Fast mode skips Web3Bio entirely — returns Neynar-only results near-instantly
+      const walletsNeedingWeb3Bio = options.fastMode
+        ? []
+        : uncachedWallets.filter((wallet) => {
+            const existing = results.get(wallet.toLowerCase());
+            return !existing?.twitter_handle;
+          });
 
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
