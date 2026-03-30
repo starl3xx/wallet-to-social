@@ -21,7 +21,7 @@ export async function GET(
     }
 
     // Check for authenticated session (optional — unauthenticated users can
-    // poll jobs they created since job IDs are unguessable UUIDs)
+    // poll jobs they created by proving ownership via userId query param)
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     const session = sessionToken ? await validateSession(sessionToken) : { user: null };
@@ -35,12 +35,16 @@ export async function GET(
       );
     }
 
-    // For authenticated users, verify ownership
-    if (session.user && job.userId && job.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      );
+    // Verify ownership: authenticated users by session, others by userId param
+    if (session.user) {
+      if (job.userId && job.userId !== session.user.id) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      }
+    } else if (job.userId) {
+      const queryUserId = request.nextUrl.searchParams.get('userId');
+      if (!queryUserId || queryUserId !== job.userId) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      }
     }
 
     const response: {

@@ -110,7 +110,7 @@ export default function Home() {
     const savedJobId = localStorage.getItem('currentJobId');
     if (savedJobId) {
       // Check if job still exists and get its status
-      fetch(`/api/jobs/${savedJobId}`)
+      fetch(`/api/jobs/${savedJobId}?userId=${encodeURIComponent(getUserId())}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.status === 'completed') {
@@ -368,7 +368,7 @@ export default function Home() {
 
     const pollJobStatus = async () => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`);
+        const response = await fetch(`/api/jobs/${jobId}?userId=${encodeURIComponent(getUserId())}`);
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
