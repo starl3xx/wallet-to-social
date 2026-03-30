@@ -260,18 +260,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // =========================================================================
     await updateJobStage(db, jobId, 'cache');
 
-    // Check cache for wallets not served by high-quality graph data
+    // Check cache for wallets not served by high-quality graph data.
+    // Includes negative cache entries (source: ['none']) — wallets previously
+    // checked with no social data found, so we skip redundant API calls.
     try {
       const cached = await getCachedWallets(walletsNeedingLookup);
       cacheHits += cached.size;
 
       for (const [wallet, data] of cached) {
+        const isNegativeHit = data.source.length === 1 && data.source[0] === 'none';
         const existing = results.get(wallet)!;
-        results.set(wallet, {
-          ...existing,
-          ...data,
-          source: [...existing.source, 'cache'],
-        });
+        if (isNegativeHit) {
+          // Negative cache: wallet was checked before with no results — skip APIs
+          results.set(wallet, {
+            ...existing,
+            source: [...existing.source, 'cache'],
+          });
+        } else {
+          results.set(wallet, {
+            ...existing,
+            ...data,
+            source: [...existing.source, 'cache'],
+          });
+        }
       }
 
       uncachedWallets = walletsNeedingLookup.filter(
@@ -284,92 +295,89 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // =========================================================================
     // STEP 3: Call external APIs for remaining uncached wallets
+    // ENS and Neynar run in parallel since they're independent. Web3Bio runs
+    // after both, filtered to only wallets still missing Twitter.
     // =========================================================================
     if (uncachedWallets.length > 0) {
-      // ENS lookups (optional, requires paid tier)
-      if (options.includeENS && options.canUseENS !== false) {
-        await updateJobStage(db, jobId, 'ens');
-        try {
-          const ensResults = await batchLookupENS(uncachedWallets);
+      const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
+      const canUseENS = options.includeENS && options.canUseENS !== false;
 
-          for (const [wallet, data] of ensResults) {
-            const existing = results.get(wallet)!;
+      // Run ENS + Neynar in parallel (ENS is slow RPC, Neynar is fast batch)
+      await updateJobStage(db, jobId, canUseENS ? 'ens' : 'neynar');
+
+      const [ensResults, neynarResults] = await Promise.all([
+        canUseENS
+          ? batchLookupENS(uncachedWallets).catch((error) => {
+              console.error('ENS lookup error:', error);
+              return new Map<string, { ensName?: string; twitter?: string; twitterUrl?: string; github?: string }>();
+            })
+          : Promise.resolve(new Map<string, { ensName?: string; twitter?: string; twitterUrl?: string; github?: string }>()),
+        canUseNeynar
+          ? batchFetchNeynar(uncachedWallets, neynarApiKey).catch((error) => {
+              console.error('Neynar fetch error:', error);
+              return new Map<string, NeynarResult>();
+            })
+          : Promise.resolve(new Map<string, NeynarResult>()),
+      ]);
+
+      // Apply ENS results
+      for (const [wallet, data] of ensResults) {
+        const existing = results.get(wallet)!;
+        results.set(wallet, {
+          ...existing,
+          ens_name: data.ensName || existing.ens_name,
+          twitter_handle: data.twitter || existing.twitter_handle,
+          twitter_url: data.twitterUrl || existing.twitter_url,
+          github: data.github || existing.github,
+          source: [...existing.source, 'ens'],
+        });
+      }
+
+      // Apply Neynar results (including bio for agent detection)
+      await updateJobStage(db, jobId, 'neynar');
+      for (const [wallet, data] of neynarResults) {
+        const existing = results.get(wallet)!;
+        results.set(wallet, {
+          ...existing,
+          twitter_handle: existing.twitter_handle || data.twitter_handle,
+          twitter_url: existing.twitter_url || data.twitter_url,
+          farcaster: data.farcaster || existing.farcaster,
+          farcaster_url: data.farcaster_url || existing.farcaster_url,
+          fc_followers: data.fc_followers,
+          fc_fid: data.fc_fid,
+          fc_bio: data.fc_bio,
+          source: existing.source.includes('neynar')
+            ? existing.source
+            : [...existing.source, 'neynar'],
+        });
+      }
+
+      // Bio-based agent detection for wallets not already identified
+      for (const [wallet, data] of neynarResults) {
+        const existing = results.get(wallet);
+        if (existing && !existing.is_agent && data.fc_bio) {
+          const bioResult = detectAgentFromBio(data.fc_bio);
+          if (bioResult) {
             results.set(wallet, {
               ...existing,
-              ens_name: data.ensName || existing.ens_name,
-              twitter_handle: data.twitter || existing.twitter_handle,
-              twitter_url: data.twitterUrl || existing.twitter_url,
-              github: data.github || existing.github,
-              source: [...existing.source, 'ens'],
+              is_agent: true,
+              agent_verified: false,
             });
           }
-        } catch (error) {
-          console.error('ENS lookup error:', error);
         }
       }
 
-      // Neynar first (fast batch API), then Web3Bio only for wallets without Twitter
-      // This optimization reduces Web3Bio calls by 30-60% since Neynar returns verified Twitter
-      const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
-
-      // Step 1: Run Neynar (fast - batch API handles 200 wallets per request)
-      let neynarResults = new Map<string, NeynarResult>();
-      if (canUseNeynar) {
-        await updateJobStage(db, jobId, 'neynar');
-        try {
-          neynarResults = await batchFetchNeynar(uncachedWallets, neynarApiKey);
-        } catch (error) {
-          console.error('Neynar fetch error:', error);
-        }
-
-        // Apply Neynar results immediately (including bio for agent detection)
-        for (const [wallet, data] of neynarResults) {
-          const existing = results.get(wallet)!;
-          results.set(wallet, {
-            ...existing,
-            twitter_handle: existing.twitter_handle || data.twitter_handle,
-            twitter_url: existing.twitter_url || data.twitter_url,
-            farcaster: data.farcaster || existing.farcaster,
-            farcaster_url: data.farcaster_url || existing.farcaster_url,
-            fc_followers: data.fc_followers,
-            fc_fid: data.fc_fid,
-            fc_bio: data.fc_bio,
-            source: existing.source.includes('neynar')
-              ? existing.source
-              : [...existing.source, 'neynar'],
-          });
-        }
-
-        // Post-processing: Bio-based agent detection for wallets not already identified
-        for (const [wallet, data] of neynarResults) {
-          const existing = results.get(wallet);
-          if (existing && !existing.is_agent && data.fc_bio) {
-            const bioResult = detectAgentFromBio(data.fc_bio);
-            if (bioResult) {
-              results.set(wallet, {
-                ...existing,
-                is_agent: true,
-                agent_verified: false,
-              });
-            }
-          }
-        }
-      }
-
-      // Step 2: Filter wallets that still need Twitter lookup
-      // Skip Web3Bio for wallets that already have Twitter from cache, ENS, or Neynar
+      // Filter wallets that still need Twitter lookup after ENS + Neynar
       const walletsNeedingWeb3Bio = uncachedWallets.filter((wallet) => {
         const existing = results.get(wallet.toLowerCase());
-        // Only call Web3Bio if we don't have Twitter yet
         return !existing?.twitter_handle;
       });
 
-      // Step 3: Run Web3Bio only for wallets without Twitter (slow - 1 request per wallet)
+      // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
         await updateJobStage(db, jobId, 'web3bio');
         const web3BioResults = await batchFetchWeb3Bio(walletsNeedingWeb3Bio);
 
-        // Apply Web3.bio results
         for (const [wallet, data] of web3BioResults) {
           const existing = results.get(wallet)!;
           results.set(wallet, {
@@ -388,14 +396,25 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         }
       }
 
-      // Cache newly fetched results
+      // Cache all looked-up wallets, including negative results ("not found").
+      // Negative entries prevent re-querying the same empty wallets on repeat lookups.
       try {
-        const newResults = uncachedWallets
-          .map((w) => results.get(w.toLowerCase())!)
-          .filter((r) => r.source.length > 0 && !r.source.includes('cache'));
+        const walletsToCache = uncachedWallets
+          .map((w) => {
+            const r = results.get(w.toLowerCase())!;
+            // Skip wallets that came from cache (already cached)
+            if (r.source.includes('cache')) return null;
+            // For wallets with no social data, store a negative cache entry
+            const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+            if (!hasSocial && r.source.length === 0) {
+              return { ...r, source: ['none'] as string[] };
+            }
+            return r.source.length > 0 ? r : null;
+          })
+          .filter((r): r is WalletSocialResult => r !== null);
 
-        if (newResults.length > 0) {
-          await cacheWalletResults(newResults);
+        if (walletsToCache.length > 0) {
+          await cacheWalletResults(walletsToCache);
         }
       } catch (error) {
         console.error('Cache write error:', error);

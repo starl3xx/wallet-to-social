@@ -355,6 +355,11 @@ export default function Home() {
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
   const lastProgressRef = useRef(0);
+  const pollStartTimeRef = useRef(0);
+  const consecutiveErrorsRef = useRef(0);
+
+  // Max time to poll before giving up (10 minutes)
+  const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
 
   // Poll for job status when jobId is set
   useEffect(() => {
@@ -362,16 +367,34 @@ export default function Home() {
       return;
     }
 
-    // Reset polling interval when starting
+    // Reset polling state when starting
     pollIntervalRef.current = 2000;
     lastProgressRef.current = 0;
+    pollStartTimeRef.current = Date.now();
+    consecutiveErrorsRef.current = 0;
 
     const pollJobStatus = async () => {
+      // Safety net: stop polling after MAX_POLL_DURATION_MS
+      if (Date.now() - pollStartTimeRef.current > MAX_POLL_DURATION_MS) {
+        if (pollingRef.current) {
+          clearTimeout(pollingRef.current);
+          pollingRef.current = null;
+        }
+        setJobId(null);
+        setError('Lookup timed out. Please try again or check History for results.');
+        setProgress((prev) => ({ ...prev, status: 'error' }));
+        setState('error');
+        return;
+      }
+
       try {
         const response = await fetch(`/api/jobs/${jobId}?userId=${encodeURIComponent(getUserId())}`);
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
+
+        // Successful response — reset error counter
+        consecutiveErrorsRef.current = 0;
 
         const data = await response.json();
 
@@ -526,7 +549,9 @@ export default function Home() {
         scheduleNextPoll();
       } catch (err) {
         console.error('Poll error:', err);
-        // Don't stop polling on transient errors - schedule with current interval
+        consecutiveErrorsRef.current++;
+        // Exponential backoff for errors: 2s, 4s, 8s, 16s, cap at 30s
+        pollIntervalRef.current = Math.min(2000 * Math.pow(2, consecutiveErrorsRef.current - 1), 30000);
         scheduleNextPoll();
       }
     };
