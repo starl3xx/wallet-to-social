@@ -400,31 +400,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         }
       }
 
-      // Cache all looked-up wallets, including negative results ("not found").
-      // Negative entries prevent re-querying the same empty wallets on repeat lookups.
-      // Skip negative caching in fast mode — the lookup was intentionally incomplete
-      // (Web3Bio skipped), so caching "not found" would poison normal-mode lookups.
-      try {
-        const walletsToCache = uncachedWallets
-          .map((w) => {
-            const r = results.get(w.toLowerCase())!;
-            // Skip wallets that came from cache (already cached)
-            if (r.source.includes('cache')) return null;
-            // For wallets with no social data, store a negative cache entry
-            // (but not in fast mode — incomplete lookup shouldn't poison the cache)
-            const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
-            if (!hasSocial && r.source.length === 0) {
-              return options.fastMode ? null : { ...r, source: ['none'] as string[] };
-            }
-            return r.source.length > 0 ? r : null;
-          })
-          .filter((r): r is WalletSocialResult => r !== null);
+      // Cache looked-up wallets, including negative results ("not found").
+      // Skip entirely in fast mode — Web3Bio was skipped, so both partial results
+      // (e.g. Farcaster-only) and empty results would poison normal-mode lookups.
+      if (!options.fastMode) {
+        try {
+          const walletsToCache = uncachedWallets
+            .map((w) => {
+              const r = results.get(w.toLowerCase())!;
+              if (r.source.includes('cache')) return null;
+              const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+              if (!hasSocial && r.source.length === 0) {
+                return { ...r, source: ['none'] as string[] };
+              }
+              return r.source.length > 0 ? r : null;
+            })
+            .filter((r): r is WalletSocialResult => r !== null);
 
-        if (walletsToCache.length > 0) {
-          await cacheWalletResults(walletsToCache);
+          if (walletsToCache.length > 0) {
+            await cacheWalletResults(walletsToCache);
+          }
+        } catch (error) {
+          console.error('Cache write error:', error);
         }
-      } catch (error) {
-        console.error('Cache write error:', error);
       }
     }
 
