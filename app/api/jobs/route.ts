@@ -22,6 +22,7 @@ interface JobRequest {
   saveToHistory?: boolean;
   historyName?: string;
   includeENS?: boolean;
+  fastMode?: boolean;
   userId?: string;
   email?: string;
   wallet?: string;
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
       saveToHistory = false,
       historyName,
       includeENS = false,
+      fastMode = false,
       userId,
       email,
       wallet,
@@ -130,6 +132,7 @@ export async function POST(request: NextRequest) {
 
     const jobId = await createJob(wallets, originalData, {
       includeENS: includeENS && access.canUseENS,
+      fastMode,
       saveToHistory,
       historyName,
       userId: effectiveUserId,

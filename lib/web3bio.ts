@@ -28,8 +28,8 @@ export interface Web3BioResult {
   source: string;
 }
 
-const RATE_LIMIT_DELAY = 20; // ms between batches
-const MAX_CONCURRENT = 50; // Higher with API key
+const RATE_LIMIT_DELAY = 10; // ms between batches
+const MAX_CONCURRENT = 100; // Zero 429s at 50 over 30 days — safe to double
 const API_TIMEOUT_MS = 15000; // 15 second timeout to prevent hanging requests
 
 /**

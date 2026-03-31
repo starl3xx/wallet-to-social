@@ -161,21 +161,66 @@ export async function lookupWalletENS(wallet: string): Promise<ENSResult> {
   }
 }
 
+/**
+ * Two-phase batch ENS lookup:
+ * Phase 1: Reverse-resolve all wallets to ENS names in parallel
+ * Phase 2: Fetch text records only for wallets that have ENS names
+ *
+ * This avoids the per-wallet serial penalty of resolve→text-records by
+ * batching each phase independently.
+ */
 export async function batchLookupENS(
   wallets: string[],
   onProgress?: (completed: number, found: number) => void,
-  batchSize = 50, // Increased from 20 for faster processing
+  batchSize = 50,
   delayMs = 50
 ): Promise<Map<string, ENSResult>> {
   const results = new Map<string, ENSResult>();
-  let completed = 0;
   let found = 0;
 
+  // Phase 1: Batch reverse-resolve all wallets to ENS names
+  const ensNames = new Map<string, string>(); // wallet → ensName
+  let completed = 0;
   for (let i = 0; i < wallets.length; i += batchSize) {
     const batch = wallets.slice(i, i + batchSize);
-
     const batchResults = await Promise.allSettled(
-      batch.map((wallet) => lookupWalletENS(wallet))
+      batch.map(async (wallet) => ({
+        wallet: wallet.toLowerCase(),
+        ensName: await getENSName(wallet),
+      }))
+    );
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled' && result.value.ensName) {
+        ensNames.set(result.value.wallet, result.value.ensName);
+      }
+      completed++;
+    }
+    onProgress?.(completed, found);
+
+    if (i + batchSize < wallets.length) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  // Phase 2: Fetch text records only for wallets with ENS names (in parallel)
+  const walletsWithENS = Array.from(ensNames.entries());
+  for (let i = 0; i < walletsWithENS.length; i += batchSize) {
+    const batch = walletsWithENS.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(
+      batch.map(async ([wallet, ensName]) => {
+        const records = await getENSTextRecords(ensName);
+        const result: ENSResult = {
+          wallet,
+          ensName,
+          twitter: records.twitter,
+          twitterUrl: records.twitter ? `https://x.com/${records.twitter}` : null,
+          url: records.url,
+          github: records.github,
+          email: records.email,
+        };
+        return result;
+      })
     );
 
     for (const result of batchResults) {
@@ -186,12 +231,10 @@ export async function batchLookupENS(
           if (data.twitter) found++;
         }
       }
-      completed++;
     }
     onProgress?.(completed, found);
 
-    // Small delay between batches
-    if (i + batchSize < wallets.length) {
+    if (i + batchSize < walletsWithENS.length) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }

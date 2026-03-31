@@ -2,7 +2,7 @@ import { getDb, walletCache, type NewWalletCache } from '@/db';
 import { inArray, lt, sql } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
-const CACHE_TTL_HOURS = 24;
+const CACHE_TTL_HOURS = 168; // 7 days — wallet-to-social mappings rarely change
 
 export async function getCachedWallets(
   wallets: string[]
@@ -36,6 +36,7 @@ export async function getCachedWallets(
         fc_fid: row.fcFid ?? undefined,
         lens: row.lens ?? undefined,
         github: row.github ?? undefined,
+        // Negative cache entries have ['none'] as sources
         source: row.sources ?? [],
         is_agent: row.isAgent ?? undefined,
         agent_name: row.agentName ?? undefined,
