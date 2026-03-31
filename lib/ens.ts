@@ -180,6 +180,7 @@ export async function batchLookupENS(
 
   // Phase 1: Batch reverse-resolve all wallets to ENS names
   const ensNames = new Map<string, string>(); // wallet → ensName
+  let completed = 0;
   for (let i = 0; i < wallets.length; i += batchSize) {
     const batch = wallets.slice(i, i + batchSize);
     const batchResults = await Promise.allSettled(
@@ -193,14 +194,14 @@ export async function batchLookupENS(
       if (result.status === 'fulfilled' && result.value.ensName) {
         ensNames.set(result.value.wallet, result.value.ensName);
       }
+      completed++;
     }
+    onProgress?.(completed, found);
 
     if (i + batchSize < wallets.length) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-
-  onProgress?.(wallets.length, ensNames.size);
 
   // Phase 2: Fetch text records only for wallets with ENS names (in parallel)
   const walletsWithENS = Array.from(ensNames.entries());
@@ -231,12 +232,12 @@ export async function batchLookupENS(
         }
       }
     }
+    onProgress?.(completed, found);
 
     if (i + batchSize < walletsWithENS.length) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 
-  onProgress?.(wallets.length, found);
   return results;
 }
