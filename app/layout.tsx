@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { ThemeProvider } from '@/components/ThemeProvider';
@@ -177,7 +178,17 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <div className="fixed top-0 right-4 z-50 flex items-center gap-2 h-10">
+              <Link
+                href="/developer"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
+              >
+                API docs
+              </Link>
+            </div>
+            {children}
+          </AuthProvider>
         </ThemeProvider>
         <Analytics />
       </body>
