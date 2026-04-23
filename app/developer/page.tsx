@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Copy, Check, Trash2, Plus, Key, BarChart3, BookOpen, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Copy, Check, Trash2, Plus, Key, BarChart3, BookOpen, AlertTriangle, RefreshCw, Play, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -151,6 +151,20 @@ export default function DeveloperPage() {
   // Docs tab
   const [docsTab, setDocsTab] = useState<'curl' | 'js'>('curl');
 
+  // Playground
+  const [playKey, setPlayKey] = useState('');
+  const [playWallets, setPlayWallets] = useState(
+    '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\n0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B'
+  );
+  const [playFresh, setPlayFresh] = useState(false);
+  const [playLoading, setPlayLoading] = useState(false);
+  const [playResult, setPlayResult] = useState<{
+    status: number;
+    latencyMs: number;
+    body: unknown;
+  } | null>(null);
+  const [playError, setPlayError] = useState<string | null>(null);
+
   const email = user?.email;
 
   const fetchKeys = useCallback(async () => {
@@ -192,6 +206,14 @@ export default function DeveloperPage() {
     }
   }, [email, fetchKeys, fetchUsage]);
 
+  // Auto-fill playground key from first active key
+  useEffect(() => {
+    if (!playKey && keys.length > 0) {
+      const first = keys.find((k) => k.is_active && !k.revoked_at);
+      if (first) setPlayKey(`${first.prefix}••••••••`);
+    }
+  }, [keys, playKey]);
+
   const handleCreateKey = async () => {
     if (!email || !newKeyName.trim()) return;
     setCreating(true);
@@ -212,6 +234,45 @@ export default function DeveloperPage() {
       setCreateError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handlePlaygroundSend = async () => {
+    const rawKey = playKey.trim();
+    if (!rawKey || rawKey.includes('•')) {
+      setPlayError('Enter your full API key (starting with wl_)');
+      return;
+    }
+    // Parse wallet addresses
+    const wallets = playWallets
+      .split(/[\n,]+/)
+      .map((w) => w.trim())
+      .filter((w) => /^0x[0-9a-fA-F]{40}$/.test(w));
+    if (wallets.length === 0) {
+      setPlayError('No valid wallet addresses found. Each address should start with 0x and be 42 characters.');
+      return;
+    }
+    setPlayLoading(true);
+    setPlayResult(null);
+    setPlayError(null);
+    const t0 = Date.now();
+    try {
+      const res = await fetch('/api/v1/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${rawKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ wallets, fresh: playFresh }),
+      });
+      const latencyMs = Date.now() - t0;
+      let body: unknown;
+      try { body = await res.json(); } catch { body = null; }
+      setPlayResult({ status: res.status, latencyMs, body });
+    } catch (e: unknown) {
+      setPlayError(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setPlayLoading(false);
     }
   };
 
@@ -689,6 +750,114 @@ const { data, meta } = await response.json();
                 </table>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ── Interactive playground ──────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-6">
+            <Zap className="size-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Try it</h2>
+            <span className="text-xs text-muted-foreground">— live batch lookup against the real API</span>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+            {/* API key input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">API key</label>
+              <Input
+                value={playKey}
+                onChange={(e) => setPlayKey(e.target.value)}
+                placeholder="wl_your_key_here"
+                className="font-mono text-sm"
+                type="password"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Uses your real key — counts against your plan credits.
+              </p>
+            </div>
+
+            {/* Wallets textarea */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Wallet addresses <span className="text-muted-foreground font-normal">(one per line or comma-separated)</span>
+              </label>
+              <textarea
+                value={playWallets}
+                onChange={(e) => setPlayWallets(e.target.value)}
+                rows={4}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+                placeholder={`0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\n0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B`}
+              />
+              <p className="text-xs text-muted-foreground">
+                {playWallets.split(/[\n,]+/).map((w) => w.trim()).filter((w) => /^0x[0-9a-fA-F]{40}$/.test(w)).length} valid address(es) detected
+              </p>
+            </div>
+
+            {/* Options row */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={playFresh}
+                  onChange={(e) => setPlayFresh(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Fresh lookup</span>
+                <span className="text-xs text-muted-foreground">(bypass cache)</span>
+              </label>
+              <Button
+                onClick={handlePlaygroundSend}
+                disabled={playLoading}
+                size="sm"
+                className="gap-1.5"
+              >
+                {playLoading ? (
+                  <RefreshCw className="size-3.5 animate-spin" />
+                ) : (
+                  <Play className="size-3.5" />
+                )}
+                {playLoading ? 'Sending…' : 'Send request'}
+              </Button>
+            </div>
+
+            {/* Error */}
+            {playError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {playError}
+              </div>
+            )}
+
+            {/* Result */}
+            {playResult && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span
+                    className={`font-mono font-semibold ${
+                      playResult.status >= 200 && playResult.status < 300
+                        ? 'text-green-500'
+                        : 'text-destructive'
+                    }`}
+                  >
+                    {playResult.status}
+                  </span>
+                  <span>{playResult.latencyMs}ms</span>
+                  {(() => {
+                    const meta = playResult.body && typeof playResult.body === 'object' && 'meta' in playResult.body
+                      ? (playResult.body as { meta: { found?: number; requested?: number } }).meta
+                      : null;
+                    return meta ? (
+                      <span>{meta.found ?? 0} / {meta.requested ?? 0} matched</span>
+                    ) : null;
+                  })()}
+                </div>
+                <CodeBlock
+                  lang="json"
+                  code={JSON.stringify(playResult.body, null, 2)}
+                />
+              </div>
+            )}
           </div>
         </section>
 
