@@ -185,6 +185,16 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-04-24
+
+**Added query-parameter reverse lookup endpoints**
+
+- **`GET /api/v1/reverse/twitter?handle=<handle>`**: Reverse lookup wallets by Twitter handle (1 credit, up to 10 results)
+- **`GET /api/v1/reverse/farcaster?username=<username>`**: Reverse lookup wallets by Farcaster username (1 credit, up to 10 results)
+- **`GET /api/v1/reverse/farcaster?fid=<fid>`**: Reverse lookup wallets by Farcaster FID (1 credit, up to 10 results)
+- Complements the existing path-param variants (`/reverse/twitter/[handle]`, `/reverse/farcaster/[username]`)
+- Returns structured data with wallet, ens_name, twitter, farcaster, and sources fields (nulls omitted)
+
 ### 2026-01-30
 
 **Enhanced batch lookup endpoint with fresh lookup option**
