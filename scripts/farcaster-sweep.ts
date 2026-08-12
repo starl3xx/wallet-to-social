@@ -17,6 +17,8 @@
  */
 
 import {
+  beginSeenTracking,
+  cleanupRevokedWallets,
   getMaxKnownFid,
   getNetworkMaxFid,
   sweepFidRange,
@@ -65,7 +67,15 @@ async function main() {
   const total = endFid - startFid + 1;
   console.log(`Sweeping FIDs ${startFid} → ${endFid} (${total.toLocaleString()} FIDs)`);
   const startTime = Date.now();
+  const sweepStartedAt = new Date();
   let lastLoggedAt = 0;
+
+  // Full sweeps see the entire network, so they can also detect revoked
+  // verifications: track every wallet seen, clean up the unseen afterwards
+  const isFull = mode === '--full';
+  if (isFull) {
+    await beginSeenTracking();
+  }
 
   const stats = await sweepFidRange(startFid, endFid, apiKey, (s, lastFid) => {
     const done = lastFid - startFid + 1;
@@ -81,13 +91,27 @@ async function main() {
           `${s.failedCalls} failed calls | ${elapsed}m elapsed`
       );
     }
-  });
+  }, { trackSeen: isFull });
 
   console.log('\nDone:', JSON.stringify(stats, null, 2));
   if (stats.failedCalls > 0) {
     console.warn(
       `${stats.failedCalls} API calls failed after retries — affected FID batches were skipped; re-run the range or wait for the next full sweep`
     );
+  }
+
+  if (isFull) {
+    if (stats.failedCalls === 0) {
+      // Only a complete, failure-free sweep may clear unseen wallets —
+      // wallets in a failed batch are absent from the seen table and would
+      // be wrongly treated as revoked
+      const cleanup = await cleanupRevokedWallets(sweepStartedAt);
+      console.log(
+        `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
+      );
+    } else {
+      console.warn('Skipping revocation cleanup — sweep had failed calls');
+    }
   }
 }
 

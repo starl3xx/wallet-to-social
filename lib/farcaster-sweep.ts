@@ -75,7 +75,13 @@ export async function getMaxKnownFid(): Promise<number> {
 export async function getNetworkMaxFid(apiKey: string, hint: number): Promise<number> {
   const exists = async (fid: number): Promise<boolean> => {
     const users = await fetchUserBatch([fid], apiKey);
-    return users !== null && users.length > 0;
+    if (users === null) {
+      // A failed probe must not read as "FID doesn't exist" — the binary
+      // search would converge below the real frontier and the sweep would
+      // silently skip the tail. Fail loudly; callers retry next run.
+      throw new Error(`Network max FID probe failed at fid ${fid}`);
+    }
+    return users.length > 0;
   };
 
   let low = Math.max(1, hint);
@@ -206,14 +212,87 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
 }
 
 /**
+ * Revocation handling: the sweep only ever upserts wallets CURRENTLY attached
+ * to a FID, so a wallet whose verification was removed would keep its stale
+ * farcaster mapping forever (and keep appearing in reverse lookups). Full
+ * sweeps therefore track every wallet they see in a scratch table; after a
+ * clean, complete sweep, pure-sweep rows that were NOT seen get their
+ * Farcaster fields cleared.
+ */
+export async function beginSeenTracking(): Promise<void> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+  await db.execute(
+    sql`CREATE UNLOGGED TABLE IF NOT EXISTS farcaster_sweep_seen (wallet text PRIMARY KEY)`
+  );
+  await db.execute(sql`TRUNCATE farcaster_sweep_seen`);
+}
+
+/**
+ * Clear Farcaster fields on rows the completed full sweep did not see.
+ *
+ * Only safe after a COMPLETE sweep with zero failed calls — wallets in a
+ * failed batch would be absent from the seen table and wrongly cleared, so
+ * callers must check stats.failedCalls first.
+ *
+ * Guards:
+ *  - only pure sweep rows: Farcaster evidence from a real lookup ('neynar')
+ *    or an admin ('manual') is left for the staleness refresh path to correct
+ *  - only rows untouched since the sweep started: an incremental cron run
+ *    that raced this sweep writes fresh last_updated_at and is protected
+ *
+ * Rows left with no socials, no sources, and no full-pipeline check are
+ * deleted outright rather than kept as empty husks.
+ */
+export async function cleanupRevokedWallets(
+  sweepStartedAt: Date
+): Promise<{ cleared: number; deleted: number }> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+
+  const cleared = await db.execute(sql`
+    UPDATE social_graph
+    SET farcaster = NULL,
+        farcaster_url = NULL,
+        fc_fid = NULL,
+        fc_followers = NULL,
+        farcaster_verified = false,
+        sources = array_remove(sources, 'farcaster_sweep'),
+        last_updated_at = now()
+    WHERE 'farcaster_sweep' = ANY(sources)
+      AND NOT (sources && ARRAY['neynar', 'manual'])
+      AND last_updated_at < ${sweepStartedAt}
+      AND wallet NOT IN (SELECT wallet FROM farcaster_sweep_seen)
+  `);
+
+  const deleted = await db.execute(sql`
+    DELETE FROM social_graph
+    WHERE twitter_handle IS NULL AND farcaster IS NULL AND ens_name IS NULL
+      AND lens IS NULL AND github IS NULL
+      AND last_checked_at IS NULL
+      AND (sources IS NULL OR sources = '{}')
+  `);
+
+  await db.execute(sql`TRUNCATE farcaster_sweep_seen`);
+
+  return {
+    cleared: (cleared as unknown as { rowCount?: number }).rowCount ?? 0,
+    deleted: (deleted as unknown as { rowCount?: number }).rowCount ?? 0,
+  };
+}
+
+/**
  * Sweep a FID range [startFid, endFid] and ingest every attached ETH address.
  * Paced for the free tier's 600 RPM. onProgress fires per completed round.
+ * trackSeen records every wallet into farcaster_sweep_seen for the
+ * post-full-sweep revocation cleanup.
  */
 export async function sweepFidRange(
   startFid: number,
   endFid: number,
   apiKey: string,
-  onProgress?: (stats: SweepStats, lastFid: number) => void
+  onProgress?: (stats: SweepStats, lastFid: number) => void,
+  opts?: { trackSeen?: boolean }
 ): Promise<SweepStats> {
   const stats: SweepStats = {
     fidsRequested: 0,
@@ -254,6 +333,20 @@ export async function sweepFidRange(
     const rows = usersToRows(users);
     stats.fidsWithEthAddress += new Set(rows.map((r) => r.fcFid)).size;
     stats.walletsUpserted += await upsertSweepRows(rows);
+
+    if (opts?.trackSeen && rows.length > 0) {
+      const db = getDb();
+      if (db) {
+        const wallets = Array.from(new Set(rows.map((r) => r.wallet)));
+        // Explicit VALUES rows — drizzle binds a JS array as a ($1, $2, …)
+        // record, which Postgres can't cast to text[]
+        await db.execute(sql`
+          INSERT INTO farcaster_sweep_seen (wallet)
+          VALUES ${sql.join(wallets.map((w) => sql`(${w})`), sql`, `)}
+          ON CONFLICT DO NOTHING
+        `);
+      }
+    }
 
     onProgress?.(stats, round[round.length - 1][round[round.length - 1].length - 1]);
 

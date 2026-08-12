@@ -508,9 +508,14 @@ function calculateQualityScore(
       case 'manual': // Admin-verified data
         score += 35;
         break;
-      case 'farcaster_sweep': // Protocol-wide bulk ingest — same data as Neynar,
-        score += 25; //          but the wallet was never checked for Twitter,
-        break; //                so alone it must stay below the 70 trust line
+      case 'farcaster_sweep':
+        // Protocol-wide bulk ingest — the same underlying data as 'neynar',
+        // so it must not stack with it: farcaster(20) + neynar(25) +
+        // sweep(25) = 70 would cross the trust line and mark a wallet
+        // "fully known" when only its Farcaster side was ever checked
+        // (e.g. a fast-mode lookup that skipped Web3Bio).
+        if (!sources.includes('neynar')) score += 25;
+        break;
       default:
         score += 5; // Unknown sources get minimal credit
     }
