@@ -49,7 +49,15 @@ function createTimeoutController(timeoutMs: number): {
 }
 
 export async function fetchWeb3BioProfile(
-  walletOrEns: string
+  walletOrEns: string,
+  opts?: {
+    /**
+     * Called when the request failed (timeout, 429, 5xx) rather than the
+     * profile genuinely not existing (404). Both return null, so without this
+     * signal callers can't tell "no profile" from "check never completed".
+     */
+    onFailure?: () => void;
+  }
 ): Promise<Web3BioProfile[] | null> {
   const { controller, cleanup } = createTimeoutController(API_TIMEOUT_MS);
 
@@ -85,6 +93,7 @@ export async function fetchWeb3BioProfile(
     } else {
       console.error(`Error fetching Web3.bio profile for ${walletOrEns}:`, error);
     }
+    opts?.onFailure?.();
     return null;
   } finally {
     cleanup();
@@ -154,7 +163,11 @@ export function parseWeb3BioProfiles(
 export async function batchFetchWeb3Bio(
   wallets: string[],
   onProgress?: (processed: number, found: number) => void,
-  jobId?: string
+  jobId?: string,
+  opts?: {
+    /** Populated with wallets whose fetch failed rather than 404'd. */
+    failedWallets?: Set<string>;
+  }
 ): Promise<Map<string, Web3BioResult>> {
   const results = new Map<string, Web3BioResult>();
   let processed = 0;
@@ -167,7 +180,12 @@ export async function batchFetchWeb3Bio(
     const batch = wallets.slice(i, i + MAX_CONCURRENT);
 
     const batchPromises = batch.map(async (wallet) => {
-      const profiles = await fetchWeb3BioProfile(wallet);
+      const profiles = await fetchWeb3BioProfile(wallet, {
+        onFailure: () => {
+          errorCount++;
+          opts?.failedWallets?.add(wallet.toLowerCase());
+        },
+      });
       const parsed = parseWeb3BioProfiles(profiles, wallet);
 
       if (parsed) {

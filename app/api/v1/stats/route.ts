@@ -45,7 +45,10 @@ export async function GET(request: NextRequest) {
 
   const [stats] = await db
     .select({
-      totalWallets: sql<number>`COUNT(*)::int`,
+      // Positive rows only — persisted negatives ("checked, no socials") would
+      // otherwise inflate the denominator customers compute coverage against
+      totalWallets: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL OR ${socialGraph.github} IS NOT NULL)::int`,
+      walletsChecked: sql<number>`COUNT(*)::int`,
       withTwitter: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL)::int`,
       withFarcaster: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.farcaster} IS NOT NULL)::int`,
       withEns: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.ensName} IS NOT NULL)::int`,
@@ -71,6 +74,7 @@ export async function GET(request: NextRequest) {
     {
       data: {
         total_wallets: stats?.totalWallets ?? 0,
+        wallets_checked: stats?.walletsChecked ?? 0,
         coverage: {
           twitter: stats?.withTwitter ?? 0,
           farcaster: stats?.withFarcaster ?? 0,

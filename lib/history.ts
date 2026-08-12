@@ -265,12 +265,17 @@ export async function getEnrichmentCounts(
         continue;
       }
 
-      // Count wallets in social_graph updated after lastViewedAt
+      // Count wallets in social_graph updated after lastViewedAt. The
+      // has-social clause keeps negative re-checks (which bump last_updated_at
+      // without adding data) from showing as "new matches"
       const [countResult] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(socialGraph)
         .where(
-          sql`${socialGraph.wallet} IN ${wallets} AND ${socialGraph.lastUpdatedAt} > ${lookup.lastViewedAt}`
+          sql`${socialGraph.wallet} IN ${wallets} AND ${socialGraph.lastUpdatedAt} > ${lookup.lastViewedAt}
+              AND (${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL
+                   OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL
+                   OR ${socialGraph.github} IS NOT NULL)`
         );
 
       result.set(lookup.id, countResult?.count || 0);

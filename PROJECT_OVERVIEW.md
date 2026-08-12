@@ -103,12 +103,14 @@ Parse wallets + detect holdings column (lib/csv-parser.ts)
 Create background job (POST /api/jobs)
     ↓
 Job processor runs (lib/job-processor.ts):
-    1. Check wallet_cache (24h TTL)
-    2. Run Neynar batch API (fast - 200 wallets/request)
-    3. Run Web3Bio for wallets without Twitter (slow - 1 request/wallet)
-    4. Optional: ENS onchain lookups
-    5. Enrich from social_graph (permanent storage)
-    6. Cache results, persist positive results to social_graph
+    1. Check social_graph FIRST — high-quality fresh rows and persisted
+       negatives ("checked, no socials", trusted for 30 days) skip all APIs
+    2. Check wallet_cache (7-day TTL, includes short-term negatives)
+    3. Run Neynar batch API (fast - 200 wallets/request)
+    4. Run Web3Bio for wallets without Twitter (slow - 1 request/wallet)
+    5. Optional: ENS onchain lookups
+    6. Cache results; persist positives AND negatives to social_graph
+       (negatives only when the full pipeline ran and no API call failed)
     ↓
 Frontend polls /api/jobs/[id] for progress
     ↓
@@ -125,8 +127,8 @@ Export to CSV or Twitter list
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
-| `wallet_cache` | 24h TTL cache for API results | wallet, twitter_handle, farcaster, ens_name, cached_at |
-| `social_graph` | Permanent storage of all discovered social links | wallet, twitter_handle, farcaster, fc_followers, sources[], first_seen_at |
+| `wallet_cache` | 7-day TTL cache for API results | wallet, twitter_handle, farcaster, ens_name, cached_at |
+| `social_graph` | Permanent storage of every checked wallet — positive rows carry socials; negative rows (all socials NULL, sources=['none']) mean "checked, nothing found" and suppress re-checks for 30 days | wallet, twitter_handle, farcaster, fc_followers, sources[], first_seen_at, last_checked_at |
 | `lookup_jobs` | Background job queue | status, wallets[], processed_count, partial_results, twitter_found |
 | `lookup_history` | Saved lookup sessions | user_id, wallet_count, results (JSONB), input_source |
 | `users` | User accounts and tiers | email, tier, stripe_customer_id, wallets_used |

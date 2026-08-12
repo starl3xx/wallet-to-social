@@ -13,6 +13,8 @@ function isAuthorized(request: NextRequest): boolean {
 }
 
 export interface SocialGraphHealthMetrics {
+  /** Persisted negatives: wallets checked with no socials found */
+  negativeRecordCount: number;
   // Overall statistics
   totalRecords: number;
   recordsWithTwitter: number;
@@ -66,19 +68,25 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Overall statistics - use COUNT aggregates for efficiency
+    // Overall statistics - use COUNT aggregates for efficiency.
+    // Quality/staleness metrics are scoped to positive rows — persisted
+    // negatives (checked, no socials found) are healthy rows doing their job,
+    // not low-quality or stale data, so they get their own counter instead of
+    // dragging every health metric down as they accumulate.
+    const hasSocials = sql`(${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL OR ${socialGraph.github} IS NOT NULL)`;
     const overallStats = await db
       .select({
-        totalRecords: sql<number>`COUNT(*)::int`,
+        totalRecords: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials})::int`,
+        negativeRecordCount: sql<number>`COUNT(*) FILTER (WHERE NOT ${hasSocials})::int`,
         recordsWithTwitter: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL)::int`,
         recordsWithFarcaster: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.farcaster} IS NOT NULL)::int`,
         verifiedTwitterCount: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterVerified} = true)::int`,
         verifiedFarcasterCount: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.farcasterVerified} = true)::int`,
-        highQualityCount: sql<number>`COUNT(*) FILTER (WHERE COALESCE(${socialGraph.dataQualityScore}, 0) >= 70)::int`,
-        mediumQualityCount: sql<number>`COUNT(*) FILTER (WHERE COALESCE(${socialGraph.dataQualityScore}, 0) >= 40 AND COALESCE(${socialGraph.dataQualityScore}, 0) < 70)::int`,
-        lowQualityCount: sql<number>`COUNT(*) FILTER (WHERE COALESCE(${socialGraph.dataQualityScore}, 0) < 40)::int`,
-        staleRecordCount: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.staleAt} < ${now})::int`,
-        freshRecordCount: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.staleAt} >= ${now} OR ${socialGraph.staleAt} IS NULL)::int`,
+        highQualityCount: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials} AND COALESCE(${socialGraph.dataQualityScore}, 0) >= 70)::int`,
+        mediumQualityCount: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials} AND COALESCE(${socialGraph.dataQualityScore}, 0) >= 40 AND COALESCE(${socialGraph.dataQualityScore}, 0) < 70)::int`,
+        lowQualityCount: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials} AND COALESCE(${socialGraph.dataQualityScore}, 0) < 40)::int`,
+        staleRecordCount: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials} AND ${socialGraph.staleAt} < ${now})::int`,
+        freshRecordCount: sql<number>`COUNT(*) FILTER (WHERE ${hasSocials} AND (${socialGraph.staleAt} >= ${now} OR ${socialGraph.staleAt} IS NULL))::int`,
       })
       .from(socialGraph);
 
@@ -149,7 +157,9 @@ export async function GET(request: NextRequest) {
         sources: socialGraph.sources,
       })
       .from(socialGraph)
-      .where(isNotNull(socialGraph.sources))
+      // Positive rows only — negatives carry sources ['none'] and would both
+      // pollute the distribution and dilute the sample
+      .where(and(isNotNull(socialGraph.sources), sql`${hasSocials}`))
       .limit(10000); // Sample for performance
 
     const sourceDistribution: Record<string, number> = {};
@@ -163,6 +173,7 @@ export async function GET(request: NextRequest) {
 
     const metrics: SocialGraphHealthMetrics = {
       totalRecords: stats?.totalRecords ?? 0,
+      negativeRecordCount: stats?.negativeRecordCount ?? 0,
       recordsWithTwitter: stats?.recordsWithTwitter ?? 0,
       recordsWithFarcaster: stats?.recordsWithFarcaster ?? 0,
 

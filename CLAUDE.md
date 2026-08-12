@@ -23,12 +23,14 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 1. User uploads CSV with wallet addresses → `lib/csv-parser.ts` extracts wallets and detects holdings columns
 2. Frontend (`app/page.tsx`) calls `/api/lookup` with wallets and options
 3. API route streams SSE progress events back to client while processing:
-   - Check `wallet_cache` table (24h TTL)
+   - Check `social_graph` first — high-quality fresh rows AND persisted
+     negatives ("checked, no socials", trusted 30 days) skip all API calls
+   - Check `wallet_cache` table (7-day TTL, includes negative entries)
    - Fetch uncached wallets from Web3.bio API (`lib/web3bio.ts`)
    - Fetch Farcaster data from Neynar API (`lib/neynar.ts`)
    - Optionally query ENS text records onchain (`lib/ens.ts`)
-   - Enrich from `social_graph` table (permanent storage)
-   - Cache new results, persist positive results to social graph
+   - Cache new results; persist positives and negatives to social graph
+     (negatives only when the full pipeline ran without API failures)
 4. Results displayed in `ResultsTable` with sorting, filtering, and export options
 
 ### Database Schema (Drizzle + Neon PostgreSQL)

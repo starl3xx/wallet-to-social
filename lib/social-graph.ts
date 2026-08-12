@@ -6,11 +6,17 @@ import {
   type NewSocialGraph,
   type NewSocialGraphHistory,
 } from '@/db';
-import { inArray, sql, gt, lt, and, isNotNull } from 'drizzle-orm';
+import { inArray, sql, gt, lt, and, or, isNotNull } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
 // Default staleness period in days
 const STALE_AFTER_DAYS = 30;
+
+// How long a persisted negative ("checked, no socials found") suppresses
+// re-checking. Wallets rarely gain a first social profile week to week, and a
+// wrong negative self-heals at the window boundary, so a month is a reasonable
+// trade between API spend and freshness.
+const NEGATIVE_RECHECK_DAYS = 30;
 
 // Retry configuration for robust writes
 const DEFAULT_MAX_RETRIES = 3;
@@ -20,7 +26,9 @@ const BASE_RETRY_DELAY_MS = 1000; // 1 second
 // Quality Classification Types
 // ============================================================================
 
-export type DataQuality = 'high' | 'medium' | 'low' | 'stale' | 'missing';
+// 'negative' means the wallet was checked recently and has no socials — trusted
+// like 'high', but the trusted answer is "nothing here".
+export type DataQuality = 'high' | 'medium' | 'low' | 'stale' | 'missing' | 'negative';
 
 export interface SocialGraphQualityResult {
   wallet: string;
@@ -78,8 +86,11 @@ export async function getSocialGraphWithQuality(
     for (const record of rows) {
       const quality = classifyQuality(record, now);
       const isStale = record.staleAt != null && record.staleAt < now;
-      // High-quality stale records are served but flagged for background refresh
-      const needsRefresh = quality === 'stale' || quality === 'low' || quality === 'missing' || isStale;
+      // High-quality stale records are served but flagged for background refresh.
+      // Fresh negatives never need refresh — expired ones classify as 'stale'.
+      const needsRefresh =
+        quality !== 'negative' &&
+        (quality === 'stale' || quality === 'low' || quality === 'missing' || isStale);
 
       results.set(record.wallet, {
         wallet: record.wallet,
@@ -104,6 +115,19 @@ export async function getSocialGraphWithQuality(
  */
 function classifyQuality(record: SocialGraph, now: Date): DataQuality {
   const isStale = record.staleAt != null && record.staleAt < now;
+
+  // Persisted negative: checked before, no socials found. Trust it while the
+  // recheck window is open; after that, treat as stale so it re-resolves.
+  if (!recordHasAnySocial(record)) {
+    const checkedAt = record.lastCheckedAt;
+    if (
+      checkedAt != null &&
+      now.getTime() - checkedAt.getTime() < NEGATIVE_RECHECK_DAYS * 24 * 60 * 60 * 1000
+    ) {
+      return 'negative';
+    }
+    return 'stale';
+  }
 
   // High quality: score >= 70 (verified sources like ENS onchain, Neynar, manual)
   // Serve even when stale — needsRefresh will trigger a background refresh
@@ -145,7 +169,10 @@ export async function getStaleWallets(
       .where(
         and(
           lt(socialGraph.staleAt, now),
-          gt(socialGraph.lookupCount, minLookupCount)
+          gt(socialGraph.lookupCount, minLookupCount),
+          // Never spend refresh-cron slots on persisted negatives — those
+          // re-resolve on their own recheck window when actually looked up
+          hasAnySocialSql()
         )
       )
       .orderBy(socialGraph.lookupCount)
@@ -292,6 +319,7 @@ async function upsertSocialGraphWithTransaction(
             farcasterVerified: sql`EXCLUDED.farcaster_verified OR ${socialGraph.farcasterVerified}`,
             dataQualityScore: sql`GREATEST(EXCLUDED.data_quality_score, ${socialGraph.dataQualityScore})`,
             lastVerificationAt: sql`EXCLUDED.last_verification_at`,
+            lastCheckedAt: sql`EXCLUDED.last_checked_at`,
             staleAt: sql`EXCLUDED.stale_at`,
             // Agent fields — use OR for booleans (COALESCE doesn't work since false is non-null)
             isAgent: sql`EXCLUDED.is_agent OR ${socialGraph.isAgent}`,
@@ -433,6 +461,7 @@ function prepareUpsertData(
       farcasterVerified,
       dataQualityScore: qualityScore,
       lastVerificationAt: new Date(),
+      lastCheckedAt: new Date(),
       staleAt: calculateStaleAt(),
       // Agent fields — use || for booleans so false doesn't shadow a prior true
       isAgent: r.is_agent || prev?.isAgent || false,
@@ -586,9 +615,14 @@ async function logHistoryChanges(
 }
 
 /**
- * Check if a result has at least one social account worth storing
+ * Check if a result has at least one social account worth storing.
+ *
+ * This predicate exists in three shapes (result-level, record-level, SQL) so
+ * every reader and writer agrees on what counts as a positive row. Negative
+ * rows — persisted "checked, nothing found" markers — are exactly the rows
+ * these return false for. Keep the field sets identical.
  */
-function hasAnySocialAccount(result: WalletSocialResult): boolean {
+export function hasAnySocialAccount(result: WalletSocialResult): boolean {
   return !!(
     result.twitter_handle ||
     result.farcaster ||
@@ -596,6 +630,75 @@ function hasAnySocialAccount(result: WalletSocialResult): boolean {
     result.github ||
     result.ens_name
   );
+}
+
+/** Same predicate for a social_graph row. */
+export function recordHasAnySocial(record: SocialGraph): boolean {
+  return !!(
+    record.twitterHandle ||
+    record.farcaster ||
+    record.lens ||
+    record.github ||
+    record.ensName
+  );
+}
+
+/** Same predicate as a SQL condition for drizzle where clauses. */
+export function hasAnySocialSql() {
+  return or(
+    isNotNull(socialGraph.twitterHandle),
+    isNotNull(socialGraph.farcaster),
+    isNotNull(socialGraph.lens),
+    isNotNull(socialGraph.github),
+    isNotNull(socialGraph.ensName)
+  );
+}
+
+/**
+ * Persist negative results: wallets that went through the full external
+ * pipeline and came back with no socials. Storing that costs one row; NOT
+ * storing it means re-buying the same API calls every time the wallet shows
+ * up in a list (roughly 80% of a typical holder list resolves to nothing).
+ *
+ * Never touches social columns on conflict, so a negative re-check can't
+ * erase an existing positive row — it only refreshes last_checked_at.
+ */
+export async function upsertNegativeWallets(wallets: string[]): Promise<number> {
+  const db = getDb();
+  if (!db || wallets.length === 0) return 0;
+
+  const now = new Date();
+  let upserted = 0;
+
+  for (let i = 0; i < wallets.length; i += 100) {
+    const batch = wallets.slice(i, i + 100).map((w) => ({
+      wallet: w.toLowerCase(),
+      sources: ['none'],
+      dataQualityScore: 0,
+      lastCheckedAt: now,
+      lastUpdatedAt: now,
+    }));
+
+    try {
+      await db
+        .insert(socialGraph)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: socialGraph.wallet,
+          set: {
+            lastCheckedAt: sql`EXCLUDED.last_checked_at`,
+            lastUpdatedAt: sql`EXCLUDED.last_updated_at`,
+            lookupCount: sql`${socialGraph.lookupCount} + 1`,
+          },
+        });
+      upserted += batch.length;
+    } catch (error) {
+      // Non-fatal: a missed negative just means one redundant API call later
+      console.error('Negative wallet upsert error:', error);
+    }
+  }
+
+  return upserted;
 }
 
 /**
@@ -609,9 +712,14 @@ function mergeSources(
     ...(existingSources ?? []),
     ...(newSources ?? []),
   ]);
-  // Remove 'cache' and 'graph' from permanent storage - only track actual API sources
+  // Remove 'cache' and 'graph' from permanent storage - only track actual API
+  // sources. 'none'/'graph:none' are negative markers — once a wallet gains
+  // socials they'd otherwise leak into the positive row's sources (and give
+  // calculateQualityScore an unearned bonus).
   combined.delete('cache');
   combined.delete('graph');
+  combined.delete('none');
+  combined.delete('graph:none');
   return Array.from(combined);
 }
 
@@ -775,6 +883,7 @@ export async function upsertManualSocialGraph(
       farcasterVerified: !!newFarcaster,
       dataQualityScore: 100, // Manual verification = highest confidence
       lastVerificationAt: new Date(),
+      lastCheckedAt: new Date(),
       staleAt: calculateStaleAt(),
     };
 
@@ -797,6 +906,7 @@ export async function upsertManualSocialGraph(
           farcasterVerified: sql`EXCLUDED.farcaster_verified OR ${socialGraph.farcasterVerified}`,
           dataQualityScore: sql`100`,
           lastVerificationAt: sql`EXCLUDED.last_verification_at`,
+          lastCheckedAt: sql`EXCLUDED.last_checked_at`,
           staleAt: sql`EXCLUDED.stale_at`,
         },
       })
@@ -835,7 +945,12 @@ export async function getEnrichedWalletsSince(
       .select({ wallet: socialGraph.wallet })
       .from(socialGraph)
       .where(
-        sql`${socialGraph.wallet} IN ${lowercaseWallets} AND ${socialGraph.lastUpdatedAt} > ${since}`
+        // The has-social clause keeps negative re-checks (which bump
+        // last_updated_at without adding data) out of "new matches" badges
+        sql`${socialGraph.wallet} IN ${lowercaseWallets} AND ${socialGraph.lastUpdatedAt} > ${since}
+            AND (${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL
+                 OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL
+                 OR ${socialGraph.github} IS NOT NULL)`
       );
 
     return rows.map((r) => r.wallet);
@@ -918,7 +1033,9 @@ export async function getSocialGraphStats(): Promise<{
     // This is ~99% faster for tables with 100K+ rows
     const result = await db
       .select({
-        totalWallets: sql<number>`COUNT(*)::int`,
+        // Only positive rows — persisted negatives would otherwise inflate
+        // the denominator every coverage ratio is computed against
+        totalWallets: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL OR ${socialGraph.github} IS NOT NULL)::int`,
         withTwitter: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL)::int`,
         withFarcaster: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.farcaster} IS NOT NULL)::int`,
         withLens: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.lens} IS NOT NULL)::int`,

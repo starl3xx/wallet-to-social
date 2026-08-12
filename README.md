@@ -179,6 +179,27 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12 (negative-result persistence)
+
+**Stop re-buying API calls for wallets known to have no socials**
+
+- `social_graph` now persists negative results: wallets that completed the full
+  external pipeline with nothing found get a row (all socials NULL,
+  `sources=['none']`) with a new `last_checked_at` column. Repeat lookups skip
+  all paid API calls for 30 days. Previously this knowledge lived only in the
+  7-day `wallet_cache` — the graph held ~5k positives out of ~86k wallets ever
+  checked, so ~80% of every repeat list was re-purchased.
+- False-negative protection: `batchFetchNeynar`/`batchFetchWeb3Bio` now report
+  failed wallets (timeouts, 429s, 5xx) separately from genuine not-founds, and
+  failures are never persisted as negatives. Fast-mode and Neynar-disabled runs
+  don't persist negatives either (incomplete pipeline).
+- All `social_graph` readers updated for rows without socials: v1 API
+  wallet/batch report `found: false` (with `checked_at` to distinguish
+  "never seen"), stats/analytics denominators count positives only, the
+  refresh-stale cron skips negatives, and "new matches" badges ignore
+  negative re-checks.
+- Migration: `scripts/migrate-negative-persistence.ts` (applied 2026-08-12).
+
 ### 2026-08-12 (later)
 
 **Pricing and packaging changes**

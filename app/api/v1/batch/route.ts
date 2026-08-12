@@ -149,7 +149,17 @@ export async function POST(request: NextRequest) {
 
   for (const wallet of uniqueWallets) {
     const result = resultMap.get(wallet);
-    if (!result) {
+    // Persisted negatives (rows with no socials) are "not found" to API
+    // consumers — same null as a wallet we have never seen
+    const hasSocials = !!(
+      result &&
+      (result.twitterHandle ||
+        result.farcaster ||
+        result.ensName ||
+        result.lens ||
+        result.github)
+    );
+    if (!result || !hasSocials) {
       data.push(null);
       continue;
     }

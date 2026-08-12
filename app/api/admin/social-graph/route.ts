@@ -28,6 +28,18 @@ export async function GET(request: NextRequest) {
     // If wallet provided, search for it
     if (wallet) {
       const data = await getSocialGraphWallet(wallet);
+      // A persisted negative (row with no socials) renders as "no existing
+      // data" in the admin UI, with checked_at so the state is visible
+      const hasSocials = !!(
+        data &&
+        (data.twitterHandle || data.farcaster || data.ensName || data.lens || data.github)
+      );
+      if (data && !hasSocials) {
+        return NextResponse.json({
+          wallet: null,
+          checked_at: data.lastCheckedAt?.toISOString() ?? null,
+        });
+      }
       return NextResponse.json({ wallet: data });
     }
 
