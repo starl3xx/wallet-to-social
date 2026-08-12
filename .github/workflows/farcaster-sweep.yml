@@ -1,0 +1,47 @@
+# Monthly full Farcaster sweep: re-ingests every FID's verified wallets into
+# social_graph, catching what the daily incremental cron can't — new
+# verifications on existing FIDs, handle changes, follower counts, revocations.
+#
+# ~33k Neynar API calls ≈ 1 hour at free-tier pacing (600 RPM), ~3.3M of the
+# free tier's 10M monthly credits.
+#
+# Required repository secrets: DATABASE_URL, NEYNAR_API_KEY
+name: farcaster-full-sweep
+
+on:
+  schedule:
+    - cron: '0 6 2 * *' # 06:00 UTC on the 2nd of each month
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sweep mode'
+        required: false
+        default: '--full'
+        type: choice
+        options:
+          - '--full'
+          - '--incremental'
+
+# Never run two sweeps at once — a second run's revocation cleanup could
+# interact badly with the first's writes
+concurrency:
+  group: farcaster-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Measured locally: ~115 min for the full network at current pacing.
+    # 350 leaves headroom for slower runners and network growth (job max 360).
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/farcaster-sweep.ts ${{ inputs.mode || '--full' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
