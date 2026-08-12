@@ -396,6 +396,15 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
 // How many novel candidates to try before giving up on a chain for the day
 const MAX_ATTEMPTS_PER_SLOT = 3;
 
+// Worst-case time for one seed attempt: contract-type detection + token info
+// (15s timeouts each) + holder fetch (30s) + DB writes. An attempt only
+// starts if this much budget remains.
+const ATTEMPT_RESERVE_MS = 70_000;
+
+// A slot additionally needs its discovery calls (two 15s-timeout fetches)
+// before any attempt can start
+const SLOT_RESERVE_MS = ATTEMPT_RESERVE_MS + 35_000;
+
 /**
  * Try novel candidates in rank order until one seeds successfully. Every
  * attempt — success or failure — is recorded first, so a broken contract
@@ -421,9 +430,9 @@ async function seedFirstViable(
 
   let lastError = '';
   for (const candidate of novel.slice(0, MAX_ATTEMPTS_PER_SLOT)) {
-    // Leave room for one holder fetch (30s timeout) plus writes — a slot
-    // must not eat the whole run's budget retrying on a degraded-API day
-    if (Date.now() > deadline - 40_000) {
+    // A slot must not eat the whole run's budget retrying on a
+    // degraded-API day — only start an attempt it can finish
+    if (Date.now() > deadline - ATTEMPT_RESERVE_MS) {
       return {
         contract: { address: '?', chain, kind, label: 'time budget exhausted' },
         holdersImported: 0,
@@ -458,8 +467,21 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   // never be the one starved when earlier slots burn the time budget
   const chains: SupportedChain[] = ['robinhood', 'base', 'ethereum'];
 
+  const budgetExhausted = (chain: SupportedChain, kind: 'nft' | 'erc20'): SeedRunResult => ({
+    contract: { address: '?', chain, kind, label: 'time budget exhausted' },
+    holdersImported: 0,
+    totalHolders: 0,
+    jobId: null,
+    error: 'time budget exhausted',
+  });
+
   for (const chain of chains) {
-    // NFT collection
+    // NFT collection — discovery itself costs 15s-timeout fetches, so skip
+    // the whole slot when the remaining budget can't cover discovery + seed
+    if (Date.now() > deadline - SLOT_RESERVE_MS) {
+      results.push(budgetExhausted(chain, 'nft'));
+      continue;
+    }
     try {
       const nftCandidates = await discoverNftCandidates(chain);
       results.push(await seedFirstViable(nftCandidates, chain, 'nft', deadline));
@@ -475,6 +497,10 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
 
     // Token (not available on Robinhood)
     if (chain !== 'robinhood') {
+      if (Date.now() > deadline - SLOT_RESERVE_MS) {
+        results.push(budgetExhausted(chain, 'erc20'));
+        continue;
+      }
       try {
         const tokenCandidates = await discoverTokenCandidates(chain);
         results.push(await seedFirstViable(tokenCandidates, chain, 'erc20', deadline));
