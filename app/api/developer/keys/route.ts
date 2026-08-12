@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, apiPlans } from '@/db/schema';
 import { createApiKey, listApiKeys } from '@/lib/api-keys';
+import { requireDeveloperAccess } from '@/lib/developer-auth';
 
 export const runtime = 'nodejs';
 
@@ -11,14 +12,11 @@ export const runtime = 'nodejs';
  * List all API keys for a user
  */
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get('email');
+  const requested = request.nextUrl.searchParams.get('email');
 
-  if (!email) {
-    return NextResponse.json(
-      { error: 'Email parameter required' },
-      { status: 400 }
-    );
-  }
+  const auth = await requireDeveloperAccess(requested);
+  if (!auth.ok) return auth.response;
+  const email = auth.identity.email;
 
   const db = getDb();
   if (!db) {
@@ -76,11 +74,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { email, name, plan } = body;
+  const { email: requested, name, plan } = body;
 
-  if (!email || !name || !plan) {
+  const auth = await requireDeveloperAccess(requested);
+  if (!auth.ok) return auth.response;
+  const email = auth.identity.email;
+
+  if (!name || !plan) {
     return NextResponse.json(
-      { error: 'Missing required fields: email, name, plan' },
+      { error: 'Missing required fields: name, plan' },
       { status: 400 }
     );
   }
@@ -107,23 +109,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Get or create user
-  let [user] = await db
+  // Look up the session's own account
+  const [user] = await db
     .select()
     .from(users)
     .where(eq(users.email, email.toLowerCase()))
     .limit(1);
 
   if (!user) {
-    // Create user if doesn't exist
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email: email.toLowerCase(),
-        tier: 'free',
-      })
-      .returning();
-    user = newUser;
+    // Previously this created an account for whatever email was posted, which
+    // was how an anonymous caller could mint a key for an address they did not
+    // own. A session is now required, so the account must already exist.
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Create API key
