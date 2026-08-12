@@ -23,7 +23,7 @@ interface UpgradeModalProps {
 
 const FEATURES = {
   free: [
-    'Up to 1,000 wallets/lookup',
+    'Up to 500 wallets/lookup',
     'Basic data sources',
     'Basic CSV export',
     'Twitter/Farcaster handles',
@@ -121,7 +121,7 @@ export function UpgradeModal({
           <ModalTitle className="text-2xl">Upgrade your plan</ModalTitle>
           <ModalDescription>
             {walletCount
-              ? `Your file has ${walletCount.toLocaleString()} wallets. ${currentTier === 'free' ? 'Free tier is limited to 1,000 wallets.' : ''}`
+              ? `Your file has ${walletCount.toLocaleString()} wallets. ${currentTier === 'free' ? 'Free tier is limited to 500 wallets.' : ''}`
               : 'Get access to more wallets and premium features.'}
           </ModalDescription>
         </ModalHeader>
@@ -143,7 +143,7 @@ export function UpgradeModal({
           </div>
 
           {/* Pricing cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {/* Pro tier */}
             <div className="rounded-lg border p-4 space-y-4">
               <div>

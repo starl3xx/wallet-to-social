@@ -316,7 +316,7 @@ export default function CookieComparison() {
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-4 gap-4 text-sm">
+              <div className="grid sm:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
@@ -382,7 +382,7 @@ export default function CookieComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 1,000 wallets, no credit card
+              Try walletlink.social free - 500 wallets, no credit card
               required.
             </p>
             <Link

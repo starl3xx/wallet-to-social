@@ -85,7 +85,7 @@ const jsonLd = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: 'Up to 1,000 wallets per lookup',
+      description: 'Up to 500 wallets per lookup',
     },
     {
       '@type': 'Offer',

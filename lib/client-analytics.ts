@@ -28,17 +28,27 @@ export async function trackClientEvent(
   try {
     const userId = getUserId();
     const sessionId = getSessionId();
+    const body = JSON.stringify({ eventType, userId, sessionId, metadata });
+
+    // `keepalive` matters for events fired immediately before navigating away —
+    // checkout_redirected is sent and then window.location.href is set, and a
+    // plain fetch is commonly aborted on unload, which would lose exactly the
+    // event we added to tell "reached Stripe" apart from "checkout errored".
+    // sendBeacon is preferred where available since it is designed for this.
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const queued = navigator.sendBeacon(
+        '/api/analytics/track',
+        new Blob([body], { type: 'application/json' }),
+      );
+      if (queued) return;
+    }
 
     // Fire and forget - don't await
     fetch('/api/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        eventType,
-        userId,
-        sessionId,
-        metadata,
-      }),
+      body,
+      keepalive: true,
     }).catch(() => {
       // Silently ignore errors
     });

@@ -341,7 +341,7 @@ export default function BlazeComparison() {
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-4 gap-4 text-sm">
+              <div className="grid sm:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
@@ -382,7 +382,7 @@ export default function BlazeComparison() {
                 need wallet-to-social lookups, paying $99 once for
                 walletlink.social Pro instead of $79/month for Blaze saves you{' '}
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  $799 in year one
+                  $849 in year one
                 </span>{' '}
                 - and the savings grow every year after.
               </p>
@@ -395,7 +395,7 @@ export default function BlazeComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 1,000 wallets, no credit card
+              Try walletlink.social free - 500 wallets, no credit card
               required.
             </p>
             <Link
