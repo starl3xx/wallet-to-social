@@ -185,6 +185,44 @@ async function multicall(
   }));
 }
 
+/**
+ * Multicall with adaptive splitting: a batch that exceeds the provider's
+ * eth_call gas cap (Alchemy: 550M — dense batches of text() reads can hit
+ * it) is split in half and retried, down to single calls.
+ *
+ * Error classes are deliberately distinguished at the base case: inner
+ * reverts never throw (aggregate3 runs with allowFailure), so a THROWN
+ * eth_call is a provider failure — rate limit, timeout, outage. A single
+ * call retries with backoff and then PROPAGATES the error. Swallowing it
+ * would silently drop the node, and since the harvest checkpoints after
+ * each chunk, a dropped node is never scanned again.
+ */
+async function multicallAdaptive(
+  provider: ethers.JsonRpcProvider,
+  calls: Array<{ target: string; callData: string }>,
+  attempt = 0
+): Promise<Array<{ success: boolean; returnData: string }>> {
+  try {
+    return await multicall(provider, calls);
+  } catch (error) {
+    if (calls.length === 1) {
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        return multicallAdaptive(provider, calls, attempt + 1);
+      }
+      // Persistent failure — let it propagate so the chunk aborts and the
+      // checkpoint does NOT advance past these nodes
+      throw error;
+    }
+    const mid = Math.floor(calls.length / 2);
+    const [left, right] = await Promise.all([
+      multicallAdaptive(provider, calls.slice(0, mid)),
+      multicallAdaptive(provider, calls.slice(mid)),
+    ]);
+    return [...left, ...right];
+  }
+}
+
 /** Resolve current resolver → text/addr for a set of nodes. */
 async function resolveNodes(
   provider: ethers.JsonRpcProvider,
@@ -197,7 +235,7 @@ async function resolveNodes(
     const batch = nodes.slice(i, i + BATCH);
 
     // Round 1: current resolver for each node
-    const resolverResults = await multicall(
+    const resolverResults = await multicallAdaptive(
       provider,
       batch.map((node) => ({
         target: ENS_REGISTRY,
@@ -222,7 +260,7 @@ async function resolveNodes(
       { target: resolver, callData: resolverIface.encodeFunctionData('text', [node, 'com.github']) },
       { target: resolver, callData: resolverIface.encodeFunctionData('addr', [node]) },
     ]);
-    const valueResults = await multicall(provider, calls);
+    const valueResults = await multicallAdaptive(provider, calls);
 
     for (let j = 0; j < withResolver.length; j++) {
       const [twitterRes, githubRes, addrRes] = valueResults.slice(j * 3, j * 3 + 3);
