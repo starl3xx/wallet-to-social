@@ -231,7 +231,9 @@ export function ContractImportModal({
 
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Network:</span>
-                <span className="capitalize">{result.chain}</span>
+                {/* CHAIN_LABELS, not a CSS capitalize on the raw value — that
+                    renders 'robinhood' as "Robinhood" rather than "Robinhood Chain" */}
+                <span>{CHAIN_LABELS[result.chain] ?? result.chain}</span>
               </div>
 
               <div className="flex items-center justify-between text-sm">

@@ -1014,7 +1014,8 @@ export default function Home() {
                     Import from contract address
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Import all holders of an ERC-20 token or NFT collection
+                    Import all holders of an NFT collection or ERC-20 token on
+                    Ethereum, Base, or Robinhood Chain
                   </p>
                 </div>
               )}

@@ -199,7 +199,9 @@ export default function AddressableComparison() {
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Unlimited &mdash; Ethereum, Base, Robinhood Chain)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       <X className="h-4 w-4 text-muted-foreground" />
