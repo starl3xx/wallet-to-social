@@ -333,6 +333,33 @@ npm run dev                 # Start dev server
 
 ---
 
+## API access (bundled with paid tiers)
+
+The public API at `/api/v1/*` is included with Pro and Unlimited rather than sold
+separately. Every v1 route reads **only** from `social_graph` — none of them call an
+external provider — so the marginal cost of a request is a Postgres read, not a Neynar
+or web3.bio call, and metering it would cost more in complexity than it saves.
+
+| Tier | api_plans row | Requests/day | Max batch |
+|------|---------------|--------------|-----------|
+| Pro | `developer` | 5,000 | 50 |
+| Unlimited | `startup` | 50,000 | 200 |
+
+The plan is derived from the account tier in `lib/developer-auth.ts` and is never read
+from the request — the create endpoint previously took `plan` from the body and only
+checked the row existed, so a Pro account could have asked for `enterprise` limits.
+
+The standalone monthly plans (`developer` $49, `startup` $199, `enterprise` $799) remain
+seeded in `api_plans` but are not sold. Selling API access on its own only makes sense
+once `social_graph` is large enough to usually have an answer — at ~5,000 wallets a
+reverse lookup misses for almost any handle.
+
+**The reverse endpoints are the differentiated part.** `handle → wallets` is a question
+the accumulated graph can answer and a CSV export cannot, so it is not cannibalised by
+the free tier the way forward lookup is.
+
+---
+
 ## Recent Changes (2026-08-12, later)
 
 - **Pro is $99** (was $149) and now includes **contract import**, which previously sat

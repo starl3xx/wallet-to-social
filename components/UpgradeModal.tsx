@@ -32,6 +32,8 @@ const FEATURES = {
   pro: [
     'Up to 5,000 wallets/lookup',
     'Import from contract address',
+    'API access — 5,000 requests/day',
+    'Reverse lookup: handle → wallets',
     'All data sources',
     'ENS onchain lookups',
     'Farcaster follower counts',
@@ -42,6 +44,9 @@ const FEATURES = {
   ],
   unlimited: [
     'Unlimited wallets/lookup',
+    'Import from contract address',
+    'API access — 50,000 requests/day',
+    'Reverse lookup: handle → wallets',
     'All data sources',
     'ENS onchain lookups',
     'Farcaster follower counts',
