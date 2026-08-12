@@ -29,16 +29,8 @@ const FEATURES = {
     'Twitter/Farcaster handles',
     '1 saved lookup',
   ],
-  starter: [
-    '10,000 wallets total',
-    'All data sources',
-    'ENS onchain lookups',
-    'Farcaster follower counts',
-    'Full lookup history',
-    'Add addresses to lookups',
-  ],
   pro: [
-    'Up to 10,000 wallets/lookup',
+    'Up to 5,000 wallets/lookup',
     'Import from contract address',
     'All data sources',
     'ENS onchain lookups',
@@ -152,50 +144,6 @@ export function UpgradeModal({
 
           {/* Pricing cards */}
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Starter tier */}
-            <div className="rounded-lg border p-4 space-y-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
-                    <Rocket className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  <h3 className="font-semibold">Starter</h3>
-                </div>
-                <div>
-                  <span className="text-2xl font-bold">${TIER_PRICES.starter}</span>
-                  <span className="text-sm text-muted-foreground ml-1">one-time</span>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                10,000 wallets total
-              </p>
-              <ul className="space-y-2">
-                {FEATURES.starter.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <div className="rounded-full bg-success-light p-0.5">
-                      <Check className="h-3 w-3 text-success-foreground" />
-                    </div>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => handleUpgrade('starter')}
-                disabled={loading !== null}
-              >
-                {loading === 'starter' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Get Starter'
-                )}
-              </Button>
-            </div>
-
             {/* Pro tier */}
             <div className="rounded-lg border p-4 space-y-4">
               <div>

@@ -345,20 +345,13 @@ export default function BlazeComparison() {
                 <div>
                   <p className="text-muted-foreground">Free</p>
                   <p className="text-2xl font-bold">$0</p>
-                  <p className="text-muted-foreground">Up to 1,000 wallets/lookup</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Starter</p>
-                  <p className="text-2xl font-bold">$49</p>
-                  <p className="text-muted-foreground">
-                    10,000 wallets total (one-time)
-                  </p>
+                  <p className="text-muted-foreground">Up to 500 wallets/lookup</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pro</p>
                   <p className="text-2xl font-bold">$99</p>
                   <p className="text-muted-foreground">
-                    Up to 10,000 wallets/lookup (one-time)
+                    Up to 5,000 wallets/lookup (one-time)
                   </p>
                 </div>
                 <div>

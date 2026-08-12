@@ -22,11 +22,10 @@
 | Tier | Price | Per-Lookup Limit | Total Quota | Key Features |
 |------|-------|------------------|-------------|--------------|
 | Free | $0 | 500 wallets | Unlimited lookups | Full CSV export, 1 saved lookup |
-| Starter | $49 | 10,000 wallets | 10,000 total cumulative | All Pro features, quota-based |
-| Pro | $99 | 10,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
+| Pro | $99 | 5,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
 | Unlimited | $420 | Unlimited | Unlimited | Everything + priority support |
 
-**Key distinction**: Starter tier has a *cumulative* quota (10K wallets total across all lookups), while Pro has a *per-lookup* limit (10K per lookup, unlimited lookups).
+**Starter was retired 2026-08-12.** It is no longer purchasable; the tier still resolves in code so any legacy account holding it keeps working.
 
 ### User Flow
 1. User uploads CSV/Excel with wallet addresses
