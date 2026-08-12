@@ -128,6 +128,7 @@ Export to CSV or Twitter list
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
 | `wallet_cache` | 7-day TTL cache for API results | wallet, twitter_handle, farcaster, ens_name, cached_at |
+| — Farcaster sweep | `social_graph` is also bulk-populated by a protocol-wide Farcaster sweep (`lib/farcaster-sweep.ts`): every FID's verified + custody ETH addresses, username, follower count. Daily incremental cron + monthly full GitHub Actions re-sweep. Swept rows are medium quality (45) until a real lookup completes the Twitter side. | |
 | `social_graph` | Permanent storage of every checked wallet — positive rows carry socials; negative rows (all socials NULL, sources=['none']) mean "checked, nothing found" and suppress re-checks for 30 days | wallet, twitter_handle, farcaster, fc_followers, sources[], first_seen_at, last_checked_at |
 | `lookup_jobs` | Background job queue | status, wallets[], processed_count, partial_results, twitter_found |
 | `lookup_history` | Saved lookup sessions | user_id, wallet_count, results (JSONB), input_source |

@@ -179,6 +179,27 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12 (Farcaster protocol sweep)
+
+**Bulk-ingest every Farcaster verified wallet into social_graph**
+
+- New `lib/farcaster-sweep.ts`: sweeps Neynar `/user/bulk` (100 FIDs/call,
+  1 credit/FID — a full network sweep is ~3.3M of the free tier's 10M monthly
+  credits) and upserts every verified + custody ETH address with username,
+  FID, and follower count. Sources tagged `farcaster_sweep`.
+- Swept rows are deliberately medium quality (score 45, no `last_checked_at`):
+  they carry Farcaster data but were never checked for Twitter, so lookups
+  use them as base data and still resolve the remaining fields. Sweep upserts
+  never touch Twitter/ENS/Lens/GitHub columns, and `last_updated_at` only
+  moves on identity changes so re-sweeps don't trigger "new matches" badges.
+- Daily incremental Vercel cron (`/api/cron/farcaster-sweep`, 05:30 UTC)
+  ingests newly registered FIDs (sequential, so new = above max known fc_fid).
+- Monthly full re-sweep via GitHub Actions
+  (`.github/workflows/farcaster-sweep.yml`) — requires `DATABASE_URL` and
+  `NEYNAR_API_KEY` repository secrets.
+- CLI: `npx tsx --env-file=.env.local scripts/farcaster-sweep.ts
+  --full | --incremental | --range A B`. Idempotent, safe to interrupt.
+
 ### 2026-08-12 (negative-result persistence)
 
 **Stop re-buying API calls for wallets known to have no socials**

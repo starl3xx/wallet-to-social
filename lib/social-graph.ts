@@ -508,6 +508,9 @@ function calculateQualityScore(
       case 'manual': // Admin-verified data
         score += 35;
         break;
+      case 'farcaster_sweep': // Protocol-wide bulk ingest — same data as Neynar,
+        score += 25; //          but the wallet was never checked for Twitter,
+        break; //                so alone it must stay below the 70 trust line
       default:
         score += 5; // Unknown sources get minimal credit
     }
@@ -531,8 +534,9 @@ function isTwitterVerified(sources: string[]): boolean {
  * Determine if Farcaster data is verified (from high-confidence source)
  */
 function isFarcasterVerified(sources: string[]): boolean {
-  // Farcaster is considered verified if it comes from Neynar (direct API) or manual
-  return sources.some((s) => s === 'neynar' || s === 'manual');
+  // Farcaster is considered verified if it comes from Neynar (direct API),
+  // the protocol-wide bulk sweep (same underlying data), or manual entry
+  return sources.some((s) => s === 'neynar' || s === 'farcaster_sweep' || s === 'manual');
 }
 
 /**
