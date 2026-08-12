@@ -179,6 +179,28 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12
+
+**Robinhood Chain support for contract import**
+
+- **New network**: Contract import now supports Robinhood Chain (chain ID 4663) alongside Ethereum and Base
+  - NFT (ERC-721/1155) holder lookups via Alchemy's NFT API on `robinhood-mainnet`
+  - Requires `ROBINHOOD_MAINNET` to be enabled for the app in the Alchemy dashboard
+  - Verified against on-chain `ownerOf` enumeration: Alchemy returned exactly the same
+    618 holders for StonkBrokers (4,444 tokens) with no gaps in either direction
+- **ERC-20 gap handled explicitly**: Moralis has no holder index for Robinhood, so token
+  lookups on that network now fail with a clear message instead of an opaque API error.
+  The import modal warns before the request is made.
+- **New `lib/chains.ts`**: Chain constants (`SUPPORTED_CHAINS`, `CHAIN_LABELS`, `CHAIN_IDS`)
+  split into a dependency-free module. `lib/contract-holders.ts` imports `ethers` at module
+  scope, so client components importing chain values from it would ship ethers to the browser.
+- **Chain selector is now data-driven**: `ContractImportModal` maps over `SUPPORTED_CHAINS`
+  instead of hardcoding radio buttons, so adding a network is a one-line change.
+- **Moralis no longer gates NFT imports**: `/api/contract-holders` previously returned 503
+  when `MORALIS_API_KEY` was unset, blocking NFT lookups that only need Alchemy.
+- **Clearer errors**: New `UNSUPPORTED_CHAIN`, `CHAIN_NO_NFT_SUPPORT`, and
+  `CHAIN_NO_ERC20_SUPPORT` codes replace a raw TypeError on unknown networks.
+
 ### 2025-01-21
 
 **Admin analytics dashboard + IP rate limiting**

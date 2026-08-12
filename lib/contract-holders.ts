@@ -1,8 +1,14 @@
 import { ethers } from 'ethers';
+import { CHAIN_IDS, CHAIN_LABELS, SUPPORTED_CHAINS, type SupportedChain } from './chains';
+
+// Re-exported so existing server-side importers keep working unchanged.
+// Client components must import these from '@/lib/chains' instead — importing
+// them from here would pull ethers into the browser bundle.
+export { CHAIN_IDS, CHAIN_LABELS, SUPPORTED_CHAINS };
+export type { SupportedChain };
 
 // Types
 export type ContractType = 'ERC-20' | 'ERC-721' | 'ERC-1155';
-export type SupportedChain = 'ethereum' | 'base';
 
 export interface HolderResult {
   wallets: string[];
@@ -45,19 +51,30 @@ const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
     'https://base.llamarpc.com',
     'https://base.publicnode.com',
   ],
+  robinhood: [
+    'https://rpc.mainnet.chain.robinhood.com',
+    'https://rpc.arrowrpc.com',
+  ],
 };
 
-// Alchemy endpoints for NFT holder lookups
-const ALCHEMY_ENDPOINTS: Record<SupportedChain, string> = {
+// Alchemy endpoints for NFT holder lookups.
+// Chains absent here have no Alchemy NFT coverage and cannot resolve NFT holders.
+const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
   ethereum: 'https://eth-mainnet.g.alchemy.com/nft/v3',
   base: 'https://base-mainnet.g.alchemy.com/nft/v3',
+  // Verified against on-chain ownerOf enumeration of StonkBrokers (4444 tokens):
+  // Alchemy returned exactly the same 618 holders, no gaps in either direction.
+  // Requires ROBINHOOD_MAINNET to be enabled for the app in the Alchemy dashboard.
+  robinhood: 'https://robinhood-mainnet.g.alchemy.com/nft/v3',
 };
 
-// Moralis chain IDs (use hex format for better compatibility)
-const MORALIS_CHAIN_IDS: Record<SupportedChain, string> = {
+// Moralis chain IDs (use hex format for better compatibility).
+// Chains absent here have no ERC-20 holder index available.
+const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   ethereum: '0x1',
   base: '0x2105',
 };
+
 
 /**
  * Wraps a promise with a timeout
@@ -85,11 +102,19 @@ function getProvider(chain: SupportedChain): ethers.JsonRpcProvider {
     return new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
   }
 
-  // For Base, use public RPCs by default (Alchemy Base requires separate enablement)
-  // This avoids the "BASE_MAINNET is not enabled" error
+  // For every other chain, use public RPCs by default (Alchemy requires per-network
+  // enablement per app). This avoids the "<NETWORK>_MAINNET is not enabled" error.
+  // Pin the network so ethers skips auto-detection, which matters on newer chains.
   const endpoints = RPC_ENDPOINTS[chain];
-  return new ethers.JsonRpcProvider(endpoints[0]);
+  if (!endpoints?.length) {
+    throw new Error('UNSUPPORTED_CHAIN');
+  }
+
+  return new ethers.JsonRpcProvider(endpoints[0], CHAIN_IDS[chain], {
+    staticNetwork: true,
+  });
 }
+
 
 /**
  * Detect the contract type (ERC-20, ERC-721, or ERC-1155)
@@ -179,6 +204,10 @@ async function getERC721Holders(
   }
 
   const baseUrl = ALCHEMY_ENDPOINTS[chain];
+  if (!baseUrl) {
+    throw new Error('CHAIN_NO_NFT_SUPPORT');
+  }
+
   const url = `${baseUrl}/${alchemyKey}/getOwnersForContract?contractAddress=${address}&withTokenBalances=false`;
 
   const response = await withTimeout(
@@ -230,6 +259,12 @@ async function getERC20Holders(
   }
 
   const chainId = MORALIS_CHAIN_IDS[chain];
+  if (!chainId) {
+    // Moralis has no holder index for this chain, and ERC-20 holders cannot be
+    // derived from RPC state the way NFT owners can (no per-token owner mapping).
+    throw new Error('CHAIN_NO_ERC20_SUPPORT');
+  }
+
   const wallets: string[] = [];
   let cursor: string | null = null;
   let totalHolders = 0;

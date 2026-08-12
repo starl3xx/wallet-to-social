@@ -11,7 +11,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, FileCode, AlertTriangle } from 'lucide-react';
-import type { ContractType, SupportedChain } from '@/lib/contract-holders';
+import type { ContractType } from '@/lib/contract-holders';
+// Imported from lib/chains (not lib/contract-holders) so ethers stays out of the
+// client bundle — contract-holders imports ethers at module scope.
+import {
+  CHAIN_LABELS,
+  SUPPORTED_CHAINS,
+  ERC20_SUPPORTED_CHAINS,
+  type SupportedChain,
+} from '@/lib/chains';
 
 interface ContractImportModalProps {
   open: boolean;
@@ -161,30 +169,30 @@ export function ContractImportModal({
             {/* Chain selector */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Network</label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="chain"
-                    value="ethereum"
-                    checked={chain === 'ethereum'}
-                    onChange={() => setChain('ethereum')}
-                    className="text-primary"
-                  />
-                  <span className="text-sm">Ethereum</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="chain"
-                    value="base"
-                    checked={chain === 'base'}
-                    onChange={() => setChain('base')}
-                    className="text-primary"
-                  />
-                  <span className="text-sm">Base</span>
-                </label>
+              <div className="flex flex-wrap gap-3">
+                {SUPPORTED_CHAINS.map((c) => (
+                  <label
+                    key={c}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="chain"
+                      value={c}
+                      checked={chain === c}
+                      onChange={() => setChain(c)}
+                      className="text-primary"
+                    />
+                    <span className="text-sm">{CHAIN_LABELS[c]}</span>
+                  </label>
+                ))}
               </div>
+              {!ERC20_SUPPORTED_CHAINS.includes(chain) && (
+                <p className="text-xs text-muted-foreground">
+                  NFT collections only on {CHAIN_LABELS[chain]} — token (ERC-20)
+                  holder lists aren’t available on this network.
+                </p>
+              )}
             </div>
 
             {/* Load button */}
