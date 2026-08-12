@@ -21,13 +21,6 @@ export async function DELETE(
   if (!auth.ok) return auth.response;
   const email = auth.identity.email;
 
-  if (!email) {
-    return NextResponse.json(
-      { error: 'Email parameter required' },
-      { status: 400 }
-    );
-  }
-
   const db = getDb();
   if (!db) {
     return NextResponse.json(
@@ -111,12 +104,6 @@ export async function POST(
   if (!auth.ok) return auth.response;
   const email = auth.identity.email;
 
-  if (!email) {
-    return NextResponse.json(
-      { error: 'Email field required in body' },
-      { status: 400 }
-    );
-  }
 
   const db = getDb();
   if (!db) {

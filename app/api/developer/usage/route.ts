@@ -20,12 +20,6 @@ export async function GET(request: NextRequest) {
   const period = (request.nextUrl.searchParams.get('period') as 'day' | 'week' | 'month') || 'month';
   const keyId = request.nextUrl.searchParams.get('keyId');
 
-  if (!email) {
-    return NextResponse.json(
-      { error: 'Email parameter required' },
-      { status: 400 }
-    );
-  }
 
   if (!['day', 'week', 'month'].includes(period)) {
     return NextResponse.json(
