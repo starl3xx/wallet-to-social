@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
+import { API_PLANS } from '@/lib/api-plans';
 
 // Key format: wts_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (32 random chars)
 const KEY_PREFIX = 'wts_live_';
@@ -206,43 +207,9 @@ export async function seedApiPlans(): Promise<void> {
   const db = getDb();
   if (!db) return;
 
-  const plans: Array<{
-    id: string;
-    name: string;
-    priceMonthly: number;
-    requestsPerMinute: number;
-    requestsPerDay: number;
-    requestsPerMonth: number;
-    maxBatchSize: number;
-  }> = [
-    {
-      id: 'developer',
-      name: 'Developer',
-      priceMonthly: 4900, // $49
-      requestsPerMinute: 60,
-      requestsPerDay: 5000,
-      requestsPerMonth: 50000,
-      maxBatchSize: 50,
-    },
-    {
-      id: 'startup',
-      name: 'Startup',
-      priceMonthly: 19900, // $199
-      requestsPerMinute: 300,
-      requestsPerDay: 50000,
-      requestsPerMonth: 500000,
-      maxBatchSize: 200,
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise',
-      priceMonthly: 79900, // $799
-      requestsPerMinute: 1000,
-      requestsPerDay: -1, // unlimited
-      requestsPerMonth: -1, // unlimited
-      maxBatchSize: 1000,
-    },
-  ];
+  // Definitions live in lib/api-plans.ts so the seed, the tier mapping and the
+  // pricing copy cannot drift apart.
+  const plans = Object.values(API_PLANS);
 
   for (const plan of plans) {
     await db

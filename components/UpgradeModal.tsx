@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, Zap, Crown, Loader2, Rocket } from 'lucide-react';
 import { TIER_LIMITS, TIER_PRICES } from '@/lib/access';
+import { apiAllowanceLabel } from '@/lib/api-plans';
 import { Analytics } from '@/lib/client-analytics';
 
 interface UpgradeModalProps {
@@ -32,7 +33,7 @@ const FEATURES = {
   pro: [
     'Up to 5,000 wallets/lookup',
     'Import from contract address',
-    'API access — 5,000 requests/day',
+    `API access (${apiAllowanceLabel('pro')})`,
     'Reverse lookup: handle → wallets',
     'All data sources',
     'ENS onchain lookups',
@@ -45,7 +46,7 @@ const FEATURES = {
   unlimited: [
     'Unlimited wallets/lookup',
     'Import from contract address',
-    'API access — 50,000 requests/day',
+    `API access (${apiAllowanceLabel('unlimited')})`,
     'Reverse lookup: handle → wallets',
     'All data sources',
     'ENS onchain lookups',
