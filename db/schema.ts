@@ -87,6 +87,11 @@ export const socialGraph = pgTable(
     dataQualityScore: integer('data_quality_score').default(0), // 0-100 confidence score
     lastVerificationAt: timestamp('last_verification_at'), // When data was last verified
     staleAt: timestamp('stale_at'), // When data should be refreshed
+    // When external resolution last ran for this wallet, positive OR negative.
+    // Rows where this is set but every social column is NULL are persisted
+    // negatives: "checked, nothing found" — they let repeat lookups skip paid
+    // API calls until the recheck window passes.
+    lastCheckedAt: timestamp('last_checked_at'),
     // Agent detection metadata
     isAgent: boolean('is_agent').default(false),
     agentName: text('agent_name'), // "aixbt", "Luna", "Truth Terminal"
@@ -102,6 +107,7 @@ export const socialGraph = pgTable(
     index('social_graph_ens_idx').on(table.ensName),
     index('social_graph_fc_followers_idx').on(table.fcFollowers),
     index('social_graph_stale_at_idx').on(table.staleAt), // For finding stale records to refresh
+    index('social_graph_last_checked_idx').on(table.lastCheckedAt),
     index('social_graph_is_agent_idx').on(table.isAgent),
     index('social_graph_agent_framework_idx').on(table.agentFramework),
   ]

@@ -147,7 +147,15 @@ export async function batchFetchNeynar(
   wallets: string[],
   apiKey: string,
   onProgress?: (processed: number, found: number) => void,
-  jobId?: string
+  jobId?: string,
+  opts?: {
+    /**
+     * Populated with wallets whose batch failed (network error, 429, 5xx).
+     * Lets callers distinguish "checked, not on Farcaster" from "check never
+     * completed" — only the former may be persisted as a negative result.
+     */
+    failedWallets?: Set<string>;
+  }
 ): Promise<Map<string, NeynarResult>> {
   const results = new Map<string, NeynarResult>();
   let processed = 0;
@@ -155,6 +163,7 @@ export async function batchFetchNeynar(
   const startTime = Date.now();
   let errorCount = 0;
   let lastError: string | undefined;
+  const failedWallets = opts?.failedWallets;
 
   // Split wallets into batches of BATCH_SIZE
   const batches: string[][] = [];
@@ -174,6 +183,9 @@ export async function batchFetchNeynar(
         console.error(`Neynar batch failed:`, error);
         errorCount++;
         lastError = error instanceof Error ? error.message : 'Unknown error';
+        if (failedWallets) {
+          for (const wallet of batch) failedWallets.add(wallet.toLowerCase());
+        }
         return { batch, response: null, error };
       }
     });

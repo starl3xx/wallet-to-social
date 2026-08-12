@@ -89,10 +89,22 @@ export async function GET(
       agentType: socialGraph.agentType,
       agentTokenSymbol: socialGraph.agentTokenSymbol,
       agentVerified: socialGraph.agentVerified,
+      lastCheckedAt: socialGraph.lastCheckedAt,
     })
     .from(socialGraph)
     .where(eq(socialGraph.wallet, normalizedAddress))
     .limit(1);
+
+  // Persisted negatives (checked, no socials found) are rows too — they must
+  // report found: false, not an empty found: true object
+  const hasSocials = !!(
+    result &&
+    (result.twitterHandle ||
+      result.farcaster ||
+      result.ensName ||
+      result.lens ||
+      result.github)
+  );
 
   // Track usage
   trackApiUsage({
@@ -100,18 +112,20 @@ export async function GET(
     endpoint: `/v1/wallet/${normalizedAddress}`,
     method: 'GET',
     walletCount: 1,
-    responseStatus: result ? 200 : 404,
+    responseStatus: hasSocials ? 200 : 404,
     latencyMs: Date.now() - startTime,
     creditsUsed: 1,
   }).catch(console.error);
 
-  if (!result) {
+  if (!result || !hasSocials) {
     return apiSuccess(
       {
         data: null,
         meta: {
           wallet: normalizedAddress,
           found: false,
+          // Distinguishes "never seen" (null) from "checked, nothing there"
+          checked_at: result?.lastCheckedAt?.toISOString() ?? null,
         },
       },
       { ...context.rateLimitHeaders, ...corsHeaders },

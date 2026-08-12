@@ -8,6 +8,7 @@ import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup, type InputSource } from '@/lib/history';
 import {
   upsertSocialGraphWithRetry,
+  upsertNegativeWallets,
   getSocialGraphWithQuality,
   socialGraphToResult,
   type SocialGraphQualityResult,
@@ -132,6 +133,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     let cacheHits = job.cacheHits;
     let graphHits = 0;
+    let graphNegativeHits = 0;
     let uncachedWallets = walletsToProcess;
 
     // =========================================================================
@@ -171,7 +173,17 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       for (const [wallet, graphResult] of graphResults) {
         const existing = results.get(wallet)!;
 
-        if (graphResult.quality === 'high' && graphResult.data && !graphResult.needsRefresh) {
+        if (graphResult.quality === 'negative') {
+          // Persisted negative within its recheck window: this wallet was
+          // already run through the full pipeline and has no socials. Skip
+          // all API calls; the result stays empty. 'graph:none' (not 'graph')
+          // so provenance doesn't claim data that was never found.
+          results.set(wallet, {
+            ...existing,
+            source: [...existing.source, 'graph:none'],
+          });
+          graphNegativeHits++;
+        } else if (graphResult.quality === 'high' && graphResult.data && !graphResult.needsRefresh) {
           // Trust high-quality data completely - skip all API calls for this wallet
           const storedData = socialGraphToResult(graphResult.data);
           results.set(wallet, {
@@ -232,14 +244,17 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     // Track social graph hit rate for this chunk
-    if (graphHits > 0) {
+    if (graphHits > 0 || graphNegativeHits > 0) {
       trackEvent('social_graph_hit', {
         userId: options.userId || job.userId || undefined,
         metadata: {
           jobId: job.id,
           hitCount: graphHits,
+          // Negative hits reported separately so hit-rate dashboards don't
+          // conflate "served data" with "served a trusted empty answer"
+          negativeHitCount: graphNegativeHits,
           totalWallets: walletsToProcess.length,
-          hitRate: Math.round((graphHits / walletsToProcess.length) * 100),
+          hitRate: Math.round(((graphHits + graphNegativeHits) / walletsToProcess.length) * 100),
         },
       });
     }
@@ -299,6 +314,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // ENS and Neynar run in parallel since they're independent. Web3Bio runs
     // after both, filtered to only wallets still missing Twitter.
     // =========================================================================
+    // Wallets whose external check failed (not "not found") — those must never
+    // be persisted as negatives, or an API outage would poison the graph with
+    // false "no socials" answers for the whole recheck window.
+    const apiFailedWallets = new Set<string>();
+
     if (uncachedWallets.length > 0) {
       const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
       const canUseENS = options.includeENS && options.canUseENS !== false;
@@ -314,8 +334,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             })
           : Promise.resolve(new Map<string, { ensName?: string; twitter?: string; twitterUrl?: string; github?: string }>()),
         canUseNeynar
-          ? batchFetchNeynar(uncachedWallets, neynarApiKey).catch((error) => {
+          ? batchFetchNeynar(uncachedWallets, neynarApiKey, undefined, undefined, {
+              failedWallets: apiFailedWallets,
+            }).catch((error) => {
               console.error('Neynar fetch error:', error);
+              for (const w of uncachedWallets) apiFailedWallets.add(w.toLowerCase());
               return new Map<string, NeynarResult>();
             })
           : Promise.resolve(new Map<string, NeynarResult>()),
@@ -380,7 +403,9 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
         await updateJobStage(db, jobId, 'web3bio');
-        const web3BioResults = await batchFetchWeb3Bio(walletsNeedingWeb3Bio);
+        const web3BioResults = await batchFetchWeb3Bio(walletsNeedingWeb3Bio, undefined, undefined, {
+          failedWallets: apiFailedWallets,
+        });
 
         for (const [wallet, data] of web3BioResults) {
           const existing = results.get(wallet)!;
@@ -422,6 +447,30 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           }
         } catch (error) {
           console.error('Cache write error:', error);
+        }
+      }
+
+      // Persist negatives to the social graph so future lookups skip the APIs
+      // entirely (the wallet_cache negative above only lives 7 days). Only
+      // wallets that completed the full pipeline count: fast mode skips
+      // Web3Bio, canUseNeynar=false means Farcaster was never checked, and
+      // apiFailedWallets covers per-batch/per-wallet API failures.
+      if (!options.fastMode && canUseNeynar) {
+        const negativeWallets = uncachedWallets.filter((w) => {
+          const wl = w.toLowerCase();
+          if (apiFailedWallets.has(wl)) return false;
+          const r = results.get(wl)!;
+          const hasSocial =
+            r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+          return !hasSocial && r.source.length === 0;
+        });
+
+        if (negativeWallets.length > 0) {
+          try {
+            await upsertNegativeWallets(negativeWallets);
+          } catch (error) {
+            console.error('Negative persistence error:', error);
+          }
         }
       }
     }
@@ -540,8 +589,8 @@ async function finalizeJob(db: any, job: LookupJob): Promise<ProcessResult> {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function finalizeJobWithResults(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   job: LookupJob,
   results: WalletSocialResult[],
