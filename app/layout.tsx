@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
   title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
   description:
-    'Find your DeFi users, NFT holders, and AI agents on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement. Identify AI agent wallets from Virtuals, ElizaOS, and more. No sales calls—instant access.',
+    'Find your DeFi users, NFT holders, and AI agents on Twitter. Turn wallet addresses into social profiles for token holder outreach, airdrop campaigns, and DAO engagement across Ethereum, Base, and Robinhood Chain. Identify AI agent wallets from Virtuals, ElizaOS, and more. No sales calls—instant access.',
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -43,11 +43,15 @@ export const metadata: Metadata = {
     'elizaos agent wallets',
     'identify ai agents onchain',
     'agent wallet to twitter',
+    'robinhood chain nft holders',
+    'find robinhood chain holders twitter',
+    'base nft holder lookup',
+    'multi chain wallet to social',
   ],
   openGraph: {
     title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
-      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically. No sales calls.',
+      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup across Ethereum, Base, and Robinhood Chain for token holder outreach, airdrop campaigns, and community engagement. No sales calls.',
     type: 'website',
     siteName: 'walletlink.social',
   },
@@ -55,7 +59,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter',
     description:
-      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup for token holder outreach, airdrop campaigns, and community engagement. Identify AI agent wallets automatically.',
+      'Find your DeFi users, NFT holders, and AI agents on Twitter. Wallet-to-social lookup across Ethereum, Base, and Robinhood Chain for token holder outreach, airdrop campaigns, and community engagement.',
     creator: '@starl3xx',
   },
   alternates: {
@@ -154,6 +158,14 @@ const faqSchema = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'Yes, walletlink.social supports both Twitter/X and Farcaster lookups. It returns Farcaster usernames, follower counts, and FIDs (Farcaster IDs) which can be used for direct messaging via Warpcast or other Farcaster clients.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Which blockchains does walletlink.social support?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'walletlink.social supports Ethereum, Base, and Robinhood Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection directly from its contract address. NFT holder import works on all three networks; ERC-20 token holder import is available on Ethereum and Base.',
       },
     },
     {
