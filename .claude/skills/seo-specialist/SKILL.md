@@ -18,7 +18,7 @@ Read these files and evaluate against the messaging guidelines and keyword targe
 | `app/page.tsx` | Homepage headline, subheadline, feature copy, CTAs |
 | `app/vs/addressable/page.tsx` | Comparison messaging, keyword usage |
 | `app/vs/blaze/page.tsx` | Comparison messaging, keyword usage |
-| `app/vs/holder/page.tsx` | Comparison messaging, keyword usage |
+| `app/vs/cookie/page.tsx` | Comparison messaging, keyword usage |
 
 ### 2. Identify Issues
 For each file, check:
@@ -49,6 +49,26 @@ After presenting findings, proceed to update the files. Prioritize:
 - **Token projects** → community outreach and airdrops
 - **DAOs** → connect with members
 
+## Supported Networks
+
+Contract import and wallet lookups currently cover **Ethereum, Base and Robinhood
+Chain**. NFT holder import works on all three; ERC-20 token holder import is
+Ethereum and Base only (no holder index exists for Robinhood Chain).
+
+**When a chain is added or removed, these all need updating — the code change alone
+leaves the feature invisible to search:**
+
+| Surface | What to change |
+|---------|----------------|
+| `lib/chains.ts` | `CHAIN_IDS`, `CHAIN_LABELS`, `ERC20_SUPPORTED_CHAINS` |
+| `app/layout.tsx` | meta / OG / Twitter descriptions, `keywords`, supported-networks FAQ entry in `faqSchema` |
+| `app/page.tsx` | contract-import blurb under the import button |
+| `app/vs/*/page.tsx` | the Contract Import comparison row |
+| `README.md`, `PROJECT_OVERVIEW.md` | changelog and the supported-chains table |
+
+Never render a chain name from the raw slug (`{result.chain}` with CSS
+`capitalize`) — use `CHAIN_LABELS`, or a multi-word chain renders as one word.
+
 ## Target Keywords
 
 ### Primary (High Intent)
@@ -68,6 +88,9 @@ After presenting findings, proceed to update the files. Prioritize:
 | `dao member twitter` | DAOs |
 | `defi protocol marketing` | DeFi protocols |
 | `find nft collectors social` | NFT marketplaces |
+| `robinhood chain nft holders` | Robinhood Chain projects |
+| `base nft holder lookup` | Base projects |
+| `multi chain wallet to social` | General |
 
 ### Long-tail Keywords
 | Keyword | Content Type |
@@ -103,7 +126,7 @@ After presenting findings, proceed to update the files. Prioritize:
 - [ ] Blog content for long-tail keywords
 
 ### Content Strategy
-- [x] Comparison pages (`/vs/addressable`, `/vs/blaze`, `/vs/holder`)
+- [x] Comparison pages (`/vs/addressable`, `/vs/blaze`, `/vs/cookie`)
 - [ ] Blog: "How to Find Twitter from Wallet Addresses"
 - [ ] Blog: "NFT Holder Outreach Guide"
 - [ ] Blog: "DeFi User Acquisition Strategies"
@@ -185,7 +208,9 @@ Already implemented as SoftwareApplication with pricing offers.
 |------------|-------------|-----------|
 | Addressable | Full marketing suite | "Just the lookup, fraction of cost" |
 | Blaze | Web3 CRM | "No CRM needed for outreach" |
-| Holder | Wallet messaging | "Find socials, reach them directly" |
+| Cookie | Web3 attribution | "Find socials, reach them directly" |
+
+> Holder.xyz shut down in June 2024 and its comparison page was removed in `6c57ad5`. Do not recreate `/vs/holder`.
 
 ## Monthly SEO Tasks
 
