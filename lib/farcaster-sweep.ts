@@ -219,13 +219,21 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
  * clean, complete sweep, pure-sweep rows that were NOT seen get their
  * Farcaster fields cleared.
  */
-export async function beginSeenTracking(): Promise<void> {
+export async function beginSeenTracking(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
+  // Per-run table name so concurrent full sweeps (scheduled + manual, or
+  // Actions + local CLI) can never truncate each other's seen set. Digits
+  // only — safe to interpolate as an identifier.
+  const tableName = `farcaster_sweep_seen_${Date.now()}`;
+  // A LOGGED table, deliberately: Neon does not persist UNLOGGED tables
+  // across compute restarts, and a restart mid-sweep would silently empty
+  // the seen set — cleanup would then clear nearly every sweep row as
+  // "revoked". WAL overhead on ~2.5M small inserts is acceptable.
   await db.execute(
-    sql`CREATE UNLOGGED TABLE IF NOT EXISTS farcaster_sweep_seen (wallet text PRIMARY KEY)`
+    sql`CREATE TABLE IF NOT EXISTS ${sql.raw(tableName)} (wallet text PRIMARY KEY)`
   );
-  await db.execute(sql`TRUNCATE farcaster_sweep_seen`);
+  return tableName;
 }
 
 /**
@@ -245,10 +253,29 @@ export async function beginSeenTracking(): Promise<void> {
  * deleted outright rather than kept as empty husks.
  */
 export async function cleanupRevokedWallets(
-  sweepStartedAt: Date
+  sweepStartedAt: Date,
+  seenTable: string,
+  expectedSeenCount: number
 ): Promise<{ cleared: number; deleted: number }> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
+
+  // Integrity guard: if the seen table holds far fewer wallets than the
+  // sweep upserted, the tracking data was lost or truncated somehow — running
+  // cleanup would mass-clear healthy rows. Abort and keep the table for
+  // forensics. (0.9: upsert counts can slightly exceed distinct wallets when
+  // the same wallet is attached to multiple FIDs across batches.)
+  const [seenRow] = (
+    (await db.execute(
+      sql`SELECT count(*)::int AS n FROM ${sql.raw(seenTable)}`
+    )) as unknown as { rows: Array<{ n: number }> }
+  ).rows;
+  const seenCount = seenRow?.n ?? 0;
+  if (seenCount < expectedSeenCount * 0.9) {
+    throw new Error(
+      `Seen-table integrity check failed: ${seenCount} rows vs ${expectedSeenCount} upserted — refusing to run revocation cleanup (table ${seenTable} kept)`
+    );
+  }
 
   const cleared = await db.execute(sql`
     UPDATE social_graph
@@ -262,7 +289,7 @@ export async function cleanupRevokedWallets(
     WHERE 'farcaster_sweep' = ANY(sources)
       AND NOT (sources && ARRAY['neynar', 'manual'])
       AND last_updated_at < ${sweepStartedAt}
-      AND wallet NOT IN (SELECT wallet FROM farcaster_sweep_seen)
+      AND wallet NOT IN (SELECT wallet FROM ${sql.raw(seenTable)})
   `);
 
   const deleted = await db.execute(sql`
@@ -273,7 +300,7 @@ export async function cleanupRevokedWallets(
       AND (sources IS NULL OR sources = '{}')
   `);
 
-  await db.execute(sql`TRUNCATE farcaster_sweep_seen`);
+  await db.execute(sql`DROP TABLE IF EXISTS ${sql.raw(seenTable)}`);
 
   return {
     cleared: (cleared as unknown as { rowCount?: number }).rowCount ?? 0,
@@ -292,7 +319,7 @@ export async function sweepFidRange(
   endFid: number,
   apiKey: string,
   onProgress?: (stats: SweepStats, lastFid: number) => void,
-  opts?: { trackSeen?: boolean }
+  opts?: { seenTable?: string }
 ): Promise<SweepStats> {
   const stats: SweepStats = {
     fidsRequested: 0,
@@ -334,14 +361,14 @@ export async function sweepFidRange(
     stats.fidsWithEthAddress += new Set(rows.map((r) => r.fcFid)).size;
     stats.walletsUpserted += await upsertSweepRows(rows);
 
-    if (opts?.trackSeen && rows.length > 0) {
+    if (opts?.seenTable && rows.length > 0) {
       const db = getDb();
       if (db) {
         const wallets = Array.from(new Set(rows.map((r) => r.wallet)));
         // Explicit VALUES rows — drizzle binds a JS array as a ($1, $2, …)
         // record, which Postgres can't cast to text[]
         await db.execute(sql`
-          INSERT INTO farcaster_sweep_seen (wallet)
+          INSERT INTO ${sql.raw(opts.seenTable)} (wallet)
           VALUES ${sql.join(wallets.map((w) => sql`(${w})`), sql`, `)}
           ON CONFLICT DO NOTHING
         `);

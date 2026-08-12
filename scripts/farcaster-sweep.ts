@@ -71,11 +71,10 @@ async function main() {
   let lastLoggedAt = 0;
 
   // Full sweeps see the entire network, so they can also detect revoked
-  // verifications: track every wallet seen, clean up the unseen afterwards
+  // verifications: track every wallet seen, clean up the unseen afterwards.
+  // The tracking table is per-run so concurrent sweeps can't clobber it.
   const isFull = mode === '--full';
-  if (isFull) {
-    await beginSeenTracking();
-  }
+  const seenTable = isFull ? await beginSeenTracking() : undefined;
 
   const stats = await sweepFidRange(startFid, endFid, apiKey, (s, lastFid) => {
     const done = lastFid - startFid + 1;
@@ -91,7 +90,7 @@ async function main() {
           `${s.failedCalls} failed calls | ${elapsed}m elapsed`
       );
     }
-  }, { trackSeen: isFull });
+  }, { seenTable });
 
   console.log('\nDone:', JSON.stringify(stats, null, 2));
   if (stats.failedCalls > 0) {
@@ -100,17 +99,24 @@ async function main() {
     );
   }
 
-  if (isFull) {
+  if (isFull && seenTable) {
     if (stats.failedCalls === 0) {
       // Only a complete, failure-free sweep may clear unseen wallets —
       // wallets in a failed batch are absent from the seen table and would
-      // be wrongly treated as revoked
-      const cleanup = await cleanupRevokedWallets(sweepStartedAt);
+      // be wrongly treated as revoked. cleanupRevokedWallets additionally
+      // verifies the seen count against upserts before touching anything.
+      const cleanup = await cleanupRevokedWallets(
+        sweepStartedAt,
+        seenTable,
+        stats.walletsUpserted
+      );
       console.log(
         `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
       );
     } else {
-      console.warn('Skipping revocation cleanup — sweep had failed calls');
+      console.warn(
+        `Skipping revocation cleanup — sweep had failed calls (seen table ${seenTable} kept)`
+      );
     }
   }
 }

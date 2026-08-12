@@ -22,6 +22,12 @@ on:
           - '--full'
           - '--incremental'
 
+# Never run two sweeps at once — a second run's revocation cleanup could
+# interact badly with the first's writes
+concurrency:
+  group: farcaster-sweep
+  cancel-in-progress: false
+
 jobs:
   sweep:
     runs-on: ubuntu-latest
