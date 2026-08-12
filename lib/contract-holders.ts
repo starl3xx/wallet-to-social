@@ -253,16 +253,19 @@ async function getERC20Holders(
   chain: SupportedChain,
   limit: number = HOLDER_LIMIT
 ): Promise<{ wallets: string[]; totalHolders: number }> {
-  const moralisKey = process.env.MORALIS_API_KEY;
-  if (!moralisKey) {
-    throw new Error('MORALIS_API_KEY required for ERC-20 holder lookups');
-  }
-
+  // Chain coverage is checked before the API key: on a chain Moralis does not index
+  // at all, "no support for this chain" is the accurate error, and configuring a key
+  // would not help. Checking the key first would mask that with a config error.
   const chainId = MORALIS_CHAIN_IDS[chain];
   if (!chainId) {
     // Moralis has no holder index for this chain, and ERC-20 holders cannot be
     // derived from RPC state the way NFT owners can (no per-token owner mapping).
     throw new Error('CHAIN_NO_ERC20_SUPPORT');
+  }
+
+  const moralisKey = process.env.MORALIS_API_KEY;
+  if (!moralisKey) {
+    throw new Error('MORALIS_NOT_CONFIGURED');
   }
 
   const wallets: string[] = [];

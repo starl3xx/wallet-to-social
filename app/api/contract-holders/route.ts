@@ -161,6 +161,10 @@ export async function POST(request: NextRequest) {
         message: 'Too many requests, please try again in a moment',
         status: 429,
       },
+      MORALIS_NOT_CONFIGURED: {
+        message: 'Token holder lookup service not configured',
+        status: 503,
+      },
       UNSUPPORTED_CHAIN: {
         message: `Unsupported network. Choose one of: ${SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(', ')}`,
         status: 400,
