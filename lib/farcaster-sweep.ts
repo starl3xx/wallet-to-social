@@ -260,20 +260,28 @@ export async function cleanupRevokedWallets(
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
-  // Integrity guard: if the seen table holds far fewer wallets than the
-  // sweep upserted, the tracking data was lost or truncated somehow — running
-  // cleanup would mass-clear healthy rows. Abort and keep the table for
-  // forensics. (0.9: upsert counts can slightly exceed distinct wallets when
-  // the same wallet is attached to multiple FIDs across batches.)
+  // Integrity guards. Cleanup clears everything NOT in the seen table, so a
+  // deficient seen set mass-clears healthy rows. Two independent checks:
+  //
+  // 1. Absolute floor: the network holds >1M wallet-attached FIDs, so any
+  //    legitimate full sweep sees hundreds of thousands of wallets. A sweep
+  //    that "succeeded" with ~zero results (API returning 200s with empty
+  //    user arrays, a response-shape change) must never reach cleanup —
+  //    a ratio check alone passes trivially when both counts are 0.
+  // 2. Ratio: seen must be >= 90% of upserts (upsert counts can slightly
+  //    exceed distinct wallets when one wallet is attached to several FIDs).
+  //
+  // On failure: abort and keep the table for forensics.
+  const MIN_PLAUSIBLE_SWEEP_WALLETS = 100_000;
   const [seenRow] = (
     (await db.execute(
       sql`SELECT count(*)::int AS n FROM ${sql.raw(seenTable)}`
     )) as unknown as { rows: Array<{ n: number }> }
   ).rows;
   const seenCount = seenRow?.n ?? 0;
-  if (seenCount < expectedSeenCount * 0.9) {
+  if (seenCount < MIN_PLAUSIBLE_SWEEP_WALLETS || seenCount < expectedSeenCount * 0.9) {
     throw new Error(
-      `Seen-table integrity check failed: ${seenCount} rows vs ${expectedSeenCount} upserted — refusing to run revocation cleanup (table ${seenTable} kept)`
+      `Seen-table integrity check failed: ${seenCount} rows (expected >= ${MIN_PLAUSIBLE_SWEEP_WALLETS} and >= 90% of ${expectedSeenCount} upserted) — refusing to run revocation cleanup (table ${seenTable} kept)`
     );
   }
 
