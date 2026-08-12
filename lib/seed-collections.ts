@@ -36,8 +36,13 @@ import { trackEvent } from './analytics';
 // the same wallets on later days cost nothing.
 const HOLDER_CAP = 2000;
 
-// Don't re-seed a contract within this window
+// Don't re-seed a successfully seeded contract within this window
 const NOVELTY_DAYS = 30;
+
+// Failed attempts get a much shorter lockout: long enough that a broken
+// contract can't wedge its chain's queue, short enough that a transient
+// Alchemy/Moralis blip doesn't cost a top collection a whole month
+const FAILURE_RETRY_DAYS = 2;
 
 // Base/quote tokens that appear in every trending pool but aren't communities
 const TOKEN_DENYLIST = new Set([
@@ -254,10 +259,16 @@ export async function selectNovelCandidates(
 
   const addresses = candidates.map((c) => c.address);
   const chain = candidates[0].chain;
+  // Successes lock out for the full novelty window; failed attempts
+  // (holders_imported = 0) only for the short retry window
   const result = (await db.execute(sql`
     SELECT address FROM seeded_contracts
     WHERE chain = ${chain}
-      AND last_seeded_at > now() - make_interval(days => ${NOVELTY_DAYS})
+      AND (
+        (holders_imported > 0 AND last_seeded_at > now() - make_interval(days => ${NOVELTY_DAYS}))
+        OR
+        (holders_imported = 0 AND last_seeded_at > now() - make_interval(days => ${FAILURE_RETRY_DAYS}))
+      )
       AND address IN (${sql.join(addresses.map((a) => sql`${a}`), sql`, `)})
   `)) as unknown as { rows: Array<{ address: string }> };
 
@@ -282,10 +293,14 @@ export async function selectNovelCandidate(
 async function markSeedAttempt(candidate: SeedCandidate): Promise<void> {
   const db = getDb();
   if (!db) return;
+  // holders_imported resets to 0 on every new attempt — the success path
+  // (recordSeed) overwrites it immediately after. This is what makes a
+  // failed attempt distinguishable (short lockout) from a success (full
+  // novelty window) in selectNovelCandidates.
   await db.execute(sql`
     INSERT INTO seeded_contracts (address, chain, contract_type, name, holders_imported)
     VALUES (${candidate.address}, ${candidate.chain}, ${candidate.kind}, ${candidate.label}, 0)
-    ON CONFLICT (address, chain) DO UPDATE SET last_seeded_at = now()
+    ON CONFLICT (address, chain) DO UPDATE SET last_seeded_at = now(), holders_imported = 0
   `);
 }
 
@@ -390,7 +405,8 @@ const MAX_ATTEMPTS_PER_SLOT = 3;
 async function seedFirstViable(
   candidates: SeedCandidate[],
   chain: SupportedChain,
-  kind: 'nft' | 'erc20'
+  kind: 'nft' | 'erc20',
+  deadline: number
 ): Promise<SeedRunResult> {
   const novel = await selectNovelCandidates(candidates);
   if (novel.length === 0) {
@@ -405,6 +421,17 @@ async function seedFirstViable(
 
   let lastError = '';
   for (const candidate of novel.slice(0, MAX_ATTEMPTS_PER_SLOT)) {
+    // Leave room for one holder fetch (30s timeout) plus writes — a slot
+    // must not eat the whole run's budget retrying on a degraded-API day
+    if (Date.now() > deadline - 40_000) {
+      return {
+        contract: { address: '?', chain, kind, label: 'time budget exhausted' },
+        holdersImported: 0,
+        totalHolders: 0,
+        jobId: null,
+        error: lastError || 'time budget exhausted',
+      };
+    }
     await markSeedAttempt(candidate);
     try {
       return await seedContract(candidate);
@@ -425,13 +452,17 @@ async function seedFirstViable(
 
 export async function runDailySeed(): Promise<SeedRunResult[]> {
   const results: SeedRunResult[] = [];
-  const chains: SupportedChain[] = ['ethereum', 'base', 'robinhood'];
+  // 240s of the route's 300s maxDuration, shared across all slots
+  const deadline = Date.now() + 240_000;
+  // Robinhood first: it's the chain with no competing index, so it must
+  // never be the one starved when earlier slots burn the time budget
+  const chains: SupportedChain[] = ['robinhood', 'base', 'ethereum'];
 
   for (const chain of chains) {
     // NFT collection
     try {
       const nftCandidates = await discoverNftCandidates(chain);
-      results.push(await seedFirstViable(nftCandidates, chain, 'nft'));
+      results.push(await seedFirstViable(nftCandidates, chain, 'nft', deadline));
     } catch (error) {
       results.push({
         contract: { address: '?', chain, kind: 'nft', label: 'discovery failed' },
@@ -446,7 +477,7 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     if (chain !== 'robinhood') {
       try {
         const tokenCandidates = await discoverTokenCandidates(chain);
-        results.push(await seedFirstViable(tokenCandidates, chain, 'erc20'));
+        results.push(await seedFirstViable(tokenCandidates, chain, 'erc20', deadline));
       } catch (error) {
         results.push({
           contract: { address: '?', chain, kind: 'erc20', label: 'discovery failed' },
