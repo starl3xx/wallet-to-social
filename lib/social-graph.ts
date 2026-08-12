@@ -496,8 +496,14 @@ function calculateQualityScore(
   for (const source of sources) {
     switch (source) {
       case 'ens': // Onchain ENS text records - highest confidence
-      case 'ens_onchain':
         score += 30;
+        break;
+      case 'ens_onchain':
+        // Same source class as 'ens' — must not stack with it, or
+        // twitter(20) + ens(30) + ens_onchain(30) = 80 crosses the 70 trust
+        // line for a wallet whose Farcaster side was never checked (same
+        // de-stack rule as farcaster_sweep/neynar)
+        if (!sources.includes('ens')) score += 30;
         break;
       case 'neynar': // Neynar provides verified Farcaster data with linked socials
         score += 25;

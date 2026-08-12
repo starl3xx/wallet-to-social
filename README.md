@@ -179,6 +179,30 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12 (ENS text-record harvest)
+
+**On-chain com.twitter / com.github records → social_graph**
+
+- New `lib/ens-harvest.ts`: scans mainnet TextChanged logs (both the 3-arg
+  pre-2023 and 4-arg 2023+ signatures, topic-filtered to the two keys, any
+  resolver), then resolves each node's CURRENT values fully on-chain —
+  registry → resolver → `text()`/`addr()` via Multicall3. No subgraph, no
+  third-party indexer, no node→name healing needed: `text()` works on node
+  hashes directly.
+- These are the highest-quality Twitter edges that exist (the wallet owner
+  set the handle on-chain themselves): source `ens_onchain`,
+  `twitter_verified`, quality 50 — below the 70 trust line because the
+  Farcaster side was never checked. Fill-only upserts: never overwrite an
+  existing handle; `last_updated_at` moves only when something was filled.
+- Checkpointed in the new `ingest_state` table
+  (`scripts/migrate-ingest-state.ts`, applied 2026-08-12); the daily Vercel
+  cron (`/api/cron/ens-harvest`, 05:00 UTC) scans ~7,200 new blocks per day.
+- CLI: `npx tsx --env-file=.env.local scripts/ens-harvest.ts
+  --backfill | --incremental`. Interrupt-safe.
+- The ENS registry address comes from ethers' network config, not a typed
+  constant — a wrong registry address fails silently (every `resolver()`
+  read returns `0x`), which is exactly what happened on the first attempt.
+
 ### 2026-08-12 (Farcaster protocol sweep)
 
 **Bulk-ingest every Farcaster verified wallet into social_graph**
