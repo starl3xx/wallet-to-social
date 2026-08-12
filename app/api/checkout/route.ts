@@ -27,9 +27,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (tier !== 'starter' && tier !== 'pro' && tier !== 'unlimited') {
+    // Starter was retired 2026-08-12. The tier still resolves for any legacy
+    // account that holds it, but it can no longer be purchased.
+    if (tier !== 'pro' && tier !== 'unlimited') {
       return NextResponse.json(
-        { error: 'Invalid tier. Must be "starter", "pro", or "unlimited"' },
+        { error: 'Invalid tier. Must be "pro" or "unlimited"' },
         { status: 400 }
       );
     }

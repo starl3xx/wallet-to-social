@@ -22,6 +22,28 @@ import { getUserAccess } from '@/lib/access';
 /** Tiers that include API access. */
 const API_TIERS = ['pro', 'unlimited'] as const;
 
+/**
+ * Which api_plans row each paid tier is entitled to.
+ *
+ * The plan must be derived from the tier and never taken from the request.
+ * The create endpoint used to read `plan` straight out of the body and only
+ * checked that the row existed, so a Pro account could have asked for
+ * 'enterprise' and received its limits.
+ *
+ * API access is bundled rather than metered because every v1 route reads only
+ * from social_graph — no route calls an external provider — so the marginal
+ * cost of a request is a Postgres read, not a Neynar or web3.bio call.
+ */
+export const TIER_API_PLAN: Record<string, string> = {
+  pro: 'developer',
+  unlimited: 'startup',
+};
+
+/** The api_plans id this account is entitled to, or null if it has no API access. */
+export function apiPlanForTier(tier: string): string | null {
+  return TIER_API_PLAN[tier] ?? null;
+}
+
 export interface DeveloperIdentity {
   email: string;
   tier: string;

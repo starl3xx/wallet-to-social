@@ -21,12 +21,11 @@
 
 | Tier | Price | Per-Lookup Limit | Total Quota | Key Features |
 |------|-------|------------------|-------------|--------------|
-| Free | $0 | 1,000 wallets | Unlimited lookups | Basic CSV export, 1 saved lookup |
-| Starter | $49 | 10,000 wallets | 10,000 total cumulative | All Pro features, quota-based |
-| Pro | $149 | 10,000 wallets | Unlimited lookups | ENS lookups, follower counts, priority scoring, full history |
-| Unlimited | $420 | Unlimited | Unlimited | Everything + priority support |
+| Free | $0 | 500 wallets | Unlimited lookups | Full CSV export, 1 saved lookup |
+| Pro | $99 | 5,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
+| Unlimited | $249 | Unlimited | Unlimited | Everything + priority support |
 
-**Key distinction**: Starter tier has a *cumulative* quota (10K wallets total across all lookups), while Pro has a *per-lookup* limit (10K per lookup, unlimited lookups).
+**Starter was retired 2026-08-12.** It is no longer purchasable; the tier still resolves in code so any legacy account holding it keeps working.
 
 ### User Flow
 1. User uploads CSV/Excel with wallet addresses
@@ -260,8 +259,8 @@ ALCHEMY_KEY=...                          # ENS onchain lookups
 STRIPE_SECRET_KEY=...
 STRIPE_WEBHOOK_SECRET=...
 STRIPE_PRICE_STARTER=price_xxx           # $49 product
-STRIPE_PRICE_PRO=price_xxx               # $149 product
-STRIPE_PRICE_UNLIMITED=price_xxx         # $420 product
+STRIPE_PRICE_PRO=price_xxx               # $99 product
+STRIPE_PRICE_UNLIMITED=price_xxx         # $249 product
 
 # Email (Resend)
 RESEND_API_KEY=...
@@ -331,6 +330,53 @@ npm run dev                 # Start dev server
 - **Curly apostrophes** - "We'll" not "We'll"
 - **No time estimates** - Never predict how long tasks will take
 - **Social proof = comparisons** - "9x industry avg" not progress bars
+
+---
+
+## API access (bundled with paid tiers)
+
+The public API at `/api/v1/*` is included with Pro and Unlimited rather than sold
+separately. Every v1 route reads **only** from `social_graph` — none of them call an
+external provider — so the marginal cost of a request is a Postgres read, not a Neynar
+or web3.bio call, and metering it would cost more in complexity than it saves.
+
+| Tier | api_plans row | Requests/day | Max batch |
+|------|---------------|--------------|-----------|
+| Pro | `developer` | 5,000 | 50 |
+| Unlimited | `startup` | 50,000 | 200 |
+
+The plan is derived from the account tier in `lib/developer-auth.ts` and is never read
+from the request — the create endpoint previously took `plan` from the body and only
+checked the row existed, so a Pro account could have asked for `enterprise` limits.
+
+The standalone monthly plans (`developer` $49, `startup` $199, `enterprise` $799) remain
+seeded in `api_plans` but are not sold. Selling API access on its own only makes sense
+once `social_graph` is large enough to usually have an answer — at ~5,000 wallets a
+reverse lookup misses for almost any handle.
+
+**The reverse endpoints are the differentiated part.** `handle → wallets` is a question
+the accumulated graph can answer and a CSV export cannot, so it is not cannibalised by
+the free tier the way forward lookup is.
+
+---
+
+## Recent Changes (2026-08-12, later)
+
+- **Pro is $99** (was $149) and now includes **contract import**, which previously sat
+  behind the Unlimited tier
+- **Free per-lookup limit is 500** (was 1,000)
+- **Checkout instrumentation**: `checkout_redirected` and `checkout_failed` added, and
+  `limit_hit` wired up — it was defined but never called
+
+**Why:** 41 checkout sessions had been started with zero completions. Free offered
+1,000 wallets per lookup with *unlimited* lookups and full CSV export, so Pro added
+little for most users — only 7 lookups in the product's history ever exceeded the free
+ceiling, against 261 upgrade-modal views. The gap between free and paid was the problem,
+not the price alone.
+
+**Note:** a cumulative free quota is not enforceable today. Free users are anonymous
+(`getUserAccess()` returns before any DB read without an email), so only the per-lookup
+limit can be applied without forcing signup.
 
 ---
 

@@ -16,9 +16,20 @@ export interface UserAccess {
 }
 
 export const TIER_LIMITS: Record<UserTier, number> = {
-  free: 1000,
-  starter: 10000,  // per-lookup limit (same as pro)
-  pro: 10000,
+  // Free is deliberately enough to prove the product on a real list and not
+  // enough to run a campaign on. It was 1,000, which combined with unlimited
+  // free lookups made Pro nearly redundant — only 7 lookups in the product's
+  // history ever exceeded it, while the upgrade modal was viewed 261 times.
+  free: 500,
+  // Retired 2026-08-12 and no longer purchasable, but kept so any legacy
+  // account holding it still resolves rather than crashing.
+  starter: 10000,
+  // Pro sits at 5,000 rather than 10,000 deliberately. Historically the two are
+  // identical — 140 of 142 lookups ever were under 5,000 — but at 10,000 Pro
+  // swallows essentially every case and Unlimited has no volume story left.
+  // Blue-chip and token-holder lists (BAYC 5,601 holders, Base Colors 17,712)
+  // are exactly the buyers who can justify the top tier.
+  pro: 5000,
   unlimited: Infinity,
 };
 
@@ -31,8 +42,8 @@ export const TIER_QUOTA: Record<UserTier, number | null> = {
 
 export const TIER_PRICES: Record<'starter' | 'pro' | 'unlimited', number> = {
   starter: 49,
-  pro: 149,
-  unlimited: 420,
+  pro: 99,
+  unlimited: 249,
 };
 
 /**

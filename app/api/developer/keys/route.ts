@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, apiPlans } from '@/db/schema';
 import { createApiKey, listApiKeys } from '@/lib/api-keys';
-import { requireDeveloperAccess } from '@/lib/developer-auth';
+import { requireDeveloperAccess, apiPlanForTier } from '@/lib/developer-auth';
 
 export const runtime = 'nodejs';
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
  * Create a new API key for a user
  */
 export async function POST(request: NextRequest) {
-  let body: { email: string; name: string; plan: string };
+  let body: { email: string; name: string };
   try {
     body = await request.json();
   } catch {
@@ -74,16 +74,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { email: requested, name, plan } = body;
+  const { email: requested, name } = body;
 
   const auth = await requireDeveloperAccess(requested);
   if (!auth.ok) return auth.response;
   const email = auth.identity.email;
 
-  if (!name || !plan) {
+  if (!name) {
     return NextResponse.json(
-      { error: 'Missing required fields: name, plan' },
+      { error: 'Missing required field: name' },
       { status: 400 }
+    );
+  }
+
+  // Derived from the tier, never taken from the request body. A caller-supplied
+  // plan would let a Pro account request 'enterprise' limits.
+  const plan = apiPlanForTier(auth.identity.tier);
+  if (!plan) {
+    return NextResponse.json(
+      { error: 'API access is available on Pro and Unlimited', upgradeRequired: true },
+      { status: 403 }
     );
   }
 
@@ -95,7 +105,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify plan exists
+  // The plan is derived from the tier, so a miss here is a seeding problem, not caller error
   const [planRecord] = await db
     .select()
     .from(apiPlans)
@@ -104,8 +114,8 @@ export async function POST(request: NextRequest) {
 
   if (!planRecord) {
     return NextResponse.json(
-      { error: `Invalid plan: ${plan}. Valid plans: developer, startup, enterprise` },
-      { status: 400 }
+      { error: `Configured plan '${plan}' is missing from api_plans` },
+      { status: 500 }
     );
   }
 

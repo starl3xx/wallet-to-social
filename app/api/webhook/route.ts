@@ -80,7 +80,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.log(`Upgraded user ${email} to ${tier}`);
 
     // Track payment completed event
-    const amountCents = tier === 'starter' ? 4900 : tier === 'pro' ? 14900 : tier === 'unlimited' ? 42000 : 0;
+    const amountCents = tier === 'starter' ? 4900 : tier === 'pro' ? 9900 : tier === 'unlimited' ? 24900 : 0;
     trackEvent('payment_completed', {
       userId: email,
       metadata: {

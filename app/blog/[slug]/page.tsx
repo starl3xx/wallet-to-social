@@ -154,7 +154,7 @@ export default async function BlogPost({ params }: Props) {
               Ready to find your holders?
             </h3>
             <p className="text-muted-foreground mb-4">
-              Upload your wallet list and see who you can reach. 1,000 wallets
+              Upload your wallet list and see who you can reach. 500 wallets
               free.
             </p>
             <Link

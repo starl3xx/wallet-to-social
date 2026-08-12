@@ -72,10 +72,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check user access - must be unlimited tier
+    // Contract import is the strongest feature in the product and used to sit
+    // behind the top tier, where almost nobody reached it (3 successful imports
+    // ever). It is now the headline reason to buy Pro.
     const access = await getUserAccess(session.user.email);
 
-    if (access.tier !== 'unlimited') {
+    if (access.tier !== 'pro' && access.tier !== 'unlimited') {
       trackEvent('contract_import_blocked', {
         userId: session.user.email,
         metadata: {
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: 'Contract import is only available for Unlimited tier users',
+          error: 'Contract import is available on Pro and Unlimited',
           upgradeRequired: true,
           tier: access.tier,
         },
@@ -111,7 +113,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch contract holders
-    const result = await getContractHolders(contractAddress, chain);
+    // Cap the import at what this account can actually look up, so the feature
+    // cannot hand a Pro user a list that trips the upgrade wall on Start Lookup.
+    const result = await getContractHolders(
+      contractAddress,
+      chain,
+      Number.isFinite(access.walletLimit) ? access.walletLimit : undefined
+    );
 
     // Track successful import
     trackEvent('contract_import_success', {
@@ -125,6 +133,7 @@ export async function POST(request: NextRequest) {
         totalHolders: result.totalHolders,
         holdersReturned: result.wallets.length,
         truncated: result.truncated,
+        appliedLimit: result.appliedLimit,
       },
     });
 
@@ -135,6 +144,7 @@ export async function POST(request: NextRequest) {
       contractType: result.contractType,
       totalHolders: result.totalHolders,
       truncated: result.truncated,
+      appliedLimit: result.appliedLimit,
       chain: result.chain,
     });
   } catch (error) {

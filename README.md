@@ -179,6 +179,21 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12 (later)
+
+**Pricing and packaging changes**
+
+- **Pro: $149 → $99**, and contract import moved down from Unlimited into Pro
+- **Free per-lookup limit: 1,000 → 500**
+- **New analytics events**: `checkout_redirected`, `checkout_failed`; `limit_hit` wired up
+- Revenue math in the webhook, admin dashboard and analytics updated to 9900 cents
+
+Driven by the funnel: 41 checkout sessions started, 0 completed. Free gave 1,000 wallets
+per lookup with unlimited lookups and ungated CSV export, leaving Pro with little to sell.
+
+**Deploy order matters:** the `$99` Stripe price must exist and `STRIPE_PRICE_PRO` must
+point at it *before* this ships, or the site advertises $99 and charges $149.
+
 ### 2026-08-12
 
 **Robinhood Chain support for contract import**
@@ -379,7 +394,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-15
 
 **Tiered pricing with Stripe integration**
-- **Three tiers**: Free (1,000 wallets), Pro (10,000 wallets, $149), Unlimited ($420)
+- **Three tiers**: Free (500 wallets), Pro (5,000 wallets, $99), Unlimited ($249)
 - **Stripe Checkout**: One-time payment flow with automatic tier upgrade
 - **Admin whitelist**: Manual unlimited access grants via `/admin` dashboard
 - **Access control**: Tier-based limits enforced on frontend and backend
