@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { requireDeveloperAccess } from '@/lib/developer-auth';
 import { users, apiKeys } from '@/db/schema';
 import { revokeApiKey, rotateApiKey } from '@/lib/api-keys';
 
@@ -15,7 +16,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: keyId } = await params;
-  const email = request.nextUrl.searchParams.get('email');
+  const requestedEmail = request.nextUrl.searchParams.get('email');
+  const auth = await requireDeveloperAccess(requestedEmail);
+  if (!auth.ok) return auth.response;
+  const email = auth.identity.email;
 
   if (!email) {
     return NextResponse.json(
@@ -103,7 +107,9 @@ export async function POST(
     );
   }
 
-  const { email } = body;
+  const auth = await requireDeveloperAccess(body?.email);
+  if (!auth.ok) return auth.response;
+  const email = auth.identity.email;
 
   if (!email) {
     return NextResponse.json(
