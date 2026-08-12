@@ -304,6 +304,23 @@ async function markSeedAttempt(candidate: SeedCandidate): Promise<void> {
   `);
 }
 
+/**
+ * Revert an attempt marker after a BUDGET timeout: the run ran out of time,
+ * the contract did nothing wrong, and it should stay novel so tomorrow's
+ * fresh budget tries it first instead of locking it out for 2 days. Only
+ * zero-holder rows are deleted; if the abandoned attempt later completes in
+ * the background, recordSeed simply re-inserts a fresh success row.
+ */
+async function unmarkSeedAttempt(candidate: SeedCandidate): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`
+    DELETE FROM seeded_contracts
+    WHERE address = ${candidate.address} AND chain = ${candidate.chain}
+      AND holders_imported = 0
+  `);
+}
+
 // ============================================================================
 // Seeding one contract
 // ============================================================================
@@ -405,6 +422,10 @@ const ATTEMPT_RESERVE_MS = 70_000;
 // Margin kept for response serialization after the last attempt
 const CLEANUP_MARGIN_MS = 10_000;
 
+/** Distinguishes "the run's budget expired" from "the contract failed" —
+ *  they must be recorded differently. */
+class SeedBudgetTimeout extends Error {}
+
 /** Reject if the promise outlives ms. The underlying work may still complete
  *  in the background before function teardown — that's harmless here: seed
  *  writes are idempotent and a late-created job is a real job. */
@@ -412,7 +433,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s budget`)), ms)
+      setTimeout(
+        () => reject(new SeedBudgetTimeout(`${label} exceeded ${Math.round(ms / 1000)}s budget`)),
+        ms
+      )
     ),
   ]);
 }
@@ -471,6 +495,18 @@ async function seedFirstViable(
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
       console.error(`Seed failed for ${candidate.label} (${candidate.address}):`, lastError);
+      if (error instanceof SeedBudgetTimeout) {
+        // The run's budget expired, not the contract — undo the lockout and
+        // stop attempting: there's no time left for another try anyway
+        await unmarkSeedAttempt(candidate).catch(console.error);
+        return {
+          contract: { address: '?', chain, kind, label: 'time budget exhausted' },
+          holdersImported: 0,
+          totalHolders: 0,
+          jobId: null,
+          error: lastError,
+        };
+      }
     }
   }
 
