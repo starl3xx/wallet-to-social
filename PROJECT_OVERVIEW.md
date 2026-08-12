@@ -131,6 +131,8 @@ Export to CSV or Twitter list
 | — Farcaster sweep | `social_graph` is also bulk-populated by a protocol-wide Farcaster sweep (`lib/farcaster-sweep.ts`): every FID's verified + custody ETH addresses, username, follower count. Daily incremental cron + monthly full GitHub Actions re-sweep. Swept rows are medium quality (45) until a real lookup completes the Twitter side. | |
 | — ENS harvest | On-chain com.twitter/com.github text records (`lib/ens-harvest.ts`): TextChanged log scan → current values via registry→resolver Multicall3 reads. User-attested, `twitter_verified`, quality 50, fill-only. Daily incremental cron from an `ingest_state` checkpoint. | |
 | `ingest_state` | Checkpoints for ingest pipelines (name → jsonb value) | name, value, updated_at |
+| `seeded_contracts` | Contracts the daily seed cron has imported holders from (novelty selection: 30-day re-seed window) | address+chain (pk), name, holders_imported, last_seeded_at |
+| `wallet_holdings` | Wallet ↔ contract edges observed at seed time — the audience graph | wallet+contract+chain (pk), contract_type, first/last_seen_at |
 | `social_graph` | Permanent storage of every checked wallet — positive rows carry socials; negative rows (all socials NULL, sources=['none']) mean "checked, nothing found" and suppress re-checks for 30 days | wallet, twitter_handle, farcaster, fc_followers, sources[], first_seen_at, last_checked_at |
 | `lookup_jobs` | Background job queue | status, wallets[], processed_count, partial_results, twitter_found |
 | `lookup_history` | Saved lookup sessions | user_id, wallet_count, results (JSONB), input_source |

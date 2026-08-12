@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/ens-harvest",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/seed-collections",
+      "schedule": "0 7 * * *"
     }
   ],
   "headers": [

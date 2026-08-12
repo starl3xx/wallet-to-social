@@ -13,7 +13,7 @@ export interface SavedLookup {
   createdAt: Date;
 }
 
-export type InputSource = 'file_upload' | 'text_input' | 'contract_import' | 'api';
+export type InputSource = 'file_upload' | 'text_input' | 'contract_import' | 'api' | 'seed_cron';
 
 export async function saveLookup(
   results: WalletSocialResult[],
