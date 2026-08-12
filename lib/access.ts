@@ -43,7 +43,7 @@ export const TIER_QUOTA: Record<UserTier, number | null> = {
 export const TIER_PRICES: Record<'starter' | 'pro' | 'unlimited', number> = {
   starter: 49,
   pro: 99,
-  unlimited: 420,
+  unlimited: 249,
 };
 
 /**

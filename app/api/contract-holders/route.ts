@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Contract import is the strongest feature in the product and used to sit
-    // behind the $420 tier, where almost nobody reached it (3 successful imports
+    // behind the top tier, where almost nobody reached it (3 successful imports
     // ever). It is now the headline reason to buy Pro.
     const access = await getUserAccess(session.user.email);
 

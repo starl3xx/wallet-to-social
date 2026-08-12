@@ -118,7 +118,7 @@ export default function CookieComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                        $99 - $420
+                        $99 - $249
                       </span>{' '}
                       one-time
                     </td>
@@ -331,7 +331,7 @@ export default function CookieComparison() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Unlimited</p>
-                  <p className="text-2xl font-bold">$420</p>
+                  <p className="text-2xl font-bold">$249</p>
                   <p className="text-muted-foreground">
                     Unlimited wallets/lookup forever
                   </p>

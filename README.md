@@ -394,7 +394,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-15
 
 **Tiered pricing with Stripe integration**
-- **Three tiers**: Free (1,000 wallets), Pro (10,000 wallets, $149), Unlimited ($420)
+- **Three tiers**: Free (500 wallets), Pro (5,000 wallets, $99), Unlimited ($249)
 - **Stripe Checkout**: One-time payment flow with automatic tier upgrade
 - **Admin whitelist**: Manual unlimited access grants via `/admin` dashboard
 - **Access control**: Tier-based limits enforced on frontend and backend

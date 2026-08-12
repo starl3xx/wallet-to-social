@@ -23,7 +23,7 @@
 |------|-------|------------------|-------------|--------------|
 | Free | $0 | 500 wallets | Unlimited lookups | Full CSV export, 1 saved lookup |
 | Pro | $99 | 5,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
-| Unlimited | $420 | Unlimited | Unlimited | Everything + priority support |
+| Unlimited | $249 | Unlimited | Unlimited | Everything + priority support |
 
 **Starter was retired 2026-08-12.** It is no longer purchasable; the tier still resolves in code so any legacy account holding it keeps working.
 
@@ -260,7 +260,7 @@ STRIPE_SECRET_KEY=...
 STRIPE_WEBHOOK_SECRET=...
 STRIPE_PRICE_STARTER=price_xxx           # $49 product
 STRIPE_PRICE_PRO=price_xxx               # $99 product
-STRIPE_PRICE_UNLIMITED=price_xxx         # $420 product
+STRIPE_PRICE_UNLIMITED=price_xxx         # $249 product
 
 # Email (Resend)
 RESEND_API_KEY=...
@@ -336,7 +336,7 @@ npm run dev                 # Start dev server
 ## Recent Changes (2026-08-12, later)
 
 - **Pro is $99** (was $149) and now includes **contract import**, which previously sat
-  behind the $420 Unlimited tier
+  behind the Unlimited tier
 - **Free per-lookup limit is 500** (was 1,000)
 - **Checkout instrumentation**: `checkout_redirected` and `checkout_failed` added, and
   `limit_hit` wired up — it was defined but never called

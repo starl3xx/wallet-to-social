@@ -100,7 +100,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
   const allTimeRevenue =
     paidUsers.reduce((sum, u) => {
       if (u.tier === 'pro') return sum + 99;
-      if (u.tier === 'unlimited') return sum + 420;
+      if (u.tier === 'unlimited') return sum + 249;
       return sum;
     }, 0);
 
@@ -259,7 +259,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                           </span>
                         </TableCell>
                         <TableCell>
-                          ${user.tier === 'pro' ? '99' : user.tier === 'unlimited' ? '420' : '0'}
+                          ${user.tier === 'pro' ? '99' : user.tier === 'unlimited' ? '249' : '0'}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
                           {user.stripeCustomerId

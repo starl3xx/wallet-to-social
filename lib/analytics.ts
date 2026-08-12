@@ -261,10 +261,10 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
       .from(users)
       .where(and(gte(users.paidAt, startOfDay), lte(users.paidAt, endOfDay)));
 
-    // Calculate revenue (Pro = $99 = 9900 cents, Unlimited = $420 = 42000 cents)
+    // Calculate revenue (Pro = $99 = 9900 cents, Unlimited = $249 = 24900 cents)
     const proPurchases = Number(purchaseStats[0]?.proPurchases ?? 0);
     const unlimitedPurchases = Number(purchaseStats[0]?.unlimitedPurchases ?? 0);
-    const revenueCents = proPurchases * 9900 + unlimitedPurchases * 42000;
+    const revenueCents = proPurchases * 9900 + unlimitedPurchases * 24900;
 
     // Get API error count
     const errorStats = await db
