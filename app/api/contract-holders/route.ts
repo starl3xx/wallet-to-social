@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
-import { getContractHolders, type SupportedChain } from '@/lib/contract-holders';
+import {
+  getContractHolders,
+  CHAIN_LABELS,
+  SUPPORTED_CHAINS,
+  type SupportedChain,
+} from '@/lib/contract-holders';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { trackEvent } from '@/lib/analytics';
 
@@ -35,9 +40,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Declared outside the try so the catch block can name the chain in errors.
+  let chain: SupportedChain | undefined;
+
   try {
     const body: ContractHoldersRequest = await request.json();
-    const { contractAddress, chain } = body;
+    const { contractAddress } = body;
+    chain = body.chain;
 
     // Validate required fields
     if (!contractAddress) {
@@ -47,9 +56,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!chain || !['ethereum', 'base'].includes(chain)) {
+    if (!chain || !SUPPORTED_CHAINS.includes(chain)) {
       return NextResponse.json(
-        { error: 'Chain must be "ethereum" or "base"' },
+        { error: `Chain must be one of: ${SUPPORTED_CHAINS.join(', ')}` },
         { status: 400 }
       );
     }
@@ -86,22 +95,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check required API keys
+    // Alchemy backs NFT holder lookups on every supported chain, so it is the one
+    // hard requirement. Moralis is only needed for ERC-20 contracts, so it is not
+    // gated here — getERC20Holders raises its own error if a token lookup needs it
+    // and the key is absent. Gating upfront would block NFT imports on a chain
+    // where Moralis has no coverage at all (e.g. Robinhood).
     const alchemyKey = process.env.ALCHEMY_KEY;
-    const moralisKey = process.env.MORALIS_API_KEY;
 
     if (!alchemyKey) {
       console.error('ALCHEMY_KEY not configured for contract holder lookups');
       return NextResponse.json(
         { error: 'NFT holder lookup service not configured' },
-        { status: 503 }
-      );
-    }
-
-    if (!moralisKey) {
-      console.error('MORALIS_API_KEY not configured for ERC-20 holder lookups');
-      return NextResponse.json(
-        { error: 'Token holder lookup service not configured' },
         { status: 503 }
       );
     }
@@ -138,6 +142,7 @@ export async function POST(request: NextRequest) {
 
     // Map error codes to user-friendly messages
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const chainLabel = chain ? (CHAIN_LABELS[chain] ?? chain) : 'this chain';
 
     const errorMap: Record<string, { message: string; status: number }> = {
       NOT_A_CONTRACT: {
@@ -155,6 +160,22 @@ export async function POST(request: NextRequest) {
       RATE_LIMIT: {
         message: 'Too many requests, please try again in a moment',
         status: 429,
+      },
+      MORALIS_NOT_CONFIGURED: {
+        message: 'Token holder lookup service not configured',
+        status: 503,
+      },
+      UNSUPPORTED_CHAIN: {
+        message: `Unsupported network. Choose one of: ${SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(', ')}`,
+        status: 400,
+      },
+      CHAIN_NO_NFT_SUPPORT: {
+        message: `NFT holder lookups are not available on ${chainLabel}`,
+        status: 400,
+      },
+      CHAIN_NO_ERC20_SUPPORT: {
+        message: `Token (ERC-20) holder lookups are not available on ${chainLabel}. NFT collections on this chain are supported.`,
+        status: 400,
       },
     };
 

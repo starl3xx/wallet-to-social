@@ -334,6 +334,33 @@ npm run dev                 # Start dev server
 
 ---
 
+## Supported Chains (contract import)
+
+| Chain | Chain ID | NFT holders | ERC-20 holders |
+|-------|----------|-------------|----------------|
+| Ethereum | 1 | Alchemy NFT API | Moralis |
+| Base | 8453 | Alchemy NFT API | Moralis |
+| Robinhood Chain | 4663 | Alchemy NFT API | Not available (no Moralis index) |
+
+Chain constants live in `lib/chains.ts`, deliberately free of dependencies so client
+components can import them without pulling `ethers` (imported by `lib/contract-holders.ts`)
+into the browser bundle. Adding a network means adding an entry to `CHAIN_IDS`,
+`CHAIN_LABELS`, `RPC_ENDPOINTS`, and `ALCHEMY_ENDPOINTS` — the API route and the import
+modal both derive their options from `SUPPORTED_CHAINS`.
+
+Alchemy requires each network to be enabled per-app in its dashboard; a network that is
+not enabled fails with `<NETWORK>_MAINNET is not enabled for this app`.
+
+---
+
+## Recent Changes (2026-08-12)
+
+- **Robinhood Chain (4663) added to contract import** — NFT holder lookups via Alchemy,
+  verified exact against on-chain `ownerOf` enumeration (618/618 holders, 4,444 tokens)
+- **`lib/chains.ts` added** — dependency-free chain constants shared by server and client
+- **ERC-20 lookups unavailable on Robinhood** — surfaced as a clear error plus a modal warning
+- **`MORALIS_API_KEY` no longer required for NFT imports** — it previously 503'd the whole endpoint
+
 ## Recent Changes (2026-02-21)
 
 - **Blog infrastructure**: New `/blog` and `/blog/[slug]` routes rendering markdown from `content/published/`
