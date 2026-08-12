@@ -131,9 +131,11 @@ export function UpgradeModal({
           <ModalDescription>
             {walletCount
               ? `Your file has ${walletCount.toLocaleString()} wallets. ${
-                  proCoversList
-                    ? `Free tier is limited to ${TIER_LIMITS.free.toLocaleString()} wallets.`
-                    : `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} per lookup, so this list needs Unlimited.`
+                  !proCoversList
+                    ? `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} per lookup, so this list needs Unlimited.`
+                    : currentTier === 'free'
+                      ? `Free tier is limited to ${TIER_LIMITS.free.toLocaleString()} wallets.`
+                      : ''
                 }`
               : 'Get access to more wallets and premium features.'}
           </ModalDescription>

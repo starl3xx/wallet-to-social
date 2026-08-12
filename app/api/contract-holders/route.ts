@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
         totalHolders: result.totalHolders,
         holdersReturned: result.wallets.length,
         truncated: result.truncated,
+        appliedLimit: result.appliedLimit,
       },
     });
 
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
       contractType: result.contractType,
       totalHolders: result.totalHolders,
       truncated: result.truncated,
+      appliedLimit: result.appliedLimit,
       chain: result.chain,
     });
   } catch (error) {

@@ -12,6 +12,8 @@ export type ContractType = 'ERC-20' | 'ERC-721' | 'ERC-1155';
 
 export interface HolderResult {
   wallets: string[];
+  /** The per-lookup cap actually applied, so callers can report it accurately. */
+  appliedLimit: number;
   tokenName: string;
   tokenSymbol: string;
   contractType: ContractType;
@@ -390,6 +392,7 @@ export async function getContractHolders(
     tokenSymbol,
     contractType,
     totalHolders: holdersResult.totalHolders,
+    appliedLimit: effectiveLimit,
     truncated: holdersResult.totalHolders > effectiveLimit,
     chain,
   };

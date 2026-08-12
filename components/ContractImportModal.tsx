@@ -36,6 +36,7 @@ interface ContractResult {
   contractType: ContractType;
   totalHolders: number;
   truncated: boolean;
+  appliedLimit?: number;
   chain: SupportedChain;
 }
 
@@ -245,7 +246,8 @@ export function ContractImportModal({
                 <div className="flex items-start gap-2 pt-2 border-t">
                   <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Limited to 10,000 of {result.totalHolders.toLocaleString()} total holders
+                    Limited to {(result.appliedLimit ?? result.wallets.length).toLocaleString()} of{' '}
+                    {result.totalHolders.toLocaleString()} total holders
                   </p>
                 </div>
               )}
