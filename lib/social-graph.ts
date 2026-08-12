@@ -712,9 +712,14 @@ function mergeSources(
     ...(existingSources ?? []),
     ...(newSources ?? []),
   ]);
-  // Remove 'cache' and 'graph' from permanent storage - only track actual API sources
+  // Remove 'cache' and 'graph' from permanent storage - only track actual API
+  // sources. 'none'/'graph:none' are negative markers — once a wallet gains
+  // socials they'd otherwise leak into the positive row's sources (and give
+  // calculateQualityScore an unearned bonus).
   combined.delete('cache');
   combined.delete('graph');
+  combined.delete('none');
+  combined.delete('graph:none');
   return Array.from(combined);
 }
 
@@ -901,6 +906,7 @@ export async function upsertManualSocialGraph(
           farcasterVerified: sql`EXCLUDED.farcaster_verified OR ${socialGraph.farcasterVerified}`,
           dataQualityScore: sql`100`,
           lastVerificationAt: sql`EXCLUDED.last_verification_at`,
+          lastCheckedAt: sql`EXCLUDED.last_checked_at`,
           staleAt: sql`EXCLUDED.stale_at`,
         },
       })
