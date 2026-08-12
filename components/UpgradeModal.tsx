@@ -39,6 +39,7 @@ const FEATURES = {
   ],
   pro: [
     'Up to 10,000 wallets/lookup',
+    'Import from contract address',
     'All data sources',
     'ENS onchain lookups',
     'Farcaster follower counts',
@@ -108,10 +109,15 @@ export function UpgradeModal({
       // Store email for post-payment access check
       localStorage.setItem('user_email', email);
 
+      // Only now do we know Stripe actually gave us a session
+      Analytics.checkoutRedirected(tier);
+
       // Redirect to Stripe checkout
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout failed');
+      const message = err instanceof Error ? err.message : 'Checkout failed';
+      Analytics.checkoutFailed(tier, message);
+      setError(message);
       setLoading(null);
     }
   };

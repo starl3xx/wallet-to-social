@@ -97,7 +97,7 @@ const jsonLd = {
     {
       '@type': 'Offer',
       name: 'Pro',
-      price: '149',
+      price: '99',
       priceCurrency: 'USD',
       description: 'Up to 10,000 wallets per lookup - one-time payment',
     },
@@ -141,7 +141,7 @@ const faqSchema = {
       name: 'How much does walletlink.social cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social offers a free tier (1,000 wallets), Starter ($49 one-time for 10,000 wallets), Pro ($149 one-time for 10,000 wallets per lookup with history), and Unlimited ($420 one-time for unlimited wallets forever). All paid plans are one-time payments, not subscriptions.',
+        text: 'walletlink.social offers a free tier (500 wallets per lookup), Starter ($49 one-time for 10,000 wallets), Pro ($99 one-time for 10,000 wallets per lookup, contract import and full history), and Unlimited ($420 one-time for unlimited wallets forever). All paid plans are one-time payments, not subscriptions.',
       },
     },
     {

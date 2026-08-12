@@ -72,10 +72,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check user access - must be unlimited tier
+    // Contract import is the strongest feature in the product and used to sit
+    // behind the $420 tier, where almost nobody reached it (3 successful imports
+    // ever). It is now the headline reason to buy Pro.
     const access = await getUserAccess(session.user.email);
 
-    if (access.tier !== 'unlimited') {
+    if (access.tier !== 'pro' && access.tier !== 'unlimited') {
       trackEvent('contract_import_blocked', {
         userId: session.user.email,
         metadata: {
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: 'Contract import is only available for Unlimited tier users',
+          error: 'Contract import is available on Pro and Unlimited',
           upgradeRequired: true,
           tier: access.tier,
         },

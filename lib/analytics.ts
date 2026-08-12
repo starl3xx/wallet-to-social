@@ -20,6 +20,11 @@ export type AnalyticsEventType =
   | 'history_saved'
   | 'upgrade_modal_viewed'
   | 'checkout_started'
+  // checkout_started fires on button click, before the API call, so on its own
+  // it cannot distinguish "reached Stripe" from "checkout errored". These two
+  // close that gap — 41 checkout_started with 0 payments was unreadable without them.
+  | 'checkout_redirected'
+  | 'checkout_failed'
   | 'payment_completed'
   | 'limit_hit'
   | 'user_registered'
@@ -256,10 +261,10 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
       .from(users)
       .where(and(gte(users.paidAt, startOfDay), lte(users.paidAt, endOfDay)));
 
-    // Calculate revenue (Pro = $149 = 14900 cents, Unlimited = $420 = 42000 cents)
+    // Calculate revenue (Pro = $99 = 9900 cents, Unlimited = $420 = 42000 cents)
     const proPurchases = Number(purchaseStats[0]?.proPurchases ?? 0);
     const unlimitedPurchases = Number(purchaseStats[0]?.unlimitedPurchases ?? 0);
-    const revenueCents = proPurchases * 14900 + unlimitedPurchases * 42000;
+    const revenueCents = proPurchases * 9900 + unlimitedPurchases * 42000;
 
     // Get API error count
     const errorStats = await db

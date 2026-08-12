@@ -22,6 +22,7 @@ const ContractImportModal = dynamic(() => import('@/components/ContractImportMod
 const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ default: m.AuthModal })));
 const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
 import { getUserId } from '@/lib/user-id';
+import { Analytics } from '@/lib/client-analytics';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,7 +80,7 @@ export default function Home() {
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
 
-  // Contract import modal state (Unlimited tier only)
+  // Contract import modal state (Pro and Unlimited)
   const [showContractImportModal, setShowContractImportModal] = useState(false);
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
   const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
@@ -288,6 +289,9 @@ export default function Home() {
     // Check tier limit before starting
     const walletLimit = TIER_LIMITS[userTier];
     if (wallets.length > walletLimit) {
+      // limitHit existed in client-analytics but was never called, so we had no
+      // idea how often the free ceiling was actually the blocker.
+      Analytics.limitHit(userTier, walletLimit, wallets.length);
       setShowUpgradeModal(true);
       return;
     }
@@ -935,7 +939,7 @@ export default function Home() {
           if (!open) setRateLimitMessage(null);
         }} />
 
-        {/* Contract Import Modal (Unlimited tier only) */}
+        {/* Contract Import Modal (Pro and Unlimited) */}
         <ContractImportModal
           open={showContractImportModal}
           onOpenChange={setShowContractImportModal}
@@ -998,8 +1002,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Contract import option (Unlimited tier only) */}
-              {userTier === 'unlimited' && (
+              {/* Contract import option (Pro and Unlimited) */}
+              {(userTier === 'pro' || userTier === 'unlimited') && (
                 <div className="text-center">
                   <div className="flex items-center gap-4 my-4">
                     <div className="flex-1 h-px bg-border" />

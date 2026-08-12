@@ -72,6 +72,14 @@ export const Analytics = {
   checkoutStarted: (tier: 'starter' | 'pro' | 'unlimited') =>
     trackClientEvent('checkout_started', { tier }),
 
+  /** Fired once Stripe has actually handed us a session URL. */
+  checkoutRedirected: (tier: 'starter' | 'pro' | 'unlimited') =>
+    trackClientEvent('checkout_redirected', { tier }),
+
+  /** Fired when checkout never reached Stripe, with the reason. */
+  checkoutFailed: (tier: 'starter' | 'pro' | 'unlimited', reason: string) =>
+    trackClientEvent('checkout_failed', { tier, reason }),
+
   limitHit: (tier: string, limit: number, attempted: number) =>
     trackClientEvent('limit_hit', { tier, limit, attempted }),
 };

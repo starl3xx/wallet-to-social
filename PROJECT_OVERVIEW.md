@@ -21,9 +21,9 @@
 
 | Tier | Price | Per-Lookup Limit | Total Quota | Key Features |
 |------|-------|------------------|-------------|--------------|
-| Free | $0 | 1,000 wallets | Unlimited lookups | Basic CSV export, 1 saved lookup |
+| Free | $0 | 500 wallets | Unlimited lookups | Full CSV export, 1 saved lookup |
 | Starter | $49 | 10,000 wallets | 10,000 total cumulative | All Pro features, quota-based |
-| Pro | $149 | 10,000 wallets | Unlimited lookups | ENS lookups, follower counts, priority scoring, full history |
+| Pro | $99 | 10,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
 | Unlimited | $420 | Unlimited | Unlimited | Everything + priority support |
 
 **Key distinction**: Starter tier has a *cumulative* quota (10K wallets total across all lookups), while Pro has a *per-lookup* limit (10K per lookup, unlimited lookups).
@@ -260,7 +260,7 @@ ALCHEMY_KEY=...                          # ENS onchain lookups
 STRIPE_SECRET_KEY=...
 STRIPE_WEBHOOK_SECRET=...
 STRIPE_PRICE_STARTER=price_xxx           # $49 product
-STRIPE_PRICE_PRO=price_xxx               # $149 product
+STRIPE_PRICE_PRO=price_xxx               # $99 product
 STRIPE_PRICE_UNLIMITED=price_xxx         # $420 product
 
 # Email (Resend)
@@ -331,6 +331,26 @@ npm run dev                 # Start dev server
 - **Curly apostrophes** - "We'll" not "We'll"
 - **No time estimates** - Never predict how long tasks will take
 - **Social proof = comparisons** - "9x industry avg" not progress bars
+
+---
+
+## Recent Changes (2026-08-12, later)
+
+- **Pro is $99** (was $149) and now includes **contract import**, which previously sat
+  behind the $420 Unlimited tier
+- **Free per-lookup limit is 500** (was 1,000)
+- **Checkout instrumentation**: `checkout_redirected` and `checkout_failed` added, and
+  `limit_hit` wired up — it was defined but never called
+
+**Why:** 41 checkout sessions had been started with zero completions. Free offered
+1,000 wallets per lookup with *unlimited* lookups and full CSV export, so Pro added
+little for most users — only 7 lookups in the product's history ever exceeded the free
+ceiling, against 261 upgrade-modal views. The gap between free and paid was the problem,
+not the price alone.
+
+**Note:** a cumulative free quota is not enforceable today. Free users are anonymous
+(`getUserAccess()` returns before any DB read without an email), so only the per-lookup
+limit can be applied without forcing signup.
 
 ---
 
