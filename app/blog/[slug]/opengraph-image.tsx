@@ -16,6 +16,11 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
   const logoBuffer = readFileSync(join(process.cwd(), 'public', 'icon.png'));
   const logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
 
+  // nodejs runtime here, so the subset Söhne files are read off disk rather
+  // than fetched the way the edge OG routes do it.
+  const fontDir = join(process.cwd(), 'app', 'fonts');
+  const sohne = (weight: number) => readFileSync(join(fontDir, `sohne-${weight}.ttf`));
+
   return new ImageResponse(
     (
       <div
@@ -27,7 +32,7 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
           flexDirection: 'column',
           justifyContent: 'center',
           padding: '60px 80px',
-          fontFamily: 'system-ui, sans-serif',
+          fontFamily: 'Sohne',
         }}
       >
         {/* Logo */}
@@ -83,6 +88,13 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        { name: 'Sohne', data: sohne(400), weight: 400 as const, style: 'normal' as const },
+        { name: 'Sohne', data: sohne(600), weight: 600 as const, style: 'normal' as const },
+        { name: 'Sohne', data: sohne(700), weight: 700 as const, style: 'normal' as const },
+      ],
+    }
   );
 }

@@ -6,9 +6,12 @@ export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default async function TwitterImage() {
-  const logoData = await fetch(
-    new URL('../public/icon.png', import.meta.url)
-  ).then((res) => res.arrayBuffer());
+  const [logoData, sohne400, sohne600, sohne700] = await Promise.all([
+    fetch(new URL('../public/icon.png', import.meta.url)).then((r) => r.arrayBuffer()),
+    fetch(new URL('./fonts/sohne-400.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
+    fetch(new URL('./fonts/sohne-600.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
+    fetch(new URL('./fonts/sohne-700.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
+  ]);
 
   return new ImageResponse(
     (
@@ -22,7 +25,7 @@ export default async function TwitterImage() {
           justifyContent: 'center',
           alignItems: 'center',
           padding: '60px 80px',
-          fontFamily: 'system-ui, sans-serif',
+          fontFamily: 'Sohne',
         }}
       >
         {/* Logo area */}
@@ -101,6 +104,18 @@ export default async function TwitterImage() {
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      // Söhne ships CFF (OTTO) outlines, which Satori renders as a silent
+      // fallback; these are converted to glyf TTF and subset to Latin + the
+      // punctuation these cards use, which keeps all three weights at ~54KB
+      // total for the edge bundle. Registered under an ASCII family name so
+      // Satori's matching never sees the umlaut.
+      fonts: [
+        { name: 'Sohne', data: sohne400, weight: 400, style: 'normal' },
+        { name: 'Sohne', data: sohne600, weight: 600, style: 'normal' },
+        { name: 'Sohne', data: sohne700, weight: 700, style: 'normal' },
+      ],
+    }
   );
 }
