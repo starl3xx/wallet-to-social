@@ -396,10 +396,26 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
 // How many novel candidates to try before giving up on a chain for the day
 const MAX_ATTEMPTS_PER_SLOT = 3;
 
-// Worst-case time for one seed attempt: contract-type detection + token info
-// (15s timeouts each) + holder fetch (30s) + DB writes. An attempt only
-// starts if this much budget remains.
+// Minimum budget required to START an attempt. The attempt itself is then
+// hard-bounded by a race against the remaining budget (see seedFirstViable) —
+// estimating a worst case by arithmetic is a losing game when ERC-20 holder
+// fetches paginate up to 20 sequential requests under the hood.
 const ATTEMPT_RESERVE_MS = 70_000;
+
+// Margin kept for response serialization after the last attempt
+const CLEANUP_MARGIN_MS = 10_000;
+
+/** Reject if the promise outlives ms. The underlying work may still complete
+ *  in the background before function teardown — that's harmless here: seed
+ *  writes are idempotent and a late-created job is a real job. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s budget`)), ms)
+    ),
+  ]);
+}
 
 // A slot additionally needs its discovery calls (two 15s-timeout fetches)
 // before any attempt can start
@@ -432,7 +448,8 @@ async function seedFirstViable(
   for (const candidate of novel.slice(0, MAX_ATTEMPTS_PER_SLOT)) {
     // A slot must not eat the whole run's budget retrying on a
     // degraded-API day — only start an attempt it can finish
-    if (Date.now() > deadline - ATTEMPT_RESERVE_MS) {
+    const remaining = deadline - Date.now();
+    if (remaining < ATTEMPT_RESERVE_MS) {
       return {
         contract: { address: '?', chain, kind, label: 'time budget exhausted' },
         holdersImported: 0,
@@ -443,7 +460,14 @@ async function seedFirstViable(
     }
     await markSeedAttempt(candidate);
     try {
-      return await seedContract(candidate);
+      // Hard wall-clock bound: the attempt may use all remaining budget
+      // minus the cleanup margin, but can never exceed it — regardless of
+      // how many sequential requests the holder fetch makes internally
+      return await withTimeout(
+        seedContract(candidate),
+        remaining - CLEANUP_MARGIN_MS,
+        candidate.label
+      );
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
       console.error(`Seed failed for ${candidate.label} (${candidate.address}):`, lastError);
