@@ -178,8 +178,10 @@ interface BlockscoutToken {
 
 /** Keyless Robinhood NFT discovery: Blockscout tokens ranked by holders. */
 async function discoverRobinhoodNftFallback(): Promise<SeedCandidate[]> {
+  // Explicit holders sort — Blockscout's default order is market cap first,
+  // which lets priced collections outrank larger audiences
   const res = await fetch(
-    'https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-721',
+    'https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-721&sort=holders_count&order=desc',
     { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) }
   );
   if (!res.ok) throw new Error(`Blockscout ${res.status}`);
@@ -243,12 +245,12 @@ export async function discoverTokenCandidates(chain: SupportedChain): Promise<Se
 // Novelty-aware selection
 // ============================================================================
 
-/** First candidate not seeded within NOVELTY_DAYS. */
-export async function selectNovelCandidate(
+/** Candidates not seeded (or attempted) within NOVELTY_DAYS, in rank order. */
+export async function selectNovelCandidates(
   candidates: SeedCandidate[]
-): Promise<SeedCandidate | null> {
+): Promise<SeedCandidate[]> {
   const db = getDb();
-  if (!db || candidates.length === 0) return candidates[0] ?? null;
+  if (!db || candidates.length === 0) return candidates;
 
   const addresses = candidates.map((c) => c.address);
   const chain = candidates[0].chain;
@@ -260,7 +262,31 @@ export async function selectNovelCandidate(
   `)) as unknown as { rows: Array<{ address: string }> };
 
   const recentlySeeded = new Set(result.rows.map((r) => r.address));
-  return candidates.find((c) => !recentlySeeded.has(c.address)) ?? null;
+  return candidates.filter((c) => !recentlySeeded.has(c.address));
+}
+
+/** Back-compat single-pick helper (first novel candidate). */
+export async function selectNovelCandidate(
+  candidates: SeedCandidate[]
+): Promise<SeedCandidate | null> {
+  return (await selectNovelCandidates(candidates))[0] ?? null;
+}
+
+/**
+ * Record that a seed was ATTEMPTED, before knowing whether it succeeds.
+ * Without this, a contract whose holder import persistently fails never
+ * enters seeded_contracts, stays "novel" forever, and permanently blocks
+ * its chain's queue — the failure mode is a cron that looks healthy while
+ * seeding nothing.
+ */
+async function markSeedAttempt(candidate: SeedCandidate): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`
+    INSERT INTO seeded_contracts (address, chain, contract_type, name, holders_imported)
+    VALUES (${candidate.address}, ${candidate.chain}, ${candidate.kind}, ${candidate.label}, 0)
+    ON CONFLICT (address, chain) DO UPDATE SET last_seeded_at = now()
+  `);
 }
 
 // ============================================================================
@@ -352,6 +378,51 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
  * Failures are per-contract: one bad discovery source or contract doesn't
  * stop the rest of the day's seeding.
  */
+// How many novel candidates to try before giving up on a chain for the day
+const MAX_ATTEMPTS_PER_SLOT = 3;
+
+/**
+ * Try novel candidates in rank order until one seeds successfully. Every
+ * attempt — success or failure — is recorded first, so a broken contract
+ * consumes its novelty and tomorrow's run moves down the rankings instead
+ * of retrying it forever.
+ */
+async function seedFirstViable(
+  candidates: SeedCandidate[],
+  chain: SupportedChain,
+  kind: 'nft' | 'erc20'
+): Promise<SeedRunResult> {
+  const novel = await selectNovelCandidates(candidates);
+  if (novel.length === 0) {
+    return {
+      contract: { address: '?', chain, kind, label: 'no novel candidates' },
+      holdersImported: 0,
+      totalHolders: 0,
+      jobId: null,
+      error: 'no novel candidates',
+    };
+  }
+
+  let lastError = '';
+  for (const candidate of novel.slice(0, MAX_ATTEMPTS_PER_SLOT)) {
+    await markSeedAttempt(candidate);
+    try {
+      return await seedContract(candidate);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error(`Seed failed for ${candidate.label} (${candidate.address}):`, lastError);
+    }
+  }
+
+  return {
+    contract: { address: '?', chain, kind, label: 'all attempts failed' },
+    holdersImported: 0,
+    totalHolders: 0,
+    jobId: null,
+    error: lastError,
+  };
+}
+
 export async function runDailySeed(): Promise<SeedRunResult[]> {
   const results: SeedRunResult[] = [];
   const chains: SupportedChain[] = ['ethereum', 'base', 'robinhood'];
@@ -360,12 +431,7 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     // NFT collection
     try {
       const nftCandidates = await discoverNftCandidates(chain);
-      const nft = await selectNovelCandidate(nftCandidates);
-      if (nft) {
-        results.push(await seedContract(nft));
-      } else {
-        console.log(`No novel NFT candidate on ${chain}`);
-      }
+      results.push(await seedFirstViable(nftCandidates, chain, 'nft'));
     } catch (error) {
       results.push({
         contract: { address: '?', chain, kind: 'nft', label: 'discovery failed' },
@@ -380,12 +446,7 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     if (chain !== 'robinhood') {
       try {
         const tokenCandidates = await discoverTokenCandidates(chain);
-        const token = await selectNovelCandidate(tokenCandidates);
-        if (token) {
-          results.push(await seedContract(token));
-        } else {
-          console.log(`No novel token candidate on ${chain}`);
-        }
+        results.push(await seedFirstViable(tokenCandidates, chain, 'erc20'));
       } catch (error) {
         results.push({
           contract: { address: '?', chain, kind: 'erc20', label: 'discovery failed' },
