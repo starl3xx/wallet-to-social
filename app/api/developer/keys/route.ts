@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
   if (!planRecord) {
     return NextResponse.json(
       { error: `Configured plan '${plan}' is missing from api_plans` },
-      { status: 400 }
+      { status: 500 }
     );
   }
 

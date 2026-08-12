@@ -113,7 +113,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch contract holders
-    const result = await getContractHolders(contractAddress, chain);
+    // Cap the import at what this account can actually look up, so the feature
+    // cannot hand a Pro user a list that trips the upgrade wall on Start Lookup.
+    const result = await getContractHolders(
+      contractAddress,
+      chain,
+      Number.isFinite(access.walletLimit) ? access.walletLimit : undefined
+    );
 
     // Track successful import
     trackEvent('contract_import_success', {

@@ -54,7 +54,6 @@ const FEATURES = {
     'Twitter list export',
     'Full lookup history',
     'Add addresses to lookups',
-    'Import from contract address',
     'Mass Farcaster DMs',
     'Priority support',
   ],
@@ -119,6 +118,11 @@ export function UpgradeModal({
     }
   };
 
+  // Pro cannot serve a list larger than its per-lookup ceiling. Offering it
+  // anyway means someone pays $99 and is still blocked by the exact lookup that
+  // opened this modal, so the card is disabled and says why.
+  const proCoversList = !walletCount || walletCount <= TIER_LIMITS.pro;
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent className="max-w-4xl">
@@ -126,7 +130,11 @@ export function UpgradeModal({
           <ModalTitle className="text-2xl">Upgrade your plan</ModalTitle>
           <ModalDescription>
             {walletCount
-              ? `Your file has ${walletCount.toLocaleString()} wallets. ${currentTier === 'free' ? 'Free tier is limited to 500 wallets.' : ''}`
+              ? `Your file has ${walletCount.toLocaleString()} wallets. ${
+                  proCoversList
+                    ? `Free tier is limited to ${TIER_LIMITS.free.toLocaleString()} wallets.`
+                    : `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} per lookup, so this list needs Unlimited.`
+                }`
               : 'Get access to more wallets and premium features.'}
           </ModalDescription>
         </ModalHeader>
@@ -179,15 +187,22 @@ export function UpgradeModal({
               <Button
                 className="w-full"
                 onClick={() => handleUpgrade('pro')}
-                disabled={loading !== null}
+                disabled={loading !== null || !proCoversList}
+                title={
+                  proCoversList
+                    ? undefined
+                    : `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} wallets per lookup`
+                }
               >
                 {loading === 'pro' ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : (
+                ) : proCoversList ? (
                   'Upgrade to Pro'
+                ) : (
+                  'Too small for this list'
                 )}
               </Button>
             </div>

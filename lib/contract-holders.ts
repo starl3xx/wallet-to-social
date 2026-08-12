@@ -344,7 +344,15 @@ async function getERC20Holders(
  */
 export async function getContractHolders(
   address: string,
-  chain: SupportedChain
+  chain: SupportedChain,
+  /**
+   * Cap the returned holders at the caller's per-lookup limit.
+   *
+   * Without this the import returns up to HOLDER_LIMIT regardless of tier, so a
+   * Pro account (5,000 per lookup) could import 8,000 holders and then be blocked
+   * by the upgrade wall on the very list the feature just produced.
+   */
+  limit: number = HOLDER_LIMIT
 ): Promise<HolderResult> {
   // Validate address format
   if (!ethers.isAddress(address)) {
@@ -353,6 +361,9 @@ export async function getContractHolders(
 
   // Normalize address
   const normalizedAddress = ethers.getAddress(address);
+
+  // Never exceed the hard ceiling, even if a caller asks for more
+  const effectiveLimit = Math.min(limit, HOLDER_LIMIT);
 
   // Detect contract type
   const contractType = await detectContractType(normalizedAddress, chain);
@@ -364,9 +375,9 @@ export async function getContractHolders(
   let holdersResult: { wallets: string[]; totalHolders: number };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
-    holdersResult = await getERC721Holders(normalizedAddress, chain, HOLDER_LIMIT);
+    holdersResult = await getERC721Holders(normalizedAddress, chain, effectiveLimit);
   } else {
-    holdersResult = await getERC20Holders(normalizedAddress, chain, HOLDER_LIMIT);
+    holdersResult = await getERC20Holders(normalizedAddress, chain, effectiveLimit);
   }
 
   if (holdersResult.wallets.length === 0) {
@@ -379,7 +390,7 @@ export async function getContractHolders(
     tokenSymbol,
     contractType,
     totalHolders: holdersResult.totalHolders,
-    truncated: holdersResult.totalHolders > HOLDER_LIMIT,
+    truncated: holdersResult.totalHolders > effectiveLimit,
     chain,
   };
 }
