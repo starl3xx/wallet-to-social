@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { requireDeveloperAccess } from '@/lib/developer-auth';
 import { users, apiKeys, apiPlans } from '@/db/schema';
 import { getKeyUsageStats } from '@/lib/api-usage';
 import { getRateLimitStatus } from '@/lib/rate-limiter';
@@ -12,16 +13,13 @@ export const runtime = 'nodejs';
  * Get usage statistics for all of a user's API keys
  */
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get('email');
+  const requestedEmail = request.nextUrl.searchParams.get('email');
+  const auth = await requireDeveloperAccess(requestedEmail);
+  if (!auth.ok) return auth.response;
+  const email = auth.identity.email;
   const period = (request.nextUrl.searchParams.get('period') as 'day' | 'week' | 'month') || 'month';
   const keyId = request.nextUrl.searchParams.get('keyId');
 
-  if (!email) {
-    return NextResponse.json(
-      { error: 'Email parameter required' },
-      { status: 400 }
-    );
-  }
 
   if (!['day', 'week', 'month'].includes(period)) {
     return NextResponse.json(
