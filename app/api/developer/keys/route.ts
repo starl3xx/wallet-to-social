@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, apiPlans } from '@/db/schema';
-import { createApiKey, listApiKeys } from '@/lib/api-keys';
+import { createApiKeyIfUnderCap, listApiKeys } from '@/lib/api-keys';
 import { requireDeveloperAccess, apiPlanForTier } from '@/lib/developer-auth';
 
 export const runtime = 'nodejs';
@@ -139,10 +139,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Cap active keys per account
-  const existingKeys = await listApiKeys(user.id);
-  const activeKeys = existingKeys.filter((k) => k.isActive && !k.revokedAt);
-  if (activeKeys.length >= MAX_ACTIVE_KEYS_PER_ACCOUNT) {
+  // Create the key only if under the per-account cap. This is done atomically
+  // (single locking statement) rather than read-then-insert, so concurrent
+  // POSTs can't each pass the check and overshoot the cap.
+  const result = await createApiKeyIfUnderCap(
+    user.id,
+    name,
+    plan,
+    MAX_ACTIVE_KEYS_PER_ACCOUNT
+  );
+
+  if (result && 'capReached' in result) {
     return NextResponse.json(
       {
         error: `Maximum of ${MAX_ACTIVE_KEYS_PER_ACCOUNT} active API keys per account. Revoke an existing key to create a new one.`,
@@ -151,9 +158,6 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
-
-  // Create API key
-  const result = await createApiKey(user.id, name, plan);
 
   if (!result) {
     return NextResponse.json(

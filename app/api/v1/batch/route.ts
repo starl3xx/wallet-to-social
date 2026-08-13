@@ -28,23 +28,44 @@ interface BatchRequestBody {
   wallets: string[];
 }
 
+// Bound the actual bytes read from the stream — NOT Content-Length, which a
+// caller can omit, understate, or evade with chunked transfer-encoding. Reads
+// until the cap, then aborts. The max batch is ~1000 addresses (~46 KB); 1 MB
+// is generous. Rate limiting needs the wallet count from the body, so we can't
+// authenticate before reading, but this caps what an unauthenticated caller
+// can force us to buffer and parse.
+const MAX_BODY_BYTES = 1_000_000;
+
+async function readBodyCapped(request: NextRequest, maxBytes: number): Promise<string | null> {
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null; // over the cap
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
-  // Bound the body BEFORE parsing. Rate limiting legitimately needs the wallet
-  // count from the body, so we can't authenticate first — but an unbounded
-  // request.json() lets an unauthenticated caller force parsing of an arbitrary
-  // payload. The max batch is ~1000 addresses (~46 KB); 1 MB is generous.
-  const MAX_BODY_BYTES = 1_000_000;
-  const contentLength = Number(request.headers.get('content-length') ?? '0');
-  if (contentLength > MAX_BODY_BYTES) {
+  const raw = await readBodyCapped(request, MAX_BODY_BYTES);
+  if (raw === null) {
     return apiError('Request body too large', 'INVALID_REQUEST', 413, corsHeaders);
   }
 
-  // Parse request body first to get wallet count for rate limiting
+  // Parse the (now size-bounded) body to get the wallet count for rate limiting
   let body: BatchRequestBody;
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return apiError('Invalid JSON body', 'INVALID_REQUEST', 400, corsHeaders);
   }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
 import { API_PLANS } from '@/lib/api-plans';
@@ -51,6 +51,70 @@ export async function createApiKey(
       plan: planId,
     })
     .returning();
+
+  return { key, rawKey };
+}
+
+/**
+ * Atomically create a key only if the account is under its active-key cap.
+ *
+ * A read-then-insert in the route raced: concurrent POSTs could each see the
+ * count under the cap and all insert. This does the count and the insert in a
+ * single statement, and the `FOR UPDATE` lock on the account's users row
+ * serializes concurrent creates for the same account (the second blocks, then
+ * counts the first's key). The neon-http driver runs each statement as its own
+ * transaction, so the lock is held for the statement's duration — no
+ * interactive transaction needed.
+ *
+ * Returns { capReached: true } when the cap is hit (no row inserted).
+ */
+export async function createApiKeyIfUnderCap(
+  userId: string,
+  name: string,
+  planId: string,
+  maxActiveKeys: number
+): Promise<{ key: ApiKey; rawKey: string } | { capReached: true } | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const { rawKey, hashedKey, prefix } = generateApiKey();
+
+  const result = (await db.execute(sql`
+    WITH acct AS (
+      SELECT id FROM users WHERE id = ${userId} FOR UPDATE
+    ),
+    active_count AS (
+      SELECT count(*)::int AS n FROM api_keys
+      WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL
+    )
+    INSERT INTO api_keys (key, key_prefix, name, user_id, plan)
+    SELECT ${hashedKey}, ${prefix}, ${name}, ${userId}, ${planId}
+    FROM active_count, acct
+    WHERE active_count.n < ${maxActiveKeys}
+    RETURNING id, key, key_prefix, name, user_id, plan, is_active,
+              rate_limit, daily_limit, monthly_limit, last_used_at,
+              created_at, expires_at, revoked_at
+  `)) as unknown as { rows: Array<Record<string, unknown>> };
+
+  const row = result.rows[0];
+  if (!row) return { capReached: true };
+
+  const key: ApiKey = {
+    id: row.id as string,
+    key: row.key as string,
+    keyPrefix: row.key_prefix as string,
+    name: row.name as string,
+    userId: row.user_id as string,
+    plan: row.plan as string,
+    rateLimit: (row.rate_limit as number | null) ?? null,
+    dailyLimit: (row.daily_limit as number | null) ?? null,
+    monthlyLimit: (row.monthly_limit as number | null) ?? null,
+    isActive: row.is_active as boolean,
+    lastUsedAt: row.last_used_at ? new Date(row.last_used_at as string) : null,
+    createdAt: new Date(row.created_at as string),
+    expiresAt: row.expires_at ? new Date(row.expires_at as string) : null,
+    revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : null,
+  };
 
   return { key, rawKey };
 }
