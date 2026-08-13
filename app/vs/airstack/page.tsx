@@ -111,7 +111,7 @@ export default function AirstackComparison() {
             <p className="text-muted-foreground">
               The company deprecated those APIs and pivoted to Senpi, an AI
               agent product. Apps and scripts built on the old endpoints
-              stopped working — if your product depended on Airstack for
+              stopped working; if your product depended on Airstack for
               Farcaster identity data, that dependency needs a new home.
             </p>
           </section>
@@ -143,7 +143,7 @@ export default function AirstackComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster coverage</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      Complete protocol — every FID’s verified and custody
+                      Complete protocol: every FID’s verified and custody
                       addresses
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -219,7 +219,7 @@ export default function AirstackComparison() {
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
-              We turn wallet addresses into social profiles — in the browser
+              We turn wallet addresses into social profiles, in the browser
               or over a simple REST API. Our index covers 4.7M wallets with
               complete Farcaster protocol coverage: every account’s verified
               and custody addresses, usernames, and follower counts, refreshed
@@ -245,7 +245,7 @@ export default function AirstackComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Map your queries — wallet-to-identity and
+                    Map your queries: wallet-to-identity and
                     handle-to-wallets calls both have direct equivalents in
                     our REST API
                   </span>
@@ -253,14 +253,14 @@ export default function AirstackComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Grab an API key — included with Pro ($99) and Unlimited
+                    Grab an API key, included with Pro ($99) and Unlimited
                     ($249), both one-time payments
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Point your app at the new endpoints — responses include
+                    Point your app at the new endpoints: responses include
                     Farcaster usernames, FIDs, and follower counts
                   </span>
                 </li>
@@ -300,7 +300,7 @@ export default function AirstackComparison() {
             <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
               <p className="text-sm">
                 <span className="font-medium">No metered billing:</span> both
-                paid tiers are one-time payments with API access included — no
+                paid tiers are one-time payments with API access included, so there are no
                 usage-based invoices to forecast, and no deprecation risk
                 priced into a subscription.
               </p>

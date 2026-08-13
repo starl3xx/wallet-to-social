@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const checkpoint = await getCheckpoint();
     if (checkpoint === null) {
       return NextResponse.json({
-        message: 'No checkpoint — run the backfill first (scripts/ens-harvest.ts --backfill)',
+        message: 'No checkpoint: run the backfill first (scripts/ens-harvest.ts --backfill)',
         harvested: 0,
       });
     }
