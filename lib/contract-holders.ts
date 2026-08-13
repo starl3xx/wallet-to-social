@@ -315,23 +315,38 @@ async function getERC20HoldersBlockscout(
   // still reports the true holder count, so it is correctly marked truncated.
   const startedAt = Date.now();
   const BUDGET_MS = 40_000;
+  const remainingMs = () => BUDGET_MS - (Date.now() - startedAt);
 
   for (let page = 0; page < MAX_PAGES && seen.size < limit; page++) {
-    if (Date.now() - startedAt > BUDGET_MS) break;
+    if (remainingMs() <= 0) break;
     const url = new URL(`${base}/api/v2/tokens/${address}/holders`);
     if (params) {
       for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
     }
 
-    const res = await withTimeout(
-      fetch(url.toString(), { headers }),
-      30000,
-      'Blockscout holders request timed out'
-    );
-    if (res.status === 429) throw new Error('RATE_LIMIT');
-    if (!res.ok) throw new Error(`Blockscout holders ${res.status}`);
+    // Never wait past the budget: a fixed 30s timeout checked only between
+    // pages could start a request with 1s of budget left and still block for
+    // 30, overrunning the route's own 60s ceiling.
+    const pageTimeoutMs = Math.min(15_000, Math.max(2_000, remainingMs()));
 
-    const json = (await res.json()) as BlockscoutHoldersResponse;
+    let json: BlockscoutHoldersResponse;
+    try {
+      const res = await withTimeout(
+        fetch(url.toString(), { headers }),
+        pageTimeoutMs,
+        'Blockscout holders request timed out'
+      );
+      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (!res.ok) throw new Error(`Blockscout holders ${res.status}`);
+      json = (await res.json()) as BlockscoutHoldersResponse;
+    } catch (error) {
+      // A page that fails after holders are already collected should not lose
+      // them. Return the partial list; only a first-page failure is fatal,
+      // where there is nothing to return and the real error is worth surfacing.
+      if (seen.size > 0) break;
+      throw error;
+    }
+
     const items = json.items ?? [];
     if (items.length === 0) break;
 
@@ -503,7 +518,11 @@ export async function getContractHolders(
     contractType,
     totalHolders: holdersResult.totalHolders,
     appliedLimit: effectiveLimit,
-    truncated: holdersResult.totalHolders > effectiveLimit,
+    // Derived from what was actually returned, not from the cap. A source that
+    // pages slowly can stop on its own time budget below the cap, and comparing
+    // the total against the cap alone would call that list complete and hide
+    // the shortfall from the caller entirely.
+    truncated: holdersResult.wallets.length < holdersResult.totalHolders,
     chain,
   };
 }
