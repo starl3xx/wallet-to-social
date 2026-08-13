@@ -92,6 +92,17 @@ encrypts with [age](https://github.com/FiloSottile/age) using a **public** key
 (the private key never touches the runner), and uploads the ciphertext as a
 90-day GitHub Actions artifact.
 
+Two operational constraints, both verified against production:
+
+- **Use the non-pooled host** for `BACKUP_DATABASE_URL` — drop `-pooler` from
+  the hostname. `pg_dump` needs a real session (it sets `statement_timeout` and
+  holds a consistent snapshot); Neon's pooler is PgBouncer in transaction mode
+  and cannot serve it.
+- **The client major must be ≥ the server major.** Neon is on PostgreSQL 17 and
+  `pg_dump` aborts outright against a newer server, so the workflow installs
+  `postgresql-client-17` from PGDG rather than Ubuntu's default 16. If Neon ever
+  moves to 18, bump that pin or the nightly job starts failing.
+
 **To activate it, set two repo secrets:**
 
 1. `BACKUP_DATABASE_URL` — the `backup_reader` connection string from step 1.
