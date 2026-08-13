@@ -1,6 +1,6 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { rateLimitBuckets, type ApiKey, type ApiPlan } from '@/db/schema';
+import { apiKeys, rateLimitBuckets, type ApiKey, type ApiPlan } from '@/db/schema';
 
 export type BucketType = 'minute' | 'day' | 'month';
 
@@ -157,6 +157,39 @@ async function checkBucket(
 }
 
 /**
+ * Sum a given bucket period's usage across ALL of an account's active keys.
+ *
+ * The per-key buckets enforce per-key limits, but day/month quotas are meant
+ * to bound the ACCOUNT — otherwise a one-time Pro purchase mints N keys and
+ * gets N× the plan's daily/monthly allowance, which is exactly how the whole
+ * 4.7M graph could be pulled cheaply. This read-and-sum has a small race
+ * window under high concurrency, but a few-request overshoot on a
+ * thousands-per-day quota is irrelevant; it closes the mint-more-keys hole.
+ */
+async function accountUsageForPeriod(
+  userId: string,
+  type: BucketType
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const bucketKey = getBucketKey(type);
+  const [row] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${rateLimitBuckets.count}), 0)::int` })
+    .from(rateLimitBuckets)
+    .innerJoin(apiKeys, eq(rateLimitBuckets.apiKeyId, apiKeys.id))
+    .where(
+      and(
+        eq(apiKeys.userId, userId),
+        eq(rateLimitBuckets.bucketType, type),
+        eq(rateLimitBuckets.bucketKey, bucketKey)
+      )
+    );
+
+  return row?.total ?? 0;
+}
+
+/**
  * Checks all rate limits for an API key
  * Returns the most restrictive limit that failed, or success if all pass
  */
@@ -178,6 +211,27 @@ export async function checkRateLimit(
         result,
         headers: formatHeaders(result),
       };
+    }
+
+    // After the per-key increment, enforce the day/month quota at the ACCOUNT
+    // level so extra keys can't multiply the allowance. Plan overrides on the
+    // key don't relax the account cap — the plan limit is the account ceiling.
+    if ((type === 'day' || type === 'month')) {
+      const accountLimit = type === 'day' ? plan.requestsPerDay : plan.requestsPerMonth;
+      if (accountLimit !== -1) {
+        const accountUsed = await accountUsageForPeriod(key.userId, type);
+        if (accountUsed > accountLimit) {
+          const resetAt = getResetTime(type);
+          const accountResult: RateLimitResult = {
+            allowed: false,
+            limit: accountLimit,
+            remaining: 0,
+            resetAt,
+            retryAfter: Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+          };
+          return { allowed: false, result: accountResult, headers: formatHeaders(accountResult) };
+        }
+      }
     }
   }
 

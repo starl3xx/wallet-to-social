@@ -84,8 +84,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check user access and tier limits
-    const access = await getUserAccess(email, wallet);
+    // Access tier is derived from the validated SESSION only. Previously email
+    // and wallet came from the request body, so an anonymous caller could pass
+    // a whitelisted wallet (public on-chain) or a known paid user's email to
+    // getUserAccess and be handed Infinity walletLimit — bypassing the free
+    // cap. Authenticated users keep their tier via the session; anonymous
+    // callers get free tier regardless of what the body claims.
+    // (A signed-wallet path could restore wallet-based whitelist access later.)
+    const authedEmail = session.user?.email;
+    const access = await getUserAccess(authedEmail);
+    // Silence unused-var lint for body fields we intentionally no longer trust
+    void email;
+    void wallet;
 
     // Calculate effective limit considering cumulative quota
     let effectiveLimit = access.walletLimit;
@@ -142,9 +152,9 @@ export async function POST(request: NextRequest) {
       inputSource,
     });
 
-    // For starter tier, increment usage counter
-    if (access.tier === 'starter' && email) {
-      await incrementWalletsUsed(email, wallets.length);
+    // For starter tier, increment usage counter (session-derived email only)
+    if (access.tier === 'starter' && authedEmail) {
+      await incrementWalletsUsed(authedEmail, wallets.length);
     }
 
     // Track lookup started event
@@ -189,9 +199,11 @@ export async function POST(request: NextRequest) {
       message: 'Job queued for processing',
     });
   } catch (error) {
+    // Log the real error server-side; return a generic message. This route is
+    // unauthenticated, so echoing error.message could leak DB/driver internals.
     console.error('Job creation error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create job' },
+      { error: 'Failed to create job' },
       { status: 500 }
     );
   }

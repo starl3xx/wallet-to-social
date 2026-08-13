@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, socialGraph, lookupJobs, analyticsEvents } from '@/db';
 import { sql, gte, eq, and, count, isNotNull } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_PASSWORD) return false;
-  const password = request.headers.get('x-admin-password');
-  return password === ADMIN_PASSWORD;
-}
 
 export interface SocialGraphHealthMetrics {
   /** Persisted negatives: wallets checked with no socials found */
@@ -55,9 +48,8 @@ export interface SocialGraphHealthMetrics {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   const db = getDb();
   if (!db) {

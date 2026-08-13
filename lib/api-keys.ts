@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
 import { API_PLANS } from '@/lib/api-plans';
@@ -51,6 +51,67 @@ export async function createApiKey(
       plan: planId,
     })
     .returning();
+
+  return { key, rawKey };
+}
+
+/**
+ * Create a key only if the account is under its active-key cap, correct under
+ * concurrency.
+ *
+ * A count-then-insert races, and so does a single statement that both counts
+ * and inserts: under READ COMMITTED each concurrent statement's count snapshot
+ * predates the others' inserts, so a `FOR UPDATE` lock serializes the writes
+ * but every statement still sees the pre-insert total. Verified empirically —
+ * a 20-way burst overshot a cap of 3 to 14. The neon-http driver has no
+ * interactive transactions, so we can't lock-then-conditionally-insert either.
+ *
+ * Instead: insert unconditionally, then self-heal. Rank this key among the
+ * account's currently-active keys by the fixed `(created_at, id)` order and
+ * revoke it if its rank exceeds the cap. This converges to exactly `cap`
+ * survivors no matter how the inserts interleave: the lowest-`cap` keys always
+ * see rank ≤ cap (nothing ordered before them ever revokes), and every excess
+ * key always sees rank ≥ cap+1 (the cap survivors are always counted ahead of
+ * it), so it revokes itself. Stale snapshots only ever inflate the count-ahead,
+ * which can never make an excess key wrongly survive.
+ *
+ * Returns { capReached: true } when this key was over the cap and revoked.
+ */
+export async function createApiKeyIfUnderCap(
+  userId: string,
+  name: string,
+  planId: string,
+  maxActiveKeys: number
+): Promise<{ key: ApiKey; rawKey: string } | { capReached: true } | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const { rawKey, hashedKey, prefix } = generateApiKey();
+
+  // 1. Insert unconditionally.
+  const [key] = await db
+    .insert(apiKeys)
+    .values({ key: hashedKey, keyPrefix: prefix, name, userId, plan: planId })
+    .returning();
+  if (!key) return null;
+
+  // 2. Self-heal: revoke this key if it is beyond the cap by rank order.
+  const healed = (await db.execute(sql`
+    WITH ranked AS (
+      SELECT id, row_number() OVER (ORDER BY created_at, id) AS rn
+      FROM api_keys
+      WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL
+    )
+    UPDATE api_keys
+    SET is_active = false, revoked_at = now()
+    WHERE id = ${key.id}
+      AND (SELECT rn FROM ranked WHERE ranked.id = ${key.id}) > ${maxActiveKeys}
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+
+  if (healed.rows.length > 0) {
+    return { capReached: true };
+  }
 
   return { key, rawKey };
 }
