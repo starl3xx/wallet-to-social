@@ -31,6 +31,16 @@ interface BatchRequestBody {
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
+  // Bound the body BEFORE parsing. Rate limiting legitimately needs the wallet
+  // count from the body, so we can't authenticate first — but an unbounded
+  // request.json() lets an unauthenticated caller force parsing of an arbitrary
+  // payload. The max batch is ~1000 addresses (~46 KB); 1 MB is generous.
+  const MAX_BODY_BYTES = 1_000_000;
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (contentLength > MAX_BODY_BYTES) {
+    return apiError('Request body too large', 'INVALID_REQUEST', 413, corsHeaders);
+  }
+
   // Parse request body first to get wallet count for rate limiting
   let body: BatchRequestBody;
   try {

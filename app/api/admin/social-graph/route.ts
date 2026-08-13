@@ -4,22 +4,14 @@ import {
   upsertManualSocialGraph,
   getRecentManualEdits,
 } from '@/lib/social-graph';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_PASSWORD) return false;
-  const password = request.headers.get('x-admin-password');
-  return password === ADMIN_PASSWORD;
-}
-
 // GET: Search for a wallet in social_graph or list recent manual edits
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -57,9 +49,8 @@ export async function GET(request: NextRequest) {
 
 // POST: Create/update wallet with manual source
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   try {
     const body = await request.json();

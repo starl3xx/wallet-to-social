@@ -2,22 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_PASSWORD) return false;
-  const password = request.headers.get('x-admin-password');
-  return password === ADMIN_PASSWORD;
-}
-
 // GET: List all users with optional tier filter
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   const db = getDb();
   if (!db) {
@@ -58,9 +50,8 @@ export async function GET(request: NextRequest) {
 
 // PATCH: Update user tier
 export async function PATCH(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   const db = getDb();
   if (!db) {

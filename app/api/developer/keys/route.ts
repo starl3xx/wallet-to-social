@@ -7,6 +7,12 @@ import { requireDeveloperAccess, apiPlanForTier } from '@/lib/developer-auth';
 
 export const runtime = 'nodejs';
 
+// Max active (non-revoked) keys per account. Caps the mint-more-keys vector:
+// with account-level quotas now enforced in the rate limiter, extra keys no
+// longer multiply the allowance, but bounding the count also bounds the
+// blast radius of any one leaked key and keeps the account-usage sum cheap.
+const MAX_ACTIVE_KEYS_PER_ACCOUNT = 10;
+
 /**
  * GET /api/developer/keys
  * List all API keys for a user
@@ -131,6 +137,19 @@ export async function POST(request: NextRequest) {
     // was how an anonymous caller could mint a key for an address they did not
     // own. A session is now required, so the account must already exist.
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  // Cap active keys per account
+  const existingKeys = await listApiKeys(user.id);
+  const activeKeys = existingKeys.filter((k) => k.isActive && !k.revokedAt);
+  if (activeKeys.length >= MAX_ACTIVE_KEYS_PER_ACCOUNT) {
+    return NextResponse.json(
+      {
+        error: `Maximum of ${MAX_ACTIVE_KEYS_PER_ACCOUNT} active API keys per account. Revoke an existing key to create a new one.`,
+        code: 'KEY_LIMIT_REACHED',
+      },
+      { status: 409 }
+    );
   }
 
   // Create API key

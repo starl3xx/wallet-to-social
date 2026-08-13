@@ -46,30 +46,34 @@ function getResetTime(date: Date = new Date()): Date {
  * Handles various proxy headers and falls back to connection IP
  */
 export function getClientIp(request: NextRequest): string {
-  // Check standard proxy headers in order of preference
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    // x-forwarded-for can contain multiple IPs: client, proxy1, proxy2
-    // The first one is the original client
-    const firstIp = forwardedFor.split(',')[0]?.trim();
-    if (firstIp) return firstIp;
-  }
-
-  // Vercel-specific header
+  // Trust ONLY headers a caller can't forge. Previously this returned the
+  // FIRST x-forwarded-for hop, which is fully client-controlled: sending a
+  // random X-Forwarded-For per request minted a fresh bucket every time and
+  // the "3/hour to prevent scraping" limits never fired.
+  //
+  // On Vercel, x-vercel-forwarded-for is set by the platform to the real
+  // client IP and overwrites anything the caller sent — it is authoritative.
   const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for');
   if (vercelForwardedFor) {
+    // Single trusted value, but split defensively and take the first entry
     return vercelForwardedFor.split(',')[0]?.trim() || 'unknown';
   }
 
-  // Real IP header (nginx, cloudflare)
-  const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp;
-
-  // CF-Connecting-IP (Cloudflare)
+  // Cloudflare sets a single unspoofable connecting-IP value
   const cfConnectingIp = request.headers.get('cf-connecting-ip');
-  if (cfConnectingIp) return cfConnectingIp;
+  if (cfConnectingIp) return cfConnectingIp.trim();
 
-  // Fallback
+  // Generic x-forwarded-for: the LAST hop is the one appended by our own
+  // trusted proxy; the leftmost entries are caller-supplied and unsafe.
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const hops = forwardedFor.split(',').map((h) => h.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
+  }
+
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+
   return 'unknown';
 }
 

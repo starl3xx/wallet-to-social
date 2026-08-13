@@ -2,22 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { lookupHistory } from '@/db/schema';
 import { eq, desc, like } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_PASSWORD) return false;
-  const password = request.headers.get('x-admin-password');
-  return password === ADMIN_PASSWORD;
-}
-
 // GET: List lookup history with optional user filter
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   const db = getDb();
   if (!db) {
@@ -60,9 +52,8 @@ export async function GET(request: NextRequest) {
 
 // DELETE: Delete a history entry
 export async function DELETE(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   const db = getDb();
   if (!db) {
