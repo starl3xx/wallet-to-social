@@ -25,6 +25,7 @@
 
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
+import { cleanTwitterHandle } from './twitter-cleaner';
 
 const NEYNAR_BULK_URL = 'https://api.neynar.com/v2/farcaster/user/bulk';
 const FIDS_PER_CALL = 100;
@@ -48,6 +49,11 @@ interface NeynarUser {
   follower_count?: number;
   custody_address?: string;
   verified_addresses?: { eth_addresses?: string[] };
+  /**
+   * Cryptographically attested off-platform accounts. This arrives in the same
+   * bulk response as everything else above — reading it costs nothing extra.
+   */
+  verified_accounts?: Array<{ platform?: string; username?: string }>;
 }
 
 interface SweepRow {
@@ -55,6 +61,8 @@ interface SweepRow {
   farcaster: string;
   fcFid: number;
   fcFollowers: number | null;
+  /** Attested X handle from verified_accounts, or null if the user has none. */
+  twitterHandle: string | null;
 }
 
 /** Highest FID we already hold — the incremental sweep's starting point. */
@@ -141,12 +149,21 @@ function usersToRows(users: NeynarUser[]): SweepRow[] {
     const custody = user.custody_address;
     if (custody?.startsWith('0x') && custody.length === 42) addresses.add(custody.toLowerCase());
 
+    // Same extraction as lib/neynar.ts — an X account listed in
+    // verified_accounts was proven by signature, so it is the strongest
+    // Twitter signal we have anywhere in the pipeline.
+    const x = user.verified_accounts?.find(
+      (acc) => acc.platform === 'twitter' || acc.platform === 'x'
+    );
+    const twitterHandle = x?.username ? cleanTwitterHandle(x.username) : null;
+
     for (const wallet of addresses) {
       rows.push({
         wallet,
         farcaster: user.username,
         fcFid: user.fid,
         fcFollowers: user.follower_count ?? null,
+        twitterHandle: twitterHandle || null,
       });
     }
   }
@@ -177,11 +194,17 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
       farcasterUrl: `https://warpcast.com/${r.farcaster}`,
       fcFid: r.fcFid,
       fcFollowers: r.fcFollowers,
+      twitterHandle: r.twitterHandle,
+      twitterUrl: r.twitterHandle ? `https://x.com/${r.twitterHandle}` : null,
+      // The handle came from verified_accounts, i.e. proven by signature
+      twitterVerified: r.twitterHandle != null,
       sources: ['farcaster_sweep'],
       farcasterVerified: true,
-      // 45 = farcaster(20) + farcaster_sweep(25): deliberately below the 70
-      // trust line — see module comment
-      dataQualityScore: 45,
+      // 45 = farcaster(20) + farcaster_sweep(25), or 65 with an attested
+      // twitter(20). Both stay below the 70 trust line on purpose: the sweep
+      // still knows nothing about this wallet's ENS/Web3Bio side, so the row
+      // must not read as "fully resolved" — see module comment.
+      dataQualityScore: r.twitterHandle ? 65 : 45,
       firstSeenAt: now,
       lastUpdatedAt: now,
       lookupCount: 0,
@@ -198,11 +221,42 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           fcFid: sql`EXCLUDED.fc_fid`,
           fcFollowers: sql`EXCLUDED.fc_followers`,
           farcasterVerified: sql`true`,
+          // Twitter precedence, tightest rule first:
+          //   1. A 'manual' row is admin-curated and always wins.
+          //   2. An attested handle from this sweep is otherwise authoritative.
+          //   3. If the user has NO attested X, only clear the stored handle on
+          //      rows where this sweep is the sole source — there the handle
+          //      could only have come from us, so it is ours to retract. On a
+          //      row that other sources also wrote, leave their value alone.
+          twitterHandle: sql`CASE
+            WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterHandle}
+            WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle
+            WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
+            ELSE ${socialGraph.twitterHandle}
+          END`,
+          twitterUrl: sql`CASE
+            WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterUrl}
+            WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_url
+            WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
+            ELSE ${socialGraph.twitterUrl}
+          END`,
+          twitterVerified: sql`CASE
+            WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterVerified}
+            WHEN EXCLUDED.twitter_handle IS NOT NULL THEN true
+            WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN false
+            ELSE ${socialGraph.twitterVerified}
+          END`,
           sources: sql`CASE WHEN 'farcaster_sweep' = ANY(${socialGraph.sources}) THEN ${socialGraph.sources} ELSE array_append(COALESCE(${socialGraph.sources}, ARRAY[]::text[]), 'farcaster_sweep') END`,
-          dataQualityScore: sql`GREATEST(COALESCE(${socialGraph.dataQualityScore}, 0), 45)`,
+          dataQualityScore: sql`GREATEST(COALESCE(${socialGraph.dataQualityScore}, 0), EXCLUDED.data_quality_score)`,
           // Only an actual identity change counts as an update — follower
           // drift must not re-trigger "new matches" badges
-          lastUpdatedAt: sql`CASE WHEN ${socialGraph.farcaster} IS DISTINCT FROM EXCLUDED.farcaster OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
+          // Gaining or changing an attested X handle is an identity change too.
+          // Guarded on EXCLUDED being non-null: when Neynar reports no X we may
+          // deliberately keep another source's handle, and that is not a change.
+          lastUpdatedAt: sql`CASE WHEN ${socialGraph.farcaster} IS DISTINCT FROM EXCLUDED.farcaster
+              OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid
+              OR (EXCLUDED.twitter_handle IS NOT NULL AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
+            THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
         },
       });
     upserted += batch.length;
@@ -292,6 +346,17 @@ export async function cleanupRevokedWallets(
         fc_fid = NULL,
         fc_followers = NULL,
         farcaster_verified = false,
+        -- The sweep now also writes attested X handles, so a revoked FID must
+        -- not leave one stranded. Only clear where this sweep is the sole
+        -- source: on a row web3bio or ENS also wrote, the handle may be theirs.
+        -- (All SET expressions see the pre-UPDATE row, so the sources array
+        -- read here is the original one, not the array_remove result below.)
+        twitter_handle = CASE WHEN sources = ARRAY['farcaster_sweep']::text[]
+                              THEN NULL ELSE twitter_handle END,
+        twitter_url = CASE WHEN sources = ARRAY['farcaster_sweep']::text[]
+                           THEN NULL ELSE twitter_url END,
+        twitter_verified = CASE WHEN sources = ARRAY['farcaster_sweep']::text[]
+                                THEN false ELSE twitter_verified END,
         sources = array_remove(sources, 'farcaster_sweep'),
         last_updated_at = now()
     WHERE 'farcaster_sweep' = ANY(sources)
