@@ -26,6 +26,14 @@ import type { WalletSocialResult } from '@/lib/types';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max
 
+// Hard per-request wallet caps. Without these, an unauthenticated caller could
+// post an arbitrarily large list and force unbounded social_graph reads plus
+// external-API enrichment in one request (the IP limiter bounds request COUNT,
+// not size). Signed-in callers get a higher ceiling; true tier enforcement
+// lives in the /api/jobs path.
+const MAX_WALLETS_ANONYMOUS = 500;
+const MAX_WALLETS_AUTHENTICATED = 5000;
+
 interface LookupRequest {
   wallets: string[];
   originalData?: Record<string, Record<string, string>>;
@@ -80,6 +88,17 @@ export async function POST(request: NextRequest) {
 
         if (!wallets || wallets.length === 0) {
           sendEvent('error', { message: 'No wallets provided' });
+          controller.close();
+          return;
+        }
+
+        const walletCap = session.user ? MAX_WALLETS_AUTHENTICATED : MAX_WALLETS_ANONYMOUS;
+        if (wallets.length > walletCap) {
+          sendEvent('error', {
+            message: session.user
+              ? `Too many wallets in one request (max ${walletCap})`
+              : `Too many wallets for an anonymous request (max ${walletCap}). Sign in for larger lookups.`,
+          });
           controller.close();
           return;
         }

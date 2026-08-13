@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { seedApiPlans, getApiPlans } from '@/lib/api-keys';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
@@ -7,7 +8,10 @@ export const runtime = 'nodejs';
  * POST /api/admin/seed-plans
  * Seeds the default API plans into the database
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   try {
     await seedApiPlans();
     const plans = await getApiPlans();
@@ -37,7 +41,10 @@ export async function POST() {
  * GET /api/admin/seed-plans
  * Check current API plans
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   const plans = await getApiPlans();
 
   if (plans.length === 0) {

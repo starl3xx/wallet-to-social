@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, apiPlans } from '@/db/schema';
-import { createApiKey, listApiKeys } from '@/lib/api-keys';
+import { createApiKeyIfUnderCap, listApiKeys } from '@/lib/api-keys';
 import { requireDeveloperAccess, apiPlanForTier } from '@/lib/developer-auth';
 
 export const runtime = 'nodejs';
+
+// Max active (non-revoked) keys per account. Caps the mint-more-keys vector:
+// with account-level quotas now enforced in the rate limiter, extra keys no
+// longer multiply the allowance, but bounding the count also bounds the
+// blast radius of any one leaked key and keeps the account-usage sum cheap.
+const MAX_ACTIVE_KEYS_PER_ACCOUNT = 10;
 
 /**
  * GET /api/developer/keys
@@ -133,8 +139,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Create API key
-  const result = await createApiKey(user.id, name, plan);
+  // Create the key only if under the per-account cap. This is done atomically
+  // (single locking statement) rather than read-then-insert, so concurrent
+  // POSTs can't each pass the check and overshoot the cap.
+  const result = await createApiKeyIfUnderCap(
+    user.id,
+    name,
+    plan,
+    MAX_ACTIVE_KEYS_PER_ACCOUNT
+  );
+
+  if (result && 'capReached' in result) {
+    return NextResponse.json(
+      {
+        error: `Maximum of ${MAX_ACTIVE_KEYS_PER_ACCOUNT} active API keys per account. Revoke an existing key to create a new one.`,
+        code: 'KEY_LIMIT_REACHED',
+      },
+      { status: 409 }
+    );
+  }
 
   if (!result) {
     return NextResponse.json(

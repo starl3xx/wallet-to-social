@@ -28,6 +28,11 @@ concurrency:
   group: farcaster-sweep
   cancel-in-progress: false
 
+# Minimize the token's scope — this job only needs to read the repo. After the
+# role split (docs/SECURITY.md) its DATABASE_URL secret should be sweep_runner.
+permissions:
+  contents: read
+
 jobs:
   sweep:
     runs-on: ubuntu-latest

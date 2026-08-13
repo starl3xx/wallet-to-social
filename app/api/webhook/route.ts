@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { constructWebhookEvent } from '@/lib/stripe';
+import { constructWebhookEvent, resolveCheckoutEmail } from '@/lib/stripe';
 import { upgradeUser } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
 import type Stripe from 'stripe';
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const email = session.customer_email || session.metadata?.email;
+  const email = resolveCheckoutEmail(session);
   const tier = session.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
 
   if (!email || !tier) {

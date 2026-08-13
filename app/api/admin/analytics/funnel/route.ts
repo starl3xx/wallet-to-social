@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFunnel } from '@/lib/analytics';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  const password = request.headers.get('x-admin-password');
-  if (password !== process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireAdmin(request);
+  if (authError) return authError;
 
   try {
     const url = new URL(request.url);
