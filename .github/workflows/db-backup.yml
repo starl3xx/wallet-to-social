@@ -39,10 +39,28 @@ jobs:
             exit 1
           fi
 
-      - name: Install pg_dump (v16 client) and age
+      # Neon runs PostgreSQL 17. pg_dump refuses to dump a server newer than
+      # itself ("aborting because of server version mismatch"), and Ubuntu's
+      # default `postgresql-client` is 16 — which would have made every nightly
+      # run fail. Pull the matching major from PGDG instead.
+      - name: Install pg_dump 17 and age
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y postgresql-client age
+          sudo apt-get install -y curl ca-certificates lsb-release age
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          # /usr/bin/pg_dump is Debian's pg_wrapper, which dispatches to a major
+          # it chooses itself — the runner image already ships 16, so merely
+          # installing 17 does not mean we RUN 17. Put the real v17 bin dir
+          # first and let later steps use the absolute path regardless.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Dump irreplaceable tables and encrypt
         env:
@@ -50,9 +68,18 @@ jobs:
           BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
         run: |
           set -euo pipefail
+          # Absolute path, not PATH lookup — see the install step. Then assert
+          # the major, so a future PGDG/runner change fails loudly here instead
+          # of silently reintroducing the version-mismatch abort.
+          PG_DUMP=/usr/lib/postgresql/17/bin/pg_dump
+          "$PG_DUMP" --version
+          "$PG_DUMP" --version | grep -qE '\(PostgreSQL\) 17\.' || {
+            echo "Expected pg_dump major 17, got: $("$PG_DUMP" --version)" >&2
+            exit 1
+          }
           STAMP="$(date -u +%Y-%m-%d)"
           OUT="backup-${STAMP}.sql.age"
-          pg_dump "$BACKUP_DATABASE_URL" \
+          "$PG_DUMP" "$BACKUP_DATABASE_URL" \
             --no-owner --no-privileges \
             -t public.users \
             -t public.api_keys \
@@ -61,6 +88,16 @@ jobs:
             -t public.lookup_history \
             -t public.known_agents \
             | age -r "$BACKUP_AGE_PUBLIC_KEY" -o "$OUT"
+          # A backup that "succeeds" but is empty is worse than no backup — it
+          # looks green until the day you need it. The six tables always carry
+          # at least the seeded api_plans and ~13k known_agents rows, so a
+          # healthy dump is far above this floor; anything under it means the
+          # dump silently produced nothing.
+          SIZE=$(wc -c < "$OUT")
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "Encrypted dump is only ${SIZE} bytes — refusing to publish an empty backup" >&2
+            exit 1
+          fi
           echo "Wrote $OUT ($(du -h "$OUT" | cut -f1))"
           echo "ARTIFACT=$OUT" >> "$GITHUB_ENV"
 
