@@ -19,7 +19,7 @@ export const ShareButtons = memo(function ShareButtons({
     ? Math.round(((twitterCount + farcasterCount) / totalWallets) * 100)
     : 0;
 
-  const shareText = `Just resolved ${totalWallets.toLocaleString()} wallets into social profiles with walletlink.social — found ${twitterCount.toLocaleString()} Twitter + ${farcasterCount.toLocaleString()} Farcaster matches (${matchRate}% match rate)`;
+  const shareText = `Just resolved ${totalWallets.toLocaleString()} wallets into social profiles with walletlink.social: found ${twitterCount.toLocaleString()} Twitter + ${farcasterCount.toLocaleString()} Farcaster matches (${matchRate}% match rate)`;
 
   const handleShareTwitter = useCallback(() => {
     Analytics.exportClicked('share_twitter', totalWallets);

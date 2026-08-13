@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
     description:
-      'Blaze has pivoted out of web3. Migrate your wallet-to-Twitter workflow to walletlink.social — one-time pricing, Twitter and Farcaster coverage.',
+      'Blaze has pivoted out of web3. Migrate your wallet-to-Twitter workflow to walletlink.social: one-time pricing, Twitter and Farcaster coverage.',
     type: 'article',
     url: 'https://walletlink.social/vs/blaze',
     siteName: 'walletlink.social',
@@ -87,7 +87,7 @@ export default function BlazeComparison() {
               Blaze alternative for wallet-to-Twitter lookups
             </h1>
             <p className="text-xl text-muted-foreground">
-              Blaze has pivoted out of web3 — withblaze.app no longer resolves.
+              Blaze has pivoted out of web3; withblaze.app no longer resolves.
               If you used Blaze’s Wallet CRM to match wallets to Twitter,
               here’s where to migrate.
             </p>
@@ -211,7 +211,7 @@ export default function BlazeComparison() {
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Unlimited &mdash; Ethereum, Base, Robinhood Chain)
+                        (Pro and Unlimited: Ethereum, Base, Robinhood Chain)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -260,8 +260,9 @@ export default function BlazeComparison() {
             <p className="text-muted-foreground">
               Lookups are backed by an index of 4.7M wallets with complete
               Farcaster protocol coverage, refreshed daily. Twitter matches
-              are user-attested — links the wallet owner created themselves,
-              such as onchain ENS records — so there’s no guesswork in your
+              are user-attested (links the wallet owner created themselves, such as
+              a verified Farcaster account or an onchain ENS record), so there is
+              no guesswork in your
               outreach list.
             </p>
           </section>
@@ -277,7 +278,7 @@ export default function BlazeComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export your holder list — from a past Blaze export if you
+                    Export your holder list, from a past Blaze export if you
                     still have one, or straight from the token contract
                     (Etherscan, Basescan, or our contract import)
                   </span>
@@ -285,14 +286,14 @@ export default function BlazeComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Upload the CSV to walletlink.social — the free tier covers
+                    Upload the CSV to walletlink.social: the free tier covers
                     500 wallets with no credit card
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export Twitter handles and Farcaster profiles — including
+                    Export Twitter handles and Farcaster profiles, including
                     follower counts Blaze never had
                   </span>
                 </li>
@@ -332,12 +333,12 @@ export default function BlazeComparison() {
             <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
-                Blaze started at $79/month — $948+ per year. walletlink.social
+                Blaze started at $79/month, $948+ per year. walletlink.social
                 Pro is{' '}
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   $99 once
-                </span>{' '}
-                — less than two months of the old Blaze subscription, and it
+                </span>,{' '}
+                less than two months of the old Blaze subscription, and it
                 never renews.
               </p>
             </div>

@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       // No sweep data yet — the initial full sweep hasn't run. Don't try to
       // do it from a serverless function; it takes ~an hour.
       return NextResponse.json({
-        message: 'No swept FIDs found — run the full sweep first (scripts/farcaster-sweep.ts --full)',
+        message: 'No swept FIDs found: run the full sweep first (scripts/farcaster-sweep.ts --full)',
         swept: 0,
       });
     }

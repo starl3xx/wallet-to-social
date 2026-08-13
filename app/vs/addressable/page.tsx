@@ -219,7 +219,7 @@ export default function AddressableComparison() {
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Unlimited &mdash; Ethereum, Base, Robinhood Chain)
+                        (Pro and Unlimited: Ethereum, Base, Robinhood Chain)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -296,8 +296,8 @@ export default function AddressableComparison() {
               <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>
             <p className="text-muted-foreground">
-              Matches are deterministic and user-attested — Farcaster verified
-              addresses and on-chain ENS records — backed by a 4.7M-wallet
+              Matches are deterministic and user-attested (Farcaster verified
+              accounts and on-chain ENS records), backed by a 4.7M-wallet
               index covering the complete Farcaster protocol. Addressable
               advertises 23M matched owners built with probabilistic
               &ldquo;fingerprinting&rdquo;; we only return links the wallet

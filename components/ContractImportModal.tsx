@@ -190,7 +190,7 @@ export function ContractImportModal({
               </div>
               {!ERC20_SUPPORTED_CHAINS.includes(chain) && (
                 <p className="text-xs text-muted-foreground">
-                  NFT collections only on {CHAIN_LABELS[chain]} — token (ERC-20)
+                  NFT collections only on {CHAIN_LABELS[chain]}: token (ERC-20)
                   holder lists aren’t available on this network.
                 </p>
               )}
