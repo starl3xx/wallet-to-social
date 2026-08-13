@@ -4,41 +4,41 @@ import Link from 'next/link';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  title: 'Holder alternative for wallet-based CRM (Holder shut down)',
   description:
-    'Blaze has pivoted out of web3 and withblaze.app no longer resolves. If you used Blaze’s Wallet CRM to match wallets to Twitter, here’s where to migrate.',
+    'Holder (holder.xyz) sunset in June 2024. If you used Holder’s web3 CRM to know and reach your token holders, here’s where to migrate.',
   keywords: [
-    'Blaze alternative',
-    'withblaze shut down',
-    'Blaze web3 CRM',
-    'wallet to Twitter',
+    'holder.xyz alternative',
+    'holder xyz shut down',
+    'web3 CRM alternative',
+    'wallet to social',
     'wallet lookup tool',
   ],
   openGraph: {
-    title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+    title: 'Holder alternative for wallet-based CRM (Holder shut down)',
     description:
-      'Blaze has pivoted out of web3. Migrate your wallet-to-Twitter workflow to walletlink.social — one-time pricing, Twitter and Farcaster coverage.',
+      'Holder sunset in June 2024. Migrate your holder outreach to walletlink.social — one-time pricing, Twitter and Farcaster coverage.',
     type: 'article',
-    url: 'https://walletlink.social/vs/blaze',
+    url: 'https://walletlink.social/vs/holder',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Blaze alternative for wallet-to-Twitter lookups',
+    title: 'Holder alternative for wallet-based CRM',
     description:
-      'Blaze left web3. Here’s where to migrate your wallet-to-Twitter lookups.',
+      'Holder shut down in June 2024. Here’s where to migrate your holder outreach.',
   },
   alternates: {
-    canonical: 'https://walletlink.social/vs/blaze',
+    canonical: 'https://walletlink.social/vs/holder',
   },
 };
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  headline: 'Holder alternative for wallet-based CRM (Holder shut down)',
   description:
-    'Blaze pivoted out of web3 and withblaze.app no longer resolves. A migration guide for former Blaze Wallet CRM users moving to walletlink.social.',
+    'Holder (holder.xyz) sunset in June 2024. A migration guide for former Holder users moving their token holder outreach to walletlink.social.',
   author: {
     '@type': 'Organization',
     name: 'walletlink.social',
@@ -51,14 +51,14 @@ const jsonLd = {
   },
   mainEntityOfPage: {
     '@type': 'WebPage',
-    '@id': 'https://walletlink.social/vs/blaze',
+    '@id': 'https://walletlink.social/vs/holder',
   },
-  datePublished: '2025-01-01',
+  datePublished: '2026-08-12',
   dateModified: new Date().toISOString().split('T')[0],
-  keywords: 'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
+  keywords: 'holder.xyz alternative, holder xyz shut down, web3 CRM, wallet lookup',
 };
 
-export default function BlazeComparison() {
+export default function HolderComparison() {
   return (
     <>
       <script
@@ -84,43 +84,42 @@ export default function BlazeComparison() {
             </Link>
 
             <h1 className="text-4xl font-bold mb-4">
-              Blaze alternative for wallet-to-Twitter lookups
+              Holder alternative for wallet-based CRM
             </h1>
             <p className="text-xl text-muted-foreground">
-              Blaze has pivoted out of web3 — withblaze.app no longer resolves.
-              If you used Blaze’s Wallet CRM to match wallets to Twitter,
-              here’s where to migrate.
+              Holder shut down in June 2024 — holder.xyz is gone. If you used
+              Holder’s web3 CRM to know and reach your token holders, here’s
+              where to migrate.
             </p>
           </header>
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">What happened to Blaze?</h2>
+            <h2 className="text-2xl font-semibold mb-4">What happened to Holder?</h2>
             <p className="text-muted-foreground mb-4">
-              Blaze was a Web3 CRM platform built around community management
-              and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
-              wallet addresses to Twitter handles as one part of a broader
-              subscription suite that included:
+              Holder was a web3 CRM built around wallets instead of email
+              addresses. It let teams segment their token holders, enrich
+              wallet records with identity data, and message holders through
+              wallet-native channels. Its suite included:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-              <li>Community management and engagement tools</li>
-              <li>Lead generation and nurturing workflows</li>
-              <li>Twitter and Discord integrations</li>
-              <li>Campaign management</li>
+              <li>Wallet-based contact records and segmentation</li>
+              <li>Holder identity enrichment</li>
+              <li>Wallet messaging and campaign tools</li>
+              <li>Token-gated audience workflows</li>
             </ul>
             <p className="text-muted-foreground">
-              The company has since pivoted out of web3 entirely, and its
-              former domain no longer resolves. The Wallet CRM, its
-              wallet-to-Twitter matching, and its subscriptions went with it.
-              If you relied on Blaze for wallet-to-social data, that workflow
-              needs a new home.
+              The product sunset in June 2024, and the platform — along with
+              its holder records and messaging campaigns — is no longer
+              available. If you relied on Holder to know who your token
+              holders are, that workflow needs a new home.
             </p>
           </section>
 
           {/* Migration table */}
           <section className="mb-16">
             <h2 className="text-2xl font-semibold mb-6">
-              What Blaze offered vs what walletlink.social offers
+              What Holder offered vs what walletlink.social offers
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -130,7 +129,7 @@ export default function BlazeComparison() {
                     <th className="text-left py-4 px-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-tl-lg">
                       <span className="font-semibold">walletlink.social</span>
                     </th>
-                    <th className="text-left py-4 pl-4">What Blaze offered</th>
+                    <th className="text-left py-4 pl-4">What Holder offered</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -140,7 +139,7 @@ export default function BlazeComparison() {
                       Wallet → Social only
                     </td>
                     <td className="py-4 pl-4">
-                      Full Web3 CRM platform (discontinued)
+                      Full web3 CRM platform (shut down)
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -151,14 +150,14 @@ export default function BlazeComparison() {
                       </span>{' '}
                       one-time
                     </td>
-                    <td className="py-4 pl-4">Was $79+/month ($948+/year)</td>
+                    <td className="py-4 pl-4">Was a monthly subscription</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Twitter/X</td>
+                    <td className="py-4 pr-4 font-medium">Holder identity enrichment</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (user-attested matches)
+                        (Twitter + Farcaster)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -178,32 +177,15 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
+                    <td className="py-4 pr-4 font-medium">Holder messaging</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
-                    </td>
-                    <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Priority Score</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
-                    </td>
-                    <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Lookup History</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Farcaster DMs, Unlimited tier)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      Was part of the CRM
+                      Was wallet messaging
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -219,19 +201,22 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
+                    <td className="py-4 pr-4 font-medium">Priority Score</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      Was custom segments
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Community Tools</td>
+                    <td className="py-4 pr-4 font-medium">CRM workflows</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <X className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (export to your own CRM)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Offered, no longer available
@@ -249,7 +234,7 @@ export default function BlazeComparison() {
             </h2>
             <p className="text-muted-foreground mb-4">
               We do one thing: turn wallet addresses into social profiles. No
-              CRM, no community tools, no lead gen. Just:
+              CRM, no campaign builder. Just:
             </p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>Upload your CSV of wallet addresses</li>
@@ -261,25 +246,25 @@ export default function BlazeComparison() {
               Lookups are backed by an index of 4.7M wallets with complete
               Farcaster protocol coverage, refreshed daily. Twitter matches
               are user-attested — links the wallet owner created themselves,
-              such as onchain ENS records — so there’s no guesswork in your
-              outreach list.
+              such as onchain ENS records. Export the results into any CRM you
+              already use.
             </p>
           </section>
 
-          {/* Migrating from Blaze */}
+          {/* Migrating from Holder */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Migrating from Blaze</h2>
+            <h2 className="text-2xl font-semibold mb-6">Migrating from Holder</h2>
             <div className="border rounded-lg p-6 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
               <h3 className="font-semibold mb-4 text-emerald-700 dark:text-emerald-300">
-                Three steps to rebuild your wallet-to-Twitter workflow:
+                Three steps to rebuild your holder outreach:
               </h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export your holder list — from a past Blaze export if you
-                    still have one, or straight from the token contract
-                    (Etherscan, Basescan, or our contract import)
+                    Rebuild your holder list from the source — pull it straight
+                    from the token contract (Etherscan, Basescan, or our
+                    contract import)
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -292,8 +277,8 @@ export default function BlazeComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export Twitter handles and Farcaster profiles — including
-                    follower counts Blaze never had
+                    Export enriched profiles into your own CRM, or reach
+                    Farcaster users directly with mass DMs (Unlimited)
                   </span>
                 </li>
               </ul>
@@ -302,7 +287,7 @@ export default function BlazeComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing after Blaze</h2>
+            <h2 className="text-2xl font-semibold mb-6">Pricing after Holder</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
@@ -332,13 +317,8 @@ export default function BlazeComparison() {
             <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
-                Blaze started at $79/month — $948+ per year. walletlink.social
-                Pro is{' '}
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  $99 once
-                </span>{' '}
-                — less than two months of the old Blaze subscription, and it
-                never renews.
+                both paid tiers are one-time payments, and both include API
+                access. Pay once, keep your holder data workflow forever.
               </p>
             </div>
           </section>
@@ -383,10 +363,10 @@ export default function BlazeComparison() {
               </li>
               <li>
                 <Link
-                  href="/vs/holder"
+                  href="/vs/blaze"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  Holder alternative
+                  Blaze alternative
                 </Link>
               </li>
               <li>

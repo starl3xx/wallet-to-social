@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'walletlink.social vs Cookie.fun: Comparison (2025)',
+  title: 'walletlink.social vs Cookie.fun: Comparison (2026)',
   description:
     'Compare walletlink.social and Cookie.fun for AI agent wallet detection. See how dedicated wallet-to-social lookups compare to an AI agent analytics platform.',
   keywords: ['Cookie.fun alternative', 'AI agent wallets', 'wallet to social', 'agent detection', 'crypto marketing'],
@@ -411,7 +411,23 @@ export default function CookieComparison() {
                   href="/vs/blaze"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  walletlink.social vs Blaze
+                  Blaze alternative
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/vs/holder"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  Holder alternative
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/vs/airstack"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  Airstack alternative
                 </Link>
               </li>
             </ul>

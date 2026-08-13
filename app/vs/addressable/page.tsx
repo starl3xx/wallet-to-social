@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'walletlink.social vs Addressable: Comparison (2025)',
+  title: 'walletlink.social vs Addressable: Comparison (2026)',
   description:
     'Compare walletlink.social and Addressable for wallet-to-social lookups. See why teams choose dedicated tools over enterprise marketing suites.',
   keywords: ['Addressable alternative', 'wallet to social', 'Web3 marketing', 'wallet lookup tool', 'crypto marketing'],
@@ -106,6 +106,25 @@ export default function AddressableComparison() {
                       Wallet → Social only
                     </td>
                     <td className="py-4 pl-4">Full marketing platform</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Match method</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      Deterministic, user-attested (Farcaster verifications,
+                      on-chain ENS records)
+                    </td>
+                    <td className="py-4 pl-4">
+                      Probabilistic &ldquo;fingerprinting&rdquo;
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Index size</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      4.7M wallets, complete Farcaster coverage
+                    </td>
+                    <td className="py-4 pl-4">
+                      23M claimed (methodology undisclosed)
+                    </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Pricing</td>
@@ -277,9 +296,12 @@ export default function AddressableComparison() {
               <li>Save lookups and add addresses over time (Pro+)</li>
             </ol>
             <p className="text-muted-foreground">
-              Match rates average 15-25% (6-10x industry average) because we
-              aggregate multiple data sources and prioritize accuracy over
-              coverage.
+              Matches are deterministic and user-attested — Farcaster verified
+              addresses and on-chain ENS records — backed by a 4.7M-wallet
+              index covering the complete Farcaster protocol. Addressable
+              advertises 23M matched owners built with probabilistic
+              &ldquo;fingerprinting&rdquo;; we only return links the wallet
+              owner created themselves.
             </p>
           </section>
 
@@ -429,10 +451,34 @@ export default function AddressableComparison() {
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
                 <Link
+                  href="/vs/cookie"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  walletlink.social vs Cookie.fun
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/vs/blaze"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  walletlink.social vs Blaze
+                  Blaze alternative
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/vs/holder"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  Holder alternative
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/vs/airstack"
+                  className="text-muted-foreground hover:text-foreground underline"
+                >
+                  Airstack alternative
                 </Link>
               </li>
             </ul>

@@ -4,41 +4,41 @@ import Link from 'next/link';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  title: 'Airstack alternative for Farcaster lookups (API deprecated)',
   description:
-    'Blaze has pivoted out of web3 and withblaze.app no longer resolves. If you used Blaze’s Wallet CRM to match wallets to Twitter, here’s where to migrate.',
+    'Airstack deprecated its API and pivoted to Senpi. If you built wallet or Farcaster identity lookups on Airstack, here’s where to migrate.',
   keywords: [
-    'Blaze alternative',
-    'withblaze shut down',
-    'Blaze web3 CRM',
-    'wallet to Twitter',
-    'wallet lookup tool',
+    'airstack alternative',
+    'airstack api deprecated',
+    'farcaster api alternative',
+    'farcaster wallet index',
+    'reverse farcaster lookup',
   ],
   openGraph: {
-    title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+    title: 'Airstack alternative for Farcaster lookups (API deprecated)',
     description:
-      'Blaze has pivoted out of web3. Migrate your wallet-to-Twitter workflow to walletlink.social — one-time pricing, Twitter and Farcaster coverage.',
+      'Airstack deprecated its API. walletlink.social’s API covers the complete Farcaster protocol, including reverse handle-to-wallet lookups.',
     type: 'article',
-    url: 'https://walletlink.social/vs/blaze',
+    url: 'https://walletlink.social/vs/airstack',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Blaze alternative for wallet-to-Twitter lookups',
+    title: 'Airstack alternative for Farcaster lookups',
     description:
-      'Blaze left web3. Here’s where to migrate your wallet-to-Twitter lookups.',
+      'Airstack deprecated its API. Here’s where to migrate your Farcaster identity lookups.',
   },
   alternates: {
-    canonical: 'https://walletlink.social/vs/blaze',
+    canonical: 'https://walletlink.social/vs/airstack',
   },
 };
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  headline: 'Airstack alternative for Farcaster lookups (API deprecated)',
   description:
-    'Blaze pivoted out of web3 and withblaze.app no longer resolves. A migration guide for former Blaze Wallet CRM users moving to walletlink.social.',
+    'Airstack deprecated its API and pivoted to Senpi. A migration guide for teams moving their wallet and Farcaster identity lookups to walletlink.social.',
   author: {
     '@type': 'Organization',
     name: 'walletlink.social',
@@ -51,14 +51,14 @@ const jsonLd = {
   },
   mainEntityOfPage: {
     '@type': 'WebPage',
-    '@id': 'https://walletlink.social/vs/blaze',
+    '@id': 'https://walletlink.social/vs/airstack',
   },
-  datePublished: '2025-01-01',
+  datePublished: '2026-08-12',
   dateModified: new Date().toISOString().split('T')[0],
-  keywords: 'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
+  keywords: 'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
 };
 
-export default function BlazeComparison() {
+export default function AirstackComparison() {
   return (
     <>
       <script
@@ -84,43 +84,42 @@ export default function BlazeComparison() {
             </Link>
 
             <h1 className="text-4xl font-bold mb-4">
-              Blaze alternative for wallet-to-Twitter lookups
+              Airstack alternative for Farcaster lookups
             </h1>
             <p className="text-xl text-muted-foreground">
-              Blaze has pivoted out of web3 — withblaze.app no longer resolves.
-              If you used Blaze’s Wallet CRM to match wallets to Twitter,
-              here’s where to migrate.
+              Airstack deprecated its API and pivoted to Senpi. If you built
+              wallet or Farcaster identity lookups on Airstack, here’s where
+              to migrate.
             </p>
           </header>
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">What happened to Blaze?</h2>
+            <h2 className="text-2xl font-semibold mb-4">What happened to Airstack?</h2>
             <p className="text-muted-foreground mb-4">
-              Blaze was a Web3 CRM platform built around community management
-              and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
-              wallet addresses to Twitter handles as one part of a broader
-              subscription suite that included:
+              Airstack was a web3 data platform best known for its Farcaster
+              APIs. Developers used it to query the Farcaster social graph,
+              resolve wallets to identities, and pull onchain data through a
+              single GraphQL interface:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-              <li>Community management and engagement tools</li>
-              <li>Lead generation and nurturing workflows</li>
-              <li>Twitter and Discord integrations</li>
-              <li>Campaign management</li>
+              <li>Farcaster social graph and profile queries</li>
+              <li>Wallet-to-identity resolution across protocols</li>
+              <li>Token balance and onchain activity data</li>
+              <li>Composable GraphQL APIs and SDKs</li>
             </ul>
             <p className="text-muted-foreground">
-              The company has since pivoted out of web3 entirely, and its
-              former domain no longer resolves. The Wallet CRM, its
-              wallet-to-Twitter matching, and its subscriptions went with it.
-              If you relied on Blaze for wallet-to-social data, that workflow
-              needs a new home.
+              The company deprecated those APIs and pivoted to Senpi, an AI
+              agent product. Apps and scripts built on the old endpoints
+              stopped working — if your product depended on Airstack for
+              Farcaster identity data, that dependency needs a new home.
             </p>
           </section>
 
           {/* Migration table */}
           <section className="mb-16">
             <h2 className="text-2xl font-semibold mb-6">
-              What Blaze offered vs what walletlink.social offers
+              What Airstack offered vs what walletlink.social offers
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -130,17 +129,61 @@ export default function BlazeComparison() {
                     <th className="text-left py-4 px-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-tl-lg">
                       <span className="font-semibold">walletlink.social</span>
                     </th>
-                    <th className="text-left py-4 pl-4">What Blaze offered</th>
+                    <th className="text-left py-4 pl-4">What Airstack offered</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Focus</td>
+                    <td className="py-4 pr-4 font-medium">Status</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      Wallet → Social only
+                      Live, refreshed daily
+                    </td>
+                    <td className="py-4 pl-4">API deprecated (pivoted to Senpi)</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Farcaster coverage</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      Complete protocol — every FID’s verified and custody
+                      addresses
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      Was full social graph APIs
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Wallet → socials API</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      Offered, no longer available
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">
+                      Reverse lookup (handle → wallets)
+                    </td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (any Farcaster handle)
+                      </span>
+                    </td>
+                    <td className="py-4 pl-4 text-muted-foreground">
+                      Offered, no longer available
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">Bulk CSV lookups</td>
+                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <Check className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (no code required)
+                      </span>
                     </td>
                     <td className="py-4 pl-4">
-                      Full Web3 CRM platform (discontinued)
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -149,92 +192,20 @@ export default function BlazeComparison() {
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                         $99 - $249
                       </span>{' '}
-                      one-time
+                      one-time, API included
                     </td>
-                    <td className="py-4 pl-4">Was $79+/month ($948+/year)</td>
+                    <td className="py-4 pl-4">Was usage-based subscription</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Twitter/X</td>
+                    <td className="py-4 pr-4 font-medium">Onchain data queries</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                      <X className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (user-attested matches)
+                        (identity only)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      Offered, no longer available
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (complete protocol coverage)
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                    </td>
-                    <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Priority Score</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
-                    </td>
-                    <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Lookup History</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
-                    </td>
-                    <td className="py-4 pl-4 text-muted-foreground">
-                      Was part of the CRM
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Contract Import</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (Unlimited &mdash; Ethereum, Base, Robinhood Chain)
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
-                    </td>
-                    <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Community Tools</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                    <td className="py-4 pl-4 text-muted-foreground">
-                      Offered, no longer available
+                      Was token balances, transfers
                     </td>
                   </tr>
                 </tbody>
@@ -248,52 +219,49 @@ export default function BlazeComparison() {
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
-              We do one thing: turn wallet addresses into social profiles. No
-              CRM, no community tools, no lead gen. Just:
+              We turn wallet addresses into social profiles — in the browser
+              or over a simple REST API. Our index covers 4.7M wallets with
+              complete Farcaster protocol coverage: every account’s verified
+              and custody addresses, usernames, and follower counts, refreshed
+              daily. Twitter matches are user-attested via onchain records.
             </p>
-            <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
-              <li>Upload your CSV of wallet addresses</li>
-              <li>We match them against our identity index</li>
-              <li>Export Twitter handles and Farcaster profiles</li>
-              <li>Save lookups and add addresses over time (Pro+)</li>
-            </ol>
             <p className="text-muted-foreground">
-              Lookups are backed by an index of 4.7M wallets with complete
-              Farcaster protocol coverage, refreshed daily. Twitter matches
-              are user-attested — links the wallet owner created themselves,
-              such as onchain ENS records — so there’s no guesswork in your
-              outreach list.
+              If you used Airstack for Farcaster identity resolution, the API
+              (included with Pro and Unlimited) covers the same core jobs:
+              wallet → socials, and reverse lookup from any Farcaster handle
+              to its wallets. If you only need a one-off enrichment, skip the
+              API entirely and upload a CSV.
             </p>
           </section>
 
-          {/* Migrating from Blaze */}
+          {/* Migrating from Airstack */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Migrating from Blaze</h2>
+            <h2 className="text-2xl font-semibold mb-6">Migrating from Airstack</h2>
             <div className="border rounded-lg p-6 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
               <h3 className="font-semibold mb-4 text-emerald-700 dark:text-emerald-300">
-                Three steps to rebuild your wallet-to-Twitter workflow:
+                Three steps to replace your Airstack integration:
               </h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export your holder list — from a past Blaze export if you
-                    still have one, or straight from the token contract
-                    (Etherscan, Basescan, or our contract import)
+                    Map your queries — wallet-to-identity and
+                    handle-to-wallets calls both have direct equivalents in
+                    our REST API
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Upload the CSV to walletlink.social — the free tier covers
-                    500 wallets with no credit card
+                    Grab an API key — included with Pro ($99) and Unlimited
+                    ($249), both one-time payments
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Export Twitter handles and Farcaster profiles — including
-                    follower counts Blaze never had
+                    Point your app at the new endpoints — responses include
+                    Farcaster usernames, FIDs, and follower counts
                   </span>
                 </li>
               </ul>
@@ -302,7 +270,7 @@ export default function BlazeComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing after Blaze</h2>
+            <h2 className="text-2xl font-semibold mb-6">Pricing after Airstack</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
@@ -316,14 +284,14 @@ export default function BlazeComparison() {
                   <p className="text-muted-foreground">Pro</p>
                   <p className="text-2xl font-bold">$99</p>
                   <p className="text-muted-foreground">
-                    Up to 5,000 wallets/lookup (one-time)
+                    Up to 5,000 wallets/lookup + API (one-time)
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Unlimited</p>
                   <p className="text-2xl font-bold">$249</p>
                   <p className="text-muted-foreground">
-                    Unlimited wallets/lookup forever
+                    Unlimited wallets + API forever
                   </p>
                 </div>
               </div>
@@ -331,14 +299,10 @@ export default function BlazeComparison() {
 
             <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
               <p className="text-sm">
-                <span className="font-medium">No subscription to replace:</span>{' '}
-                Blaze started at $79/month — $948+ per year. walletlink.social
-                Pro is{' '}
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  $99 once
-                </span>{' '}
-                — less than two months of the old Blaze subscription, and it
-                never renews.
+                <span className="font-medium">No metered billing:</span> both
+                paid tiers are one-time payments with API access included — no
+                usage-based invoices to forecast, and no deprecation risk
+                priced into a subscription.
               </p>
             </div>
           </section>
@@ -383,18 +347,18 @@ export default function BlazeComparison() {
               </li>
               <li>
                 <Link
-                  href="/vs/holder"
+                  href="/vs/blaze"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  Holder alternative
+                  Blaze alternative
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/vs/airstack"
+                  href="/vs/holder"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  Airstack alternative
+                  Holder alternative
                 </Link>
               </li>
             </ul>

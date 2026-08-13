@@ -76,7 +76,7 @@ export default async function TwitterImage() {
             maxWidth: '700px',
           }}
         >
-          Wallet-to-social lookup with 22% match rate. AI agent detection included.
+          A 4.7M-wallet identity index with complete Farcaster coverage. AI agent detection included.
         </div>
 
         {/* Stats row */}
@@ -87,12 +87,12 @@ export default async function TwitterImage() {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>22%</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>Match rate</span>
+            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>4.7M</span>
+            <span style={{ fontSize: '16px', color: '#737373' }}>Wallets indexed</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>9x</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>vs. average</span>
+            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>100%</span>
+            <span style={{ fontSize: '16px', color: '#737373' }}>Farcaster coverage</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>13K+</span>
