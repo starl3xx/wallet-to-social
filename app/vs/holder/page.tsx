@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Holder alternative for wallet-based CRM (Holder shut down)',
     description:
-      'Holder sunset in June 2024. Migrate your holder outreach to walletlink.social — one-time pricing, Twitter and Farcaster coverage.',
+      'Holder sunset in June 2024. Migrate your holder outreach to walletlink.social: one-time pricing, Twitter and Farcaster coverage.',
     type: 'article',
     url: 'https://walletlink.social/vs/holder',
     siteName: 'walletlink.social',
@@ -87,7 +87,7 @@ export default function HolderComparison() {
               Holder alternative for wallet-based CRM
             </h1>
             <p className="text-xl text-muted-foreground">
-              Holder shut down in June 2024 — holder.xyz is gone. If you used
+              Holder shut down in June 2024; holder.xyz is gone. If you used
               Holder’s web3 CRM to know and reach your token holders, here’s
               where to migrate.
             </p>
@@ -109,8 +109,8 @@ export default function HolderComparison() {
               <li>Token-gated audience workflows</li>
             </ul>
             <p className="text-muted-foreground">
-              The product sunset in June 2024, and the platform — along with
-              its holder records and messaging campaigns — is no longer
+              The product sunset in June 2024, and the platform (along with
+              its holder records and messaging campaigns) is no longer
               available. If you relied on Holder to know who your token
               holders are, that workflow needs a new home.
             </p>
@@ -193,7 +193,7 @@ export default function HolderComparison() {
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Unlimited &mdash; Ethereum, Base, Robinhood Chain)
+                        (Pro and Unlimited: Ethereum, Base, Robinhood Chain)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -245,8 +245,8 @@ export default function HolderComparison() {
             <p className="text-muted-foreground">
               Lookups are backed by an index of 4.7M wallets with complete
               Farcaster protocol coverage, refreshed daily. Twitter matches
-              are user-attested — links the wallet owner created themselves,
-              such as onchain ENS records. Export the results into any CRM you
+              are user-attested (links the wallet owner created themselves, such as
+              a verified Farcaster account or an onchain ENS record). Export the results into any CRM you
               already use.
             </p>
           </section>
@@ -262,7 +262,7 @@ export default function HolderComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Rebuild your holder list from the source — pull it straight
+                    Rebuild your holder list from the source: pull it straight
                     from the token contract (Etherscan, Basescan, or our
                     contract import)
                   </span>
@@ -270,7 +270,7 @@ export default function HolderComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Upload the CSV to walletlink.social — the free tier covers
+                    Upload the CSV to walletlink.social: the free tier covers
                     500 wallets with no credit card
                   </span>
                 </li>

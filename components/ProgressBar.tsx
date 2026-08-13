@@ -231,7 +231,7 @@ export const ProgressBar = memo(function ProgressBar({
               </svg>
               Processing in background
             </span>
-            <span className="text-muted-foreground/50">—</span>
+            <span className="text-muted-foreground/50">–</span>
             <span>you can close this tab and check History later</span>
           </p>
         </div>

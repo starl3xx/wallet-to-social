@@ -1,8 +1,14 @@
 # SEO Strategy: walletlink.social
 
-**Positioning:** The simple, affordable alternative to Addressable for crypto teams who just need wallet-to-social lookups. Backed by a 4.7M-wallet identity index with complete Farcaster protocol coverage (August 2026 milestone) — the deterministic, user-attested counter to Addressable's probabilistic "fingerprinting".
+**Positioning:** The simple, affordable alternative to Addressable for crypto teams who just need wallet-to-social lookups. Backed by a 4.7M-wallet identity index with complete Farcaster protocol coverage (August 2026 milestone): the deterministic, owner-attested counter to Addressable's probabilistic "fingerprinting".
 
-**August 2026 update:** The dataset grew from ~5k to 4.7M wallets with complete Farcaster coverage and full reverse lookup (any Farcaster handle → wallets). Twitter coverage is ~41k wallets, mostly user-attested via on-chain ENS records — never market Twitter coverage as millions. Two dead-competitor migration pages went live: `/vs/holder` (Holder sunset June 2024) and `/vs/airstack` (Airstack deprecated its API, pivoted to Senpi), and `/vs/blaze` was rewritten as a migration page (Blaze left web3; withblaze.app is dead).
+**August 2026 update:** The dataset grew from ~5k to 4.7M wallets with complete Farcaster coverage and full reverse lookup (any Farcaster handle → wallets). Two dead-competitor migration pages went live: `/vs/holder` (Holder sunset June 2024) and `/vs/airstack` (Airstack deprecated its API, pivoted to Senpi), and `/vs/blaze` was rewritten as a migration page (Blaze left web3; withblaze.app is dead).
+
+**Twitter coverage, corrected 2026-08-13:** it is **over 1 million wallets**, not the ~41k this document previously stated. The sweep had been discarding the verified X handles Neynar returns alongside Farcaster profiles; recovering them took the figure from 43,704 to 1,070,442. Nearly all are owner-attested: most from an X account verified on Farcaster, the rest from on-chain ENS records.
+
+The old guidance here said "never market Twitter coverage as millions". That is now wrong and should not be followed. The claim to protect was never the size, it was the **provenance**: every match is one the owner attested, versus a competitor's probabilistic fingerprinting. Market the attestation, and keep the two figures distinct, since 4.7M is Farcaster coverage and Twitter is its own number.
+
+**Match rate, verified 2026-08-13:** 23.7% any-identity, 95% CI 20.3–27.1%, measured on a random sample of 600 holders drawn from 26,619 across 18 collections on two chains (`scripts/benchmark-pipeline-sample.ts`). The 22% used throughout the site sits inside that interval and is its conservative end. Keep "any identity" (~23%, counts ENS and Lens) distinct from **"reachable on X or Farcaster" (~13%)**: the first is a resolution rate, the second is what a campaign can actually message.
 
 ---
 
