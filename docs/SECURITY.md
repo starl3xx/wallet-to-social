@@ -14,7 +14,17 @@ items marked **[shipped]** are already in the repo.
 
 ---
 
-## 1. Split the one god-mode role into three scoped roles **[you]**
+## 1. Split the one god-mode role into three scoped roles **[done, verified]**
+
+> **Status (2026-08-13):** all three roles exist and every consumer is
+> re-pointed. Verified by logging in as each role against production: none is
+> superuser/createdb/createrole/bypassrls, all 22 tables are still owned by
+> `neondb_owner` (so none of the three can `DROP` anything), `app_runtime` has
+> full CRUD on all 22 with zero gaps but **no** `CREATE` on schema,
+> `sweep_runner` is denied `users`/`api_keys`, and `backup_reader` is denied
+> every write and `social_graph`. Live traffic confirmed connecting as
+> `app_runtime` via `pg_stat_activity`. The SQL below is retained as the
+> reference for rebuilding or auditing these roles.
 
 Today `neondb_owner` is used everywhere. Create three least-privilege login
 roles and re-point each consumer at the narrowest one it needs. Run this SQL in
@@ -80,7 +90,7 @@ segment for the new role's.
 
 ---
 
-## 2. Nightly encrypted backup of the irreplaceable tables **[shipped, needs secrets]**
+## 2. Nightly encrypted backup of the irreplaceable tables **[live, restore-tested]**
 
 The Farcaster graph is rebuildable (~115 min sweep, ~3.3M free Neynar credits;
 ENS re-scans from block 7,000,000 in minutes; holdings reseed from the daily
@@ -103,19 +113,48 @@ Two operational constraints, both verified against production:
   `postgresql-client-17` from PGDG rather than Ubuntu's default 16. If Neon ever
   moves to 18, bump that pin or the nightly job starts failing.
 
-**To activate it, set two repo secrets:**
+### Current state
 
-1. `BACKUP_DATABASE_URL` — the `backup_reader` connection string from step 1.
-2. `BACKUP_AGE_PUBLIC_KEY` — an age recipient public key. Generate a keypair on
-   your machine and keep the private key offline:
-   ```sh
-   age-keygen -o walletlink-backup.agekey     # prints the public key; store the file safely, NOT in the repo
-   ```
-   Put the `age1...` public key in the secret. To restore later:
-   ```sh
-   age -d -i walletlink-backup.agekey backup-YYYY-MM-DD.sql.age > restore.sql
-   psql "$DATABASE_URL" < restore.sql
-   ```
+Both secrets are set and the job runs nightly at 08:00 UTC.
+
+| Secret | Value |
+|--------|-------|
+| `BACKUP_DATABASE_URL` | `backup_reader` on the **non-pooled** Neon host |
+| `BACKUP_AGE_PUBLIC_KEY` | `age1judh4s30mt4rwvrxpl65warcps7pru74emmjfmkrft3as2cs49ashjwkun` |
+
+The matching **private** key lives only in 1Password (item `walletlink-backup`,
+189-byte `.agekey` file attachment). There is no copy on any machine, in this
+repo, or on the runner — the runner only ever holds the public recipient key,
+so a compromised runner cannot read past backups.
+
+### Verifying a recovered private key
+
+If you pull the key out of 1Password, confirm it's the right one before
+trusting it — this must print the public key above:
+
+```sh
+age-keygen -y walletlink-backup.agekey
+```
+
+### Restore
+
+```sh
+gh run download <run-id> -R starl3xx/wallet-to-social
+# the artifact unpacks into a DIRECTORY of the same name — the .age file is inside it
+age -d -i walletlink-backup.agekey \
+  backup-YYYY-MM-DD.sql.age/backup-YYYY-MM-DD.sql.age > restore.sql
+psql "$DATABASE_URL" < restore.sql   # as neondb_owner — restore is DDL
+```
+
+Restore was exercised end-to-end on 2026-08-13 (run `31703244940`): 14 MB
+ciphertext, decrypted clean, and all six tables matched production row-for-row
+(`users` 100, `known_agents` 13,622, `lookup_history` 142, `whitelist` 7,
+`api_plans` 3, `api_keys` 0). **Re-test after any change to this workflow** — a
+backup nobody has decrypted is a hypothesis, not a backup. The first scheduled
+run failed silently for exactly this reason (client/server major mismatch, fixed
+in #27).
+
+Shred the plaintext after a restore drill; it contains customer PII.
 
 For retention beyond 90 days, change the upload step to push to an R2/S3 bucket
 (the encryption step is unchanged — the ciphertext is safe to store anywhere).
