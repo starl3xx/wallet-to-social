@@ -78,13 +78,18 @@ export function InputMethodPicker({
 
     const isFileDrag = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
 
+    // preventDefault runs for every file drag, dialog open or not. Skipping it
+    // hands the drop back to the browser, which navigates to the file and
+    // destroys whatever was in progress on the page: strictly worse than the
+    // capture it was meant to avoid. Yielding to a dialog means declining to
+    // act on the file, not declining to suppress the browser.
     const onDragEnter = (e: DragEvent) => {
       if (!isFileDrag(e) || dialogOpen()) return;
       dragDepth.current += 1;
       setIsDragging(true);
     };
     const onDragOver = (e: DragEvent) => {
-      if (!isFileDrag(e) || dialogOpen()) return;
+      if (!isFileDrag(e)) return;
       e.preventDefault();
     };
     const onDragLeave = (e: DragEvent) => {
@@ -94,12 +99,14 @@ export function InputMethodPicker({
     };
     const onDrop = (e: DragEvent) => {
       if (!isFileDrag(e)) return;
-      // Always clear the overlay, even when yielding to a dialog, or a drag
-      // that began before the dialog opened would leave it stuck on screen
+      e.preventDefault();
+      // Clear the overlay even when yielding, or a drag that began before a
+      // dialog opened would leave it stuck on screen
       dragDepth.current = 0;
       setIsDragging(false);
+      // A dialog with its own dropzone has already handled this on the way up;
+      // one without simply does nothing, which is the intended outcome
       if (dialogOpen()) return;
-      e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
       if (file) handleFile(file);
     };
