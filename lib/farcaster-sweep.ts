@@ -121,13 +121,15 @@ async function fetchUserBatch(
   fids: number[],
   apiKey: string
 ): Promise<NeynarUser[] | null> {
+  // Bulk costs 1 credit per FID requested. Recorded once per batch, OUTSIDE the
+  // retry loop: a 429 or 5xx is not a billed request, so counting every attempt
+  // would invent spend that never happened — and during a rate-limit burst that
+  // phantom spend could exhaust the background ceiling and freeze every
+  // background job until the period rolls over.
+  void recordSpend(fids.length);
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      // Bulk costs 1 credit per FID requested. Record before the response is
-      // known: a request that 404s or 500s has still been metered by Neynar,
-      // and an accounting undercount is what let this account run to 11.56M
-      // against a 10M limit.
-      void recordSpend(fids.length);
       const res = await fetch(`${NEYNAR_BULK_URL}?fids=${fids.join(',')}`, {
         headers: { 'x-api-key': apiKey },
         signal: AbortSignal.timeout(20000),

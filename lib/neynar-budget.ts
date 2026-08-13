@@ -113,7 +113,21 @@ export interface BudgetCheck {
  * would trade a credit problem for an availability problem.
  */
 export async function checkBackgroundBudget(credits: number): Promise<BudgetCheck> {
-  const spent = await getPeriodSpend();
+  let spent: number;
+  try {
+    spent = await getPeriodSpend();
+  } catch (error) {
+    // getPeriodSpend throws on a query failure, which would otherwise fail the
+    // guard CLOSED — the opposite of what this is documented to do. A blip
+    // mid-sweep would abort the rest of the range for no reason.
+    console.error('checkBackgroundBudget: could not read spend, allowing:', error);
+    return {
+      allowed: true,
+      spent: 0,
+      ceiling: BACKGROUND_CEILING,
+      remaining: BACKGROUND_CEILING,
+    };
+  }
   const remaining = Math.max(0, BACKGROUND_CEILING - spent);
   if (spent + credits > BACKGROUND_CEILING) {
     return {
