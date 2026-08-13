@@ -56,17 +56,26 @@ export async function createApiKey(
 }
 
 /**
- * Atomically create a key only if the account is under its active-key cap.
+ * Create a key only if the account is under its active-key cap, correct under
+ * concurrency.
  *
- * A read-then-insert in the route raced: concurrent POSTs could each see the
- * count under the cap and all insert. This does the count and the insert in a
- * single statement, and the `FOR UPDATE` lock on the account's users row
- * serializes concurrent creates for the same account (the second blocks, then
- * counts the first's key). The neon-http driver runs each statement as its own
- * transaction, so the lock is held for the statement's duration — no
- * interactive transaction needed.
+ * A count-then-insert races, and so does a single statement that both counts
+ * and inserts: under READ COMMITTED each concurrent statement's count snapshot
+ * predates the others' inserts, so a `FOR UPDATE` lock serializes the writes
+ * but every statement still sees the pre-insert total. Verified empirically —
+ * a 20-way burst overshot a cap of 3 to 14. The neon-http driver has no
+ * interactive transactions, so we can't lock-then-conditionally-insert either.
  *
- * Returns { capReached: true } when the cap is hit (no row inserted).
+ * Instead: insert unconditionally, then self-heal. Rank this key among the
+ * account's currently-active keys by the fixed `(created_at, id)` order and
+ * revoke it if its rank exceeds the cap. This converges to exactly `cap`
+ * survivors no matter how the inserts interleave: the lowest-`cap` keys always
+ * see rank ≤ cap (nothing ordered before them ever revokes), and every excess
+ * key always sees rank ≥ cap+1 (the cap survivors are always counted ahead of
+ * it), so it revokes itself. Stale snapshots only ever inflate the count-ahead,
+ * which can never make an excess key wrongly survive.
+ *
+ * Returns { capReached: true } when this key was over the cap and revoked.
  */
 export async function createApiKeyIfUnderCap(
   userId: string,
@@ -79,42 +88,30 @@ export async function createApiKeyIfUnderCap(
 
   const { rawKey, hashedKey, prefix } = generateApiKey();
 
-  const result = (await db.execute(sql`
-    WITH acct AS (
-      SELECT id FROM users WHERE id = ${userId} FOR UPDATE
-    ),
-    active_count AS (
-      SELECT count(*)::int AS n FROM api_keys
+  // 1. Insert unconditionally.
+  const [key] = await db
+    .insert(apiKeys)
+    .values({ key: hashedKey, keyPrefix: prefix, name, userId, plan: planId })
+    .returning();
+  if (!key) return null;
+
+  // 2. Self-heal: revoke this key if it is beyond the cap by rank order.
+  const healed = (await db.execute(sql`
+    WITH ranked AS (
+      SELECT id, row_number() OVER (ORDER BY created_at, id) AS rn
+      FROM api_keys
       WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL
     )
-    INSERT INTO api_keys (key, key_prefix, name, user_id, plan)
-    SELECT ${hashedKey}, ${prefix}, ${name}, ${userId}, ${planId}
-    FROM active_count, acct
-    WHERE active_count.n < ${maxActiveKeys}
-    RETURNING id, key, key_prefix, name, user_id, plan, is_active,
-              rate_limit, daily_limit, monthly_limit, last_used_at,
-              created_at, expires_at, revoked_at
-  `)) as unknown as { rows: Array<Record<string, unknown>> };
+    UPDATE api_keys
+    SET is_active = false, revoked_at = now()
+    WHERE id = ${key.id}
+      AND (SELECT rn FROM ranked WHERE ranked.id = ${key.id}) > ${maxActiveKeys}
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
 
-  const row = result.rows[0];
-  if (!row) return { capReached: true };
-
-  const key: ApiKey = {
-    id: row.id as string,
-    key: row.key as string,
-    keyPrefix: row.key_prefix as string,
-    name: row.name as string,
-    userId: row.user_id as string,
-    plan: row.plan as string,
-    rateLimit: (row.rate_limit as number | null) ?? null,
-    dailyLimit: (row.daily_limit as number | null) ?? null,
-    monthlyLimit: (row.monthly_limit as number | null) ?? null,
-    isActive: row.is_active as boolean,
-    lastUsedAt: row.last_used_at ? new Date(row.last_used_at as string) : null,
-    createdAt: new Date(row.created_at as string),
-    expiresAt: row.expires_at ? new Date(row.expires_at as string) : null,
-    revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : null,
-  };
+  if (healed.rows.length > 0) {
+    return { capReached: true };
+  }
 
   return { key, rawKey };
 }
