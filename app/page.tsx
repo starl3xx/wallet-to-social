@@ -1004,10 +1004,10 @@ export default function Home() {
                 onFileLoaded={handleFileLoaded}
                 onPasteClick={handlePasteToggle}
                 pasteActive={showPasteInput}
-                // The drop target is the whole window, so it has to stand down
-                // while a dialog is over the page or a file dropped onto the
-                // modal would be swallowed by the page behind it
-                disabled={showContractImportModal || showUpgradeModal || showAuthModal}
+                // Yielding to open dialogs is handled inside the component by
+                // asking the DOM, not enumerated here: dialogs also open from
+                // the access banner and lookup history, which this file does
+                // not track, and any list would go stale on the next one added
                 contractLocked={userTier !== 'pro' && userTier !== 'unlimited'}
                 onContractClick={handleContractCardClick}
               />

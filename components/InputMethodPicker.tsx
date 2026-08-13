@@ -60,26 +60,47 @@ export function InputMethodPicker({
   useEffect(() => {
     if (disabled) return;
 
+    /**
+     * Stand down while any dialog is open, or a file dropped onto that dialog
+     * is captured by the page behind it: dropping on "add addresses" would
+     * start a brand new lookup instead of adding to the existing one, and the
+     * drop overlay would cover the modal.
+     *
+     * Asked of the DOM rather than enumerated as props. Dialogs open from
+     * places this component cannot see (the access banner, lookup history),
+     * and an enumerated list is only correct until the next dialog is added.
+     * Radix renders open content as [role=dialog][data-state=open].
+     */
+    const dialogOpen = () =>
+      document.querySelector(
+        '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+      ) !== null;
+
+    const isFileDrag = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
+
     const onDragEnter = (e: DragEvent) => {
-      if (!e.dataTransfer?.types?.includes('Files')) return;
+      if (!isFileDrag(e) || dialogOpen()) return;
       dragDepth.current += 1;
       setIsDragging(true);
     };
     const onDragOver = (e: DragEvent) => {
-      if (!e.dataTransfer?.types?.includes('Files')) return;
+      if (!isFileDrag(e) || dialogOpen()) return;
       e.preventDefault();
     };
     const onDragLeave = (e: DragEvent) => {
-      if (!e.dataTransfer?.types?.includes('Files')) return;
+      if (!isFileDrag(e)) return;
       dragDepth.current = Math.max(0, dragDepth.current - 1);
       if (dragDepth.current === 0) setIsDragging(false);
     };
     const onDrop = (e: DragEvent) => {
-      if (!e.dataTransfer?.types?.includes('Files')) return;
-      e.preventDefault();
+      if (!isFileDrag(e)) return;
+      // Always clear the overlay, even when yielding to a dialog, or a drag
+      // that began before the dialog opened would leave it stuck on screen
       dragDepth.current = 0;
       setIsDragging(false);
-      const file = e.dataTransfer.files?.[0];
+      if (dialogOpen()) return;
+      e.preventDefault();
+      const file = e.dataTransfer?.files?.[0];
       if (file) handleFile(file);
     };
 
