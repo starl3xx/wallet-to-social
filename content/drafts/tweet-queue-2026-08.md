@@ -21,6 +21,39 @@
 > Deferred: re-measuring the 9-collection benchmark (posts 15/16/22/24) against the new
 > internal graph — the numbers likely rose above the Neynar-only 11.5% floor.
 
+## Update 2026-08-13 (later) — X coverage went 41k → 1.07M, four posts corrected
+
+The Farcaster sweep was discarding the verified X handles Neynar returns in the same
+response (PR #30). Recovering them took `twitter_handle` from **43,704 to 1,070,442**,
+of which 1,070,137 are owner-attested. Every post citing the old ~41k figure was wrong
+by ~25x. Applied directly to Typefully (social set 278688):
+
+- **Post 47, attested Twitter** (Sep 14, draft 10311790) — rewritten: "1M+ wallets…
+  1M you can trust than 10M you have to hope about". The argument is unchanged and much
+  stronger; only the scale moved.
+- **Milestone thread T4** (Sat Aug 15, draft 10311789) — this one publishes in two days.
+  Said "about 41k wallets" *and* "attested onchain", both now wrong: the dominant source
+  is a Farcaster verified account, not an ENS record. Now "the owner verified themselves,
+  just over 1M wallets". Other four tweets untouched.
+- **Post 37, sources** (Sep 8, draft 10307324) — added "X accounts owners verified on
+  Farcaster". It listed only ENS text records, which is no longer where most handles
+  come from.
+- **Post 43, month close** (Sep 11, draft 10307330) — added "1M+ X handles, every one
+  owner-verified"; video media preserved.
+
+Deliberately left alone: posts 14/16/22/24 cite 14,773 wallets / 11.5% / 1,692 reachable.
+Those are accurate historical measurements of a real run, framed as "we ran", and the
+2026-08-13 re-measure put Robinhood index-only Farcaster at 11.3% — consistent. Not stale,
+just older.
+
+**Audit lesson:** the first pass scanned the `preview` field and missed the Aug 15 thread
+entirely, because `preview` holds only the *first* tweet. Any queue audit has to fetch
+each draft's full `platforms.x.posts[]`, or multi-tweet threads are invisible.
+
+Benchmark numbers now verified and reproducible (`scripts/benchmark-pipeline-sample.ts`):
+23.7% any-identity (95% CI 20.3–27.1) and ~13% reachable on X-or-Farcaster, 18 collections
+across two chains. The 22% site claim sits inside that interval.
+
 > **Note on the old queue:** `tweet-queue-remaining.md` schedules through Mar 26 and its
 > tweets 49–122 were never posted. Those dates are five months stale. This is a fresh
 > file rather than a continuation; the evergreen posts in the old queue are still usable
