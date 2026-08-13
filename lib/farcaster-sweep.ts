@@ -247,7 +247,17 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
             ELSE ${socialGraph.twitterVerified}
           END`,
           sources: sql`CASE WHEN 'farcaster_sweep' = ANY(${socialGraph.sources}) THEN ${socialGraph.sources} ELSE array_append(COALESCE(${socialGraph.sources}, ARRAY[]::text[]), 'farcaster_sweep') END`,
-          dataQualityScore: sql`GREATEST(COALESCE(${socialGraph.dataQualityScore}, 0), EXCLUDED.data_quality_score)`,
+          // GREATEST everywhere except the one case where the score must fall:
+          // a sweep-only row whose attested handle we just retracted above. It
+          // scored 65 with that handle; leaving GREATEST would keep the
+          // twitter(20) bonus on a row that no longer has a twitter handle, and
+          // since every writer uses GREATEST no later lookup could correct it.
+          dataQualityScore: sql`CASE
+            WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[]
+                 AND EXCLUDED.twitter_handle IS NULL
+              THEN EXCLUDED.data_quality_score
+            ELSE GREATEST(COALESCE(${socialGraph.dataQualityScore}, 0), EXCLUDED.data_quality_score)
+          END`,
           // Only an actual identity change counts as an update — follower
           // drift must not re-trigger "new matches" badges
           // Gaining or changing an attested X handle is an identity change too.
