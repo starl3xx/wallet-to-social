@@ -35,16 +35,24 @@ export async function GET(
       );
     }
 
-    // Verify ownership: authenticated users by session, others by userId param
+    // Verify ownership: authenticated users by session, others by userId param.
+    // `isOwner` gates the wallet-level results below. A job with a null userId
+    // (system jobs — the seed cron and refresh-stale) has no owner anyone can
+    // prove, so its resolved wallet lists must never be returned to a caller;
+    // only its progress/stats are public. Previously a null userId skipped both
+    // branches and fell through to returning full partialResults to anyone.
+    let isOwner = false;
     if (session.user) {
       if (job.userId && job.userId !== session.user.id) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
       }
+      isOwner = !!job.userId && job.userId === session.user.id;
     } else if (job.userId) {
       const queryUserId = request.nextUrl.searchParams.get('userId');
       if (!queryUserId || queryUserId !== job.userId) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
       }
+      isOwner = true;
     }
 
     const response: {
@@ -81,14 +89,17 @@ export async function GET(
       completedAt: job.completedAt,
     };
 
-    // Include results only when complete
-    if (job.status === 'completed' && job.partialResults) {
+    // Include resolved wallet results only for the job's owner. Anonymous
+    // callers and non-owners (including anyone hitting a system job) get
+    // progress/stats but never the wallet-level social data.
+    if (isOwner && job.status === 'completed' && job.partialResults) {
       response.results = job.partialResults as WalletSocialResult[];
     }
 
-    // Include error message if failed
-    if (job.status === 'failed' && job.errorMessage) {
-      response.error = job.errorMessage;
+    // Include a generic failure signal — never the raw errorMessage, which can
+    // carry database/driver internals, to an unauthenticated caller
+    if (job.status === 'failed') {
+      response.error = isOwner && job.errorMessage ? job.errorMessage : 'Job failed';
     }
 
     return NextResponse.json(response);
