@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { FileUpload } from '@/components/FileUpload';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
@@ -27,6 +26,7 @@ import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pencil, Plus, Check, X, Send } from 'lucide-react';
+import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
   canNotify,
@@ -201,6 +201,19 @@ export default function Home() {
   const handleOpenUpgradeModal = useCallback(() => {
     setShowUpgradeModal(true);
   }, []);
+
+  const handlePasteToggle = useCallback(() => setShowPasteInput((v) => !v), []);
+
+  // The contract card is shown to everyone. Free accounts get the upgrade
+  // modal instead of the importer, so the feature is discoverable before it
+  // is bought rather than invisible until after.
+  const handleContractCardClick = useCallback(() => {
+    if (userTier === 'pro' || userTier === 'unlimited') {
+      setShowContractImportModal(true);
+    } else {
+      setShowUpgradeModal(true);
+    }
+  }, [userTier]);
 
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -984,24 +997,24 @@ export default function Home() {
           {/* Upload State */}
           {state === 'upload' && (
             <div className="space-y-6">
-              <FileUpload onFileLoaded={handleFileLoaded} />
+              {/* The three input methods as peers. Contract import shows locked
+                  rather than hidden on free accounts, so the layout is stable
+                  and the feature is discoverable before it is bought. */}
+              <InputMethodPicker
+                onFileLoaded={handleFileLoaded}
+                onPasteClick={handlePasteToggle}
+                pasteActive={showPasteInput}
+                // Yielding to open dialogs is handled inside the component by
+                // asking the DOM, not enumerated here: dialogs also open from
+                // the access banner and lookup history, which this file does
+                // not track, and any list would go stale on the next one added
+                contractLocked={userTier !== 'pro' && userTier !== 'unlimited'}
+                onContractClick={handleContractCardClick}
+              />
 
-              {/* Paste alternative */}
+              {/* Paste panel, opened by the middle card */}
               <div className="text-center">
-                <div className="flex items-center gap-4 my-4">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-sm text-muted-foreground">or</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-
-                {!showPasteInput ? (
-                  <button
-                    onClick={() => setShowPasteInput(true)}
-                    className="text-sm text-muted-foreground hover:text-foreground underline"
-                  >
-                    Don&apos;t have a spreadsheet? Paste a list of addresses instead
-                  </button>
-                ) : (
+                {showPasteInput && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
                     <textarea
                       value={pasteText}
@@ -1029,27 +1042,10 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Contract import option (Pro and Unlimited) */}
-              {(userTier === 'pro' || userTier === 'unlimited') && (
-                <div className="text-center">
-                  <div className="flex items-center gap-4 my-4">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-sm text-muted-foreground">or</span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowContractImportModal(true)}
-                    className="gap-2"
-                  >
-                    Import from contract address
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Import all holders of an NFT collection or ERC-20 token on
-                    Ethereum, Base, or Robinhood Chain
-                  </p>
-                </div>
-              )}
+              {/* Supported networks, previously buried under the contract button */}
+              <p className="text-center text-xs text-muted-foreground">
+                Ethereum, Base and Robinhood Chain
+              </p>
 
               <RecentWins />
               <LookupHistory onLoadLookup={handleLoadHistory} userTier={userTier} onAddAddresses={handleOpenAddAddresses} />
