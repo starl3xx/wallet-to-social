@@ -1,0 +1,72 @@
+# Nightly encrypted backup of the irreplaceable tables (users, api_keys,
+# whitelist, lookup_history, known_agents, api_plans). The Farcaster/ENS/
+# holdings data is rebuildable from source; customer/business data is not.
+#
+# Encryption uses age with a PUBLIC recipient key — the private key never
+# touches the runner, so a compromised runner cannot read past backups.
+#
+# Required repository secrets (see docs/SECURITY.md):
+#   BACKUP_DATABASE_URL     — the read-only backup_reader connection string
+#   BACKUP_AGE_PUBLIC_KEY   — an age recipient public key (age1...)
+#
+# Restore:  age -d -i <your-private-key> backup-YYYY-MM-DD.sql.age > restore.sql
+name: db-backup
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Guard — required secrets present
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          AGE_PUB: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          if [ -z "$DB" ] || [ -z "$AGE_PUB" ]; then
+            echo "BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY must be set — see docs/SECURITY.md" >&2
+            exit 1
+          fi
+
+      - name: Install pg_dump (v16 client) and age
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client age
+
+      - name: Dump irreplaceable tables and encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%d)"
+          OUT="backup-${STAMP}.sql.age"
+          pg_dump "$BACKUP_DATABASE_URL" \
+            --no-owner --no-privileges \
+            -t public.users \
+            -t public.api_keys \
+            -t public.api_plans \
+            -t public.whitelist \
+            -t public.lookup_history \
+            -t public.known_agents \
+            | age -r "$BACKUP_AGE_PUBLIC_KEY" -o "$OUT"
+          echo "Wrote $OUT ($(du -h "$OUT" | cut -f1))"
+          echo "ARTIFACT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+          retention-days: 90
