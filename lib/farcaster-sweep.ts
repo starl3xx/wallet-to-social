@@ -26,6 +26,7 @@
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { checkBackgroundBudget, recordSpend } from './neynar-budget';
 
 const NEYNAR_BULK_URL = 'https://api.neynar.com/v2/farcaster/user/bulk';
 const FIDS_PER_CALL = 100;
@@ -41,6 +42,11 @@ export interface SweepStats {
   walletsUpserted: number;
   apiCalls: number;
   failedCalls: number;
+  /** Set when the run stopped early because the credit budget ran out. */
+  budgetStopped?: boolean;
+  /** FID to resume from when budgetStopped — nothing at or above it was swept. */
+  budgetStoppedAtFid?: number;
+  budgetReason?: string;
 }
 
 interface NeynarUser {
@@ -115,6 +121,13 @@ async function fetchUserBatch(
   fids: number[],
   apiKey: string
 ): Promise<NeynarUser[] | null> {
+  // Bulk costs 1 credit per FID requested. Recorded once per batch, OUTSIDE the
+  // retry loop: a 429 or 5xx is not a billed request, so counting every attempt
+  // would invent spend that never happened — and during a rate-limit burst that
+  // phantom spend could exhaust the background ceiling and freeze every
+  // background job until the period rolls over.
+  void recordSpend(fids.length);
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(`${NEYNAR_BULK_URL}?fids=${fids.join(',')}`, {
@@ -319,10 +332,29 @@ export async function beginSeenTracking(): Promise<string> {
 export async function cleanupRevokedWallets(
   sweepStartedAt: Date,
   seenTable: string,
-  expectedSeenCount: number
+  expectedSeenCount: number,
+  /**
+   * The sweep that produced `seenTable` covered its ENTIRE range. Cleanup
+   * clears every pure-sweep wallet absent from the seen table, so running it
+   * after a partial sweep would treat every FID the sweep never reached as
+   * revoked and wipe their Farcaster data.
+   *
+   * The guards below cannot detect this on their own: a sweep that stops
+   * halfway has a proportionally smaller seen table AND a proportionally
+   * smaller upsert count, so the ratio check still passes. It has to be
+   * asserted by the caller.
+   */
+  sweepWasComplete: boolean
 ): Promise<{ cleared: number; deleted: number }> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
+
+  if (!sweepWasComplete) {
+    throw new Error(
+      `Refusing revocation cleanup: the sweep did not cover its full range, so ` +
+        `unswept FIDs would be misread as revoked (seen table ${seenTable} kept)`
+    );
+  }
 
   // Integrity guards. Cleanup clears everything NOT in the seen table, so a
   // deficient seen set mass-clears healthy rows. Two independent checks:
@@ -425,6 +457,22 @@ export async function sweepFidRange(
 
   for (let i = 0; i < batches.length; i += CONCURRENT_CALLS) {
     const round = batches.slice(i, i + CONCURRENT_CALLS);
+
+    // Stop cleanly at the background ceiling rather than running the account
+    // into overage — Neynar pauses ALL API requests on continued overuse, which
+    // would take the live lookup path down with the sweep. Checked per round so
+    // a long sweep yields as soon as the budget is gone; the caller keeps the
+    // stats it earned and the range can be resumed from `budgetStoppedAtFid`.
+    const roundCredits = round.reduce((n, b) => n + b.length, 0);
+    const budget = await checkBackgroundBudget(roundCredits);
+    if (!budget.allowed) {
+      stats.budgetStopped = true;
+      stats.budgetStoppedAtFid = round[0][0];
+      stats.budgetReason = budget.reason;
+      console.warn(`Sweep halted at FID ${round[0][0]}: ${budget.reason}`);
+      break;
+    }
+
     const results = await Promise.all(round.map((b) => fetchUserBatch(b, apiKey)));
 
     const users: NeynarUser[] = [];

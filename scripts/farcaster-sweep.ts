@@ -99,8 +99,17 @@ async function main() {
     );
   }
 
+  if (stats.budgetStopped) {
+    console.warn(
+      `\nSweep stopped early on the Neynar credit budget: ${stats.budgetReason}\n` +
+        `Resume with: npx tsx --env-file=.env.local scripts/farcaster-sweep.ts --range ${stats.budgetStoppedAtFid} ${endFid}`
+    );
+  }
+
   if (isFull && seenTable) {
-    if (stats.failedCalls === 0) {
+    // A budget-stopped run is a PARTIAL sweep: every FID it never reached is
+    // missing from the seen table and would be misread as revoked.
+    if (stats.failedCalls === 0 && !stats.budgetStopped) {
       // Only a complete, failure-free sweep may clear unseen wallets —
       // wallets in a failed batch are absent from the seen table and would
       // be wrongly treated as revoked. cleanupRevokedWallets additionally
@@ -108,14 +117,15 @@ async function main() {
       const cleanup = await cleanupRevokedWallets(
         sweepStartedAt,
         seenTable,
-        stats.walletsUpserted
+        stats.walletsUpserted,
+        true // full range covered: no failed calls and no budget stop
       );
       console.log(
         `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
       );
     } else {
       console.warn(
-        `Skipping revocation cleanup — sweep had failed calls (seen table ${seenTable} kept)`
+        `Skipping revocation cleanup — sweep was incomplete (${stats.failedCalls} failed calls, budgetStopped=${!!stats.budgetStopped}); seen table ${seenTable} kept`
       );
     }
   }
