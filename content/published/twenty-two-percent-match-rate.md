@@ -7,6 +7,8 @@ publish_date: "2026-03-26"
 
 # The 22% Match Rate: How We Got 9x Better Than Average
 
+> **Update, August 2026:** Farcaster matching is now backed by our own index of the complete Farcaster protocol — every FID’s verified and custody addresses, 4.7M wallets, refreshed daily — so Farcaster matches are deterministic rather than best-effort API lookups. The pipeline and per-source contribution figures below describe the original architecture and predate the full index; treat them as historical context.
+
 The industry average for wallet-to-social identity resolution is approximately 2.5%. That means if you have 10,000 wallet addresses, most tools will identify social profiles for about 250 of them.
 
 walletlink.social matches 2,200 out of those 10,000 -- a 22% match rate. This post explains exactly how, covering the data sources, the pipeline architecture, and where each source contributes.
@@ -175,4 +177,4 @@ The architecture is straightforward. The insight is simply that no single identi
 
 **See the 22% difference on your data.**
 
-[walletlink.social](https://walletlink.social) runs the full four-source pipeline on your wallet list. Free tier covers 1,000 wallets. Upload a CSV and see how many holders you can identify.
+[walletlink.social](https://walletlink.social) runs the full pipeline on your wallet list. Free tier covers 500 wallets. Upload a CSV and see how many holders you can identify.

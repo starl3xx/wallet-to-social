@@ -1,6 +1,8 @@
 # SEO Strategy: walletlink.social
 
-**Positioning:** The simple, affordable alternative to Addressable for crypto teams who just need wallet-to-social lookups.
+**Positioning:** The simple, affordable alternative to Addressable for crypto teams who just need wallet-to-social lookups. Backed by a 4.7M-wallet identity index with complete Farcaster protocol coverage (August 2026 milestone) — the deterministic, user-attested counter to Addressable's probabilistic "fingerprinting".
+
+**August 2026 update:** The dataset grew from ~5k to 4.7M wallets with complete Farcaster coverage and full reverse lookup (any Farcaster handle → wallets). Twitter coverage is ~41k wallets, mostly user-attested via on-chain ENS records — never market Twitter coverage as millions. Two dead-competitor migration pages went live: `/vs/holder` (Holder sunset June 2024) and `/vs/airstack` (Airstack deprecated its API, pivoted to Senpi), and `/vs/blaze` was rewritten as a migration page (Blaze left web3; withblaze.app is dead).
 
 ---
 
@@ -38,6 +40,21 @@
 | `find nft collectors social` | Solution seeking | Low | Medium |
 | `defi protocol marketing` | Use case | Medium | Medium |
 
+### Dead-Competitor Migration Keywords (High Intent, Low Competition)
+| Keyword | Search Intent | Landing Page | Priority |
+|---------|--------------|--------------|----------|
+| `blaze alternative` | Migration | `/vs/blaze` | **HIGH** |
+| `withblaze shut down` | What happened | `/vs/blaze` | **HIGH** |
+| `holder.xyz alternative` | Migration | `/vs/holder` | **HIGH** |
+| `airstack alternative` | Migration | `/vs/airstack` | **HIGH** |
+| `airstack api deprecated` | What happened | `/vs/airstack` | **HIGH** |
+
+### Dataset-Scale Keywords (Farcaster Moat)
+| Keyword | Search Intent | Difficulty | Priority |
+|---------|--------------|------------|----------|
+| `farcaster wallet index` | Solution seeking | Low | **HIGH** |
+| `reverse farcaster lookup` | Solution seeking | Low | **HIGH** |
+
 ### Long-tail Keywords (Blog/Content)
 | Keyword | Content Type |
 |---------|-------------|
@@ -58,7 +75,7 @@ Wallet to Twitter Lookup | Addressable Alternative | walletlink.social
 
 ### Meta Description (155 chars max)
 ```
-Turn wallet addresses into Twitter & Farcaster profiles instantly. No sales calls, no subscriptions. One-time payment starting at $149. Upload CSV, get socials.
+Turn wallet addresses into Twitter & Farcaster profiles instantly. No sales calls, no subscriptions. One-time payment starting at $99. Upload CSV, get socials.
 ```
 
 ### Open Graph
@@ -87,7 +104,7 @@ description: "Find Twitter & Farcaster profiles from Ethereum wallet addresses. 
 > Drop your wallet list, we find the socials. Export to CSV or Twitter List in seconds.
 
 **2. One Price, Lifetime Access**
-> $149 for 10K wallets, $420 for unlimited. No monthly fees. No enterprise contracts.
+> $99 for 5,000 wallets/lookup (Pro), $249 for unlimited. Both include API access. No monthly fees. No enterprise contracts.
 
 **3. All Major Sources**
 > We check ENS, Web3.bio, and Farcaster to maximize your match rate.
@@ -108,12 +125,12 @@ Display RecentWins component showing:
 | | walletlink.social | Addressable |
 |---|---|---|
 | **Focus** | Wallet → Social only | Full marketing suite |
-| **Pricing** | $149 - $420 one-time | $1000s/month subscription |
+| **Pricing** | $99 - $249 one-time | $1000s/month subscription |
 | **Access** | Instant, self-serve | Sales calls required |
 | **Setup** | Upload CSV, done | Onboarding process |
 | **Contracts** | None | Enterprise agreements |
 
-**CTA:** Start your first lookup free (1,000 wallets)
+**CTA:** Start your first lookup free (500 wallets)
 
 ### How It Works Section
 
@@ -133,7 +150,7 @@ Display RecentWins component showing:
 > Addressable is a full web3 marketing platform - great if you need attribution, ads, and CRM. But if you just need wallet-to-social lookups, you're paying for features you won't use. We focus on one thing and do it well.
 
 **Q: Can I try before buying?**
-> Yes! Free tier includes 1,000 wallets - no credit card required.
+> Yes! Free tier includes 500 wallets - no credit card required.
 
 ---
 
@@ -179,10 +196,10 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
    - Farcaster: walletlink.social (Addressable unclear)
    - Ad attribution: Addressable only
    - CRM integration: Addressable only
-   - API access: Addressable only
+   - API access: included with both walletlink.social paid tiers
 
 6. **Pricing Comparison**
-   - walletlink: $149 (10K) / $420 (unlimited) one-time
+   - walletlink: $99 (5K/lookup) / $249 (unlimited) one-time, API access on both
    - Addressable: Custom pricing, typically $1K+/month
    - ROI calculation example
 
@@ -200,7 +217,7 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
      - Budget isn't a constraint
 
 8. **CTA Section**
-   - "Try walletlink.social free - 1,000 wallets, no credit card"
+   - "Try walletlink.social free - 500 wallets, no credit card"
 
 ---
 
@@ -217,9 +234,13 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
 
 ### Content to Create
 
-- [ ] `/vs/addressable` comparison page
+- [x] `/vs/addressable` comparison page
+- [x] `/vs/blaze` migration page (Blaze left web3 — rewritten August 2026)
+- [x] `/vs/holder` migration page (Holder sunset June 2024)
+- [x] `/vs/airstack` migration page (Airstack deprecated its API, pivoted to Senpi)
 - [ ] Blog post: "How to Find Twitter Accounts from Ethereum Wallets"
 - [ ] Blog post: "Token Holder Outreach: A Practical Guide"
+- [ ] Blog post: 4.7M-wallet index milestone / complete Farcaster coverage (targets `farcaster wallet index`, `reverse farcaster lookup`)
 
 ### Link Building Opportunities
 
@@ -242,7 +263,7 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
   "operatingSystem": "Web",
   "offers": {
     "@type": "Offer",
-    "price": "149",
+    "price": "99",
     "priceCurrency": "USD"
   },
   "description": "Turn wallet addresses into Twitter & Farcaster profiles"

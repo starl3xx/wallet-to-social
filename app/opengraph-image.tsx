@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter';
+export const alt = 'walletlink.social — Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -76,7 +76,7 @@ export default async function OGImage() {
             maxWidth: '700px',
           }}
         >
-          Wallet-to-social lookup with 22% match rate. AI agent detection included.
+          A 4.7M-wallet identity index with complete Farcaster coverage. AI agent detection included.
         </div>
 
         {/* Stats row */}
@@ -87,12 +87,12 @@ export default async function OGImage() {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>22%</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>Match rate</span>
+            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>4.7M</span>
+            <span style={{ fontSize: '16px', color: '#737373' }}>Wallets indexed</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>9x</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>vs. average</span>
+            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>100%</span>
+            <span style={{ fontSize: '16px', color: '#737373' }}>Farcaster coverage</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>13K+</span>

@@ -65,6 +65,30 @@ export default function Home() {
   });
   const [jobId, setJobIdState] = useState<string | null>(null);
 
+  // Live index size for the header stat strip — falls back to the static
+  // "4.7M" copy if the public stats fetch fails or returns nothing useful
+  const [indexedWallets, setIndexedWallets] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/public-stats')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data || typeof data.total_wallets !== 'number') return;
+        // Only trust index-scale numbers; dev/empty databases keep the fallback
+        if (data.total_wallets >= 1_000_000) {
+          const millions = (data.total_wallets / 1_000_000).toFixed(1);
+          setIndexedWallets(`${millions.replace(/\.0$/, '')}M`);
+        }
+      })
+      .catch(() => {
+        // Keep the static fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // User access state from AuthProvider
   const { user } = useAuth();
   const userTier: UserTier = user?.tier || 'free';
@@ -892,7 +916,7 @@ export default function Home() {
                 </h1>
               </div>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Turn your wallet list into Twitter handles and Farcaster profiles. Detect 13,000+ known AI agent wallets instantly.{' '}
+                Turn your wallet list into Twitter handles and Farcaster profiles. Backed by an index of 4.7M wallets with complete Farcaster coverage. Detect 13,000+ known AI agent wallets instantly.{' '}
                 <a
                   href="/vs/addressable"
                   className="underline hover:text-foreground"
@@ -900,6 +924,9 @@ export default function Home() {
                   Simple alternative to Addressable
                 </a>
                 .
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {indexedWallets ?? '4.7M'} wallets indexed · complete Farcaster coverage · 13K+ AI agents flagged
               </p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
