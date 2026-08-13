@@ -179,6 +179,29 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-12 (daily collection seed cron)
+
+**Top/trending collections and tokens → holder lists → the graph**
+
+- New `lib/seed-collections.ts` + `/api/cron/seed-collections` (07:00 UTC):
+  one NFT collection per chain (Ethereum, Base, Robinhood Chain) and one
+  trending token on Ethereum + Base per day, holders capped at 2,000 per
+  contract, queued through the normal lookup pipeline as visible
+  `seed_cron` jobs — Recent Activity now shows real collections with real
+  match stats.
+- Discovery: OpenSea top+trending (uses `OPENSEA_API_KEY`, or auto-provisions
+  a temp key — capped at 2/day, so treat it as best-effort);
+  GeckoTerminal trending pools (keyless); Blockscout holders-ranked list as
+  the keyless Robinhood fallback. Denylists filter infra tokens (WETH/USDC…)
+  and infra NFTs (Uniswap positions et al.) whose holder lists aren't
+  audiences.
+- Selection is novelty-aware via the new `seeded_contracts` table (30-day
+  re-seed window), so the cron works down the rankings instead of re-buying
+  the top 10.
+- New `wallet_holdings` table records wallet ↔ contract edges at seed time —
+  the audience-graph data ("holders of X") that social resolution alone
+  can't provide. Migration: `scripts/migrate-seed-tables.ts` (applied).
+
 ### 2026-08-12 (ENS text-record harvest)
 
 **On-chain com.twitter / com.github records → social_graph**
