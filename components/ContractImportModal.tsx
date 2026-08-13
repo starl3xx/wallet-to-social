@@ -245,8 +245,12 @@ export function ContractImportModal({
               {result.truncated && (
                 <div className="flex items-start gap-2 pt-2 border-t">
                   <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  {/* Report what was actually imported, not the cap. A holder
+                      list can come back short of the cap when the source is a
+                      block explorer that pages slowly and the request runs out
+                      of time, and claiming the cap would overstate it. */}
                   <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Limited to {(result.appliedLimit ?? result.wallets.length).toLocaleString()} of{' '}
+                    Imported {result.wallets.length.toLocaleString()} of{' '}
                     {result.totalHolders.toLocaleString()} total holders
                   </p>
                 </div>
