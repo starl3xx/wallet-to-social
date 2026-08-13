@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runDailySeed } from '@/lib/seed-collections';
+import { checkBackgroundBudget } from '@/lib/neynar-budget';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+// Up to 3 contracts x ~2,000 holders per daily run, resolved through Neynar.
+// Only needs to be the right order of magnitude — it gates whether the run
+// starts, and every actual call reports its own exact spend.
+const SEED_ESTIMATED_CREDITS = 6000;
 
 /**
  * Daily dataset seeding: one top/trending NFT collection per chain
@@ -21,6 +27,18 @@ export async function GET(request: NextRequest) {
 
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+  }
+
+  // The seed imports whole holder lists and resolves them, so it is one of the
+  // larger background consumers of Neynar credits. Yield to the live lookup
+  // path when the background ceiling is reached rather than running the account
+  // into overage — Neynar pauses ALL requests on continued overuse.
+  const budget = await checkBackgroundBudget(SEED_ESTIMATED_CREDITS);
+  if (!budget.allowed) {
+    return NextResponse.json(
+      { message: 'Skipped: Neynar background budget exhausted', reason: budget.reason, seeded: 0 },
+      { status: 200 }
+    );
   }
 
   try {

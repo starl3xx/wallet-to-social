@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStaleWallets } from '@/lib/social-graph';
+import { checkBackgroundBudget } from '@/lib/neynar-budget';
 import { createJob } from '@/lib/job-processor';
 import { trackEvent } from '@/lib/analytics';
 
@@ -48,6 +49,17 @@ export async function POST(request: NextRequest) {
     if (staleWallets.length === 0) {
       return NextResponse.json({
         message: 'No stale wallets to refresh',
+        refreshed: 0,
+      });
+    }
+
+    // Refreshing stale rows is useful but never urgent — yield the remaining
+    // credits to live lookups rather than pushing the account into overage.
+    const budget = await checkBackgroundBudget(staleWallets.length);
+    if (!budget.allowed) {
+      return NextResponse.json({
+        message: 'Skipped: Neynar background budget exhausted',
+        reason: budget.reason,
         refreshed: 0,
       });
     }

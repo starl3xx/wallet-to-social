@@ -1,5 +1,6 @@
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { trackApiCall } from './analytics';
+import { recordSpend } from './neynar-budget';
 
 export interface NeynarUser {
   fid: number;
@@ -66,6 +67,11 @@ export async function fetchNeynarBatch(
   }
 
   const { controller, cleanup } = createTimeoutController(API_TIMEOUT_MS);
+
+  // Report the spend so the monthly counter reflects live traffic too. Live
+  // lookups are never throttled by the budget — they only inform it, so that
+  // background jobs know how much room they have left to leave the product.
+  void recordSpend(validAddresses.length);
 
   try {
     const response = await fetch(
