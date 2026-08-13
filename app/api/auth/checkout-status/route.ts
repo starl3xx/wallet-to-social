@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCheckoutSession } from '@/lib/stripe';
+import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
 import { getUserAccess } from '@/lib/access';
 
 export const runtime = 'nodejs';
@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ paid: false, tier: 'free' });
   }
 
-  const email =
-    session.customer_details?.email ||
-    session.customer_email ||
-    session.metadata?.email ||
-    null;
+  // Resolved through the same helper the webhook uses. If this poll looked up a
+  // different address than the webhook upgraded — which happens the moment a
+  // buyer edits the prefilled email on Stripe Checkout — the payment would
+  // succeed while /success spun until it timed out.
+  const email = resolveCheckoutEmail(session);
 
   if (!email) {
     // Paid, but we can't tie it to an account yet. The client keeps polling.

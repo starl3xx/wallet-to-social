@@ -83,6 +83,27 @@ export function constructWebhookEvent(
 }
 
 /**
+ * The email an entitlement is granted to for a checkout session.
+ *
+ * The webhook (which performs the upgrade) and the /success poll (which waits
+ * for it) MUST resolve this identically. `customer_email` is the address we
+ * passed when creating the session; `customer_details.email` is whatever the
+ * buyer actually typed into Stripe Checkout, and the two diverge the moment a
+ * buyer edits the prefilled address. If the two paths disagree, the upgrade
+ * lands on one account while the poll asks about the other — the payment
+ * succeeds and /success spins until it times out.
+ *
+ * `customer_details.email` is deliberately NOT consulted: the webhook grants
+ * entitlement, so the webhook's notion of the address is the authoritative one.
+ * Both callers go through this function so they cannot drift apart again.
+ */
+export function resolveCheckoutEmail(
+  session: Stripe.Checkout.Session
+): string | null {
+  return session.customer_email || session.metadata?.email || null;
+}
+
+/**
  * Retrieve a checkout session by ID
  */
 export async function getCheckoutSession(
