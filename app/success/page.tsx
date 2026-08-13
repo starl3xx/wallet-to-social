@@ -26,29 +26,36 @@ function SuccessContent() {
       return;
     }
 
-    // Get email from localStorage (set during checkout)
+    // Show the localStorage email immediately if we have one, purely so the
+    // card isn't blank while polling. The authoritative address comes back
+    // from the verified Stripe session below and overwrites it.
     const storedEmail = localStorage.getItem('user_email');
     if (storedEmail) {
       setEmail(storedEmail);
     }
 
     // Poll for access update
+    let cancelled = false;
     let attempts = 0;
     const maxAttempts = 30; // 30 seconds max
     const pollInterval = 1000;
 
     const checkAccess = async () => {
-      if (!storedEmail) {
-        setError('Email not found. Please check your payment confirmation email.');
-        setState('error');
-        return;
-      }
+      if (cancelled) return;
 
       try {
+        // Keyed on the Stripe session id, not an email. The session id is
+        // unguessable and only Stripe hands it to the buyer, so this can't be
+        // used to ask about anyone else's account.
         const response = await fetch(
-          `/api/auth/check-access?email=${encodeURIComponent(storedEmail)}`
+          `/api/auth/checkout-status?session_id=${encodeURIComponent(sessionId)}`
         );
         const data = await response.json();
+        if (cancelled) return;
+
+        if (data.email) {
+          setEmail(data.email);
+        }
 
         if (data.tier && data.tier !== 'free') {
           setTier(data.tier);
@@ -68,6 +75,7 @@ function SuccessContent() {
         // Keep polling
         setTimeout(checkAccess, pollInterval);
       } catch {
+        if (cancelled) return;
         attempts++;
         if (attempts >= maxAttempts) {
           setError('Failed to verify payment. Please contact support.');
@@ -79,6 +87,9 @@ function SuccessContent() {
     };
 
     checkAccess();
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   const TierIcon = tier === 'unlimited' ? Crown : Zap;
