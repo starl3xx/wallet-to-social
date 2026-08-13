@@ -422,6 +422,14 @@ const ATTEMPT_RESERVE_MS = 70_000;
 // Margin kept for response serialization after the last attempt
 const CLEANUP_MARGIN_MS = 10_000;
 
+// A timeout is only INFORMATIVE about the contract when the attempt had a
+// near-full budget: timing out despite this much runway means the contract
+// is genuinely too slow to seed (keep the 2-day lockout, let later
+// rankings have their turn). Timing out with less means the attempt was
+// squeezed by a late slot — the contract stays novel for tomorrow's fresh
+// budget.
+const INFORMATIVE_TIMEOUT_BUDGET_MS = 150_000;
+
 /** Distinguishes "the run's budget expired" from "the contract failed" —
  *  they must be recorded differently. */
 class SeedBudgetTimeout extends Error {}
@@ -483,22 +491,24 @@ async function seedFirstViable(
       };
     }
     await markSeedAttempt(candidate);
+    const attemptBudget = remaining - CLEANUP_MARGIN_MS;
     try {
       // Hard wall-clock bound: the attempt may use all remaining budget
       // minus the cleanup margin, but can never exceed it — regardless of
       // how many sequential requests the holder fetch makes internally
-      return await withTimeout(
-        seedContract(candidate),
-        remaining - CLEANUP_MARGIN_MS,
-        candidate.label
-      );
+      return await withTimeout(seedContract(candidate), attemptBudget, candidate.label);
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
       console.error(`Seed failed for ${candidate.label} (${candidate.address}):`, lastError);
       if (error instanceof SeedBudgetTimeout) {
-        // The run's budget expired, not the contract — undo the lockout and
-        // stop attempting: there's no time left for another try anyway
-        await unmarkSeedAttempt(candidate).catch(console.error);
+        // Informative timeout (near-full budget, still too slow): keep the
+        // 2-day lockout so a perpetually-slow contract can't retry first
+        // every day and starve later rankings. Squeezed timeout (late
+        // slot): undo the lockout — the contract did nothing wrong.
+        if (attemptBudget < INFORMATIVE_TIMEOUT_BUDGET_MS) {
+          await unmarkSeedAttempt(candidate).catch(console.error);
+        }
+        // Either way, stop attempting: no time left for another try
         return {
           contract: { address: '?', chain, kind, label: 'time budget exhausted' },
           holdersImported: 0,
