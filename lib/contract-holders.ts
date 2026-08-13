@@ -248,6 +248,126 @@ async function getERC721Holders(
 }
 
 /**
+ * Blockscout instances that expose an ERC-20 holder index.
+ *
+ * Moralis does not index Robinhood Chain, which is why token import used to be
+ * NFT-only there. That was a provider gap rather than a property of the chain:
+ * the chain's own Blockscout explorer indexes ERC-20 holders and paginates
+ * them, so it serves the same purpose. Only chains Moralis cannot serve need an
+ * entry here.
+ */
+const BLOCKSCOUT_BASE_URLS: Partial<Record<SupportedChain, string>> = {
+  robinhood: 'https://robinhoodchain.blockscout.com',
+};
+
+interface BlockscoutHolderItem {
+  address?: { hash?: string } | string;
+}
+
+interface BlockscoutHoldersResponse {
+  items?: BlockscoutHolderItem[];
+  // Opaque cursor. Passed back verbatim as query params for the next page.
+  next_page_params?: Record<string, string | number> | null;
+}
+
+/**
+ * ERC-20 holders from a Blockscout explorer.
+ *
+ * Pages are 50 rows with a cursor, so a 10k import is ~200 requests against a
+ * public explorer. Requests are paced and the page count is bounded so a token
+ * with a very large holder set cannot turn one import into an unbounded crawl.
+ */
+async function getERC20HoldersBlockscout(
+  address: string,
+  chain: SupportedChain,
+  limit: number
+): Promise<{ wallets: string[]; totalHolders: number }> {
+  const base = BLOCKSCOUT_BASE_URLS[chain];
+  if (!base) throw new Error('CHAIN_NO_ERC20_SUPPORT');
+
+  const headers = { Accept: 'application/json', 'User-Agent': 'walletlink.social' };
+  const seen = new Set<string>();
+  let totalHolders = 0;
+
+  // Holder count comes from the token record; the holders list itself does not
+  // report a total, and we need it to tell the caller the result was truncated.
+  try {
+    const metaRes = await withTimeout(
+      fetch(`${base}/api/v2/tokens/${address}`, { headers }),
+      15000,
+      'Blockscout token lookup timed out'
+    );
+    if (metaRes.ok) {
+      const meta = (await metaRes.json()) as { holders_count?: string; holders?: string };
+      totalHolders = parseInt(meta.holders_count ?? meta.holders ?? '0', 10) || 0;
+    }
+  } catch {
+    // Non-fatal: a missing total only costs an accurate `truncated` flag
+  }
+
+  let params: Record<string, string | number> | null = null;
+  const MAX_PAGES = Math.ceil(limit / 50) + 5;
+
+  // Pages are 50 rows and the explorer has been observed at up to ~3s a page,
+  // so a 5,000-holder request can want ~100 pages: far beyond the route's 60s
+  // maxDuration. Stop at a budget and return what was collected rather than
+  // letting the whole import time out and give the caller nothing. The result
+  // still reports the true holder count, so it is correctly marked truncated.
+  const startedAt = Date.now();
+  const BUDGET_MS = 40_000;
+  const remainingMs = () => BUDGET_MS - (Date.now() - startedAt);
+
+  for (let page = 0; page < MAX_PAGES && seen.size < limit; page++) {
+    if (remainingMs() <= 0) break;
+    const url = new URL(`${base}/api/v2/tokens/${address}/holders`);
+    if (params) {
+      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+    }
+
+    // Never wait past the budget: a fixed 30s timeout checked only between
+    // pages could start a request with 1s of budget left and still block for
+    // 30, overrunning the route's own 60s ceiling.
+    const pageTimeoutMs = Math.min(15_000, Math.max(2_000, remainingMs()));
+
+    let json: BlockscoutHoldersResponse;
+    try {
+      const res = await withTimeout(
+        fetch(url.toString(), { headers }),
+        pageTimeoutMs,
+        'Blockscout holders request timed out'
+      );
+      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (!res.ok) throw new Error(`Blockscout holders ${res.status}`);
+      json = (await res.json()) as BlockscoutHoldersResponse;
+    } catch (error) {
+      // A page that fails after holders are already collected should not lose
+      // them. Return the partial list; only a first-page failure is fatal,
+      // where there is nothing to return and the real error is worth surfacing.
+      if (seen.size > 0) break;
+      throw error;
+    }
+
+    const items = json.items ?? [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const hash =
+        typeof item.address === 'string' ? item.address : item.address?.hash;
+      if (hash && hash.startsWith('0x')) seen.add(hash.toLowerCase());
+      if (seen.size >= limit) break;
+    }
+
+    if (!json.next_page_params) break;
+    params = json.next_page_params;
+    // Be a good citizen on a public explorer
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  const wallets = Array.from(seen).slice(0, limit);
+  return { wallets, totalHolders: totalHolders || wallets.length };
+}
+
+/**
  * Get ERC-20 token holders using Moralis API
  */
 async function getERC20Holders(
@@ -260,8 +380,13 @@ async function getERC20Holders(
   // would not help. Checking the key first would mask that with a config error.
   const chainId = MORALIS_CHAIN_IDS[chain];
   if (!chainId) {
-    // Moralis has no holder index for this chain, and ERC-20 holders cannot be
-    // derived from RPC state the way NFT owners can (no per-token owner mapping).
+    // ERC-20 holders cannot be derived from RPC state the way NFT owners can
+    // (balances are a mapping with no enumerable owner list), so they always
+    // need an index. Where Moralis has none, fall back to the chain's own
+    // Blockscout explorer, which does.
+    if (BLOCKSCOUT_BASE_URLS[chain]) {
+      return getERC20HoldersBlockscout(address, chain, limit);
+    }
     throw new Error('CHAIN_NO_ERC20_SUPPORT');
   }
 
@@ -393,7 +518,11 @@ export async function getContractHolders(
     contractType,
     totalHolders: holdersResult.totalHolders,
     appliedLimit: effectiveLimit,
-    truncated: holdersResult.totalHolders > effectiveLimit,
+    // Derived from what was actually returned, not from the cap. A source that
+    // pages slowly can stop on its own time budget below the cap, and comparing
+    // the total against the cap alone would call that list complete and hide
+    // the shortfall from the caller entirely.
+    truncated: holdersResult.wallets.length < holdersResult.totalHolders,
     chain,
   };
 }

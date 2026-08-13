@@ -405,8 +405,7 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
 // ============================================================================
 
 /**
- * One NFT collection per chain, plus one token on Ethereum and Base
- * (Robinhood ERC-20 holder lists aren't available — NFT only there).
+ * One NFT collection and one token per chain, on all three chains.
  * Failures are per-contract: one bad discovery source or contract doesn't
  * stop the rest of the day's seeding.
  */
@@ -565,8 +564,9 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
       });
     }
 
-    // Token (not available on Robinhood)
-    if (chain !== 'robinhood') {
+    // Token, now on every chain: Robinhood ERC-20 holder lists resolve through
+    // its Blockscout explorer, and GeckoTerminal indexes the chain for discovery
+    {
       if (Date.now() > deadline - SLOT_RESERVE_MS) {
         results.push(budgetExhausted(chain, 'erc20'));
         continue;

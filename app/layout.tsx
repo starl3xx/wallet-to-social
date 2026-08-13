@@ -166,7 +166,7 @@ const faqSchema = {
       name: 'Which blockchains does walletlink.social support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social supports Ethereum, Base, and Robinhood Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection directly from its contract address. NFT holder import works on all three networks; ERC-20 token holder import is available on Ethereum and Base.',
+        text: 'walletlink.social supports Ethereum, Base, and Robinhood Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection directly from its contract address. Both NFT and ERC-20 token holder import work on all three networks.',
       },
     },
     {
