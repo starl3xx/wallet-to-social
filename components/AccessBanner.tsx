@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Crown, Sparkles, LogIn, LogOut, ChevronDown, Rocket } from 'lucide-react';
+import { Zap, Crown, Sparkles, LogIn, LogOut, ChevronDown, Rocket, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TIER_LIMITS } from '@/lib/access';
 import { AuthModal } from '@/components/AuthModal';
+import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { useAuth } from '@/components/AuthProvider';
 
 interface AccessBannerProps {
@@ -21,6 +22,7 @@ export function AccessBanner({
   onUpgradeClick,
 }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [apiKeysOpen, setApiKeysOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { user, isLoading, signOut } = useAuth();
 
@@ -52,7 +54,21 @@ export function AccessBanner({
                 className="fixed inset-0 z-40"
                 onClick={() => setShowDropdown(false)}
               />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg py-1 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg py-1 min-w-[160px]">
+                {/* Shown to every signed-in account, not just the tiers that
+                    have API access. For Free the modal explains what the API
+                    does and routes to plans, which is a better answer than
+                    hiding the entrance entirely. */}
+                <button
+                  onClick={() => {
+                    setShowDropdown(false);
+                    setApiKeysOpen(true);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  API keys
+                </button>
                 <button
                   onClick={handleSignOut}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
@@ -164,6 +180,14 @@ export function AccessBanner({
     <div className="flex items-center gap-3 flex-shrink-0">
       <TierBadge />
       <AuthSection />
+      {/* Rendered outside AuthSection: that component returns early while the
+          session is loading, which would unmount an open modal mid-use. */}
+      <ApiKeysModal
+        open={apiKeysOpen}
+        onOpenChange={setApiKeysOpen}
+        tier={tier}
+        onUpgradeClick={onUpgradeClick}
+      />
     </div>
   );
 }
