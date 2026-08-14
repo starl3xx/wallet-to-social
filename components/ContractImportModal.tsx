@@ -171,39 +171,40 @@ export function ContractImportModal({
                 three networks and cramped at seven, and the selected one was a
                 dot you had to hunt for. Selectable tiles keep every option
                 scannable and make the current choice obvious at a glance. */}
-            <div className="space-y-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <label id="network-label" className="text-sm font-medium">
-                  Network
-                </label>
+            <fieldset className="space-y-2">
+              {/* fieldset/legend is the element pair for a radio group: it
+                  names the group for assistive tech without an aria-* patch */}
+              <legend className="mb-2 flex w-full items-baseline justify-between gap-2">
+                <span className="text-sm font-medium">Network</span>
                 <span className="text-xs text-muted-foreground">
                   the network this contract is deployed on
                 </span>
-              </div>
-              <div
-                role="radiogroup"
-                aria-labelledby="network-label"
-                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-              >
-                {SUPPORTED_CHAINS.map((c) => {
-                  const selected = chain === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => setChain(c)}
-                      className={`rounded-md border px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                        selected
-                          ? 'border-foreground bg-muted font-medium'
-                          : 'border-border hover:border-foreground/30 hover:bg-muted/40'
-                      }`}
+              </legend>
+              {/* Real radio inputs, visually hidden, with the label styled as
+                  the tile. Buttons with role="radio" looked identical but threw
+                  away what a radio group gives for free: arrow keys move the
+                  selection, the group is a single tab stop, and assistive tech
+                  announces position. Reimplementing that with roving tabindex
+                  is easy to get subtly wrong, and getting it wrong is worse
+                  than the plain radios this replaces. */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {SUPPORTED_CHAINS.map((c) => (
+                  <label key={c} className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="chain"
+                      value={c}
+                      checked={chain === c}
+                      onChange={() => setChain(c)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className="block rounded-md border border-border px-3 py-2 text-center text-sm transition-colors hover:border-foreground/30 hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
                     >
                       {CHAIN_LABELS[c]}
-                    </button>
-                  );
-                })}
+                    </span>
+                  </label>
+                ))}
               </div>
               {!ERC20_SUPPORTED_CHAINS.includes(chain) && (
                 <p className="text-xs text-muted-foreground">
@@ -211,7 +212,7 @@ export function ContractImportModal({
                   holder lists aren’t available on this network.
                 </p>
               )}
-            </div>
+            </fieldset>
 
             {/* Load button */}
             <Button
