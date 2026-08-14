@@ -23,7 +23,7 @@ The wallet identity problem has plagued Web3 since day one.
 
 Farcaster isn't just another social network. It's the first major platform where verified wallet addresses are a core feature.
 
-When someone connects their wallet to Farcaster, that verification is cryptographically provable. Not an ENS text record that might be outdated. Not a self-reported Twitter handle. A verified, on-chain connection between identity and wallet.
+When someone connects their wallet to Farcaster, that verification is cryptographically provable. Not an ENS text record that might be outdated. Not a self-reported Twitter handle. A verified, onchain connection between identity and wallet.
 
 The numbers:
 
@@ -78,7 +78,7 @@ Upload your CSV. We handle the rest.
 Behind the scenes:
 1. **Web3.bio** — ENS, Lens, and other identity sources
 2. **Neynar API** — Farcaster profiles and verified addresses
-3. **On-chain ENS** — direct text record lookups
+3. **Onchain ENS** — direct text record lookups
 
 Results cached 24 hours. 10K wallets in under 2 minutes.
 
@@ -116,7 +116,7 @@ Farcaster integration is live now. No setup required.
 
 Farcaster integration is a milestone in a larger shift: **wallets are becoming social profiles**.
 
-Every on-chain action is public. Tokens held. NFTs collected. Votes cast. The data exists. What's been missing is the identity layer connecting wallets to people.
+Every onchain action is public. Tokens held. NFTs collected. Votes cast. The data exists. What's been missing is the identity layer connecting wallets to people.
 
 Farcaster is building that layer. ENS is building it. wallet-to-social aggregates it all.
 

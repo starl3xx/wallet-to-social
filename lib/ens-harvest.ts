@@ -1,13 +1,13 @@
 /**
- * ENS text-record harvest: on-chain com.twitter / com.github records →
+ * ENS text-record harvest: onchain com.twitter / com.github records →
  * social_graph.
  *
  * ENS text records are the highest-quality wallet→Twitter edge that exists —
- * the wallet owner set the handle themselves, on-chain. The full universe is
+ * the wallet owner set the handle themselves, onchain. The full universe is
  * small (~49k names ever set com.twitter; ~17k currently hold a value) but
  * every edge is user-attested.
  *
- * Pipeline, entirely on-chain via our own RPC — no subgraph, no third-party
+ * Pipeline, entirely onchain via our own RPC — no subgraph, no third-party
  * indexer:
  *  1. eth_getLogs for both TextChanged signatures (3-arg pre-2023 resolvers,
  *     4-arg 2023+), topic2 filtered to the com.twitter / com.github key

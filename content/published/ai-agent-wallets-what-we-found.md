@@ -19,7 +19,7 @@ This post is a data dump. No speculation about the future of AI agents in crypto
 | ElizaOS | 621 | 4.6% | Ethereum / Base |
 | Olas | 30 | 0.2% | Ethereum / Gnosis |
 
-**Virtuals Protocol** dominates the count by a wide margin. Their architecture spawns a new wallet for each agent instance, which means a single agent concept can generate dozens of on-chain addresses. Most of these agents are trading agents -- they buy and sell tokens based on predefined strategies, social signals, or market conditions. A meaningful subset are "social agents" that hold tokens as part of a persona (think AI-driven Farcaster accounts that accumulate tokens related to their character).
+**Virtuals Protocol** dominates the count by a wide margin. Their architecture spawns a new wallet for each agent instance, which means a single agent concept can generate dozens of onchain addresses. Most of these agents are trading agents -- they buy and sell tokens based on predefined strategies, social signals, or market conditions. A meaningful subset are "social agents" that hold tokens as part of a persona (think AI-driven Farcaster accounts that accumulate tokens related to their character).
 
 **ElizaOS** (formerly ai16z's Eliza framework) accounts for 621 wallets. These tend to be more sophisticated -- many run multi-step DeFi strategies involving lending, LP provision, and yield farming. The wallet count is lower because ElizaOS agents typically reuse a single wallet across operations rather than spawning new ones.
 
@@ -94,7 +94,7 @@ We've published our full agent wallet dataset (addresses only, no private data) 
 
 ## The Bigger Picture
 
-AI agents are permanent fixtures of the on-chain ecosystem. They provide liquidity, execute strategies, and increasingly participate in social layers. The question isn't whether they belong -- it's whether your analytics can distinguish them from humans.
+AI agents are permanent fixtures of the onchain ecosystem. They provide liquidity, execute strategies, and increasingly participate in social layers. The question isn't whether they belong -- it's whether your analytics can distinguish them from humans.
 
 Every holder dashboard, every community metric, every airdrop allocation that doesn't account for agents is working with contaminated data. The sooner projects build agent detection into their workflows, the better their decisions will be.
 

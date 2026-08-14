@@ -1,671 +1,215 @@
-# walletlink.social
+<div align="center">
+  <img src="public/icon.png" alt="walletlink.social" width="120" />
 
-A Next.js application that takes a CSV of Ethereum wallet addresses and finds associated social profiles (Twitter/X and Farcaster). Perfect for community outreach, airdrop targeting, and identifying key influencers among token holders.
+  <h1>walletlink.social</h1>
+
+  <p><strong>Turn wallet addresses into the people behind them, and reach them where they already are</strong></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16" />
+    <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Neon-00E599?style=flat-square&logo=postgresql&logoColor=white" alt="Neon Postgres" />
+    <img src="https://img.shields.io/badge/Farcaster-855DCD?style=flat-square" alt="Farcaster" />
+    <img src="https://img.shields.io/badge/Vercel-000?style=flat-square&logo=vercel" alt="Vercel" />
+  </p>
+
+  <p>
+    <a href="https://walletlink.social">App</a> &middot;
+    <a href="https://docs.walletlink.social">Docs</a> &middot;
+    <a href="https://docs.walletlink.social/api-reference/introduction">API</a> &middot;
+    <a href="https://x.com/walletlinkETH">@walletlinkETH</a>
+  </p>
+</div>
+
+---
+
+## How it works
+
+```
+Wallet list in (CSV · contract address · paste)
+  ├─ Resolve against a 4.7M-wallet identity index
+  ├─ Farcaster: complete protocol coverage, refreshed daily
+  ├─ X handles: owner-attested only, never inferred
+  ├─ Rank by holdings × follower reach
+  └─ Export CSV, or an X list ready to import
+```
+
+It also runs backwards: give it an X handle or a Farcaster username and it returns the wallets attached to that person.
+
+---
+
+## Coverage, stated honestly
+
+The number most tools quote is the one that flatters them. Two numbers matter here, and conflating them will make you plan a campaign you cannot run.
+
+| Question | Answer |
+|---|---|
+| Wallets resolving to **any** identity | ~23% |
+| Wallets **reachable** on X or Farcaster | ~13% |
+| Industry average for wallet-to-social | ~2.5% |
+
+The gap between 23% and 13% is mostly ENS. An ENS name is an identity, useful for display and deduplication, but you cannot message it. **If the plan is outreach, 13% is the planning number.**
+
+| Network | Nature of the match |
+|---|---|
+| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information. |
+| **X** | Owner-attested only. Every handle was published by the account owner, either through a Farcaster verification or an onchain ENS record. Nothing is inferred from display names, bios or timing. |
+
+Coverage would be higher if we guessed. Contacting the wrong person is worse than contacting fewer people.
+
+---
 
 ## Features
 
-- **Batch Wallet Lookup**: Upload a CSV with wallet addresses and get social profiles for all of them
-- **Multiple Data Sources**: Aggregates data from Web3.bio, Neynar, and ENS text records
-- **Holdings & Priority Scoring**: Auto-detects value/balance columns and calculates outreach priority based on holdings × follower reach
-- **Smart Filtering**: Filter by Twitter-only results or Top Influencers (1K+ Farcaster followers)
-- **Click-to-Copy**: Truncated wallet addresses with one-click clipboard copy
-- **Export Options**:
-  - Full CSV export with all data, sorted by priority score
-  - Twitter List export (.txt) for bulk Twitter list imports
-- **Caching**: 24-hour result caching via Neon PostgreSQL
-- **Lookup History**: Save and reload previous lookups (tiered: free gets 1, pro/unlimited get full history)
-- **Add to Lookups**: Grow existing lookups by adding more addresses over time (Pro+)
-- **Public API**: Subscription-based API access to social_graph data for developers (see [API docs](#public-api))
+| | |
+|---|---|
+| **Three ways in** | CSV upload, contract import (holders fetched for you), or pasted addresses |
+| **Seven chains** | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain |
+| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together |
+| **Agent detection** | 13,000+ known AI agent wallets flagged |
+| **Reverse lookup** | X handle or Farcaster username back to wallets |
+| **Public API** | Included with Pro and Unlimited, self-serve keys |
+| **Exports** | Full CSV sorted by priority, or a plain handle list for an X list import |
 
-## Getting Started
+---
 
-### Prerequisites
+## Architecture
 
-- Node.js 18+
-- (Optional) Neon PostgreSQL database for caching
-- (Optional) Neynar API key for Farcaster data
-- (Optional) Web3.bio API key for higher rate limits
-
-### Environment Variables
-
-Create a `.env.local` file:
-
-```bash
-# Optional: Neon database for caching and history
-DATABASE_URL=postgres://...
-
-# Optional: Neynar API for Farcaster lookups
-NEYNAR_API_KEY=your-api-key
-
-# Optional: Web3.bio API key
-WEB3BIO_API_KEY=your-api-key
-
-# Optional: Inngest for 10-50x faster processing
-INNGEST_EVENT_KEY=your-event-key
-INNGEST_SIGNING_KEY=your-signing-key
+```
+CSV / contract / paste
+        ↓
+  lib/csv-parser.ts ──── detects wallet + holdings columns
+        ↓
+  /api/lookup (SSE) ──── streams progress to the client
+        ↓
+  ┌─ social_graph ─────── fresh rows and persisted negatives short-circuit
+  ├─ wallet_cache ─────── 7-day TTL, negatives included
+  └─ resolution pipeline  identity sources, then optional ENS text records
+        ↓
+  social_graph ─────────── positives and negatives persisted
+        ↓
+  ResultsTable ─────────── virtualized, sortable, exportable
 ```
 
-### Installation
+Negatives are persisted deliberately. "Checked, nothing there" is an answer worth keeping, and it is what stops the pipeline paying repeatedly to rediscover the same absence.
+
+---
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Framework | Next.js 16, App Router |
+| Database | Neon PostgreSQL, Drizzle ORM |
+| Styling | Tailwind CSS v4 |
+| UI | Radix primitives |
+| Background jobs | Inngest |
+| Payments | Stripe |
+| Docs | Mintlify at [docs.walletlink.social](https://docs.walletlink.social) |
+| Assistant | Cloudflare AI Search, served from `help.walletlink.social` |
+| Hosting | Vercel |
+
+---
+
+## Project structure
+
+```
+app/
+  api/v1/           public API (wallet, batch, reverse, stats, usage)
+  api/developer/    API key management
+  api/cron/         scheduled ingest and refresh
+  vs/               competitor comparison pages
+components/         UI, including ApiKeysModal and DocsChat
+lib/                resolution pipeline, chains, plans, rate limiting
+docs-site/          published Mintlify docs  ← customer-facing
+docs/               internal runbooks        ← never published
+```
+
+`docs-site/` and `docs/` are deliberately separate. `docs/` holds operational runbooks and is not the Mintlify content root.
+
+---
+
+## Getting started
 
 ```bash
 npm install
+cp .env.example .env.local   # fill in what you need
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to use the app.
+Open [localhost:3000](http://localhost:3000). The app runs without a database; caching, history and the API need one.
 
-### Database Setup (Optional)
+---
 
-If using Neon for caching:
+## Commands
 
 ```bash
-npm run db:push
+npm run dev          # dev server
+npm run build        # production build (does NOT typecheck)
+npx tsc --noEmit     # typecheck — run this, the build will not catch type errors
+npm run lint         # ESLint
+npm run format       # Prettier
+
+npm run db:push      # push schema to Neon
+npm run db:studio    # Drizzle Studio
 ```
 
-## Usage
+---
 
-1. **Prepare your CSV**: Include a column named `wallet` or `address` with Ethereum addresses. Optionally include value/holdings columns.
-2. **Upload**: Drag and drop or click to upload your CSV
-3. **Configure**: Toggle ENS onchain lookup (slower but more accurate), history saving
-4. **Start Lookup**: Click "Start Lookup" and watch the progress
-5. **Analyze**: Sort by Priority, Holdings, or FC Followers to find your best outreach targets
-6. **Export**: Download full CSV or Twitter handles list
+## Environment variables
 
-## Tech Stack
+| Variable | Required | Purpose |
+|---|---|---|
+| `DATABASE_URL` | for anything stateful | Neon connection string |
+| `STRIPE_SECRET_KEY` | for payments | checkout |
+| `STRIPE_WEBHOOK_SECRET` | for payments | webhook verification |
+| `ADMIN_PASSWORD` | for `/admin` | fails closed when unset |
+| `CRON_SECRET` | for cron | guards `/api/cron/*` |
+| `INNGEST_EVENT_KEY` | optional | faster batch processing |
+| `INNGEST_SIGNING_KEY` | optional | as above |
 
-- **Framework**: Next.js 16 with App Router
-- **Database**: Neon PostgreSQL with Drizzle ORM
-- **Styling**: Tailwind CSS v4
-- **UI Components**: Radix UI primitives
-- **APIs**: Web3.bio, Neynar, ENS
+Identity-source credentials are listed in `.env.example`.
 
 ---
 
 ## Public API
 
-The social_graph data is available via a subscription API for developers building wallet-to-social integrations.
-
-### Plans
-
-API access is a benefit of the Pro and Unlimited tiers, not a standalone
-subscription. `lib/api-plans.ts` is the single source of truth; the standalone
-monthly prices in that file are seeded but not sold.
-
-| Purchased tier | API plan | Rate Limit | Daily | Monthly | Batch Size |
-|------|-------|------------|-------|---------|------------|
-| Pro | Developer | 60/min | 5K | 50K | 50 |
-| Unlimited | Startup | 300/min | 50K | 500K | 200 |
-| (not sold) | Enterprise | 1000/min | Unlimited | Unlimited | 1000 |
-
-Note there is currently **no UI for creating API keys**. `POST /api/developer/keys`
-works and is tier-gated, but nothing in the frontend calls it, so keys are
-issued manually.
-
-### Authentication
-
-Include your API key in the `Authorization` header:
+Full reference at **[docs.walletlink.social](https://docs.walletlink.social/api-reference/introduction)**. Keys are self-serve from the account menu on Pro and Unlimited.
 
 ```bash
-curl -H "Authorization: Bearer wts_live_xxxxxxxx" \
-  https://walletlink.social/api/v1/wallet/0x123...
+curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
 ```
 
-### Endpoints
+| Endpoint | Cost |
+|---|---|
+| `GET /v1/wallet/{address}` | 1 credit |
+| `POST /v1/batch` | 1 credit per wallet submitted |
+| `GET /v1/reverse/twitter/{handle}` | 2 credits |
+| `GET /v1/reverse/farcaster/{username}` | 2 credits |
+| `GET /v1/stats` | free |
+| `GET /v1/usage` | free |
 
-#### Single Wallet Lookup
-```
-GET /api/v1/wallet/{address}
-```
-Returns social profiles for a single wallet address. **1 credit**
+| Tier | API plan | Rate | Daily | Batch |
+|---|---|---|---|---|
+| Pro | Developer | 60/min | 5,000 | 50 |
+| Unlimited | Startup | 300/min | 50,000 | 200 |
 
-#### Batch Lookup
-```
-POST /api/v1/batch
-Content-Type: application/json
+`lib/api-plans.ts` is the single source of truth for these numbers, and the rate limiter reads the same module.
 
-{ "wallets": ["0x123...", "0x456..."] }
-```
-Returns social profiles for multiple wallets (up to plan limit). **1 credit per wallet**
+---
 
-#### Reverse Twitter Lookup
-```
-GET /api/v1/reverse/twitter/{handle}
-```
-Find all wallets associated with a Twitter handle. **2 credits**
+## Contributing
 
-#### Reverse Farcaster Lookup
-```
-GET /api/v1/reverse/farcaster/{username}
-```
-Find all wallets associated with a Farcaster username. **2 credits**
+Changes go through a branch and a PR, never straight to `main`. The PR template asks for an explicit docs decision and CI enforces it: a PR touching the public API surface fails unless `docs-site/` moves with it, or carries the `no-docs-needed` label.
 
-#### Stats
-```
-GET /api/v1/stats
-```
-Get dataset statistics (total wallets, coverage by platform). **Free**
-
-#### Usage
-```
-GET /api/v1/usage
-```
-Get your API key usage stats and rate limit status. **Free**
-
-### Response Format
-
-```json
-{
-  "data": {
-    "wallet": "0x123...",
-    "ens_name": "vitalik.eth",
-    "twitter": { "handle": "vitalikbuterin", "url": "https://twitter.com/vitalikbuterin" },
-    "farcaster": { "username": "vitalik", "followers": 123456, "fid": 5650 },
-    "lens": "vitalik.lens",
-    "github": "vbuterin",
-    "sources": ["web3bio", "neynar", "ens"]
-  },
-  "meta": { "wallet": "0x123...", "found": true }
-}
-```
-
-### Rate Limit Headers
-
-All responses include rate limit headers:
-- `X-RateLimit-Limit`: Requests allowed per minute
-- `X-RateLimit-Remaining`: Requests remaining in current window
-- `X-RateLimit-Reset`: Unix timestamp when limit resets
-- `Retry-After`: Seconds to wait (only on 429 responses)
-
-### Getting an API Key
-
-1. Create a key: `POST /api/developer/keys` with `{ "email": "you@example.com", "name": "My App", "plan": "developer" }`
-2. Save the returned `api_key` - it's only shown once
-3. View plans: `GET /api/developer/plans`
-4. Check usage: `GET /api/developer/usage?email=you@example.com`
+See [CLAUDE.md](CLAUDE.md) for conventions, including house style (sentence case headings, curly apostrophes, "onchain" as one word).
 
 ---
 
 ## Changelog
 
-### 2026-08-14 (AI assistant on the marketing site)
-
-- Floating chat bubble backed by Cloudflare AI Search over both
-  `docs.walletlink.social` (13 pages) and the marketing site (33 pages).
-  New `components/DocsChat.tsx`, mounted in the root layout, hidden on
-  `/admin` and `/success`, loaded `lazyOnload` so 115 KB stays off the
-  critical path.
-- Everything is served from `help.walletlink.social`, a **proxied** CNAME, so
-  queries and the widget bundle both pass through our zone. The public
-  endpoint is unauthenticated and spends Workers AI neurons per answer, so the
-  zone is where that spend is bounded: 8 req/10s per IP at the WAF, 20 req/60s
-  at the endpoint.
-- A system prompt enforces the two rules the corpus cannot: never name a data
-  provider, and never merge "~23% has an identity" with "~13% is reachable".
-  Both verified against the live endpoint. See `docs/AI-SEARCH.md`.
-
-### 2026-08-14 (public docs site + API source-leak fix)
-
-**`sources` no longer leaks the data supply chain**
-
-- `/v1/wallet`, `/v1/batch` and both `/v1/reverse` endpoints returned the raw
-  `social_graph.sources` array, which contains literal vendor names. New
-  `lib/api-sources.ts` maps them to evidence classes (`onchain`, `farcaster`,
-  `manual`, `aggregated`) on an **allowlist**, so an unmapped internal source is
-  dropped rather than published. Breaking change to those response bodies.
-
-**Docs site**
-
-- New `docs-site/` holding the Mintlify content for docs.walletlink.social:
-  13 pages covering the concepts and a full `/v1` API reference, written
-  against the route handlers rather than against this README.
-- `docs-site/` is the *only* publishable folder. `docs/` stays internal, since
-  `docs/SECURITY.md` is the backup and restore runbook.
-- Freshness is enforced, not requested: `.github/pull_request_template.md` asks
-  for an explicit docs decision and `.github/workflows/docs-freshness.yml`
-  fails any PR that changes the public API surface without touching
-  `docs-site/` (escape hatch: the `no-docs-needed` label).
-- Corrected the Public API section above: those plans are tier benefits, not
-  monthly subscriptions.
-
-### 2026-08-12 (daily collection seed cron)
-
-**Top/trending collections and tokens → holder lists → the graph**
-
-- New `lib/seed-collections.ts` + `/api/cron/seed-collections` (07:00 UTC):
-  one NFT collection per chain (Ethereum, Base, Robinhood Chain) and one
-  trending token on Ethereum + Base per day, holders capped at 2,000 per
-  contract, queued through the normal lookup pipeline as visible
-  `seed_cron` jobs — Recent Activity now shows real collections with real
-  match stats.
-- Discovery: OpenSea top+trending (uses `OPENSEA_API_KEY`, or auto-provisions
-  a temp key — capped at 2/day, so treat it as best-effort);
-  GeckoTerminal trending pools (keyless); Blockscout holders-ranked list as
-  the keyless Robinhood fallback. Denylists filter infra tokens (WETH/USDC…)
-  and infra NFTs (Uniswap positions et al.) whose holder lists aren't
-  audiences.
-- Selection is novelty-aware via the new `seeded_contracts` table (30-day
-  re-seed window), so the cron works down the rankings instead of re-buying
-  the top 10.
-- New `wallet_holdings` table records wallet ↔ contract edges at seed time —
-  the audience-graph data ("holders of X") that social resolution alone
-  can't provide. Migration: `scripts/migrate-seed-tables.ts` (applied).
-
-### 2026-08-12 (ENS text-record harvest)
-
-**On-chain com.twitter / com.github records → social_graph**
-
-- New `lib/ens-harvest.ts`: scans mainnet TextChanged logs (both the 3-arg
-  pre-2023 and 4-arg 2023+ signatures, topic-filtered to the two keys, any
-  resolver), then resolves each node's CURRENT values fully on-chain —
-  registry → resolver → `text()`/`addr()` via Multicall3. No subgraph, no
-  third-party indexer, no node→name healing needed: `text()` works on node
-  hashes directly.
-- These are the highest-quality Twitter edges that exist (the wallet owner
-  set the handle on-chain themselves): source `ens_onchain`,
-  `twitter_verified`, quality 50 — below the 70 trust line because the
-  Farcaster side was never checked. Fill-only upserts: never overwrite an
-  existing handle; `last_updated_at` moves only when something was filled.
-- Checkpointed in the new `ingest_state` table
-  (`scripts/migrate-ingest-state.ts`, applied 2026-08-12); the daily Vercel
-  cron (`/api/cron/ens-harvest`, 05:00 UTC) scans ~7,200 new blocks per day.
-- CLI: `npx tsx --env-file=.env.local scripts/ens-harvest.ts
-  --backfill | --incremental`. Interrupt-safe.
-- The ENS registry address comes from ethers' network config, not a typed
-  constant — a wrong registry address fails silently (every `resolver()`
-  read returns `0x`), which is exactly what happened on the first attempt.
-
-### 2026-08-12 (Farcaster protocol sweep)
-
-**Bulk-ingest every Farcaster verified wallet into social_graph**
-
-- New `lib/farcaster-sweep.ts`: sweeps Neynar `/user/bulk` (100 FIDs/call,
-  1 credit/FID — a full network sweep is ~3.3M of the free tier's 10M monthly
-  credits) and upserts every verified + custody ETH address with username,
-  FID, and follower count. Sources tagged `farcaster_sweep`.
-- Swept rows are deliberately medium quality (score 45, no `last_checked_at`):
-  they carry Farcaster data but were never checked for Twitter, so lookups
-  use them as base data and still resolve the remaining fields. Sweep upserts
-  never touch Twitter/ENS/Lens/GitHub columns, and `last_updated_at` only
-  moves on identity changes so re-sweeps don't trigger "new matches" badges.
-- Daily incremental Vercel cron (`/api/cron/farcaster-sweep`, 05:30 UTC)
-  ingests newly registered FIDs (sequential, so new = above max known fc_fid).
-- Monthly full re-sweep via GitHub Actions
-  (`.github/workflows/farcaster-sweep.yml`) — requires `DATABASE_URL` and
-  `NEYNAR_API_KEY` repository secrets.
-- CLI: `npx tsx --env-file=.env.local scripts/farcaster-sweep.ts
-  --full | --incremental | --range A B`. Idempotent, safe to interrupt.
-
-### 2026-08-12 (negative-result persistence)
-
-**Stop re-buying API calls for wallets known to have no socials**
-
-- `social_graph` now persists negative results: wallets that completed the full
-  external pipeline with nothing found get a row (all socials NULL,
-  `sources=['none']`) with a new `last_checked_at` column. Repeat lookups skip
-  all paid API calls for 30 days. Previously this knowledge lived only in the
-  7-day `wallet_cache` — the graph held ~5k positives out of ~86k wallets ever
-  checked, so ~80% of every repeat list was re-purchased.
-- False-negative protection: `batchFetchNeynar`/`batchFetchWeb3Bio` now report
-  failed wallets (timeouts, 429s, 5xx) separately from genuine not-founds, and
-  failures are never persisted as negatives. Fast-mode and Neynar-disabled runs
-  don't persist negatives either (incomplete pipeline).
-- All `social_graph` readers updated for rows without socials: v1 API
-  wallet/batch report `found: false` (with `checked_at` to distinguish
-  "never seen"), stats/analytics denominators count positives only, the
-  refresh-stale cron skips negatives, and "new matches" badges ignore
-  negative re-checks.
-- Migration: `scripts/migrate-negative-persistence.ts` (applied 2026-08-12).
-
-### 2026-08-12 (later)
-
-**Pricing and packaging changes**
-
-- **Pro: $149 → $99**, and contract import moved down from Unlimited into Pro
-- **Free per-lookup limit: 1,000 → 500**
-- **New analytics events**: `checkout_redirected`, `checkout_failed`; `limit_hit` wired up
-- Revenue math in the webhook, admin dashboard and analytics updated to 9900 cents
-
-Driven by the funnel: 41 checkout sessions started, 0 completed. Free gave 1,000 wallets
-per lookup with unlimited lookups and ungated CSV export, leaving Pro with little to sell.
-
-**Deploy order matters:** the `$99` Stripe price must exist and `STRIPE_PRICE_PRO` must
-point at it *before* this ships, or the site advertises $99 and charges $149.
-
-### 2026-08-12
-
-**Robinhood Chain support for contract import**
-
-- **New network**: Contract import now supports Robinhood Chain (chain ID 4663) alongside Ethereum and Base
-  - NFT (ERC-721/1155) holder lookups via Alchemy's NFT API on `robinhood-mainnet`
-  - Requires `ROBINHOOD_MAINNET` to be enabled for the app in the Alchemy dashboard
-  - Verified against on-chain `ownerOf` enumeration: Alchemy returned exactly the same
-    618 holders for StonkBrokers (4,444 tokens) with no gaps in either direction
-- **ERC-20 gap handled explicitly**: Moralis has no holder index for Robinhood, so token
-  lookups on that network now fail with a clear message instead of an opaque API error.
-  The import modal warns before the request is made.
-- **New `lib/chains.ts`**: Chain constants (`SUPPORTED_CHAINS`, `CHAIN_LABELS`, `CHAIN_IDS`)
-  split into a dependency-free module. `lib/contract-holders.ts` imports `ethers` at module
-  scope, so client components importing chain values from it would ship ethers to the browser.
-- **Chain selector is now data-driven**: `ContractImportModal` maps over `SUPPORTED_CHAINS`
-  instead of hardcoding radio buttons, so adding a network is a one-line change.
-- **Moralis no longer gates NFT imports**: `/api/contract-holders` previously returned 503
-  when `MORALIS_API_KEY` was unset, blocking NFT lookups that only need Alchemy.
-- **Clearer errors**: New `UNSUPPORTED_CHAIN`, `CHAIN_NO_NFT_SUPPORT`, and
-  `CHAIN_NO_ERC20_SUPPORT` codes replace a raw TypeError on unknown networks.
-
-### 2025-01-21
-
-**Admin analytics dashboard + IP rate limiting**
-
-- **Admin analytics dashboard**: New "Dashboard" tab in admin panel with comprehensive usage metrics
-  - Period selector: Today / Last 7 days / Last 30 days with comparison to previous period
-  - Usage metrics: Lookups, wallets processed, match rate, avg processing time (with % change)
-  - Match analytics: Twitter/Farcaster/any rates with progress bars and 7-day sparkline trends
-  - Performance monitoring: Queue status (pending/running), success rate, stage distribution
-  - Recent activity table: Last 5 completed jobs with match stats
-  - New endpoint: `GET /api/admin/dashboard?period=today|week|month`
-- **IP-based rate limiting**: Prevents abuse from unauthenticated users
-  - 3 requests per hour on `/api/lookup` and `/api/jobs` per IP address
-  - Atomic UPSERT prevents race conditions under concurrent load
-  - Supports proxy headers: `x-forwarded-for`, `x-vercel-forwarded-for`, `cf-connecting-ip`
-  - Returns standard rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, etc.)
-  - Fails open if database unavailable (allows requests but logs warning)
-  - New table: `ip_rate_limit_buckets` with hourly bucket granularity
-
-**Database migration required**:
-```sql
-CREATE TABLE IF NOT EXISTS ip_rate_limit_buckets (
-  ip_address TEXT NOT NULL,
-  endpoint TEXT NOT NULL,
-  bucket_key TEXT NOT NULL,
-  count INTEGER NOT NULL DEFAULT 1,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (ip_address, endpoint, bucket_key)
-);
-```
-
----
-
-### 2025-01-18
-
-**New Starter tier + API optimization**
-
-- **Starter tier ($49)**: New entry-level paid tier with 10,000 wallets cumulative (total across all lookups)
-  - All Pro features (ENS, follower counts, priority scoring, history)
-  - Quota-based instead of per-lookup limits
-  - `wallets_used` column tracks cumulative usage
-- **API pipeline optimization**: Neynar runs first (fast batch API), then Web3Bio only for wallets without Twitter
-  - Expected 30-60% reduction in Web3Bio API calls
-  - Separate stage indicators: `neynar` then `web3bio` instead of `web3bio+neynar`
-- **PROJECT_OVERVIEW.md**: New comprehensive context document for LLMs
-
-**Database migration required**:
-```sql
-ALTER TABLE users ADD COLUMN wallets_used INTEGER NOT NULL DEFAULT 0;
-```
-
----
-
-**Scalability audit: fixes for high-load scenarios**
-
-Critical fixes (P0):
-- **Inngest concurrency**: Increased from 10 to 100 concurrent jobs - 50 jobs now start in ~5s vs ~250s
-- **API timeouts**: Added 15-second timeouts to all external API calls (Web3.bio, Neynar, ENS) - prevents jobs from hanging indefinitely
-- **Rate limit race condition**: Fixed with atomic UPSERT - accurate counting under high concurrency
-- **Connection pooling**: Added optional Neon pooler support (`USE_CONNECTION_POOLING=true`) - reduces p95 latency from 200-500ms to 50-100ms
-- **Cache state loss bug**: Fixed Inngest step serialization issue that was discarding cache hits - 2-3x faster processing
-
-High priority fixes (P1):
-- **Debounced search**: 300ms debounce on ResultsTable search - eliminates 1-2s lag with 10K+ results
-- **Parallel cron processing**: Process 5 jobs simultaneously instead of 1 - 5x faster queue clearing
-- **Adaptive polling**: Starts at 2s, increases to 5s when idle - ~60% reduction in server requests
-- **Composite indexes**: Added `(status, created_at)` and `(user_id, created_at)` indexes for faster queries
-- **COUNT aggregates**: Replaced full table scans with `COUNT(*) FILTER` - ~99% faster stats queries
-
-Additional fix:
-- **Neynar 404 handling**: Gracefully handles batches where no addresses have Farcaster accounts
-
-**Database migrations required**:
-```sql
-CREATE INDEX IF NOT EXISTS lookup_jobs_status_created_idx ON lookup_jobs (status, created_at);
-CREATE INDEX IF NOT EXISTS lookup_history_user_created_idx ON lookup_history (user_id, created_at);
-```
-
-### 2025-01-17 (Evening)
-
-**Admin Wallet Enrichment feature**
-- **Manual wallet enrichment**: New "Enrichment" tab in admin panel for adding/editing social data
-  - Search any wallet address to view existing social_graph data
-  - Add Twitter, Farcaster, or ENS manually with 'manual' source tag
-  - Recent manual edits list for quick reference
-- **New API endpoint**: `POST /api/admin/social-graph` for admin wallet enrichment
-
-**New matches notifications**
-- **Enrichment badges**: "X new matches" badge appears on lookups when wallets have been enriched since last view
-- **Row highlighting**: Enriched wallets highlighted with green background + "NEW" badge in results table
-- **View tracking**: `lastViewedAt` timestamp tracks when users load lookups for accurate "new" detection
-- **Automatic clearing**: Badges clear after user views the lookup (read-receipt pattern)
-
-**Input source tracking**
-- **Source column in admin history**: Shows whether lookup came from "File" (upload) or "Paste" (text input)
-- **Color-coded badges**: Blue for file uploads, purple for text input
-- **New database column**: `input_source` on `lookup_history` table
-
-**Database migrations required**:
-```sql
-ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMP;
-ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
-```
-
-### 2025-01-17
-
-**Public API infrastructure**
-- **Subscription API product**: New `/api/v1/` endpoints for external developers to access social_graph data
-- **API key management**: Generate, validate, revoke, and rotate API keys with SHA-256 hashing
-- **Three pricing tiers**: Developer ($49/mo), Startup ($199/mo), Enterprise ($799/mo)
-- **Rate limiting**: Multi-tier sliding window limits (per-minute, daily, monthly) with `X-RateLimit-*` headers
-- **Usage tracking**: Per-request analytics for billing and monitoring
-- **Core endpoints**:
-  - `GET /api/v1/wallet/[address]` - Single wallet lookup (1 credit)
-  - `POST /api/v1/batch` - Batch lookup up to plan limit (1 credit/wallet)
-  - `GET /api/v1/reverse/twitter/[handle]` - Find wallets by Twitter (2 credits)
-  - `GET /api/v1/reverse/farcaster/[username]` - Find wallets by Farcaster (2 credits)
-  - `GET /api/v1/stats` - Dataset statistics (free)
-  - `GET /api/v1/usage` - API key usage stats (free)
-- **Developer endpoints**: `/api/developer/keys`, `/api/developer/plans`, `/api/developer/usage`
-- **New database tables**: `api_plans`, `api_keys`, `api_usage`, `rate_limit_buckets`
-
-**Processing modal redesign**
-- **Animated activity indicators**: Spinning ring + pulse effect shows processing even at 0%
-- **Pipeline visualization**: 4-stage progress (Cache → Web3.bio → Farcaster → ENS) with active stage highlighting
-- **Shimmer effects**: Progress bar has animated shimmer and sliding gradient when idle
-- **Color-coded stats**: Twitter (sky) and Farcaster (violet) badges pulse when finding new matches
-- **Job restoration fix**: Returning to page now properly restores stage info and animations
-
-**New comparison pages**
-- **`/vs/blaze`**: Compare against Blaze Web3 CRM ($79/month) - highlights Farcaster support and one-time pricing
-- **`/vs/holder`**: Compare against Holder.xyz wallet messaging platform - emphasizes lookup focus vs CRM
-- **SEO improvements**: Shortened titles, added keywords, Twitter cards, enhanced JSON-LD, internal linking between all /vs/ pages
-
-**My lookups: Tiered history + Add addresses feature**
-- **Renamed "Recent Lookups" to "My lookups"**: Better reflects user ownership
-- **Tiered history visibility**: Free users see 1 lookup, Pro/Unlimited see full history with pagination
-- **Add addresses to lookups (Pro+)**: Click "+" on any lookup to add more addresses
-  - New AddAddressesModal with file upload and paste support
-  - Deduplicates addresses already in the lookup
-  - Merges new results with existing, preserving source tracking
-  - Choose to add to existing lookup or create new one
-- **Updated Upgrade modal**: Now lists history and add-to-lookups as Pro+ features
-- **Updated vs/addressable page**: New comparison rows for Lookup History and Add to Lookups
-
-**Admin dashboard enhancements**
-- **Tabbed admin UI**: New tabs for Activity, Jobs, History, and Users management
-- **Activity tab**: View/hide/delete completed jobs from public Live Activity feed
-- **Jobs tab**: Monitor all jobs, filter by status, retry failed jobs, cancel stuck ones
-- **History tab**: View/search/delete lookup history by user ID
-- **Users tab**: View users by tier, change tiers via dropdown for manual upgrades
-- **Hidden jobs**: New `hidden` column to hide spam/test lookups from public feed
-- **New admin endpoints**: `/api/admin/activity`, `/api/admin/jobs`, `/api/admin/history`, `/api/admin/users`
-- **Fixed match rate calculation**: Now uses `anySocialFound` instead of double-counting Twitter + Farcaster
-
-**UX improvements**
-- **Wallet limit warning**: Shows banner when uploaded file exceeds tier limit (before clicking Start)
-- **Updated time estimates**: Processing now shows ~10s per 1K wallets (was incorrectly showing ~2min)
-- **Live Activity filter**: Now hides lookups with fewer than 25 wallets
-- **Copy refinements**: "Farcaster" instead of "FC", curly apostrophes, sentence case headings
-- **Fixed Live Activity rate**: Now shows deduplicated "any social" rate (14.5%) instead of inflated sum (22%)
-- **New `any_social_found` column**: Tracks unique wallets with Twitter OR Farcaster (not double-counting)
-
-### 2025-01-16
-
-**SEO & positioning**
-- **Addressable alternative positioning**: New `/vs/addressable` comparison page
-- **SEO meta tags**: Optimized title, description, and Open Graph tags for search visibility
-- **Comparison content**: Feature comparison showing advantages over Addressable
-
-**Live Activity improvements**
-- **Industry average comparison**: Shows "9x industry avg" badge (vs ~2.5% baseline)
-- **Cleaner copy**: Simplified homepage messaging and AccessBanner text
-
-### 2025-01-15
-
-**Tiered pricing with Stripe integration**
-- **Three tiers**: Free (500 wallets), Pro (5,000 wallets, $99), Unlimited ($249)
-- **Stripe Checkout**: One-time payment flow with automatic tier upgrade
-- **Admin whitelist**: Manual unlimited access grants via `/admin` dashboard
-- **Access control**: Tier-based limits enforced on frontend and backend
-- **User database**: New `users` and `whitelist` tables for access management
-
-**UI overhaul - Stripe-inspired design**
-- **New color scheme**: Indigo accent color (`#635bff`) replacing green
-- **Card-based layout**: Clean cards with subtle shadows and borders
-- **Improved typography**: Better hierarchy and spacing throughout
-- **Dark mode polish**: Refined dark theme with proper contrast
-- **Consistent styling**: Buttons, inputs, and badges unified
-
-**Rebrand to walletlink.social**
-- **New domain**: Rebranded from previous name to walletlink.social
-- **App icon**: Custom wallet emoji icon as favicon and header logo
-- **Header clickable**: Logo/title returns to homepage from any state
-
-**Performance optimizations**
-- **Table virtualization**: ResultsTable uses `@tanstack/react-virtual` for 13K+ rows
-- **Component memoization**: React.memo, useMemo, useCallback throughout
-- **Reduced re-renders**: Optimized polling to avoid unnecessary state updates
-
-**Live Activity redesign**
-- **Card-based tiles**: Horizontal scrolling cards showing recent lookups
-- **Pulsing indicator**: Green dot animation for "live" feel
-- **Social proof**: Shows wallet count, Twitter/FC found, and match rate %
-
-### 2025-01-14
-
-**User-specific history + public wins showcase**
-- **Private "Recent lookups"**: Each user only sees their own lookup history (localStorage ID until profiles)
-- **"Recently processed" showcase**: Public tiles showing successful lookups (>10% social rate) as social proof
-  - Updates every 3 minutes via polling
-  - Shows wallet count, Twitter/Farcaster counts, and social hit rate %
-- **Removed data source references**: Cleaner UI without Web3.bio/Neynar attribution in footer and results table
-- **New database columns**: `user_id` on `lookup_history` and `lookup_jobs` tables
-
-**Major performance optimizations + Inngest integration**
-- **Parallel API calls**: Web3.bio and Neynar now run concurrently (saves 2-3s per batch)
-- **Parallel Neynar batches**: Process 5 batches simultaneously instead of sequentially (5x faster)
-- **Increased ENS batch size**: 50 wallets per batch instead of 20 (2.5x faster)
-- **Larger chunk size**: 3000 wallets per cron invocation instead of 2000 (50% more throughput)
-- **Inngest integration**: Optional workflow orchestration for 10-50x faster processing
-  - Install: `npm install inngest` and add `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` env vars
-  - Processes wallets in 500-wallet micro-batches with durable checkpoints
-  - Falls back to cron worker if Inngest not configured
-- **Estimated speedup**: 13k wallets now ~2-3 minutes (was ~17 minutes)
-
-**Persist job ID across page refresh**
-- Saves active job ID to localStorage so progress survives page refresh
-- Automatically restores in-progress job state on page load
-- Fixes issue where refreshing the page would lose connection to running job
-
-**Add estimated processing time**
-- Shows estimated time when file is uploaded (based on wallet count)
-- Shows time remaining during processing (based on actual rate)
-
-**Smooth progress bar animation**
-- Progress counter animates smoothly instead of jumping in chunks
-- Creates responsive feel during batch processing
-
-**Add background job queue for large wallet lookups**
-- New job queue system handles batches of any size without timeout
-- Vercel Cron worker processes jobs in chunks (2000 wallets per invocation)
-- Jobs persist in database and resume automatically if interrupted
-- Frontend polls for progress instead of SSE streaming
-- Users can close browser tab and retrieve results from History later
-- New `lookup_jobs` table tracks job status, progress, and partial results
-- New API endpoints: `POST /api/jobs`, `GET /api/jobs/[id]`, `POST /api/jobs/worker`
-
-**Add browser notification on lookup complete**
-- Opt-in checkbox to receive browser notification when long lookups finish
-- Uses native Web Notifications API (no dependencies)
-- Shows count of Twitter/Farcaster accounts found
-- Click notification to focus the app tab
-
-**Add Excel (.xlsx) file upload support**
-- New file format support: upload .xlsx files in addition to CSV
-- Unified file parser abstraction (`lib/file-parser.ts`) for extensibility
-- Uses `read-excel-file` library (~50KB) for efficient Excel parsing
-- Auto-detects wallet/address column in Excel files (same logic as CSV)
-- Preserves extra columns from Excel files
-- 10MB file size limit with clear error messaging
-
-### 2025-01-14
-
-**Add permanent social graph database** (`868e2bd`)
-- New `social_graph` table stores all wallets with discovered social accounts permanently
-- Merge & update strategy: new data fills gaps, follower counts update, existing data preserved
-- Enrichment: backfills results from social graph after API calls complete
-- Indexed on twitter_handle, farcaster, ens_name, fc_followers for future query capabilities
-- Tracks firstSeenAt, lastUpdatedAt, and lookupCount per wallet
-
-**Add dark mode with system preference toggle** (`9c414c0`)
-- Dark mode support with automatic system preference detection
-- Toggle cycles through System/Light/Dark modes
-- Preference saved to localStorage
-
-### 2025-01-13
-
-**Add holdings, priority score, and enhanced export features** (`c1c77e2`)
-- Holdings/Value column: auto-detects value columns from CSV (Peak index DTF value, balance, holdings, etc.), displays with $X,XXX.XX formatting
-- Priority Score column: calculates `holdings × log₁₀(fcFollowers + 1)` with 5-bar visual indicator
-- Top Influencers filter: quick filter button for accounts with 1K+ Farcaster followers
-- Click-to-copy wallet: truncated `0x1234...abcd` display with clipboard copy and "Copied!" toast
-- Twitter List export: new button to generate `.txt` file with @handles (one per line) for Twitter list import
-- Enhanced CSV export: includes all columns (wallet, ens, holdings, twitter, farcaster, fc_followers, priority_score, source), sorted by priority score descending
-
-**Format codebase with Prettier** (`2bd28ff`)
-- Added Prettier configuration and formatted all source files
-
-### Previous Updates
-
-**Add Web3.bio API key support** (`f75c0fd`)
-- Support for Web3.bio API key to increase rate limits
-
-**Add warning for ENS with large wallet batches** (`2fc0aa4`)
-- Show warning when using ENS lookup with >1000 wallets (may timeout)
-
-**Speed up lookups to avoid Vercel timeout** (`b7e6899`)
-- Optimized batch processing to complete within Vercel's function timeout limits
-
-**Add ENS text record lookups for onchain Twitter handles** (`b38f945`)
-- Query ENS text records directly onchain for the most accurate Twitter handle data
-- Optional toggle (slower but more reliable than API sources)
-
-**Add Neon database integration for caching and history** (`96f3780`)
-- 24-hour result caching to speed up repeated lookups
-- Lookup history feature to save and reload previous searches
-
-**Initial commit: Wallet Social Lookup app** (`0ecff9d`)
-- Core wallet-to-social lookup functionality
-- Web3.bio and Neynar API integration
-- CSV upload and export
+See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

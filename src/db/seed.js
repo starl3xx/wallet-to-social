@@ -58,7 +58,7 @@ We aggregate all of it. One CSV in. Social profiles out.
 The results speak for themselves:
 - Average match rate: 22% (vs ~2.5% industry average)
 - Processing: 10K wallets in under 2 minutes
-- Sources: ENS, Web3.bio, Neynar, on-chain text records
+- Sources: ENS, Web3.bio, Neynar, onchain text records
 
 This isn't just a lookup tool. It's the foundation for genuine community building in Web3.`,
     url: 'https://example.com/blog/why-we-built',

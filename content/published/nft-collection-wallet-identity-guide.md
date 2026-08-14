@@ -70,7 +70,7 @@ Upload your cleaned CSV to walletlink.social. The tool accepts CSVs with wallet 
 
 Here is what happens during resolution:
 
-1. Each wallet is checked against multiple identity sources: ENS records, Farcaster verified addresses, Twitter links, on-chain attestations, and other public signals.
+1. Each wallet is checked against multiple identity sources: ENS records, Farcaster verified addresses, Twitter links, onchain attestations, and other public signals.
 2. Wallets that match a social identity are returned with the associated profiles.
 3. Known AI agent wallets are flagged separately.
 4. Results are streamed back in real time so you can watch progress.
@@ -144,7 +144,7 @@ With your analyzed data, build segments for outreach. Here is a framework design
 
 **Tier 4: Unresolved holders (indirect outreach)**
 - No social profile found
-- Reachable only through on-chain means (token-gated announcements, POAP-based notifications) or general public channels
+- Reachable only through onchain means (token-gated announcements, POAP-based notifications) or general public channels
 - Estimated size: ~78% of total holders
 
 ## Step 5: Build Your Outreach Plan
@@ -173,7 +173,7 @@ Use scalable but targeted approaches:
 
 ### For Tier 4 (indirect):
 
-- Post announcements that get surfaced through the on-chain context (token-gated channels, POAP drops for engagement)
+- Post announcements that get surfaced through the onchain context (token-gated channels, POAP drops for engagement)
 - Make it easy for these holders to self-identify by linking their social accounts (provide clear instructions)
 
 ## Step 6: Maintain and Update

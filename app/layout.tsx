@@ -132,7 +132,7 @@ const faqSchema = {
       name: 'What is the match rate for wallet-to-social lookups?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social averages a 22% match rate, roughly 9x the industry average of 2.5%. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches come from owner-attested sources: an X account verified on Farcaster, or a handle the owner set in an on-chain ENS record.',
+        text: 'walletlink.social averages a 22% match rate, roughly 9x the industry average of 2.5%. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches come from owner-attested sources: an X account verified on Farcaster, or a handle the owner set in an onchain ENS record.',
       },
     },
     {
@@ -148,7 +148,7 @@ const faqSchema = {
       name: 'How is walletlink.social different from Addressable?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social returns only deterministic, owner-attested matches (Farcaster verifications and on-chain ENS records) from a 4.7M-wallet index with complete Farcaster coverage.',
+        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social returns only deterministic, owner-attested matches (Farcaster verifications and onchain ENS records) from a 4.7M-wallet index with complete Farcaster coverage.',
       },
     },
     {
@@ -164,7 +164,7 @@ const faqSchema = {
       name: 'How many wallets does walletlink.social cover?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The index covers 4.7 million wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over 1 million wallets have a linked Twitter handle, nearly all of them owner-attested, most via an X account verified on Farcaster and the rest from on-chain ENS records.',
+        text: 'The index covers 4.7 million wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over 1 million wallets have a linked Twitter handle, nearly all of them owner-attested, most via an X account verified on Farcaster and the rest from onchain ENS records.',
       },
     },
     {

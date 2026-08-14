@@ -45,7 +45,7 @@ The reason most projects default to broadcasts is simple: they do not know who t
 
 You can pull a holder snapshot from Etherscan or Dune in about thirty seconds. You will get a clean list of wallet addresses with balances. And then you are stuck, because you cannot DM `0x7a3B...`.
 
-This is the identity gap. On-chain data tells you *what* is happening. It does not tell you *who* is behind it. Closing that gap is the prerequisite for any direct outreach strategy.
+This is the identity gap. Onchain data tells you *what* is happening. It does not tell you *who* is behind it. Closing that gap is the prerequisite for any direct outreach strategy.
 
 Wallet identity resolution -- mapping addresses to social profiles on Twitter, Farcaster, and other platforms -- is what makes the shift from broadcast to direct outreach possible. Tools like [walletlink.social](https://walletlink.social) exist specifically to solve this mapping problem, turning anonymous holder lists into actionable contact lists.
 
@@ -55,7 +55,7 @@ Once you can identify your holders, retention becomes a system rather than a hop
 
 **1. Segment by behavior, not just balance.**
 
-Combine on-chain data with identity data to create meaningful groups:
+Combine onchain data with identity data to create meaningful groups:
 
 - Large holders who have never voted (high value, low engagement)
 - Recent sellers who still follow your project socially (at risk, recoverable)

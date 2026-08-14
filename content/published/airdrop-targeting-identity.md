@@ -1,6 +1,6 @@
 ---
 title: "Airdrop Targeting: Why Identity Beats Transaction History"
-meta_description: "Transaction-based Sybil detection misses sophisticated farmers. Identity-based filtering using social proof catches what on-chain analysis cannot."
+meta_description: "Transaction-based Sybil detection misses sophisticated farmers. Identity-based filtering using social proof catches what onchain analysis cannot."
 published: true
 publish_date: "2026-03-23"
 ---
@@ -15,7 +15,7 @@ There's a fundamentally different approach: instead of trying to identify which 
 
 ## The Limits of Transaction-Based Detection
 
-Traditional Sybil detection looks at on-chain behavior:
+Traditional Sybil detection looks at onchain behavior:
 
 - **Funding patterns.** Did multiple wallets receive their initial ETH from the same source? Classic Sybil indicator.
 - **Transaction clustering.** Do wallets transact in coordinated bursts? Do they interact with the same contracts in the same order?
@@ -26,11 +26,11 @@ These heuristics work well against unsophisticated farmers. The problem is that 
 
 **Randomized timing.** Modern farm operations add random delays between transactions across wallets. A 2-7 minute jitter is enough to defeat most timing-based detection.
 
-**Diverse funding paths.** Instead of funding 100 wallets from one source, farmers fund through multiple DEX swaps, cross-chain bridges, and mixing services. The on-chain funding trail looks organic.
+**Diverse funding paths.** Instead of funding 100 wallets from one source, farmers fund through multiple DEX swaps, cross-chain bridges, and mixing services. The onchain funding trail looks organic.
 
 **Varied behavior profiles.** Each wallet in a farm interacts with different protocols in different orders. Some provide liquidity. Some governance-vote. Some just hold tokens. The cluster doesn't look like a cluster anymore.
 
-**Purchased aged wallets.** A market exists for wallets with genuine transaction history. Farmers buy wallets that were once used by real people, inheriting their on-chain credibility.
+**Purchased aged wallets.** A market exists for wallets with genuine transaction history. Farmers buy wallets that were once used by real people, inheriting their onchain credibility.
 
 The result: detection rates are falling. In 2023, basic clustering caught 60-70% of Sybil wallets. By 2025, sophisticated farms evade all but the most advanced analysis, and even top-tier detection services report diminishing returns.
 
@@ -91,7 +91,7 @@ LayerZero's airdrop is instructive because they published extensive data about t
 
 They used a multi-phase approach:
 1. Self-reporting period where farmers could disclose and receive a reduced allocation
-2. Community-driven detection (bounty hunters analyzing on-chain data)
+2. Community-driven detection (bounty hunters analyzing onchain data)
 3. Internal detection using proprietary methods
 
 The result: 803,093 flagged addresses, with approximately 100,000 coming from the self-reporting phase alone.

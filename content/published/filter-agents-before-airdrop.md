@@ -40,9 +40,9 @@ AI agent wallets share behavioral patterns that distinguish them from human-oper
 
 **Gas price behavior.** Agents typically use precise gas strategies -- always the minimum, always a specific premium, or always a calculated optimal. Humans use whatever their wallet suggests.
 
-**Contract interaction patterns.** Agents interact with a narrow, consistent set of contracts. Humans explore, make mistakes, interact with random contracts, and show messy on-chain footprints.
+**Contract interaction patterns.** Agents interact with a narrow, consistent set of contracts. Humans explore, make mistakes, interact with random contracts, and show messy onchain footprints.
 
-**No identity signals.** Agent wallets almost never have ENS names, Farcaster verifications, or social profiles linked. They exist purely for on-chain operations. This is the most reliable filter.
+**No identity signals.** Agent wallets almost never have ENS names, Farcaster verifications, or social profiles linked. They exist purely for onchain operations. This is the most reliable filter.
 
 **Funding patterns.** Agent wallets are often funded from a small number of deployer wallets. Tracing funding sources can identify clusters of agent wallets from the same operator.
 
@@ -81,7 +81,7 @@ The largest category is wallets that aren't flagged as agents but also don't hav
 
 **Option A: Include all unknowns.** The simplest approach. You've already removed known agents, which eliminates the most concentrated sell pressure. Accept that some unknowns may also be bots.
 
-**Option B: Apply behavioral filters.** Use on-chain analytics to score unknown wallets:
+**Option B: Apply behavioral filters.** Use onchain analytics to score unknown wallets:
 
 ```
 Human likelihood score:

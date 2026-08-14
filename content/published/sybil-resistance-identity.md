@@ -55,7 +55,7 @@ Here is how identity-based Sybil scoring works in practice:
 | Farcaster account (verified wallet) | High | Requires phone verification, wallet signing |
 | Twitter account with 6+ months of history | Medium | Time-intensive to fake at scale |
 | ENS name with text records | Medium | Cost + effort barrier |
-| On-chain attestations (Coinbase, Gitcoin) | High | Requires KYC or multi-step verification |
+| Onchain attestations (Coinbase, Gitcoin) | High | Requires KYC or multi-step verification |
 | Multiple social links from same wallet | Very High | Cross-platform presence hard to fabricate |
 | No resolvable identity | Flag for review | Not proof of Sybil, but a risk signal |
 

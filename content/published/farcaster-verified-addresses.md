@@ -45,7 +45,7 @@ Farcaster uses a two-key system for identity:
 
 **Custody address.** The Ethereum address that registered the Farcaster account (FID). This address controls the account -- it can transfer ownership, add signers, and manage recovery. Each FID has exactly one custody address.
 
-**Verified addresses.** Additional Ethereum addresses that the user has cryptographically proven they control. The verification process requires signing a message with the claimed address, and the signature is stored on-chain (on Optimism, where Farcaster's contracts live).
+**Verified addresses.** Additional Ethereum addresses that the user has cryptographically proven they control. The verification process requires signing a message with the claimed address, and the signature is stored onchain (on Optimism, where Farcaster's contracts live).
 
 ```
 FID: 12345

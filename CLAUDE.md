@@ -53,7 +53,7 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 
 **Always update documentation when making commits:**
 
-1. **README.md** - Add a dated entry under `## Changelog` with bullet points of changes
+1. **CHANGELOG.md** - Add a dated entry at the top with bullet points of changes. (This used to live in README.md; it had grown to 480 lines and buried the actual README.)
 2. **PROJECT_OVERVIEW.md** - Update if changes affect:
    - Architecture or data flow
    - Database schema
@@ -84,7 +84,7 @@ Update the docs whenever a change moves any of:
 
 **Never name a data provider in `docs-site/`.** The same rule as the UI, and it
 matters more here: the docs are indexed and permanent. Describe *capability*
-("Farcaster coverage is complete") and *evidence class* ("attested on-chain"),
+("Farcaster coverage is complete") and *evidence class* ("attested onchain"),
 never provenance. The public `sources` field is mapped through
 `lib/api-sources.ts` for exactly this reason, on an allowlist so an unmapped
 internal source is dropped rather than leaked.
@@ -104,6 +104,24 @@ Farcaster" (~13%) distinct wherever either appears.
 - **Header logo is always clickable** - Returns user to homepage from any state.
 - **Sentence case for headings** - Use "My lookups" not "My Lookups". Only capitalize the first word and proper nouns.
 - **Curly apostrophes in UI** - Use curly apostrophes (') not straight ones ('). Example: "We'll" not "We'll".
+
+## House style
+
+These apply to **everything written for a human**: UI copy, docs, README, blog
+posts, commit messages, JSON-LD, and the AI assistant's system prompt. Not just
+the UI.
+
+- **"onchain", never "on-chain" or "on chain".** One word, always. Same for
+  "offchain". Check `On-chain` and `On-Chain` too, since a capitalized variant
+  slips past a lowercase search.
+- **No em dashes.** Use the mark the sentence actually wants: a colon, a
+  semicolon, a comma, or brackets. Check for `&mdash;` entities as well.
+- **Sentence case for headings**, in docs and README as much as in the UI.
+
+The assistant carries the onchain rule in its system prompt explicitly,
+including an instruction to apply it even when the retrieved context spells it
+the other way. If you change that prompt, keep the rule (see
+`docs/AI-SEARCH.md`).
 
 ## Performance Patterns
 

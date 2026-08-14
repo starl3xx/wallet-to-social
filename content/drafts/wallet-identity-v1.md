@@ -19,7 +19,7 @@ This is the wallet identity problem. And it's quietly becoming the biggest bottl
 
 ## The Problem Nobody Talks About
 
-Every token project, DAO, and NFT collection faces the same issue: **you have on-chain data about what people do, but no way to reach them**.
+Every token project, DAO, and NFT collection faces the same issue: **you have onchain data about what people do, but no way to reach them**.
 
 You can see that wallet `0x7a3...` holds 50,000 of your tokens. You can see they voted in your last proposal. You can see they've been holding since the early days.
 
@@ -28,7 +28,7 @@ But you can't email them. You can't DM them. You can't tell them about your upco
 The traditional solution? Spray and pray:
 - Post on Twitter and hope they see it
 - Announce in Discord and hope they're active
-- Send on-chain messages that nobody reads
+- Send onchain messages that nobody reads
 
 The result is predictable: **5-10% of your community actually hears important announcements**. The rest miss out through no fault of their own.
 
@@ -69,7 +69,7 @@ We analyzed 500,000+ wallet addresses across different token communities to unde
 
 The takeaway: **your most valuable holders are the most findable**—if you know how to look.
 
-DAO governance participants show 30-40% match rates because these users care about their on-chain identity. They want to be known. They've connected their wallets to social profiles specifically so they can participate meaningfully.
+DAO governance participants show 30-40% match rates because these users care about their onchain identity. They want to be known. They've connected their wallets to social profiles specifically so they can participate meaningfully.
 
 NFT communities show 15-25% match rates because the culture rewards visible identity. PFP projects literally turn wallet ownership into social signaling.
 
@@ -83,7 +83,7 @@ Farcaster's daily active users went from 50,000 to over 400,000—a 10x increase
 
 Why does this matter for wallet identity?
 
-Unlike Twitter or Discord, Farcaster uses **cryptographically verified wallet connections**. When someone links their wallet to Farcaster, that connection is provable on-chain. No guessing. No stale records. No scraped data of questionable accuracy.
+Unlike Twitter or Discord, Farcaster uses **cryptographically verified wallet connections**. When someone links their wallet to Farcaster, that connection is provable onchain. No guessing. No stale records. No scraped data of questionable accuracy.
 
 This changes the match rate equation entirely.
 
@@ -172,7 +172,7 @@ The tools exist today. [walletlink.social](https://walletlink.social) can proces
 
 The wallet identity gap is closing.
 
-As more users connect wallets to Farcaster, as ENS adoption grows, as on-chain identity standards mature—match rates will climb. The 22% we see today will be 40% in two years.
+As more users connect wallets to Farcaster, as ENS adoption grows, as onchain identity standards mature—match rates will climb. The 22% we see today will be 40% in two years.
 
 Projects that build identity-first marketing practices now will have a structural advantage. They'll know their community. They'll reach their holders. They'll build genuine relationships instead of shouting into the void.
 

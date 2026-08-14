@@ -15,7 +15,7 @@ If you've ever stared at a list of wallet addresses wondering how to actually re
 
 ## What's New
 
-When you upload wallet addresses to walletlink.social, we now check Farcaster's verified address database alongside ENS, Web3.bio, and on-chain records.
+When you upload wallet addresses to walletlink.social, we now check Farcaster's verified address database alongside ENS, Web3.bio, and onchain records.
 
 The result: **3x more matches** compared to ENS-only lookups.
 

@@ -11,7 +11,7 @@ You launched your NFT collection. You watched the mints roll in. You know exactl
 
 And then nothing.
 
-The holders are there on-chain, but they're invisible. You can't ask them what they think of the art. You can't tell them about the upcoming collaboration. You can't invite them to the IRL event. You have a community of collectors who chose your project with real money, and you have no way to talk to them.
+The holders are there onchain, but they're invisible. You can't ask them what they think of the art. You can't tell them about the upcoming collaboration. You can't invite them to the IRL event. You have a community of collectors who chose your project with real money, and you have no way to talk to them.
 
 This is the default state of NFT projects in 2025, and it's costing creators more than they realize.
 
@@ -50,7 +50,7 @@ But you can't activate what you can't see.
 
 ## Resolving the Identity Gap
 
-Wallet identity resolution connects on-chain addresses to social profiles -- Twitter, Farcaster, ENS names. Instead of seeing `0x7a3...f82`, you see the person behind the wallet.
+Wallet identity resolution connects onchain addresses to social profiles -- Twitter, Farcaster, ENS names. Instead of seeing `0x7a3...f82`, you see the person behind the wallet.
 
 The match rates vary by community type:
 
@@ -61,7 +61,7 @@ The match rates vary by community type:
 | Utility/gaming | 10-15% | Mixed user base |
 | Generative art | 25-35% | Builder-heavy audience |
 
-PFP and generative art communities tend to have the highest match rates because their holders are the kind of people who invest in on-chain identity. They have ENS names. They're on Farcaster. They use their NFTs as profile pictures -- literally broadcasting their wallet identity.
+PFP and generative art communities tend to have the highest match rates because their holders are the kind of people who invest in onchain identity. They have ENS names. They're on Farcaster. They use their NFTs as profile pictures -- literally broadcasting their wallet identity.
 
 ## Building Real Collector Relationships
 

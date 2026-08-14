@@ -129,7 +129,7 @@ Export to CSV or Twitter list
 |-------|---------|------------|
 | `wallet_cache` | 7-day TTL cache for API results | wallet, twitter_handle, farcaster, ens_name, cached_at |
 | — Farcaster sweep | `social_graph` is also bulk-populated by a protocol-wide Farcaster sweep (`lib/farcaster-sweep.ts`): every FID's verified + custody ETH addresses, username, follower count. Daily incremental cron + monthly full GitHub Actions re-sweep. Swept rows are medium quality (45) until a real lookup completes the Twitter side. | |
-| — ENS harvest | On-chain com.twitter/com.github text records (`lib/ens-harvest.ts`): TextChanged log scan → current values via registry→resolver Multicall3 reads. User-attested, `twitter_verified`, quality 50, fill-only. Daily incremental cron from an `ingest_state` checkpoint. | |
+| — ENS harvest | Onchain com.twitter/com.github text records (`lib/ens-harvest.ts`): TextChanged log scan → current values via registry→resolver Multicall3 reads. User-attested, `twitter_verified`, quality 50, fill-only. Daily incremental cron from an `ingest_state` checkpoint. | |
 | `ingest_state` | Checkpoints for ingest pipelines (name → jsonb value) | name, value, updated_at |
 | `seeded_contracts` | Contracts the daily seed cron has imported holders from (novelty selection: 30-day re-seed window) | address+chain (pk), name, holders_imported, last_seeded_at |
 | `wallet_holdings` | Wallet ↔ contract edges observed at seed time — the audience graph | wallet+contract+chain (pk), contract_type, first/last_seen_at |
@@ -409,7 +409,7 @@ not enabled fails with `<NETWORK>_MAINNET is not enabled for this app`.
 ## Recent Changes (2026-08-12)
 
 - **Robinhood Chain (4663) added to contract import** — NFT holder lookups via Alchemy,
-  verified exact against on-chain `ownerOf` enumeration (618/618 holders, 4,444 tokens)
+  verified exact against onchain `ownerOf` enumeration (618/618 holders, 4,444 tokens)
 - **`lib/chains.ts` added** — dependency-free chain constants shared by server and client
 - **ERC-20 lookups unavailable on Robinhood** — surfaced as a clear error plus a modal warning
 - **`MORALIS_API_KEY` no longer required for NFT imports** — it previously 503'd the whole endpoint

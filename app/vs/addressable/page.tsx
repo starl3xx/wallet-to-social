@@ -111,7 +111,7 @@ export default function AddressableComparison() {
                     <td className="py-4 pr-4 font-medium">Match method</td>
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       Deterministic, user-attested (Farcaster verifications,
-                      on-chain ENS records)
+                      onchain ENS records)
                     </td>
                     <td className="py-4 pl-4">
                       Probabilistic &ldquo;fingerprinting&rdquo;
@@ -297,7 +297,7 @@ export default function AddressableComparison() {
             </ol>
             <p className="text-muted-foreground">
               Matches are deterministic and user-attested (Farcaster verified
-              accounts and on-chain ENS records), backed by a 4.7M-wallet
+              accounts and onchain ENS records), backed by a 4.7M-wallet
               index covering the complete Farcaster protocol. Addressable
               advertises 23M matched owners built with probabilistic
               &ldquo;fingerprinting&rdquo;; we only return links the wallet

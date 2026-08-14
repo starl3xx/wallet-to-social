@@ -84,7 +84,7 @@ Avoid cash-for-posts arrangements. The value of holder-ambassadors is authentici
 
 ## 4. Community Retention and Churn Prevention
 
-**The problem:** You can see when holders sell on-chain, but by then it's too late. The goal is to identify at-risk holders before they exit and give them a reason to stay.
+**The problem:** You can see when holders sell onchain, but by then it's too late. The goal is to identify at-risk holders before they exit and give them a reason to stay.
 
 **The workflow:**
 
@@ -106,7 +106,7 @@ This works even if they're already reducing their position. Giving holders insid
 
 Track which resolved holders have been consistently engaged (governance participation, social mentions, holding duration) versus those who've gone quiet. Quiet long-term holders are your highest churn risk -- and also your highest-value retention targets.
 
-Using a tool like [walletlink.social](https://walletlink.social) for periodic resolution means you can track social engagement alongside on-chain behavior. A holder who stops tweeting about your project but hasn't sold yet is a leading indicator.
+Using a tool like [walletlink.social](https://walletlink.social) for periodic resolution means you can track social engagement alongside onchain behavior. A holder who stops tweeting about your project but hasn't sold yet is a leading indicator.
 
 ## 5. Product Feedback From Power Users
 
@@ -114,7 +114,7 @@ Using a tool like [walletlink.social](https://walletlink.social) for periodic re
 
 **The workflow:**
 
-1. Define "power user" by on-chain criteria: top 5% by holdings, or holders who've interacted with your contracts 10+ times, or LP providers, etc.
+1. Define "power user" by onchain criteria: top 5% by holdings, or holders who've interacted with your contracts 10+ times, or LP providers, etc.
 2. Resolve these wallets to social profiles.
 3. Send direct outreach asking for specific feedback.
 
@@ -123,12 +123,12 @@ Using a tool like [walletlink.social](https://walletlink.social) for periodic re
 Bad: "What do you think about our product?"
 Good: "We're deciding between [Option A] and [Option B] for our next update. As one of our top holders who's used [specific feature] 15 times this month, which would you prefer?"
 
-Reference their on-chain behavior to demonstrate that you're asking them specifically, not blasting a survey to everyone.
+Reference their onchain behavior to demonstrate that you're asking them specifically, not blasting a survey to everyone.
 
 **Why this beats traditional feedback channels:**
 
 - **Invested respondents.** These people have real money in your ecosystem. Their feedback is grounded in actual usage and financial commitment.
-- **Representative sample.** Discord power users are not representative of your holder base. On-chain power users, by definition, are.
+- **Representative sample.** Discord power users are not representative of your holder base. Onchain power users, by definition, are.
 - **Higher response rates.** Personalized outreach from a project team to a known holder converts at 15-25%, versus 2-5% for generic surveys.
 
 **Implementation tip:** Keep the feedback loop visible. When you ship a feature based on holder feedback, credit the suggestion publicly (with permission). This turns a one-time feedback session into an ongoing relationship.

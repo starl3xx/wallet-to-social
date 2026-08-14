@@ -196,7 +196,7 @@ walletlink.social
 
 ### 20. WL W7 - Why Wallet Identity Matters (ID: 8162554, scheduled: 2026-04-01T17:00:00Z)
 ```
-On-chain data tells you what wallets do.
+Onchain data tells you what wallets do.
 
 Wallet identity tells you who they are.
 
@@ -241,7 +241,7 @@ Web3 marketing evolution:
 2021: Spam Discord servers
 2022: Pay influencers to shill
 2023: Airdrop farming
-2024: On-chain analytics
+2024: Onchain analytics
 2025: Wallet identity + direct outreach
 
 We're finally at the stage where you can talk to your actual holders.

@@ -37,7 +37,7 @@ The original 22% predates the full Farcaster index, so it was re-measured from s
 
 The index-only Farcaster rate (11-13%) now equals what the live pipeline returns (11.3%). Every Farcaster match the product makes is already served from our own data — the external Farcaster call has become a redundancy check rather than the source of truth.
 
-Where the index is still thin is ENS: index-only "any identity" is 13-15% against the live pipeline's 23.7%, and nearly all of that gap is ENS names not yet harvested on-chain. That gap is the roadmap, not a limitation of the method.
+Where the index is still thin is ENS: index-only "any identity" is 13-15% against the live pipeline's 23.7%, and nearly all of that gap is ENS names not yet harvested onchain. That gap is the roadmap, not a limitation of the method.
 
 The industry average for wallet-to-social identity resolution is approximately 2.5%. That means if you have 10,000 wallet addresses, most tools will identify social profiles for about 250 of them.
 
@@ -59,7 +59,7 @@ If you do the math: 12% (have ENS) x 8% (have text records) x 82% (records are v
 
 Our resolution pipeline queries four data sources for each wallet. Each source covers a different slice of the identity landscape, and the overlap between them is surprisingly small.
 
-### Source 1: ENS On-Chain Text Records
+### Source 1: ENS Onchain Text Records
 
 The most direct approach. For wallets with ENS names, we query the resolver contract for `com.twitter`, `com.github`, `url`, and other text record keys.
 
@@ -142,7 +142,7 @@ Steps 3a, 3b, and 3c run in parallel. This is critical for performance -- a batc
 When multiple sources return data for the same wallet, we merge with a priority hierarchy:
 
 1. **Farcaster verified address** -- highest confidence (cryptographic proof)
-2. **ENS on-chain records** -- high confidence (on-chain data, but unverified claims)
+2. **ENS onchain records** -- high confidence (onchain data, but unverified claims)
 3. **Web3.bio aggregation** -- medium confidence (depends on upstream source)
 4. **Social graph** -- confidence varies (based on original resolution source)
 

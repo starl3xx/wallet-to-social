@@ -14,7 +14,7 @@ The wallet identity problem has plagued Web3 since day one. And until now, the s
 
 Farcaster isn't just another social network. It's the first major platform where verified wallet addresses are a core feature, not an afterthought.
 
-When someone connects their wallet to Farcaster, that verification is public and cryptographically provable. No ENS text record that might be outdated. No self-reported Twitter handle that could be wrong. A verified, on-chain connection between identity and wallet.
+When someone connects their wallet to Farcaster, that verification is public and cryptographically provable. No ENS text record that might be outdated. No self-reported Twitter handle that could be wrong. A verified, onchain connection between identity and wallet.
 
 The numbers tell the story:
 
@@ -69,13 +69,13 @@ Behind the scenes, we now query:
 
 1. **Web3.bio** — aggregates ENS, Lens, and other identity sources
 2. **Neynar API** — Farcaster profiles and verified addresses
-3. **On-chain ENS records** — direct text record lookups for Twitter, email, etc.
+3. **Onchain ENS records** — direct text record lookups for Twitter, email, etc.
 
 Results are cached for 24 hours, so repeat lookups are instant.
 
 ## Real Results: A DAO Case Study
 
-One DAO we worked with had 8,000 governance token holders but only 5% participation in votes. They knew they had engaged holders—the on-chain activity proved it—but they couldn't reach them.
+One DAO we worked with had 8,000 governance token holders but only 5% participation in votes. They knew they had engaged holders—the onchain activity proved it—but they couldn't reach them.
 
 Using wallet-to-social with Farcaster integration, they identified 1,800 holders with social profiles (22% match rate). Of those, 200 had significant social reach.
 
@@ -111,11 +111,11 @@ Processing 10,000 wallets takes under 2 minutes. Results are cached for 24 hours
 
 Farcaster integration is a milestone, but it's part of a larger thesis: **wallets are becoming social profiles**.
 
-Every on-chain action is public. Every token you hold, every NFT you collect, every governance vote you cast. The data is there. What's been missing is the identity layer that connects wallets to people.
+Every onchain action is public. Every token you hold, every NFT you collect, every governance vote you cast. The data is there. What's been missing is the identity layer that connects wallets to people.
 
 Farcaster is building that layer. ENS is building that layer. And wallet-to-social is the tool that aggregates it all.
 
-The wallet identity problem isn't solved yet. But with Farcaster's growth and the broader shift toward on-chain identity, we're getting closer every day.
+The wallet identity problem isn't solved yet. But with Farcaster's growth and the broader shift toward onchain identity, we're getting closer every day.
 
 ---
 
