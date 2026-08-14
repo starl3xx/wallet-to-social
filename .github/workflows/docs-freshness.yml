@@ -1,0 +1,61 @@
+name: docs-freshness
+
+# Fails a PR that changes the public API surface without touching docs-site/.
+#
+# The docs are a published contract with paying customers, and the failure mode
+# is silent: nothing breaks when they drift, the docs just quietly start lying.
+# Chain copy on the marketing site went stale twice before it was caught by a
+# person, which is the argument for checking this mechanically rather than
+# trusting a checkbox.
+#
+# This is deliberately a dumb check. It does not know whether the docs change is
+# *correct*, only that someone looked. That is the part a human has to do, and
+# the PR template asks for it.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  check:
+    # Escape hatch: label the PR `no-docs-needed` and this job is skipped.
+    # Relabelling re-triggers the workflow, so the label works without a push.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-docs-needed') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Public API surface requires a docs decision
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Three dots: diff against the merge base, so commits landed on main
+          # since this branch started are not counted as this PR's changes.
+          CHANGED=$(git diff --name-only "$BASE...$HEAD")
+
+          # Files whose behaviour the docs describe verbatim. Adding a file here
+          # is cheap; the cost of omitting one is a published lie.
+          SURFACE='^(app/api/v1/|lib/api-plans\.ts|lib/api-auth\.ts|lib/api-sources\.ts|lib/api-keys\.ts|lib/rate-limiter\.ts|lib/chains\.ts)'
+
+          if ! echo "$CHANGED" | grep -qE "$SURFACE"; then
+            echo "No public API surface changes in this PR. Nothing to check."
+            exit 0
+          fi
+
+          echo "Public API surface files touched by this PR:"
+          echo "$CHANGED" | grep -E "$SURFACE" | sed 's/^/  /'
+
+          if echo "$CHANGED" | grep -q '^docs-site/'; then
+            echo
+            echo "docs-site/ was updated alongside them. OK."
+            exit 0
+          fi
+
+          echo
+          echo "::error::This PR changes the public API surface but does not touch docs-site/. Update the affected pages, or add the 'no-docs-needed' label if the change is genuinely invisible to API consumers (internal refactor, comment, test)."
+          exit 1

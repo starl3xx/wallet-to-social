@@ -1,0 +1,82 @@
+---
+title: "Reverse X lookup"
+description: "GET /v1/reverse/twitter/{handle}"
+api: "GET https://walletlink.social/api/v1/reverse/twitter/{handle}"
+---
+
+Finds every wallet linked to an X handle. Costs **2 credits**.
+
+This runs the graph backwards, and it answers a question most wallet tooling cannot: given a person, what do they hold?
+
+## Path parameters
+
+<ParamField path="handle" type="string" required>
+  1 to 15 characters, letters, numbers and underscores. A leading `@` is accepted and stripped. Case-insensitive.
+</ParamField>
+
+## Request
+
+```bash
+curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+## Response
+
+<ResponseField name="data" type="array">
+  Matching wallets, at most 100 per request. Each entry carries `wallet`, an
+  always-present `twitter` object, and whichever of `ens_name`, `farcaster`,
+  `lens`, `github` and `sources` apply, plus a flat `quality_score`.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="properties">
+    <ResponseField name="handle" type="string">The normalized handle, lowercased and without `@`.</ResponseField>
+    <ResponseField name="total_count" type="number">Total matches in the index, ignoring the 100-result cap.</ResponseField>
+    <ResponseField name="returned_count" type="number">How many are in this response.</ResponseField>
+    <ResponseField name="truncated" type="boolean">Whether `total_count` exceeded 100.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": [
+    {
+      "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "ens_name": "vitalik.eth",
+      "twitter": {
+        "handle": "vitalikbuterin",
+        "url": "https://twitter.com/vitalikbuterin",
+        "verified": true
+      },
+      "sources": ["onchain"],
+      "quality_score": 70
+    }
+  ],
+  "meta": {
+    "handle": "vitalikbuterin",
+    "total_count": 1,
+    "returned_count": 1,
+    "truncated": false
+  }
+}
+```
+
+<Note>
+`quality_score` here is a flat number, unlike the nested `quality` object on
+[single lookup](/api-reference/wallet). Same scale, different shape.
+</Note>
+
+## One handle, many wallets
+
+Multiple results are normal, not a bug. People keep a hot wallet and a vault, and the same handle can be attested from several addresses.
+
+The endpoint returns at most 100 wallets and there is **no pagination**. When `truncated` is true you are seeing an arbitrary 100 of a larger set, with no way to reach the rest. `total_count` still reports the true total, so you can at least detect it.
+
+If you are hitting truncation regularly, email [help@walletlink.social](mailto:help@walletlink.social).
+
+## Errors
+
+`INVALID_HANDLE`, plus the [standard errors](/api-reference/errors).
+
+No matches is not an error: `data` is `[]` with `total_count: 0` at HTTP 200.

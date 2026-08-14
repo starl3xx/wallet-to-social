@@ -1,0 +1,65 @@
+---
+title: "Coverage"
+description: "What fraction of a wallet list resolves, and what the number actually means."
+---
+
+The single most common question is “what percentage of my list will match”. The honest answer needs two numbers, not one, and mixing them up will make you plan a campaign you cannot run.
+
+## Two different numbers
+
+<CardGroup cols={2}>
+  <Card title="~23% has an identity">
+    Roughly a quarter of wallets in a typical collection resolve to *something*:
+    an ENS name, a Farcaster account, an X handle, or some combination.
+  </Card>
+  <Card title="~13% is reachable">
+    Roughly half of those resolve to an account you can actually contact on X
+    or Farcaster.
+  </Card>
+</CardGroup>
+
+The gap between them is mostly ENS. An ENS name is an identity, and it is useful for display and for deduplicating a list, but you cannot send a message to it. If your plan is outreach, **13% is your planning number**. If your plan is analysis or labelling, 23% is.
+
+For context, the industry average for wallet-to-social matching sits near 2.5%.
+
+<Note>
+These figures come from measured samples across real collections, not from a
+marketing estimate. They still vary a lot by collection. A 2021 PFP project and
+a fresh airdrop farm will not behave the same way, and neither will match the
+average.
+</Note>
+
+## Coverage is not uniform across networks
+
+The two networks behave so differently that it is worth treating them as separate products.
+
+### Farcaster coverage is complete
+
+Every Farcaster account is indexed, along with the addresses attached to it, and the index is refreshed daily.
+
+This makes Farcaster matching **deterministic rather than probabilistic**. If a wallet belongs to a Farcaster user, we return it. There is no confidence threshold to tune and no long tail we have not reached yet. A miss means the wallet genuinely is not attached to a Farcaster account.
+
+That property is worth more than it first sounds. It means a Farcaster negative is real information, not an absence of information.
+
+### X coverage is owner-attested
+
+X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so we never infer the link. Every X handle we return was published by the owner of the account, through one of two routes:
+
+- The owner verified their X account on Farcaster.
+- The owner set the handle in an ENS text record on their own address.
+
+Over a million wallets have a linked X handle on this basis.
+
+The tradeoff is deliberate. Coverage would be considerably higher if we guessed, matching on display names or bios or timing correlations. We do not, because a marketing campaign that contacts the wrong person is worse than one that contacts fewer people. Everything returned is something the owner chose to publish.
+
+<Warning>
+Attested does not mean current. Someone can verify a handle and later abandon
+or rename that account. See [data quality](/concepts/data-quality) for how
+staleness is tracked and surfaced.
+</Warning>
+
+## Checking coverage yourself
+
+Do not take these numbers on faith. [`GET /api/v1/stats`](/api-reference/stats) returns live totals for the whole index, and it costs no credits, so you can call it before you commit to anything.
+
+For a specific list, run a sample through [`POST /api/v1/batch`](/api-reference/batch) and measure directly. A few hundred addresses is enough to get a usable estimate for your own collection, which is more useful than any average we can publish.

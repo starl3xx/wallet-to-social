@@ -85,13 +85,21 @@ npm run db:push
 
 The social_graph data is available via a subscription API for developers building wallet-to-social integrations.
 
-### Pricing
+### Plans
 
-| Plan | Price | Rate Limit | Daily | Monthly | Batch Size |
+API access is a benefit of the Pro and Unlimited tiers, not a standalone
+subscription. `lib/api-plans.ts` is the single source of truth; the standalone
+monthly prices in that file are seeded but not sold.
+
+| Purchased tier | API plan | Rate Limit | Daily | Monthly | Batch Size |
 |------|-------|------------|-------|---------|------------|
-| Developer | $49/mo | 60/min | 5K | 50K | 50 |
-| Startup | $199/mo | 300/min | 50K | 500K | 200 |
-| Enterprise | $799/mo | 1000/min | Unlimited | Unlimited | 1000 |
+| Pro | Developer | 60/min | 5K | 50K | 50 |
+| Unlimited | Startup | 300/min | 50K | 500K | 200 |
+| (not sold) | Enterprise | 1000/min | Unlimited | Unlimited | 1000 |
+
+Note there is currently **no UI for creating API keys**. `POST /api/developer/keys`
+works and is tier-gated, but nothing in the frontend calls it, so keys are
+issued manually.
 
 ### Authentication
 
@@ -178,6 +186,30 @@ All responses include rate limit headers:
 ---
 
 ## Changelog
+
+### 2026-08-14 (public docs site + API source-leak fix)
+
+**`sources` no longer leaks the data supply chain**
+
+- `/v1/wallet`, `/v1/batch` and both `/v1/reverse` endpoints returned the raw
+  `social_graph.sources` array, which contains literal vendor names. New
+  `lib/api-sources.ts` maps them to evidence classes (`onchain`, `farcaster`,
+  `manual`, `aggregated`) on an **allowlist**, so an unmapped internal source is
+  dropped rather than published. Breaking change to those response bodies.
+
+**Docs site**
+
+- New `docs-site/` holding the Mintlify content for docs.walletlink.social:
+  13 pages covering the concepts and a full `/v1` API reference, written
+  against the route handlers rather than against this README.
+- `docs-site/` is the *only* publishable folder. `docs/` stays internal, since
+  `docs/SECURITY.md` is the backup and restore runbook.
+- Freshness is enforced, not requested: `.github/pull_request_template.md` asks
+  for an explicit docs decision and `.github/workflows/docs-freshness.yml`
+  fails any PR that changes the public API surface without touching
+  `docs-site/` (escape hatch: the `no-docs-needed` label).
+- Corrected the Public API section above: those plans are tier benefits, not
+  monthly subscriptions.
 
 ### 2026-08-12 (daily collection seed cron)
 

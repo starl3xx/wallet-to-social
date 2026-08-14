@@ -1,0 +1,106 @@
+---
+title: "Usage"
+description: "GET /v1/usage"
+api: "GET https://walletlink.social/api/v1/usage"
+---
+
+Reports your key’s plan, current rate limit state, and consumption history. **Free**.
+
+Because it costs nothing and reports all three rate limit windows at once, this is the right endpoint to poll from a dashboard or to check before starting a large job.
+
+## Query parameters
+
+<ParamField query="period" type="string" default="month">
+  Window for the usage figures. One of `day`, `week`, `month`. Anything else returns `INVALID_PARAMETER`.
+</ParamField>
+
+## Request
+
+```bash
+curl "https://walletlink.social/api/v1/usage?period=week" \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="key" type="object">
+      `id`, `name`, `prefix`, `plan`, `created_at`, `last_used_at`. Only the prefix is shown, never the key.
+    </ResponseField>
+    <ResponseField name="plan_limits" type="object">
+      `requests_per_minute`, `requests_per_day`, `requests_per_month`, `max_batch_size`. Unlimited values are the string `"unlimited"`, not a number.
+    </ResponseField>
+    <ResponseField name="rate_limits" type="object">
+      Current state of the `minute`, `day` and `month` windows, each with `limit`, `remaining` and `reset_at`. A window can be `null` if it has not been exercised yet.
+    </ResponseField>
+    <ResponseField name="usage" type="object">
+      `period`, `total_requests`, `total_credits`, `total_wallets`, `avg_latency_ms`, `error_rate` as a percentage, plus `requests_by_endpoint` and `requests_by_day` breakdowns.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": {
+    "key": {
+      "id": "key_123",
+      "name": "production",
+      "prefix": "wts_live_ab",
+      "plan": "Developer",
+      "created_at": "2026-06-01T00:00:00.000Z",
+      "last_used_at": "2026-08-14T11:58:00.000Z"
+    },
+    "plan_limits": {
+      "requests_per_minute": 60,
+      "requests_per_day": 5000,
+      "requests_per_month": 50000,
+      "max_batch_size": 50
+    },
+    "rate_limits": {
+      "minute": { "limit": 60, "remaining": 58, "reset_at": "2026-08-14T12:01:00.000Z" },
+      "day": { "limit": 5000, "remaining": 4310, "reset_at": "2026-08-15T00:00:00.000Z" },
+      "month": { "limit": 50000, "remaining": 46120, "reset_at": "2026-09-01T00:00:00.000Z" }
+    },
+    "usage": {
+      "period": "week",
+      "total_requests": 412,
+      "total_credits": 3880,
+      "total_wallets": 3860,
+      "avg_latency_ms": 74,
+      "error_rate": 0.24,
+      "requests_by_endpoint": {
+        "/v1/batch": 380,
+        "/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045": 1
+      },
+      "requests_by_day": { "2026-08-13": 210, "2026-08-14": 202 }
+    }
+  },
+  "meta": { "generated_at": "2026-08-14T12:00:00.000Z" }
+}
+```
+
+## Notes
+
+`plan` reports the internal plan name (`Developer`, `Startup`), not the tier you bought. See [plans](/api-reference/introduction#plans).
+
+`total_credits` exceeding `total_requests` is expected, not a billing error. A 50-wallet batch is one request and 50 credits.
+
+`error_rate` is already a percentage. `0.24` means 0.24%, not 24%.
+
+Unlimited plans report the string `"unlimited"` in `plan_limits` where a number would otherwise be, so parse defensively.
+
+<Warning>
+`requests_by_endpoint` is keyed by the concrete request path, not by route
+template. Single-wallet and reverse lookups therefore appear as one entry per
+address or handle, so this object grows with the number of distinct things you
+looked up and can get very large over a busy month. `POST /v1/batch` is a single
+fixed path and stays as one entry.
+
+If you only need totals, read `total_requests` and `total_credits` and ignore
+this field. Use `period=day` to keep the response small.
+</Warning>
+
+## Errors
+
+`INVALID_PARAMETER`, plus the [standard errors](/api-reference/errors).

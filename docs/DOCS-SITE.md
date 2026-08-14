@@ -1,6 +1,6 @@
 # Docs site (Mintlify) — setup notes
 
-Not built yet. This records what is already wired so the build can start cold.
+Content lives in **`docs-site/`**, not in this folder.
 
 ## Status
 
@@ -9,7 +9,48 @@ Not built yet. This records what is already wired so the build can start cold.
 | Mintlify project | exists (`walletlink`) |
 | `docs.walletlink.social` DNS | **done**, verified resolving |
 | Mintlify MCP servers | **done**, in `.mcp.json` |
-| Docs content | **not started** |
+| Docs content | **first cut written**, in `docs-site/` |
+| Mintlify GitHub sync | **not connected** — points at nothing until set to `docs-site/` |
+| Freshness enforcement | **done** — PR template + `.github/workflows/docs-freshness.yml` |
+
+## `docs-site/` vs `docs/`
+
+Two folders, and mixing them up publishes internal material.
+
+- **`docs-site/`** is the published site. Safe for customers.
+- **`docs/`** (this folder) is internal only. `SECURITY.md` holds the database
+  role-split runbook and the backup/restore procedure. It must never be the
+  Mintlify content root.
+
+When connecting Mintlify's GitHub app, set the content directory to
+`docs-site/`. The default of repository root would publish this file, and
+`SECURITY.md` next to it.
+
+## What is written
+
+13 pages. `index`, `quickstart`, two concept pages, and a nine-page API
+reference covering all six `/v1` endpoints, plus rate limits and error codes.
+
+Response shapes were read off the route handlers rather than off README, which
+had drifted: it advertises the API plans as standalone monthly subscriptions
+($49/$199/$799), but `lib/api-plans.ts` marks those "seeded but not sold" and
+`TIER_API_PLAN` grants API access as a benefit of the Pro and Unlimited tiers.
+The docs describe the tier mapping, which is what the code enforces.
+
+## Known gaps the docs work surfaced
+
+1. **No key-management UI.** `POST /api/developer/keys` works and is correctly
+   tier-gated, but nothing in the frontend calls it. Pro customers have no
+   self-serve way to get a key, so the quickstart tells them to email `help@`.
+   This is the main thing standing between the API and a real launch.
+2. **`requests_by_endpoint` has unbounded cardinality.** `trackApiUsage` stores
+   the concrete path, so `/v1/wallet/0xabc…` is its own key. A busy month
+   produces a `/v1/usage` response with tens of thousands of entries. Fix is at
+   the write site: store the route template. Documented as-is for now.
+3. **No pagination on reverse lookups.** Capped at 100 with no cursor, so
+   `truncated: true` is a dead end for the caller.
+
+## DNS (added 2026-08-14, Cloudflare zone `walletlink.social`)
 
 ## DNS (added 2026-08-14, Cloudflare zone `walletlink.social`)
 
@@ -38,23 +79,39 @@ after the records go in.
 `.mcp.json` is committed on purpose: it is project-scoped config, contains no
 secrets, and means anyone cloning the repo gets the same servers.
 
-## When we build it
+## Still to write
 
-Content worth covering, in rough priority order:
+1. **Contract import guide** — supported chains and which holder types work
+   where. Derive it from `SUPPORTED_CHAINS` / `ERC20_SUPPORTED_CHAINS` in
+   `lib/chains.ts` rather than hand-listing; hand-listed chain copy has already
+   gone stale twice. `lib/chains.ts` is in the docs-freshness watch list for
+   this reason.
+2. **CSV upload guide** — column detection, priority scoring, export formats.
+3. **Client libraries or an OpenAPI spec.** The reference is hand-written MDX.
+   A generated spec would remove a whole class of drift, and Mintlify can render
+   one directly.
 
-1. **API reference** — `/v1/wallet/{address}`, `/v1/batch`, the reverse lookups
-   (`/v1/reverse/twitter/{handle}`, `/v1/reverse/farcaster/{username}`), auth,
-   rate limits and the per-plan quotas in `lib/api-plans.ts`. This is the part
-   with real commercial value: the reverse lookup is the differentiator.
-2. **Data model** — what a match means, and the distinction the marketing copy
-   works hard to keep straight: Farcaster coverage is complete, Twitter is
-   owner-attested, and "any identity" (~23%) is not the same as "reachable on X
-   or Farcaster" (~13%).
-3. **Contract import** — supported chains and which holder types work where.
-   Keep it derived from `SUPPORTED_CHAINS` / `ERC20_SUPPORTED_CHAINS` in
-   `lib/chains.ts` rather than hand-listed; hand-listed chain copy has already
-   gone stale twice.
-4. **Quickstarts** — CSV upload, contract import, first API call.
+## Verified facts behind the coverage claims
+
+Checked against production on 2026-08-14, not copied from older copy:
+
+- `MAX(fc_fid)` = 3,346,331, with 4,699,430 wallets carrying an FID.
+- Distinct FIDs per 250k bucket run 247.5k–250k across every bucket from 0 to
+  3.25M. No gap. Farcaster coverage really is contiguous and complete, so the
+  claim on the marketing site is accurate.
+- This supersedes the older note that the sweep was stalled at FID 2,396,590.
+  The daily incremental cron closed that gap.
+
+Re-run before republishing any coverage number:
+
+```sh
+node --input-type=module --env-file=.env.local -e "
+import { neon } from '@neondatabase/serverless';
+const sql = neon(process.env.DATABASE_URL);
+console.log(await sql\`SELECT (fc_fid/250000)*250000 AS bucket, COUNT(DISTINCT fc_fid) AS fids
+  FROM social_graph WHERE fc_fid IS NOT NULL GROUP BY 1 ORDER BY 1\`);
+"
+```
 
 Support address for the docs and the site: **help@walletlink.social**
 (`gm@walletlink.social` is the friendlier general/inbound one). Both forward to

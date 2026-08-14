@@ -10,6 +10,7 @@ import {
   normalizeTwitterHandle,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
+import { publicSources } from '@/lib/api-sources';
 
 export const runtime = 'nodejs';
 
@@ -153,7 +154,9 @@ export async function GET(
     }
     if (result.lens) item.lens = result.lens;
     if (result.github) item.github = result.github;
-    if (result.sources) item.sources = result.sources;
+    // Evidence classes, never the internal pipeline identifiers — see lib/api-sources.ts
+    const sources = publicSources(result.sources);
+    if (sources) item.sources = sources;
     item.quality_score = result.dataQualityScore ?? 0;
 
     return item;

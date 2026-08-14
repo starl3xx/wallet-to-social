@@ -1,0 +1,72 @@
+---
+title: "Rate limits"
+description: "Three windows, the headers that report them, and how to back off correctly."
+---
+
+Limits apply in three windows at once: per minute, per day, and per month. Exceeding any one of them returns `429`, even if the other two have room.
+
+See [plans](/api-reference/introduction#plans) for the numbers on your tier, and [credits](/api-reference/introduction#credits) for what each call costs. Limits are counted in credits, so a 50-wallet batch consumes 50 of your per-minute allowance, not one.
+
+## Headers
+
+Every response carries the current state:
+
+| Header | Meaning |
+| --- | --- |
+| `X-RateLimit-Limit` | Credits allowed in the current window. |
+| `X-RateLimit-Remaining` | Credits left in it. |
+| `X-RateLimit-Reset` | When the window resets, as a **Unix timestamp in seconds**. |
+
+`X-RateLimit-Reset` is seconds since the epoch, not seconds from now. Convert it rather than treating it as a duration.
+
+## Handling 429
+
+```json
+{
+  "error": "Rate limit exceeded. Try again in 42 seconds",
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+The response also carries the rate limit headers, so read `X-RateLimit-Reset` to know exactly when to retry.
+
+<Warning>
+Retry with exponential backoff and jitter. Retrying immediately on a shared
+minute boundary is how a fleet of workers turns one 429 into a synchronized
+stampede that keeps every one of them limited.
+</Warning>
+
+A worked example of the whole loop:
+
+```js
+async function lookup(wallets, key) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch('https://walletlink.social/api/v1/batch', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ wallets }),
+    });
+
+    if (res.status !== 429) return res.json();
+
+    // Header is epoch seconds, not a duration.
+    const resetAt = Number(res.headers.get('X-RateLimit-Reset')) * 1000;
+    const wait = Math.max(resetAt - Date.now(), 1000) + Math.random() * 1000;
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  throw new Error('rate limited after 5 attempts');
+}
+```
+
+## Staying under the limit
+
+Batch aggressively. One 50-wallet batch and 50 single lookups cost the same 50 credits, but the batch is one request against your per-minute request budget instead of fifty, and it is far faster.
+
+Deduplicate before submitting. Batch charges on addresses submitted, not on unique addresses resolved.
+
+Cache your own results. The underlying records change on the order of days, not seconds. Re-resolving the same wallet within a single campaign is spend with no new information attached.
+
+Check [`/v1/usage`](/api-reference/usage) rather than guessing. It reports all three windows and costs nothing.

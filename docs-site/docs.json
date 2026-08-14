@@ -1,0 +1,74 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "walletlink.social",
+  "description": "Resolve wallet addresses to Farcaster, X and ENS identities, in both directions.",
+  "colors": {
+    "primary": "#10b981",
+    "light": "#34d399",
+    "dark": "#059669"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["index", "quickstart"]
+          },
+          {
+            "group": "Concepts",
+            "pages": ["concepts/coverage", "concepts/data-quality"]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction",
+              "api-reference/rate-limits",
+              "api-reference/errors"
+            ]
+          },
+          {
+            "group": "Lookups",
+            "pages": ["api-reference/wallet", "api-reference/batch"]
+          },
+          {
+            "group": "Reverse lookups",
+            "pages": [
+              "api-reference/reverse-twitter",
+              "api-reference/reverse-farcaster"
+            ]
+          },
+          {
+            "group": "Account",
+            "pages": ["api-reference/stats", "api-reference/usage"]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:help@walletlink.social"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open app",
+      "href": "https://walletlink.social"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/walletlinkETH"
+    }
+  }
+}

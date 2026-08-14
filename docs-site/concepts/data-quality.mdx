@@ -1,0 +1,76 @@
+---
+title: "Data quality"
+description: "How matches are attested, what the quality score means, and when a record goes stale."
+---
+
+Every record carries metadata about how much to trust it. Using it is optional, and for most outreach work the defaults are fine, but if you are making automated decisions you should read this page.
+
+## Evidence classes
+
+Responses include a `sources` array describing what kind of evidence backs the record, not which system produced it.
+
+| Class | Meaning |
+| --- | --- |
+| `onchain` | Published by the address owner in an on-chain record. |
+| `farcaster` | A protocol-level Farcaster account verification. |
+| `manual` | Reviewed by us directly. |
+| `aggregated` | Correlated from a third-party identity index. Weaker than the others. |
+
+A record can carry more than one. More classes generally means more confidence, and `aggregated` on its own is the weakest position a record can be in.
+
+## The quality score
+
+`quality.score` is an integer from 0 to 100 combining how many identities are attached to a wallet and how strong the evidence is for each.
+
+| Score | Reading |
+| --- | --- |
+| 70 and above | Strong. Multiple identities, or a single one with strong attestation. |
+| 40 to 69 | Usable. Typically one identity with reasonable backing. |
+| Below 40 | Thin. Treat as a lead rather than a fact. |
+
+The bands are guidance, not thresholds enforced anywhere in the API. Pick your own cutoff based on how expensive a wrong contact is for you.
+
+## The `verified` flags
+
+`twitter.verified` and `farcaster.verified` are narrower than the English word suggests, and this is the piece most likely to trip you up.
+
+<Warning>
+`twitter.verified: false` does **not** mean the handle is unverified in the
+everyday sense. The flag is true only for handles attested by an on-chain
+record or a manual review. A handle that came from an X account verified on
+Farcaster is genuinely owner-attested, and it still reports `false`.
+</Warning>
+
+To judge attestation, read the `sources` array. To judge overall confidence, read `quality.score`. The `verified` booleans are best treated as a narrow signal meaning “attested by the strongest available route”, not as a general trust flag.
+
+## Staleness
+
+Records carry a freshness window, and a record is treated as stale once it passes that window or has gone more than 30 days without an update.
+
+On [`GET /api/v1/wallet/{address}`](/api-reference/wallet) this surfaces in two places:
+
+- `meta.stale`, a boolean in the response body.
+- `X-Data-Staleness: stale` and `X-Last-Updated`, response headers, sent only when the record is stale.
+
+Stale does not mean wrong. It means we have not re-confirmed it recently. Farcaster records refresh daily, so they rarely go stale. On-chain records are only re-read on a slower cycle, because they change rarely and reading them is expensive.
+
+## Found, missing, and checked
+
+There is a distinction worth respecting between “we have never looked at this wallet” and “we looked and there was nothing”. Both return `found: false`, and `meta.checked_at` separates them:
+
+```json
+{
+  "data": null,
+  "meta": { "wallet": "0x...", "found": false, "checked_at": null }
+}
+```
+
+A `null` means we have no record of ever checking this address. A timestamp means we did check, on that date, and found no identities attached.
+
+The second case is a real answer. If you are enriching a list incrementally, a wallet with a recent `checked_at` is not worth re-submitting, while a `null` is. Ignoring the distinction means paying credits repeatedly to rediscover the same negative.
+
+<Note>
+Wallets we have checked and found nothing for are reported as not found rather
+than as an empty record. You are never charged differently for a miss, but you
+also never receive a hollow object that looks like a match.
+</Note>
