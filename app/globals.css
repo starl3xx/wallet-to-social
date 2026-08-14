@@ -4,24 +4,81 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Söhne — Klim Type Foundry. Self-hosted rather than referenced from a local
+   install, because a visitor's machine will not have it. Each cut is bound to
+   one weight so the browser never synthesises a fake bold from Buch.
+
+   Only the weights the product actually uses are loaded. The full family is in
+   public/fonts if more are needed later; adding one here is what makes it cost
+   a request.
+
+   Satori cannot read woff2, so the OG generators load the .ttf duplicates
+   directly. Those are not referenced here.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-extraleicht.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-leicht.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-buch.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-buch-kursiv.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-kraftig.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-halbfett.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-dreiviertelfett.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/soehne-fett.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'Sohne', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -41,6 +98,13 @@
   --color-accent-brand: var(--accent-brand);
   --color-accent-brand-foreground: var(--accent-brand-foreground);
   --color-accent-brand-hover: var(--accent-brand-hover);
+  --color-accent-brand-tint: var(--accent-brand-tint);
+  /* Attestation. The one place green is permitted: an identity the owner
+     published themselves. Never a brand colour, never a generic success. */
+  --color-attested: var(--attested);
+  --color-attested-tint: var(--attested-tint);
+  --color-caution: var(--caution);
+  --color-caution-tint: var(--caution-tint);
   --color-success-light: var(--success-light);
   --color-success-foreground: var(--success-foreground);
   --radius-sm: calc(var(--radius) - 4px);
@@ -68,28 +132,30 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(0.51 0.19 27);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --accent-brand: oklch(0.52 0.22 280);
+  --ring: oklch(0.42 0.19 280);
+
+  /* Brand. One stop deeper than the violet this replaced, so it survives small
+     text and dense tables: 9.17:1 on white rather than 6.0:1. */
+  --accent-brand: oklch(0.42 0.19 280);
   --accent-brand-foreground: oklch(1 0 0);
-  --accent-brand-hover: oklch(0.48 0.22 280);
-  --success-light: oklch(0.95 0.03 150);
-  --success-foreground: oklch(0.35 0.12 150);
+  --accent-brand-hover: oklch(0.37 0.18 280);
+  --accent-brand-tint: oklch(0.96 0.02 280);
+
+  /* Attestation. Reserved, not decorative. The emerald this replaces measured
+     2.54:1 on white and could not legally carry text or a button. */
+  --attested: oklch(0.48 0.11 162);
+  --attested-tint: oklch(0.96 0.03 162);
+
+  --caution: oklch(0.52 0.11 70);
+  --caution-tint: oklch(0.96 0.04 70);
+
+  /* Kept for the checkmarks in the upgrade modal, now on the attested hue so
+     there is only one green in the product. */
+  --success-light: oklch(0.96 0.03 162);
+  --success-foreground: oklch(0.42 0.10 162);
 }
 
 .dark {
@@ -107,15 +173,10 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.62 0.18 27);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --ring: oklch(0.68 0.19 280);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -124,11 +185,22 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --accent-brand: oklch(0.58 0.20 280);
-  --accent-brand-foreground: oklch(1 0 0);
-  --accent-brand-hover: oklch(0.62 0.18 280);
-  --success-light: oklch(0.25 0.05 150);
-  --success-foreground: oklch(0.75 0.12 150);
+  /* Both hues lift on a dark ground or they disappear into it. Same rule,
+     different values, which is the whole reason these are tokens and not
+     hexes in components. */
+  --accent-brand: oklch(0.68 0.19 280);
+  --accent-brand-foreground: oklch(0.16 0.02 280);
+  --accent-brand-hover: oklch(0.74 0.17 280);
+  --accent-brand-tint: oklch(0.26 0.06 280);
+
+  --attested: oklch(0.72 0.14 162);
+  --attested-tint: oklch(0.28 0.05 162);
+
+  --caution: oklch(0.78 0.13 70);
+  --caution-tint: oklch(0.28 0.05 70);
+
+  --success-light: oklch(0.28 0.05 162);
+  --success-foreground: oklch(0.75 0.13 162);
 }
 
 @layer base {

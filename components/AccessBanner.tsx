@@ -103,22 +103,27 @@ export function AccessBanner({
 
   // Tier badge content
   const TierBadge = () => {
+    /**
+     * The tiers are a ladder, so they read as one hue at increasing weight
+     * rather than four unrelated colours. Whitelisted keeps amber because it is
+     * a state rather than a rung, and green is deliberately absent: it now means
+     * attestation everywhere in the product, and Starter is not more attested
+     * than Pro.
+     */
     if (isWhitelisted) {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-xs sm:text-sm">
-          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
-          <span className="font-medium text-amber-600 dark:text-amber-400">
-            Whitelisted
-          </span>
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-caution-tint text-xs sm:text-sm">
+          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-caution" />
+          <span className="font-medium text-caution">Whitelisted</span>
         </div>
       );
     }
 
     if (tier === 'unlimited') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-xs sm:text-sm">
-          <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
-          <span className="font-medium text-purple-600 dark:text-purple-400">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand-hover text-xs sm:text-sm">
+          <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
+          <span className="font-medium text-accent-brand-foreground">
             Unlimited
           </span>
         </div>
@@ -127,11 +132,9 @@ export function AccessBanner({
 
     if (tier === 'starter') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-xs sm:text-sm">
-          <Rocket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
-          <span className="font-medium text-emerald-600 dark:text-emerald-400">
-            Starter
-          </span>
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand-tint text-xs sm:text-sm">
+          <Rocket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand" />
+          <span className="font-medium text-accent-brand">Starter</span>
           <span className="text-muted-foreground hidden sm:inline">
             {walletsRemaining !== null && walletsRemaining !== undefined
               ? `${walletsRemaining.toLocaleString()} left`
@@ -143,12 +146,10 @@ export function AccessBanner({
 
     if (tier === 'pro') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-xs sm:text-sm">
-          <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
-          <span className="font-medium text-blue-600 dark:text-blue-400">
-            Pro
-          </span>
-          <span className="text-muted-foreground hidden sm:inline">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand text-xs sm:text-sm">
+          <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
+          <span className="font-medium text-accent-brand-foreground">Pro</span>
+          <span className="text-accent-brand-foreground/75 hidden sm:inline">
             {TIER_LIMITS.pro.toLocaleString()} wallets
           </span>
         </div>

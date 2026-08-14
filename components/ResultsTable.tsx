@@ -6,6 +6,25 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import type { WalletSocialResult } from '@/lib/types';
+import { publicSources } from '@/lib/api-sources';
+
+/**
+ * Whether an identity was published by the address owner rather than correlated
+ * from an index.
+ *
+ * `source` arrives in two vocabularies depending on the path a row took: the
+ * lookup pipeline writes internal identifiers, the reverse endpoint writes
+ * evidence classes. `publicSources` is idempotent, so mapping here normalises
+ * both without caring which one it was handed.
+ *
+ * `aggregated` is the one class that does not count: it means correlated, which
+ * is precisely the thing this mark exists to distinguish.
+ */
+function isAttested(result: WalletSocialResult): boolean {
+  const classes = publicSources(result.source);
+  if (!classes) return false;
+  return classes.some((c) => c === 'onchain' || c === 'farcaster' || c === 'manual');
+}
 
 /**
  * Custom hook for debouncing a value
@@ -274,6 +293,8 @@ export const ResultsTable = memo(function ResultsTable({
   const columnCount =
     baseColumns + (hasHoldings ? 1 : 0) + filteredExtraColumns.length;
 
+  const gridTemplate = `18px minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
@@ -311,15 +332,21 @@ export const ResultsTable = memo(function ResultsTable({
         </span>
       </div>
 
+      {/* One template, used by the header and every row. It was duplicated,
+          which is how a grid drifts: change one and the columns silently stop
+          lining up. The leading 18px is the attestation gutter. */}
       <div className="border rounded-lg overflow-hidden">
         {/* Header */}
         <div className="bg-muted/50 border-b">
           <div
             className="grid text-sm font-medium text-muted-foreground"
             style={{
-              gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+              gridTemplateColumns: gridTemplate,
             }}
           >
+            {/* Attestation gutter. Empty in the header: the column is a legend
+                for the rows, and a label here would crowd 18px. */}
+            <div aria-hidden="true" />
             <div
               className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => handleSort('wallet')}
@@ -405,14 +432,32 @@ export const ResultsTable = memo(function ResultsTable({
                     style={{
                       height: `${virtualRow.size}px`,
                       transform: `translateY(${virtualRow.start}px)`,
-                      gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+                      gridTemplateColumns: gridTemplate,
                     }}
                   >
+                    {/* Attestation mark. Filled means the owner published this
+                        identity themselves; hollow means it was matched from an
+                        index. The title carries the same fact in words, so
+                        nothing here depends on distinguishing two colours. */}
+                    <div className="flex items-center justify-center pt-2.5">
+                      {isAttested(result) ? (
+                        <span
+                          className="h-2 w-2 rounded-full bg-attested"
+                          title="Owner-attested identity"
+                        />
+                      ) : (
+                        <span
+                          className="h-2 w-2 rounded-full ring-1 ring-inset ring-border"
+                          title="Matched, not owner-attested"
+                        />
+                      )}
+                    </div>
+
                     {/* Wallet */}
                     <div className="px-4 py-2 font-mono text-xs">
                       <div className="flex items-center gap-2">
                         <button
-                          className="relative hover:text-blue-500 cursor-pointer transition-colors"
+                          className="relative hover:text-accent-brand cursor-pointer transition-colors"
                           onClick={() => handleCopyWallet(result.wallet)}
                           title={`${result.wallet}\nClick to copy`}
                         >

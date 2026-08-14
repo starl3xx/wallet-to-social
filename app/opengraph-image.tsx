@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { loadOgFonts, OG, OG_FONT_FAMILY } from '@/lib/og-fonts';
 
 export const runtime = 'edge';
 export const alt = 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster';
@@ -6,101 +7,102 @@ export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default async function OGImage() {
-  const logoData = await fetch(
-    new URL('../public/icon.png', import.meta.url)
-  ).then((res) => res.arrayBuffer());
+  const [logoData, fonts] = await Promise.all([
+    fetch(new URL('../public/icon.png', import.meta.url)).then((r) => r.arrayBuffer()),
+    loadOgFonts({
+      book: new URL('../public/fonts/soehne-buch.ttf', import.meta.url),
+      halbfett: new URL('../public/fonts/soehne-halbfett.ttf', import.meta.url),
+      fett: new URL('../public/fonts/soehne-fett.ttf', import.meta.url),
+    }),
+  ]);
 
   return new ImageResponse(
     (
       <div
         style={{
-          background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)',
+          background: OG.groundGradient,
           width: '100%',
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '60px 80px',
-          fontFamily: 'system-ui, sans-serif',
+          justifyContent: 'space-between',
+          padding: '64px 72px',
+          fontFamily: OG_FONT_FAMILY,
+          color: OG.text,
         }}
       >
-        {/* Logo area */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            marginBottom: '40px',
-          }}
-        >
-          <img
-            src={logoData as unknown as string}
-            width={56}
-            height={56}
-            style={{ borderRadius: '12px' }}
-          />
-          <span
+        {/* Wordmark. The brand sits on the name, the suffix stays quiet, same
+            as the site header. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoData as unknown as string} width={52} height={52} style={{ borderRadius: '12px' }} alt="" />
+          <div style={{ display: 'flex', fontSize: '30px', fontWeight: 600 }}>
+            <span style={{ color: OG.brand }}>walletlink</span>
+            <span style={{ color: OG.textMuted }}>.social</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div
             style={{
-              fontSize: '32px',
-              fontWeight: 600,
-              color: '#e5e5e5',
+              fontSize: '76px',
+              fontWeight: 400,
+              lineHeight: 1.04,
+              letterSpacing: '-0.035em',
+              maxWidth: '880px',
+              display: 'flex',
+              flexWrap: 'wrap',
             }}
           >
-            walletlink.social
-          </span>
-        </div>
-
-        {/* Main headline */}
-        <div
-          style={{
-            fontSize: '52px',
-            fontWeight: 700,
-            color: '#ffffff',
-            textAlign: 'center',
-            lineHeight: 1.2,
-            marginBottom: '24px',
-            maxWidth: '900px',
-          }}
-        >
-          Find your token holders on Twitter & Farcaster
-        </div>
-
-        {/* Subtitle */}
-        <div
-          style={{
-            fontSize: '24px',
-            color: '#a3a3a3',
-            textAlign: 'center',
-            marginBottom: '40px',
-            maxWidth: '700px',
-          }}
-        >
-          A 4.7M-wallet identity index with complete Farcaster coverage. AI agent detection included.
-        </div>
-
-        {/* Stats row */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '48px',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>4.7M</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>Wallets indexed</span>
+            Turn wallets into&nbsp;<span style={{ fontWeight: 800 }}>people</span>.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>100%</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>Farcaster coverage</span>
+          <div
+            style={{
+              fontSize: '27px',
+              color: OG.textMuted,
+              marginTop: '22px',
+              maxWidth: '760px',
+              lineHeight: 1.35,
+            }}
+          >
+            Farcaster usernames, 𝕏 handles and ENS names. Attested, never inferred.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '36px', fontWeight: 700, color: '#10b981' }}>13K+</span>
-            <span style={{ fontSize: '16px', color: '#737373' }}>AI agents detected</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: '56px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em' }}>4.7M</span>
+              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>wallets indexed</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {/* The reachable figure, not the 23% any-identity one. The share
+                  card is the first thing anyone sees, so it states the number a
+                  campaign can actually be planned against. */}
+              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em', color: OG.brand }}>13%</span>
+              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>reachable on 𝕏 or Farcaster</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: OG.attestedTint,
+              color: OG.attested,
+              fontSize: '19px',
+              fontWeight: 600,
+              padding: '11px 22px',
+              borderRadius: '999px',
+            }}
+          >
+            <div style={{ width: '11px', height: '11px', borderRadius: '999px', background: OG.attested }} />
+            Farcaster coverage complete
           </div>
         </div>
       </div>
     ),
-    { ...size }
+    { ...size, fonts }
   );
 }

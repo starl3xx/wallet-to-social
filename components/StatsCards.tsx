@@ -21,40 +21,69 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
     ).length,
   }), [results]);
 
+  /**
+   * Colour carries meaning here or it carries nothing.
+   *
+   * `attested` marks the two counts where the identity was published by the
+   * owner: an 𝕏 handle or a Farcaster account. "Agents detected" is
+   * deliberately neutral, because detection is inference and dressing it in the
+   * same green would claim a provenance it does not have. The reachable figure
+   * takes the brand, because it is the number a campaign is planned against.
+   */
   const cards = [
-    { title: 'Total wallets', value: stats.total, color: 'text-foreground', badgeColor: '' },
-    { title: 'Twitter found', value: stats.twitter, color: 'text-blue-500', badgeColor: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
-    {
-      title: 'Farcaster found',
-      value: stats.farcaster,
-      color: 'text-purple-500',
-      badgeColor: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
-    },
-    { title: 'Agents detected', value: stats.agents, color: 'text-orange-500', badgeColor: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' },
-    { title: 'Any social', value: stats.anySocial, color: 'text-emerald-500', badgeColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
+    { title: 'Total wallets', value: stats.total, tone: 'neutral' as const },
+    { title: '𝕏 attested', value: stats.twitter, tone: 'attested' as const },
+    { title: 'Farcaster attested', value: stats.farcaster, tone: 'attested' as const },
+    { title: 'Agents detected', value: stats.agents, tone: 'neutral' as const },
+    { title: 'Any social', value: stats.anySocial, tone: 'brand' as const },
   ];
+
+  const TONE = {
+    neutral: { card: '', value: 'text-foreground', badge: 'bg-muted text-muted-foreground' },
+    attested: {
+      card: 'border-attested/25 bg-attested-tint/40',
+      value: 'text-foreground',
+      badge: 'bg-attested-tint text-attested',
+    },
+    brand: {
+      card: 'border-accent-brand/25 bg-accent-brand-tint/40',
+      value: 'text-accent-brand',
+      badge: 'bg-accent-brand-tint text-accent-brand',
+    },
+  };
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-      {cards.map((card) => (
-        <Card key={card.title}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {card.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${card.color}`}>
-              {card.value.toLocaleString()}
-            </p>
-            {card.title !== 'Total wallets' && stats.total > 0 && (
-              <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-md ${card.badgeColor}`}>
-                {((card.value / stats.total) * 100).toFixed(1)}% of total
-              </span>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+      {cards.map((card) => {
+        const tone = TONE[card.tone];
+        return (
+          <Card key={card.title} className={tone.card}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                {card.tone === 'attested' && (
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full bg-attested"
+                    // The mark is never the only signal: the label says
+                    // "attested" beside it, so nothing depends on seeing hue.
+                    aria-hidden="true"
+                  />
+                )}
+                {card.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className={`text-2xl font-medium tabular-nums ${tone.value}`}>
+                {card.value.toLocaleString()}
+              </p>
+              {card.title !== 'Total wallets' && stats.total > 0 && (
+                <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-md ${tone.badge}`}>
+                  {((card.value / stats.total) * 100).toFixed(1)}% of total
+                </span>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 });
