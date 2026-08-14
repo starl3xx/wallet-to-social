@@ -27,7 +27,7 @@ import {
   getContractHolders,
   type HolderResult,
 } from './contract-holders';
-import type { SupportedChain } from './chains';
+import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
 import { checkBackgroundBudget } from './neynar-budget';
@@ -340,14 +340,26 @@ async function unmarkSeedAttempt(candidate: SeedCandidate): Promise<void> {
 
 async function recordSeed(
   candidate: SeedCandidate,
-  holders: HolderResult
+  holders: HolderResult,
+  /**
+   * Whether this contract's holders were also queued for social resolution.
+   *
+   * The wallet_holdings edges below are written either way, so the holdings
+   * graph grows regardless. But seeded_contracts drives selectNovelCandidates,
+   * where holders_imported > 0 means "done, skip for NOVELTY_DAYS". Recording a
+   * resolution-skipped contract as done would retire it for 30 days with its
+   * wallets never queued, which is precisely the opposite of waiting for
+   * credits to return. Marking it 0 puts it in the short retry window instead,
+   * so it is picked up again once the budget frees up.
+   */
+  resolutionQueued: boolean
 ): Promise<void> {
   const db = getDb();
   if (!db) return;
 
   await db.execute(sql`
     INSERT INTO seeded_contracts (address, chain, contract_type, name, symbol, holders_imported, total_holders)
-    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${holders.wallets.length}, ${holders.totalHolders})
+    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${resolutionQueued ? holders.wallets.length : 0}, ${holders.totalHolders})
     ON CONFLICT (address, chain) DO UPDATE
     SET holders_imported = EXCLUDED.holders_imported,
         total_holders = EXCLUDED.total_holders,
@@ -374,7 +386,12 @@ async function recordSeed(
 export async function seedContract(candidate: SeedCandidate): Promise<SeedRunResult> {
   const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP);
 
-  await recordSeed(candidate, holders);
+  // Decided before recording: recordSeed needs to know whether this contract
+  // should count as finished or stay in the retry window.
+  const socialBudget = await checkBackgroundBudget(holders.wallets.length);
+  const resolutionQueued = holders.wallets.length > 0 && socialBudget.allowed;
+
+  await recordSeed(candidate, holders, resolutionQueued);
 
   // One job per contract so each seeded collection gets its own match-rate
   // stats (feeds the content pipeline). Deliberately NOT hidden: replaces
@@ -388,13 +405,12 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
   // over. Gating the whole run instead would stall the holdings graph for weeks
   // over a limit that has nothing to do with the sources feeding it.
   let jobId: string | null = null;
-  const socialBudget = await checkBackgroundBudget(holders.wallets.length);
-  if (holders.wallets.length > 0 && !socialBudget.allowed) {
+  if (holders.wallets.length > 0 && !resolutionQueued) {
     console.warn(
-      `Seeded ${candidate.label} without social resolution: ${socialBudget.reason}`
+      `Seeded ${candidate.label} holdings only, resolution deferred: ${socialBudget.reason}`
     );
   }
-  if (holders.wallets.length > 0 && socialBudget.allowed) {
+  if (resolutionQueued) {
     jobId = await createJob(holders.wallets, {}, {
       includeENS: false,
       saveToHistory: false,
@@ -560,7 +576,12 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   const deadline = Date.now() + 240_000;
   // Robinhood first: it's the chain with no competing index, so it must
   // never be the one starved when earlier slots burn the time budget
-  const chains: SupportedChain[] = ['robinhood', 'base', 'ethereum'];
+  // Every supported chain, derived rather than hardcoded: a list here that
+  // drifts from SUPPORTED_CHAINS silently stops seeding new chains, which is
+  // exactly what happened when Arbitrum, Polygon, Optimism and BNB were added.
+  // Newest first, so a run that exhausts its time budget still covers the
+  // chains with the least existing coverage.
+  const chains: SupportedChain[] = [...SUPPORTED_CHAINS].reverse();
 
   const budgetExhausted = (chain: SupportedChain, kind: 'nft' | 'erc20'): SeedRunResult => ({
     contract: { address: '?', chain, kind, label: 'time budget exhausted' },
