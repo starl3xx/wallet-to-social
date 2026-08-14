@@ -197,6 +197,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             fc_fid: storedData.fc_fid || existing.fc_fid,
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
+            // Attestation rides with the identity it describes. `??` not
+            // `||`: false is a real answer here, meaning the graph was
+            // consulted and said not attested, and `||` would discard it.
+            twitter_verified: storedData.twitter_verified ?? existing.twitter_verified,
+            farcaster_verified: storedData.farcaster_verified ?? existing.farcaster_verified,
             source: [...existing.source, 'graph'],
             // Merge agent fields from social graph (don't overwrite known_list data)
             is_agent: existing.is_agent || storedData.is_agent,
@@ -221,6 +226,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             fc_fid: storedData.fc_fid || existing.fc_fid,
             lens: storedData.lens || existing.lens,
             github: storedData.github || existing.github,
+            // Attestation rides with the identity it describes. `??` not
+            // `||`: false is a real answer here, meaning the graph was
+            // consulted and said not attested, and `||` would discard it.
+            twitter_verified: storedData.twitter_verified ?? existing.twitter_verified,
+            farcaster_verified: storedData.farcaster_verified ?? existing.farcaster_verified,
             source: [...existing.source, 'graph'],
             // Merge agent fields from social graph
             is_agent: existing.is_agent || storedData.is_agent,

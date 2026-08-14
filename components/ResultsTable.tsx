@@ -7,6 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import type { WalletSocialResult } from '@/lib/types';
 
+type Attestation = 'attested' | 'matched' | 'none' | 'unknown';
+
+/**
+ * Three real states plus an unknown, because collapsing them lies in one
+ * direction or the other.
+ *
+ * - `attested`  at least one identity the owner published themselves.
+ * - `matched`   identities exist, none of them owner-attested.
+ * - `none`      no identity at all. Gets no mark: a hollow dot here would
+ *               describe an empty row as an index match.
+ * - `unknown`   the row never touched the social graph, so verification is
+ *               absent rather than false. Also gets no mark, for the same
+ *               reason: absence of evidence is not evidence of absence.
+ */
+function attestationOf(r: WalletSocialResult): Attestation {
+  const hasIdentity = !!(r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github);
+  if (!hasIdentity) return 'none';
+
+  if (r.twitter_verified === true || r.farcaster_verified === true) return 'attested';
+
+  // An explicit false on either flag means the graph was consulted and said no.
+  // Both undefined means nobody ever asked.
+  const wasChecked = r.twitter_verified !== undefined || r.farcaster_verified !== undefined;
+  return wasChecked ? 'matched' : 'unknown';
+}
+
 /**
  * Custom hook for debouncing a value
  * Prevents expensive operations (like filtering 10K rows) on every keystroke
@@ -317,15 +343,11 @@ export const ResultsTable = memo(function ResultsTable({
           which is how a grid drifts: change one and the columns silently stop
           lining up.
 
-          The leading 18px is the attestation gutter, currently empty. Filling
-          it needs per-identity verification on the client, and right now
-          nothing reliable gets there: the forward pipeline writes stage markers
-          like 'graph' and 'cache' into `source` rather than evidence classes,
-          and socialGraphToResult copies neither `sources` nor the
-          twitter_verified / farcaster_verified flags off the record. Marking
-          rows from that would report owner-attested identities as unattested on
-          the most common path, which is worse than showing nothing. The column
-          stays so the layout does not move when the data lands. */}
+          The leading 18px is the attestation gutter. It reads the
+          twitter_verified / farcaster_verified flags, never `source`: that
+          field holds pipeline stage markers like 'graph' and 'cache' on the
+          forward path, so deriving provenance from it reported owner-attested
+          identities as unattested. */}
       <div className="border rounded-lg overflow-hidden">
         {/* Header */}
         <div className="bg-muted/50 border-b">
@@ -426,12 +448,34 @@ export const ResultsTable = memo(function ResultsTable({
                       gridTemplateColumns: gridTemplate,
                     }}
                   >
-                    {/* Attestation gutter, reserved but not yet populated. See
-                        the header comment on gridTemplate: the mark needs
-                        per-identity verification that does not currently reach
-                        the client, and a green dot driven by anything less
-                        would assert a provenance the row cannot support. */}
-                    <div aria-hidden="true" />
+                    {/* Attestation gutter. Filled means the owner published at
+                        least one of these identities; hollow means they were
+                        matched. Rows with no identity, and rows the graph never
+                        saw, get nothing rather than a mark that would overstate
+                        what is known. The title carries the same fact in words,
+                        so nothing depends on distinguishing two colours. */}
+                    <div className="flex items-start justify-center pt-3">
+                      {(() => {
+                        const state = attestationOf(result);
+                        if (state === 'attested') {
+                          return (
+                            <span
+                              className="h-2 w-2 rounded-full bg-attested"
+                              title="Owner-attested: this identity was published by the address owner"
+                            />
+                          );
+                        }
+                        if (state === 'matched') {
+                          return (
+                            <span
+                              className="h-2 w-2 rounded-full ring-1 ring-inset ring-border"
+                              title="Matched from the index, not owner-attested"
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
 
                     {/* Wallet */}
                     <div className="px-4 py-2 font-mono text-xs">

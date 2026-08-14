@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
       lens: socialGraph.lens,
       github: socialGraph.github,
       sources: socialGraph.sources,
+      twitterVerified: socialGraph.twitterVerified,
+      farcasterVerified: socialGraph.farcasterVerified,
       isAgent: socialGraph.isAgent,
       agentName: socialGraph.agentName,
       agentFramework: socialGraph.agentFramework,
@@ -149,6 +151,8 @@ export async function POST(request: NextRequest) {
     fc_fid: r.fcFid ?? undefined,
     lens: r.lens ?? undefined,
     github: r.github ?? undefined,
+    twitter_verified: r.twitterVerified ?? undefined,
+    farcaster_verified: r.farcasterVerified ?? undefined,
     // Evidence classes, never the internal pipeline identifiers. This reaches
     // the browser and the CSV export, so it is the same disclosure surface the
     // public API has.
