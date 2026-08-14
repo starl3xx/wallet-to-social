@@ -28,8 +28,17 @@ jobs:
           set -uo pipefail
 
           FAMILIES='red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
-          PREFIXES='bg|text|border|ring|from|via|to|decoration|outline|shadow|divide|accent|caret|fill|stroke'
-          PATTERN="(^|[\"' \`])(${PREFIXES})-(${FAMILIES})-[0-9]{2,3}"
+
+          # Not an allowlist of utility prefixes. That version missed
+          # `hover:text-green-500` (the variant occupies the leading slot) and
+          # `prose-blockquote:border-l-emerald-500` (directional suffix, prefix
+          # not on the list) — the second of which was live in the blog page
+          # while this check reported clean.
+          #
+          # Match the family and shade after any hyphen, through any variant
+          # chain. No semantic token contains a palette family name, so
+          # accent-brand / attested / caution / destructive cannot trip it.
+          PATTERN="(^|[\"' \`])([a-z0-9-]+:)*[a-z-]*-(${FAMILIES})-[0-9]{2,3}"
 
           HITS=$(grep -rnE "$PATTERN" app components --include='*.tsx' --include='*.ts' 2>/dev/null || true)
 

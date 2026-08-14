@@ -1377,7 +1377,7 @@ export default function Home() {
                   the rest is genuinely unreachable rather than one click away,
                   and implying otherwise would be worse than saying nothing. */}
               {reverseMeta?.truncated && (
-                <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3 dark:bg-caution/10">
+                <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
                   <p className="text-xs text-caution">
                     Showing {reverseMeta.returnedCount} of{' '}

@@ -472,7 +472,7 @@ export const ResultsTable = memo(function ResultsTable({
                           </span>
                         )}
                         {isEnriched && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent-brand text-white">
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent-brand text-accent-brand-foreground">
                             NEW
                           </span>
                         )}

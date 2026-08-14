@@ -23,7 +23,22 @@ import nextTs from 'eslint-config-next/typescript';
  */
 const TAILWIND_PALETTE =
   '(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)';
-const PALETTE_CLASS = `(?:bg|text|border|ring|from|via|to|decoration|outline|shadow|divide|accent|caret|fill|stroke)-${TAILWIND_PALETTE}-[0-9]{2,3}`;
+
+/**
+ * Deliberately not an allowlist of utility prefixes. The first version listed
+ * them (`bg|text|border|…`) and required whitespace immediately before, which
+ * missed two whole shapes:
+ *
+ *   hover:text-green-500                 variants occupy the leading slot
+ *   prose-blockquote:border-l-emerald-500 directional suffix, unlisted prefix
+ *
+ * The second of those was sitting in the blog page while the guard reported
+ * clean. So match the family and shade wherever they appear after a hyphen,
+ * through any chain of variants. None of the semantic tokens contain a palette
+ * family name, so this cannot fire on `accent-brand`, `attested`, `caution` or
+ * `destructive`.
+ */
+const PALETTE_CLASS = `(?:[a-z0-9-]+:)*[a-z-]*-${TAILWIND_PALETTE}-[0-9]{2,3}`;
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -36,7 +51,7 @@ const eslintConfig = defineConfig([
         {
           // Matches the class string wherever it is written: a className
           // literal, a template chunk, or a variable holding class names.
-          selector: `Literal[value=/(^|\\s)${PALETTE_CLASS}(\\s|$)/]`,
+          selector: `Literal[value=/(^|\\s)${PALETTE_CLASS}(\\/[0-9]{1,3})?(\\s|$)/]`,
           message:
             'Use a semantic colour token, not a raw Tailwind palette class. ' +
             'accent-brand for brand and interactive, attested for owner-published identities only, ' +
@@ -44,7 +59,7 @@ const eslintConfig = defineConfig([
             'See app/globals.css and CLAUDE.md.',
         },
         {
-          selector: `TemplateElement[value.raw=/(^|\\s)${PALETTE_CLASS}(\\s|$)/]`,
+          selector: `TemplateElement[value.raw=/(^|\\s)${PALETTE_CLASS}(\\/[0-9]{1,3})?(\\s|$)/]`,
           message:
             'Use a semantic colour token, not a raw Tailwind palette class. ' +
             'See app/globals.css and CLAUDE.md.',

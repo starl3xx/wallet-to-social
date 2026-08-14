@@ -250,7 +250,7 @@ export function ApiKeysModal({
 
             {/* Shown exactly once, immediately after creation. */}
             {revealedKey && (
-              <div className="rounded-lg border border-caution/30 bg-caution-tint p-3 dark:bg-caution/10">
+              <div className="rounded-lg border border-caution/30 bg-caution-tint p-3">
                 <div className="mb-2 flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
                   <p className="text-xs text-caution">

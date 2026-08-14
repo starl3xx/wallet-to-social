@@ -327,13 +327,20 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="text-sm text-muted-foreground">7-day trend</div>
               {match.trendData.length > 1 ? (
                 <div className="space-y-3">
+                  {/* Two sparklines sit side by side and are already labelled
+                      under each chart, so the legend does not need colour to
+                      tell them apart. It previously used two hues that the
+                      sweep collapsed into one, leaving a key where both
+                      swatches matched and neither matched its line. Solid
+                      versus outlined distinguishes them without reintroducing
+                      a second brand colour for a purely decorative job. */}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-accent-brand rounded" />
+                      <div className="w-3 h-0.5 rounded bg-accent-brand" />
                       <span className="text-xs text-muted-foreground">Twitter</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-accent-brand rounded" />
+                      <div className="w-3 h-0.5 rounded bg-accent-brand/40" />
                       <span className="text-xs text-muted-foreground">Farcaster</span>
                     </div>
                   </div>
@@ -343,7 +350,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                         data={match.trendData.map((d) => d.twitterRate)}
                         width={200}
                         height={40}
-                        color="rgb(59, 130, 246)"
+                        color="var(--accent-brand)"
                       />
                     </div>
                     <div className="flex-1">
@@ -351,7 +358,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                         data={match.trendData.map((d) => d.farcasterRate)}
                         width={200}
                         height={40}
-                        color="rgb(168, 85, 247)"
+                        color="color-mix(in oklch, var(--accent-brand) 40%, transparent)"
                       />
                     </div>
                   </div>

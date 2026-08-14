@@ -131,7 +131,7 @@ export default async function BlogPost({ params }: Props) {
               prose-table:text-sm
               prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
               prose-td:py-3 prose-td:px-4 prose-td:border-b
-              prose-blockquote:border-l-emerald-500 prose-blockquote:text-muted-foreground
+              prose-blockquote:border-l-accent-brand prose-blockquote:text-muted-foreground
               prose-li:text-muted-foreground
               prose-hr:border-border"
             dangerouslySetInnerHTML={{ __html: post.html }}
