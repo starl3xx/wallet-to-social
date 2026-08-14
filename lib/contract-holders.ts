@@ -270,12 +270,102 @@ interface BlockscoutHoldersResponse {
   next_page_params?: Record<string, string | number> | null;
 }
 
+interface BlockscoutV1Response {
+  status?: string;
+  result?: Array<{ address?: string }> | string;
+}
+
+/**
+ * Holders from Blockscout's legacy v1 API, which takes an explicit page/offset
+ * instead of the v2 opaque cursor.
+ *
+ * This is the fast path by a wide margin. v2 caps a page at 50 rows and each
+ * page must wait for the previous one's cursor; v1 accepts offset=5000 and
+ * returns the whole set in one request. Measured on Robinhood Chain:
+ * 5,000 holders in 12.1s here against roughly 288s of v2 paging, and the first
+ * 300 addresses came back identical in the same rank order, so this is a
+ * cheaper route to the same data rather than a different dataset.
+ */
+async function fetchHoldersV1(
+  base: string,
+  address: string,
+  limit: number,
+  headers: Record<string, string>,
+  remainingMs: () => number
+): Promise<string[] | null> {
+  const seen = new Set<string>();
+  // Start big and shrink on failure, like multicallAdaptive in the ENS harvest.
+  // A 5,000-row request is one round trip on a healthy token but can exceed
+  // what a loaded explorer will serve for a very large one, and spending the
+  // whole budget failing at 5,000 leaves nothing for a smaller retry.
+  const PAGE_SIZES = [5000, 1000, 200];
+  let sizeIndex = 0;
+
+  for (let page = 1; seen.size < limit; page++) {
+    const budget = remainingMs();
+    if (budget <= 0) break;
+
+    const want = Math.min(PAGE_SIZES[sizeIndex], limit - seen.size);
+    const url =
+      `${base}/api?module=token&action=getTokenHolders` +
+      `&contractaddress=${address}&page=${page}&offset=${want}`;
+
+    let json: BlockscoutV1Response;
+    try {
+      const res = await withTimeout(
+        fetch(url, { headers }),
+        Math.min(20_000, Math.max(2_000, budget)),
+        'Blockscout v1 holders timed out'
+      );
+      // A rate limit is not a size problem. Shrinking and retrying against a
+      // 429 just spends the budget earning more 429s, and the public explorer
+      // throttles hard enough that a burst of imports can lock the feature out
+      // for everyone. Surface it immediately so the caller can say so.
+      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (!res.ok) throw new Error(`Blockscout v1 ${res.status}`);
+      json = (await res.json()) as BlockscoutV1Response;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RATE_LIMIT') {
+        if (seen.size > 0) return Array.from(seen);
+        throw error;
+      }
+      // Shrink and retry only while nothing has been collected. Page numbering
+      // is relative to the page size, so changing it mid-stream would skip or
+      // repeat rows; with an empty set there is no stream yet to corrupt.
+      if (seen.size === 0 && sizeIndex < PAGE_SIZES.length - 1) {
+        sizeIndex++;
+        page--;
+        continue;
+      }
+      return seen.size > 0 ? Array.from(seen) : null;
+    }
+
+    // v1 reports "no records found" as status 0 with a string result
+    if (json.status !== '1' || !Array.isArray(json.result)) {
+      return seen.size > 0 ? Array.from(seen) : null;
+    }
+
+    const rows = json.result;
+    for (const row of rows) {
+      const a = row.address?.toLowerCase();
+      if (a?.startsWith('0x')) seen.add(a);
+      if (seen.size >= limit) break;
+    }
+
+    // A short page is the last page
+    if (rows.length < want) break;
+  }
+
+  return Array.from(seen);
+}
+
 /**
  * ERC-20 holders from a Blockscout explorer.
  *
- * Pages are 50 rows with a cursor, so a 10k import is ~200 requests against a
- * public explorer. Requests are paced and the page count is bounded so a token
- * with a very large holder set cannot turn one import into an unbounded crawl.
+ * Tries the bulk v1 endpoint first and falls back to v2 cursor paging, so a
+ * deployment that has retired v1 still works, just slower. Both paths are
+ * bounded by a wall-clock budget: a public explorer can be slow, and a partial
+ * list returned in time beats an error after the route's own ceiling.
  */
 async function getERC20HoldersBlockscout(
   address: string,
@@ -289,12 +379,20 @@ async function getERC20HoldersBlockscout(
   const seen = new Set<string>();
   let totalHolders = 0;
 
+  // ONE budget for everything this function does, started before the first
+  // request. The v1 attempt and the v2 fallback must share it: giving each its
+  // own timer let a slow token spend 40s failing over v1 and then a further 40s
+  // on v2, for 71s against a route whose ceiling is 60.
+  const startedAt = Date.now();
+  const BUDGET_MS = 40_000;
+  const remainingMs = () => BUDGET_MS - (Date.now() - startedAt);
+
   // Holder count comes from the token record; the holders list itself does not
   // report a total, and we need it to tell the caller the result was truncated.
   try {
     const metaRes = await withTimeout(
       fetch(`${base}/api/v2/tokens/${address}`, { headers }),
-      15000,
+      Math.min(10_000, Math.max(2_000, remainingMs())),
       'Blockscout token lookup timed out'
     );
     if (metaRes.ok) {
@@ -305,6 +403,11 @@ async function getERC20HoldersBlockscout(
     // Non-fatal: a missing total only costs an accurate `truncated` flag
   }
 
+  const v1 = await fetchHoldersV1(base, address, limit, headers, remainingMs);
+  if (v1 && v1.length > 0) {
+    return { wallets: v1.slice(0, limit), totalHolders: totalHolders || v1.length };
+  }
+
   let params: Record<string, string | number> | null = null;
   const MAX_PAGES = Math.ceil(limit / 50) + 5;
 
@@ -313,10 +416,6 @@ async function getERC20HoldersBlockscout(
   // maxDuration. Stop at a budget and return what was collected rather than
   // letting the whole import time out and give the caller nothing. The result
   // still reports the true holder count, so it is correctly marked truncated.
-  const startedAt = Date.now();
-  const BUDGET_MS = 40_000;
-  const remainingMs = () => BUDGET_MS - (Date.now() - startedAt);
-
   for (let page = 0; page < MAX_PAGES && seen.size < limit; page++) {
     if (remainingMs() <= 0) break;
     const url = new URL(`${base}/api/v2/tokens/${address}/holders`);
