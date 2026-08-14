@@ -210,8 +210,11 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
+          {/* Inside ThemeProvider so the widget follows the site's own theme
+              toggle, but outside AuthProvider so sign-in state does not
+              re-render it. */}
+          <DocsChat />
         </ThemeProvider>
-        <DocsChat />
         <Analytics />
       </body>
     </html>

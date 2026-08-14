@@ -67,6 +67,46 @@ Both were verified against the live endpoint after setup:
 indexed corpus.** They are the regression test for the only failure mode here
 that costs real money, which is a confident wrong answer to a prospect.
 
+## What the widget can and cannot be customized
+
+Read out of the pinned bundle (`v0.0.25`), not from Cloudflare's docs, which do
+not enumerate this.
+
+**`chat-bubble-snippet` accepts exactly four attributes.** Everything else that
+looks configurable is not.
+
+| Attribute | Default | Notes |
+|---|---|---|
+| `api-url` | `http://localhost:3000` | Required. Logs an error and no-ops if absent. |
+| `placeholder` | `Type a message...` | The input placeholder only. |
+| `theme` | `auto` | `auto` \| `light` \| `dark`. `auto` reads `prefers-color-scheme`, which ignores our own toggle, so we pass `resolvedTheme`. |
+| `hide-branding` | `false` | Removes the "Powered by Cloudflare AI Search" footer. We set it: CLAUDE.md forbids naming an API provider in the UI. |
+
+**Visuals are fully controllable** through 58 `--search-snippet-*` custom
+properties (colors, spacing, radii, shadows, fonts, z-index) plus 10
+`--chat-bubble-*` ones for the floating button specifically
+(`-size`, `-radius`, `-bottom`, `-right`, `-icon-color`, `-icon-size`,
+`-shadow`, `-z-index`, and `--chat-bubble-position`).
+
+**The remaining copy is hardcoded** in the widget's template with no attribute:
+the header title ("Chat"), and the empty state ("Start a Conversation" /
+"Send a message to begin chatting").
+
+Its shadow root is `mode: "open"`, so `components/DocsChat.tsx` overrides those
+three strings by zeroing the font size and substituting generated content. Two
+things make that safe rather than reckless:
+
+- The bundle version is **pinned in the URL**. The overrides target private
+  class names (`.chat-header-title`, `.chat-empty-title`,
+  `.chat-empty-description`), so an upgrade means re-checking them.
+- They are injected via **`adoptedStyleSheets`**, not an appended `<style>`.
+  The widget re-renders by replacing its shadow DOM, which would silently
+  discard an appended node the first time a message arrived. Adopted sheets
+  attach to the shadow root itself and survive.
+
+If a future version breaks the selectors the failure is visible and harmless:
+the stock text comes back.
+
 ## Limits
 
 | Guard | Value |
