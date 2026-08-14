@@ -31,7 +31,12 @@ export function ReverseLookup({
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [emptyFor, setEmptyFor] = useState<string | null>(null);
+  // Pins the platform that was actually queried, not the live toggle. The two
+  // networks get opposite explanations for an empty result, so reading the
+  // toggle at render time meant flipping it after a miss rewrote the reason:
+  // an X miss could be explained as complete Farcaster coverage, which is the
+  // exact conflation the copy exists to prevent.
+  const [empty, setEmpty] = useState<{ handle: string; platform: Platform } | null>(null);
 
   const submit = useCallback(async () => {
     const value = handle.trim();
@@ -47,7 +52,7 @@ export function ReverseLookup({
 
     setLoading(true);
     setError(null);
-    setEmptyFor(null);
+    setEmpty(null);
     try {
       const res = await fetch('/api/reverse', {
         method: 'POST',
@@ -67,7 +72,7 @@ export function ReverseLookup({
       if (!res.ok) throw new Error(data.error || 'Lookup failed');
 
       if (!data.results?.length) {
-        setEmptyFor(value.replace(/^@/, ''));
+        setEmpty({ handle: value.replace(/^@/, ''), platform });
         return;
       }
 
@@ -122,7 +127,12 @@ export function ReverseLookup({
 
         <Input
           value={handle}
-          onChange={(e) => setHandle(e.target.value)}
+          onChange={(e) => {
+            setHandle(e.target.value);
+            // The previous miss describes a handle the user is no longer asking
+            // about, so drop it rather than leave it hanging under a new query.
+            if (empty) setEmpty(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit();
           }}
@@ -143,15 +153,15 @@ export function ReverseLookup({
         </div>
       )}
 
-      {emptyFor && (
+      {empty && (
         <p className="mt-3 text-sm text-muted-foreground">
           No wallets found for{' '}
           <span className="font-medium text-foreground">
-            {platform === 'twitter' ? '@' : ''}
-            {emptyFor}
+            {empty.platform === 'twitter' ? '@' : ''}
+            {empty.handle}
           </span>
           .{' '}
-          {platform === 'farcaster'
+          {empty.platform === 'farcaster'
             ? 'Farcaster coverage is complete, so this account genuinely has no addresses attached.'
             : 'X handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.'}
         </p>
