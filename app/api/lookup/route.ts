@@ -375,6 +375,7 @@ export async function POST(request: NextRequest) {
                   if (!result.twitter_handle && storedData.twitter_handle) {
                     result.twitter_handle = storedData.twitter_handle;
                     result.twitter_url = storedData.twitter_url;
+                    result.twitter_verified = storedData.twitter_verified;
                     wasEnriched = true;
                   }
                   if (!result.farcaster && storedData.farcaster) {
@@ -382,6 +383,7 @@ export async function POST(request: NextRequest) {
                     result.farcaster_url = storedData.farcaster_url;
                     result.fc_followers = storedData.fc_followers;
                     result.fc_fid = storedData.fc_fid;
+                    result.farcaster_verified = storedData.farcaster_verified;
                     wasEnriched = true;
                   }
                   if (!result.lens && storedData.lens) {

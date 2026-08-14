@@ -346,11 +346,13 @@ export const walletLookup = inngest.createFunction(
             if (!result.twitter_handle && storedData.twitter_handle) {
               result.twitter_handle = storedData.twitter_handle;
               result.twitter_url = storedData.twitter_url;
+              result.twitter_verified = storedData.twitter_verified;
             }
             if (!result.farcaster && storedData.farcaster) {
               result.farcaster = storedData.farcaster;
               result.farcaster_url = storedData.farcaster_url;
               result.fc_followers = storedData.fc_followers;
+              result.farcaster_verified = storedData.farcaster_verified;
             }
             if (!result.lens && storedData.lens) result.lens = storedData.lens;
             if (!result.github && storedData.github) result.github = storedData.github;
