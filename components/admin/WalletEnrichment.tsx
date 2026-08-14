@@ -276,7 +276,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                         {walletData.sources?.map((s) => (
                           <span
                             key={s}
-                            className={`px-1.5 py-0.5 text-xs rounded ${
+                            className={`px-1.5 py-0.5 text-xs rounded-sm ${
                               s === 'manual' ? 'bg-accent-brand-tint text-accent-brand' : 'bg-muted'
                             }`}
                           >

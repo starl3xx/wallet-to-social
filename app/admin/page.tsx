@@ -681,7 +681,7 @@ export default function AdminPage() {
           <CardTitle>Jobs ({jobs.length})</CardTitle>
           <div className="flex items-center gap-2">
             <select
-              className="px-3 py-1.5 text-sm border rounded-md bg-background"
+              className="px-3 py-1.5 text-sm border rounded-lg bg-background"
               value={jobStatusFilter}
               onChange={(e) => {
                 setJobStatusFilter(e.target.value);
@@ -908,7 +908,7 @@ export default function AdminPage() {
                             {result.source?.map((s) => (
                               <span
                                 key={s}
-                                className="px-1.5 py-0.5 text-xs rounded bg-muted"
+                                className="px-1.5 py-0.5 text-xs rounded-sm bg-muted"
                               >
                                 {s}
                               </span>
@@ -1049,7 +1049,7 @@ export default function AdminPage() {
         <CardTitle>Users ({usersList.length})</CardTitle>
         <div className="flex items-center gap-2">
           <select
-            className="px-3 py-1.5 text-sm border rounded-md bg-background"
+            className="px-3 py-1.5 text-sm border rounded-lg bg-background"
             value={tierFilter}
             onChange={(e) => {
               setTierFilter(e.target.value);
@@ -1113,7 +1113,7 @@ export default function AdminPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <select
-                          className="px-2 py-1 text-xs border rounded bg-background"
+                          className="px-2 py-1 text-xs border rounded-sm bg-background"
                           value={user.tier}
                           onChange={(e) => handleUpdateTier(user.id, e.target.value)}
                         >

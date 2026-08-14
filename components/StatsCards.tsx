@@ -67,7 +67,7 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
                 {card.value.toLocaleString()}
               </p>
               {card.title !== 'Total wallets' && stats.total > 0 && (
-                <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-md ${tone.badge}`}>
+                <span className={`inline-block text-xs font-medium mt-1 px-2 py-0.5 rounded-lg ${tone.badge}`}>
                   {((card.value / stats.total) * 100).toFixed(1)}% of total
                 </span>
               )}

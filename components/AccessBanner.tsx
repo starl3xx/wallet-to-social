@@ -42,7 +42,7 @@ export function AccessBanner({
         <div className="relative">
           <button
             onClick={() => setShowDropdown(!showDropdown)}
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-md text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-lg text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <span className="max-w-[80px] sm:max-w-[150px] truncate">{user.email}</span>
             <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -54,7 +54,7 @@ export function AccessBanner({
                 className="fixed inset-0 z-40"
                 onClick={() => setShowDropdown(false)}
               />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-lg py-1 min-w-[160px]">
+              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px]">
                 {/* Shown to every signed-in account, not just the tiers that
                     have API access. For Free the modal explains what the API
                     does and routes to plans, which is a better answer than
