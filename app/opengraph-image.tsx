@@ -65,7 +65,12 @@ export default async function OGImage() {
               lineHeight: 1.35,
             }}
           >
-            Farcaster usernames, 𝕏 handles and ENS names. Attested, never inferred.
+            {/* Plain X here, not 𝕏. Söhne has no U+1D54F, and Satori renders
+                with only the fonts handed to it: there is no fallback chain to
+                borrow the glyph from, so the styled character comes out as a
+                missing-glyph box. Browsers fall back automatically, which is
+                why the app UI can keep 𝕏 and this cannot. */}
+            Farcaster usernames, X handles and ENS names. Attested, never inferred.
           </div>
         </div>
 
@@ -80,7 +85,7 @@ export default async function OGImage() {
                   card is the first thing anyone sees, so it states the number a
                   campaign can actually be planned against. */}
               <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em', color: OG.brand }}>13%</span>
-              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>reachable on 𝕏 or Farcaster</span>
+              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>reachable on X or Farcaster</span>
             </div>
           </div>
 
