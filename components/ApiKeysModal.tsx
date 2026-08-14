@@ -58,6 +58,10 @@ export function ApiKeysModal({
 }: ApiKeysModalProps) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
+  // Separates "nothing here" from "not asked yet". Without it the first paint
+  // renders an empty array as a settled answer, so an account with keys is
+  // briefly told it has none.
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -84,6 +88,7 @@ export function ApiKeysModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load your API keys');
       setKeys(data.keys ?? []);
+      setHasLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your API keys');
     } finally {
@@ -96,13 +101,19 @@ export function ApiKeysModal({
   }, [open, hasApiAccess, loadKeys]);
 
   const handleClose = useCallback(() => {
+    // Refuse to close while a key is being minted. The server creates it
+    // regardless of what the client does, and it is returned exactly once, so
+    // closing here would leave a real key that nobody ever saw: unusable,
+    // unrecoverable, and still consuming one of the ten active slots. A blocked
+    // dismiss for a moment is much cheaper than a phantom key.
+    if (creating) return;
     setRevealedKey(null);
     setNewKeyName('');
     setError(null);
     setConfirmRevokeId(null);
     setCopied(false);
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [creating, onOpenChange]);
 
   const handleCreate = useCallback(async () => {
     const name = newKeyName.trim();
@@ -268,11 +279,11 @@ export function ApiKeysModal({
             )}
 
             {/* Existing keys */}
-            {loading ? (
+            {loading && !hasLoaded ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ) : activeKeys.length === 0 ? (
+            ) : hasLoaded && activeKeys.length === 0 ? (
               <p className="py-2 text-sm text-muted-foreground">
                 No active keys yet. Create one below to start using the API.
               </p>
@@ -362,8 +373,9 @@ export function ApiKeysModal({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Name it after where it runs, so a leaked key is easy to trace.
-                Up to 10 active keys.
+                {creating
+                  ? 'Creating your key. Keep this open, it is shown only once.'
+                  : 'Name it after where it runs, so a leaked key is easy to trace. Up to 10 active keys.'}
               </p>
             </div>
           </div>
