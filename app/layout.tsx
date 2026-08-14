@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
   title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
   description:
-    'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a 4.7M-wallet identity index with complete Farcaster coverage. Twitter matches are owner-attested: verified on Farcaster or set in an onchain ENS record. Token holder outreach, airdrop campaigns, and DAO engagement across Ethereum, Base, and Robinhood Chain. No sales calls, instant access.',
+    'Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a 4.7M-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.',
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -47,11 +47,16 @@ export const metadata: Metadata = {
     'find robinhood chain holders twitter',
     'base nft holder lookup',
     'multi chain wallet to social',
+    'arbitrum nft holder lookup',
+    'polygon token holder outreach',
+    'optimism nft holders twitter',
+    'bnb chain token holders',
+    'find nft holders across chains',
   ],
   openGraph: {
     title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
     description:
-      'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a 4.7M-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across Ethereum, Base, and Robinhood Chain for token holder outreach, airdrop campaigns, and community engagement. No sales calls.',
+      'Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a 4.7M-wallet index. No sales calls.',
     type: 'website',
     siteName: 'walletlink.social',
   },
@@ -59,7 +64,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
     description:
-      'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a 4.7M-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across Ethereum, Base, and Robinhood Chain.',
+      'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a 4.7M-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.',
     creator: '@starl3xx',
   },
   alternates: {
@@ -166,7 +171,7 @@ const faqSchema = {
       name: 'Which blockchains does walletlink.social support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social supports Ethereum, Base, and Robinhood Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection directly from its contract address. Both NFT and ERC-20 token holder import work on all three networks.',
+        text: 'walletlink.social supports seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection or ERC-20 token directly from its contract address. Both import types work on every supported network.',
       },
     },
     {

@@ -211,7 +211,7 @@ export default function BlazeComparison() {
                     <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
                       <Check className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro and Unlimited: Ethereum, Base, Robinhood Chain)
+                        (Pro and Unlimited, on all seven supported chains)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">

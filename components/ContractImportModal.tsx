@@ -167,26 +167,43 @@ export function ContractImportModal({
               )}
             </div>
 
-            {/* Chain selector */}
+            {/* Chain selector. A wrapped row of small radios was legible at
+                three networks and cramped at seven, and the selected one was a
+                dot you had to hunt for. Selectable tiles keep every option
+                scannable and make the current choice obvious at a glance. */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Network</label>
-              <div className="flex flex-wrap gap-3">
-                {SUPPORTED_CHAINS.map((c) => (
-                  <label
-                    key={c}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="chain"
-                      value={c}
-                      checked={chain === c}
-                      onChange={() => setChain(c)}
-                      className="text-primary"
-                    />
-                    <span className="text-sm">{CHAIN_LABELS[c]}</span>
-                  </label>
-                ))}
+              <div className="flex items-baseline justify-between gap-2">
+                <label id="network-label" className="text-sm font-medium">
+                  Network
+                </label>
+                <span className="text-xs text-muted-foreground">
+                  the network this contract is deployed on
+                </span>
+              </div>
+              <div
+                role="radiogroup"
+                aria-labelledby="network-label"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+              >
+                {SUPPORTED_CHAINS.map((c) => {
+                  const selected = chain === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setChain(c)}
+                      className={`rounded-md border px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        selected
+                          ? 'border-foreground bg-muted font-medium'
+                          : 'border-border hover:border-foreground/30 hover:bg-muted/40'
+                      }`}
+                    >
+                      {CHAIN_LABELS[c]}
+                    </button>
+                  );
+                })}
               </div>
               {!ERC20_SUPPORTED_CHAINS.includes(chain) && (
                 <p className="text-xs text-muted-foreground">
