@@ -9,6 +9,7 @@ import { ExportButton } from '@/components/ExportButton';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
+import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AccessBanner } from '@/components/AccessBanner';
@@ -26,7 +27,7 @@ import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Pencil, Plus, Check, X, Send } from 'lucide-react';
+import { Pencil, Plus, Check, X, Send, AlertTriangle } from 'lucide-react';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
@@ -121,6 +122,10 @@ export default function Home() {
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
   const [currentLookupName, setCurrentLookupName] = useState<string | null>(null);
+  // Set only for reverse lookups. Drives the truncation notice, which matters
+  // because the endpoint caps at 100 with no pagination, so a popular handle
+  // silently returns a partial answer unless we say so.
+  const [reverseMeta, setReverseMeta] = useState<ReverseMeta | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [enrichedWallets, setEnrichedWallets] = useState<Set<string>>(new Set());
@@ -655,6 +660,23 @@ export default function Home() {
     setState('ready');
   }, []);
 
+  // Reverse results land in the same `results` state as a forward lookup, so
+  // the table, stats cards and CSV export all work unchanged. The only thing
+  // that differs is the truncation notice.
+  const handleReverseResults = useCallback(
+    (reverseResults: WalletSocialResult[], label: string, meta: ReverseMeta) => {
+      setResults(reverseResults);
+      setExtraColumns([]);
+      setOriginalData({});
+      setCurrentLookupId(null);
+      setCurrentLookupName(`Wallets for ${label}`);
+      setReverseMeta(meta);
+      setError(null);
+      setState('complete');
+    },
+    []
+  );
+
   const handleReset = useCallback(() => {
     // Stop any active polling
     if (pollingRef.current) {
@@ -670,6 +692,7 @@ export default function Home() {
     setError(null);
     setCacheHits(0);
     setLookupName('');
+    setReverseMeta(null);
     setIncludeENS(false);
     setFastMode(false);
     setShowPasteInput(false);
@@ -1043,6 +1066,16 @@ export default function Home() {
                 )}
               </div>
 
+              {/* The other direction. Featured on the front page rather than
+                  buried, because it is the differentiator and it was previously
+                  sold in the upgrade modal with no interface anywhere. */}
+              <ReverseLookup
+                locked={userTier !== 'pro' && userTier !== 'unlimited'}
+                onUpgradeClick={handleOpenUpgradeModal}
+                onSignInRequired={() => setShowAuthModal(true)}
+                onResults={handleReverseResults}
+              />
+
               {/* Derived from SUPPORTED_CHAINS rather than typed out, so adding
                   a chain updates the page instead of leaving stale copy behind */}
               <p className="text-center text-xs text-muted-foreground">
@@ -1320,6 +1353,24 @@ export default function Home() {
                   />
                 </div>
               </div>
+
+              {/* Report the cap honestly. There is no pagination behind it, so
+                  the rest is genuinely unreachable rather than one click away,
+                  and implying otherwise would be worse than saying nothing. */}
+              {reverseMeta?.truncated && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-50 p-3 dark:bg-amber-500/10">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Showing {reverseMeta.returnedCount} of{' '}
+                    {reverseMeta.totalCount.toLocaleString()} wallets, ordered by
+                    Farcaster reach. Need the full set?{' '}
+                    <a href="mailto:help@walletlink.social" className="underline">
+                      Get in touch
+                    </a>
+                    .
+                  </p>
+                </div>
+              )}
 
               <StatsCards results={results} />
               <ResultsTable
