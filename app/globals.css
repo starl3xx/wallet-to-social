@@ -110,6 +110,12 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success-light: var(--success-light);
   --color-success-foreground: var(--success-foreground);
+  /* An intentionally inverse surface. The product has three of them already: the
+     dark share card, code blocks, and the blog post hero. Naming it is better than
+     letting each one reach for a raw neutral. It does NOT flip in dark mode. */
+  --color-surface-inverse: var(--surface-inverse);
+  --color-surface-inverse-foreground: var(--surface-inverse-foreground);
+  --color-surface-inverse-muted: var(--surface-inverse-muted);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -166,6 +172,13 @@
      there is only one green in the product. */
   --success-light: oklch(0.96 0.03 162);
   --success-foreground: oklch(0.42 0.10 162);
+
+  /* Deliberately fixed in both themes: an inverse surface is a design decision,
+     not a theme response. Restated identically under .dark so nothing inherits a
+     flip from the tokens above it. */
+  --surface-inverse: oklch(0.16 0.02 280);
+  --surface-inverse-foreground: oklch(0.97 0.01 280);
+  --surface-inverse-muted: oklch(0.72 0.02 280);
 }
 
 .dark {
@@ -216,6 +229,11 @@
 
   --success-light: oklch(0.28 0.05 162);
   --success-foreground: oklch(0.75 0.13 162);
+
+  /* Identical to :root on purpose. See the note there. */
+  --surface-inverse: oklch(0.16 0.02 280);
+  --surface-inverse-foreground: oklch(0.97 0.01 280);
+  --surface-inverse-muted: oklch(0.72 0.02 280);
 }
 
 @layer base {

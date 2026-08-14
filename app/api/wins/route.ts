@@ -8,6 +8,13 @@ export interface RecentWin {
   walletCount: number;
   twitterFound: number;
   farcasterFound: number;
+  /**
+   * Unique wallets with any social. NOT twitterFound + farcasterFound: a wallet
+   * with both accounts appears in each of those, so the sum overcounts and
+   * disagrees with socialRate, which is computed from this. Resolved here rather
+   * than on the client so the old-job fallback exists in exactly one place.
+   */
+  anySocialFound: number;
   socialRate: number; // percentage
   completedAt: string;
 }
@@ -70,6 +77,7 @@ export async function GET(request: NextRequest) {
           walletCount: job.walletCount,
           twitterFound: job.twitterFound,
           farcasterFound: job.farcasterFound,
+          anySocialFound: anyFound,
           socialRate,
           completedAt: job.completedAt?.toISOString() || '',
         };
