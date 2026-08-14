@@ -274,7 +274,7 @@ export const ResultsTable = memo(function ResultsTable({
           <div
             key={i}
             className={`w-1 h-3 rounded-sm ${
-              i < level ? 'bg-accent-brand' : 'bg-gray-200 dark:bg-gray-700'
+              i < level ? 'bg-accent-brand' : 'bg-muted'
             }`}
           />
         ))}
@@ -494,17 +494,12 @@ export const ResultsTable = memo(function ResultsTable({
                         </button>
                         {result.is_agent && (
                           <span
-                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded text-white ${
-                              result.agent_framework === 'virtuals'
-                                ? 'bg-accent-brand'
-                                : result.agent_framework === 'erc8004'
-                                  ? 'bg-caution'
-                                  : result.agent_framework === 'elizaos'
-                                    ? 'bg-accent-brand'
-                                    : result.agent_framework === 'olas'
-                                      ? 'bg-accent-brand'
-                                      : 'bg-gray-500'
-                            }`}
+                            /* One meaning, one colour: "agent" is a single fact, and the
+                               five framework branches this replaces resolved to three
+                               colours with three of them identical. Capped and truncated
+                               because agent_name is third-party data with no length bound,
+                               and this row has a fixed 44px height it must not change. */
+                            className="shrink-0 max-w-[12ch] truncate whitespace-nowrap rounded-sm bg-accent-brand-tint px-1.5 py-0.5 text-xs font-medium text-accent-brand"
                             title={[
                               result.agent_name,
                               result.agent_framework && `Framework: ${result.agent_framework}`,

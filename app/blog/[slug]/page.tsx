@@ -78,12 +78,12 @@ export default async function BlogPost({ params }: Props) {
       />
       <div className="min-h-screen bg-background">
         {/* Hero banner */}
-        <div className="bg-gradient-to-br from-neutral-950 via-[#1a1a2e] to-neutral-950 text-white">
+        <div className="bg-surface-inverse text-surface-inverse-foreground">
           <div className="container mx-auto px-4 max-w-4xl py-16">
             <div className="flex items-center gap-4 mb-8">
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+                className="inline-flex items-center gap-2 text-surface-inverse-muted hover:text-surface-inverse-foreground transition-colors"
               >
                 <Image
                   src="/icon.png"
@@ -94,10 +94,10 @@ export default async function BlogPost({ params }: Props) {
                 />
                 <span className="text-sm font-medium">walletlink.social</span>
               </Link>
-              <span className="text-neutral-600">/</span>
+              <span className="text-surface-inverse-muted">/</span>
               <Link
                 href="/blog"
-                className="text-sm text-neutral-400 hover:text-white transition-colors"
+                className="text-sm text-surface-inverse-muted hover:text-surface-inverse-foreground transition-colors"
               >
                 Blog
               </Link>
@@ -106,10 +106,10 @@ export default async function BlogPost({ params }: Props) {
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
               {post.title}
             </h1>
-            <p className="text-xl text-neutral-400 max-w-2xl">
+            <p className="text-xl text-surface-inverse-muted max-w-2xl">
               {post.description}
             </p>
-            <div className="mt-6 flex items-center gap-4 text-sm text-neutral-500">
+            <div className="mt-6 flex items-center gap-4 text-sm text-surface-inverse-muted">
               <span>{new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
           </div>

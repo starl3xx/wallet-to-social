@@ -445,7 +445,7 @@ export default function AdminPage() {
   // Status badge helper
   const StatusBadge = ({ status }: { status: string }) => {
     const colors: Record<string, string> = {
-      pending: 'bg-gray-100 text-gray-800',
+      pending: 'bg-muted text-muted-foreground',
       processing: 'bg-accent-brand-tint text-accent-brand',
       completed: 'bg-accent-brand-tint text-accent-brand',
       failed: 'bg-destructive/10 text-destructive',
@@ -469,7 +469,7 @@ export default function AdminPage() {
       );
     }
     const colors: Record<string, string> = {
-      free: 'bg-gray-100 text-gray-800',
+      free: 'bg-muted text-muted-foreground',
       pro: 'bg-accent-brand-tint text-accent-brand',
       unlimited: 'bg-caution-tint text-caution',
     };
@@ -1002,7 +1002,7 @@ export default function AdminPage() {
                             ? 'bg-accent-brand-tint text-accent-brand'
                             : entry.inputSource === 'contract_import'
                             ? 'bg-accent-brand-tint text-accent-brand'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            : 'bg-muted text-muted-foreground'
                         }`}>
                           {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource === 'contract_import' ? 'Contract' : entry.inputSource}
                         </span>

@@ -16,18 +16,32 @@ on:
     paths:
       - 'app/**'
       - 'components/**'
+      - 'eslint.config.mjs'
+      - 'scripts/check-palette-guard.mjs'
+      - '.github/workflows/design-tokens.yml'
 
 jobs:
   palette:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Runs first on purpose. A guard verified only against code that already
+      # passes proves nothing; this feeds it known violations it must catch and
+      # valid tokens it must not flag.
+      - name: The guard catches what it claims to
+        run: node scripts/check-palette-guard.mjs
 
       - name: No raw Tailwind palette classes
         run: |
           set -uo pipefail
 
-          FAMILIES='red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
+          # All 22 shaded families. The neutrals were missing until now, and the
+          # check reported clean over 18 live violations because of it.
+          FAMILIES='red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone'
 
           # Not an allowlist of utility prefixes. That version missed
           # `hover:text-green-500` (the variant occupies the leading slot) and
@@ -49,5 +63,5 @@ jobs:
 
           echo "$HITS"
           echo
-          echo "::error::Raw Tailwind palette classes found. Use a semantic token: accent-brand (brand and interactive), attested (owner-published identities only), caution (limits, staleness), destructive (removal), or muted. See app/globals.css and CLAUDE.md."
+          echo "::error::Raw Tailwind palette classes found. Use a semantic token: accent-brand (brand and interactive), attested (a measured fact), caution (limits, staleness), destructive (removal), or muted. See app/globals.css and CLAUDE.md."
           exit 1

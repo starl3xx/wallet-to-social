@@ -7,6 +7,7 @@ interface RecentWin {
   walletCount: number;
   twitterFound: number;
   farcasterFound: number;
+  anySocialFound: number;
   socialRate: number;
   completedAt: string;
 }
@@ -37,28 +38,11 @@ const FarcasterIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Checkmark icon for "win" indicator
-const CheckIcon = ({ className }: { className?: string }) => (
-  <svg
-    width="10"
-    height="10"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
-
 // Pulsing dot indicator
 const LiveDot = () => (
   <span className="relative flex h-2 w-2">
-    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-brand opacity-75" />
-    <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-brand" />
+    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-attested opacity-75" />
+    <span className="relative inline-flex rounded-full h-2 w-2 bg-attested" />
   </span>
 );
 
@@ -124,15 +108,15 @@ export const RecentWins = memo(function RecentWins() {
         </h3>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pt-1 pb-2 -mx-1 px-1 -mt-1">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 pt-1 pb-2 -mx-1 px-1 -mt-1">
         {wins.map((win, index) => {
           const recent = isRecent(win.completedAt);
-          const totalFound = win.twitterFound + win.farcasterFound;
+          const totalFound = win.anySocialFound;
           return (
             <div
               key={win.id}
               className={`
-                flex-shrink-0 w-48 p-4 rounded-xl
+                min-w-0 p-4 rounded-xl
                 bg-gradient-to-br from-card to-muted/30
                 border border-border/60
                 shadow-sm
@@ -153,8 +137,11 @@ export const RecentWins = memo(function RecentWins() {
                   <p className="text-2xl font-bold tabular-nums tracking-tight text-accent-brand">
                     {totalFound.toLocaleString()}
                   </p>
+                  {/* "wallets reached", not "socials found": this is now the unique
+                      wallet count, so the two platform figures below it can legitimately
+                      sum higher, and that difference is the overlap. */}
                   <p className="text-xs text-muted-foreground -mt-0.5">
-                    socials found
+                    wallets reached
                   </p>
                 </div>
                 <span className={`
@@ -181,12 +168,15 @@ export const RecentWins = memo(function RecentWins() {
               </div>
 
               {/* Footer: wallet count + consistent "win" badge */}
-              <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+              <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {win.walletCount.toLocaleString()} wallets
                 </span>
-                <span className="text-[10px] font-semibold text-accent-brand bg-accent-brand-tint/40 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-                  <CheckIcon />
+                {/* Green because a hit rate is a measured outcome, not an affordance.
+                    The tick is gone: green already carries the claim, and a leading
+                    glyph on something unpressable is what makes a label look like a
+                    control. */}
+                <span className="text-xs font-medium text-attested bg-attested-tint px-1.5 py-0.5 rounded-sm whitespace-nowrap tabular-nums">
                   {win.socialRate}% hit rate
                 </span>
               </div>
