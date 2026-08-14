@@ -12,6 +12,18 @@ export interface WalletSocialResult {
   lens?: string;
   github?: string;
   source: string[];
+  /**
+   * Whether each identity was attested by the address owner rather than
+   * correlated from an index.
+   *
+   * `undefined` is a third state and means "not known on this path", not
+   * "false". Rows resolved without touching the social graph carry no
+   * verification information at all, and rendering that as unattested would be
+   * a claim the record does not make. Anything reading these must distinguish
+   * absent from false.
+   */
+  twitter_verified?: boolean;
+  farcaster_verified?: boolean;
   // Agent detection metadata
   is_agent?: boolean;
   agent_name?: string;
