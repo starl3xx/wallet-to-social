@@ -137,7 +137,7 @@ export function ReverseLookup({
                 // accessible name from that label unless one is given here.
                 aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
               />
-              <span className="block rounded-full px-4 py-1.5 text-sm text-muted-foreground transition-colors peer-checked:bg-background peer-checked:font-semibold peer-checked:text-accent-brand peer-checked: peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1">
+              <span className="block rounded-full px-4 py-1.5 text-sm text-muted-foreground transition-colors peer-checked:bg-background peer-checked:font-semibold peer-checked:text-accent-brand peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1">
                 {p === 'twitter' ? '𝕏' : 'Farcaster'}
               </span>
             </label>

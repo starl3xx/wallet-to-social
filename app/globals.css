@@ -262,21 +262,21 @@
       border-color var(--duration-fast) var(--ease-out-soft),
       transform var(--duration-press) var(--ease-out-soft);
   }
-  /* Hover is gated: on touch there is no hover, and an ungated hover style latches
-     after a tap. Press is the feedback that works on both. */
-  @media (hover: none) {
-    .transition-control:hover {
-      background-color: revert-layer;
-    }
+}
+
+/* Unlayered on purpose. These have to beat Tailwind's `active:` and
+   `transition-*` utilities, and anything inside @layer components loses to a
+   utility regardless of source order. Tailwind v4 already wraps every `hover:`
+   utility in @media (hover: hover), so no touch gating is needed here. */
+@media (prefers-reduced-motion: reduce) {
+  .transition-control {
+    transition:
+      color var(--duration-fast),
+      background-color var(--duration-fast),
+      border-color var(--duration-fast);
   }
-  @media (prefers-reduced-motion: reduce) {
-    .transition-control {
-      transition: color var(--duration-fast), background-color var(--duration-fast),
-        border-color var(--duration-fast);
-    }
-    .transition-control:active {
-      transform: none;
-    }
+  .transition-control:active {
+    transform: none;
   }
 }
 
