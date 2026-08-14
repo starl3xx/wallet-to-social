@@ -6,25 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
 import type { WalletSocialResult } from '@/lib/types';
-import { publicSources } from '@/lib/api-sources';
-
-/**
- * Whether an identity was published by the address owner rather than correlated
- * from an index.
- *
- * `source` arrives in two vocabularies depending on the path a row took: the
- * lookup pipeline writes internal identifiers, the reverse endpoint writes
- * evidence classes. `publicSources` is idempotent, so mapping here normalises
- * both without caring which one it was handed.
- *
- * `aggregated` is the one class that does not count: it means correlated, which
- * is precisely the thing this mark exists to distinguish.
- */
-function isAttested(result: WalletSocialResult): boolean {
-  const classes = publicSources(result.source);
-  if (!classes) return false;
-  return classes.some((c) => c === 'onchain' || c === 'farcaster' || c === 'manual');
-}
 
 /**
  * Custom hook for debouncing a value
@@ -334,7 +315,17 @@ export const ResultsTable = memo(function ResultsTable({
 
       {/* One template, used by the header and every row. It was duplicated,
           which is how a grid drifts: change one and the columns silently stop
-          lining up. The leading 18px is the attestation gutter. */}
+          lining up.
+
+          The leading 18px is the attestation gutter, currently empty. Filling
+          it needs per-identity verification on the client, and right now
+          nothing reliable gets there: the forward pipeline writes stage markers
+          like 'graph' and 'cache' into `source` rather than evidence classes,
+          and socialGraphToResult copies neither `sources` nor the
+          twitter_verified / farcaster_verified flags off the record. Marking
+          rows from that would report owner-attested identities as unattested on
+          the most common path, which is worse than showing nothing. The column
+          stays so the layout does not move when the data lands. */}
       <div className="border rounded-lg overflow-hidden">
         {/* Header */}
         <div className="bg-muted/50 border-b">
@@ -435,23 +426,12 @@ export const ResultsTable = memo(function ResultsTable({
                       gridTemplateColumns: gridTemplate,
                     }}
                   >
-                    {/* Attestation mark. Filled means the owner published this
-                        identity themselves; hollow means it was matched from an
-                        index. The title carries the same fact in words, so
-                        nothing here depends on distinguishing two colours. */}
-                    <div className="flex items-center justify-center pt-2.5">
-                      {isAttested(result) ? (
-                        <span
-                          className="h-2 w-2 rounded-full bg-attested"
-                          title="Owner-attested identity"
-                        />
-                      ) : (
-                        <span
-                          className="h-2 w-2 rounded-full ring-1 ring-inset ring-border"
-                          title="Matched, not owner-attested"
-                        />
-                      )}
-                    </div>
+                    {/* Attestation gutter, reserved but not yet populated. See
+                        the header comment on gridTemplate: the mark needs
+                        per-identity verification that does not currently reach
+                        the client, and a green dot driven by anything less
+                        would assert a provenance the row cannot support. */}
+                    <div aria-hidden="true" />
 
                     {/* Wallet */}
                     <div className="px-4 py-2 font-mono text-xs">

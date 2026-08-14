@@ -22,29 +22,28 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
   }), [results]);
 
   /**
-   * Colour carries meaning here or it carries nothing.
+   * Colour carries meaning here or it carries nothing, which is why four
+   * unrelated hues are gone.
    *
-   * `attested` marks the two counts where the identity was published by the
-   * owner: an 𝕏 handle or a Farcaster account. "Agents detected" is
-   * deliberately neutral, because detection is inference and dressing it in the
-   * same green would claim a provenance it does not have. The reachable figure
-   * takes the brand, because it is the number a campaign is planned against.
+   * These are counts of identities *present*, not identities *attested*. They
+   * are deliberately not green: `stats.twitter` counts any row with a handle,
+   * including ones correlated from an index, and marking that with the
+   * attestation colour would claim a provenance the number does not have.
+   * Green here waits on per-identity verification reaching the client.
+   *
+   * The brand goes on "Any social" because that is the figure a campaign gets
+   * planned against.
    */
   const cards = [
     { title: 'Total wallets', value: stats.total, tone: 'neutral' as const },
-    { title: '𝕏 attested', value: stats.twitter, tone: 'attested' as const },
-    { title: 'Farcaster attested', value: stats.farcaster, tone: 'attested' as const },
+    { title: '𝕏 handles', value: stats.twitter, tone: 'neutral' as const },
+    { title: 'Farcaster', value: stats.farcaster, tone: 'neutral' as const },
     { title: 'Agents detected', value: stats.agents, tone: 'neutral' as const },
     { title: 'Any social', value: stats.anySocial, tone: 'brand' as const },
   ];
 
   const TONE = {
     neutral: { card: '', value: 'text-foreground', badge: 'bg-muted text-muted-foreground' },
-    attested: {
-      card: 'border-attested/25 bg-attested-tint/40',
-      value: 'text-foreground',
-      badge: 'bg-attested-tint text-attested',
-    },
     brand: {
       card: 'border-accent-brand/25 bg-accent-brand-tint/40',
       value: 'text-accent-brand',
@@ -59,15 +58,7 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
         return (
           <Card key={card.title} className={tone.card}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-                {card.tone === 'attested' && (
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full bg-attested"
-                    // The mark is never the only signal: the label says
-                    // "attested" beside it, so nothing depends on seeing hue.
-                    aria-hidden="true"
-                  />
-                )}
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 {card.title}
               </CardTitle>
             </CardHeader>
