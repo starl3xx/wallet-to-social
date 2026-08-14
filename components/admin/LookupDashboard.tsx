@@ -216,7 +216,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.totalLookups}</span>
               <span
-                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.lookupsChange)} vs prev
               </span>
@@ -233,7 +233,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.totalWallets.toLocaleString()}</span>
               <span
-                className={`text-xs ${usage.walletsChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.walletsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.walletsChange)} vs prev
               </span>
@@ -250,7 +250,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.avgMatchRate.toFixed(1)}%</span>
               <span
-                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.matchRateChange)} vs prev
               </span>
@@ -267,7 +267,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{formatTime(usage.avgProcessingTime)}</span>
               <span
-                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.processingTimeChange, true)}
               </span>
@@ -293,7 +293,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.twitterRate, 100)}%` }}
                   />
                 </div>
@@ -304,7 +304,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-purple-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.farcasterRate, 100)}%` }}
                   />
                 </div>
@@ -315,7 +315,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-green-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.anyRate, 100)}%` }}
                   />
                 </div>
@@ -327,13 +327,20 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="text-sm text-muted-foreground">7-day trend</div>
               {match.trendData.length > 1 ? (
                 <div className="space-y-3">
+                  {/* Two sparklines sit side by side and are already labelled
+                      under each chart, so the legend does not need colour to
+                      tell them apart. It previously used two hues that the
+                      sweep collapsed into one, leaving a key where both
+                      swatches matched and neither matched its line. Solid
+                      versus outlined distinguishes them without reintroducing
+                      a second brand colour for a purely decorative job. */}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-blue-500 rounded" />
+                      <div className="w-3 h-0.5 rounded bg-accent-brand" />
                       <span className="text-xs text-muted-foreground">Twitter</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-purple-500 rounded" />
+                      <div className="w-3 h-0.5 rounded bg-accent-brand/40" />
                       <span className="text-xs text-muted-foreground">Farcaster</span>
                     </div>
                   </div>
@@ -343,7 +350,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                         data={match.trendData.map((d) => d.twitterRate)}
                         width={200}
                         height={40}
-                        color="rgb(59, 130, 246)"
+                        color="var(--accent-brand)"
                       />
                     </div>
                     <div className="flex-1">
@@ -351,7 +358,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                         data={match.trendData.map((d) => d.farcasterRate)}
                         width={200}
                         height={40}
-                        color="rgb(168, 85, 247)"
+                        color="color-mix(in oklch, var(--accent-brand) 40%, transparent)"
                       />
                     </div>
                   </div>
@@ -383,14 +390,14 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="flex items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-yellow-500" />
+                    <Layers className="h-4 w-4 text-caution" />
                     <span className="text-sm">Pending</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.pendingJobs}</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                    <Loader2 className="h-4 w-4 text-accent-brand animate-spin" />
                     <span className="text-sm">Running</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.runningJobs}</span>
@@ -404,14 +411,14 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="flex items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-accent-brand" />
                     <span className="text-sm">Success</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.successRate.toFixed(1)}%</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-500" />
+                    <XCircle className="h-4 w-4 text-destructive" />
                     <span className="text-sm">Failed</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.failedCount}</span>

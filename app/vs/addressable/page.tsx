@@ -93,7 +93,7 @@ export default function AddressableComparison() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-4 pr-4"></th>
-                    <th className="text-left py-4 px-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-tl-lg">
+                    <th className="text-left py-4 px-4 bg-accent-brand-tint rounded-tl-lg">
                       <span className="font-semibold">walletlink.social</span>
                     </th>
                     <th className="text-left py-4 pl-4">Addressable</th>
@@ -102,14 +102,14 @@ export default function AddressableComparison() {
                 <tbody className="text-sm">
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Focus</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       Wallet → Social only
                     </td>
                     <td className="py-4 pl-4">Full marketing platform</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Match method</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       Deterministic, user-attested (Farcaster verifications,
                       onchain ENS records)
                     </td>
@@ -119,7 +119,7 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Index size</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       4.7M wallets, complete Farcaster coverage
                     </td>
                     <td className="py-4 pl-4">
@@ -128,8 +128,8 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Pricing</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <span className="font-semibold text-accent-brand">
                         $99 - $249
                       </span>{' '}
                       one-time
@@ -138,38 +138,38 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Access</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       Instant, self-serve
                     </td>
                     <td className="py-4 pl-4">Sales call required</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Setup Time</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       2 minutes
                     </td>
                     <td className="py-4 pl-4">Days/weeks onboarding</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       None
                     </td>
                     <td className="py-4 pl-4">Enterprise agreement</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Twitter Export</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Limited
@@ -177,8 +177,8 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -186,8 +186,8 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4">
@@ -196,18 +196,18 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Lookup History</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Add to Lookups</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -216,8 +216,8 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (Pro and Unlimited, on all seven supported chains)
                       </span>
@@ -228,8 +228,8 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -238,20 +238,20 @@ export default function AddressableComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Ad Attribution</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">CRM Integration</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                   </tr>
                 </tbody>
@@ -311,33 +311,33 @@ export default function AddressableComparison() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* walletlink.social */}
-              <div className="border rounded-lg p-6 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
-                <h3 className="font-semibold mb-4 text-emerald-700 dark:text-emerald-300">
+              <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
+                <h3 className="font-semibold mb-4 text-accent-brand">
                   Choose walletlink.social if:
                 </h3>
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>You just need wallet → social lookups</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>You want to start today, not next month</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>You have a specific campaign or project</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>You want to grow lookups over time</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>Budget is a consideration</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                    <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                     <span>You don&apos;t want another subscription</span>
                   </li>
                 </ul>
@@ -414,12 +414,12 @@ export default function AddressableComparison() {
               </ul>
             </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+            <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint/60 border-accent-brand/30">
               <p className="text-sm">
                 <span className="font-medium">ROI Example:</span> If you pay
                 $249 once for walletlink.social instead of $1,000/month for
                 Addressable, you save{' '}
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="font-semibold text-accent-brand">
                   $11,751 in year one
                 </span>{' '}
                 - assuming you only need wallet-to-social lookups.
@@ -504,7 +504,7 @@ export default function AddressableComparison() {
               href="https://warpcast.com/starl3xx.eth"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-500 hover:text-purple-400 transition-colors"
+              className="text-accent-brand hover:text-accent-brand transition-colors"
               title="@starl3xx.eth on Farcaster"
             >
               <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">

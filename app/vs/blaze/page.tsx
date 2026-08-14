@@ -127,7 +127,7 @@ export default function BlazeComparison() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-4 pr-4"></th>
-                    <th className="text-left py-4 px-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-tl-lg">
+                    <th className="text-left py-4 px-4 bg-accent-brand-tint rounded-tl-lg">
                       <span className="font-semibold">walletlink.social</span>
                     </th>
                     <th className="text-left py-4 pl-4">What Blaze offered</th>
@@ -136,7 +136,7 @@ export default function BlazeComparison() {
                 <tbody className="text-sm">
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Focus</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       Wallet → Social only
                     </td>
                     <td className="py-4 pl-4">
@@ -145,8 +145,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Pricing</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <span className="font-semibold text-accent-brand">
                         $99 - $249
                       </span>{' '}
                       one-time
@@ -155,8 +155,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Twitter/X</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (user-attested matches)
                       </span>
@@ -167,8 +167,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (complete protocol coverage)
                       </span>
@@ -179,8 +179,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4">
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -188,8 +188,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4">
@@ -198,8 +198,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Lookup History</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -208,8 +208,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (Pro and Unlimited, on all seven supported chains)
                       </span>
@@ -220,8 +220,8 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <Check className="h-4 w-4 text-emerald-500" />
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                      <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -230,7 +230,7 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Community Tools</td>
-                    <td className="py-4 px-4 bg-emerald-50/50 dark:bg-emerald-950/20">
+                    <td className="py-4 px-4 bg-accent-brand-tint/60">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -270,13 +270,13 @@ export default function BlazeComparison() {
           {/* Migrating from Blaze */}
           <section className="mb-16">
             <h2 className="text-2xl font-semibold mb-6">Migrating from Blaze</h2>
-            <div className="border rounded-lg p-6 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
-              <h3 className="font-semibold mb-4 text-emerald-700 dark:text-emerald-300">
+            <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
+              <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to rebuild your wallet-to-Twitter workflow:
               </h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                  <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
                     Export your holder list, from a past Blaze export if you
                     still have one, or straight from the token contract
@@ -284,14 +284,14 @@ export default function BlazeComparison() {
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                  <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
                     Upload the CSV to walletlink.social: the free tier covers
                     500 wallets with no credit card
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
+                  <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
                     Export Twitter handles and Farcaster profiles, including
                     follower counts Blaze never had
@@ -330,12 +330,12 @@ export default function BlazeComparison() {
               </div>
             </div>
 
-            <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+            <div className="p-4 border rounded-lg bg-accent-brand-tint/60 border-accent-brand/30">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
                 Blaze started at $79/month, $948+ per year. walletlink.social
                 Pro is{' '}
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="font-semibold text-accent-brand">
                   $99 once
                 </span>,{' '}
                 less than two months of the old Blaze subscription, and it
@@ -421,7 +421,7 @@ export default function BlazeComparison() {
               href="https://warpcast.com/starl3xx.eth"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-500 hover:text-purple-400 transition-colors"
+              className="text-accent-brand hover:text-accent-brand transition-colors"
               title="@starl3xx.eth on Farcaster"
             >
               <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">

@@ -57,7 +57,7 @@ export const ShareButtons = memo(function ShareButtons({
         size="sm"
         onClick={handleShareFarcaster}
         title="Share results on Farcaster"
-        className="text-xs text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:hover:bg-purple-950"
+        className="text-xs text-accent-brand border-accent-brand/30 hover:bg-accent-brand-tint dark:border-accent-brand dark:hover:bg-accent-brand-tint"
       >
         <svg
           className="w-3.5 h-3.5 mr-1.5"

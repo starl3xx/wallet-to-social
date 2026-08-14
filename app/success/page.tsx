@@ -93,7 +93,7 @@ function SuccessContent() {
   }, [sessionId]);
 
   const TierIcon = tier === 'unlimited' ? Crown : Zap;
-  const tierColor = tier === 'unlimited' ? 'text-yellow-500' : 'text-blue-500';
+  const tierColor = tier === 'unlimited' ? 'text-caution' : 'text-accent-brand';
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -111,8 +111,8 @@ function SuccessContent() {
           {state === 'success' && (
             <>
               <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-green-500/10 p-3">
-                  <Check className="h-12 w-12 text-green-500" />
+                <div className="rounded-full bg-accent-brand/10 p-3">
+                  <Check className="h-12 w-12 text-accent-brand" />
                 </div>
               </div>
               <CardTitle className="text-2xl">Payment successful!</CardTitle>
@@ -122,8 +122,8 @@ function SuccessContent() {
           {state === 'error' && (
             <>
               <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-yellow-500/10 p-3">
-                  <Loader2 className="h-12 w-12 text-yellow-500" />
+                <div className="rounded-full bg-caution/10 p-3">
+                  <Loader2 className="h-12 w-12 text-caution" />
                 </div>
               </div>
               <CardTitle>Verification pending</CardTitle>
@@ -151,25 +151,25 @@ function SuccessContent() {
                 </p>
                 <ul className="space-y-1">
                   <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-accent-brand" />
                     {tier === 'unlimited'
                       ? 'Unlimited wallets'
                       : `Up to ${TIER_LIMITS[tier].toLocaleString()} wallets`}
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-accent-brand" />
                     All data sources
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-accent-brand" />
                     FC follower counts & priority scoring
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-accent-brand" />
                     ENS onchain lookups
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-accent-brand" />
                     Twitter list export
                   </li>
                 </ul>

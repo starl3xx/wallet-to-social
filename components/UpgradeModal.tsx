@@ -164,8 +164,8 @@ export function UpgradeModal({
             <div className="rounded-lg border p-4 space-y-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10">
-                    <Zap className="h-4 w-4 text-blue-500" />
+                  <div className="p-1.5 rounded-lg bg-accent-brand-tint">
+                    <Zap className="h-4 w-4 text-accent-brand" />
                   </div>
                   <h3 className="font-semibold">Pro</h3>
                 </div>
@@ -217,8 +217,8 @@ export function UpgradeModal({
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10">
-                    <Crown className="h-4 w-4 text-amber-500" />
+                  <div className="p-1.5 rounded-lg bg-caution-tint">
+                    <Crown className="h-4 w-4 text-caution" />
                   </div>
                   <h3 className="font-semibold">Unlimited</h3>
                 </div>

@@ -88,9 +88,9 @@ export function SystemHealth({ password }: SystemHealthProps) {
 
   const StatusIndicator = ({ status }: { status: 'green' | 'yellow' | 'red' }) => {
     const icons = {
-      green: <span className="w-2 h-2 rounded-full bg-green-500" />,
-      yellow: <span className="w-2 h-2 rounded-full bg-yellow-500" />,
-      red: <span className="w-2 h-2 rounded-full bg-red-500" />,
+      green: <span className="w-2 h-2 rounded-full bg-accent-brand" />,
+      yellow: <span className="w-2 h-2 rounded-full bg-caution" />,
+      red: <span className="w-2 h-2 rounded-full bg-destructive" />,
     };
     return icons[status];
   };
@@ -173,10 +173,10 @@ export function SystemHealth({ password }: SystemHealthProps) {
                         <span
                           className={
                             stat.errorRate < 1
-                              ? 'text-green-500'
+                              ? 'text-accent-brand'
                               : stat.errorRate < 5
-                                ? 'text-yellow-500'
-                                : 'text-red-500'
+                                ? 'text-caution'
+                                : 'text-destructive'
                           }
                         >
                           {stat.errorRate.toFixed(1)}%
@@ -225,7 +225,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <AlertTriangle className="h-4 w-4 text-caution" />
             Recent errors
           </CardTitle>
         </CardHeader>

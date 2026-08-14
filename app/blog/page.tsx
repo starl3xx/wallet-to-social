@@ -73,13 +73,13 @@ export default function BlogIndex() {
                   <p className="text-xs text-muted-foreground mb-2">
                     {new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
-                  <h2 className="text-2xl font-semibold mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  <h2 className="text-2xl font-semibold mb-2 group-hover:text-accent-brand dark:group-hover:text-accent-brand transition-colors">
                     {post.title}
                   </h2>
                   <p className="text-muted-foreground mb-4">
                     {post.description}
                   </p>
-                  <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="inline-flex items-center gap-1 text-sm font-medium text-accent-brand">
                     Read more <ArrowRight className="h-4 w-4" />
                   </span>
                 </Link>
