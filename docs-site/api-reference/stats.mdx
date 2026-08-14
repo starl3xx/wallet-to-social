@@ -1,0 +1,69 @@
+---
+title: "Index stats"
+description: "GET /v1/stats"
+api: "GET https://walletlink.social/api/v1/stats"
+---
+
+Live totals for the whole index. **Free**, but still requires a valid key.
+
+Use it to check coverage claims for yourself rather than trusting a number on a marketing page, and to monitor whether the index is growing in the dimension you care about.
+
+## Request
+
+```bash
+curl https://walletlink.social/api/v1/stats \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="total_wallets" type="number">
+      Wallets with at least one identity attached. This is the coverage number.
+    </ResponseField>
+    <ResponseField name="wallets_checked" type="number">
+      Every wallet we have examined, including those we found nothing for.
+    </ResponseField>
+    <ResponseField name="coverage" type="object">
+      Counts per network: `twitter`, `farcaster`, `ens`, `lens`, `github`. These overlap, since one wallet can carry several.
+    </ResponseField>
+    <ResponseField name="farcaster_stats" type="object">
+      `avg_followers` and `max_followers` across indexed Farcaster accounts.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": {
+    "total_wallets": 4700000,
+    "wallets_checked": 9200000,
+    "coverage": {
+      "twitter": 1070000,
+      "farcaster": 4690000,
+      "ens": 890000,
+      "lens": 42000,
+      "github": 31000
+    },
+    "farcaster_stats": { "avg_followers": 210, "max_followers": 1200000 }
+  },
+  "meta": { "generated_at": "2026-08-14T12:00:00.000Z" }
+}
+```
+
+<Warning>
+Figures above are illustrative. Call the endpoint for real ones.
+</Warning>
+
+## Reading the two totals
+
+`total_wallets` and `wallets_checked` are different questions and the gap between them is the point.
+
+`wallets_checked` includes wallets we examined and found nothing for. Those are deliberately excluded from `total_wallets`, so that dividing one by the other gives a real hit rate rather than one inflated by counting empty records as coverage.
+
+Do not compute a match rate for *your* list from these numbers. The index skews toward wallets somebody has already looked up, which is not a random sample of the chain. For your own list, sample it through [batch](/api-reference/batch) and measure directly. See [coverage](/concepts/coverage).
+
+## Errors
+
+The [standard errors](/api-reference/errors) only.

@@ -1,0 +1,89 @@
+---
+title: "Introduction"
+description: "Base URL, authentication, plans, and the conventions every endpoint follows."
+---
+
+## Base URL
+
+```
+https://walletlink.social/api/v1
+```
+
+All endpoints are HTTPS only and return JSON. CORS is open, but see the warning under [Authentication](#authentication) before you call this from a browser.
+
+## Authentication
+
+Pass your key in the `Authorization` header. Both forms work:
+
+```bash
+Authorization: Bearer wts_live_xxxxxxxx
+Authorization: wts_live_xxxxxxxx
+```
+
+<Warning>
+Call the API from your server, never from client-side code. CORS is open so a
+browser request will succeed, which makes this an easy mistake to make. Any key
+shipped to a browser is public, and it carries your entire plan allowance.
+</Warning>
+
+Keys are prefixed `wts_live_` and are stored only as hashes. A lost key is replaced, not recovered.
+
+## Plans
+
+API access is included with the Pro and Unlimited tiers rather than sold separately.
+
+| | **Pro** | **Unlimited** |
+| --- | --- | --- |
+| Plan name in API responses | `Developer` | `Startup` |
+| Requests per minute | 60 | 300 |
+| Requests per day | 5,000 | 50,000 |
+| Requests per month | 50,000 | 500,000 |
+| Max batch size | 50 | 200 |
+
+<Note>
+Responses from [`/v1/usage`](/api-reference/usage) report the plan name
+(`Developer`, `Startup`), which does not match the tier name you purchased
+(Pro, Unlimited). The mapping above is the whole of it.
+</Note>
+
+Higher limits are available. Email [help@walletlink.social](mailto:help@walletlink.social).
+
+## Credits
+
+Rate limits are consumed in credits, not requests. Most endpoints cost one credit, but two do not.
+
+| Endpoint | Cost |
+| --- | --- |
+| `GET /v1/wallet/{address}` | 1 |
+| `POST /v1/batch` | 1 per wallet submitted |
+| `GET /v1/reverse/twitter/{handle}` | 2 |
+| `GET /v1/reverse/farcaster/{username}` | 2 |
+| `GET /v1/stats` | 0 |
+| `GET /v1/usage` | 0 |
+
+Batch is charged on the number of addresses you **submit**, before duplicates are removed. Deduplicate your own list first, or you will pay for the same address twice and receive it once.
+
+Reverse lookups cost double because they scan the index by identity rather than by key.
+
+## Response shape
+
+Every successful response is an object with `data` and `meta`.
+
+```json
+{ "data": { ... }, "meta": { ... } }
+```
+
+`data` holds the result and is `null` or `[]` when there is nothing to return. `meta` holds everything about the request itself: what you asked for, how much came back, whether it was truncated.
+
+Two conventions are worth internalising:
+
+**Absent fields are omitted, not nulled.** A wallet with no GitHub account has no `github` key at all. Check for presence.
+
+**Not found is not an error.** A wallet we have no identities for returns HTTP 200 with `data: null` and `meta.found: false`. Error status codes are reserved for requests that actually failed.
+
+## Conventions
+
+- Wallet addresses are accepted in any case and returned lowercased.
+- X handles are accepted with or without a leading `@` and returned without it.
+- All timestamps are ISO 8601 in UTC.
+- `OPTIONS` is supported on every endpoint for CORS preflight.

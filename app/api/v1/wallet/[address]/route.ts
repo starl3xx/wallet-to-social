@@ -10,6 +10,7 @@ import {
   normalizeWalletAddress,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
+import { publicSources } from '@/lib/api-sources';
 
 export const runtime = 'nodejs';
 
@@ -157,7 +158,9 @@ export async function GET(
   }
   if (result.lens) data.lens = result.lens;
   if (result.github) data.github = result.github;
-  if (result.sources) data.sources = result.sources;
+  // Evidence classes, never the internal pipeline identifiers — see lib/api-sources.ts
+  const sources = publicSources(result.sources);
+  if (sources) data.sources = sources;
 
   // Agent metadata
   if (result.isAgent) {

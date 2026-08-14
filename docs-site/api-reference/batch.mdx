@@ -1,0 +1,101 @@
+---
+title: "Batch lookup"
+description: "POST /v1/batch"
+api: "POST https://walletlink.social/api/v1/batch"
+---
+
+Resolves many addresses in one request. Costs **1 credit per wallet submitted**.
+
+This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same credits, but the batch is one request instead of fifty and returns in a fraction of the time.
+
+## Body
+
+<ParamField body="wallets" type="string[]" required>
+  Addresses to resolve. Up to 50 on Pro, 200 on Unlimited. The whole body is capped at 1 MB.
+</ParamField>
+
+## Request
+
+```bash
+curl -X POST https://walletlink.social/api/v1/batch \
+  -H "Authorization: Bearer wts_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wallets": [
+      "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "0x0000000000000000000000000000000000000001"
+    ]
+  }'
+```
+
+## Response
+
+<ResponseField name="data" type="array">
+  One entry per **unique** address, in submission order. Entries are the same
+  object as [single lookup](/api-reference/wallet), or `null` where nothing was
+  found.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="properties">
+    <ResponseField name="requested" type="number">Unique addresses after deduplication.</ResponseField>
+    <ResponseField name="found" type="number">How many resolved to at least one identity.</ResponseField>
+    <ResponseField name="not_found" type="number">The remainder.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": [
+    {
+      "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "ens_name": "vitalik.eth",
+      "farcaster": {
+        "username": "vitalik.eth",
+        "url": "https://warpcast.com/vitalik.eth",
+        "followers": 123456,
+        "fid": 5650
+      },
+      "sources": ["onchain", "farcaster"]
+    },
+    null
+  ],
+  "meta": { "requested": 2, "found": 1, "not_found": 1 }
+}
+```
+
+<Warning>
+Positions map to the **deduplicated** list, not to the array you sent. Submit
+`[A, B, A]` and you get two entries back, not three. Deduplicate before you
+send, then index by the `wallet` field rather than by position.
+</Warning>
+
+## Differences from single lookup
+
+Batch returns a deliberately lighter record. Three things present on
+[`/v1/wallet/{address}`](/api-reference/wallet) are absent here:
+
+- No `quality` object.
+- No `verified` flag inside `twitter` or `farcaster`.
+- No `stale` or `last_updated` in `meta`, and no staleness headers.
+
+If you are filtering on confidence, resolve in bulk with batch and then re-fetch
+the shortlist through single lookup. It is usually a small number of addresses
+and it is the only way to see the quality metadata.
+
+## Cost
+
+Credits are charged on the addresses you **submit**, before deduplication.
+Submitting `[A, B, A]` costs 3 credits and returns 2 records. Deduplicate first.
+
+A batch that exceeds your plan limit is rejected whole with
+`BATCH_SIZE_EXCEEDED`. Nothing is charged and nothing is partially processed, so
+split oversized batches client-side and send the pieces.
+
+## Errors
+
+`INVALID_REQUEST`, `INVALID_ADDRESS`, `BATCH_SIZE_EXCEEDED`, plus the
+[standard errors](/api-reference/errors).
+
+A single malformed address rejects the entire batch. The error message names the
+first few offenders.

@@ -1,0 +1,75 @@
+---
+title: "Reverse Farcaster lookup"
+description: "GET /v1/reverse/farcaster/{username}"
+api: "GET https://walletlink.social/api/v1/reverse/farcaster/{username}"
+---
+
+Finds every wallet linked to a Farcaster username. Costs **2 credits**.
+
+Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-is-complete), this is the most reliable lookup in the API. An empty result means the username genuinely has no addresses attached, not that we have not indexed it yet.
+
+## Path parameters
+
+<ParamField path="username" type="string" required>
+  1 to 20 characters, lowercase letters, numbers and underscores. Input is lowercased before matching.
+</ParamField>
+
+## Request
+
+```bash
+curl https://walletlink.social/api/v1/reverse/farcaster/dwr \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+## Response
+
+Identical in shape to the [reverse X lookup](/api-reference/reverse-twitter), with `farcaster` always present instead of `twitter`, and `meta.username` instead of `meta.handle`.
+
+<ResponseField name="data" type="array">
+  Matching wallets, at most 100 per request.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="properties">
+    <ResponseField name="username" type="string">The normalized, lowercased username.</ResponseField>
+    <ResponseField name="total_count" type="number">Total matches in the index, ignoring the 100-result cap.</ResponseField>
+    <ResponseField name="returned_count" type="number">How many are in this response.</ResponseField>
+    <ResponseField name="truncated" type="boolean">Whether `total_count` exceeded 100.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": [
+    {
+      "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "ens_name": "vitalik.eth",
+      "farcaster": {
+        "username": "vitalik.eth",
+        "url": "https://warpcast.com/vitalik.eth",
+        "followers": 123456,
+        "fid": 5650,
+        "verified": true
+      },
+      "sources": ["farcaster"],
+      "quality_score": 65
+    }
+  ],
+  "meta": {
+    "username": "vitalik.eth",
+    "total_count": 1,
+    "returned_count": 1,
+    "truncated": false
+  }
+}
+```
+
+## Several wallets per account
+
+Multiple results are the normal case here, more so than on X. A Farcaster account has one custody address plus any number of verified addresses, and all of them are indexed. A single active account returning three or four wallets is unremarkable.
+
+The same 100-result cap and lack of pagination apply. See [one handle, many wallets](/api-reference/reverse-twitter#one-handle-many-wallets).
+
+## Errors
+
+`INVALID_USERNAME`, plus the [standard errors](/api-reference/errors).

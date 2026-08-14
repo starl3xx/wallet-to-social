@@ -64,6 +64,39 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 
 Keep both files in sync so LLMs have accurate context about the codebase.
 
+### Public docs (`docs-site/`)
+
+`docs-site/` is the published Mintlify site at docs.walletlink.social. It is a
+contract with paying customers, and unlike code it fails silently: nothing
+breaks when it drifts, it just starts lying.
+
+**Every PR must make an explicit docs decision.** The PR template asks for it and
+`.github/workflows/docs-freshness.yml` enforces it: a PR touching the public API
+surface fails CI unless it also touches `docs-site/`, or carries the
+`no-docs-needed` label.
+
+Update the docs whenever a change moves any of:
+- A response shape or field name on `/api/v1/*`
+- A rate limit, credit cost, batch size or plan mapping
+- An error code or status
+- The supported chain list
+- A published statistic or coverage claim
+
+**Never name a data provider in `docs-site/`.** The same rule as the UI, and it
+matters more here: the docs are indexed and permanent. Describe *capability*
+("Farcaster coverage is complete") and *evidence class* ("attested on-chain"),
+never provenance. The public `sources` field is mapped through
+`lib/api-sources.ts` for exactly this reason, on an allowlist so an unmapped
+internal source is dropped rather than leaked.
+
+**Never publish from `docs/`.** That folder is internal: `SECURITY.md` holds the
+backup and restore runbook. Only `docs-site/` is published.
+
+**Verify claims before publishing them.** Coverage numbers, match rates and
+completeness claims should be checked against the database or `/v1/stats`, not
+copied from older copy. Keep "has an identity" (~23%) and "reachable on X or
+Farcaster" (~13%) distinct wherever either appears.
+
 ## UI Guidelines
 
 - **Never reference API providers in the UI** (e.g., Web3.bio, Neynar). Use generic terms like "all data sources" instead. API details are implementation details that users don't need to see.

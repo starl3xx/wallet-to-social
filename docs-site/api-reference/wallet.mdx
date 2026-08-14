@@ -1,0 +1,138 @@
+---
+title: "Look up a wallet"
+description: "GET /v1/wallet/{address}"
+api: "GET https://walletlink.social/api/v1/wallet/{address}"
+---
+
+Returns every identity attached to a single address. Costs **1 credit**.
+
+For more than a handful of addresses use [batch](/api-reference/batch) instead.
+
+## Path parameters
+
+<ParamField path="address" type="string" required>
+  An address as `0x` followed by 40 hex characters. Case-insensitive; returned lowercased.
+</ParamField>
+
+## Request
+
+```bash
+curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045 \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+## Response
+
+<ResponseField name="data" type="object | null">
+  The record, or `null` when nothing is attached to the address.
+
+  <Expandable title="properties">
+    <ResponseField name="wallet" type="string">Lowercased address. Always present.</ResponseField>
+    <ResponseField name="ens_name" type="string">Primary ENS name.</ResponseField>
+    <ResponseField name="twitter" type="object">
+      `handle`, `url`, and `verified`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look.
+    </ResponseField>
+    <ResponseField name="farcaster" type="object">
+      `username`, `url`, `followers`, `fid`, and `verified`.
+    </ResponseField>
+    <ResponseField name="lens" type="string">Lens handle.</ResponseField>
+    <ResponseField name="github" type="string">GitHub username.</ResponseField>
+    <ResponseField name="sources" type="string[]">
+      Evidence classes backing the record: `onchain`, `farcaster`, `manual`, `aggregated`. See [evidence classes](/concepts/data-quality#evidence-classes).
+    </ResponseField>
+    <ResponseField name="agent" type="object">
+      Present only when the address is a known onchain agent. Carries `is_agent`, `name`, `framework`, `type`, `token_symbol` and `verified`.
+    </ResponseField>
+    <ResponseField name="quality" type="object">
+      `score` from 0 to 100, and `last_verified`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="properties">
+    <ResponseField name="wallet" type="string">The normalized address you asked for.</ResponseField>
+    <ResponseField name="found" type="boolean">Whether any identities were attached.</ResponseField>
+    <ResponseField name="last_updated" type="string">When the record last changed. Present only when `found` is true.</ResponseField>
+    <ResponseField name="stale" type="boolean">Whether the record is past its freshness window. Present only when `found` is true.</ResponseField>
+    <ResponseField name="checked_at" type="string | null">
+      Present only when `found` is false. A timestamp means we checked and found nothing; `null` means we have never seen this address.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```json Found
+{
+  "data": {
+    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "ens_name": "vitalik.eth",
+    "twitter": {
+      "handle": "vitalikbuterin",
+      "url": "https://twitter.com/vitalikbuterin",
+      "verified": true
+    },
+    "farcaster": {
+      "username": "vitalik.eth",
+      "url": "https://warpcast.com/vitalik.eth",
+      "followers": 123456,
+      "fid": 5650,
+      "verified": true
+    },
+    "sources": ["onchain", "farcaster"],
+    "quality": {
+      "score": 90,
+      "last_verified": "2026-08-10T09:12:00.000Z"
+    }
+  },
+  "meta": {
+    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "found": true,
+    "last_updated": "2026-08-10T09:12:00.000Z",
+    "stale": false
+  }
+}
+```
+
+```json Checked, nothing found
+{
+  "data": null,
+  "meta": {
+    "wallet": "0x0000000000000000000000000000000000000001",
+    "found": false,
+    "checked_at": "2026-07-02T11:30:00.000Z"
+  }
+}
+```
+
+```json Never seen
+{
+  "data": null,
+  "meta": {
+    "wallet": "0x0000000000000000000000000000000000000002",
+    "found": false,
+    "checked_at": null
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+All three of these are HTTP **200**. A wallet with nothing attached is a
+successful lookup with a negative answer, not an error.
+</Note>
+
+## Staleness headers
+
+When a record is past its freshness window the response adds:
+
+```
+X-Data-Staleness: stale
+X-Last-Updated: 2026-05-01T00:00:00.000Z
+```
+
+Both are absent on fresh records, so test for presence rather than comparing values.
+
+## Errors
+
+`INVALID_ADDRESS`, plus the [standard errors](/api-reference/errors).

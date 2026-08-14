@@ -1,0 +1,100 @@
+---
+title: "Quickstart"
+description: "From nothing to your first resolved wallet."
+---
+
+## Without writing code
+
+Open [walletlink.social](https://walletlink.social), give it addresses one of three ways, and export the results.
+
+<Steps>
+  <Step title="Add addresses">
+    Upload a CSV, import a contract’s holders, or paste addresses directly.
+    A CSV with a balance or value column gets priority scoring for free.
+  </Step>
+  <Step title="Run the lookup">
+    Progress streams as it goes. Large lists keep working while you watch.
+  </Step>
+  <Step title="Export">
+    Full CSV sorted by priority score, or a plain handle list ready for an
+    X list import.
+  </Step>
+</Steps>
+
+## With the API
+
+### Get a key
+
+API access is included with the **Pro** and **Unlimited** tiers.
+
+Email [help@walletlink.social](mailto:help@walletlink.social) from the address on your account and we will issue a key. Keys look like `wts_live_` followed by 32 characters.
+
+<Warning>
+The key is shown once, at creation, and only its hash is stored. If you lose it
+we cannot recover it, only replace it. Treat it as a server-side secret: it
+carries your whole plan allowance and there is no per-key spend cap.
+</Warning>
+
+### Make a call
+
+```bash
+curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045 \
+  -H "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+The `Bearer` prefix is optional. A bare key in the `Authorization` header works too.
+
+### Read the response
+
+```json
+{
+  "data": {
+    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "ens_name": "vitalik.eth",
+    "farcaster": {
+      "username": "vitalik.eth",
+      "url": "https://warpcast.com/vitalik.eth",
+      "followers": 123456,
+      "fid": 5650,
+      "verified": true
+    },
+    "sources": ["onchain", "farcaster"],
+    "quality": { "score": 75, "last_verified": "2026-08-01T00:00:00.000Z" }
+  },
+  "meta": {
+    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "found": true,
+    "last_updated": "2026-08-01T00:00:00.000Z",
+    "stale": false
+  }
+}
+```
+
+Every response is `{ data, meta }`. Fields with no value are omitted rather than returned as `null`, so check for presence rather than assuming a fixed shape.
+
+<Note>
+A wallet with no identities returns HTTP **200** with `data: null`, not a 404.
+Only genuine failures use error status codes.
+</Note>
+
+### Go bigger
+
+One address at a time gets slow quickly. [`POST /api/v1/batch`](/api-reference/batch) takes up to 50 addresses per request on Pro, 200 on Unlimited:
+
+```bash
+curl -X POST https://walletlink.social/api/v1/batch \
+  -H "Authorization: Bearer wts_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"wallets": ["0xd8da...", "0x1234..."]}'
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="API introduction" icon="book" href="/api-reference/introduction">
+    Auth, plans, credits and conventions.
+  </Card>
+  <Card title="Coverage" icon="chart-pie" href="/concepts/coverage">
+    What match rate to expect before you build around one.
+  </Card>
+</CardGroup>
