@@ -36,8 +36,19 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   // Third-party identity index. Weaker evidence: correlated, not attested.
   web3bio: 'aggregated',
 
-  // Reviewed by us.
+  // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
+
+  // Identity mappings, so the function is IDEMPOTENT. Two call sites now map
+  // independently: the reverse-lookup route maps before results reach the
+  // browser, and the CSV export maps whatever it is handed. Without these, the
+  // second pass would look up 'onchain' in a table of internal identifiers,
+  // find nothing, and drop it, silently emptying the source column on exported
+  // reverse-lookup results. An allowlist that composes with itself is the only
+  // safe shape when more than one layer can apply it.
+  onchain: 'onchain',
+  farcaster: 'farcaster',
+  aggregated: 'aggregated',
 
   // Persisted negatives. These rows are filtered out before serialization,
   // but map it explicitly so it can never fall through to the default.

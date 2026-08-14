@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 import { exportToCSV } from '@/lib/csv-parser';
 import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
+import { publicSources } from '@/lib/api-sources';
 
 interface ExportButtonProps {
   results: WalletSocialResult[];
@@ -81,7 +82,10 @@ export const ExportButton = memo(function ExportButton({
       ...result,
       holdings: result.holdings?.toFixed(2) || '',
       priority_score: result.priority_score?.toFixed(2) || '',
-      source: result.source.join(','),
+      // Evidence classes, never the internal pipeline identifiers. The export
+      // is handed to the customer as a file, so it is the same disclosure
+      // surface as an API response and gets the same treatment.
+      source: (publicSources(result.source) ?? []).join(','),
       is_agent: result.is_agent ? 'true' : '',
       agent_name: result.agent_name || '',
       agent_framework: result.agent_framework || '',
