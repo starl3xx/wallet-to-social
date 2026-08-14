@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Script from 'next/script';
+import { useTheme } from '@/components/ThemeProvider';
 
 /**
  * Floating docs assistant, backed by Cloudflare AI Search over
@@ -10,34 +11,96 @@ import Script from 'next/script';
  *
  * Everything loads from help.walletlink.social, our own hostname, rather than
  * the generated *.search.ai.cloudflare.com one. That record is deliberately
- * proxied, so both the 115 KB bundle and every query pass through our zone and
- * hit the per-IP rate limit before they reach AI Search. The public endpoint is
- * unauthenticated by design, and it spends our Workers AI allowance on every
- * answer, so the zone is the only place that spend can be bounded.
+ * proxied, so both the bundle and every query pass through our zone and hit the
+ * per-IP rate limit before they reach AI Search. The public endpoint is
+ * unauthenticated by design and spends Workers AI allowance on every answer, so
+ * the zone is the only place that spend can be bounded.
  */
 const ENDPOINT = 'https://help.walletlink.social';
+
+// Pinned. The text overrides below target the widget's internal class names,
+// which are private API. Pinning is what makes that safe: an upgrade is a
+// deliberate act that comes with re-checking those selectors.
 const SNIPPET_VERSION = 'v0.0.25';
 
-// Routes where a support bubble is noise rather than help. `/admin` is ours,
-// and `/success` is a post-payment confirmation where the only useful action is
-// the one already on screen.
 const HIDDEN_PREFIXES = ['/admin', '/success'];
+
+const PLACEHOLDER = 'Ask about coverage, pricing, or the API';
+
+/**
+ * The widget exposes exactly four attributes: api-url, placeholder, theme and
+ * hide-branding. Everything else visual is CSS custom properties, and the
+ * remaining copy is hardcoded in its template.
+ *
+ * Its shadow root is `mode: "open"`, so the copy is still reachable. These rules
+ * blank the hardcoded strings and substitute ours through generated content.
+ *
+ * Delivered via adoptedStyleSheets rather than an appended <style>: the widget
+ * re-renders by replacing its shadow DOM, which would discard an appended node
+ * the first time a message arrived. Adopted sheets attach to the shadow root
+ * itself and survive that.
+ */
+const OVERRIDES = `
+  .chat-header-title { font-size: 0; }
+  .chat-header-title::after {
+    content: "walletlink assistant";
+    font-size: var(--search-snippet-font-size-lg);
+    font-weight: var(--search-snippet-font-weight-bold);
+  }
+  .chat-empty-title { font-size: 0; }
+  .chat-empty-title::before {
+    content: "Ask a question";
+    font-size: var(--search-snippet-font-size-lg);
+    font-weight: var(--search-snippet-font-weight-medium);
+  }
+  .chat-empty-description { font-size: 0; }
+  .chat-empty-description::before {
+    content: "Coverage, pricing, or anything in the API docs";
+    font-size: var(--search-snippet-font-size-sm);
+  }
+`;
 
 export function DocsChat() {
   const pathname = usePathname();
+  const { resolvedTheme } = useTheme();
   const [ready, setReady] = useState(false);
+  const hostRef = useRef<HTMLElement | null>(null);
 
   const hidden = HIDDEN_PREFIXES.some(
     (p) => pathname === p || pathname?.startsWith(`${p}/`)
   );
 
-  // The custom element only upgrades once the module has registered it. Without
-  // gating on that, React renders an unknown tag that stays an empty inline box
-  // until the script lands.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.customElements?.get('chat-bubble-snippet')) setReady(true);
   }, []);
+
+  // The shadow root only exists once the element upgrades, which happens after
+  // the module registers it, so this polls briefly rather than assuming.
+  const applyOverrides = useCallback(() => {
+    const host = hostRef.current;
+    if (!host?.shadowRoot) return false;
+    const root = host.shadowRoot;
+    if (typeof CSSStyleSheet === 'undefined' || !('adoptedStyleSheets' in root)) {
+      return true; // Nothing to do on a browser without adopted sheets.
+    }
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(OVERRIDES);
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!ready || hidden) return;
+    if (applyOverrides()) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (applyOverrides() || Date.now() - started > 10_000) {
+        window.clearInterval(timer);
+      }
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [ready, hidden, applyOverrides]);
 
   if (hidden) return null;
 
@@ -47,18 +110,28 @@ export function DocsChat() {
         id="cf-ai-search-snippet"
         type="module"
         src={`${ENDPOINT}/assets/${SNIPPET_VERSION}/search-snippet.es.js`}
-        // lazyOnload keeps 115 KB off the critical path. The bubble is a
-        // secondary affordance; it must not compete with the lookup UI for
-        // bandwidth on a first paint.
         strategy="lazyOnload"
         onReady={() => setReady(true)}
       />
       {ready && (
         <chat-bubble-snippet
+          ref={hostRef}
           api-url={`${ENDPOINT}/`}
+          placeholder={PLACEHOLDER}
+          // Follows the site's own toggle rather than the OS setting. The
+          // widget defaults to "auto", which reads prefers-color-scheme and
+          // would show a light bubble on a manually darkened site.
+          theme={resolvedTheme}
+          // CLAUDE.md: never reference an API provider in the UI. The default
+          // footer reads "Powered by Cloudflare AI Search", which is precisely
+          // that, on the most customer-visible surface we have.
+          hide-branding="true"
           style={
             {
               '--search-snippet-primary-color': '#10b981',
+              '--search-snippet-primary-hover': '#059669',
+              '--chat-bubble-button-size': '56px',
+              '--chat-bubble-button-icon-color': '#ffffff',
             } as React.CSSProperties
           }
         />
@@ -77,7 +150,11 @@ declare module 'react' {
         React.HTMLAttributes<HTMLElement>,
         HTMLElement
       > & {
+        ref?: React.Ref<HTMLElement>;
         'api-url': string;
+        placeholder?: string;
+        theme?: 'light' | 'dark' | 'auto';
+        'hide-branding'?: string;
       };
     }
   }
