@@ -962,8 +962,13 @@ export default function Home() {
                   height={40}
                   className="rounded-lg flex-shrink-0"
                 />
-                <h1 className="text-2xl sm:text-3xl font-bold hover:text-accent-brand transition-colors">
-                  walletlink.social
+                {/* The brand sits on the name, not the suffix. ".social" is the
+                    address; "walletlink" is the thing. Hover shifts opacity
+                    rather than colour, because the colour is now the identity
+                    and moving it would read as a state change. */}
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight transition-opacity hover:opacity-80">
+                  <span className="text-accent-brand">walletlink</span>
+                  <span className="text-muted-foreground">.social</span>
                 </h1>
               </div>
               <p className="text-muted-foreground text-sm sm:text-base">

@@ -115,9 +115,14 @@ export function ReverseLookup({
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        {/* Native radios keep arrow-key movement and a single tab stop, which a
-            pair of styled buttons would throw away. */}
-        <fieldset className="flex gap-1" aria-label="Platform">
+        {/* Segmented pill rather than two separate buttons. The raised chip
+            carries the selected state by shape and elevation, so the brand
+            colour is doing emphasis rather than the whole job. Native radios
+            underneath keep arrow-key movement and a single tab stop. */}
+        <fieldset
+          className="flex gap-0.5 rounded-full bg-muted p-0.5"
+          aria-label="Platform"
+        >
           {(['twitter', 'farcaster'] as const).map((p) => (
             <label key={p} className="cursor-pointer">
               <input
@@ -132,7 +137,7 @@ export function ReverseLookup({
                 // accessible name from that label unless one is given here.
                 aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
               />
-              <span className="block rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+              <span className="block rounded-full px-4 py-1.5 text-sm text-muted-foreground transition-colors peer-checked:bg-background peer-checked:font-semibold peer-checked:text-accent-brand peer-checked:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1">
                 {p === 'twitter' ? '𝕏' : 'Farcaster'}
               </span>
             </label>

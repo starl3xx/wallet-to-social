@@ -4,9 +4,9 @@
   "name": "walletlink.social",
   "description": "Resolve wallet addresses to Farcaster, X and ENS identities, in both directions.",
   "colors": {
-    "primary": "#10b981",
-    "light": "#34d399",
-    "dark": "#059669"
+    "primary": "#4131B0",
+    "light": "#8585FF",
+    "dark": "#372897"
   },
   "navigation": {
     "tabs": [

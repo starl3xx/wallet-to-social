@@ -274,6 +274,8 @@ export const ResultsTable = memo(function ResultsTable({
   const columnCount =
     baseColumns + (hasHoldings ? 1 : 0) + filteredExtraColumns.length;
 
+  const gridTemplate = `18px minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
@@ -311,15 +313,31 @@ export const ResultsTable = memo(function ResultsTable({
         </span>
       </div>
 
+      {/* One template, used by the header and every row. It was duplicated,
+          which is how a grid drifts: change one and the columns silently stop
+          lining up.
+
+          The leading 18px is the attestation gutter, currently empty. Filling
+          it needs per-identity verification on the client, and right now
+          nothing reliable gets there: the forward pipeline writes stage markers
+          like 'graph' and 'cache' into `source` rather than evidence classes,
+          and socialGraphToResult copies neither `sources` nor the
+          twitter_verified / farcaster_verified flags off the record. Marking
+          rows from that would report owner-attested identities as unattested on
+          the most common path, which is worse than showing nothing. The column
+          stays so the layout does not move when the data lands. */}
       <div className="border rounded-lg overflow-hidden">
         {/* Header */}
         <div className="bg-muted/50 border-b">
           <div
             className="grid text-sm font-medium text-muted-foreground"
             style={{
-              gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+              gridTemplateColumns: gridTemplate,
             }}
           >
+            {/* Attestation gutter. Empty in the header: the column is a legend
+                for the rows, and a label here would crowd 18px. */}
+            <div aria-hidden="true" />
             <div
               className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => handleSort('wallet')}
@@ -405,14 +423,21 @@ export const ResultsTable = memo(function ResultsTable({
                     style={{
                       height: `${virtualRow.size}px`,
                       transform: `translateY(${virtualRow.start}px)`,
-                      gridTemplateColumns: `minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`,
+                      gridTemplateColumns: gridTemplate,
                     }}
                   >
+                    {/* Attestation gutter, reserved but not yet populated. See
+                        the header comment on gridTemplate: the mark needs
+                        per-identity verification that does not currently reach
+                        the client, and a green dot driven by anything less
+                        would assert a provenance the row cannot support. */}
+                    <div aria-hidden="true" />
+
                     {/* Wallet */}
                     <div className="px-4 py-2 font-mono text-xs">
                       <div className="flex items-center gap-2">
                         <button
-                          className="relative hover:text-blue-500 cursor-pointer transition-colors"
+                          className="relative hover:text-accent-brand cursor-pointer transition-colors"
                           onClick={() => handleCopyWallet(result.wallet)}
                           title={`${result.wallet}\nClick to copy`}
                         >

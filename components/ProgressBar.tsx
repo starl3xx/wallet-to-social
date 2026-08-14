@@ -60,11 +60,11 @@ export const ProgressBar = memo(function ProgressBar({
                 {isProcessing && (
                   <div className="relative flex items-center justify-center w-5 h-5">
                     {/* Outer pulse ring */}
-                    <span className="absolute inset-0 rounded-full bg-chart-3/30 animate-ping" />
+                    <span className="absolute inset-0 rounded-full bg-accent-brand/30 animate-ping" />
                     {/* Inner spinning ring */}
-                    <span className="absolute inset-0.5 rounded-full border-2 border-chart-3/50 border-t-chart-3 animate-spin" />
+                    <span className="absolute inset-0.5 rounded-full border-2 border-accent-brand/50 border-t-accent-brand animate-spin" />
                     {/* Center dot */}
-                    <span className="relative w-1.5 h-1.5 rounded-full bg-chart-3" />
+                    <span className="relative w-1.5 h-1.5 rounded-full bg-accent-brand" />
                   </div>
                 )}
                 <h3 className="text-base font-semibold tracking-tight">
@@ -111,7 +111,7 @@ export const ProgressBar = memo(function ProgressBar({
 
             {/* Active progress line */}
             <div
-              className="absolute h-1 top-[11px] left-0 bg-gradient-to-r from-chart-3 via-chart-3 to-chart-3/50 rounded-full transition-all duration-500 ease-out"
+              className="absolute h-1 top-[11px] left-0 bg-gradient-to-r from-accent-brand via-accent-brand to-accent-brand/50 rounded-full transition-all duration-500 ease-out"
               style={{
                 width: `${Math.max(percentage, isProcessing ? 5 : 0)}%`,
               }}
@@ -142,16 +142,16 @@ export const ProgressBar = memo(function ProgressBar({
                         relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
                         transition-all duration-300
                         ${isActive
-                          ? 'bg-chart-3 text-chart-3-foreground scale-110 shadow-lg shadow-chart-3/40'
+                          ? 'bg-accent-brand text-accent-brand-foreground scale-110 shadow-lg shadow-accent-brand/40'
                           : isComplete
-                            ? 'bg-chart-3/80 text-chart-3-foreground'
+                            ? 'bg-accent-brand/80 text-accent-brand-foreground'
                             : 'bg-muted text-muted-foreground'
                         }
                       `}
                     >
                       {/* Pulse ring for active stage */}
                       {isActive && isProcessing && (
-                        <span className="absolute inset-0 rounded-full bg-chart-3/40 animate-ping" />
+                        <span className="absolute inset-0 rounded-full bg-accent-brand/40 animate-ping" />
                       )}
                       <span className="relative">{stage.icon}</span>
                     </div>
@@ -160,7 +160,7 @@ export const ProgressBar = memo(function ProgressBar({
                     <span
                       className={`
                         text-[10px] font-medium uppercase tracking-wider transition-colors duration-300
-                        ${isActive ? 'text-chart-3' : isComplete ? 'text-foreground/70' : 'text-muted-foreground/50'}
+                        ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground/70' : 'text-muted-foreground/50'}
                       `}
                     >
                       {stage.label}
@@ -176,14 +176,14 @@ export const ProgressBar = memo(function ProgressBar({
             <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden">
               {/* Main progress fill */}
               <div
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-chart-3/90 to-chart-3 rounded-full transition-all duration-300 ease-out"
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent-brand/90 to-accent-brand rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${percentage}%` }}
               />
 
               {/* Animated activity indicator when at low percentage */}
               {isProcessing && percentage < 5 && (
                 <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute h-full w-32 -left-32 animate-slide bg-gradient-to-r from-transparent via-chart-3/40 to-transparent" />
+                  <div className="absolute h-full w-32 -left-32 animate-slide bg-gradient-to-r from-transparent via-accent-brand/40 to-transparent" />
                 </div>
               )}
 
@@ -212,8 +212,8 @@ export const ProgressBar = memo(function ProgressBar({
               {isProcessing && currentStage && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-chart-3 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-chart-3" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-brand opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent-brand" />
                   </span>
                   <span className="capitalize">{currentStage}</span>
                 </span>
