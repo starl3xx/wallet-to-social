@@ -187,6 +187,22 @@ All responses include rate limit headers:
 
 ## Changelog
 
+### 2026-08-14 (AI assistant on the marketing site)
+
+- Floating chat bubble backed by Cloudflare AI Search over both
+  `docs.walletlink.social` (13 pages) and the marketing site (33 pages).
+  New `components/DocsChat.tsx`, mounted in the root layout, hidden on
+  `/admin` and `/success`, loaded `lazyOnload` so 115 KB stays off the
+  critical path.
+- Everything is served from `help.walletlink.social`, a **proxied** CNAME, so
+  queries and the widget bundle both pass through our zone. The public
+  endpoint is unauthenticated and spends Workers AI neurons per answer, so the
+  zone is where that spend is bounded: 8 req/10s per IP at the WAF, 20 req/60s
+  at the endpoint.
+- A system prompt enforces the two rules the corpus cannot: never name a data
+  provider, and never merge "~23% has an identity" with "~13% is reachable".
+  Both verified against the live endpoint. See `docs/AI-SEARCH.md`.
+
 ### 2026-08-14 (public docs site + API source-leak fix)
 
 **`sources` no longer leaks the data supply chain**
