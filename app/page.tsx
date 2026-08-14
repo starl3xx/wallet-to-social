@@ -664,11 +664,18 @@ export default function Home() {
   // the table, stats cards and CSV export all work unchanged. The only thing
   // that differs is the truncation notice.
   const handleReverseResults = useCallback(
-    (reverseResults: WalletSocialResult[], label: string, meta: ReverseMeta) => {
+    (
+      reverseResults: WalletSocialResult[],
+      label: string,
+      meta: ReverseMeta,
+      lookupId: string | null
+    ) => {
       setResults(reverseResults);
       setExtraColumns([]);
       setOriginalData({});
-      setCurrentLookupId(null);
+      // Saved server-side, so the rename and add-addresses controls work on it
+      // exactly as they do for a forward lookup.
+      setCurrentLookupId(lookupId);
       setCurrentLookupName(`Wallets for ${label}`);
       setReverseMeta(meta);
       setError(null);
