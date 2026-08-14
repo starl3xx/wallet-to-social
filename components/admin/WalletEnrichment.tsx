@@ -214,8 +214,8 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
             <div
               className={`mt-4 p-3 rounded-lg text-sm ${
                 saveMessage.type === 'success'
-                  ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300'
-                  : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                  ? 'bg-accent-brand-tint/30 text-accent-brand'
+                  : 'bg-destructive/10 text-destructive'
               }`}
             >
               {saveMessage.text}
@@ -241,7 +241,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                           href={walletData.twitterUrl || `https://x.com/${walletData.twitterHandle}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                          className="text-accent-brand hover:underline inline-flex items-center gap-1"
                         >
                           @{walletData.twitterHandle}
                           <ExternalLink className="h-3 w-3" />
@@ -257,7 +257,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                           href={walletData.farcasterUrl || `https://warpcast.com/${walletData.farcaster}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-purple-500 hover:underline inline-flex items-center gap-1"
+                          className="text-accent-brand hover:underline inline-flex items-center gap-1"
                         >
                           @{walletData.farcaster}
                           <ExternalLink className="h-3 w-3" />
@@ -277,7 +277,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                           <span
                             key={s}
                             className={`px-1.5 py-0.5 text-xs rounded ${
-                              s === 'manual' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-muted'
+                              s === 'manual' ? 'bg-accent-brand-tint text-accent-brand' : 'bg-muted'
                             }`}
                           >
                             {s}
@@ -402,14 +402,14 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       </TableCell>
                       <TableCell>
                         {edit.twitterHandle ? (
-                          <span className="text-blue-500">@{edit.twitterHandle}</span>
+                          <span className="text-accent-brand">@{edit.twitterHandle}</span>
                         ) : (
                           '-'
                         )}
                       </TableCell>
                       <TableCell>
                         {edit.farcaster ? (
-                          <span className="text-purple-500">@{edit.farcaster}</span>
+                          <span className="text-accent-brand">@{edit.farcaster}</span>
                         ) : (
                           '-'
                         )}

@@ -216,7 +216,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.totalLookups}</span>
               <span
-                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.lookupsChange)} vs prev
               </span>
@@ -233,7 +233,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.totalWallets.toLocaleString()}</span>
               <span
-                className={`text-xs ${usage.walletsChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.walletsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.walletsChange)} vs prev
               </span>
@@ -250,7 +250,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.avgMatchRate.toFixed(1)}%</span>
               <span
-                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.matchRateChange)} vs prev
               </span>
@@ -267,7 +267,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{formatTime(usage.avgProcessingTime)}</span>
               <span
-                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-accent-brand' : 'text-destructive'}`}
               >
                 {formatChange(usage.processingTimeChange, true)}
               </span>
@@ -293,7 +293,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.twitterRate, 100)}%` }}
                   />
                 </div>
@@ -304,7 +304,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-purple-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.farcasterRate, 100)}%` }}
                   />
                 </div>
@@ -315,7 +315,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-green-500 rounded-full transition-all"
+                    className="h-full bg-accent-brand rounded-full transition-all"
                     style={{ width: `${Math.min(match.anyRate, 100)}%` }}
                   />
                 </div>
@@ -329,11 +329,11 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 <div className="space-y-3">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-blue-500 rounded" />
+                      <div className="w-3 h-0.5 bg-accent-brand rounded" />
                       <span className="text-xs text-muted-foreground">Twitter</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 bg-purple-500 rounded" />
+                      <div className="w-3 h-0.5 bg-accent-brand rounded" />
                       <span className="text-xs text-muted-foreground">Farcaster</span>
                     </div>
                   </div>
@@ -383,14 +383,14 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="flex items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-yellow-500" />
+                    <Layers className="h-4 w-4 text-caution" />
                     <span className="text-sm">Pending</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.pendingJobs}</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                    <Loader2 className="h-4 w-4 text-accent-brand animate-spin" />
                     <span className="text-sm">Running</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.runningJobs}</span>
@@ -404,14 +404,14 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="flex items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-accent-brand" />
                     <span className="text-sm">Success</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.successRate.toFixed(1)}%</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-500" />
+                    <XCircle className="h-4 w-4 text-destructive" />
                     <span className="text-sm">Failed</span>
                   </div>
                   <span className="text-2xl font-bold">{performance.failedCount}</span>

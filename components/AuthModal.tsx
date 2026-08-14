@@ -141,8 +141,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         ) : (
           <>
             <ModalHeader>
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-500/10">
-                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-500" />
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent-brand-tint">
+                <CheckCircle2 className="h-6 w-6 text-accent-brand" />
               </div>
               <ModalTitle className="text-center">Check your email</ModalTitle>
               <ModalDescription className="text-center">

@@ -193,7 +193,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
                       `${lookup.walletCount.toLocaleString()} wallets`}
                   </p>
                   {enrichmentCount > 0 && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-brand-tint text-accent-brand">
                       {enrichmentCount} new match{enrichmentCount !== 1 ? 'es' : ''}
                     </span>
                   )}

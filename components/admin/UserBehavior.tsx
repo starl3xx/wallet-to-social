@@ -232,10 +232,10 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                         <span
                           className={
                             cohort.conversionRate > 50
-                              ? 'text-green-500'
+                              ? 'text-accent-brand'
                               : cohort.conversionRate > 10
-                                ? 'text-yellow-500'
-                                : 'text-red-500'
+                                ? 'text-caution'
+                                : 'text-destructive'
                           }
                         >
                           {cohort.conversionRate.toFixed(0)}%

@@ -1,0 +1,44 @@
+name: design-tokens
+
+# Fails a PR that reintroduces a raw Tailwind palette class.
+#
+# There is an ESLint rule for this too, and it is the one that gives feedback in
+# the editor. This exists because `npm run lint` currently reports nine
+# unrelated pre-existing errors, so it cannot be a required check without fixing
+# those first, and a guard that never runs is not a guard.
+#
+# Grepping is also honest about what it is: the sweep removed 471 of these, and
+# the only failure mode worth blocking is a new one appearing.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'app/**'
+      - 'components/**'
+
+jobs:
+  palette:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No raw Tailwind palette classes
+        run: |
+          set -uo pipefail
+
+          FAMILIES='red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
+          PREFIXES='bg|text|border|ring|from|via|to|decoration|outline|shadow|divide|accent|caret|fill|stroke'
+          PATTERN="(^|[\"' \`])(${PREFIXES})-(${FAMILIES})-[0-9]{2,3}"
+
+          HITS=$(grep -rnE "$PATTERN" app components --include='*.tsx' --include='*.ts' 2>/dev/null || true)
+
+          if [ -z "$HITS" ]; then
+            echo "No raw palette classes. Colour still comes from tokens."
+            exit 0
+          fi
+
+          echo "$HITS"
+          echo
+          echo "::error::Raw Tailwind palette classes found. Use a semantic token: accent-brand (brand and interactive), attested (owner-published identities only), caution (limits, staleness), destructive (removal), or muted. See app/globals.css and CLAUDE.md."
+          exit 1

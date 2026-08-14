@@ -57,8 +57,8 @@ const CheckIcon = ({ className }: { className?: string }) => (
 // Pulsing dot indicator
 const LiveDot = () => (
   <span className="relative flex h-2 w-2">
-    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-brand opacity-75" />
+    <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-brand" />
   </span>
 );
 
@@ -139,7 +139,7 @@ export const RecentWins = memo(function RecentWins() {
                 hover:shadow-md hover:border-border
                 hover:-translate-y-0.5
                 transition-all duration-200 ease-out
-                ${recent ? 'ring-1 ring-emerald-500/20' : ''}
+                ${recent ? 'ring-1 ring-accent-brand/20' : ''}
               `}
               style={{
                 animation: 'slideUp 0.4s ease-out forwards',
@@ -150,7 +150,7 @@ export const RecentWins = memo(function RecentWins() {
               {/* Header: Total found (hero number) + time */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <p className="text-2xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
+                  <p className="text-2xl font-bold tabular-nums tracking-tight text-accent-brand">
                     {totalFound.toLocaleString()}
                   </p>
                   <p className="text-xs text-muted-foreground -mt-0.5">
@@ -160,7 +160,7 @@ export const RecentWins = memo(function RecentWins() {
                 <span className={`
                   text-[10px] font-medium px-1.5 py-0.5 rounded-md whitespace-nowrap
                   ${recent
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    ? 'bg-accent-brand/10 text-accent-brand'
                     : 'bg-muted text-muted-foreground'
                   }
                 `}>
@@ -175,7 +175,7 @@ export const RecentWins = memo(function RecentWins() {
                   <span className="font-medium tabular-nums text-muted-foreground">{win.twitterFound.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1.5" title="Farcaster found">
-                  <FarcasterIcon className="text-purple-500" />
+                  <FarcasterIcon className="text-accent-brand" />
                   <span className="font-medium tabular-nums text-muted-foreground">{win.farcasterFound.toLocaleString()}</span>
                 </div>
               </div>
@@ -185,7 +185,7 @@ export const RecentWins = memo(function RecentWins() {
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {win.walletCount.toLocaleString()} wallets
                 </span>
-                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                <span className="text-[10px] font-semibold text-accent-brand bg-accent-brand-tint/40 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
                   <CheckIcon />
                   {win.socialRate}% hit rate
                 </span>

@@ -250,10 +250,10 @@ export function ApiKeysModal({
 
             {/* Shown exactly once, immediately after creation. */}
             {revealedKey && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-50 p-3 dark:bg-amber-500/10">
+              <div className="rounded-lg border border-caution/30 bg-caution-tint p-3 dark:bg-caution/10">
                 <div className="mb-2 flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
+                  <p className="text-xs text-caution">
                     Copy this now. It is shown once and only a hash is stored, so
                     it cannot be recovered later, only replaced.
                   </p>

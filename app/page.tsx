@@ -1111,8 +1111,8 @@ export default function Home() {
             <div className="space-y-4">
               {/* Wallet limit warning */}
               {wallets.length > TIER_LIMITS[userTier] && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between gap-4">
-                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                <div className="p-4 bg-caution-tint border border-caution/30 rounded-lg flex items-center justify-between gap-4">
+                  <p className="text-sm text-caution">
                     Your file has{' '}
                     <span className="font-semibold">
                       {wallets.length.toLocaleString()}
@@ -1183,7 +1183,7 @@ export default function Home() {
                     </label>
                   </div>
                   {includeENS && wallets.length > 1000 && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="text-xs text-caution">
                       Note: ENS lookups are slower for large batches
                     </span>
                   )}
@@ -1334,7 +1334,7 @@ export default function Home() {
                       onClick={() => setShowFarcasterDMModal(true)}
                       disabled={enrichingFids}
                       title="Send DMs to Farcaster users"
-                      className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:hover:bg-purple-950"
+                      className="text-accent-brand border-accent-brand/30 hover:bg-accent-brand-tint dark:border-accent-brand dark:hover:bg-accent-brand-tint"
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {enrichingFids ? (
@@ -1377,9 +1377,9 @@ export default function Home() {
                   the rest is genuinely unreachable rather than one click away,
                   and implying otherwise would be worse than saying nothing. */}
               {reverseMeta?.truncated && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-50 p-3 dark:bg-amber-500/10">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3 dark:bg-caution/10">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
+                  <p className="text-xs text-caution">
                     Showing {reverseMeta.returnedCount} of{' '}
                     {reverseMeta.totalCount.toLocaleString()} wallets, ordered by
                     Farcaster reach. Need the full set?{' '}
@@ -1421,7 +1421,7 @@ export default function Home() {
               href="https://warpcast.com/starl3xx.eth"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-500 hover:text-purple-400 transition-colors"
+              className="text-accent-brand hover:text-accent-brand transition-colors"
               title="@starl3xx.eth on Farcaster"
             >
               <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">

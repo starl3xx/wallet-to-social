@@ -93,13 +93,13 @@ export const ProgressBar = memo(function ProgressBar({
             <StatBadge
               label="Twitter"
               value={progress.twitterFound}
-              colorClass="text-sky-400"
+              colorClass="text-accent-brand"
               isAnimating={isProcessing && progress.twitterFound > 0}
             />
             <StatBadge
               label="Farcaster"
               value={progress.farcasterFound}
-              colorClass="text-violet-400"
+              colorClass="text-accent-brand"
               isAnimating={isProcessing && progress.farcasterFound > 0}
             />
           </div>

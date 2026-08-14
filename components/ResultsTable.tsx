@@ -248,7 +248,7 @@ export const ResultsTable = memo(function ResultsTable({
           <div
             key={i}
             className={`w-1 h-3 rounded-sm ${
-              i < level ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+              i < level ? 'bg-accent-brand' : 'bg-gray-200 dark:bg-gray-700'
             }`}
           />
         ))}
@@ -417,7 +417,7 @@ export const ResultsTable = memo(function ResultsTable({
                     key={result.wallet}
                     className={`absolute top-0 left-0 w-full grid items-center border-b border-border/50 transition-colors ${
                       isEnriched
-                        ? 'bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50'
+                        ? 'bg-accent-brand-tint/30 hover:bg-accent-brand-tint dark:hover:bg-accent-brand-tint/50'
                         : 'hover:bg-muted/30'
                     }`}
                     style={{
@@ -452,13 +452,13 @@ export const ResultsTable = memo(function ResultsTable({
                           <span
                             className={`px-1.5 py-0.5 text-[10px] font-medium rounded text-white ${
                               result.agent_framework === 'virtuals'
-                                ? 'bg-purple-500'
+                                ? 'bg-accent-brand'
                                 : result.agent_framework === 'erc8004'
-                                  ? 'bg-amber-500'
+                                  ? 'bg-caution'
                                   : result.agent_framework === 'elizaos'
-                                    ? 'bg-blue-500'
+                                    ? 'bg-accent-brand'
                                     : result.agent_framework === 'olas'
-                                      ? 'bg-emerald-500'
+                                      ? 'bg-accent-brand'
                                       : 'bg-gray-500'
                             }`}
                             title={[
@@ -472,7 +472,7 @@ export const ResultsTable = memo(function ResultsTable({
                           </span>
                         )}
                         {isEnriched && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-green-500 text-white">
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent-brand text-white">
                             NEW
                           </span>
                         )}
@@ -508,7 +508,7 @@ export const ResultsTable = memo(function ResultsTable({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline"
+                          className="text-accent-brand hover:underline"
                         >
                           @{result.twitter_handle}
                         </a>
@@ -527,7 +527,7 @@ export const ResultsTable = memo(function ResultsTable({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-purple-500 hover:underline"
+                          className="text-accent-brand hover:underline"
                         >
                           @{result.farcaster}
                         </a>

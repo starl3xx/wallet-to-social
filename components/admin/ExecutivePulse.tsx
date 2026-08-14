@@ -70,9 +70,9 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
   const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'flat' }) => {
     switch (trend) {
       case 'up':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
+        return <TrendingUp className="h-4 w-4 text-accent-brand" />;
       case 'down':
-        return <TrendingDown className="h-4 w-4 text-red-500" />;
+        return <TrendingDown className="h-4 w-4 text-destructive" />;
       default:
         return <Minus className="h-4 w-4 text-muted-foreground" />;
     }
@@ -80,9 +80,9 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
   const StatusIndicator = ({ status }: { status: 'green' | 'yellow' | 'red' }) => {
     const colors = {
-      green: 'bg-green-500',
-      yellow: 'bg-yellow-500',
-      red: 'bg-red-500',
+      green: 'bg-accent-brand',
+      yellow: 'bg-caution',
+      red: 'bg-destructive',
     };
     return (
       <span className={`inline-block w-2 h-2 rounded-full ${colors[status]} mr-1`} />
@@ -194,7 +194,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
               <span className="text-2xl font-bold">${data.revenueMTD.toLocaleString()}</span>
               <span
                 className={`text-xs ${
-                  data.revenueVsLastMonth >= 0 ? 'text-green-500' : 'text-red-500'
+                  data.revenueVsLastMonth >= 0 ? 'text-accent-brand' : 'text-destructive'
                 }`}
               >
                 {data.revenueVsLastMonth >= 0 ? '+' : ''}
@@ -238,10 +238,10 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
               <span
                 className={`text-xs ${
                   data.queueDepth > 10
-                    ? 'text-yellow-500'
+                    ? 'text-caution'
                     : data.queueDepth > 50
-                      ? 'text-red-500'
-                      : 'text-green-500'
+                      ? 'text-destructive'
+                      : 'text-accent-brand'
                 }`}
               >
                 {data.queueDepth === 0 ? 'idle' : data.queueDepth <= 10 ? 'normal' : 'busy'}

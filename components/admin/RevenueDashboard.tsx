@@ -203,7 +203,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Completed</div>
-                <div className="text-lg font-bold text-green-500">{funnel.paymentCompleted}</div>
+                <div className="text-lg font-bold text-accent-brand">{funnel.paymentCompleted}</div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t text-center">
@@ -251,8 +251,8 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               user.tier === 'unlimited'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-blue-100 text-blue-800'
+                                ? 'bg-caution-tint text-caution'
+                                : 'bg-accent-brand-tint text-accent-brand'
                             }`}
                           >
                             {user.tier}

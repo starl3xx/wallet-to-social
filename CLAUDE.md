@@ -105,6 +105,30 @@ Farcaster" (~13%) distinct wherever either appears.
 - **Sentence case for headings** - Use "My lookups" not "My Lookups". Only capitalize the first word and proper nouns.
 - **Curly apostrophes in UI** - Use curly apostrophes (') not straight ones ('). Example: "We'll" not "We'll".
 
+## Colour
+
+Four semantic tokens, defined in `app/globals.css`. **Never a raw Tailwind
+palette class** (`text-green-500`, `bg-blue-50`). An ESLint rule and
+`.github/workflows/design-tokens.yml` both enforce this.
+
+| Token | Means |
+|---|---|
+| `accent-brand`, `accent-brand-tint` | brand and anything interactive: buttons, links, focus, selected, the logo |
+| `attested`, `attested-tint` | **only** an identity the address owner published themselves |
+| `caution`, `caution-tint` | truncated results, stale records, approaching a limit |
+| `destructive` | revoking a key, deleting a lookup |
+| `muted`, `muted-foreground`, `border` | everything else, which is most of the screen |
+
+The tokens are theme-aware, so `bg-accent-brand-tint` already handles dark. A
+`dark:` variant restating the same token is redundant.
+
+**`attested` is the one to be careful with.** It is a claim about provenance, and
+it must be driven by `twitter_verified` / `farcaster_verified`, never by
+`source` (which holds pipeline stage markers like `graph` and `cache` on the
+forward path). Using it for anything other than owner-attested identity
+undermines the distinction the product is sold on. Four pricing tiers in four
+hues taught users nothing; this teaches them the one thing that matters.
+
 ## House style
 
 These apply to **everything written for a human**: UI copy, docs, README, blog

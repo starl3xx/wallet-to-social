@@ -211,7 +211,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
       <ModalContent className="max-w-2xl">
         <ModalHeader>
           <ModalTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-purple-500" />
+            <Send className="h-5 w-5 text-accent-brand" />
             Send Farcaster DMs
           </ModalTitle>
           <ModalDescription>
@@ -277,9 +277,9 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                   {testingKey ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : keyValid === true ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <CheckCircle2 className="h-4 w-4 text-accent-brand" />
                   ) : keyValid === false ? (
-                    <XCircle className="h-4 w-4 text-red-500" />
+                    <XCircle className="h-4 w-4 text-destructive" />
                   ) : (
                     'Test'
                   )}
@@ -411,12 +411,12 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             </div>
 
             {/* Warning */}
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-200">
+            <div className="p-3 bg-caution-tint border border-caution/30 rounded-lg text-sm text-caution">
               <p className="font-medium flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
                 Keep this tab open
               </p>
-              <p className="mt-1 text-amber-700 dark:text-amber-300">
+              <p className="mt-1 text-caution">
                 DMs are sent from your browser. Closing this tab will stop the process.
               </p>
             </div>
@@ -450,7 +450,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
               </div>
               <div className="w-full bg-muted rounded-full h-2">
                 <div
-                  className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                  className="bg-accent-brand h-2 rounded-full transition-all duration-300"
                   style={{
                     width: `${((progress.sent + progress.failed) / progress.total) * 100}%`,
                   }}
@@ -461,11 +461,11 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{progress.sent}</div>
+                <div className="text-2xl font-bold text-accent-brand">{progress.sent}</div>
                 <div className="text-xs text-muted-foreground">Sent</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{progress.failed}</div>
+                <div className="text-2xl font-bold text-destructive">{progress.failed}</div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
@@ -484,9 +484,9 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                   className="flex items-center gap-2 px-3 py-1.5 text-xs border-b last:border-b-0"
                 >
                   {entry.status === 'sent' ? (
-                    <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-3 w-3 text-accent-brand flex-shrink-0" />
                   ) : (
-                    <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
+                    <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
                   )}
                   <span className="font-medium">@{entry.username}</span>
                   {entry.error && (
@@ -512,11 +512,11 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             {/* Summary */}
             <div className="text-center space-y-2">
               {progress.status === 'cancelled' ? (
-                <AlertCircle className="h-12 w-12 mx-auto text-amber-500" />
+                <AlertCircle className="h-12 w-12 mx-auto text-caution" />
               ) : progress.failed === 0 ? (
-                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
+                <CheckCircle2 className="h-12 w-12 mx-auto text-accent-brand" />
               ) : (
-                <AlertCircle className="h-12 w-12 mx-auto text-amber-500" />
+                <AlertCircle className="h-12 w-12 mx-auto text-caution" />
               )}
               <h3 className="text-xl font-semibold">
                 {progress.status === 'cancelled'
@@ -529,13 +529,13 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
 
             {/* Final stats */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-green-50 dark:bg-green-950/30 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">{progress.sent}</div>
-                <div className="text-sm text-green-700 dark:text-green-400">Sent successfully</div>
+              <div className="text-center p-4 bg-accent-brand-tint/30 rounded-lg">
+                <div className="text-3xl font-bold text-accent-brand">{progress.sent}</div>
+                <div className="text-sm text-accent-brand">Sent successfully</div>
               </div>
-              <div className="text-center p-4 bg-red-50 dark:bg-red-950/30 rounded-lg">
-                <div className="text-3xl font-bold text-red-600">{progress.failed}</div>
-                <div className="text-sm text-red-700 dark:text-red-400">Failed</div>
+              <div className="text-center p-4 bg-destructive/10 rounded-lg">
+                <div className="text-3xl font-bold text-destructive">{progress.failed}</div>
+                <div className="text-sm text-destructive">Failed</div>
               </div>
             </div>
 

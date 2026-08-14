@@ -446,9 +446,9 @@ export default function AdminPage() {
   const StatusBadge = ({ status }: { status: string }) => {
     const colors: Record<string, string> = {
       pending: 'bg-gray-100 text-gray-800',
-      processing: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
-      failed: 'bg-red-100 text-red-800',
+      processing: 'bg-accent-brand-tint text-accent-brand',
+      completed: 'bg-accent-brand-tint text-accent-brand',
+      failed: 'bg-destructive/10 text-destructive',
     };
     return (
       <span
@@ -463,15 +463,15 @@ export default function AdminPage() {
   const TierBadge = ({ tier, isWhitelisted }: { tier: string; isWhitelisted?: boolean }) => {
     if (isWhitelisted) {
       return (
-        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-accent-brand-tint text-accent-brand">
           whitelisted
         </span>
       );
     }
     const colors: Record<string, string> = {
       free: 'bg-gray-100 text-gray-800',
-      pro: 'bg-blue-100 text-blue-800',
-      unlimited: 'bg-yellow-100 text-yellow-800',
+      pro: 'bg-accent-brand-tint text-accent-brand',
+      unlimited: 'bg-caution-tint text-caution',
     };
     return (
       <span
@@ -545,7 +545,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-blue-500" />
+                <Zap className="h-4 w-4 text-accent-brand" />
                 <span className="text-sm text-muted-foreground">Pro</span>
               </div>
               <p className="text-2xl font-bold">{stats.pro}</p>
@@ -554,7 +554,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
-                <Crown className="h-4 w-4 text-yellow-500" />
+                <Crown className="h-4 w-4 text-caution" />
                 <span className="text-sm text-muted-foreground">Unlimited</span>
               </div>
               <p className="text-2xl font-bold">{stats.unlimited}</p>
@@ -563,7 +563,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-purple-500" />
+                <Sparkles className="h-4 w-4 text-accent-brand" />
                 <span className="text-sm text-muted-foreground">Whitelisted</span>
               </div>
               <p className="text-2xl font-bold">{stats.whitelisted}</p>
@@ -766,7 +766,7 @@ export default function AdminPage() {
                               {viewingJobId === job.id && jobResultsLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Eye className="h-4 w-4 text-blue-500" />
+                                <Eye className="h-4 w-4 text-accent-brand" />
                               )}
                             </Button>
                           )}
@@ -782,7 +782,7 @@ export default function AdminPage() {
                               {actioningJobId === job.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <RotateCcw className="h-4 w-4 text-green-500" />
+                                <RotateCcw className="h-4 w-4 text-accent-brand" />
                               )}
                             </Button>
                           )}
@@ -798,7 +798,7 @@ export default function AdminPage() {
                               {actioningJobId === job.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <RefreshCw className="h-4 w-4 text-orange-500" />
+                                <RefreshCw className="h-4 w-4 text-caution" />
                               )}
                             </Button>
                           )}
@@ -876,7 +876,7 @@ export default function AdminPage() {
                               href={result.twitter_url || `https://x.com/${result.twitter_handle}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-500 hover:underline flex items-center gap-1"
+                              className="text-accent-brand hover:underline flex items-center gap-1"
                             >
                               @{result.twitter_handle}
                               <ExternalLink className="h-3 w-3" />
@@ -891,7 +891,7 @@ export default function AdminPage() {
                               href={result.farcaster_url || `https://warpcast.com/${result.farcaster}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-purple-500 hover:underline flex items-center gap-1"
+                              className="text-accent-brand hover:underline flex items-center gap-1"
                             >
                               @{result.farcaster}
                               <ExternalLink className="h-3 w-3" />
@@ -997,11 +997,11 @@ export default function AdminPage() {
                       {entry.inputSource ? (
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           entry.inputSource === 'file_upload'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                            ? 'bg-accent-brand-tint text-accent-brand'
                             : entry.inputSource === 'text_input'
-                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                            ? 'bg-accent-brand-tint text-accent-brand'
                             : entry.inputSource === 'contract_import'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
+                            ? 'bg-accent-brand-tint text-accent-brand'
                             : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                         }`}>
                           {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource === 'contract_import' ? 'Contract' : entry.inputSource}

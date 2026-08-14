@@ -117,11 +117,11 @@ export function ContractImportModal({
   const getTypeBadgeColor = (type: ContractType) => {
     switch (type) {
       case 'ERC-721':
-        return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+        return 'bg-accent-brand-tint text-accent-brand';
       case 'ERC-1155':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+        return 'bg-accent-brand-tint text-accent-brand';
       default:
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+        return 'bg-accent-brand-tint text-accent-brand';
     }
   };
 
@@ -262,12 +262,12 @@ export function ContractImportModal({
 
               {result.truncated && (
                 <div className="flex items-start gap-2 pt-2 border-t">
-                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="h-4 w-4 text-caution mt-0.5 flex-shrink-0" />
                   {/* Report what was actually imported, not the cap. A holder
                       list can come back short of the cap when the source is a
                       block explorer that pages slowly and the request runs out
                       of time, and claiming the cap would overstate it. */}
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-caution">
                     Imported {result.wallets.length.toLocaleString()} of{' '}
                     {result.totalHolders.toLocaleString()} total holders
                   </p>
