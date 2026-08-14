@@ -340,26 +340,14 @@ async function unmarkSeedAttempt(candidate: SeedCandidate): Promise<void> {
 
 async function recordSeed(
   candidate: SeedCandidate,
-  holders: HolderResult,
-  /**
-   * Whether this contract's holders were also queued for social resolution.
-   *
-   * The wallet_holdings edges below are written either way, so the holdings
-   * graph grows regardless. But seeded_contracts drives selectNovelCandidates,
-   * where holders_imported > 0 means "done, skip for NOVELTY_DAYS". Recording a
-   * resolution-skipped contract as done would retire it for 30 days with its
-   * wallets never queued, which is precisely the opposite of waiting for
-   * credits to return. Marking it 0 puts it in the short retry window instead,
-   * so it is picked up again once the budget frees up.
-   */
-  resolutionQueued: boolean
+  holders: HolderResult
 ): Promise<void> {
   const db = getDb();
   if (!db) return;
 
   await db.execute(sql`
     INSERT INTO seeded_contracts (address, chain, contract_type, name, symbol, holders_imported, total_holders)
-    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${resolutionQueued ? holders.wallets.length : 0}, ${holders.totalHolders})
+    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${holders.wallets.length}, ${holders.totalHolders})
     ON CONFLICT (address, chain) DO UPDATE
     SET holders_imported = EXCLUDED.holders_imported,
         total_holders = EXCLUDED.total_holders,
@@ -391,7 +379,13 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
   const socialBudget = await checkBackgroundBudget(holders.wallets.length);
   const resolutionQueued = holders.wallets.length > 0 && socialBudget.allowed;
 
-  await recordSeed(candidate, holders, resolutionQueued);
+  // recordSeed intentionally records the true holders_imported even when
+  // resolution is skipped. That column is also selectNovelCandidates' state
+  // machine (0 = failed, retry soon), so marking a successful import as 0 would
+  // make the same top contracts novel again every couple of days and stall the
+  // walk down the list. Skipped wallets are not lost: wallet_holdings keeps
+  // every edge, so a later pass can resolve them without re-importing.
+  await recordSeed(candidate, holders);
 
   // One job per contract so each seeded collection gets its own match-rate
   // stats (feeds the content pipeline). Deliberately NOT hidden: replaces
@@ -576,12 +570,23 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   const deadline = Date.now() + 240_000;
   // Robinhood first: it's the chain with no competing index, so it must
   // never be the one starved when earlier slots burn the time budget
-  // Every supported chain, derived rather than hardcoded: a list here that
-  // drifts from SUPPORTED_CHAINS silently stops seeding new chains, which is
-  // exactly what happened when Arbitrum, Polygon, Optimism and BNB were added.
-  // Newest first, so a run that exhausts its time budget still covers the
-  // chains with the least existing coverage.
-  const chains: SupportedChain[] = [...SUPPORTED_CHAINS].reverse();
+  // Deliberate order, because the run shares one time budget across all slots
+  // and whatever sits last is what gets dropped when it runs out.
+  //
+  // Robinhood first: it is the only chain here nobody else indexes, so its
+  // coverage is the differentiator. Ethereum and Base next, where the existing
+  // audience is. The newer chains take what remains.
+  //
+  // Any supported chain missing from this list is appended rather than dropped,
+  // so adding a chain can never silently stop seeding it, which is exactly the
+  // bug this replaces.
+  const SEED_ORDER: SupportedChain[] = [
+    'robinhood', 'ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc',
+  ];
+  const chains: SupportedChain[] = [
+    ...SEED_ORDER.filter((c) => SUPPORTED_CHAINS.includes(c)),
+    ...SUPPORTED_CHAINS.filter((c) => !SEED_ORDER.includes(c)),
+  ];
 
   const budgetExhausted = (chain: SupportedChain, kind: 'nft' | 'erc20'): SeedRunResult => ({
     contract: { address: '?', chain, kind, label: 'time budget exhausted' },
