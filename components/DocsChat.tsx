@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Script from 'next/script';
 import { useTheme } from '@/components/ThemeProvider';
@@ -81,17 +81,11 @@ const OVERRIDES = `
 export function DocsChat() {
   const pathname = usePathname();
   const { resolvedTheme } = useTheme();
-  const [ready, setReady] = useState(false);
   const hostRef = useRef<HTMLElement | null>(null);
 
   const hidden = HIDDEN_PREFIXES.some(
     (p) => pathname === p || pathname?.startsWith(`${p}/`)
   );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.customElements?.get('chat-bubble-snippet')) setReady(true);
-  }, []);
 
   // The shadow root only exists once the element upgrades, which happens after
   // the module registers it, so this polls briefly rather than assuming.
@@ -109,16 +103,18 @@ export function DocsChat() {
   }, []);
 
   useEffect(() => {
-    if (!ready || hidden) return;
+    if (hidden) return;
     if (applyOverrides()) return;
     const started = Date.now();
     const timer = window.setInterval(() => {
-      if (applyOverrides() || Date.now() - started > 10_000) {
+      // Generous window: the loader is lazyOnload, so on a slow connection the
+      // module can land well after first paint.
+      if (applyOverrides() || Date.now() - started > 30_000) {
         window.clearInterval(timer);
       }
     }, 100);
     return () => window.clearInterval(timer);
-  }, [ready, hidden, applyOverrides]);
+  }, [hidden, applyOverrides]);
 
   if (hidden) return null;
 
@@ -129,10 +125,17 @@ export function DocsChat() {
         type="module"
         src={`${ENDPOINT}/assets/${SNIPPET_VERSION}/search-snippet.es.js`}
         strategy="lazyOnload"
-        onReady={() => setReady(true)}
       />
-      {ready && (
-        <chat-bubble-snippet
+      {/* Rendered unconditionally rather than gated on a script-load callback.
+          Custom elements upgrade themselves: the browser walks the document and
+          upgrades any matching tag the moment customElements.define runs, so a
+          tag that exists before its definition is the normal case, not a broken
+          one. Gating on next/script's onReady added a failure mode the platform
+          already handles, and it fired unreliably under lazyOnload, which left
+          the element registered but never inserted and no bubble on the page.
+          Before upgrade it is an empty inline element with no content, so there
+          is nothing to see and nothing to shift. */}
+      <chat-bubble-snippet
           ref={hostRef}
           api-url={`${ENDPOINT}/`}
           placeholder={PLACEHOLDER}
@@ -153,7 +156,6 @@ export function DocsChat() {
             } as React.CSSProperties
           }
         />
-      )}
     </>
   );
 }
