@@ -41,19 +41,37 @@ const PLACEHOLDER = 'Ask about coverage, pricing, or the API';
  * itself and survive that.
  */
 const OVERRIDES = `
-  .chat-header-title { font-size: 0; }
+  .chat-header-title,
+  .chat-empty-title,
+  .chat-empty-description {
+    /* font-size collapses the original text so it contributes no layout.
+       visibility removes it from the accessibility tree: hiding it visually
+       alone would leave a screen reader announcing the stock copy while
+       sighted users saw ours. Both properties are needed, for two different
+       audiences. */
+    font-size: 0;
+    visibility: hidden;
+  }
+
+  /* visibility is inherited, and descendants may override it, so the
+     replacement text and the header icon are put back explicitly. */
+  .chat-header-title::after,
+  .chat-empty-title::before,
+  .chat-empty-description::before,
+  .chat-header-title svg {
+    visibility: visible;
+  }
+
   .chat-header-title::after {
     content: "walletlink assistant";
     font-size: var(--search-snippet-font-size-lg);
     font-weight: var(--search-snippet-font-weight-bold);
   }
-  .chat-empty-title { font-size: 0; }
   .chat-empty-title::before {
     content: "Ask a question";
     font-size: var(--search-snippet-font-size-lg);
     font-weight: var(--search-snippet-font-weight-medium);
   }
-  .chat-empty-description { font-size: 0; }
   .chat-empty-description::before {
     content: "Coverage, pricing, or anything in the API docs";
     font-size: var(--search-snippet-font-size-sm);
