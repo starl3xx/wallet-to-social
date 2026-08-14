@@ -105,16 +105,28 @@ Farcaster" (~13%) distinct wherever either appears.
 - **Sentence case for headings** - Use "My lookups" not "My Lookups". Only capitalize the first word and proper nouns.
 - **Curly apostrophes in UI** - Use curly apostrophes (') not straight ones ('). Example: "We'll" not "We'll".
 
+## Design language
+
+**`docs/DESIGN-LANGUAGE.md` is the canonical reference for every visual decision.**
+Radius, elevation, type scale, weight, tracking, spacing, control height, mono
+policy, numerals, affordance, motion, icons and per-surface coverage. If a value is
+not there, it should not be in the code.
+
+The summary below covers colour only, because colour is the part with a CI guard.
+Everything else is in that file.
+
 ## Colour
 
 Four semantic tokens, defined in `app/globals.css`. **Never a raw Tailwind
-palette class** (`text-green-500`, `bg-blue-50`). An ESLint rule and
-`.github/workflows/design-tokens.yml` both enforce this.
+palette class** (`text-green-500`, `bg-blue-50`, `bg-gray-500`). An ESLint rule and
+`.github/workflows/design-tokens.yml` both enforce this, across all 22 shaded
+families **including the neutrals** — the guard originally listed only the 17
+chromatic ones and reported clean over 18 live violations.
 
 | Token | Means |
 |---|---|
-| `accent-brand`, `accent-brand-tint` | brand and anything interactive: buttons, links, focus, selected, the logo |
-| `attested`, `attested-tint` | **only** an identity the address owner published themselves |
+| `accent-brand`, `accent-brand-tint` | **an affordance.** Anything you can act on: buttons, links, focus, selected, the logo |
+| `attested`, `attested-tint` | **a measured fact.** An identity the owner published, a system that is live, a real outcome |
 | `caution`, `caution-tint` | truncated results, stale records, approaching a limit |
 | `destructive` | revoking a key, deleting a lookup |
 | `muted`, `muted-foreground`, `border` | everything else, which is most of the screen |
@@ -122,12 +134,20 @@ palette class** (`text-green-500`, `bg-blue-50`). An ESLint rule and
 The tokens are theme-aware, so `bg-accent-brand-tint` already handles dark. A
 `dark:` variant restating the same token is redundant.
 
-**`attested` is the one to be careful with.** It is a claim about provenance, and
-it must be driven by `twitter_verified` / `farcaster_verified`, never by
-`source` (which holds pipeline stage markers like `graph` and `cache` on the
-forward path). Using it for anything other than owner-attested identity
-undermines the distinction the product is sold on. Four pricing tiers in four
-hues taught users nothing; this teaches them the one thing that matters.
+**`attested` is the one to be careful with.** On a results row it is a claim about
+provenance, and there it must be driven by `twitter_verified` /
+`farcaster_verified`, never by `source` (which holds pipeline stage markers like
+`graph` and `cache` on the forward path).
+
+The wider rule is **green marks a measured fact, violet marks an affordance**. That
+covers the row gutter dot, the live pulse, the hit rate and the whitelist chip
+without a second green. What green must never mark is **an inference presented as
+confirmation**, which is the distinction the product is sold on. Four pricing tiers
+in four hues taught users nothing; this teaches them the one thing that matters.
+
+One named exception: a selected platform in a segmented control takes that
+platform's own colours (𝕏 white on `#0F1419`, Farcaster white on `#8A63D2`). Those
+identify a platform, not an affordance.
 
 ## House style
 
