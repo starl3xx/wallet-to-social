@@ -664,11 +664,18 @@ export default function Home() {
   // the table, stats cards and CSV export all work unchanged. The only thing
   // that differs is the truncation notice.
   const handleReverseResults = useCallback(
-    (reverseResults: WalletSocialResult[], label: string, meta: ReverseMeta) => {
+    (
+      reverseResults: WalletSocialResult[],
+      label: string,
+      meta: ReverseMeta,
+      lookupId: string | null
+    ) => {
       setResults(reverseResults);
       setExtraColumns([]);
       setOriginalData({});
-      setCurrentLookupId(null);
+      // Saved server-side, so the rename and add-addresses controls work on it
+      // exactly as they do for a forward lookup.
+      setCurrentLookupId(lookupId);
       setCurrentLookupName(`Wallets for ${label}`);
       setReverseMeta(meta);
       setError(null);
@@ -721,6 +728,10 @@ export default function Home() {
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
       setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
+      // A saved lookup carries its rows but not the truncation metadata, which
+      // only ever existed in memory. Leaving a stale banner up would claim
+      // "showing 100 of N" over a list that is no longer that query's result.
+      setReverseMeta(null);
       setState('complete');
 
       // Check for results that have farcaster username but no fc_fid
@@ -812,6 +823,9 @@ export default function Home() {
     setWallets(newAddresses);
     setOriginalData({});
     setExtraColumns([]);
+    // The cap notice described the reverse query, not this grown list. Once
+    // addresses are added the row count no longer matches what it claims.
+    setReverseMeta(null);
     setState('processing');
     setResults([]);
     setCacheHits(0);

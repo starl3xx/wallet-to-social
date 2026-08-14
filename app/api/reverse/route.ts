@@ -6,6 +6,7 @@ import { socialGraph } from '@/db/schema';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { publicSources } from '@/lib/api-sources';
+import { saveLookup } from '@/lib/history';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -160,8 +161,26 @@ export async function POST(request: NextRequest) {
     agent_verified: r.agentVerified ?? undefined,
   }));
 
+  // Save to My lookups, same as a forward lookup. A reverse result is a wallet
+  // list like any other: worth reloading, renaming and exporting later, and
+  // there is no reason it should be the one kind that vanishes on refresh.
+  //
+  // Keyed on session.user.id because that is what /api/history filters by. The
+  // localStorage id used elsewhere would save a row the owner could never see.
+  let lookupId: string | null = null;
+  if (results.length > 0) {
+    const label = `Wallets for ${platform === 'twitter' ? '@' : ''}${handle}`;
+    try {
+      lookupId = await saveLookup(results, label, session.user.id, 'reverse_lookup');
+    } catch (err) {
+      // A history write must never cost the caller their results.
+      console.error('Failed to save reverse lookup to history:', err);
+    }
+  }
+
   return NextResponse.json({
     results,
+    lookup_id: lookupId,
     meta: {
       platform,
       handle,

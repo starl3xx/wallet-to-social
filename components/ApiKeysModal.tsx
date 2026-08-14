@@ -190,7 +190,7 @@ export function ApiKeysModal({
             <div className="rounded-lg border bg-muted/40 p-4 text-sm">
               <p className="mb-3">
                 The API resolves wallets to social identities in both
-                directions, including reverse lookups from an X handle or
+                directions, including reverse lookups from an 𝕏 handle or
                 Farcaster username back to wallets.
               </p>
               <a

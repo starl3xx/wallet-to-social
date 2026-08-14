@@ -11,7 +11,12 @@ type Platform = 'twitter' | 'farcaster';
 interface ReverseLookupProps {
   locked: boolean;
   onUpgradeClick?: () => void;
-  onResults: (results: WalletSocialResult[], label: string, truncated: ReverseMeta) => void;
+  onResults: (
+    results: WalletSocialResult[],
+    label: string,
+    meta: ReverseMeta,
+    lookupId: string | null
+  ) => void;
   onSignInRequired?: () => void;
 }
 
@@ -76,11 +81,16 @@ export function ReverseLookup({
         return;
       }
 
-      onResults(data.results, `${platform === 'twitter' ? '@' : ''}${data.meta.handle}`, {
-        totalCount: data.meta.total_count,
-        returnedCount: data.meta.returned_count,
-        truncated: data.meta.truncated,
-      });
+      onResults(
+        data.results,
+        `${platform === 'twitter' ? '@' : ''}${data.meta.handle}`,
+        {
+          totalCount: data.meta.total_count,
+          returnedCount: data.meta.returned_count,
+          truncated: data.meta.truncated,
+        },
+        data.lookup_id ?? null
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lookup failed');
     } finally {
@@ -100,7 +110,7 @@ export function ReverseLookup({
           </span>
         )}
         <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
-          find the wallets behind a person
+          find the wallets behind any account
         </span>
       </div>
 
@@ -117,9 +127,13 @@ export function ReverseLookup({
                 checked={platform === p}
                 onChange={() => setPlatform(p)}
                 className="peer sr-only"
+                // The visible label is 𝕏, which a screen reader announces as
+                // "mathematical double-struck capital X". A radio takes its
+                // accessible name from that label unless one is given here.
+                aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
               />
               <span className="block rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
-                {p === 'twitter' ? 'X' : 'Farcaster'}
+                {p === 'twitter' ? '𝕏' : 'Farcaster'}
               </span>
             </label>
           ))}
@@ -163,7 +177,7 @@ export function ReverseLookup({
           .{' '}
           {empty.platform === 'farcaster'
             ? 'Farcaster coverage is complete, so this account genuinely has no addresses attached.'
-            : 'X handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.'}
+            : '𝕏 handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.'}
         </p>
       )}
     </div>
