@@ -23,6 +23,7 @@ const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').t
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
+import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pencil, Plus, Check, X, Send } from 'lucide-react';
@@ -1042,9 +1043,10 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Supported networks, previously buried under the contract button */}
+              {/* Derived from SUPPORTED_CHAINS rather than typed out, so adding
+                  a chain updates the page instead of leaving stale copy behind */}
               <p className="text-center text-xs text-muted-foreground">
-                Ethereum, Base and Robinhood Chain
+                {SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(' · ')}
               </p>
 
               <RecentWins />
