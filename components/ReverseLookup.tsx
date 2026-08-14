@@ -127,6 +127,10 @@ export function ReverseLookup({
                 checked={platform === p}
                 onChange={() => setPlatform(p)}
                 className="peer sr-only"
+                // The visible label is 𝕏, which a screen reader announces as
+                // "mathematical double-struck capital X". A radio takes its
+                // accessible name from that label unless one is given here.
+                aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
               />
               <span className="block rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
                 {p === 'twitter' ? '𝕏' : 'Farcaster'}

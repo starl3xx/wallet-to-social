@@ -728,6 +728,10 @@ export default function Home() {
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
       setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
+      // A saved lookup carries its rows but not the truncation metadata, which
+      // only ever existed in memory. Leaving a stale banner up would claim
+      // "showing 100 of N" over a list that is no longer that query's result.
+      setReverseMeta(null);
       setState('complete');
 
       // Check for results that have farcaster username but no fc_fid
@@ -819,6 +823,9 @@ export default function Home() {
     setWallets(newAddresses);
     setOriginalData({});
     setExtraColumns([]);
+    // The cap notice described the reverse query, not this grown list. Once
+    // addresses are added the row count no longer matches what it claims.
+    setReverseMeta(null);
     setState('processing');
     setResults([]);
     setCacheHits(0);
