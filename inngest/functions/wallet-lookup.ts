@@ -346,12 +346,22 @@ export const walletLookup = inngest.createFunction(
             if (!result.twitter_handle && storedData.twitter_handle) {
               result.twitter_handle = storedData.twitter_handle;
               result.twitter_url = storedData.twitter_url;
-              result.twitter_verified = storedData.twitter_verified;
             }
             if (!result.farcaster && storedData.farcaster) {
               result.farcaster = storedData.farcaster;
               result.farcaster_url = storedData.farcaster_url;
               result.fc_followers = storedData.fc_followers;
+            }
+            // Attestation applies to the handle it describes, so it is
+            // copied whenever the graph's handle is the one on the result,
+            // not only when the graph supplied it. Nesting this inside the
+            // gap-filling branch meant a handle that arrived from cache or
+            // the API kept no verification at all, which is the usual case
+            // and left the gutter blank on the busiest path.
+            if (result.twitter_handle && result.twitter_handle === storedData.twitter_handle) {
+              result.twitter_verified = storedData.twitter_verified;
+            }
+            if (result.farcaster && result.farcaster === storedData.farcaster) {
               result.farcaster_verified = storedData.farcaster_verified;
             }
             if (!result.lens && storedData.lens) result.lens = storedData.lens;
