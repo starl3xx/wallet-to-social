@@ -27,9 +27,10 @@ import {
   getContractHolders,
   type HolderResult,
 } from './contract-holders';
-import type { SupportedChain } from './chains';
+import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
+import { checkBackgroundBudget } from './neynar-budget';
 
 // Per-contract holder cap: bounds daily external-API spend for the social
 // resolution of never-seen wallets. Negatives persist, so re-encounters of
@@ -57,12 +58,21 @@ const OPENSEA_CHAIN_SLUGS: Record<SupportedChain, string> = {
   ethereum: 'ethereum',
   base: 'base',
   robinhood: 'robinhood',
+  arbitrum: 'arbitrum',
+  // OpenSea still identifies Polygon by its old name
+  polygon: 'matic',
+  optimism: 'optimism',
+  bsc: 'bsc',
 };
 
 const GECKO_NETWORKS: Record<SupportedChain, string> = {
   ethereum: 'eth',
   base: 'base',
   robinhood: 'robinhood',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon_pos',
+  optimism: 'optimism',
+  bsc: 'bsc',
 };
 
 export interface SeedCandidate {
@@ -226,8 +236,11 @@ export async function discoverTokenCandidates(chain: SupportedChain): Promise<Se
   for (const pool of json.data ?? []) {
     const tokenId = pool.relationships?.base_token?.data?.id;
     if (!tokenId) continue;
-    // id format: "<network>_<address>"
-    const address = tokenId.slice(tokenId.indexOf('_') + 1).toLowerCase();
+    // id format: "<network>_<address>". Split on the LAST underscore, not the
+    // first: network slugs can themselves contain one (polygon_pos), which made
+    // the address parse as "pos_0x..." and silently skipped every Polygon pool.
+    // Addresses never contain underscores, so the last one is always the split.
+    const address = tokenId.slice(tokenId.lastIndexOf('_') + 1).toLowerCase();
     if (!address.startsWith('0x') || seen.has(address)) continue;
 
     // "BUB / WETH" → the pool's base symbol; skip infra tokens
@@ -361,14 +374,37 @@ async function recordSeed(
 export async function seedContract(candidate: SeedCandidate): Promise<SeedRunResult> {
   const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP);
 
+  // Decided before recording: recordSeed needs to know whether this contract
+  // should count as finished or stay in the retry window.
+  const socialBudget = await checkBackgroundBudget(holders.wallets.length);
+  const resolutionQueued = holders.wallets.length > 0 && socialBudget.allowed;
+
+  // recordSeed intentionally records the true holders_imported even when
+  // resolution is skipped. That column is also selectNovelCandidates' state
+  // machine (0 = failed, retry soon), so marking a successful import as 0 would
+  // make the same top contracts novel again every couple of days and stall the
+  // walk down the list. Skipped wallets are not lost: wallet_holdings keeps
+  // every edge, so a later pass can resolve them without re-importing.
   await recordSeed(candidate, holders);
 
   // One job per contract so each seeded collection gets its own match-rate
   // stats (feeds the content pipeline). Deliberately NOT hidden: replaces
   // the synthetic-looking refresh cron in Recent Activity with real
   // collections and real numbers.
+  //
+  // Only this step spends Neynar credits, and it is gated separately from the
+  // holder import above. When the Neynar budget is exhausted the seed still
+  // grows wallet_holdings and seeded_contracts (Alchemy, Moralis and Blockscout
+  // are unaffected by it); only social resolution waits for the period to roll
+  // over. Gating the whole run instead would stall the holdings graph for weeks
+  // over a limit that has nothing to do with the sources feeding it.
   let jobId: string | null = null;
-  if (holders.wallets.length > 0) {
+  if (holders.wallets.length > 0 && !resolutionQueued) {
+    console.warn(
+      `Seeded ${candidate.label} holdings only, resolution deferred: ${socialBudget.reason}`
+    );
+  }
+  if (resolutionQueued) {
     jobId = await createJob(holders.wallets, {}, {
       includeENS: false,
       saveToHistory: false,
@@ -534,7 +570,23 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   const deadline = Date.now() + 240_000;
   // Robinhood first: it's the chain with no competing index, so it must
   // never be the one starved when earlier slots burn the time budget
-  const chains: SupportedChain[] = ['robinhood', 'base', 'ethereum'];
+  // Deliberate order, because the run shares one time budget across all slots
+  // and whatever sits last is what gets dropped when it runs out.
+  //
+  // Robinhood first: it is the only chain here nobody else indexes, so its
+  // coverage is the differentiator. Ethereum and Base next, where the existing
+  // audience is. The newer chains take what remains.
+  //
+  // Any supported chain missing from this list is appended rather than dropped,
+  // so adding a chain can never silently stop seeding it, which is exactly the
+  // bug this replaces.
+  const SEED_ORDER: SupportedChain[] = [
+    'robinhood', 'ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc',
+  ];
+  const chains: SupportedChain[] = [
+    ...SEED_ORDER.filter((c) => SUPPORTED_CHAINS.includes(c)),
+    ...SUPPORTED_CHAINS.filter((c) => !SEED_ORDER.includes(c)),
+  ];
 
   const budgetExhausted = (chain: SupportedChain, kind: 'nft' | 'erc20'): SeedRunResult => ({
     contract: { address: '?', chain, kind, label: 'time budget exhausted' },

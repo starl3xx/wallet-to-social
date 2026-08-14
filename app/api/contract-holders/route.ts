@@ -183,6 +183,12 @@ export async function POST(request: NextRequest) {
         message: `NFT holder lookups are not available on ${chainLabel}`,
         status: 400,
       },
+      CHAIN_NFT_NOT_ENABLED: {
+        // No provider names in UI copy (see CLAUDE.md), and this is our
+        // configuration to fix, not something the customer did or can change.
+        message: `NFT holder import on ${chainLabel} is temporarily unavailable. Token (ERC-20) import works on this chain in the meantime.`,
+        status: 503,
+      },
       CHAIN_NO_ERC20_SUPPORT: {
         message: `Token (ERC-20) holder lookups are not available on ${chainLabel}. NFT collections on this chain are supported.`,
         status: 400,

@@ -7,13 +7,24 @@
  * (labels, the selectable list) lives here instead.
  */
 
-export type SupportedChain = 'ethereum' | 'base' | 'robinhood';
+export type SupportedChain =
+  | 'ethereum'
+  | 'base'
+  | 'robinhood'
+  | 'arbitrum'
+  | 'polygon'
+  | 'optimism'
+  | 'bsc';
 
 // EVM chain IDs, used to pin ethers to a static network so it skips auto-detection
 export const CHAIN_IDS: Record<SupportedChain, number> = {
   ethereum: 1,
   base: 8453,
   robinhood: 4663,
+  arbitrum: 42161,
+  polygon: 137,
+  optimism: 10,
+  bsc: 56,
 };
 
 // Human-readable chain labels for error messages and UI
@@ -21,6 +32,10 @@ export const CHAIN_LABELS: Record<SupportedChain, string> = {
   ethereum: 'Ethereum',
   base: 'Base',
   robinhood: 'Robinhood Chain',
+  arbitrum: 'Arbitrum',
+  polygon: 'Polygon',
+  optimism: 'Optimism',
+  bsc: 'BNB Chain',
 };
 
 export const SUPPORTED_CHAINS = Object.keys(CHAIN_IDS) as SupportedChain[];
@@ -42,4 +57,8 @@ export const ERC20_SUPPORTED_CHAINS: SupportedChain[] = [
   'ethereum',
   'base',
   'robinhood',
+  'arbitrum',
+  'polygon',
+  'optimism',
+  'bsc',
 ];
