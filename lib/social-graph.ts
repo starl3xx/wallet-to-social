@@ -803,6 +803,11 @@ export function socialGraphToResult(
     fc_fid: record.fcFid ?? undefined,
     lens: record.lens ?? undefined,
     github: record.github ?? undefined,
+    // Attestation, carried through so the UI can distinguish an identity the
+    // owner published from one that was matched. Previously dropped here, which
+    // left the client with no way to tell them apart.
+    twitter_verified: record.twitterVerified ?? undefined,
+    farcaster_verified: record.farcasterVerified ?? undefined,
     is_agent: record.isAgent ?? undefined,
     agent_name: record.agentName ?? undefined,
     agent_framework: record.agentFramework ?? undefined,
