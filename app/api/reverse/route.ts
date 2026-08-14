@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -29,7 +29,11 @@ type Platform = 'twitter' | 'farcaster';
 // Same shapes the public API validates against, so a handle accepted here is
 // accepted there.
 const VALID_TWITTER = /^@?[a-zA-Z0-9_]{1,15}$/;
-const VALID_FARCASTER = /^[a-z0-9_.-]{1,32}$/;
+// Case-insensitive: Farcaster usernames are case-insensitive, and the input is
+// lowercased before querying anyway. Testing the raw value against a
+// lowercase-only pattern rejected "Dwr" as malformed, which is a format error
+// for something that is not a format problem.
+const VALID_FARCASTER = /^[a-zA-Z0-9_.-]{1,32}$/;
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -123,7 +127,13 @@ export async function POST(request: NextRequest) {
     .from(socialGraph)
     // Highest reach first. Without an order the 100-row cap would return an
     // arbitrary slice, which matters most on exactly the handles that exceed it.
-    .orderBy(desc(socialGraph.fcFollowers))
+    //
+    // NULLS LAST is required, not decorative: Postgres sorts NULLs first under
+    // DESC, so plain desc() would fill the cap with wallets that have no
+    // Farcaster reach at all and push the high-follower ones out. That inverts
+    // the ordering precisely on the handles big enough to truncate, and it is
+    // worst on X lookups, where many linked wallets have no Farcaster data.
+    .orderBy(sql`${socialGraph.fcFollowers} DESC NULLS LAST`)
     .where(eq(column, handle))
     .limit(MAX_RESULTS);
 
