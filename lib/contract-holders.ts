@@ -57,10 +57,20 @@ const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
     'https://rpc.mainnet.chain.robinhood.com',
     'https://rpc.arrowrpc.com',
   ],
+  arbitrum: ['https://arb1.arbitrum.io/rpc', 'https://arbitrum-one-rpc.publicnode.com'],
+  // polygon-rpc.com now returns 401 ('tenant disabled'); these were probed live
+  polygon: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'],
+  optimism: ['https://mainnet.optimism.io', 'https://optimism-rpc.publicnode.com'],
+  bsc: ['https://bsc-dataseed.binance.org', 'https://bsc-rpc.publicnode.com'],
 };
 
-// Alchemy endpoints for NFT holder lookups.
-// Chains absent here have no Alchemy NFT coverage and cannot resolve NFT holders.
+// Alchemy endpoints for NFT holder lookups. getOwnersForContract returns the
+// entire owner set in ONE request, which is why NFT holders go here rather than
+// to Moralis (whose NFT owners endpoint pages 100 at a time and, as of testing,
+// rejects its own pagination cursor).
+//
+// Networks must be enabled per app in the Alchemy dashboard. A chain listed here
+// whose network is off returns 403, surfaced as CHAIN_NFT_NOT_ENABLED.
 const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
   ethereum: 'https://eth-mainnet.g.alchemy.com/nft/v3',
   base: 'https://base-mainnet.g.alchemy.com/nft/v3',
@@ -68,13 +78,23 @@ const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
   // Alchemy returned exactly the same 618 holders, no gaps in either direction.
   // Requires ROBINHOOD_MAINNET to be enabled for the app in the Alchemy dashboard.
   robinhood: 'https://robinhood-mainnet.g.alchemy.com/nft/v3',
+  // Enabled on the app 2026-08-14, verified returning 200.
+  arbitrum: 'https://arb-mainnet.g.alchemy.com/nft/v3',
+  polygon: 'https://polygon-mainnet.g.alchemy.com/nft/v3',
+  optimism: 'https://opt-mainnet.g.alchemy.com/nft/v3',
+  bsc: 'https://bnb-mainnet.g.alchemy.com/nft/v3',
 };
 
-// Moralis chain IDs (use hex format for better compatibility).
-// Chains absent here have no ERC-20 holder index available.
+// Moralis chain IDs (hex form), the ERC-20 holder index. Verified live on the
+// free plan for every chain listed here. Robinhood is absent because Moralis
+// does not index it; it uses BLOCKSCOUT_BASE_URLS instead.
 const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   ethereum: '0x1',
   base: '0x2105',
+  arbitrum: '0xa4b1',
+  polygon: '0x89',
+  optimism: '0xa',
+  bsc: '0x38',
 };
 
 
@@ -201,14 +221,10 @@ async function getERC721Holders(
   limit: number = HOLDER_LIMIT
 ): Promise<{ wallets: string[]; totalHolders: number }> {
   const alchemyKey = process.env.ALCHEMY_KEY;
-  if (!alchemyKey) {
-    throw new Error('ALCHEMY_KEY required for NFT holder lookups');
-  }
-
   const baseUrl = ALCHEMY_ENDPOINTS[chain];
-  if (!baseUrl) {
-    throw new Error('CHAIN_NO_NFT_SUPPORT');
-  }
+
+  if (!alchemyKey) throw new Error('ALCHEMY_KEY required for NFT holder lookups');
+  if (!baseUrl) throw new Error('CHAIN_NO_NFT_SUPPORT');
 
   const url = `${baseUrl}/${alchemyKey}/getOwnersForContract?contractAddress=${address}&withTokenBalances=false`;
 
@@ -223,6 +239,17 @@ async function getERC721Holders(
 
   if (!response.ok) {
     const errorText = await response.text();
+    // 403 means the network is not enabled for this app in the Alchemy
+    // dashboard, which is a config problem with a specific fix, not a dead end.
+    //
+    // Moralis is deliberately NOT used as a fallback here. Its NFT owners
+    // endpoint rejects its own pagination cursor ("cursor is not valid") on
+    // every encoding tested, so it can only ever return the first 100 owners.
+    // Returning a silent 100-holder slice of a 5,000-holder collection is worse
+    // than a clear error, and ERC-20 on these chains is unaffected.
+    if (response.status === 403) {
+      throw new Error('CHAIN_NFT_NOT_ENABLED');
+    }
     console.error('Alchemy API error response:', {
       status: response.status,
       body: errorText,

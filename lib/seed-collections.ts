@@ -30,6 +30,7 @@ import {
 import type { SupportedChain } from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
+import { checkBackgroundBudget } from './neynar-budget';
 
 // Per-contract holder cap: bounds daily external-API spend for the social
 // resolution of never-seen wallets. Negatives persist, so re-encounters of
@@ -57,12 +58,21 @@ const OPENSEA_CHAIN_SLUGS: Record<SupportedChain, string> = {
   ethereum: 'ethereum',
   base: 'base',
   robinhood: 'robinhood',
+  arbitrum: 'arbitrum',
+  // OpenSea still identifies Polygon by its old name
+  polygon: 'matic',
+  optimism: 'optimism',
+  bsc: 'bsc',
 };
 
 const GECKO_NETWORKS: Record<SupportedChain, string> = {
   ethereum: 'eth',
   base: 'base',
   robinhood: 'robinhood',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon_pos',
+  optimism: 'optimism',
+  bsc: 'bsc',
 };
 
 export interface SeedCandidate {
@@ -226,8 +236,11 @@ export async function discoverTokenCandidates(chain: SupportedChain): Promise<Se
   for (const pool of json.data ?? []) {
     const tokenId = pool.relationships?.base_token?.data?.id;
     if (!tokenId) continue;
-    // id format: "<network>_<address>"
-    const address = tokenId.slice(tokenId.indexOf('_') + 1).toLowerCase();
+    // id format: "<network>_<address>". Split on the LAST underscore, not the
+    // first: network slugs can themselves contain one (polygon_pos), which made
+    // the address parse as "pos_0x..." and silently skipped every Polygon pool.
+    // Addresses never contain underscores, so the last one is always the split.
+    const address = tokenId.slice(tokenId.lastIndexOf('_') + 1).toLowerCase();
     if (!address.startsWith('0x') || seen.has(address)) continue;
 
     // "BUB / WETH" → the pool's base symbol; skip infra tokens
@@ -367,8 +380,21 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
   // stats (feeds the content pipeline). Deliberately NOT hidden: replaces
   // the synthetic-looking refresh cron in Recent Activity with real
   // collections and real numbers.
+  //
+  // Only this step spends Neynar credits, and it is gated separately from the
+  // holder import above. When the Neynar budget is exhausted the seed still
+  // grows wallet_holdings and seeded_contracts (Alchemy, Moralis and Blockscout
+  // are unaffected by it); only social resolution waits for the period to roll
+  // over. Gating the whole run instead would stall the holdings graph for weeks
+  // over a limit that has nothing to do with the sources feeding it.
   let jobId: string | null = null;
-  if (holders.wallets.length > 0) {
+  const socialBudget = await checkBackgroundBudget(holders.wallets.length);
+  if (holders.wallets.length > 0 && !socialBudget.allowed) {
+    console.warn(
+      `Seeded ${candidate.label} without social resolution: ${socialBudget.reason}`
+    );
+  }
+  if (holders.wallets.length > 0 && socialBudget.allowed) {
     jobId = await createJob(holders.wallets, {}, {
       includeENS: false,
       saveToHistory: false,
