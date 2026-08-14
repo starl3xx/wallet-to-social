@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mintlify": {
+      "type": "http",
+      "url": "https://www.mintlify.com/docs/mcp"
+    },
+    "walletlink-docs": {
+      "type": "http",
+      "url": "https://docs.walletlink.social/mcp"
+    }
+  }
+}
