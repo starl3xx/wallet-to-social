@@ -7,7 +7,7 @@ publish_date: "2026-05-14"
 
 # How to Reach Your Token Holders on Farcaster
 
-Farcaster is the best platform for reaching crypto-native users directly. Unlike Twitter, where DMs are buried and ignored, Farcaster's direct cast feature has high open rates and the user base skews heavily toward active on-chain participants.
+Farcaster is the best platform for reaching crypto-native users directly. Unlike Twitter, where DMs are buried and ignored, Farcaster's direct cast feature has high open rates and the user base skews heavily toward active onchain participants.
 
 If your project has token holders, there is a good chance a meaningful percentage of them are on Farcaster. The question is finding them and reaching out in a way that gets responses rather than blocks.
 
@@ -17,7 +17,7 @@ This is a practical guide to doing exactly that.
 
 Before getting into the how, it is worth understanding why Farcaster is uniquely suited for this:
 
-**Wallet verification is built in.** Every Farcaster account has at least one verified Ethereum address. This creates a direct, protocol-level link between on-chain activity and social identity. No scraping, no guessing, no third-party tools needed for the link itself.
+**Wallet verification is built in.** Every Farcaster account has at least one verified Ethereum address. This creates a direct, protocol-level link between onchain activity and social identity. No scraping, no guessing, no third-party tools needed for the link itself.
 
 **The user base is high-signal.** Farcaster users skew toward builders, investors, and governance participants. They are more likely to hold tokens intentionally (rather than through casual speculation) and more likely to engage with project communications.
 

@@ -4,7 +4,7 @@
  * The published 11.5% figure (9 Robinhood Chain collections, 14,773 holders,
  * 2026-08-12) was measured with live Neynar lookups only — it was explicitly a
  * *floor*, not a match rate. Since then the graph grew from ~5k rows to 4.7M
- * via the Farcaster protocol sweep, the ENS on-chain harvest and the daily seed.
+ * via the Farcaster protocol sweep, the ENS onchain harvest and the daily seed.
  *
  * This script answers a different and more useful question: what do we now
  * resolve **from our own database alone**, with zero external API calls at

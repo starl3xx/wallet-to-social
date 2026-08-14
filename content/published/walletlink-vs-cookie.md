@@ -7,7 +7,7 @@ publish_date: "2026-04-30"
 
 # walletlink.social vs Cookie.fun: Which Tool Fits Your Workflow?
 
-Both Cookie.fun and walletlink.social show up when teams search for tools to understand their on-chain audience. They get compared often, but they solve fundamentally different problems. Understanding the distinction saves you time and money.
+Both Cookie.fun and walletlink.social show up when teams search for tools to understand their onchain audience. They get compared often, but they solve fundamentally different problems. Understanding the distinction saves you time and money.
 
 Here is the short version: Cookie is an AI agent analytics and discovery platform. walletlink is a wallet-to-social resolution engine. They overlap at the edges, but their core functions are different.
 
@@ -15,7 +15,7 @@ Here is the short version: Cookie is an AI agent analytics and discovery platfor
 
 Cookie.fun is built around tracking and analyzing AI agents in the crypto ecosystem. Its core capabilities include:
 
-- **AI agent discovery.** Browse and search a growing index of AI agents operating on-chain, with metadata about their purpose, activity, and performance.
+- **AI agent discovery.** Browse and search a growing index of AI agents operating onchain, with metadata about their purpose, activity, and performance.
 - **Mindshare analytics.** Track which AI agents are gaining attention across social platforms using a proprietary "mindshare" metric.
 - **Agent token tracking.** Monitor tokens associated with AI agents, including price, volume, and holder activity.
 - **Social sentiment.** Aggregate and analyze social media mentions related to specific agents and tokens.

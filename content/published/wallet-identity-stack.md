@@ -15,7 +15,7 @@ This post is a technical overview of the identity data sources available today, 
 
 ### ENS Text Records
 
-**How it works:** The Ethereum Name Service allows owners of `.eth` names to set arbitrary text records on their ENS domain. Common records include `com.twitter`, `com.github`, `url`, `description`, and `avatar`. These records are stored on-chain (or via CCIP-Read for offchain resolution) and can be queried by anyone.
+**How it works:** The Ethereum Name Service allows owners of `.eth` names to set arbitrary text records on their ENS domain. Common records include `com.twitter`, `com.github`, `url`, `description`, and `avatar`. These records are stored onchain (or via CCIP-Read for offchain resolution) and can be queried by anyone.
 
 **What it provides:**
 - Twitter/X handle (via `com.twitter` text record)
@@ -26,7 +26,7 @@ This post is a technical overview of the identity data sources available today, 
 - Farcaster handle (via `com.farcaster` -- newer, less common)
 
 **Strengths:**
-- On-chain and verifiable -- the ENS owner explicitly set these records
+- Onchain and verifiable -- the ENS owner explicitly set these records
 - Persistent -- records stay until the owner changes them
 - Widely adopted among power users and builders
 - No API key required for basic lookups (public Ethereum state)
@@ -51,7 +51,7 @@ const github = await resolver.getText('com.github');
 const url = await resolver.getText('url');
 ```
 
-On-chain queries are reliable but slow (one RPC call per record per name). For batch resolution, offchain indexers are more practical.
+Onchain queries are reliable but slow (one RPC call per record per name). For batch resolution, offchain indexers are more practical.
 
 ### Farcaster Verified Addresses
 
@@ -103,7 +103,7 @@ The Neynar API supports batch lookups of up to 350 addresses per request, making
 - Linked social handles (when populated)
 
 **Strengths:**
-- Profile ownership is on-chain and verifiable
+- Profile ownership is onchain and verifiable
 - Profiles are composable NFTs with rich metadata
 - Active developer ecosystem building on Lens data
 
@@ -148,7 +148,7 @@ The Neynar API supports batch lookups of up to 350 addresses per request, making
 
 **DeBank / Zerion profiles:** Some users have set up profiles on portfolio tracking platforms. These occasionally link to social accounts. Not a primary source but can fill gaps.
 
-**On-chain attestations (EAS):** Ethereum Attestation Service allows arbitrary attestations, including social identity claims. Still early in adoption but represents the future of composable identity.
+**Onchain attestations (EAS):** Ethereum Attestation Service allows arbitrary attestations, including social identity claims. Still early in adoption but represents the future of composable identity.
 
 ## Source Overlap and Diminishing Returns
 
@@ -161,7 +161,7 @@ A + B (no overlap):  13%
 A + B (with overlap): 10%  (3% overlap)
 ```
 
-In practice, the overlap between ENS and Farcaster is roughly 30-40% of the matched set. Users who invest in on-chain identity tend to invest across multiple platforms.
+In practice, the overlap between ENS and Farcaster is roughly 30-40% of the matched set. Users who invest in onchain identity tend to invest across multiple platforms.
 
 The implication: adding a third source after ENS + Farcaster yields diminishing returns. Lens might add another 1-2% net new matches. Unstoppable Domains adds less than 1%. The first two sources capture the majority of resolvable wallets.
 
@@ -180,8 +180,8 @@ Match rate is only useful if the matches are accurate. Each source has different
 
 **Verification strength:**
 - Farcaster verified addresses: Cryptographic proof. Highest confidence.
-- ENS ownership: On-chain proof of ENS ownership, but linked social handles are self-reported and unverified.
-- Lens profile ownership: On-chain proof, but social links in metadata are unverified.
+- ENS ownership: Onchain proof of ENS ownership, but linked social handles are self-reported and unverified.
+- Lens profile ownership: Onchain proof, but social links in metadata are unverified.
 
 **Freshness:**
 - Farcaster: Generally fresh. Users actively maintain profiles.

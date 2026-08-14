@@ -23,7 +23,7 @@ Early holders differ from later holders in ways that matter for marketing:
 
 **They set the narrative tone.** When potential buyers research your token, they look at who's holding and what those people say. If your earliest holders are publicly positive, that's the strongest social proof possible.
 
-The challenge is that these people are invisible by default. They exist as wallet addresses on a blockchain. You can see their on-chain behavior but you can't reach them through any traditional marketing channel.
+The challenge is that these people are invisible by default. They exist as wallet addresses on a blockchain. You can see their onchain behavior but you can't reach them through any traditional marketing channel.
 
 ## The Post-Launch Window
 
@@ -44,7 +44,7 @@ The teams that activate early holders within this window build momentum that com
 
 Step one is knowing who they are. This means resolving wallet addresses to social profiles.
 
-Export your holder list from Etherscan or your preferred on-chain analytics tool. For a new token, this list is manageable -- likely under 5,000 addresses in the first few months.
+Export your holder list from Etherscan or your preferred onchain analytics tool. For a new token, this list is manageable -- likely under 5,000 addresses in the first few months.
 
 When you run these addresses through wallet identity resolution, expect results that look roughly like this:
 
@@ -55,7 +55,7 @@ When you run these addresses through wallet identity resolution, expect results 
 | Holders 501-1000 | 500 | 90-120 | 18-24% |
 | All 1,000 | 1,000 | 200-250 | 20-25% |
 
-Match rates skew higher for top holders because larger positions correlate with more established on-chain identities. Whales tend to have ENS names, Farcaster accounts, and active social profiles.
+Match rates skew higher for top holders because larger positions correlate with more established onchain identities. Whales tend to have ENS names, Farcaster accounts, and active social profiles.
 
 From 1,000 early holders, expect to identify 200-250 social profiles. That's 200-250 people you can actually reach, research, and engage.
 

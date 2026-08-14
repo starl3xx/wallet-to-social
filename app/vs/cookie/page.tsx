@@ -210,7 +210,7 @@ export default function CookieComparison() {
             <p className="text-muted-foreground mb-4">
               Cookie.fun is a data layer and analytics platform for AI agents.
               It indexes agents across multiple frameworks and tracks their
-              performance using on-chain and social data:
+              performance using onchain and social data:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
               <li>Mindshare rankings based on social engagement and sentiment</li>

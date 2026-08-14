@@ -49,12 +49,16 @@ figures here are precisely the thing that must not get crossed.
 
 ## The system prompt is load-bearing
 
-Set on both instances via `system_prompt_ai_search`. It enforces two rules that
-the corpus alone does not:
+Set on both instances via `system_prompt_ai_search`. It enforces three rules
+that the corpus alone does not:
 
 1. Never name a data provider. Describe evidence classes instead.
 2. Never merge the two coverage figures. ~23% is any identity including ENS;
    ~13% is reachable on X or Farcaster. Outreach questions get 13%.
+3. Always write "onchain" as one word, **even when the retrieved context spells
+   it "on-chain"**. That clause is load-bearing: the model is grounded in the
+   corpus, so without it a stale hyphenated page pulls the answer back to the
+   wrong spelling. Keep it if you rewrite the prompt.
 
 Both were verified against the live endpoint after setup:
 

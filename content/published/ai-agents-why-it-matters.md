@@ -56,7 +56,7 @@ For a 10,000-address airdrop with 10% agent contamination, you're sending 1,000 
 Beyond holder counts, agents distort other metrics:
 
 - **Holder distribution.** Agents spread across many small positions can make your distribution look healthier (more decentralized) than it is.
-- **Activity metrics.** Agent wallets transact frequently and regularly, inflating on-chain activity numbers.
+- **Activity metrics.** Agent wallets transact frequently and regularly, inflating onchain activity numbers.
 - **Retention calculations.** An agent that holds your token for 6 months looks like a loyal holder. It's not loyal -- it just hasn't hit its sell trigger yet.
 
 Any analytics dashboard that doesn't filter agents shows you a distorted picture.
@@ -102,7 +102,7 @@ This process takes minutes for the identity resolution step and longer for behav
 
 ## Why This Gets Worse Before It Gets Better
 
-Agent creation is accelerating. Virtuals Protocol alone is adding roughly 2,000 new agent wallets per month. As agent frameworks become more accessible (ElizaOS is open source, new platforms launch monthly), the number of on-chain agents will grow.
+Agent creation is accelerating. Virtuals Protocol alone is adding roughly 2,000 new agent wallets per month. As agent frameworks become more accessible (ElizaOS is open source, new platforms launch monthly), the number of onchain agents will grow.
 
 More concerning: agents are getting better at mimicking human behavior. The next generation of agents will have social profiles, varied transaction timing, and realistic interaction patterns. Detection will require increasingly sophisticated methods.
 

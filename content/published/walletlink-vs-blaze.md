@@ -43,7 +43,7 @@ This distinction mattered more than any individual feature comparison.
 
 For wallet-to-social resolution specifically, match rate is the number that matters. A tool that resolves 22% of your wallets gives you 4x more actionable data than one resolving 5%.
 
-walletlink.social reports a 22% match rate, roughly 9x the industry average of 2.5%. This comes from deterministic, user-attested sources: Farcaster verified addresses, on-chain ENS records, and a persistent social graph. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
+walletlink.social reports a 22% match rate, roughly 9x the industry average of 2.5%. This comes from deterministic, user-attested sources: Farcaster verified addresses, onchain ENS records, and a persistent social graph. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
 
 Blaze's match rate varied depending on the community type and data sources used. Published benchmarks were hard to find, but users reported rates in the 5-8% range for general wallet lists. Blaze compensated by offering more tools to act on the data it did resolve.
 
@@ -90,7 +90,7 @@ The economic comparison depended on the use case:
 
 **You needed team collaboration.** Multiple marketing team members working from a shared dashboard, managing contacts, and running campaigns benefited from Blaze's platform approach.
 
-**You needed community analytics beyond identity.** Blaze tracked engagement across Discord, Twitter, and on-chain activity over time. If you needed trend data and dashboards, that was built in.
+**You needed community analytics beyond identity.** Blaze tracked engagement across Discord, Twitter, and onchain activity over time. If you needed trend data and dashboards, that was built in.
 
 **Your match rate needs were moderate.** If 5-8% resolution was sufficient for your use case -- perhaps a smaller, more engaged community -- the lower match rate was acceptable and the additional features added value.
 

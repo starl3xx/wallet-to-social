@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Access tier is derived from the validated SESSION only. Previously email
     // and wallet came from the request body, so an anonymous caller could pass
-    // a whitelisted wallet (public on-chain) or a known paid user's email to
+    // a whitelisted wallet (public onchain) or a known paid user's email to
     // getUserAccess and be handed Infinity walletLimit — bypassing the free
     // cap. Authenticated users keep their tier via the session; anonymous
     // callers get free tier regardless of what the body claims.

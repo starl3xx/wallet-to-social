@@ -73,7 +73,7 @@ We haven't run a controlled head-to-head comparison, and we'd be skeptical of an
 ## Data Sources
 
 **walletlink.social** uses:
-- ENS on-chain text records
+- ENS onchain text records
 - Farcaster verified addresses (via Neynar)
 - Web3.bio aggregated profiles
 - Social graph enrichment from previously resolved wallets
@@ -82,7 +82,7 @@ We haven't run a controlled head-to-head comparison, and we'd be skeptical of an
 - Proprietary data collection
 - Machine learning identity matching
 - Third-party data partnerships
-- On-chain analytics
+- Onchain analytics
 
 The approaches are fundamentally different. Ours is deterministic -- we match based on cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records). Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
 

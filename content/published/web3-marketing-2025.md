@@ -41,7 +41,7 @@ The problems became apparent quickly:
 
 ## Era 3: Airdrop Farming (2023)
 
-The airdrop meta changed everything. Projects realized they could incentivize specific on-chain behaviors by hinting at future token distributions. Users realized they could game these incentives systematically.
+The airdrop meta changed everything. Projects realized they could incentivize specific onchain behaviors by hinting at future token distributions. Users realized they could game these incentives systematically.
 
 The result was an arms race:
 - Projects designed increasingly complex qualification criteria
@@ -51,13 +51,13 @@ The result was an arms race:
 
 Airdrops became marketing theater. Projects spent millions distributing tokens to wallets that existed solely to receive them. The tokens were dumped immediately. The "community" evaporated overnight.
 
-Some projects navigated this well by combining on-chain criteria with identity verification. But the default outcome was waste -- tokens distributed to bots, farmers, and multi-account operators who contributed nothing lasting.
+Some projects navigated this well by combining onchain criteria with identity verification. But the default outcome was waste -- tokens distributed to bots, farmers, and multi-account operators who contributed nothing lasting.
 
-**What died**: The belief that on-chain activity equals genuine interest.
+**What died**: The belief that onchain activity equals genuine interest.
 
 ## Era 4: Analytics and Segmentation (2024)
 
-The backlash against airdrop farming pushed the industry toward data. Platforms like Dune, Nansen, and Arkham made on-chain analytics accessible. Projects started segmenting their audiences based on wallet behavior.
+The backlash against airdrop farming pushed the industry toward data. Platforms like Dune, Nansen, and Arkham made onchain analytics accessible. Projects started segmenting their audiences based on wallet behavior.
 
 This was genuine progress. Instead of treating all wallets equally, projects could identify:
 - Long-term holders vs. short-term flippers
@@ -75,7 +75,7 @@ A project might identify 500 high-value wallets perfectly suited for a governanc
 
 This is where we are now.
 
-Identity-first marketing combines the analytical rigor of Era 4 with actual reachability. The core capability is wallet identity resolution: connecting on-chain addresses to real social profiles on Twitter, Farcaster, and other platforms.
+Identity-first marketing combines the analytical rigor of Era 4 with actual reachability. The core capability is wallet identity resolution: connecting onchain addresses to real social profiles on Twitter, Farcaster, and other platforms.
 
 Several factors converged to make this possible:
 
@@ -92,10 +92,10 @@ Several factors converged to make this possible:
 Each previous era was built on a proxy metric that eventually broke down:
 - Discord members (proxy for community) --> easily inflated
 - Impressions (proxy for demand) --> disconnected from conversion
-- On-chain activity (proxy for genuine interest) --> gameable by farmers
+- Onchain activity (proxy for genuine interest) --> gameable by farmers
 - Analytics segments (proxy for understanding) --> not actionable
 
-Identity-first marketing is built on a direct signal: verified wallet-to-social connections. When you resolve a wallet to a Farcaster profile with a verified address, that's not a proxy. That's a confirmed link between an on-chain identity and a reachable person.
+Identity-first marketing is built on a direct signal: verified wallet-to-social connections. When you resolve a wallet to a Farcaster profile with a verified address, that's not a proxy. That's a confirmed link between an onchain identity and a reachable person.
 
 This doesn't mean identity-first marketing is perfect. Not every wallet resolves. Not every resolved profile leads to engagement. The 22% match rate means 78% of wallets remain anonymous.
 
@@ -111,11 +111,11 @@ For project teams operating today, identity-first marketing means:
 
 **Community building becomes intentional.** Instead of growing a Discord server and measuring member count, identify your highest-value holders and build relationships with them specifically.
 
-**Marketing spend becomes measurable.** When you can track which identified holders engaged with outreach and what on-chain actions followed, you have real attribution -- not the impression-based guesswork of previous eras.
+**Marketing spend becomes measurable.** When you can track which identified holders engaged with outreach and what onchain actions followed, you have real attribution -- not the impression-based guesswork of previous eras.
 
 ## What Comes Next
 
-The trajectory is clear: match rates will increase as more users adopt on-chain identity standards. Farcaster's verified addresses, ENS text records, and emerging identity protocols are all growing. The 22% match rate of 2025 will likely be 35-40% by 2027.
+The trajectory is clear: match rates will increase as more users adopt onchain identity standards. Farcaster's verified addresses, ENS text records, and emerging identity protocols are all growing. The 22% match rate of 2025 will likely be 35-40% by 2027.
 
 As match rates climb, identity-first marketing becomes the default -- not an edge, but table stakes. The projects building this muscle now are the ones that will have mature, tested outreach practices when 40% resolution makes it a competitive necessity.
 

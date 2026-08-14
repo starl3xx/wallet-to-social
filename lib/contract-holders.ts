@@ -74,7 +74,7 @@ const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
 const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
   ethereum: 'https://eth-mainnet.g.alchemy.com/nft/v3',
   base: 'https://base-mainnet.g.alchemy.com/nft/v3',
-  // Verified against on-chain ownerOf enumeration of StonkBrokers (4444 tokens):
+  // Verified against onchain ownerOf enumeration of StonkBrokers (4444 tokens):
   // Alchemy returned exactly the same 618 holders, no gaps in either direction.
   // Requires ROBINHOOD_MAINNET to be enabled for the app in the Alchemy dashboard.
   robinhood: 'https://robinhood-mainnet.g.alchemy.com/nft/v3',

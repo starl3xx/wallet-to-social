@@ -8,7 +8,7 @@ export const maxDuration = 300;
 /**
  * Daily incremental ENS text-record harvest: scans TextChanged events for
  * com.twitter / com.github from the saved checkpoint (~7,200 mainnet blocks
- * per day — a handful of getLogs calls), resolves current values on-chain,
+ * per day — a handful of getLogs calls), resolves current values onchain,
  * and upserts the new user-attested handles.
  *
  * Requires a checkpoint: the one-time backfill runs via

@@ -1,15 +1,15 @@
 ---
 title: "From Dune Dashboard to DMs: Turning Analytics into Action"
-meta_description: "Dune shows who holds your token. But you can't DM a wallet address. Here's how to bridge the gap between on-chain analytics and real outreach."
+meta_description: "Dune shows who holds your token. But you can't DM a wallet address. Here's how to bridge the gap between onchain analytics and real outreach."
 published: true
 publish_date: "2026-05-07"
 ---
 
 # From Dune Dashboard to DMs: Turning Analytics into Action
 
-Dune Analytics is one of the best tools in crypto. You can query any EVM chain, build dashboards that track holder behavior in real time, and share everything publicly. For understanding on-chain activity, nothing else comes close.
+Dune Analytics is one of the best tools in crypto. You can query any EVM chain, build dashboards that track holder behavior in real time, and share everything publicly. For understanding onchain activity, nothing else comes close.
 
-But Dune has a hard stop. It tells you what is happening on-chain. It does not tell you who is behind those wallets or how to reach them.
+But Dune has a hard stop. It tells you what is happening onchain. It does not tell you who is behind those wallets or how to reach them.
 
 This is the gap between analytics and action, and it is where most token projects get stuck.
 
@@ -48,7 +48,7 @@ None of these approaches actually close the gap. The data stays in the dashboard
 The workflow that actually works has four steps, not three:
 
 ```
-1. Query    -->  Dune / on-chain analytics
+1. Query    -->  Dune / onchain analytics
 2. Export   -->  CSV of wallet addresses + relevant data
 3. Resolve  -->  Wallet-to-social identity resolution
 4. Outreach -->  Personalized contact via Twitter / Farcaster DMs

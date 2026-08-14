@@ -1,6 +1,6 @@
 ---
 title: "The Future of Wallet Identity: What Comes After 22%"
-meta_description: "Wallet-to-social match rates sit at 22% today. Here's why that number is climbing and what new identity standards mean for the on-chain ecosystem."
+meta_description: "Wallet-to-social match rates sit at 22% today. Here's why that number is climbing and what new identity standards mean for the onchain ecosystem."
 published: true
 publish_date: "2026-05-04"
 ---
@@ -17,7 +17,7 @@ To understand the future, it helps to understand what drives the current 22%. Wa
 
 - **ENS names** with linked social records
 - **Farcaster verified addresses** connected to social profiles
-- **On-chain attestations** (EAS, Coinbase Verifications)
+- **Onchain attestations** (EAS, Coinbase Verifications)
 - **Public social posts** containing wallet addresses
 - **Reverse lookups** through platforms that store wallet-social mappings
 
@@ -74,7 +74,7 @@ The jump from 22% to 40% or 50% is not just a quantitative improvement. It cross
 
 **Sybil detection gets sharper.** The more wallets you can resolve to identities, the easier it becomes to identify clusters that share one identity or no identity at all. Identity coverage and Sybil resistance scale together.
 
-**On-chain reputation becomes meaningful.** When most active wallets have resolvable identities, on-chain history starts functioning as a reputation system. Lending protocols, governance systems, and access-gated communities can make decisions based on verifiable identity-linked history.
+**Onchain reputation becomes meaningful.** When most active wallets have resolvable identities, onchain history starts functioning as a reputation system. Lending protocols, governance systems, and access-gated communities can make decisions based on verifiable identity-linked history.
 
 ## The Timeline
 
@@ -91,7 +91,7 @@ These estimates assume continued ecosystem growth and no major regulatory disrup
 
 ## What This Means for Builders
 
-If you are building anything that depends on knowing who your on-chain users are -- and that includes nearly every token project, DAO, and NFT collection -- the trajectory matters more than today's snapshot.
+If you are building anything that depends on knowing who your onchain users are -- and that includes nearly every token project, DAO, and NFT collection -- the trajectory matters more than today's snapshot.
 
 The tools you adopt now should be built to incorporate new identity signals as they emerge. A resolution service that only checks ENS today will miss Farcaster signals. One that only checks Farcaster will miss attestation-based identities tomorrow.
 

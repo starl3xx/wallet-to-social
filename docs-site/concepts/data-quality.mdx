@@ -11,7 +11,7 @@ Responses include a `sources` array describing what kind of evidence backs the r
 
 | Class | Meaning |
 | --- | --- |
-| `onchain` | Published by the address owner in an on-chain record. |
+| `onchain` | Published by the address owner in an onchain record. |
 | `farcaster` | A protocol-level Farcaster account verification. |
 | `manual` | Reviewed by us directly. |
 | `aggregated` | Correlated from a third-party identity index. Weaker than the others. |
@@ -36,7 +36,7 @@ The bands are guidance, not thresholds enforced anywhere in the API. Pick your o
 
 <Warning>
 `twitter.verified: false` does **not** mean the handle is unverified in the
-everyday sense. The flag is true only for handles attested by an on-chain
+everyday sense. The flag is true only for handles attested by an onchain
 record or a manual review. A handle that came from an X account verified on
 Farcaster is genuinely owner-attested, and it still reports `false`.
 </Warning>
@@ -52,7 +52,7 @@ On [`GET /api/v1/wallet/{address}`](/api-reference/wallet) this surfaces in two 
 - `meta.stale`, a boolean in the response body.
 - `X-Data-Staleness: stale` and `X-Last-Updated`, response headers, sent only when the record is stale.
 
-Stale does not mean wrong. It means we have not re-confirmed it recently. Farcaster records refresh daily, so they rarely go stale. On-chain records are only re-read on a slower cycle, because they change rarely and reading them is expensive.
+Stale does not mean wrong. It means we have not re-confirmed it recently. Farcaster records refresh daily, so they rarely go stale. Onchain records are only re-read on a slower cycle, because they change rarely and reading them is expensive.
 
 ## Found, missing, and checked
 
