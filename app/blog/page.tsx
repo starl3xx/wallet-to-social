@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
+import { PageShell } from '@/components/ui/page-shell';
 import { ArrowRight } from 'lucide-react';
 import { getAllPosts } from '@/lib/blog';
 
@@ -34,25 +34,9 @@ export default function BlogIndex() {
   const posts = getAllPosts();
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-12 px-4 max-w-4xl">
-        {/* Header */}
+    <PageShell>
         <header className="mb-12">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 mb-8 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Image
-              src="/icon.png"
-              alt="walletlink.social"
-              width={24}
-              height={24}
-              className="rounded"
-            />
-            <span className="text-sm font-medium">walletlink.social</span>
-          </Link>
-
-          <h1 className="text-4xl font-bold mb-4">Blog</h1>
+          <h1 className="mb-4 text-4xl font-extralight tracking-[-0.04em] sm:text-5xl">Blog</h1>
           <p className="text-xl text-muted-foreground">
             Insights on wallet identity, token holder outreach, and Web3
             marketing.
@@ -89,12 +73,6 @@ export default function BlogIndex() {
         )}
 
         {/* Footer */}
-        <footer className="mt-16 pt-8 border-t text-center text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground transition-colors">
-            walletlink.social
-          </Link>
-        </footer>
-      </div>
-    </div>
+    </PageShell>
   );
 }
