@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Moved to the private starl3xx/walletlink-ops repo. Kept on disk so the
+# ralph:* content scripts keep working locally, but no longer tracked here:
+# the security runbook maps where every secret lives, and the drafts are
+# unpublished positioning. See docs/README.md.
+docs/SECURITY.md
+content/drafts/
+data/content.db
