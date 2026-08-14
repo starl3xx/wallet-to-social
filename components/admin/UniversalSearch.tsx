@@ -178,7 +178,7 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium truncate">{result.title}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                          <span className="text-xs px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground capitalize">
                             {result.type}
                           </span>
                         </div>

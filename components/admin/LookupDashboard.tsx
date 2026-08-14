@@ -180,7 +180,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Usage metrics</h2>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-md border overflow-hidden">
+          <div className="flex rounded-lg border overflow-hidden">
             {(['today', 'week', 'month'] as TimePeriod[]).map((p) => (
               <button
                 key={p}
@@ -336,11 +336,11 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                       a second brand colour for a purely decorative job. */}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 rounded bg-accent-brand" />
+                      <div className="w-3 h-0.5 rounded-sm bg-accent-brand" />
                       <span className="text-xs text-muted-foreground">Twitter</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-0.5 rounded bg-accent-brand/40" />
+                      <div className="w-3 h-0.5 rounded-sm bg-accent-brand/40" />
                       <span className="text-xs text-muted-foreground">Farcaster</span>
                     </div>
                   </div>

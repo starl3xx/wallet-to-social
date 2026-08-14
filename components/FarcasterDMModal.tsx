@@ -299,7 +299,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                   id="saveApiKey"
                   checked={saveApiKey}
                   onChange={(e) => setSaveApiKey(e.target.checked)}
-                  className="rounded"
+                  className="rounded-sm"
                 />
                 <label htmlFor="saveApiKey" className="text-sm text-muted-foreground">
                   Save API key for next time
@@ -356,7 +356,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                     key={v}
                     type="button"
                     onClick={() => setMessage((m) => m + v)}
-                    className="px-2 py-0.5 bg-muted rounded hover:bg-muted/80 font-mono"
+                    className="px-2 py-0.5 bg-muted rounded-sm hover:bg-muted/80 font-mono"
                   >
                     {v}
                   </button>

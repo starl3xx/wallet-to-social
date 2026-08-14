@@ -116,13 +116,10 @@ export const RecentWins = memo(function RecentWins() {
             <div
               key={win.id}
               className={`
-                min-w-0 p-4 rounded-xl
-                bg-gradient-to-br from-card to-muted/30
-                border border-border/60
-                shadow-sm
-                hover:shadow-md hover:border-border
-                hover:-translate-y-0.5
-                transition-all duration-200 ease-out
+                min-w-0 p-4 rounded-lg
+                bg-card border border-border
+                hover:border-foreground/30
+                transition-colors
                 ${recent ? 'ring-1 ring-accent-brand/20' : ''}
               `}
               style={{
@@ -145,7 +142,7 @@ export const RecentWins = memo(function RecentWins() {
                   </p>
                 </div>
                 <span className={`
-                  text-[10px] font-medium px-1.5 py-0.5 rounded-md whitespace-nowrap
+                  text-[10px] font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap
                   ${recent
                     ? 'bg-accent-brand/10 text-accent-brand'
                     : 'bg-muted text-muted-foreground'

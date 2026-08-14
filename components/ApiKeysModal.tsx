@@ -259,7 +259,7 @@ export function ApiKeysModal({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 overflow-x-auto rounded border bg-background px-2 py-1.5 font-mono text-xs">
+                  <code className="flex-1 overflow-x-auto rounded-sm border bg-background px-2 py-1.5 font-mono text-xs">
                     {revealedKey}
                   </code>
                   <Button

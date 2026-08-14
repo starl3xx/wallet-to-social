@@ -487,7 +487,7 @@ export const ResultsTable = memo(function ResultsTable({
                         >
                           {truncateWallet(result.wallet)}
                           {copiedWallet === result.wallet && (
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded-sm whitespace-nowrap z-10">
                               Copied!
                             </span>
                           )}
@@ -511,7 +511,7 @@ export const ResultsTable = memo(function ResultsTable({
                           </span>
                         )}
                         {isEnriched && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent-brand text-accent-brand-foreground">
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-sm bg-accent-brand text-accent-brand-foreground">
                             NEW
                           </span>
                         )}
