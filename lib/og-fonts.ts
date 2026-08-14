@@ -26,6 +26,20 @@ export interface OgFont {
 export const OG_FONT_FAMILY = 'Sohne';
 
 /**
+ * Card copy is limited to what Söhne actually contains.
+ *
+ * Satori draws with the buffers passed to it and nothing else. A browser walks
+ * a fallback chain when a face lacks a codepoint; Satori draws a missing-glyph
+ * box instead. So characters outside Söhne's coverage must not appear in any
+ * card, however good they look in the app.
+ *
+ * The one that has already bitten: 𝕏 (U+1D54F, Mathematical Alphanumeric
+ * Symbols) shipped as a tofu box on the default card. Use a plain "X" here.
+ * The same applies to anything else decorative: arrows, dingbats, most emoji.
+ */
+
+
+/**
  * The URLs are built by the caller, not here, and that is load-bearing.
  * Turbopack resolves `new URL(..., import.meta.url)` at build time and needs a
  * literal path it can trace to a real file. Composing a directory URL here and
