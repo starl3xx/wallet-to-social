@@ -3,131 +3,132 @@
 All notable changes to walletlink.social. Newest first.
 
 
-### 2026-08-15 (Stripe Customers were never created)
+### 2026-08-15 (Stripe made no Customer objects)
 
-- `createCheckoutSession` never set `customer_creation`, which defaults to
-  `if_required`. A one-time card payment never requires a Customer, so Stripe
-  created none: the account held **zero Customer objects** despite real
-  completed sales. `customer_email` prefills the field, it does not create
-  anything. Every payment therefore stored an empty `stripe_customer_id`, and
-  the admin Users pane showed a dash in the Stripe column for every paying
-  account. Now set to `always`.
-- The Users pane falls back to the payment intent when no Customer exists, since
-  historic sales have none and the payment intent identifies the sale in Stripe
-  just as well. `/api/admin/users` now returns `stripePaymentId` for it.
-- The checkout reuses an existing Customer when Stripe already has one for that
-  email. `customer_creation: 'always'` on its own creates a *new* Customer per
-  checkout, so a Pro to Unlimited upgrade would have made a second Customer,
-  overwritten the stored id and orphaned the first: the opposite of the single
-  identity this change is for.
-- The checkout lowercases the email once, and uses that form for the Customer
-  lookup, `customer_email` and both metadata blocks. Stripe's email filter is
-  case-sensitive while every other path lowercases, so a buyer who typed a
-  different capitalisation on a second purchase would have missed their own
-  Customer and created a duplicate.
-- `''` is no longer written to `stripe_customer_id`. Callers derive it from
-  `session.customer`, which is null whenever no Customer was created, and an
-  empty string in an id column reads as "we have one and it is blank".
-
-
-### 2026-08-15 (apex is canonical, and everything now agrees)
-
-- Vercel now serves `walletlink.social` directly and 308-redirects `www` to it.
-  The arrangement used to be reversed while `metadataBase`, `sitemap.ts`,
-  `robots.ts` and every canonical tag declared the apex, so each of those
-  published a URL that redirected.
-- That split was the root cause of two separate failures. Stripe does not follow
-  redirects, so the webhook registered against the redirecting host failed every
-  delivery from 2026-01-17 and no payment ever provisioned an account. The X
-  card crawler hit the same redirect on `og:image` and kept serving a stale card.
-- `PRODUCTION_URL` moves to the apex, so the single resolver in `lib/site-url.ts`
-  and the SEO declarations now state the same origin. No `www` literal remains in
-  the codebase.
-- The Stripe webhook endpoint has been repointed to the apex, which now answers
-  directly rather than through a redirect.
-
-**The rule this leaves behind:** a machine-to-machine URL must never point at a
-redirect, and there must be exactly one declared origin.
+- `createCheckoutSession` did not set `customer_creation`. The default value is
+  `if_required`. A one-time card payment does not require a Customer, so Stripe
+  made none. The account held **zero Customer objects**, and it had real
+  completed sales. `customer_email` fills the field in the form. It does not
+  make a Customer. Every payment therefore stored an empty `stripe_customer_id`,
+  and the admin Users pane showed a dash in the Stripe column for each paying
+  account. The value is now `always`.
+- The Users pane shows the payment intent when no Customer exists. Sales from
+  before this change have no Customer. The payment intent identifies the sale in
+  Stripe. `/api/admin/users` now returns `stripePaymentId` for this purpose.
+- The checkout reuses the Customer when Stripe already has one for that email.
+  `customer_creation: 'always'` alone makes a new Customer for each checkout. A
+  buyer who upgrades from Pro to Unlimited would get a second Customer. The
+  second id would replace the first, and the first would become an orphan. That
+  result is the opposite of one identity for one buyer.
+- The checkout changes the email to lower case one time. It uses that form for
+  the Customer lookup, for `customer_email`, and for both metadata blocks.
+  Stripe matches its email filter by case. Every other path uses lower case. A
+  buyer who typed a different capitalization on a second purchase would miss the
+  Customer and make a duplicate.
+- The code no longer writes `''` to `stripe_customer_id`. The callers read the
+  value from `session.customer`, which is null when no Customer exists. An empty
+  string in an id column says "there is an id, and it is blank".
 
 
-### 2026-08-15 (Starter tier removed)
+### 2026-08-15 (the apex domain is canonical)
 
-- Starter was retired on 2026-08-12 but survived in 42 places across 12 files,
-  defended by a comment about keeping legacy accounts working. There were no
-  legacy accounts: **zero users ever held it and zero payments were ever taken
-  for it**, verified against production before removing anything.
-- Removed from `UserTier`, the price and limit maps, the tier ladder, checkout,
-  the webhook, the upgrade modal, the account chip and the analytics unions. New
-  `PaidTier` names the tiers that can actually be bought, so signatures no longer
-  spell the union out four different ways.
-- **The cumulative-quota machinery went with it.** `TIER_QUOTA`, `walletQuota`
-  and `walletsRemaining` existed solely because Starter capped at 10,000 wallets
-  in total; every remaining tier has a per-lookup limit and nothing else.
-  `walletsUsed` is still accumulated, now as a lifetime usage record that gates
-  nothing, and is no longer reset on upgrade since that would only destroy it.
-- `getUserAccess` now routes `users.tier` through a `normalizeTier()` rather than
-  casting it. The column is free text, and an unrecognised value used to index
-  the limit map to `undefined`, producing a broken lookup with no error rather
-  than a clear failure.
+- Vercel now serves `walletlink.social` directly. It sends a 308 redirect from
+  `www` to the apex. The configuration was the opposite before this change,
+  while `metadataBase`, `sitemap.ts`, `robots.ts` and each canonical tag
+  declared the apex. Each of them published a URL that redirected.
+- This difference caused two separate failures. Stripe does not follow a
+  redirect, so the webhook pointed at the host that redirected. Every delivery
+  failed from 2026-01-17, and no payment gave an account its tier. The X card
+  crawler met the same redirect on `og:image`, so it kept an old card.
+- `PRODUCTION_URL` now holds the apex. The resolver in `lib/site-url.ts` and the
+  SEO declarations state the same origin. No `www` literal remains in the code.
+- The Stripe webhook endpoint now points at the apex. The apex answers directly.
+
+**The rule to keep:** a URL that one machine gives to another machine must never
+point at a redirect. Declare one origin only.
 
 
-### 2026-08-15 (share text overstated the match rate)
+### 2026-08-15 (the Starter tier is removed)
 
-- The share card copy computed its match rate as
-  `(twitterCount + farcasterCount) / totalWallets`, which counts everyone
-  holding both an X handle and a Farcaster account twice. On a real
-  1,057-wallet lookup it published **49%** for a result the product itself
-  reported as **30.8%**: 190 people double-counted. It now uses the distinct
-  reachable figure, the same one the results header states, passed in from the
-  same predicate so the two cannot disagree.
-- This is the overlap error `StatsCards` was already fixed for. It survived in
-  `ShareButtons` because that component derives its own statistics rather than
-  receiving them.
+- Jake retired Starter on 2026-08-12. It stayed in 42 places across 12 files. A
+  comment defended it and said that legacy accounts needed it. No legacy account
+  existed. **No user ever held the tier, and Stripe took no payment for it.** I
+  checked production before I removed anything.
+- I removed it from `UserTier`, from the price map, from the limit map, from the
+  tier ladder, from the checkout, from the webhook, from the upgrade modal, from
+  the account chip and from the analytics types. The new type `PaidTier` names
+  the tiers that a person can buy. The signatures no longer write the union out
+  four times.
+- **The cumulative quota machinery went with it.** `TIER_QUOTA`, `walletQuota`
+  and `walletsRemaining` existed only because Starter had a total cap of 10,000
+  wallets. Each remaining tier has a per-lookup limit and nothing more.
+  `walletsUsed` still counts up. It controls nothing now. It is a lifetime
+  record, and an upgrade no longer sets it back to zero.
+- `getUserAccess` sends `users.tier` through the new `normalizeTier()`. It no
+  longer casts the value. The column holds free text. An unknown value used to
+  index the limit map to `undefined`, which gave a broken lookup and no error.
 
 
-### 2026-08-15 (checkout provisioning, after a customer paid twice for nothing)
+### 2026-08-15 (the share text gave a match rate that was too high)
 
-Two independent faults, either of which alone would have been survivable,
-combined to take $198 from the first paying customer and give them nothing.
+- The share copy calculated the match rate as
+  `(twitterCount + farcasterCount) / totalWallets`. That formula counts a person
+  two times if the person has an X handle and a Farcaster account. One real
+  lookup of 1,057 wallets published **49%**. The product showed **30.8%** for
+  the same lookup, because the formula counted 190 people two times. The copy
+  now uses the distinct reachable count. The results header uses the same count.
+  The page gives the count to the component from one predicate, so the two
+  figures cannot differ.
+- `StatsCards` had the same overlap error, and it was corrected earlier. The
+  error stayed in `ShareButtons`, because that component calculates its own
+  statistics instead of receiving them.
 
-- **The webhook had never worked.** The endpoint registered in Stripe was
-  `https://walletlink.social/api/webhook`, on the apex. Vercel serves this
-  project from `www` and the apex 307-redirects, and Stripe does not follow
-  redirects: it records a 3xx as a failed delivery. Every payment since the
-  endpoint was created on 2026-01-17 succeeded in Stripe and provisioned
-  nothing. Repointed to the `www` origin.
-- **`NEXT_PUBLIC_URL` was never set in production**, so `createCheckoutSession`
-  fell back to `http://localhost:3000` and built `success_url` against it. After
-  paying, the buyer was redirected to a dead port on their own machine, assumed
-  the payment had failed, and paid again. New `lib/site-url.ts` is the single
-  resolver: explicit env var, then the known production origin, then the preview
-  URL, then localhost only when genuinely not deployed. There is no longer a
-  localhost fallback that production can reach.
-- **`/api/auth/checkout-status` now grants the upgrade** instead of only
-  reporting whether some other system had. It was already asking Stripe and
-  already knew `payment_status === 'paid'`. Had it acted on that, the webhook
-  outage would have been invisible to customers.
-- **Provisioning is one function.** `provisionPaidCheckout()` is idempotent on
-  the payment intent and books the sale itself, so a grant cannot happen without
-  the revenue being recorded, and the two paths racing cannot double-count.
-- `payment_completed` was previously tracked as a floating promise the
-  serverless runtime was free to discard, and the `payment_intent.succeeded`
-  path recorded no sale at all. Both fixed.
-- A missing key or webhook secret no longer reports as "signature verification
-  failed". Config errors are their own type and answer 500, so Stripe retries
-  rather than discarding the event.
-- **Revenue is read from Stripe, net of refunds**, instead of being inferred
-  from each user's tier. The dashboard mapped `pro` to $99 and `unlimited` to
-  $249, which is entitlement rather than income: it invented revenue for
-  complimentary accounts and could not see a refund at all. With one $99 sale,
-  one refunded $99 duplicate and a goodwill upgrade, it reported $249 against an
-  actual net of $99. New `/api/admin/revenue`.
-- Accounts holding more than they paid for are now reported as complimentary,
-  including the partial case where someone bought Pro and was moved to
-  Unlimited. An email-only check would still have implied $249.
-- `isStripeConfigured()` no longer requires `STRIPE_PRICE_STARTER`. Starter was
-  retired on 2026-08-12 and checkout rejects it, so gating on its price id meant
-  deleting a dead env var would 503 every purchase.
+
+### 2026-08-15 (checkout provisioning, after a customer paid two times and got nothing)
+
+Two separate faults occurred together. Each fault alone was survivable. Together
+they took $198 from the first paying customer and gave the customer nothing.
+
+- **The webhook never worked.** Stripe held the endpoint
+  `https://walletlink.social/api/webhook`, which is the apex. Vercel served the
+  project from `www`, and the apex sent a 307 redirect. Stripe does not follow a
+  redirect. It records a 3xx as a failed delivery. Every payment after the
+  endpoint was created on 2026-01-17 succeeded in Stripe and gave no account its
+  tier. The endpoint now points at the `www` origin.
+- **Production never had `NEXT_PUBLIC_URL`.** `createCheckoutSession` used the
+  fallback `http://localhost:3000` and built `success_url` from it. After
+  payment, Stripe sent the buyer to a dead port on the buyer's own machine. The
+  buyer decided that the payment failed, and paid a second time. The new file
+  `lib/site-url.ts` resolves the URL in one place. It uses the env var first,
+  then the known production origin, then the preview URL, then localhost. It
+  uses localhost only when the code does not run on a deployment. Production can
+  no longer reach a localhost fallback.
+- **`/api/auth/checkout-status` now gives the upgrade.** It only reported the
+  tier before. It already asked Stripe, and it already knew that
+  `payment_status === 'paid'`. If it had acted on that fact, no customer would
+  have seen the webhook failure.
+- **One function gives entitlement.** `provisionPaidCheckout()` is idempotent on
+  the payment intent, and it records the sale itself. A grant cannot happen
+  without a revenue record. Two paths can run at the same time and cannot count
+  the sale two times.
+- `payment_completed` was a floating promise, and a serverless runtime can
+  discard it. The `payment_intent.succeeded` path recorded no sale at all. Both
+  are corrected.
+- A missing key or a missing webhook secret no longer reports "signature
+  verification failed". A configuration error has its own type and answers 500.
+  Stripe then retries the event instead of discarding it.
+- **The dashboard reads revenue from Stripe, and it subtracts refunds.** It used
+  to read the tier of each user. It mapped `pro` to $99 and `unlimited` to $249.
+  That figure is entitlement, not income. It invented revenue for a
+  complimentary account, and it could not see a refund. One $99 sale, one
+  refunded $99 duplicate and one goodwill upgrade gave a report of $249. The
+  true net was $99. The new route is `/api/admin/revenue`.
+- The dashboard reports an account as complimentary when the account holds more
+  than it paid for. This includes the partial case: a person bought Pro and
+  received Unlimited. A check on the email alone would still have implied $249.
+- `isStripeConfigured()` no longer needs `STRIPE_PRICE_STARTER`. Jake retired
+  Starter on 2026-08-12, and the checkout rejects it. The old check meant that
+  deletion of a dead env var would answer 503 to every purchase.
 
 
 ### 2026-08-14 (AI assistant on the marketing site)
