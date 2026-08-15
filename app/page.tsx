@@ -586,6 +586,7 @@ export default function Home() {
                 });
 
                 if (saved.ok) {
+                  setMergeWarning(null);
                   setResults(mergedResults);
                 } else {
                   const reason = await saved.json().catch(() => null);
@@ -893,6 +894,8 @@ export default function Home() {
     setReverseMeta(null);
     setState('processing');
     setResults([]);
+    // A retry is a fresh attempt, so the previous verdict must not survive it.
+    setMergeWarning(null);
     setCacheHits(0);
     setJobId(null);
     setDisplayedProcessed(0);
