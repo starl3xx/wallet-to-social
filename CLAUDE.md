@@ -115,6 +115,15 @@ not there, it should not be in the code.
 The summary below covers colour only, because colour is the part with a CI guard.
 Everything else is in that file.
 
+**`npx shadcn add <x>` produces a starting point, never a finished component.**
+It compiles and renders and is still wrong: library radius, library elevation,
+library control height, library colour semantics. `components.json` is set to
+generate Phosphor icons, and `lucide-react` is uninstalled so a stray import
+fails rather than works. `baseColor` cannot be set honestly, since every value
+emits the same `--primary` set the components are written against, so the guard
+catches that on the output side instead. The adaptation checklist is in
+`docs/DESIGN-LANGUAGE.md` under "Adding a shadcn component".
+
 ## Colour
 
 Four semantic tokens, defined in `app/globals.css`. **Never a raw Tailwind

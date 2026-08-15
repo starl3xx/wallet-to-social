@@ -34,7 +34,6 @@
     "ethers": "^6.16.0",
     "gray-matter": "^4.0.3",
     "inngest": "^3.49.1",
-    "lucide-react": "^0.562.0",
     "marked": "^17.0.3",
     "next": "16.1.1",
     "react": "19.2.3",

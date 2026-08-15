@@ -3,6 +3,27 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (the generator now makes the correct thing)
+
+- **The component generator makes Phosphor icons now.** `components.json` told
+  `npx shadcn add` to use Lucide. This is not the icon set of this product, and
+  it is the machine that put back the defaults that the last change removed.
+  The value is `phosphor`, which the shadcn source shows is correct and which
+  points to the package that this project already has.
+- **The `lucide-react` package is removed.** No file imported it. A second icon
+  set that nobody imports is still a second icon set that a person can find.
+- **A new test refuses a Lucide import**, so the failure gives the reason in one
+  line.
+- **The design language has a new page: "Adding a shadcn component".** A
+  generated component compiles, shows correctly and is incorrect. It has the
+  radius, the shadow, the control height and the colour words of the library.
+  The page gives the 6 steps to correct it. It also gives the rule for a
+  component that already exists: make a new option on the component that you
+  have; do not make a second file.
+- Note: `baseColor` has no correct value. Each value makes the same `--primary`
+  colour, because the components use it. So the test looks at the result
+  instead. **Set the generator where you can. Test the result where you cannot.**
+
 ### 2026-08-15 (the library defaults that stayed behind)
 
 - **Drag a file onto the page, and the target is violet again.** It was black.

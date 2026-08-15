@@ -378,6 +378,59 @@ coverage.
 
 ---
 
+## Adding a shadcn component
+
+`components.json` is the machine that keeps regenerating whatever this document
+has just finished removing, so it is configured to generate as little wrong
+material as possible:
+
+| Field | Value | Why |
+|---|---|---|
+| `iconLibrary` | `phosphor` | was `lucide`, which is not the icon system here |
+| `baseColor` | `neutral` | this is what produced `--primary` |
+| `style` | `new-york` | left alone; it only affects the initial paste |
+
+**`lucide-react` is uninstalled.** It was a direct dependency, imported by
+nothing, sitting in the tree purely because the generator had been pointed at
+it. A second icon library that nobody imports is still a second icon library the
+next person can reach for. The `icon-library` rule rejects the import, so the
+failure names itself rather than arriving as a module-not-found.
+
+`baseColor` has no honest setting. Every value generates the same shadcn
+semantic set, `--primary` included, because that set is what the components are
+written against. It stays as it is, and the `shadcn-primary` rule catches the
+output instead. **Configure the generator where you can, and guard its output
+where you cannot.**
+
+### A generated component is a starting point
+
+`npx shadcn add <x>` writes a file that compiles, renders, and is wrong. It
+carries the library's radius, its elevation, its control height, its colour
+semantics and its idea of a hover. Every one of those is specified in this
+document, and none of them survives the paste. Both of the following shipped
+exactly that way: `Card` at `border-border/60`, and a `Progress` that no code
+ever imported and that painted itself near-black.
+
+So after `add`, before the commit:
+
+1. Replace `primary` / `secondary` / `accent` with the semantic token that
+   states what the thing **means**: `accent-brand` for an affordance,
+   `attested` for a measured fact.
+2. Radius to the five. Height to `--h-ctl` if it is a control.
+3. Hairline at full opacity. Shadow only if it floats.
+4. `transition-control`, not `transition-colors`: the tokens carry the durations.
+5. Icons to Phosphor, sized in `className`. Note that shadcn's own Phosphor
+   template emits `strokeWidth`, which Phosphor does not have: it takes `weight`.
+   Even a correctly configured generator produces a prop that does nothing.
+6. Check it on `--background`, on `--muted`, and inside a card.
+
+**If the component duplicates one that exists, the answer is a variant on the
+existing one, not the new file.** `Button` had a `link` variant that nothing
+used while two call sites hand-copied its classes; what was missing was a size,
+and the second implementation would have hidden that.
+
+---
+
 ## Enforcement
 
 Two CI jobs and an ESLint rule guard what a grep can see:
@@ -385,7 +438,7 @@ Two CI jobs and an ESLint rule guard what a grep can see:
 | Guard | Covers |
 |---|---|
 | `scripts/check-palette-guard.mjs` | raw palette classes, all 22 shaded families |
-| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token, the wrong icon library |
 | `eslint.config.mjs` | the palette rule, in the editor |
 
 Both scripts run their **own fixtures first**, so a guard that has stopped working
