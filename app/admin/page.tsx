@@ -23,10 +23,12 @@ import {
   UniversalSearch,
   WalletEnrichment,
   LookupDashboard,
+  UsageMeter,
+  AccountDetail,
 } from '@/components/admin';
 
 // Tab types - Analytics tabs first, then Operations tabs
-type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
+type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'usage' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
 
 // Interfaces
 interface WhitelistEntry {
@@ -110,6 +112,29 @@ export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>('password');
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('pulse');
+  /**
+   * The account currently opened for a closer look, by email.
+   *
+   * Held here rather than inside a tab, so any table anywhere in the panel can
+   * open one without each of them growing its own copy of the view. It takes
+   * over the content area while set, which is what makes it a drill-down rather
+   * than a thirteenth tab nobody would think to visit.
+   */
+  const [openAccount, setOpenAccount] = useState<string | null>(null);
+
+  /**
+   * Change tab, and close any open account.
+   *
+   * Every tab button goes through this rather than calling setActiveTab
+   * directly. An open account replaces the whole content area, so a tab that
+   * only moved the highlight left the panel looking broken: the button lit up
+   * and the screen did not change. Doing it in one place also means the next
+   * tab someone adds cannot forget.
+   */
+  const selectTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    setOpenAccount(null);
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   // Whitelist state
@@ -1127,7 +1152,17 @@ export default function AdminPage() {
               <TableBody>
                 {usersList.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      {/* Opens the same drill-down the Usage pane does, so the
+                          panel has one account view rather than two. */}
+                      <button
+                        type="button"
+                        onClick={() => setOpenAccount(user.email)}
+                        className="text-accent-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        {user.email}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
                     </TableCell>
@@ -1175,12 +1210,14 @@ export default function AdminPage() {
     </Card>
   );
 
-  // Handle metric click from pulse dashboard
+  // Handle metric click from pulse dashboard. Through selectTab for the same
+  // reason the tab buttons are: this navigates, so it has to close an open
+  // account or the jump would appear to do nothing.
   const handleMetricClick = (metric: string) => {
-    if (metric === 'jobs') setActiveTab('jobs');
-    else if (metric === 'behavior') setActiveTab('behavior');
-    else if (metric === 'revenue') setActiveTab('revenue');
-    else if (metric === 'health') setActiveTab('health');
+    if (metric === 'jobs') selectTab('jobs');
+    else if (metric === 'behavior') selectTab('behavior');
+    else if (metric === 'revenue') selectTab('revenue');
+    else if (metric === 'health') selectTab('health');
   };
 
   // Main admin view
@@ -1218,7 +1255,7 @@ export default function AdminPage() {
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
           <Button
             variant={activeTab === 'pulse' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('pulse')}
+            onClick={() => selectTab('pulse')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1227,7 +1264,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'behavior' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('behavior')}
+            onClick={() => selectTab('behavior')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1236,7 +1273,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'growth' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('growth')}
+            onClick={() => selectTab('growth')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1245,7 +1282,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'revenue' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('revenue')}
+            onClick={() => selectTab('revenue')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1254,7 +1291,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'health' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('health')}
+            onClick={() => selectTab('health')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1270,7 +1307,7 @@ export default function AdminPage() {
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           <Button
             variant={activeTab === 'whitelist' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('whitelist')}
+            onClick={() => selectTab('whitelist')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1279,7 +1316,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'dashboard' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => selectTab('dashboard')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1288,7 +1325,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'jobs' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('jobs')}
+            onClick={() => selectTab('jobs')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1297,7 +1334,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'history' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('history')}
+            onClick={() => selectTab('history')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1306,7 +1343,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'users' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('users')}
+            onClick={() => selectTab('users')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1314,8 +1351,17 @@ export default function AdminPage() {
             Users
           </Button>
           <Button
+            variant={activeTab === 'usage' ? 'default' : 'outline'}
+            onClick={() => selectTab('usage')}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <Gauge className="h-4 w-4" />
+            Usage
+          </Button>
+          <Button
             variant={activeTab === 'enrichment' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('enrichment')}
+            onClick={() => selectTab('enrichment')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1324,6 +1370,17 @@ export default function AdminPage() {
           </Button>
         </div>
 
+        {/* An open account replaces the tab content entirely. Rendering it
+            above a tab would leave two subjects on screen at once, and the
+            reader would have to work out which numbers belonged to which. */}
+        {openAccount ? (
+          <AccountDetail
+            email={openAccount}
+            password={password}
+            onBack={() => setOpenAccount(null)}
+          />
+        ) : (
+        <>
         {/* Tab content - Analytics */}
         {activeTab === 'pulse' && (
           <div className="space-y-6">
@@ -1342,7 +1399,12 @@ export default function AdminPage() {
         {activeTab === 'jobs' && renderJobsTab()}
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}
+        {activeTab === 'usage' && (
+          <UsageMeter password={password} onAccountClick={setOpenAccount} />
+        )}
         {activeTab === 'enrichment' && <WalletEnrichment password={password} />}
+        </>
+        )}
     </PageShell>
   );
 }
