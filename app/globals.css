@@ -245,6 +245,11 @@
   --success-light: oklch(0.28 0.05 162);
   --success-foreground: oklch(0.75 0.13 162);
 
+  /* X inverts on a dark ground: a near-black pill on a near-black page is
+     invisible, and the mark matters more than the exact swatch. */
+  --x-bg: #FFFFFF;
+  --x-fg: #0F1419;
+
   /* Identical to :root on purpose. See the note there. */
   --surface-inverse: oklch(0.16 0.02 280);
   --surface-inverse-foreground: oklch(0.97 0.01 280);

@@ -3,7 +3,8 @@
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MagnifyingGlass as Search, CircleNotch as Loader2, Warning as AlertTriangle, Lock } from '@phosphor-icons/react';
+import { Detective, CircleNotch as Loader2, Warning as AlertTriangle, Lock } from '@phosphor-icons/react';
+import { XMark } from '@/components/ui/brand-marks';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';
@@ -101,8 +102,8 @@ export function ReverseLookup({
   return (
     <div className="rounded-lg border bg-muted/30 p-4">
       <div className="mb-3 flex items-center gap-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">Reverse lookup</h2>
+        <Detective className="h-[18px] w-[18px] text-accent-brand" weight="duotone" aria-hidden />
+        <h2 className="text-base font-semibold">Reverse lookup</h2>
         {locked && (
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <Lock className="h-3 w-3" />
@@ -137,8 +138,19 @@ export function ReverseLookup({
                 // accessible name from that label unless one is given here.
                 aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
               />
-              <span className="block rounded-full px-4 py-1.5 text-sm text-muted-foreground transition-colors peer-checked:bg-background peer-checked:font-semibold peer-checked:text-accent-brand peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1">
-                {p === 'twitter' ? '𝕏' : 'Farcaster'}
+              <span
+                style={
+                  p === 'twitter'
+                    ? ({ '--seg-bg': 'var(--x-bg)', '--seg-fg': 'var(--x-fg)' } as React.CSSProperties)
+                    : ({ '--seg-bg': '#8A63D2', '--seg-fg': '#FFFFFF' } as React.CSSProperties)
+                }
+                className="transition-control block rounded-full px-4 py-1.5 text-sm text-muted-foreground peer-checked:bg-[var(--seg-bg)] peer-checked:font-semibold peer-checked:text-[var(--seg-fg)] peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1"
+              >
+                {p === 'twitter' ? (
+                  <XMark className="h-3.5 w-3.5" />
+                ) : (
+                  'Farcaster'
+                )}
               </span>
             </label>
           ))}
