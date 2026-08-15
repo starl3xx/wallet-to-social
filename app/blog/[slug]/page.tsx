@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
+import { PageShell } from '@/components/ui/page-shell';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
@@ -76,58 +76,39 @@ export default async function BlogPost({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="min-h-screen bg-background">
-        {/* Hero banner */}
-        <div className="bg-surface-inverse text-surface-inverse-foreground">
-          <div className="container mx-auto px-4 max-w-4xl py-16">
-            <div className="flex items-center gap-4 mb-8">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 text-surface-inverse-muted hover:text-surface-inverse-foreground transition-colors"
-              >
-                <Image
-                  src="/icon.png"
-                  alt="walletlink.social"
-                  width={24}
-                  height={24}
-                  className="rounded"
-                />
-                <span className="text-sm font-medium">walletlink.social</span>
-              </Link>
-              <span className="text-surface-inverse-muted">/</span>
-              <Link
-                href="/blog"
-                className="text-sm text-surface-inverse-muted hover:text-surface-inverse-foreground transition-colors"
-              >
-                Blog
-              </Link>
-            </div>
-
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-              {post.title}
-            </h1>
-            <p className="text-xl text-surface-inverse-muted max-w-2xl">
-              {post.description}
-            </p>
-            <div className="mt-6 flex items-center gap-4 text-sm text-surface-inverse-muted">
-              <span>{new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            </div>
+      <PageShell>
+        <header className="mx-auto max-w-[68ch]">
+          <div className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            <Link href="/blog" className="transition-control hover:text-accent-brand">Blog</Link>
+            <span aria-hidden="true">·</span>
+            <span>{new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
-        </div>
 
-        <article className="container mx-auto py-12 px-4 max-w-4xl">
-          {/* Content */}
+          {/* Display tier: weight 200 with the tight tracking, the one place besides
+              the marketing hero where Extraleicht is allowed to get large. */}
+          <h1 className="mb-4 text-4xl font-extralight leading-[1.05] tracking-[-0.04em] md:text-5xl">
+            {post.title}
+          </h1>
+          <p className="text-lg font-light text-muted-foreground">
+            {post.description}
+          </p>
+        </header>
+
+        <article className="py-12">
+          {/* max-w-[68ch], not max-w-none. max-w-none deleted the typography
+              plugin's own 65ch default inside an 896px article, running body copy
+              to roughly 95 characters per line at the prose-lg root. The measure is
+              the point of a reading column. */}
           <div
-            className="prose prose-lg dark:prose-invert max-w-none
+            className="prose prose-lg dark:prose-invert mx-auto max-w-[68ch]
               prose-headings:font-semibold
-              prose-h1:hidden
-              prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4
-              prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-              prose-p:text-muted-foreground prose-p:leading-relaxed
+              prose-h2:text-xl prose-h2:mt-12 prose-h2:mb-4
+              prose-h3:text-base prose-h3:mt-8 prose-h3:mb-3
+              prose-p:text-muted-foreground prose-p:leading-relaxed prose-li:leading-relaxed
               prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
               prose-strong:text-foreground
-              prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-              prose-pre:bg-muted prose-pre:border
+              prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-mono
+              prose-pre:bg-muted prose-pre:border prose-pre:font-mono
               prose-table:text-sm
               prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
               prose-td:py-3 prose-td:px-4 prose-td:border-b
@@ -166,16 +147,8 @@ export default async function BlogPost({ params }: Props) {
           </div>
 
           {/* Footer */}
-          <footer className="mt-16 pt-8 border-t text-center text-sm text-muted-foreground">
-            <Link
-              href="/"
-              className="hover:text-foreground transition-colors"
-            >
-              walletlink.social
-            </Link>
-          </footer>
         </article>
-      </div>
+      </PageShell>
     </>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
@@ -12,6 +11,8 @@ import { LookupHistory } from '@/components/LookupHistory';
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { PageShell } from '@/components/ui/page-shell';
+import { XMark } from '@/components/ui/brand-marks';
 import { AccessBanner } from '@/components/AccessBanner';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -943,58 +944,54 @@ export default function Home() {
   }, [currentLookupId, results]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4 max-w-6xl">
-        <header className="mb-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <div
-                className="flex items-center gap-3 mb-2 cursor-pointer"
-                onClick={handleReset}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleReset()}
-              >
-                <Image
-                  src="/icon.png"
-                  alt="walletlink.social"
-                  width={40}
-                  height={40}
-                  className="rounded-lg flex-shrink-0"
-                />
-                {/* The brand sits on the name, not the suffix. ".social" is the
-                    address; "walletlink" is the thing. Hover shifts opacity
-                    rather than colour, because the colour is now the identity
-                    and moving it would read as a state change. */}
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight transition-opacity hover:opacity-80">
-                  <span className="text-accent-brand">walletlink</span>
-                  <span className="text-muted-foreground">.social</span>
-                </h1>
-              </div>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                Turn your wallet list into Twitter handles and Farcaster profiles. Backed by an index of 4.7M wallets with complete Farcaster coverage. Detect 13,000+ known AI agent wallets instantly.{' '}
-                <a
-                  href="/vs/addressable"
-                  className="underline hover:text-foreground"
-                >
-                  Simple alternative to Addressable
-                </a>
-                .
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                {indexedWallets ?? '4.7M'} wallets indexed · complete Farcaster coverage · 13K+ AI agents flagged
-              </p>
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <AccessBanner
-                tier={userTier}
-                isWhitelisted={isWhitelisted}
-                onUpgradeClick={handleOpenUpgradeModal}
-              />
-              <ThemeToggle />
-            </div>
-          </div>
-        </header>
+    <PageShell
+      onBrandClick={handleReset}
+      actions={
+        <>
+          <AccessBanner
+            tier={userTier}
+            isWhitelisted={isWhitelisted}
+            onUpgradeClick={handleOpenUpgradeModal}
+          />
+          <ThemeToggle />
+        </>
+      }
+    >
+      {/* Owns its own bottom spacing. It used to sit in the header, where the
+          separation came from main's py-12 below it; as a sibling inside main
+          there is nothing between it and the upload UI. */}
+      <div className="mb-8">
+        {/* One line, not three sentences that then repeat themselves in the
+            strip below. The old copy stated 4.7M and complete Farcaster
+            coverage in the paragraph and again in the stats line. */}
+        <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
+          Turn a wallet list into the{' '}
+          <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
+          accounts behind it.{' '}
+          <a href="/vs/addressable" className="transition-control underline hover:text-accent-brand">
+            Simple alternative to Addressable
+          </a>
+          .
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            <span className="font-medium tabular-nums text-foreground">
+              {indexedWallets ?? '4.7M'}
+            </span>{' '}
+            wallets indexed
+          </span>
+          <span aria-hidden="true" className="opacity-40">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            {/* Green: a measured fact, not an affordance. */}
+            <span className="h-1.5 w-1.5 rounded-full bg-attested" />
+            <span className="font-medium tabular-nums text-foreground">100%</span> Farcaster coverage
+          </span>
+          <span aria-hidden="true" className="opacity-40">·</span>
+          <span>
+            <span className="font-medium tabular-nums text-foreground">13K+</span> AI agents flagged
+          </span>
+        </div>
+      </div>
 
         {/* Upgrade Modal */}
         <UpgradeModal
@@ -1036,7 +1033,7 @@ export default function Home() {
           results={results}
         />
 
-        <main className="space-y-6">
+        <div className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
             <div className="space-y-6">
@@ -1401,67 +1398,7 @@ export default function Home() {
               />
             </div>
           )}
-        </main>
-
-        <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
-          <p className="flex items-center justify-center gap-2">
-            made with 🌠 by @starl3xx
-            <a
-              href="https://x.com/starl3xx"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-              title="@starl3xx on X"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-            </a>
-            <a
-              href="https://warpcast.com/starl3xx.eth"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-brand hover:text-accent-brand transition-colors"
-              title="@starl3xx.eth on Farcaster"
-            >
-              <svg width="14" height="14" viewBox="0 0 200 175" fill="currentColor">
-                <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
-              </svg>
-            </a>
-          </p>
-          <p className="flex items-center justify-center gap-2 mt-1">
-            <a
-              href="https://x.com/walletlinkETH"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors flex items-center gap-1"
-              title="@walletlinkETH on X"
-            >
-              @walletlinkETH
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-            </a>
-          </p>
-          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-            <a href="/blog" className="hover:text-foreground transition-colors">
-              Blog
-            </a>
-            <span>|</span>
-            <a href="/vs/addressable" className="hover:text-foreground transition-colors">
-              vs Addressable
-            </a>
-            <span>|</span>
-            <a href="/vs/blaze" className="hover:text-foreground transition-colors">
-              vs Blaze
-            </a>
-            <span>|</span>
-            <a href="/vs/cookie" className="hover:text-foreground transition-colors">
-              vs Cookie.fun
-            </a>
-          </div>
-        </footer>
-      </div>
-    </div>
+        </div>
+    </PageShell>
   );
 }
