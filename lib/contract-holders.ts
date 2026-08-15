@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { CHAIN_IDS, CHAIN_LABELS, SUPPORTED_CHAINS, type SupportedChain } from './chains';
+import { recordHolderIndexSpend } from './holder-index-budget';
 
 // Re-exported so existing server-side importers keep working unchanged.
 // Client components must import these from '@/lib/chains' instead — importing
@@ -88,6 +89,18 @@ const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
 // Moralis chain IDs (hex form), the ERC-20 holder index. Verified live on the
 // free plan for every chain listed here. Robinhood is absent because Moralis
 // does not index it; it uses BLOCKSCOUT_BASE_URLS instead.
+/**
+ * Whether a chain's ERC-20 holder list is served by the metered index.
+ *
+ * Exported so callers can ask instead of assuming every ERC-20 import spends
+ * the daily allowance. Robinhood Chain does not: it resolves through its own
+ * explorer, which has no part in that budget, so throttling it when the
+ * allowance is tight refuses work that could not have helped.
+ */
+export function usesMeteredHolderIndex(chain: SupportedChain): boolean {
+  return chain in MORALIS_CHAIN_IDS;
+}
+
 const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   ethereum: '0x1',
   base: '0x2105',
@@ -530,9 +543,25 @@ async function getERC20Holders(
   const wallets: string[] = [];
   let cursor: string | null = null;
   let totalHolders = 0;
+  // Counted here rather than at the call site, because only this loop knows how
+  // many pages a contract actually needed. Reported once at the end, and in the
+  // failure paths too: a request that errors has already been billed.
+  let requestsMade = 0;
 
+  /**
+   * `try`/`finally` around the whole loop, so the count survives every exit.
+   *
+   * Recording at each `throw` looked equivalent and was not: a timeout, a
+   * network failure or a malformed body escapes from between those branches,
+   * and it takes with it not just the failed request but every page that
+   * already succeeded in the same loop. Those were billed. A guard fed by a
+   * counter that silently drops spend is a guard that lets the cron run on a
+   * day the allowance is already gone.
+   */
+  try {
   // Paginate through results (Moralis returns max 100 per page)
   do {
+    requestsMade++;
     const url = new URL(`https://deep-index.moralis.io/api/v2.2/erc20/${address}/owners`);
     url.searchParams.set('chain', chainId);
     url.searchParams.set('limit', '100');
@@ -551,10 +580,31 @@ async function getERC20Holders(
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+
+      /**
+       * A spent daily allowance is not "try again in a moment".
+       *
+       * The index bills by compute unit against a daily ceiling, and once that
+       * is gone it is gone until the ceiling resets. Reporting that as a rate
+       * limit told the customer to retry, which they did, which failed, which
+       * they did again. Telling them it comes back tomorrow is the difference
+       * between a wait and a fault.
+       *
+       * Matched on the body rather than the status because the status is not
+       * reliable for this: exhaustion has been seen as 401 and as 429, and a
+       * plain 429 for burst rate is a genuinely different answer. The body is
+       * what names the reason.
+       */
+      const exhausted = /compute unit|daily limit|quota|out of credit/i.test(errorText);
+      if (exhausted) {
+        console.error('Holder index allowance spent for the day:', errorText.slice(0, 200));
+        throw new Error('DAILY_ALLOWANCE_SPENT');
+      }
+
       if (response.status === 429) {
         throw new Error('RATE_LIMIT');
       }
-      const errorText = await response.text();
       console.error('Moralis API error response:', {
         status: response.status,
         body: errorText,
@@ -588,6 +638,11 @@ async function getERC20Holders(
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   } while (cursor && wallets.length < limit);
+  } finally {
+    // Not awaited. The accounting serves the cron, and making a customer's
+    // import wait on a bookkeeping write would be the wrong trade.
+    void recordHolderIndexSpend(requestsMade);
+  }
 
   // Dedupe and limit
   const uniqueWallets = [...new Set(wallets)].slice(0, limit);

@@ -25,12 +25,14 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import {
   getContractHolders,
+  usesMeteredHolderIndex,
   type HolderResult,
 } from './contract-holders';
 import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
 import { checkBackgroundBudget } from './neynar-budget';
+import { checkHolderIndexBudget, estimateRequests } from './holder-index-budget';
 
 // Per-contract holder cap: bounds daily external-API spend for the social
 // resolution of never-seen wallets. Negatives persist, so re-encounters of
@@ -372,6 +374,44 @@ async function recordSeed(
 
 /** Import one contract's holders and queue them through the lookup pipeline. */
 export async function seedContract(candidate: SeedCandidate): Promise<SeedRunResult> {
+  /**
+   * An ERC-20 seed draws on the same daily allowance a paying customer's
+   * contract import needs, and the customer is by far the larger consumer of
+   * it: on the day this guard was written they were 92% of the traffic and
+   * reached three quarters of the day's allowance in two hours.
+   *
+   * So the cron yields first, and yields early. A refused seed costs one token
+   * that nobody asked for and comes back tomorrow; a refused import is a
+   * customer who paid, watching the feature stop.
+   *
+   * NFT seeds are not checked, because they resolve through a different
+   * provider and cannot spend this allowance at all.
+   */
+  if (candidate.kind === 'erc20' && usesMeteredHolderIndex(candidate.chain)) {
+    const indexBudget = await checkHolderIndexBudget(estimateRequests(HOLDER_CAP));
+    if (!indexBudget.allowed) {
+      console.log(`Seed skipped, holder index budget: ${indexBudget.reason}`);
+      /**
+       * Undo the attempt marker. `seedFirstViable` writes it before calling
+       * here, and a zero-holder row is `selectNovelCandidates`' way of
+       * recording a contract that failed, which locks it out for two days.
+       *
+       * This contract did not fail. It was never tried. Leaving the marker
+       * would punish a healthy token for a throttle it had no part in, and
+       * would quietly shrink the candidate pool every day the allowance ran
+       * short. The squeezed-timeout path already unmarks for this reason.
+       */
+      await unmarkSeedAttempt(candidate).catch(console.error);
+      return {
+        contract: candidate,
+        holdersImported: 0,
+        totalHolders: 0,
+        jobId: null,
+        error: 'holder index budget reserved for customer imports',
+      };
+    }
+  }
+
   const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP);
 
   // Decided before recording: recordSeed needs to know whether this contract
