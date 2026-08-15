@@ -432,7 +432,12 @@ async function getERC20HoldersBlockscout(
 
   const v1 = await fetchHoldersV1(base, address, limit, headers, remainingMs);
   if (v1 && v1.length > 0) {
-    return { wallets: v1.slice(0, limit), totalHolders: totalHolders || v1.length };
+  // `totalHolders` stays 0 when the source did not tell us the real total.
+  // It used to fall back to the number of wallets returned, which made
+  // `truncated` (wallets.length < totalHolders) impossible to ever be true: a
+  // capped list reported itself complete. USDG imported 5,000 of its holders
+  // and told the buyer that was all of them.
+    return { wallets: v1.slice(0, limit), totalHolders };
   }
 
   let params: Record<string, string | number> | null = null;
@@ -490,7 +495,8 @@ async function getERC20HoldersBlockscout(
   }
 
   const wallets = Array.from(seen).slice(0, limit);
-  return { wallets, totalHolders: totalHolders || wallets.length };
+  // 0 means "the source never reported a total". See the note above.
+  return { wallets, totalHolders };
 }
 
 /**
@@ -588,7 +594,8 @@ async function getERC20Holders(
 
   return {
     wallets: uniqueWallets,
-    totalHolders: totalHolders || uniqueWallets.length,
+    // 0 means "the source never reported a total". See the note above.
+    totalHolders,
   };
 }
 
@@ -642,13 +649,30 @@ export async function getContractHolders(
     tokenName,
     tokenSymbol,
     contractType,
+    // 0 means the source never reported a total. It is NOT replaced with the
+    // number of wallets returned: that is what made a capped 5,000-holder USDG
+    // import tell the buyer "5,000 of 5,000 total holders", which reads as a
+    // complete list. Every caller must handle 0 as "unknown".
     totalHolders: holdersResult.totalHolders,
     appliedLimit: effectiveLimit,
-    // Derived from what was actually returned, not from the cap. A source that
-    // pages slowly can stop on its own time budget below the cap, and comparing
-    // the total against the cap alone would call that list complete and hide
-    // the shortfall from the caller entirely.
-    truncated: holdersResult.wallets.length < holdersResult.totalHolders,
+    /**
+     * Two ways a list can be short, and both must set this flag.
+     *
+     * When the source told us the real total, compare against it. A source that
+     * pages slowly can stop on its own time budget below the cap, and comparing
+     * the total against the cap alone would call that list complete.
+     *
+     * When the source reported no total (`totalHolders === 0`), the only
+     * evidence is the count itself: a result that exactly fills the limit was
+     * almost certainly cut off at the limit. Reporting `false` here is what let
+     * a 5,000-holder USDG import tell the buyer it held every holder, because
+     * the unknown total was silently replaced by the returned count and the
+     * comparison became 5000 < 5000.
+     */
+    truncated:
+      holdersResult.totalHolders > 0
+        ? holdersResult.wallets.length < holdersResult.totalHolders
+        : holdersResult.wallets.length >= effectiveLimit,
     chain,
   };
 }

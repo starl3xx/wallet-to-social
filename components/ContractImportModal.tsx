@@ -24,7 +24,24 @@ import {
 interface ContractImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (wallets: string[]) => void;
+  /**
+   * Receives the contract alongside the wallets.
+   *
+   * The wallet list on its own loses what was actually looked up. The admin
+   * Jobs table could say "5,000 wallets" but not that they were USDG holders,
+   * which is the only fact that explains a 1.6% match rate.
+   */
+  onImport: (wallets: string[], source: ImportedContract) => void;
+}
+
+export interface ImportedContract {
+  contractAddress: string;
+  chain: string;
+  tokenName?: string;
+  tokenSymbol?: string;
+  contractType?: string;
+  totalHolders?: number;
+  truncated?: boolean;
 }
 
 type Step = 'input' | 'loading' | 'preview';
@@ -102,9 +119,17 @@ export function ContractImportModal({
   // Handle import confirmation
   const handleImport = useCallback(() => {
     if (!result) return;
-    onImport(result.wallets);
+    onImport(result.wallets, {
+      contractAddress,
+      chain,
+      tokenName: result.tokenName,
+      tokenSymbol: result.tokenSymbol,
+      contractType: result.contractType,
+      totalHolders: result.totalHolders,
+      truncated: result.truncated,
+    });
     handleClose();
-  }, [result, onImport, handleClose]);
+  }, [result, onImport, handleClose, contractAddress, chain]);
 
   // Go back to input
   const handleBack = useCallback(() => {
@@ -136,7 +161,10 @@ export function ContractImportModal({
           <ModalDescription>
             {step === 'input' && 'Enter an ERC-20 token or NFT contract address to import all holders.'}
             {step === 'loading' && 'Fetching token holders...'}
-            {step === 'preview' && result && `Found ${result.totalHolders.toLocaleString()} holders for ${result.tokenName}`}
+            {step === 'preview' && result &&
+              (result.totalHolders > 0
+                ? `Found ${result.totalHolders.toLocaleString()} holders for ${result.tokenName}`
+                : `Imported ${result.wallets.length.toLocaleString()} holders for ${result.tokenName}`)}
           </ModalDescription>
         </ModalHeader>
 
@@ -257,7 +285,11 @@ export function ContractImportModal({
 
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Total holders:</span>
-                <span className="font-medium">{result.totalHolders.toLocaleString()}</span>
+                <span className="font-medium">
+                  {result.totalHolders > 0
+                    ? result.totalHolders.toLocaleString()
+                    : 'not reported'}
+                </span>
               </div>
 
               {result.truncated && (
@@ -266,10 +298,26 @@ export function ContractImportModal({
                   {/* Report what was actually imported, not the cap. A holder
                       list can come back short of the cap when the source is a
                       block explorer that pages slowly and the request runs out
-                      of time, and claiming the cap would overstate it. */}
+                      of time, and claiming the cap would overstate it.
+
+                      When the source reported no total there is no "of N" to
+                      state. Saying "N of N" there is worse than saying nothing,
+                      because it reads as a complete list: that is exactly how a
+                      capped 5,000-holder import told a buyer it held every
+                      holder. */}
                   <p className="text-xs text-caution">
-                    Imported {result.wallets.length.toLocaleString()} of{' '}
-                    {result.totalHolders.toLocaleString()} total holders
+                    {result.totalHolders > 0 ? (
+                      <>
+                        Imported {result.wallets.length.toLocaleString()} of{' '}
+                        {result.totalHolders.toLocaleString()} total holders
+                      </>
+                    ) : (
+                      <>
+                        Imported {result.wallets.length.toLocaleString()} holders, the
+                        maximum for this import. The source did not report a total, so
+                        this token probably has more.
+                      </>
+                    )}
                   </p>
                 </div>
               )}

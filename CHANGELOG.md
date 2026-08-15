@@ -3,6 +3,42 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (job context in the admin panel, and two faults it exposed)
+
+- **The Jobs table showed a localStorage uuid in the User column.** A signed-in
+  job stores the `users.id`, so it joins to a real address. The table did not
+  join, so it printed a raw uuid for the only paying customer on the platform.
+  The column now shows the email. It shows "anonymous" for a visitor who never
+  signed in, and "system" for a cron job.
+- **A new Source column names what was looked up.** A contract import now
+  records the contract on the job, so the table says "USDG ethereum" instead of
+  only "5,000 wallets". Without it, a 1.6% match rate had no explanation. Jobs
+  created before this change have no contract recorded and show how the wallets
+  arrived.
+- **`truncated` could never be true when the source did not report a total.**
+  Three holder sources replaced an unknown total with the number of wallets they
+  returned. The flag compares those two values, so it always calculated
+  `5000 < 5000` and said the list was complete. A USDG import of 5,000 holders
+  told the buyer it held every holder. An unknown total now stays unknown, and a
+  result that exactly fills the limit is reported as truncated. The import
+  preview no longer prints "N of N total holders" for an unknown total, because
+  that still reads as a complete list. It says the import hit its maximum and
+  that the token probably has more holders.
+- **The worker admitted five jobs at once, whatever their size.** On 2026-08-13
+  the seed cron queued five 2,000-wallet jobs and the worker took all five, so
+  10,000 wallets hit Web3Bio together. Web3Bio answered 500 to about 1,200
+  requests in each batch, and average latency went from about 20 seconds to 3.5
+  minutes. The worker now budgets by wallets in flight, not by job count. Small
+  jobs still run together. Large jobs run one at a time. It also admits a job
+  that is already in progress before it starts a new one, because a budget plus
+  the old queue order would let large cron jobs spend the whole budget each tick
+  and leave a customer's half-finished lookup waiting.
+
+The graph was not damaged by that incident. The guard in `job-processor.ts`
+excluded every wallet whose check failed, so 5,432 wallets kept no row instead
+of a false "no socials" row.
+
+
 ### 2026-08-15 (Stripe made no Customer objects)
 
 - `createCheckoutSession` did not set `customer_creation`. The default value is

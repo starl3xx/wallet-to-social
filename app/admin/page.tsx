@@ -46,6 +46,18 @@ interface JobEntry {
   twitterFound: number;
   farcasterFound: number;
   userId: string | null;
+  userEmail: string | null;
+  userTier: string | null;
+  inputSource: string | null;
+  source: {
+    contractAddress?: string;
+    chain?: string;
+    tokenName?: string;
+    tokenSymbol?: string;
+    contractType?: string;
+    totalHolders?: number;
+    truncated?: boolean;
+  } | null;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -698,6 +710,7 @@ export default function AdminPage() {
                     <TableHead>Wallets</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Stage</TableHead>
+                    <TableHead>Source</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Error</TableHead>
@@ -718,8 +731,51 @@ export default function AdminPage() {
                         {job.processedCount}/{job.walletCount}
                       </TableCell>
                       <TableCell>{job.currentStage || '-'}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {job.userId ? `${job.userId.slice(0, 8)}...` : '-'}
+                      {/* What was looked up, not just how many. A contract
+                          import names the token; anything else names how the
+                          wallets arrived. */}
+                      <TableCell className="text-sm">
+                        {job.source?.contractAddress ? (
+                          <span
+                            title={`${job.source.contractAddress} on ${job.source.chain ?? 'unknown chain'}`}
+                          >
+                            <span className="font-medium">
+                              {job.source.tokenSymbol || job.source.tokenName || 'contract'}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {' '}
+                              {job.source.chain}
+                            </span>
+                            {job.source.truncated && (
+                              <span className="ml-1 text-caution" title="The holder list was cut off at the limit">
+                                truncated
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {(job.inputSource || '-').replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </TableCell>
+                      {/* The email when the job was signed in. An anonymous job
+                          stores a localStorage uuid that identifies nobody, so
+                          say so rather than print eight meaningless characters. */}
+                      <TableCell className="text-sm">
+                        {job.userEmail ? (
+                          <span title={job.userTier ? `tier: ${job.userTier}` : undefined}>
+                            {job.userEmail}
+                          </span>
+                        ) : job.userId ? (
+                          <span
+                            className="text-muted-foreground"
+                            title={`anonymous visitor ${job.userId}`}
+                          >
+                            anonymous
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">system</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {new Date(job.createdAt).toLocaleString()}

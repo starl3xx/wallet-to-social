@@ -8,6 +8,21 @@ export const maxDuration = 300; // 5 minutes max per invocation
 const PARALLEL_JOB_LIMIT = 5;
 
 /**
+ * Wallets allowed in flight across all jobs in one worker tick.
+ *
+ * Job count is the wrong unit. Five 200-wallet jobs and five 2,000-wallet jobs
+ * are both "5 jobs", and only one of them is a problem: on 2026-08-13 the daily
+ * seed cron queued five 2,000-wallet jobs, the worker took all five at once, and
+ * 10,000 wallets hit Web3Bio together. It answered 500 to roughly 1,200 requests
+ * per batch, and average latency went from about 20 seconds to 3.5 minutes.
+ *
+ * Budgeting by wallets keeps the queue draining quickly when jobs are small, and
+ * serialises them when they are large. The first job is always admitted, however
+ * big it is, or a single oversized job would never run at all.
+ */
+const MAX_WALLETS_IN_FLIGHT = 2500;
+
+/**
  * Cron worker endpoint - called by Vercel Cron every minute.
  * Processes multiple jobs in parallel for faster queue clearing.
  */
@@ -32,9 +47,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get multiple pending jobs to process in parallel
-    const jobs = await getNextPendingJobs(PARALLEL_JOB_LIMIT);
+    const candidates = await getNextPendingJobs(PARALLEL_JOB_LIMIT);
 
-    if (jobs.length === 0) {
+    if (candidates.length === 0) {
       return NextResponse.json({
         message: 'No pending jobs',
         processed: false,
@@ -42,7 +57,43 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`Processing ${jobs.length} jobs in parallel`);
+    /**
+     * Resume before you start. `getNextPendingJobs` returns every pending job
+     * ahead of every in-progress one, so a job part-way through sits at the end
+     * of the list. Admitting in that order while a budget is in force starves
+     * it: during a seed-cron backlog the large pending jobs would spend the
+     * whole budget every tick, and a customer's half-finished lookup would wait
+     * behind cron work, for longer than it did before the budget existed.
+     *
+     * A job in `processing` has already consumed API calls and holds a partial
+     * result. Finishing it releases a customer; deferring a `pending` job costs
+     * that customer only a minute.
+     */
+    const ordered = [...candidates].sort((a, b) => {
+      const aRunning = a.status === 'processing' ? 0 : 1;
+      const bRunning = b.status === 'processing' ? 0 : 1;
+      if (aRunning !== bRunning) return aRunning - bRunning;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    // Admit in that order until the wallet budget is spent. Anything left stays
+    // queued and is picked up by the next tick, a minute later.
+    const jobs: typeof candidates = [];
+    let walletsInFlight = 0;
+    for (const job of ordered) {
+      const size = job.wallets.length - job.processedCount;
+      // Always admit the first, so one huge job cannot stall the queue forever.
+      if (jobs.length > 0 && walletsInFlight + size > MAX_WALLETS_IN_FLIGHT) break;
+      jobs.push(job);
+      walletsInFlight += size;
+    }
+
+    const deferred = candidates.length - jobs.length;
+    console.log(
+      `Processing ${jobs.length} jobs in parallel (${walletsInFlight} wallets in flight` +
+        (deferred > 0 ? `, ${deferred} deferred to the next tick` : '') +
+        ')'
+    );
 
     // Process all jobs in parallel
     const results = await Promise.all(
