@@ -35,7 +35,12 @@ export type AnalyticsEventType =
   | 'social_graph_miss'       // Not in graph or low quality, needed API
   | 'social_graph_stale'      // In graph but needed refresh
   | 'social_graph_write_success'
-  | 'social_graph_write_failed';
+  | 'social_graph_write_failed'
+  // Weekly hygiene pass. `blocked` is the one that matters: it fires when a
+  // repair refused because it matched more rows than its ceiling allows, which
+  // means the detection is probably broken and nobody would otherwise find out.
+  | 'graph_repair_applied'
+  | 'graph_repair_blocked';
 
 // API provider names
 export type ApiProvider = 'web3bio' | 'neynar' | 'ens';

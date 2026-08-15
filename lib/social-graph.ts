@@ -692,6 +692,15 @@ export async function upsertNegativeWallets(wallets: string[]): Promise<number> 
       dataQualityScore: 0,
       lastCheckedAt: now,
       lastUpdatedAt: now,
+      // Explicit, and from the same clock as the other two.
+      //
+      // Leaving it out let the column default to Postgres `now()`, which is the
+      // transaction's start time and therefore later than this JS timestamp,
+      // taken before the query was even sent. Every negative landed with
+      // `first_seen_at` after its own `last_updated_at`: a row updated before it
+      // existed, 28,000 times over. Harmless, and the sort of harmless that
+      // makes a person distrust every other timestamp in the table.
+      firstSeenAt: now,
     }));
 
     try {
