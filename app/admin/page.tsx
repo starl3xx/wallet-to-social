@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AdminNav, type AdminTab } from '@/components/admin/AdminNav';
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Trash as Trash2, Plus, CircleNotch as Loader2, Lock, Users, Crown, Lightning as Zap, Sparkle as Sparkles, Eye, ArrowsClockwise as RefreshCw, XCircle, Briefcase, ClockCounterClockwise as History, MagnifyingGlass as Search, ChartBar as BarChart3, TrendUp as TrendingUp, CurrencyDollar as DollarSign, Wrench, Gauge, ArrowCounterClockwise as RotateCcw, X, ArrowSquareOut as ExternalLink, PencilSimple as Pencil } from '@phosphor-icons/react';
+import { Trash as Trash2, Plus, CircleNotch as Loader2, Lock, Users, Crown, Lightning as Zap, Sparkle as Sparkles, Eye, ArrowsClockwise as RefreshCw, XCircle, MagnifyingGlass as Search, ArrowCounterClockwise as RotateCcw, X, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
 import {
   ExecutivePulse,
   UserBehavior,
@@ -27,8 +28,9 @@ import {
   AccountDetail,
 } from '@/components/admin';
 
-// Tab types - Analytics tabs first, then Operations tabs
-type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'usage' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
+// The union lives with the nav that renders it, so a new destination cannot be
+// added to one and forgotten in the other.
+type Tab = AdminTab;
 
 // Interfaces
 interface WhitelistEntry {
@@ -1248,127 +1250,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Tab navigation - Analytics section */}
-        <div className="mb-2 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-          Analytics
-        </div>
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          <Button
-            variant={activeTab === 'pulse' ? 'default' : 'outline'}
-            onClick={() => selectTab('pulse')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Gauge className="h-4 w-4" />
-            Pulse
-          </Button>
-          <Button
-            variant={activeTab === 'behavior' ? 'default' : 'outline'}
-            onClick={() => selectTab('behavior')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Behavior
-          </Button>
-          <Button
-            variant={activeTab === 'growth' ? 'default' : 'outline'}
-            onClick={() => selectTab('growth')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <TrendingUp className="h-4 w-4" />
-            Growth
-          </Button>
-          <Button
-            variant={activeTab === 'revenue' ? 'default' : 'outline'}
-            onClick={() => selectTab('revenue')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <DollarSign className="h-4 w-4" />
-            Revenue
-          </Button>
-          <Button
-            variant={activeTab === 'health' ? 'default' : 'outline'}
-            onClick={() => selectTab('health')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Wrench className="h-4 w-4" />
-            Health
-          </Button>
-        </div>
-
-        {/* Tab navigation - Operations section */}
-        <div className="mb-2 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-          Operations
-        </div>
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          <Button
-            variant={activeTab === 'whitelist' ? 'default' : 'outline'}
-            onClick={() => selectTab('whitelist')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Sparkles className="h-4 w-4" />
-            Whitelist
-          </Button>
-          <Button
-            variant={activeTab === 'dashboard' ? 'default' : 'outline'}
-            onClick={() => selectTab('dashboard')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Dashboard
-          </Button>
-          <Button
-            variant={activeTab === 'jobs' ? 'default' : 'outline'}
-            onClick={() => selectTab('jobs')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Briefcase className="h-4 w-4" />
-            Jobs
-          </Button>
-          <Button
-            variant={activeTab === 'history' ? 'default' : 'outline'}
-            onClick={() => selectTab('history')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <History className="h-4 w-4" />
-            Saved lookups
-          </Button>
-          <Button
-            variant={activeTab === 'users' ? 'default' : 'outline'}
-            onClick={() => selectTab('users')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Users className="h-4 w-4" />
-            Users
-          </Button>
-          <Button
-            variant={activeTab === 'usage' ? 'default' : 'outline'}
-            onClick={() => selectTab('usage')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Gauge className="h-4 w-4" />
-            Usage
-          </Button>
-          <Button
-            variant={activeTab === 'enrichment' ? 'default' : 'outline'}
-            onClick={() => selectTab('enrichment')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Pencil className="h-4 w-4" />
-            Enrichment
-          </Button>
-        </div>
+        <AdminNav active={activeTab} onSelect={selectTab} />
 
         {/* An open account replaces the tab content entirely. Rendering it
             above a tab would leave two subjects on screen at once, and the

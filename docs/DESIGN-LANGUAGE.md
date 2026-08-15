@@ -396,7 +396,20 @@ Further:
 - **Stat groups state the outcome once at display scale**, with components
   subordinate.
 - **No horizontal scrollbar on a content strip, ever.** Strips reflow as a
-  responsive grid. `overflow-x-auto` belongs only to a genuine data table.
+  responsive grid. `overflow-x-auto` belongs only to a genuine data table. The
+  admin panel broke this in the most costly place available: its own navigation,
+  twelve destinations in two `flex ... overflow-x-auto` strips. A sideways
+  scrollbar hides things behind a gesture people do not know is offered, and on
+  a narrow screen it hid half the panel. `AdminNav` reflows two, three or six
+  across, matching the tile grid directly beneath it so the two read as one
+  rhythm.
+- **Navigation is `nav` with a name, not a fake tablist.** The temptation with
+  twelve buttons is `role="tablist"`, but two separately labelled groups
+  pointing at one content region is navigation, and the role would promise
+  arrow-key roving that the shape does not want. A landmark per group gives a
+  screen reader a way *past* twelve controls, which a tablist would not.
+  `aria-current="page"` states which destination you are on: the filled variant
+  already says it, but only to people who can see the fill.
 
 ---
 
