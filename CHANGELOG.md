@@ -20,6 +20,11 @@ All notable changes to walletlink.social. Newest first.
   checkout, so a Pro to Unlimited upgrade would have made a second Customer,
   overwritten the stored id and orphaned the first: the opposite of the single
   identity this change is for.
+- The checkout lowercases the email once, and uses that form for the Customer
+  lookup, `customer_email` and both metadata blocks. Stripe's email filter is
+  case-sensitive while every other path lowercases, so a buyer who typed a
+  different capitalisation on a second purchase would have missed their own
+  Customer and created a duplicate.
 - `''` is no longer written to `stripe_customer_id`. Callers derive it from
   `session.customer`, which is null whenever no Customer was created, and an
   empty string in an id column reads as "we have one and it is blank".

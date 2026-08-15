@@ -23,6 +23,22 @@ export async function createCheckoutSession(
     throw new Error('Stripe not configured');
   }
 
+  /**
+   * One casing for the whole checkout.
+   *
+   * `stripe.customers.list({ email })` matches case-sensitively, while
+   * `provisionPaidCheckout` and `getUserByEmail` both lowercase before they
+   * compare. The upgrade modal also asks the buyer to type their address again,
+   * so "Jake@Example.com" on the second purchase would miss the Customer created
+   * for "jake@example.com", make a second one, and orphan the first: exactly the
+   * duplicate this reuse logic exists to prevent.
+   *
+   * Normalising here fixes the account lookup too, because the webhook resolves
+   * entitlement from `customer_email` and `metadata.email`, which are both set
+   * below.
+   */
+  const normalizedEmail = email.trim().toLowerCase();
+
   const priceId =
     tier === 'unlimited'
       ? process.env.STRIPE_PRICE_UNLIMITED
@@ -63,25 +79,25 @@ export async function createCheckoutSession(
    * Stripe is the authority and every account predating this change has no
    * stored id to offer.
    */
-  const found = await stripe.customers.list({ email, limit: 1 });
+  const found = await stripe.customers.list({ email: normalizedEmail, limit: 1 });
   const existingCustomerId = found.data[0]?.id;
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     ...(existingCustomerId
       ? { customer: existingCustomerId }
-      : { customer_email: email, customer_creation: 'always' as const }),
+      : { customer_email: normalizedEmail, customer_creation: 'always' as const }),
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: baseUrl,
     metadata: {
       tier,
-      email,
+      email: normalizedEmail,
     },
     payment_intent_data: {
       metadata: {
         tier,
-        email,
+        email: normalizedEmail,
       },
     },
   });
