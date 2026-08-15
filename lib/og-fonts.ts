@@ -17,7 +17,9 @@
 export interface OgFont {
   name: string;
   data: ArrayBuffer;
-  weight: 200 | 400 | 600 | 800;
+  // Stops at 600. The design language's weight scale has no 800 in it, and the
+  // one card that used to reach for it now sets its emphasis span at 600.
+  weight: 200 | 400 | 600;
   style: 'normal';
 }
 
@@ -50,15 +52,13 @@ export interface OgFontUrls {
   extraleicht: URL;
   book: URL;
   halbfett: URL;
-  fett: URL;
 }
 
 export async function loadOgFonts(urls: OgFontUrls): Promise<OgFont[]> {
-  const [extraleicht, book, halbfett, fett] = await Promise.all([
+  const [extraleicht, book, halbfett] = await Promise.all([
     fetch(urls.extraleicht).then((r) => r.arrayBuffer()),
     fetch(urls.book).then((r) => r.arrayBuffer()),
     fetch(urls.halbfett).then((r) => r.arrayBuffer()),
-    fetch(urls.fett).then((r) => r.arrayBuffer()),
   ]);
 
   return [
@@ -69,7 +69,6 @@ export async function loadOgFonts(urls: OgFontUrls): Promise<OgFont[]> {
     { name: OG_FONT_FAMILY, data: extraleicht, weight: 200, style: 'normal' },
     { name: OG_FONT_FAMILY, data: book, weight: 400, style: 'normal' },
     { name: OG_FONT_FAMILY, data: halbfett, weight: 600, style: 'normal' },
-    { name: OG_FONT_FAMILY, data: fett, weight: 800, style: 'normal' },
   ];
 }
 

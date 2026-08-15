@@ -13,7 +13,6 @@ export default async function OGImage() {
       extraleicht: new URL('../public/fonts/soehne-extraleicht.ttf', import.meta.url),
       book: new URL('../public/fonts/soehne-buch.ttf', import.meta.url),
       halbfett: new URL('../public/fonts/soehne-halbfett.ttf', import.meta.url),
-      fett: new URL('../public/fonts/soehne-fett.ttf', import.meta.url),
     }),
   ]);
 
