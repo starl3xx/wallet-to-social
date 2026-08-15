@@ -4,12 +4,20 @@ import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { LookupProgress } from '@/lib/types';
+import type { ScanDepth } from '@/lib/scan-depth';
 
 interface ProgressBarProps {
   progress: LookupProgress;
   displayedProcessed?: number;
   timeRemaining?: string | null;
   onCancel?: () => void;
+  /**
+   * Which pipeline the job is running. A fast scan never reaches the live
+   * sources, so showing their stages would promise work that will not happen.
+   * Defaults to a deep scan: a job restored after a page refresh has no depth
+   * to hand us, and over-listing the stages is the safer of the two errors.
+   */
+  scanDepth?: ScanDepth;
 }
 
 // Parse the current stage from the message (e.g., "Processing: ens (0/4440)")
@@ -19,12 +27,24 @@ function parseStage(message?: string): string | null {
   return match ? match[1].toLowerCase() : null;
 }
 
-// Pipeline stages in order
+/**
+ * The pipeline, in the order `job-processor.ts` actually runs it.
+ *
+ * It was listed as cache, Web3.bio, Farcaster, ENS, which is neither the order
+ * the code runs nor the full set: the graph read that starts every job was
+ * missing entirely, and `currentStageIndex` drives the completed/pending state
+ * of every dot from this array, so a wrong order lights the wrong dots.
+ *
+ * The last stage was labelled with its vendor's name, which the UI never does.
+ * It is now named for what it does. ENS and Farcaster are protocols rather than
+ * vendors, and both are sold as features under those names, so they keep them.
+ */
 const STAGES = [
-  { id: 'cache', label: 'Cache', icon: '◈' },
-  { id: 'web3bio', label: 'Web3.bio', icon: '◉' },
-  { id: 'neynar', label: 'Farcaster', icon: '◎' },
-  { id: 'ens', label: 'ENS', icon: '◇' },
+  { id: 'graph', label: 'Index', icon: '◈', live: false },
+  { id: 'cache', label: 'Cache', icon: '◇', live: false },
+  { id: 'ens', label: 'ENS', icon: '◆', live: true },
+  { id: 'neynar', label: 'Farcaster', icon: '◎', live: true },
+  { id: 'web3bio', label: 'Profiles', icon: '◉', live: true },
 ] as const;
 
 export const ProgressBar = memo(function ProgressBar({
@@ -32,7 +52,12 @@ export const ProgressBar = memo(function ProgressBar({
   displayedProcessed,
   timeRemaining,
   onCancel,
+  scanDepth = 'deep',
 }: ProgressBarProps) {
+  const stages = useMemo(
+    () => (scanDepth === 'fast' ? STAGES.filter((s) => !s.live) : STAGES),
+    [scanDepth]
+  );
   const processed = displayedProcessed ?? progress.processed;
   const percentage =
     progress.total > 0 ? Math.round((processed / progress.total) * 100) : 0;
@@ -43,9 +68,9 @@ export const ProgressBar = memo(function ProgressBar({
   // Calculate which stage index we're on
   const currentStageIndex = useMemo(() => {
     if (!currentStage) return 0;
-    const idx = STAGES.findIndex((s) => s.id === currentStage);
+    const idx = stages.findIndex((s) => s.id === currentStage);
     return idx >= 0 ? idx : 0;
-  }, [currentStage]);
+  }, [currentStage, stages]);
 
   return (
     <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
@@ -126,7 +151,7 @@ export const ProgressBar = memo(function ProgressBar({
 
             {/* Pipeline stages */}
             <div className="relative flex justify-between">
-              {STAGES.map((stage, idx) => {
+              {stages.map((stage, idx) => {
                 const isActive = currentStage === stage.id;
                 const isComplete = idx < currentStageIndex || percentage === 100;
                 const isPending = idx > currentStageIndex && percentage < 100;

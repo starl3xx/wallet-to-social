@@ -1311,7 +1311,7 @@ export default function Home() {
 
           {/* Processing State */}
           {state === 'processing' && (
-            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} />
+            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} scanDepth={scanDepth} />
           )}
 
           {/* Error State */}

@@ -32,6 +32,25 @@ All notable changes to walletlink.social. Newest first.
   old number did not include ENS.
 - **The two buttons have icons.** “Choose different file” has a swap icon.
   “Start lookup” has a magnifying glass.
+- **A fast scan gave an empty row for a wallet that the index knows.** Step 1
+  applies a stored row only when its quality is high and fresh, or medium. A
+  high-quality row one day past its refresh window went to the live sources
+  instead, because the live answer must not lose to the old one. A fast scan has
+  no live pass, so those wallets came back empty. A fast scan now takes what is
+  stored. The other modes do not change.
+- **The cache step erased data that the index had found.** It merged the cached
+  row with a spread. Each field of a cached row is present, and an empty field
+  holds `undefined`, so the spread wrote `undefined` over a value from the
+  index. A wallet with a Farcaster name in the index and a Twitter-only cache
+  row lost its Farcaster name. The cache now supplies only the fields that it
+  has.
+- **The progress bar showed the name of a data supplier.** The rule is to give
+  no supplier name in the interface. That stage is now “Profiles”. ENS and
+  Farcaster are protocols, not suppliers, so they keep their names. The stage
+  list also had the wrong order and did not include the index read that starts
+  each job. The list controls which dots are complete, so the order was
+  incorrect on the screen. A fast scan now shows only the two stages that it
+  runs.
 
 
 ### 2026-08-15 (job context in the admin panel, and two faults it exposed)
