@@ -115,7 +115,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Lookups Today */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('jobs')}
         >
           <CardContent className="pt-4 pb-3">
@@ -137,7 +137,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
         {/* Active Users */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('behavior')}
         >
           <CardContent className="pt-4 pb-3">
@@ -154,7 +154,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
         {/* Conversion Rate */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('revenue')}
         >
           <CardContent className="pt-4 pb-3">
@@ -170,7 +170,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
         {/* Revenue MTD */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('revenue')}
         >
           <CardContent className="pt-4 pb-3">
@@ -194,7 +194,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
         {/* Error Rate */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('health')}
         >
           <CardContent className="pt-4 pb-3">
@@ -213,7 +213,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
         {/* Queue Depth */}
         <Card
-          className="cursor-pointer hover:border-primary/50 transition-colors"
+          className="cursor-pointer hover:border-accent-brand transition-control"
           onClick={() => onMetricClick?.('jobs')}
         >
           <CardContent className="pt-4 pb-3">

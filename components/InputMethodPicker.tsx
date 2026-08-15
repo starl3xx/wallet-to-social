@@ -145,8 +145,8 @@ export function InputMethodPicker({
     <div>
       {isDragging && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
-          <div className="rounded-lg border-2 border-dashed border-primary bg-background px-8 py-6 text-center">
-            <Upload className="mx-auto h-10 w-10 text-primary" aria-hidden />
+          <div className="rounded-lg border-2 border-dashed border-accent-brand bg-background px-8 py-6 text-center">
+            <Upload className="mx-auto h-10 w-10 text-accent-brand" aria-hidden />
             <p className="mt-3 text-lg font-medium">Drop it anywhere</p>
             <p className="text-sm text-muted-foreground">CSV or Excel (.xlsx)</p>
           </div>

@@ -51,7 +51,7 @@ export default function BlogIndex() {
             {posts.map((post) => (
               <article
                 key={post.slug}
-                className="group border rounded-lg p-6 hover:border-foreground/20 transition-colors"
+                className="group border rounded-lg p-6 hover:border-accent-brand transition-control"
               >
                 <Link href={`/blog/${post.slug}`} className="block">
                   <p className="text-xs text-muted-foreground mb-2">

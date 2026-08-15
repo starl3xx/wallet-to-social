@@ -89,7 +89,7 @@ export const ProgressBar = memo(function ProgressBar({
   }, [currentStage, stages]);
 
   return (
-    <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
+    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm">
       <CardContent className="p-0">
         {/* Main content area */}
         <div className="p-6 pb-4">
@@ -122,7 +122,7 @@ export const ProgressBar = memo(function ProgressBar({
                 variant="outline"
                 size="sm"
                 onClick={onCancel}
-                className="text-xs h-8 px-3 border-border/50 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+                className="text-xs h-8 px-3 border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
               >
                 Cancel
               </Button>
@@ -268,7 +268,7 @@ export const ProgressBar = memo(function ProgressBar({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-muted/30 border-t border-border/30">
+        <div className="px-6 py-3 bg-muted/30 border-t border-border">
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1">
               <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">

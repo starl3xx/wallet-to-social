@@ -206,13 +206,14 @@ export function UsageMeter({
                   <TableRow key={`${p.email ?? 'anon'}-${i}`}>
                     <TableCell className="max-w-[18rem] truncate font-mono text-xs">
                       {p.email && onAccountClick ? (
-                        <button
-                          type="button"
+                        <Button
+                          variant="link"
+                          size="inline"
+                          className="max-w-full truncate font-mono text-xs"
                           onClick={() => onAccountClick(p.email!)}
-                          className="text-accent-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           {p.email}
-                        </button>
+                        </Button>
                       ) : (
                         (p.email ?? 'anonymous')
                       )}

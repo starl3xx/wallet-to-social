@@ -52,6 +52,20 @@ covers all 22 shaded families including the neutrals (`gray`, `slate`, `zinc`,
 `neutral`, `stone`) — it originally listed only the 17 chromatic ones and reported
 clean over 18 live violations.
 
+**`primary` is not one of these tokens.** `--primary` is `oklch(0.205 0 0)`, a
+shadcn default that nothing here ever adapted: near-black in light mode,
+near-white in dark. It survived because its *name* reads like a brand token, and
+because the palette guard is looking for raw families like `bg-gray-500` and this
+is not one. It had spread to both drop targets, so dragging a file onto the page
+lit the target **black** while the same component's resting state was violet; to
+the admin period toggle and its stage bars; to six clickable cards; to the text
+selection colour inside every input; and to the unused `Progress` primitive. The
+`shadcn-primary` rule now rejects it in every utility position.
+
+The general lesson is that **an unadapted library default is more dangerous than
+an obviously wrong value**, because it is plausible. A guard that only knows the
+library's *palette* cannot see the library's *semantics*.
+
 ---
 
 ## Type
@@ -113,6 +127,20 @@ opacity. Shadows appear only on the floating layer (modals, dropdowns, popovers)
 at `shadow-lg`, and on the segmented control's active thumb. Border opacity
 modifiers (`/60`, `/50`, `/30`) are banned. `border-2` only with `border-dashed`,
 on a dropzone.
+
+That rule was stated here and broken in the one place it mattered most: `Card`,
+the primitive nearly every surface is built from, carried `border-border/60`. In
+dark mode `--border` is already `oklch(1 0 0 / 10%)`, so sixty percent of it is a
+6% white line, which is to say no line at all. Six further faded borders sat
+behind it. The `border-opacity` rule now enforces what this paragraph already
+said, which is the useful shape of the lesson: **a rule nobody can check is a
+preference.**
+
+**One exemption, and it is about meaning rather than convenience.** A spinner
+draws its track at half opacity and one edge at full, and that arc is not
+separation, so the rule skips any line carrying `animate-spin`. Exempting the
+line beats dropping `accent-brand` from the rule, which would have let a
+genuinely faded card border through in order to keep one spinner.
 
 **The segmented thumb takes two shadows, not one.** A wide soft shadow lifts it
 off the track; a tight dark one directly beneath draws its bottom edge, which is
@@ -227,6 +255,14 @@ Further:
   pills beneath it, never siblings of equal size.
 - **One filled button per action row**; the fourth control onward goes into an
   overflow menu. A row of buttons never wraps.
+- **A text link inside a table cell or a sentence is `Button variant="link"
+  size="inline"`.** The `link` variant existed and was used nowhere, because the
+  default 34px control height would have opened up the row; two call sites had
+  independently hand-copied its four classes to escape that. `size="inline"` is
+  `h-auto p-0`, which names the escape once. Type comes from the cell: `cn` runs
+  tailwind-merge, so a caller's `font-mono text-xs` beats the variant's base.
+  **When a variant is unused and its classes appear inline nearby, the variant is
+  missing a size, not unwanted.**
 - **Stat groups state the outcome once at display scale**, with components
   subordinate.
 - **No horizontal scrollbar on a content strip, ever.** Strips reflow as a
@@ -264,7 +300,13 @@ Three durations, two curves.
   swap throws away: which option you just left. Use `components/ui/segmented.tsx`;
   a second implementation of a moving selection is a second thing to get wrong,
   and the two that existed had already drifted on height, keyboard handling and
-  whether the thumb moved at all.
+  whether the thumb moved at all. A **third** was later found in the admin lookup
+  dashboard, and it had drifted further than either: a padding-derived height that
+  disagreed with the refresh button beside it, no arrow-key handling, no thumb,
+  and a selected state painted in `bg-primary`, so the one control in the product
+  whose selection was black sat two panes away from the ones whose selection was
+  violet. Consolidation is not a one-time task; a second implementation is worth
+  looking for whenever a surface is opened.
 - Under `prefers-reduced-motion` the thumb still **moves**, it just arrives
   immediately. Removing the transform would strand it under the wrong option,
   which is a correctness bug rather than a motion preference.
@@ -343,7 +385,7 @@ Two CI jobs and an ESLint rule guard what a grep can see:
 | Guard | Covers |
 |---|---|
 | `scripts/check-palette-guard.mjs` | raw palette classes, all 22 shaded families |
-| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token |
 | `eslint.config.mjs` | the palette rule, in the editor |
 
 Both scripts run their **own fixtures first**, so a guard that has stopped working

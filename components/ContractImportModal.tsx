@@ -227,7 +227,7 @@ export function ContractImportModal({
                       className="peer sr-only"
                     />
                     <span
-                      className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-foreground/30 hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
+                      className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
                     >
                       {CHAIN_LABELS[c]}
                     </span>
@@ -256,7 +256,7 @@ export function ContractImportModal({
         {/* Loading Step */}
         {step === 'loading' && (
           <div className="py-8 flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{loadingMessage}</p>
           </div>
         )}

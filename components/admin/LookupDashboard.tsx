@@ -11,10 +11,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { Sparkline } from './Sparkline';
 import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, MagnifyingGlass as Search, Wallet, Percent, Clock, CaretDown as ChevronDown, CaretUp as ChevronUp, Stack as Layers, CheckCircle, XCircle } from '@phosphor-icons/react';
 
 type TimePeriod = 'today' | 'week' | 'month';
+
+/**
+ * Module scope, not inline: `Segmented` keeps the thumb position in arithmetic
+ * over this array, and rebuilding it every render gives the memoised children a
+ * new identity for no reason.
+ */
+const PERIODS: SegmentedOption<TimePeriod>[] = [
+  { value: 'today', label: 'Today', content: 'Today' },
+  { value: 'week', label: 'Week', content: 'Week' },
+  { value: 'month', label: 'Month', content: 'Month' },
+];
 
 interface UsageMetrics {
   totalLookups: number;
@@ -168,21 +180,12 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Usage metrics</h2>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border overflow-hidden">
-            {(['today', 'week', 'month'] as TimePeriod[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  period === p
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-background hover:bg-muted'
-                }`}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="Time period"
+            value={period}
+            onChange={setPeriod}
+            options={PERIODS}
+          />
           <Button variant="ghost" size="sm" onClick={fetchDashboard} disabled={loading}>
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -424,7 +427,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                       <span className="text-xs w-16 truncate">{stage.stage}</span>
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-primary rounded-full transition-all"
+                          className="h-full bg-accent-brand rounded-full transition-all"
                           style={{ width: `${Math.min(stage.percentage, 100)}%` }}
                         />
                       </div>

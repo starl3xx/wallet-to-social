@@ -1155,13 +1155,13 @@ export default function AdminPage() {
                     <TableCell>
                       {/* Opens the same drill-down the Usage pane does, so the
                           panel has one account view rather than two. */}
-                      <button
-                        type="button"
+                      <Button
+                        variant="link"
+                        size="inline"
                         onClick={() => setOpenAccount(user.email)}
-                        className="text-accent-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         {user.email}
-                      </button>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
