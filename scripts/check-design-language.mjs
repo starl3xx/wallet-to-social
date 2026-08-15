@@ -79,6 +79,18 @@ const RULES = [
     re: /from\s+['"]lucide-react['"]/,
     msg: 'Icons are Phosphor. See the Icons section: barrel in client components, /dist/ssr in server ones.',
   },
+  {
+    name: 'colour-function-wrapper',
+    // Every token in globals.css is `oklch(...)`, so `hsl(var(--x))` expands to
+    // `hsl(oklch(...))`, which is not a colour. Nothing warns: the build passes,
+    // the guard passed, and the browser silently drops the declaration. Two
+    // admin sparklines passed `hsl(var(--primary))` as `stroke` and `fill`.
+    // Measured in Chrome, `stroke` computed to `none` and `fill` to black, so
+    // the trend line was not drawn at all and the area under it was a grey
+    // wash. A wrong colour is visible; a dropped one looks like a design.
+    re: /\b(?:hsla?|rgba?)\(\s*var\(--/,
+    msg: 'Tokens are oklch. Wrapping one in hsl()/rgb() is invalid CSS and the declaration is dropped. Use var(--token).',
+  },
 ];
 
 /** A rule fires when its pattern matches and its exemption does not. */
@@ -113,6 +125,12 @@ const FIXTURES = {
     good: ["import { Check } from '@phosphor-icons/react'",
            "import { Check } from '@phosphor-icons/react/dist/ssr'",
            "import { cn } from '@/lib/utils'"],
+  },
+  'colour-function-wrapper': {
+    bad: ['color="hsl(var(--primary))"', 'stroke="rgb(var(--border))"',
+          'fill="hsla( var(--accent-brand) )"'],
+    good: ['color="var(--accent-brand)"', 'oklch(0.42 0.19 280)',
+           'hsl(210 40% 96%)', 'rgb(0 0 0 / 0.04)'],
   },
   'border-opacity': {
     bad: ['border-border/50', 'hover:border-foreground/20', 'border-muted-foreground/25',
@@ -182,7 +200,7 @@ for (const file of [...walk('app'), ...walk('components')]) {
 
 if (!hits.length) {
   console.log(
-    'design language ok — radius, elevation, type scale, labels, hairline opacity, brand token and icon library all on-system'
+    `design language ok — ${RULES.length + 1} rules pass: radius, elevation, type, labels, hairlines, tokens, icons`
   );
   process.exit(0);
 }

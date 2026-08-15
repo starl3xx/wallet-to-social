@@ -66,6 +66,17 @@ The general lesson is that **an unadapted library default is more dangerous than
 an obviously wrong value**, because it is plausible. A guard that only knows the
 library's *palette* cannot see the library's *semantics*.
 
+**Every token is `oklch()`. Never wrap one in `hsl()` or `rgb()`.**
+`hsl(var(--primary))` expands to `hsl(oklch(...))`, which is not a colour, so
+the browser drops the declaration. Nothing warns: it compiles, it lints, and it
+looks like a theme-aware value. Two admin sparklines passed it as `stroke` and
+`fill`. Measured in Chrome, `stroke` computed to **`none`** and `fill` to
+**black**, so the trend line was never drawn at all and the area under it was a
+grey wash that read as a deliberate style. **A wrong colour is visible; a
+dropped one looks like a design.** The `colour-function-wrapper` rule rejects
+it. Pass `var(--token)`, which works anywhere a colour is accepted, including an
+SVG paint attribute.
+
 ---
 
 ## Type
@@ -336,6 +347,16 @@ Further:
   pills beneath it, never siblings of equal size.
 - **One filled button per action row**; the fourth control onward goes into an
   overflow menu. A row of buttons never wraps.
+- **A card you can click is a control, and must be reachable by keyboard.** The
+  six tiles on the admin Pulse pane carried `onClick` on the card `div` and
+  nothing else: no role, no tab stop, no Enter or Space. They *looked* like
+  controls, with `cursor-pointer` and a hover border, and no keyboard could
+  reach any of them. Use `CardActivator`, which stretches a real `<button>` over
+  the card. A real button rather than `role="button"` plus a `keydown` handler,
+  because it brings the whole contract at once, and an overlay rather than
+  wrapping the card, because `<button>` takes phrasing content and these tiles
+  are built from `div`s. **A hover state is not an affordance if only a mouse
+  can find it.**
 - **A text link inside a table cell or a sentence is `Button variant="link"
   size="inline"`.** The `link` variant existed and was used nowhere, because the
   default 34px control height would have opened up the row; two call sites had

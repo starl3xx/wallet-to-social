@@ -15,6 +15,51 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
+/**
+ * Turns the whole card into one control, for a card that navigates somewhere.
+ *
+ * The six tiles on the admin Pulse pane carried `onClick` on the card `div`
+ * and nothing else: no role, no tab stop, no Enter or Space. They looked like
+ * controls, because they had `cursor-pointer` and a hover border, and a
+ * keyboard could not reach any of them.
+ *
+ * A stretched button rather than `role="button"` with a `keydown` handler,
+ * which is the usual patch. A real `<button>` brings the whole contract at
+ * once: focus, Enter, Space, the accessibility tree, and the browser's own
+ * activation behaviour. The design language says not to reproduce an
+ * accessible primitive by hand when the platform already ships it.
+ *
+ * It is also why this is an overlay instead of wrapping the card in a button:
+ * `<button>` takes phrasing content, and these tiles are made of `div`s. The
+ * overlay keeps the markup valid and still gives exactly one tab stop.
+ *
+ * The parent card needs `relative`.
+ */
+function CardActivator({
+  label,
+  onClick,
+  className,
+}: {
+  /** What activating it does, for a reader who cannot see the tile. */
+  label: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2',
+        'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        className
+      )}
+    >
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+}
+
 function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
@@ -83,6 +128,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
 
 export {
   Card,
+  CardActivator,
   CardHeader,
   CardFooter,
   CardTitle,

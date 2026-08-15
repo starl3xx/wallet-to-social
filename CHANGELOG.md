@@ -3,6 +3,27 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a keyboard can reach the cards, and the trend lines are back)
+
+- **The 6 cards on the admin Pulse page work with a keyboard now.** Each card
+  had a click function on the `div` and nothing more: no role, no stop for the
+  Tab key, no Enter and no Space. They looked like controls, because they had a
+  pointer and a border that changes on hover. A keyboard could not reach any of
+  them. **A hover state is not a control if only a mouse can find it.**
+- **The correction uses a real button.** `CardActivator` puts a `<button>` over
+  the full card. A real button gives the focus, the Enter key, the Space key
+  and the accessibility tree together. A `role` attribute with a key function
+  gives only the parts that you remember.
+- **The sparkline trend lines show again.** Two of them used the colour
+  `hsl(var(--primary))`. But each token in this product is an `oklch` colour,
+  so this makes `hsl(oklch(...))`, which is not a colour. The browser removes
+  it and gives no message. A measurement in Chrome shows the result: the line
+  colour became `none`, so the line was not drawn, and the area colour became
+  black. **An incorrect colour is easy to see. A colour that is removed looks
+  like a design.**
+- **A new test refuses `hsl(var(--...))` and `rgb(var(--...))`.** It found the
+  fault immediately in a real file.
+
 ### 2026-08-15 (each dialog keeps its contents now)
 
 - **The upgrade modal no longer puts its two buttons below the panel.** The
