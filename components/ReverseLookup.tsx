@@ -121,7 +121,7 @@ export function ReverseLookup({
             colour is doing emphasis rather than the whole job. Native radios
             underneath keep arrow-key movement and a single tab stop. */}
         <fieldset
-          className="flex gap-0.5 rounded-full bg-muted p-0.5"
+          className="flex h-10 items-center gap-0.5 rounded-full bg-muted p-1"
           aria-label="Platform"
         >
           {(['twitter', 'farcaster'] as const).map((p) => (
@@ -144,7 +144,7 @@ export function ReverseLookup({
                     ? ({ '--seg-bg': 'var(--x-bg)', '--seg-fg': 'var(--x-fg)' } as React.CSSProperties)
                     : ({ '--seg-bg': '#8A63D2', '--seg-fg': '#FFFFFF' } as React.CSSProperties)
                 }
-                className="transition-control block rounded-full px-4 py-1.5 text-sm text-muted-foreground peer-checked:bg-[var(--seg-bg)] peer-checked:font-semibold peer-checked:text-[var(--seg-fg)] peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1"
+                className="transition-control flex h-8 min-w-[4.5rem] items-center justify-center rounded-full px-4 text-sm text-muted-foreground peer-checked:bg-[var(--seg-bg)] peer-checked:font-semibold peer-checked:text-[var(--seg-fg)] peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1"
               >
                 {p === 'twitter' ? (
                   <XMark className="h-3.5 w-3.5" />

@@ -93,7 +93,7 @@ export function ThemeToggle() {
             onClick={() => setTheme(value)}
             className={`transition-control flex h-8 w-9 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               active
-                ? 'bg-background text-accent-brand'
+                ? 'bg-surface-raised text-accent-brand'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
