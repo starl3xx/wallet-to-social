@@ -18,8 +18,16 @@
             "pages": ["index", "quickstart"]
           },
           {
+            "group": "The app",
+            "pages": ["app/lookups"]
+          },
+          {
             "group": "Concepts",
-            "pages": ["concepts/coverage", "concepts/data-quality"]
+            "pages": [
+              "concepts/coverage",
+              "concepts/scan-depth",
+              "concepts/data-quality"
+            ]
           }
         ]
       },

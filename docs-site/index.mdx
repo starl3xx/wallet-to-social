@@ -30,6 +30,8 @@ There are three ways to hand us a set of addresses, and they are equivalent once
 | **Contract import** | You have a contract address but not a holder list. We pull the holders for you. |
 | **Paste addresses** | Quick one-off checks. |
 
+[Running a lookup](/app/lookups) covers all three in full, along with the supported networks, the per-plan address limits, and what comes back out.
+
 ## Before you build
 
 Two pages are worth reading before you wire anything up, because they set expectations that the API itself cannot.
@@ -42,6 +44,10 @@ Two pages are worth reading before you wire anything up, because they set expect
   <Card title="Data quality" icon="shield-check" href="/concepts/data-quality">
     How matches are attested, what the quality score means, and when a record
     is considered stale.
+  </Card>
+  <Card title="Scan depth" icon="bolt" href="/concepts/scan-depth">
+    Fast reads the index, deep asks every live source. Which one you want, and
+    why the API only ever does the first.
   </Card>
 </CardGroup>
 

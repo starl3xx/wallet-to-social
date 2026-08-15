@@ -413,6 +413,20 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* A native checkbox paints its tick with the operating system's accent, so
+     "Save this lookup" rendered in macOS blue next to a violet button. Blue is
+     not in this product's palette at all, and the checkbox is an affordance,
+     which is precisely what accent-brand marks.
+
+     Set here rather than per checkbox: there is no checkbox primitive, so the
+     next `<input type="checkbox">` anyone writes would arrive blue again. This
+     is also why it is not a Tailwind class on each input — one rule cannot
+     drift, five copies can. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--accent-brand);
+  }
 }
 
 /* Slide up animation for social proof tiles */

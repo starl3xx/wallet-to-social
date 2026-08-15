@@ -1,0 +1,57 @@
+---
+title: "Scan depth"
+description: "Fast reads the index. Deep asks every live source. Which one you want, and why."
+---
+
+Every lookup in the app asks one question before it starts: how hard should this try. There are two answers, and the difference is speed against coverage.
+
+<CardGroup cols={2}>
+  <Card title="Fast" icon="bolt">
+    Answers from our index only. No live request goes out, so a list of any
+    size comes back in seconds.
+  </Card>
+  <Card title="Deep scan" icon="binoculars">
+    The index plus every live source, including onchain ENS records. Slower,
+    and finds the most.
+  </Card>
+</CardGroup>
+
+Deep is the default. It is the one that produces attested X handles, which is the difference the product is built on.
+
+## What each one reads
+
+A fast scan reads two things: the identity index, and the short-term cache in front of it. That is the whole pipeline. Nothing is resolved live, nothing is written back, and the wall clock is dominated by the round trip rather than by how many addresses you sent.
+
+A deep scan reads those first, then resolves whatever is left against every live source available to your plan, including onchain ENS text records. It writes what it learns back, so the next lookup over the same addresses is faster for everyone.
+
+<Note>
+Onchain ENS reads are a paid feature. A free account choosing a deep scan gets
+every other source rather than an error, so the choice is always available.
+</Note>
+
+## Which to choose
+
+Pick **fast** when you are re-running a list you have looked up before, when you want a rough size before committing, or when you are working interactively and would rather have 80% of the answer now than all of it in five minutes.
+
+Pick **deep** when the output is going to drive a campaign. The handles that only a deep scan finds are the owner-attested ones, and those are the ones worth contacting.
+
+## What it costs you in time
+
+The app estimates before you start, and the estimate follows the choice.
+
+| Depth | Roughly |
+| --- | --- |
+| Fast | Near-flat with list size: two indexed queries. |
+| Deep | About 18 seconds per 1,000 addresses. |
+
+The deep figure is deliberately conservative: ten seconds of live sources and eight of onchain reads. Real lists usually run faster, because the more of your list is already indexed, the less there is left to resolve.
+
+## Fast scans never write
+
+A fast scan does not update the index, and this is deliberate rather than an optimisation. Writing back would stamp records as freshly checked when nothing checked them, and a later deep scan would trust that stamp and skip the very sources meant to confirm them. One fast scan would suppress the next real one.
+
+So a fast scan is free of side effects in both directions: it takes what is there, and it leaves the index exactly as it found it.
+
+## Through the API
+
+The API has no depth setting. Every API call behaves like a fast scan: it answers from the index, which is why it returns in milliseconds and why its cost is predictable. If you need live resolution across a large list, run it in the app.
