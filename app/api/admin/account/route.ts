@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
     source: string | null;
     chain: string | null;
     contract_name: string | null;
+    contract_symbol: string | null;
     scan_depth: string | null;
   }>(sql`
     SELECT to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created_at,
@@ -90,11 +91,35 @@ export async function GET(request: NextRequest) {
            jsonb_array_length(to_jsonb(wallets))::int AS wallets,
            options->>'inputSource'                    AS source,
            options->'sourceContract'->>'chain'        AS chain,
-           options->'sourceContract'->>'name'         AS contract_name,
+           -- tokenName / tokenSymbol, not 'name'. The shape is ImportedContract
+           -- and the admin Jobs table already reads it correctly; this route
+           -- guessed and silently returned null for every import.
+           options->'sourceContract'->>'tokenName'    AS contract_name,
+           options->'sourceContract'->>'tokenSymbol'  AS contract_symbol,
            CASE WHEN (options->>'fastMode')::boolean THEN 'fast' ELSE 'deep' END AS scan_depth
     FROM lookup_jobs
     WHERE user_id = ${account.id}
     ORDER BY created_at DESC LIMIT 25
+  `);
+
+  /**
+   * Peak and active-day count over the whole history, deliberately not derived
+   * from the series above.
+   *
+   * That series is capped at 60 rows because it is drawn as bars. Reusing it
+   * for the peak would understate any account whose busiest day fell outside
+   * the most recent sixty active days, and this page would then disagree with
+   * the Usage pane it is a drill-down from. Two figures that must match should
+   * not be computed two different ways.
+   */
+  const [lifetime] = await rows<{ peak: number; active_days: number }>(sql`
+    SELECT coalesce(max(wallets), 0)::int AS peak, count(*)::int AS active_days
+    FROM (
+      SELECT sum(jsonb_array_length(to_jsonb(wallets)))::int AS wallets
+      FROM lookup_jobs
+      WHERE user_id = ${account.id}
+      GROUP BY date_trunc('day', created_at)
+    ) d
   `);
 
   const [saved] = await rows<{ n: number; wallets: number }>(sql`
@@ -143,7 +168,6 @@ export async function GET(request: NextRequest) {
   }
 
   const netCents = payments.reduce((s, p) => s + p.netCents, 0);
-  const peak = daily.reduce((m, d) => Math.max(m, d.wallets), 0);
 
   return NextResponse.json({
     account: {
@@ -157,8 +181,8 @@ export async function GET(request: NextRequest) {
     payments,
     volume: {
       lifetimeWallets: account.wallets_used,
-      peakDayWallets: peak,
-      activeDays: daily.length,
+      peakDayWallets: lifetime?.peak ?? 0,
+      activeDays: lifetime?.active_days ?? 0,
       daily,
     },
     savedLookups: saved ?? { n: 0, wallets: 0 },

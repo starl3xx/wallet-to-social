@@ -121,6 +121,20 @@ export default function AdminPage() {
    * than a thirteenth tab nobody would think to visit.
    */
   const [openAccount, setOpenAccount] = useState<string | null>(null);
+
+  /**
+   * Change tab, and close any open account.
+   *
+   * Every tab button goes through this rather than calling setActiveTab
+   * directly. An open account replaces the whole content area, so a tab that
+   * only moved the highlight left the panel looking broken: the button lit up
+   * and the screen did not change. Doing it in one place also means the next
+   * tab someone adds cannot forget.
+   */
+  const selectTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    setOpenAccount(null);
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   // Whitelist state
@@ -1196,12 +1210,14 @@ export default function AdminPage() {
     </Card>
   );
 
-  // Handle metric click from pulse dashboard
+  // Handle metric click from pulse dashboard. Through selectTab for the same
+  // reason the tab buttons are: this navigates, so it has to close an open
+  // account or the jump would appear to do nothing.
   const handleMetricClick = (metric: string) => {
-    if (metric === 'jobs') setActiveTab('jobs');
-    else if (metric === 'behavior') setActiveTab('behavior');
-    else if (metric === 'revenue') setActiveTab('revenue');
-    else if (metric === 'health') setActiveTab('health');
+    if (metric === 'jobs') selectTab('jobs');
+    else if (metric === 'behavior') selectTab('behavior');
+    else if (metric === 'revenue') selectTab('revenue');
+    else if (metric === 'health') selectTab('health');
   };
 
   // Main admin view
@@ -1239,7 +1255,7 @@ export default function AdminPage() {
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
           <Button
             variant={activeTab === 'pulse' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('pulse')}
+            onClick={() => selectTab('pulse')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1248,7 +1264,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'behavior' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('behavior')}
+            onClick={() => selectTab('behavior')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1257,7 +1273,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'growth' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('growth')}
+            onClick={() => selectTab('growth')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1266,7 +1282,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'revenue' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('revenue')}
+            onClick={() => selectTab('revenue')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1275,7 +1291,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'health' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('health')}
+            onClick={() => selectTab('health')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1291,7 +1307,7 @@ export default function AdminPage() {
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           <Button
             variant={activeTab === 'whitelist' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('whitelist')}
+            onClick={() => selectTab('whitelist')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1300,7 +1316,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'dashboard' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => selectTab('dashboard')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1309,7 +1325,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'jobs' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('jobs')}
+            onClick={() => selectTab('jobs')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1318,7 +1334,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'history' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('history')}
+            onClick={() => selectTab('history')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1327,7 +1343,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'users' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('users')}
+            onClick={() => selectTab('users')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1336,7 +1352,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'usage' ? 'default' : 'outline'}
-            onClick={() => { setActiveTab('usage'); setOpenAccount(null); }}
+            onClick={() => selectTab('usage')}
             className="flex items-center gap-2"
             size="sm"
           >
@@ -1345,7 +1361,7 @@ export default function AdminPage() {
           </Button>
           <Button
             variant={activeTab === 'enrichment' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('enrichment')}
+            onClick={() => selectTab('enrichment')}
             className="flex items-center gap-2"
             size="sm"
           >
