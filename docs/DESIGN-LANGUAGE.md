@@ -196,6 +196,64 @@ other owns it, never both.
 
 ---
 
+## Dialogs
+
+Behaviour comes from Radix (`@radix-ui/react-dialog`): focus trap, focus
+restore, Escape, labelling, overlay. Appearance comes from here. Never
+hand-roll a dialog out of `fixed inset-0`.
+
+**A dialog is a flex column, never a grid.** It is bounded by
+`max-h-[calc(100dvh-2rem)]`, and its body is `flex-1 min-h-0 overflow-y-auto`.
+
+This is worth stating as a rule because the obvious repair does not work and
+looks like it should. The dialog was a grid whose body had `min-h-0`, which is
+the well-known fix for a grid item refusing to shrink, and it is genuinely
+necessary. It is also not sufficient, and the difference is invisible in review:
+
+- `min-h-0` lets the grid **item** shrink
+- the implicit grid **row** is still `auto`, meaning max-content
+- so the row grows past the container's `max-height`, the item fills the row it
+  is given, and `overflow-y-auto` is never handed a box smaller than its content
+
+The result is a dialog that clips nothing and shows no scrollbar. Measured in
+headless Chrome at a 663px viewport: panel 631px, body **1298px**,
+`scrollHeight === clientHeight`, and the primary button painted **644px below
+the bottom edge of the panel**. The upgrade modal spilled its two buttons onto
+the page for a full release *after* the fix that was supposed to stop it, and
+all six dialogs had the same defect.
+
+`flex-1` is `flex: 1 1 0%`: basis zero, then grow into the space that exists.
+With `min-h-0` the body can be smaller than its content, which is the entire
+mechanism. Same measurement after: body 629px, `scrollHeight` 1928px,
+scrollable, button 25px inside the panel.
+
+**`100dvh`, not `100vh`.** On mobile `vh` is the tallest the viewport ever gets,
+so a dialog measured in it hides behind the address bar precisely when the bar
+is showing.
+
+### Keeping the actions reachable
+
+A scrolling body is correct for almost every dialog. When the actions must stay
+on screen regardless of height, the body is already a bounded flex column, so a
+child marked `min-h-0 flex-1` resolves against it and can scroll its own inner
+region while the buttons stay put. **This needs no prop.** A `scroll` prop was
+written for it and then removed: it added API surface for something the layout
+already expressed, and its `overflow-hidden` branch would have clipped content
+outright on a viewport too short for even the pinned parts.
+
+The upgrade modal is the case that cannot use a single pinned footer, because
+each button belongs to its own plan card. There, the card is the flex column:
+its feature list scrolls and its button is pinned to its bottom edge, so both
+choices stay visible. Below `md` the cards stack and the body scrolls normally,
+because a bounded column of stacked cards on a phone is worse than a scroll.
+
+**`ModalFooter` is used by none of the six dialogs.** Like the `link` button
+variant, a slot that nobody reaches for is usually a slot that does not do the
+thing its name promises: it sits *inside* the scrolling body, so it never
+pinned anything.
+
+---
+
 ## Data
 
 ### Monospace

@@ -125,8 +125,12 @@ export function UpgradeModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
+      {/* The two buttons are the point of this modal, and they cannot share one
+          footer because each belongs to a plan. So the card owns the scroll:
+          its feature list scrolls and its button stays pinned to its bottom
+          edge, which keeps both choices on screen at any height. */}
       <ModalContent className="max-w-4xl">
-        <ModalHeader>
+        <ModalHeader className="flex-none">
           <ModalTitle className="text-2xl">Upgrade your plan</ModalTitle>
           <ModalDescription>
             {walletCount
@@ -141,9 +145,13 @@ export function UpgradeModal({
           </ModalDescription>
         </ModalHeader>
 
-        <div className="space-y-4">
+        {/* Only from `md` does this claim the height. On a phone the cards are
+            stacked, so letting them run to their natural height and scrolling
+            the modal body is the better reading experience, and it keeps the
+            chain of `flex-1` off a layout that does not want it. */}
+        <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
           {/* Email input */}
-          <div className="space-y-2">
+          <div className="flex-none space-y-2">
             <label className="text-sm font-medium">Email address</label>
             <Input
               type="email"
@@ -158,9 +166,9 @@ export function UpgradeModal({
           </div>
 
           {/* Pricing cards */}
-          <div className="grid items-stretch gap-4 md:grid-cols-2">
+          <div className="grid items-stretch gap-4 md:min-h-0 md:flex-1 md:grid-cols-2">
             {/* Pro tier */}
-            <div className="flex flex-col rounded-lg border p-4 space-y-4">
+            <div className="flex min-h-0 flex-col gap-4 rounded-lg border p-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <div className="p-1.5 rounded-lg bg-accent-brand-tint">
@@ -176,7 +184,9 @@ export function UpgradeModal({
               <p className="text-sm text-muted-foreground">
                 Up to {TIER_LIMITS.pro.toLocaleString()} wallets/lookup
               </p>
-              <ul className="space-y-2">
+              {/* The one part that gives way. Below `md` the cards are stacked
+                  and the modal body scrolls instead, so this stays natural. */}
+              <ul className="space-y-2 md:min-h-0 md:flex-1 md:overflow-y-auto">
                 {FEATURES.pro.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm">
                     <div className="rounded-full bg-success-light p-0.5">
@@ -187,7 +197,7 @@ export function UpgradeModal({
                 ))}
               </ul>
               <Button
-                className="mt-auto w-full"
+                className="w-full flex-none"
                 onClick={() => handleUpgrade('pro')}
                 disabled={loading !== null || !proCoversList}
                 title={
@@ -210,7 +220,7 @@ export function UpgradeModal({
             </div>
 
             {/* Unlimited tier */}
-            <div className="relative flex flex-col rounded-lg border-2 border-accent-brand p-4 space-y-4">
+            <div className="relative flex min-h-0 flex-col gap-4 rounded-lg border-2 border-accent-brand p-4">
               <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
                 Best value
               </div>
@@ -229,7 +239,9 @@ export function UpgradeModal({
               <p className="text-sm text-muted-foreground">
                 Unlimited wallets forever
               </p>
-              <ul className="space-y-2">
+              {/* The one part that gives way. Below `md` the cards are stacked
+                  and the modal body scrolls instead, so this stays natural. */}
+              <ul className="space-y-2 md:min-h-0 md:flex-1 md:overflow-y-auto">
                 {FEATURES.unlimited.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm">
                     <div className="rounded-full bg-success-light p-0.5">
@@ -240,7 +252,7 @@ export function UpgradeModal({
                 ))}
               </ul>
               <Button
-                className="mt-auto w-full"
+                className="w-full flex-none"
                 variant="default"
                 onClick={() => handleUpgrade('unlimited')}
                 disabled={loading !== null}
