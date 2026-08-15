@@ -1,6 +1,6 @@
 import { getDb } from '@/db';
 import { users, whitelist } from '@/db/schema';
-import { eq, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { trackEvent } from '@/lib/analytics';
 
 export type UserTier = 'free' | 'starter' | 'pro' | 'unlimited';
@@ -263,36 +263,87 @@ export async function provisionPaidCheckout(
   if (!db) throw new Error('Database not configured');
 
   const normalizedEmail = email.toLowerCase();
-  const [existing] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, normalizedEmail))
-    .limit(1);
+  const paidAt = new Date();
 
-  // Already done by the other path. Not an error, and specifically not a second
-  // `payment_completed` event: revenue is summed from those.
-  if (existing?.stripePaymentId === stripePaymentId) {
+  // Both guards live inside the upsert rather than in a preceding SELECT, and
+  // that is the whole point. Read-then-write is not safe here: the webhook and
+  // the /success poll are *designed* to run at the same moment on the same
+  // payment, so both could read "not yet provisioned", both pass, and both book
+  // the sale. Revenue is summed from those events, so the report would simply be
+  // wrong.
+  //
+  // With the conditions in `setWhere`, Postgres takes a row lock on conflict.
+  // The second writer blocks, then re-evaluates against the row the first one
+  // just committed, sees its own payment id already there, and matches nothing.
+  // `returning()` yields a row only when this call actually changed something,
+  // which makes it the authority on whether to record a sale.
+  const tiersThisCanOverwrite = (Object.keys(TIER_RANK) as UserTier[]).filter(
+    (t) => TIER_RANK[t] <= TIER_RANK[tier]
+  );
+
+  const [granted] = await db
+    .insert(users)
+    .values({
+      email: normalizedEmail,
+      tier,
+      stripeCustomerId,
+      stripePaymentId,
+      paidAt,
+      walletsUsed: 0,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        tier,
+        stripeCustomerId,
+        stripePaymentId,
+        paidAt,
+        // Matches upgradeUser: only starter resets cumulative usage.
+        ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
+      },
+      setWhere: and(
+        // Idempotency on the payment intent. `ne` alone would not do: a NULL
+        // stripe_payment_id compares as NULL rather than true, so a first-time
+        // upgrade of an existing free account would match nothing and silently
+        // never provision.
+        or(
+          isNull(users.stripePaymentId),
+          ne(users.stripePaymentId, stripePaymentId)
+        ),
+        // Never downgrade. Without this, someone on Unlimited re-opening an old
+        // Pro success URL would be quietly dropped a tier.
+        inArray(users.tier, tiersThisCanOverwrite)
+      ),
+    })
+    .returning();
+
+  if (!granted) {
+    // Nothing changed, so distinguish why purely for the caller's logs. This
+    // read races nothing: it only labels an outcome already decided above.
+    const [existing] = await db
+      .select({ tier: users.tier, stripePaymentId: users.stripePaymentId })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!existing) return { provisioned: false, reason: 'no-account', tier: 'free' };
+
     return {
       provisioned: false,
-      reason: 'already-provisioned',
+      reason:
+        existing.stripePaymentId === stripePaymentId
+          ? 'already-provisioned'
+          : 'outranked',
       tier: (existing.tier as UserTier) ?? 'free',
     };
   }
 
-  // A buyer who already holds a higher tier keeps it. Without this, someone on
-  // Unlimited who re-opens an old Pro success URL would be silently downgraded.
-  const currentTier = (existing?.tier as UserTier) ?? 'free';
-  if (TIER_RANK[currentTier] > TIER_RANK[tier]) {
-    return { provisioned: false, reason: 'outranked', tier: currentTier };
-  }
-
-  await upgradeUser(normalizedEmail, tier, stripeCustomerId, stripePaymentId);
-
   // Booked here rather than at the call sites, so a grant cannot happen without
-  // the sale being recorded. The webhook previously did this as a floating
-  // promise (`trackEvent(...)` with no await), which a serverless runtime is
-  // free to discard when the handler returns, and the payment_intent path
-  // recorded nothing at all.
+  // the sale being recorded, and it is reached only when the upsert above
+  // actually wrote. The webhook previously did this as a floating promise
+  // (`trackEvent(...)` with no await), which a serverless runtime is free to
+  // discard when the handler returns, and the payment_intent path recorded
+  // nothing at all.
   await trackEvent('payment_completed', {
     userId: normalizedEmail,
     metadata: {
