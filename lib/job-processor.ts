@@ -334,13 +334,25 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // STEP 3: Call external APIs for remaining uncached wallets
     // ENS and Neynar run in parallel since they're independent. Web3Bio runs
     // after both, filtered to only wallets still missing Twitter.
+    //
+    // Fast mode stops before this step. It answers from the social graph and
+    // the cache and nothing else: no live source is called, nothing is written
+    // back, and no negative is persisted. That is what the interface now
+    // promises ("answers from our index only"), and it is why a fast scan
+    // costs the same whether the list holds 200 wallets or 200,000.
+    //
+    // It used to skip Web3Bio alone and still call Neynar, which made "fast"
+    // an ambiguous middle: slower than an index read, cheaper than a real scan,
+    // and impossible to describe to a user in one line. The sweep has since
+    // taken Farcaster coverage to complete, so what that call added is, for the
+    // most part, already in the graph the step above already read.
     // =========================================================================
     // Wallets whose external check failed (not "not found") — those must never
     // be persisted as negatives, or an API outage would poison the graph with
     // false "no socials" answers for the whole recheck window.
     const apiFailedWallets = new Set<string>();
 
-    if (uncachedWallets.length > 0) {
+    if (uncachedWallets.length > 0 && !options.fastMode) {
       const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
       const canUseENS = options.includeENS && options.canUseENS !== false;
 
@@ -413,13 +425,10 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Filter wallets that still need Twitter lookup after ENS + Neynar
-      // Fast mode skips Web3Bio entirely — returns Neynar-only results near-instantly
-      const walletsNeedingWeb3Bio = options.fastMode
-        ? []
-        : uncachedWallets.filter((wallet) => {
-            const existing = results.get(wallet.toLowerCase());
-            return !existing?.twitter_handle;
-          });
+      const walletsNeedingWeb3Bio = uncachedWallets.filter((wallet) => {
+        const existing = results.get(wallet.toLowerCase());
+        return !existing?.twitter_handle;
+      });
 
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
@@ -447,36 +456,32 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Cache looked-up wallets, including negative results ("not found").
-      // Skip entirely in fast mode — Web3Bio was skipped, so both partial results
-      // (e.g. Farcaster-only) and empty results would poison normal-mode lookups.
-      if (!options.fastMode) {
-        try {
-          const walletsToCache = uncachedWallets
-            .map((w) => {
-              const r = results.get(w.toLowerCase())!;
-              if (r.source.includes('cache')) return null;
-              const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
-              if (!hasSocial && r.source.length === 0) {
-                return { ...r, source: ['none'] as string[] };
-              }
-              return r.source.length > 0 ? r : null;
-            })
-            .filter((r): r is WalletSocialResult => r !== null);
+      try {
+        const walletsToCache = uncachedWallets
+          .map((w) => {
+            const r = results.get(w.toLowerCase())!;
+            if (r.source.includes('cache')) return null;
+            const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+            if (!hasSocial && r.source.length === 0) {
+              return { ...r, source: ['none'] as string[] };
+            }
+            return r.source.length > 0 ? r : null;
+          })
+          .filter((r): r is WalletSocialResult => r !== null);
 
-          if (walletsToCache.length > 0) {
-            await cacheWalletResults(walletsToCache);
-          }
-        } catch (error) {
-          console.error('Cache write error:', error);
+        if (walletsToCache.length > 0) {
+          await cacheWalletResults(walletsToCache);
         }
+      } catch (error) {
+        console.error('Cache write error:', error);
       }
 
       // Persist negatives to the social graph so future lookups skip the APIs
       // entirely (the wallet_cache negative above only lives 7 days). Only
-      // wallets that completed the full pipeline count: fast mode skips
-      // Web3Bio, canUseNeynar=false means Farcaster was never checked, and
-      // apiFailedWallets covers per-batch/per-wallet API failures.
-      if (!options.fastMode && canUseNeynar) {
+      // wallets that completed the full pipeline count: canUseNeynar=false
+      // means Farcaster was never checked, and apiFailedWallets covers
+      // per-batch/per-wallet API failures. A fast scan never reaches here.
+      if (canUseNeynar) {
         const negativeWallets = uncachedWallets.filter((w) => {
           const wl = w.toLowerCase();
           if (apiFailedWallets.has(wl)) return false;

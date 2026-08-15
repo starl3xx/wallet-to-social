@@ -3,6 +3,37 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (one scan-depth control, in place of two checkboxes)
+
+- **The options row asked the wrong questions.** It gave four checkboxes in one
+  line: Save to history, ENS onchain lookup, Fast mode and Notify when done. Two
+  of them named parts of the pipeline. Those two also disagreed with each other.
+  Fast mode removed the slow sources. ENS is the slowest source. A person who
+  selected both asked for two opposite things. The panel now asks two questions,
+  each with its own label:
+  - How deep do you want the scan? Fast, or Deep scan.
+  - Do you want to keep this lookup? If yes, what is its name?
+- **Fast now does what its name says.** A fast scan reads the walletlink index
+  and the cache. It makes no live request, and it writes nothing back. Before
+  this change it skipped one live source and called another, so it was neither
+  quick nor complete, and one line of text could not describe it. The Farcaster
+  sweep is complete, so the index already holds almost all of the data that the
+  remaining call supplied.
+- **Deep scan is the default, and it includes onchain ENS.** An ENS text record
+  is the only source where the owner of the wallet publishes the handle. That
+  evidence is what makes a row attested instead of inferred, and the product is
+  sold on that difference. ENS was off by default before. ENS stays a paid
+  feature; a free account gets every other source.
+- **The time estimate follows the choice.** A deep scan calculates 18 seconds
+  for each 1,000 wallets: 10 seconds for the live sources, and 8 seconds for the
+  onchain ENS records. A fast scan calculates 5 seconds for each 5,000 wallets,
+  because two indexed queries do not get much slower as the list gets longer.
+  The estimate for a deep scan is now approximately twice the old number. The
+  old number did not include ENS.
+- **The two buttons have icons.** “Choose different file” has a swap icon.
+  “Start lookup” has a magnifying glass.
+
+
 ### 2026-08-15 (job context in the admin panel, and two faults it exposed)
 
 - **The Jobs table showed a localStorage uuid in the User column.** A signed-in
