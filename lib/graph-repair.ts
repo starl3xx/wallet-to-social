@@ -128,14 +128,33 @@ export const REPAIRS: RepairSpec[] = [
     because:
       'The handle is the canonical column: every writer sets it, and the URL is derived from it. The export links the URL, so a mismatch sends a customer somewhere that is not the account. One row holds a display name complete with spaces and emoji in place of a URL.',
     maxRows: 50_000,
+    /**
+     * `right(...)` rather than `ILIKE '%/' || handle`.
+     *
+     * In LIKE and ILIKE, `_` matches any single character, and `_` is a legal
+     * character in an X handle. Concatenating a raw handle into a pattern turns
+     * every underscore into a wildcard, so a URL that goes wrong at exactly
+     * that position still matched and was never rewritten. The repair then
+     * reported itself clean while continuing to send people to the wrong
+     * account, which is the failure mode this whole file exists to avoid.
+     *
+     * Comparing the last `length(handle) + 1` characters is an exact string
+     * test with no pattern language in it, so no character in a handle can mean
+     * anything other than itself. It also leaves `twitter.com/<handle>` alone,
+     * which is correct: that is the next repair's job, not this one's.
+     */
     count: sql`
       SELECT count(*)::int AS n FROM social_graph
       WHERE twitter_handle IS NOT NULL
-        AND (twitter_url IS NULL OR twitter_url NOT ILIKE '%/' || twitter_handle)`,
+        AND (twitter_url IS NULL
+             OR lower(right(twitter_url, length(twitter_handle) + 1))
+                <> lower('/' || twitter_handle))`,
     update: sql`
       UPDATE social_graph SET twitter_url = 'https://x.com/' || twitter_handle
       WHERE twitter_handle IS NOT NULL
-        AND (twitter_url IS NULL OR twitter_url NOT ILIKE '%/' || twitter_handle)`,
+        AND (twitter_url IS NULL
+             OR lower(right(twitter_url, length(twitter_handle) + 1))
+                <> lower('/' || twitter_handle))`,
   },
   {
     id: 'twitter_url_legacy_domain',

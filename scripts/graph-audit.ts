@@ -204,8 +204,13 @@ async function main() {
       count(*) FILTER (WHERE fc_fid IS NOT NULL AND farcaster IS NULL)        AS fid_no_name,
       count(*) FILTER (WHERE farcaster IS NOT NULL AND fc_fid IS NULL)        AS name_no_fid,
       count(*) FILTER (WHERE twitter_url IS NOT NULL AND twitter_handle IS NULL) AS url_no_handle,
+      -- Not ILIKE: '_' is a wildcard in a LIKE pattern and a legal character in
+      -- an X handle, so a handle with an underscore matched URLs it should not
+      -- and this check under-counted. Comparing the tail exactly has no pattern
+      -- language in it.
       count(*) FILTER (WHERE twitter_handle IS NOT NULL AND twitter_url IS NOT NULL
-                         AND twitter_url NOT ILIKE '%' || twitter_handle)     AS url_handle_mismatch,
+                         AND lower(right(twitter_url, length(twitter_handle) + 1))
+                             <> lower('/' || twitter_handle))                 AS url_handle_mismatch,
       count(*) FILTER (WHERE data_quality_score < 0 OR data_quality_score > 100) AS score_out_of_range,
       count(*) FILTER (WHERE fc_followers < 0)                                AS negative_followers,
       count(*) FILTER (WHERE last_updated_at < first_seen_at)                 AS updated_before_seen,
