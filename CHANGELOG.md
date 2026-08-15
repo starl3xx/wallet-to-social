@@ -3,6 +3,47 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a health report for the social graph, and a weekly repair)
+
+The graph holds 4,755,201 rows. 99.5% of them have a reachable identity. The
+`wallet` column is the primary key, so the table cannot hold a duplicate row.
+There were no duplicate identities either: no handle was stored under two
+casings, no wallet address had capitals, and no field held an empty string. The
+faults were 63,275 rows, which is 1.3% of the table.
+
+- **`scripts/graph-audit.ts` gives a read-only health report.** It counts
+  malformed values, duplicate identity, rows that disagree with themselves, and
+  the freshness of the data. It makes no change. Use it before a repair, and to
+  find a new type of fault.
+- **`lib/graph-repair.ts` corrects only what the row itself proves.** These
+  faults were found and corrected:
+  - 1,113 rows said `twitter_verified` but had no handle.
+  - 34,189 rows had a `twitter.com` link. The Farcaster sweep writes `x.com`,
+    and the ENS harvest wrote `twitter.com`. All links now use `x.com`.
+  - 27,970 rows had a “first seen” time after their “last updated” time. A row
+    cannot get an update before it exists.
+  - 1 row had a handle with capitals, 1 had an ENS name with capitals, and 1 had
+    a link that pointed to a different account.
+- **Two writers made these faults. Both are corrected.** The negative-result
+  writer gave a JavaScript time to one column and let the database supply the
+  other. The database time is later, so each new negative row got a “first seen”
+  time after its “last updated” time. The ENS harvest wrote the old domain name.
+  Without these two corrections, the repair would find the same rows each week.
+- **The repair runs each Monday at 09:00 UTC.** It has these guards:
+  - It contains no `DELETE` statement.
+  - Each repair has a row ceiling and stops above it. A repair that suddenly
+    finds many more rows than usual has a fault in its own test, so it must stop
+    and report.
+  - A dry run is the default. You must give `--apply` to write.
+  - It never changes the primary key.
+  - It counts the rows again after the write, to prove that the repair did the
+    work. If rows still agree with the test, it reports the difference.
+- **Three problems need an answer from an external source, so the repair does
+  not touch them:** 3 ENS names that are on more than one wallet, 6 Farcaster
+  ids that carry more than one username, and 112 Farcaster usernames that have
+  no id. The cron counts them and reports them.
+
+
 ### 2026-08-15 (one scan-depth control, in place of two checkboxes)
 
 - **The options row asked the wrong questions.** It gave four checkboxes in one

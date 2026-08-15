@@ -343,7 +343,11 @@ async function upsertHarvestedRecords(records: ResolvedRecord[]): Promise<number
     const batch = entries.slice(i, i + 500).map(([wallet, v]) => ({
       wallet,
       twitterHandle: v.twitter,
-      twitterUrl: v.twitter ? `https://twitter.com/${v.twitter}` : null,
+      // x.com, matching the Farcaster sweep. This wrote twitter.com, so the
+      // column held two spellings of the same link across 34,189 rows: both
+      // resolve, and a difference that carries no meaning eventually gets read
+      // as though it does.
+      twitterUrl: v.twitter ? `https://x.com/${v.twitter}` : null,
       github: v.github,
       sources: ['ens_onchain'],
       twitterVerified: !!v.twitter,
