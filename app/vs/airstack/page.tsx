@@ -236,7 +236,9 @@ export default function AirstackComparison() {
               or over a simple REST API. Our index covers 4.7M wallets with
               complete Farcaster protocol coverage: every account’s verified
               and custody addresses, usernames, and follower counts, refreshed
-              daily. Twitter matches are user-attested via onchain records.
+              daily. Over 99.9% of Twitter matches are user-attested, most
+              through an X account verified on Farcaster and the rest through
+              onchain ENS records.
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API

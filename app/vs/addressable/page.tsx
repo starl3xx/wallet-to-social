@@ -314,8 +314,9 @@ export default function AddressableComparison() {
               accounts and onchain ENS records), backed by a 4.7M-wallet
               index covering the complete Farcaster protocol. Addressable
               advertises 23M matched owners built with probabilistic
-              &ldquo;fingerprinting&rdquo;; we only return links the wallet
-              owner created themselves.
+              &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of our
+              Twitter matches are links the wallet owner created themselves, and
+              every match is labelled with the evidence behind it.
             </p>
           </section>
 

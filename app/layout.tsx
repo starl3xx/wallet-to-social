@@ -130,7 +130,7 @@ const faqSchema = {
       name: 'What is the match rate for wallet-to-social lookups?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social averages a 22% match rate, roughly 9x the industry average of 2.5%. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches come from owner-attested sources: an X account verified on Farcaster, or a handle the owner set in an onchain ENS record.',
+        text: 'walletlink.social averages a 22% match rate, roughly 9x the industry average of 2.5%. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches are resolved through several independent routes and every match is labelled with the evidence behind it. Over 99.9% come from owner-attested routes: an X account verified on Farcaster, or a handle the owner set in an onchain ENS record. The remainder is correlated from identity indexes and labelled as such. Nothing is inferred from display names, bios or timing.',
       },
     },
     {
@@ -146,7 +146,7 @@ const faqSchema = {
       name: 'How is walletlink.social different from Addressable?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social returns only deterministic, owner-attested matches (Farcaster verifications and onchain ENS records) from a 4.7M-wallet index with complete Farcaster coverage.',
+        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over 99.9% of Twitter matches are owner-attested (Farcaster verifications and onchain ENS records), the rest are correlated from identity indexes and labelled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers 4.7M wallets with complete Farcaster coverage.',
       },
     },
     {
