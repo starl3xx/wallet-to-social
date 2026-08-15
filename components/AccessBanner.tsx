@@ -181,19 +181,19 @@ export function AccessBanner({
     }
 
     // Free tier - show upgrade CTA
+    // Deliberately NOT wrapped in CHIP. This is the only tier state containing an
+    // action, and CHIP is a label treatment: its font-mono, tracking and muted
+    // colour inherit straight into the Button and turn the one revenue CTA in the
+    // header into muted label type. A quota readout and its CTA are a label and an
+    // action, and those never share a treatment.
     return (
-      <div className={`${CHIP} bg-muted text-muted-foreground`}>
-        <span className="text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span className={`${CHIP} bg-muted text-muted-foreground`}>
           <span className="sm:hidden">Free</span>
-          <span className="hidden sm:inline">Free ({TIER_LIMITS.free.toLocaleString()} wallets)</span>
+          <span className="hidden sm:inline">Free · {TIER_LIMITS.free.toLocaleString()} left</span>
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 sm:h-6 px-1.5 sm:px-2 text-xs"
-          onClick={onUpgradeClick}
-        >
-          <Zap className="h-3 w-3 mr-0.5 sm:mr-1" />
+        <Button size="sm" onClick={onUpgradeClick}>
+          <Zap className="h-3.5 w-3.5" weight="fill" />
           <span className="hidden sm:inline">Upgrade</span>
           <span className="sm:hidden">+</span>
         </Button>
