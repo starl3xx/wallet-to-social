@@ -339,14 +339,16 @@
   left: -80%;
   width: 46%;
   background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.2), transparent);
-  transform: skewX(-22deg);
   pointer-events: none;
+  /* translateX, not `left`. Animating `left` forces layout on every frame, which
+     docs/DESIGN-LANGUAGE.md bans outright, and the two sibling keyframes in this
+     file (shimmer, slide) already travel by transform. */
   animation: btn-sweep 9s ease-in-out infinite;
 }
 @keyframes btn-sweep {
-  0% { left: -80%; }
-  24% { left: 150%; }
-  100% { left: 150%; }
+  0% { transform: translateX(0) skewX(-22deg); }
+  24% { transform: translateX(500%) skewX(-22deg); }
+  100% { transform: translateX(500%) skewX(-22deg); }
 }
 
 .segmented-option {
