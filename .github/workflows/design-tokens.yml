@@ -18,6 +18,7 @@ on:
       - 'components/**'
       - 'eslint.config.mjs'
       - 'scripts/check-palette-guard.mjs'
+      - 'scripts/check-design-language.mjs'
       - '.github/workflows/design-tokens.yml'
 
 jobs:
@@ -65,3 +66,22 @@ jobs:
           echo
           echo "::error::Raw Tailwind palette classes found. Use a semantic token: accent-brand (brand and interactive), attested (a measured fact), caution (limits, staleness), destructive (removal), or muted. See app/globals.css and CLAUDE.md."
           exit 1
+
+  design-language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Radius, elevation, arbitrary type sizes and the uppercase label. Fixtures
+      # run first inside the script, so a guard that has stopped working fails
+      # before it can report a clean codebase.
+      #
+      # It deliberately does not try to answer whether a value is the RIGHT token
+      # for its size, whether two components share a class name, or whether the
+      # page renders. A grep cannot see any of those, and pretending otherwise is
+      # how the palette guard came to report zero over eighteen live violations.
+      - name: Design language holds
+        run: node scripts/check-design-language.mjs
