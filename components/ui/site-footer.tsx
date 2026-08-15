@@ -52,7 +52,10 @@ export function SiteFooter() {
           </div>
 
           <FooterColumn title="Product">
-            <FooterLink href="/">Reverse lookup</FooterLink>
+            {/* "/" is the wallet-to-social lookup. Reverse lookup is the
+                handle-to-wallet flow *on* that page, not a separate destination, and
+                naming the link after it hands people the wrong model of the product. */}
+            <FooterLink href="/">Wallet lookup</FooterLink>
             <FooterLink href="/blog">Blog</FooterLink>
           </FooterColumn>
 
