@@ -66,10 +66,10 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
 
   return (
     <Card
-      className={`border-2 border-dashed transition-colors ${
+      className={`border-2 border-dashed transition-control ${
         isDragging
-          ? 'border-primary bg-primary/5'
-          : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+          ? 'border-accent-brand bg-accent-brand-tint'
+          : 'border-border hover:border-accent-brand'
       } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
     >
       <CardContent className={compact ? 'p-4' : 'p-8'}>

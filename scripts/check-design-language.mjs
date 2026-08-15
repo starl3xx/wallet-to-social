@@ -43,7 +43,36 @@ const RULES = [
     re: /(^|[\s"'`])(?:[a-z0-9-]+:)*text-\[\d+px\]/,
     msg: 'Arbitrary sizes sit between the scale steps by definition. Use the scale.',
   },
+  {
+    name: 'shadcn-primary',
+    // `--primary` is oklch(0.205 0 0): near-black in light, near-white in dark.
+    // It is a shadcn default that nothing here ever adapted, and it reads as a
+    // brand token because of its name, which is exactly why it spread. It was
+    // painting both drop targets black on drag, the admin period toggle, six
+    // clickable cards and the unused Progress primitive, while the palette guard
+    // passed clean throughout: that guard looks for raw Tailwind families like
+    // `bg-gray-500`, and this is not one.
+    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*(?:bg|text|border|ring|from|to|via|fill|stroke|decoration|outline|shadow|accent|caret|divide|placeholder)-primary(?:-foreground)?(?=[\s"'`/]|$)/,
+    msg: 'An affordance is `accent-brand`. `primary` is an unadapted shadcn default, not a WalletLink token.',
+  },
+  {
+    name: 'border-opacity',
+    // Separation is one hairline at full token opacity. A faded border is the
+    // drift that reads as "nearly a divider" and never matches the next one.
+    // `border-t-`/`border-l-` and friends are excluded: a two-tone spinner arc
+    // uses a faded track on purpose, and that is not separation.
+    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*border(?:-[brltxy])?-(?:border|foreground|muted-foreground|input|primary|accent-brand)\/\d+(?=[\s"'`]|$)/,
+    // A rotating element's border is an arc, not a separator: the spinner draws
+    // its track at half opacity and one edge at full, which is the whole trick.
+    // Exempting the line beats dropping `accent-brand` from the rule, which
+    // would have let a genuinely faded card border through to keep one spinner.
+    skip: /animate-spin/,
+    msg: 'Separation is one hairline at full token opacity. Drop the /NN.',
+  },
 ];
+
+/** A rule fires when its pattern matches and its exemption does not. */
+const fires = (rule, s) => rule.re.test(s) && !(rule.skip && rule.skip.test(s));
 
 /** Whole-line rule: uppercase text must be mono, since there is one label style. */
 function uppercaseWithoutMono(line) {
@@ -60,13 +89,29 @@ const FIXTURES = {
                good: ['shadow-lg', 'shadow-none', 'text-shadow-lg'] },
   'arbitrary-type': { bad: ['text-[10px]', 'sm:text-[13px]'],
                       good: ['text-xs', 'text-sm', 'max-w-[68ch]', 'tracking-[0.14em]'] },
+  'shadcn-primary': {
+    bad: ['bg-primary text-primary-foreground', 'hover:border-primary/50', 'text-primary',
+          'className="h-full bg-primary rounded-full"', 'selection:bg-primary'],
+    // accent-brand and accent-brand-foreground must survive: they are the real
+    // token and their names both end in the string this rule looks for.
+    good: ['bg-accent-brand text-accent-brand-foreground', 'bg-accent-brand-tint',
+           'text-muted-foreground', 'bg-secondary text-secondary-foreground',
+           'hover:border-accent-brand'],
+  },
+  'border-opacity': {
+    bad: ['border-border/50', 'hover:border-foreground/20', 'border-muted-foreground/25',
+          'border-b border-border/50 transition-colors'],
+    good: ['border-border', 'border-b border-border', 'bg-muted/30', 'ring-accent-brand/50',
+           'bg-accent-brand-tint/30 hover:bg-accent-brand-tint',
+           'border-2 border-accent-brand/50 border-t-accent-brand animate-spin'],
+  },
 };
 
 let failed = 0;
 for (const rule of RULES) {
   const f = FIXTURES[rule.name];
-  for (const s of f.bad) if (!rule.re.test(s)) { console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`); failed++; }
-  for (const s of f.good) if (rule.re.test(s)) { console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`); failed++; }
+  for (const s of f.bad) if (!fires(rule, s)) { console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`); failed++; }
+  for (const s of f.good) if (fires(rule, s)) { console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`); failed++; }
 }
 // The comment strip must not eat a class that follows a URL on the same line.
 {
@@ -114,13 +159,15 @@ for (const file of [...walk('app'), ...walk('components')]) {
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
       .replace(/(^|[^:])\/\/.*$/, '$1');
     if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
-    for (const rule of RULES) if (rule.re.test(code)) hits.push({ file, line: i + 1, rule: rule.name, msg: rule.msg, code: code.trim().slice(0, 90) });
+    for (const rule of RULES) if (fires(rule, code)) hits.push({ file, line: i + 1, rule: rule.name, msg: rule.msg, code: code.trim().slice(0, 90) });
     if (uppercaseWithoutMono(code)) hits.push({ file, line: i + 1, rule: 'uppercase', msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.', code: code.trim().slice(0, 90) });
   });
 }
 
 if (!hits.length) {
-  console.log('design language ok — radius, elevation, type scale and labels all on-system');
+  console.log(
+    'design language ok — radius, elevation, type scale, labels, hairline opacity and brand token all on-system'
+  );
   process.exit(0);
 }
 for (const h of hits) console.error(`${h.file}:${h.line}  [${h.rule}]  ${h.code}\n    ${h.msg}`);

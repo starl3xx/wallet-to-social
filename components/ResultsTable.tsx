@@ -437,7 +437,7 @@ export const ResultsTable = memo(function ResultsTable({
                 return (
                   <div
                     key={result.wallet}
-                    className={`absolute top-0 left-0 w-full grid items-center border-b border-border/50 transition-colors ${
+                    className={`absolute top-0 left-0 w-full grid items-center border-b border-border transition-colors ${
                       isEnriched
                         ? 'bg-accent-brand-tint/30 hover:bg-accent-brand-tint dark:hover:bg-accent-brand-tint/50'
                         : 'hover:bg-muted/30'

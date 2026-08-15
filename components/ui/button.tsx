@@ -32,6 +32,16 @@ const buttonVariants = cva(
         icon: 'size-control',
         'icon-sm': 'size-8',
         'icon-lg': 'size-12',
+        /**
+         * For a `link` button sitting inside running text or a table cell, where
+         * the 34px control height and its padding would push the row open.
+         *
+         * It exists because two call sites had already hand-copied the `link`
+         * variant's classes rather than use it, purely to escape the height, and
+         * a third copy was the alternative to naming it here. Type comes from the
+         * cell: `cn` runs tailwind-merge, so a caller's `text-xs` beats the base.
+         */
+        inline: 'h-auto p-0',
       },
     },
     defaultVariants: {

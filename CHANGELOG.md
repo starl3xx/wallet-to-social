@@ -3,6 +3,34 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (the library defaults that stayed behind)
+
+- **Drag a file onto the page, and the target is violet again.** It was black.
+  `--primary` is a shadcn default that this project never changed. It is almost
+  black in the light theme and almost white in the dark theme, and its name
+  makes it look like a brand token, so it moved through the product without a
+  challenge. Both drop targets used it. One of them showed a violet edge at
+  rest and a black edge during the drag, which is the same component with two
+  colour systems in it.
+- **The same default is now removed from six more places**: the period control
+  and the stage bars in the admin dashboard, six cards that you can click, the
+  text selection colour in each input, and the unused `Progress` part.
+- **The period control in the admin dashboard is now the standard segmented
+  control.** It was the third control of this type that somebody built by hand.
+  It was 2px shorter than the button beside it, the arrow keys did nothing, and
+  the selection moved without an animation.
+- **Each card shows its edge again.** The `Card` part drew its hairline at 60%
+  opacity. In the dark theme the border token is already 10% white, so 60% of it
+  is 6% white. Six more faded edges are also at full opacity now.
+- **Two hand-made text links are now the standard button.** The `link` type
+  already existed, but no code used it, because its 34px height opens up a table
+  row. It has an `inline` size now, so the height is not a reason to copy the
+  classes a third time.
+- **Two new tests keep all of this out.** `check-design-language.mjs` refuses
+  the `primary` token and a faded hairline. Both tests have fixtures, and both
+  found real faults on the first run: the six faded edges and one more incorrect
+  hover colour that a manual search did not see.
+
 ### 2026-08-15 (a usage meter, and a page for each account)
 
 - **A new Usage panel measures daily volume. It does not limit it.** No plan has
