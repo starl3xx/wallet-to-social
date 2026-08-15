@@ -69,6 +69,16 @@ const RULES = [
     skip: /animate-spin/,
     msg: 'Separation is one hairline at full token opacity. Drop the /NN.',
   },
+  {
+    name: 'icon-library',
+    // `components.json` now generates Phosphor, so a lucide import can only mean
+    // a component arrived from somewhere that did not read the config, and was
+    // pasted without the adaptation pass. The package is no longer installed, so
+    // this fails the build too; the rule exists to say *why* in one line rather
+    // than as a module-not-found.
+    re: /from\s+['"]lucide-react['"]/,
+    msg: 'Icons are Phosphor. See the Icons section: barrel in client components, /dist/ssr in server ones.',
+  },
 ];
 
 /** A rule fires when its pattern matches and its exemption does not. */
@@ -97,6 +107,12 @@ const FIXTURES = {
     good: ['bg-accent-brand text-accent-brand-foreground', 'bg-accent-brand-tint',
            'text-muted-foreground', 'bg-secondary text-secondary-foreground',
            'hover:border-accent-brand'],
+  },
+  'icon-library': {
+    bad: ["import { Check } from 'lucide-react'", 'import { X } from "lucide-react";'],
+    good: ["import { Check } from '@phosphor-icons/react'",
+           "import { Check } from '@phosphor-icons/react/dist/ssr'",
+           "import { cn } from '@/lib/utils'"],
   },
   'border-opacity': {
     bad: ['border-border/50', 'hover:border-foreground/20', 'border-muted-foreground/25',
@@ -166,7 +182,7 @@ for (const file of [...walk('app'), ...walk('components')]) {
 
 if (!hits.length) {
   console.log(
-    'design language ok — radius, elevation, type scale, labels, hairline opacity and brand token all on-system'
+    'design language ok — radius, elevation, type scale, labels, hairline opacity, brand token and icon library all on-system'
   );
   process.exit(0);
 }
