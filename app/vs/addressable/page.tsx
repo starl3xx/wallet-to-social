@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
-import { Check, X, ArrowRight } from 'lucide-react';
+import { Check, X, ArrowRight } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata: Metadata = {
   title: 'walletlink.social vs Addressable: Comparison (2026)',

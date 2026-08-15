@@ -12,19 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Sparkline } from './Sparkline';
-import {
-  Loader2,
-  RefreshCw,
-  Search,
-  Wallet,
-  Percent,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-  Layers,
-  CheckCircle,
-  XCircle,
-} from 'lucide-react';
+import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, MagnifyingGlass as Search, Wallet, Percent, Clock, CaretDown as ChevronDown, CaretUp as ChevronUp, Stack as Layers, CheckCircle, XCircle } from '@phosphor-icons/react';
 
 type TimePeriod = 'today' | 'week' | 'month';
 

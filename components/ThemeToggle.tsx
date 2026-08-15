@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme } from './ThemeProvider';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor } from '@phosphor-icons/react';
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();

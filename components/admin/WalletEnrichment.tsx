@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Loader2, Save, X, ExternalLink, Pencil } from 'lucide-react';
+import { MagnifyingGlass as Search, CircleNotch as Loader2, FloppyDisk as Save, X, ArrowSquareOut as ExternalLink, PencilSimple as Pencil } from '@phosphor-icons/react';
 
 interface SocialGraphData {
   wallet: string;

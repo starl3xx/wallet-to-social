@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Loader2, Crown, Zap } from 'lucide-react';
+import { Check, CircleNotch as Loader2, Crown, Lightning as Zap } from '@phosphor-icons/react';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 
 type VerificationState = 'verifying' | 'success' | 'error';

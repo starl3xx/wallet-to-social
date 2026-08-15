@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, Warning as AlertTriangle } from '@phosphor-icons/react';
 
 interface ApiStat {
   provider: string;

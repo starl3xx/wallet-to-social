@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { FileUpload } from '@/components/FileUpload';
 import { parseFile } from '@/lib/file-parser';
-import { Loader2, Plus, FileText } from 'lucide-react';
+import { CircleNotch as Loader2, Plus, FileText } from '@phosphor-icons/react';
 
 interface AddAddressesModalProps {
   open: boolean;

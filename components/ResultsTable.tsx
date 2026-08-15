@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Lock } from 'lucide-react';
+import { Lock } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Attestation = 'attested' | 'matched' | 'none' | 'unknown';

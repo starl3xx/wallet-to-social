@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, RefreshCw, DollarSign, ChevronRight } from 'lucide-react';
+import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, CurrencyDollar as DollarSign, CaretRight as ChevronRight } from '@phosphor-icons/react';
 
 interface FunnelData {
   pageViews: number;

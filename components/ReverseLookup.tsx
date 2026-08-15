@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2, AlertTriangle, Lock } from 'lucide-react';
+import { MagnifyingGlass as Search, CircleNotch as Loader2, Warning as AlertTriangle, Lock } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';

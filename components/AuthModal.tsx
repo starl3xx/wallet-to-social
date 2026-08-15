@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { CircleNotch as Loader2, Envelope as Mail, CheckCircle as CheckCircle2, ArrowLeft } from '@phosphor-icons/react';
 
 interface AuthModalProps {
   open: boolean;

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, FileCode, AlertTriangle } from 'lucide-react';
+import { CircleNotch as Loader2, FileCode, Warning as AlertTriangle } from '@phosphor-icons/react';
 import type { ContractType } from '@/lib/contract-holders';
 // Imported from lib/chains (not lib/contract-holders) so ethers stays out of the
 // client bundle — contract-holders imports ethers at module scope.
