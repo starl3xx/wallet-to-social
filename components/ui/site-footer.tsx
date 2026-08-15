@@ -24,7 +24,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.7fr_1fr_1.2fr_1.3fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_1fr_1.1fr_1.2fr]">
           <div>
             <Link href="/" className="flex items-center gap-2.5">
               <Image src="/icon.png" alt="" width={30} height={30} className="rounded-mark" />
@@ -57,6 +57,17 @@ export function SiteFooter() {
                 naming the link after it hands people the wrong model of the product. */}
             <FooterLink href="/">Wallet lookup</FooterLink>
             <FooterLink href="/blog">Blog</FooterLink>
+          </FooterColumn>
+
+          {/* Five real pages that nothing linked to. They are also the highest-intent
+              organic entry points the product has: someone searching "addressable
+              alternative" is further down the funnel than anyone reading the blog. */}
+          <FooterColumn title="Compare">
+            <FooterLink href="/vs/addressable">vs Addressable</FooterLink>
+            <FooterLink href="/vs/blaze">vs Blaze</FooterLink>
+            <FooterLink href="/vs/holder">vs Holder</FooterLink>
+            <FooterLink href="/vs/cookie">vs Cookie</FooterLink>
+            <FooterLink href="/vs/airstack">vs Airstack</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Developers">

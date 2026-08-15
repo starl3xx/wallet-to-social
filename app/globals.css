@@ -287,11 +287,27 @@
   }
 }
 
+/* A selected state moves; it does not teleport.
+   The thumb slides between options, so the transition carries the one piece of
+   information a swap throws away: which option you just left. Transform and
+   colour only, since those are the two properties the compositor can animate
+   without laying the page out again. */
+.segmented-thumb {
+  transition:
+    transform var(--duration-base) var(--ease-out-soft),
+    background-color var(--duration-fast) var(--ease-out-soft);
+}
+
 /* Unlayered on purpose. These have to beat Tailwind's `active:` and
    `transition-*` utilities, and anything inside @layer components loses to a
    utility regardless of source order. Tailwind v4 already wraps every `hover:`
    utility in @media (hover: hover), so no touch gating is needed here. */
 @media (prefers-reduced-motion: reduce) {
+  /* The thumb still moves, it just arrives immediately: removing the transform
+     entirely would leave it stranded under the wrong option. */
+  .segmented-thumb {
+    transition: background-color var(--duration-fast);
+  }
   .transition-control {
     transition:
       color var(--duration-fast),
