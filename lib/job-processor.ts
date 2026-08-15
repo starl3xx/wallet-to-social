@@ -37,6 +37,16 @@ export interface JobOptions {
   canUseNeynar?: boolean;
   canUseENS?: boolean;
   inputSource?: InputSource;
+  /** Contract behind a contract import, recorded for the admin Jobs table. */
+  sourceContract?: {
+    contractAddress: string;
+    chain: string;
+    tokenName?: string;
+    tokenSymbol?: string;
+    contractType?: string;
+    totalHolders?: number;
+    truncated?: boolean;
+  };
 }
 
 export interface ProcessResult {

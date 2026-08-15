@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
-import { lookupJobs } from '@/db/schema';
+import { lookupJobs, users } from '@/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -66,6 +66,24 @@ export async function GET(request: NextRequest) {
         twitterFound: lookupJobs.twitterFound,
         farcasterFound: lookupJobs.farcasterFound,
         userId: lookupJobs.userId,
+        // A signed-in job stores the users.id, so it joins to a real address.
+        // Anonymous jobs store a localStorage uuid, which joins to nothing and
+        // is worth nothing on screen: the admin table showed a raw uuid for
+        // the only paying customer on the platform.
+        userEmail: users.email,
+        userTier: users.tier,
+        // Set when the wallets came from a contract import, so the table can
+        // say WHAT was looked up rather than only how many wallets it held.
+        source: sql<{
+          contractAddress?: string;
+          chain?: string;
+          tokenName?: string;
+          tokenSymbol?: string;
+          contractType?: string;
+          totalHolders?: number;
+          truncated?: boolean;
+        } | null>`${lookupJobs.options} -> 'sourceContract'`,
+        inputSource: sql<string | null>`${lookupJobs.options} ->> 'inputSource'`,
         createdAt: lookupJobs.createdAt,
         startedAt: lookupJobs.startedAt,
         completedAt: lookupJobs.completedAt,
@@ -73,6 +91,7 @@ export async function GET(request: NextRequest) {
         retryCount: lookupJobs.retryCount,
       })
       .from(lookupJobs)
+      .leftJoin(users, sql`${users.id}::text = ${lookupJobs.userId}`)
       .orderBy(desc(lookupJobs.createdAt))
       .limit(limit);
 

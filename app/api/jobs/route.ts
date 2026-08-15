@@ -27,6 +27,16 @@ interface JobRequest {
   email?: string;
   wallet?: string;
   inputSource?: 'file_upload' | 'text_input' | 'contract_import' | 'api';
+  /** Set for a contract import, so the job records WHAT was looked up. */
+  sourceContract?: {
+    contractAddress: string;
+    chain: string;
+    tokenName?: string;
+    tokenSymbol?: string;
+    contractType?: string;
+    totalHolders?: number;
+    truncated?: boolean;
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -67,6 +77,7 @@ export async function POST(request: NextRequest) {
       email,
       wallet,
       inputSource,
+      sourceContract,
     } = body;
 
     if (!wallets || wallets.length === 0) {
@@ -140,6 +151,9 @@ export async function POST(request: NextRequest) {
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,
       inputSource,
+      // Recorded so the admin Jobs table can name the contract behind a lookup.
+      // Only meaningful for a contract import; undefined for an upload.
+      sourceContract,
     });
 
     // Lifetime usage record. It gates nothing now that Starter's quota is gone,

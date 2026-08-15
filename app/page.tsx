@@ -22,6 +22,7 @@ import { useAuth } from '@/components/AuthProvider';
 const UpgradeModal = dynamic(() => import('@/components/UpgradeModal').then(m => ({ default: m.UpgradeModal })));
 const AddAddressesModal = dynamic(() => import('@/components/AddAddressesModal').then(m => ({ default: m.AddAddressesModal })));
 const ContractImportModal = dynamic(() => import('@/components/ContractImportModal').then(m => ({ default: m.ContractImportModal })));
+import type { ImportedContract } from '@/components/ContractImportModal';
 const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ default: m.AuthModal })));
 const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
 import { getUserId } from '@/lib/user-id';
@@ -105,6 +106,9 @@ export default function Home() {
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [inputSource, setInputSource] = useState<'file_upload' | 'text_input' | 'contract_import'>('file_upload');
+  // The contract behind a contract import. Sent with the job so the admin Jobs
+  // table can name what was looked up, not only how many wallets it held.
+  const [sourceContract, setSourceContract] = useState<ImportedContract | null>(null);
 
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
@@ -269,6 +273,7 @@ export default function Home() {
     setOriginalData({});
     setExtraColumns([]);
     setInputSource('text_input');
+    setSourceContract(null);
     setState('ready');
     setShowPasteInput(false);
   }, [pasteText]);
@@ -324,6 +329,7 @@ export default function Home() {
       setOriginalData(dataMap);
       setExtraColumns(cols);
       setInputSource('file_upload');
+    setSourceContract(null);
       setState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
@@ -372,6 +378,7 @@ export default function Home() {
           userId: getUserId(),
           email: userEmail || undefined,
           inputSource,
+          sourceContract: inputSource === 'contract_import' ? sourceContract : undefined,
         }),
       });
 
@@ -901,16 +908,22 @@ export default function Home() {
     setWallets(addresses);
     setOriginalData({});
     setExtraColumns([]);
+    // These describe where the PREVIOUS wallet list came from. Leaving them set
+    // makes the next lookup claim the contract it no longer contains, and the
+    // admin Source column then names the wrong token.
+    setInputSource('text_input');
+    setSourceContract(null);
     setState('ready');
   }, []);
 
   // Handle importing wallets from contract address
-  const handleContractImport = useCallback((importedWallets: string[]) => {
+  const handleContractImport = useCallback((importedWallets: string[], source: ImportedContract) => {
     if (importedWallets.length === 0) return;
     setWallets(importedWallets);
     setOriginalData({});
     setExtraColumns([]);
     setInputSource('contract_import');
+    setSourceContract(source);
     setState('ready');
   }, []);
 
