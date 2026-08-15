@@ -335,19 +335,16 @@
 }
 
 /* Dark mode inverts the problem: a shadow under a light thumb on a dark track
-   is invisible, and the lift has to come from the edge instead. */
-:root[data-theme='dark'] .segmented-thumb,
-:root:not([data-theme='light']) .segmented-thumb {
+   is invisible, and the lift has to come from the edge instead.
+
+   Scoped to `.dark`, which is how every other dark rule in this file is
+   written. ThemeProvider resolves the three-way choice down to a `light` or
+   `dark` class on the root element, so a class selector is the only thing that
+   honours an explicit choice; a `prefers-color-scheme` query would follow the
+   machine and quietly ignore the user. */
+.dark .segmented-thumb {
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.4);
   border-color: rgb(255 255 255 / 0.08);
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) .segmented-thumb {
-    box-shadow:
-      0 3px 8px rgb(0 0 0 / 0.12),
-      0 3px 1px rgb(0 0 0 / 0.04);
-    border-color: rgb(0 0 0 / 0.04);
-  }
 }
 
 /* Hairline dividers between segments, the detail that says "these are separate
