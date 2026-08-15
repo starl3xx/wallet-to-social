@@ -103,7 +103,7 @@ Step 2: Check Farcaster verified addresses
   -> Verified Twitter: @alice_crypto
   -> Followers: 8,400
 
-Step 3: Check Web3.bio aggregation
+Step 3: Check identity index aggregation
   -> Confirms both ENS and Farcaster data
   -> Adds Lens profile: alice.lens
 

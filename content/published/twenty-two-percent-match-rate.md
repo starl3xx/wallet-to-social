@@ -1,6 +1,6 @@
 ---
 title: "The 22% Match Rate: How We Got 9x Better Than Average"
-meta_description: "Technical deep dive into how combining ENS, Farcaster, Web3.bio, and social graph data achieves a 22% wallet-to-social match rate -- 9x the industry average."
+meta_description: "Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 22% wallet-to-social match rate -- 9x the industry average."
 published: true
 publish_date: "2026-03-26"
 ---
@@ -81,13 +81,13 @@ The key advantage is cryptographic verification. When a wallet is listed as veri
 
 **Contribution to overall match rate: ~15% of wallets resolved (including ~8% that are unique to Farcaster, not found via ENS).**
 
-### Source 3: Web3.bio Aggregation
+### Source 3: Identity index aggregation
 
-Web3.bio is an aggregation service that combines data from multiple identity protocols: ENS, Farcaster, Lens Protocol, Unstoppable Domains, and others. Querying Web3.bio is effectively querying multiple sources through a single API.
+An identity index correlates profiles across several namespaces at once: ENS, Farcaster, Lens Protocol, Unstoppable Domains and others. Querying one is effectively querying many, at the cost of taking its correlation on trust rather than reading an attestation yourself.
 
 **What it catches:** Cross-protocol identities. A wallet might not have ENS records or Farcaster verification but could have a Lens profile or an Unstoppable Domain with social records.
 
-**Limitations:** Depends on upstream data quality. Some sources have the same stale-data problems as raw ENS lookups. Web3.bio adds coverage breadth but not necessarily depth.
+**Limitations:** Depends on upstream data quality, and inherits the same stale-data problems as raw ENS lookups. This class adds coverage breadth but not depth, and it correlates rather than attests, which is why matches carrying only this evidence are labelled `aggregated` rather than presented as owner-attested.
 
 **Contribution to overall match rate: ~3% of wallets resolved uniquely (not already found by ENS or Farcaster).**
 
@@ -122,7 +122,7 @@ Input: Batch of wallet addresses
          |
     +---------+-----------+
     |         |           |
-  [ENS]  [Farcaster]  [Web3.bio]
+  [ENS]  [Farcaster]  [Indexes]
     |         |           |
     +---------+-----------+
          |
@@ -143,7 +143,7 @@ When multiple sources return data for the same wallet, we merge with a priority 
 
 1. **Farcaster verified address** -- highest confidence (cryptographic proof)
 2. **ENS onchain records** -- high confidence (onchain data, but unverified claims)
-3. **Web3.bio aggregation** -- medium confidence (depends on upstream source)
+3. **Identity index correlation** -- medium confidence (depends on upstream source)
 4. **Social graph** -- confidence varies (based on original resolution source)
 
 If sources conflict (ENS says `@handle_a`, Farcaster says `@handle_b`), we keep both but flag the Farcaster result as primary. In practice, conflicts are rare -- about 0.3% of multi-source matches.
@@ -153,7 +153,7 @@ If sources conflict (ENS says `@handle_a`, Farcaster says `@handle_b`), we keep 
 A single person might appear through multiple sources with slight variations:
 - ENS: `@alice_crypto`
 - Farcaster: `alice` (with connected Twitter `@alice_crypto`)
-- Web3.bio: `@Alice_Crypto` (case variation)
+- Identity index: `@Alice_Crypto` (case variation)
 
 The deduplication step normalizes handles, matches across platforms, and produces a single identity record with all known profiles attached.
 
@@ -165,7 +165,7 @@ Across a representative sample of 500,000 wallets:
 |--------|----------------|-------------------|-------------------|
 | Farcaster | 75,000 | 68.2% | 42,000 (38.2%) |
 | ENS | 35,500 | 32.3% | 14,000 (12.7%) |
-| Web3.bio | 18,000 | 16.4% | 3,300 (3.0%) |
+| Identity indexes | 18,000 | 16.4% | 3,300 (3.0%) |
 | Social Graph | 11,500 | 10.5% | 2,200 (2.0%) |
 | **Combined (deduplicated)** | **110,000** | **100%** | **22% match rate** |
 
@@ -183,7 +183,7 @@ Processing 10,000+ wallets efficiently required several architectural choices:
 
 **Streaming progress.** The API uses Server-Sent Events to stream progress back to the client. For a 10,000-wallet batch, you see results populating in real time rather than waiting for the entire batch to complete.
 
-**Parallel source queries.** ENS, Farcaster, and Web3.bio are queried simultaneously for each batch. The total wall-clock time is the slowest source, not the sum of all sources.
+**Parallel source queries.** Every source class is queried simultaneously for each batch. The total wall-clock time is the slowest source, not the sum of all sources.
 
 ## What Pushes Match Rates Higher
 
