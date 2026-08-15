@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
-import { Check, X, ArrowRight } from '@phosphor-icons/react/dist/ssr';
+import { Button } from '@/components/ui/button';
+import { Figure } from '@/components/ui/figure';
+import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata: Metadata = {
   title: 'walletlink.social vs Cookie.fun: Comparison (2026)',
@@ -61,13 +63,40 @@ export default function CookieComparison() {
       <PageShell>
         <article className="mx-auto max-w-[68ch]">
           <header className="mb-12">
-            <h1 className="mb-4 text-4xl font-extralight tracking-[-0.04em] sm:text-5xl">
-              walletlink.social vs Cookie.fun
+            {/* The emphasis span is the type system's one device: a 600-weight
+                word inside a 200-weight line. Both cuts are already loaded. */}
+            <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
+              Identity, not{' '}
+              <em className="font-semibold not-italic text-accent-brand">attention</em>.
             </h1>
-            <p className="text-xl text-muted-foreground">
-              Both work with AI agent data, but they solve different problems.
-              We find agent wallets in your holder list. Cookie.fun tracks agent performance.
+            <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
+              Cookie scores what an account does. We tell you which wallet it is, so the score has someone attached to it.
             </p>
+
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <Button asChild>
+                <Link href="/">
+                  <MagnifyingGlass className="h-4 w-4" aria-hidden />
+                  Run a lookup
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <a href="https://docs.walletlink.social" target="_blank" rel="noopener noreferrer">
+                  <BookOpenText className="h-4 w-4" aria-hidden />
+                  Read the API docs
+                </a>
+              </Button>
+            </div>
+
+            {/* The proof row closes the hero. Four figures, each appearing once,
+                with the reachable one in brand because it is the number to act on
+                and coverage carrying a green mark because it is the measured one. */}
+            <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
+              <Figure value="4.7M" label="wallets indexed" />
+              <Figure value="100%" label="Farcaster coverage" attested />
+              <Figure value="13%" label="reachable on X or Farcaster" brand />
+              <Figure value="$149" label="once, no subscription" />
+            </dl>
           </header>
 
           {/* Quick Summary */}
@@ -87,21 +116,21 @@ export default function CookieComparison() {
                 <tbody className="text-sm">
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Focus</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       Wallet → Social + Agent detection
                     </td>
                     <td className="py-4 pl-4">AI agent analytics &amp; rankings</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Input</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       Your wallet list (CSV)
                     </td>
                     <td className="py-4 pl-4">Browse agent index</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Pricing</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
                         $99 - $249
                       </span>{' '}
@@ -111,7 +140,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Agent detection</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(13K+ agents)</span>
                     </td>
@@ -122,7 +151,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Twitter/X lookup</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4">
@@ -131,7 +160,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster lookup</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4">
@@ -140,7 +169,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Agent mindshare rankings</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4">
@@ -149,7 +178,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Agent token analytics</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4">
@@ -158,7 +187,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Batch wallet processing</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(up to 50K+)</span>
                     </td>
@@ -168,7 +197,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">CSV export</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                     </td>
                     <td className="py-4 pl-4">
@@ -177,7 +206,7 @@ export default function CookieComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Trading interface</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </td>
                     <td className="py-4 pl-4">
@@ -238,7 +267,7 @@ export default function CookieComparison() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* walletlink.social */}
-              <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
+              <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
                 <h3 className="font-semibold mb-4 text-accent-brand">
                   Choose walletlink.social if:
                 </h3>
@@ -336,7 +365,7 @@ export default function CookieComparison() {
               </ul>
             </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint/60 border-accent-brand/30">
+            <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">Different models:</span>{' '}
                 walletlink.social charges a one-time fee in USD. Cookie.fun
@@ -372,7 +401,7 @@ export default function CookieComparison() {
             </p>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
+              className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
             >
               Start your first lookup
               <ArrowRight className="h-4 w-4" />

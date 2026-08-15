@@ -104,7 +104,7 @@ export default async function BlogPost({ params }: Props) {
               prose-headings:font-semibold
               prose-h2:text-xl prose-h2:mt-12 prose-h2:mb-4
               prose-h3:text-base prose-h3:mt-8 prose-h3:mb-3
-              prose-p:text-muted-foreground prose-p:leading-relaxed prose-li:leading-relaxed
+              prose-p:text-foreground/80 prose-p:leading-relaxed prose-li:text-foreground/80 prose-li:leading-relaxed
               prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
               prose-strong:text-foreground
               prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-mono
@@ -113,7 +113,7 @@ export default async function BlogPost({ params }: Props) {
               prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
               prose-td:py-3 prose-td:px-4 prose-td:border-b
               prose-blockquote:border-l-accent-brand prose-blockquote:text-muted-foreground
-              prose-li:text-muted-foreground
+              
               prose-hr:border-border"
             dangerouslySetInnerHTML={{ __html: post.html }}
           />
