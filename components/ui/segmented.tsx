@@ -74,7 +74,27 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn('relative inline-flex h-control items-center rounded-full bg-muted p-1', className)}
+      /**
+       * The hairline is not decoration. The track is `bg-muted`, and this
+       * control gets dropped onto surfaces that are also `bg-muted`: on the
+       * upload panel it painted itself invisible, so the unselected half had no
+       * edge and the selected half read as a white pill floating in the page
+       * rather than as one control with two sides.
+       *
+       * A border fixes it at the component rather than at each call site,
+       * because the next `bg-muted` surface someone puts this on would break it
+       * again. It is also what the design language already prescribes:
+       * separation is carried by one hairline at full token opacity.
+       *
+       * Height is unaffected: `box-sizing: border-box` is global, so the border
+       * sits inside the 34px. The thumb's arithmetic is unaffected too, since an
+       * absolutely positioned child resolves its percentages against the padding
+       * box, which the border does not touch.
+       */
+      className={cn(
+        'relative inline-flex h-control items-center rounded-full border border-border bg-muted p-1',
+        className
+      )}
     >
       <span
         aria-hidden

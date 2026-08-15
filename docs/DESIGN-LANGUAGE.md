@@ -114,6 +114,18 @@ at `shadow-lg`, and on the segmented control's active thumb. Border opacity
 modifiers (`/60`, `/50`, `/30`) are banned. `border-2` only with `border-dashed`,
 on a dropzone.
 
+**A control carries its own edge.** A component that reads only because of what
+happens to be behind it is broken the first time someone puts it somewhere else,
+and nothing catches that: the CSS is token-compliant, the guards pass, and the
+control is simply invisible on screen. The segmented control's track is
+`bg-muted`; dropped onto the upload panel, which is also `bg-muted`, it painted
+itself out, so the unselected half had no edge at all and the selected half read
+as a white pill floating loose in the page. The fix belongs on the component, not
+the call site, because the next `bg-muted` surface would break it again.
+
+Before shipping a control, ask what it looks like on `--background`, on
+`--muted`, and inside a card. If any of the three erases it, it needs a hairline.
+
 ### Control height
 
 `--h-ctl: 34px`. **Every control in a row resolves to it** — button, segmented,

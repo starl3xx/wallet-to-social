@@ -1,0 +1,91 @@
+---
+title: "Running a lookup"
+description: "Getting addresses in, choosing how hard to look, and getting results back out."
+---
+
+Everything here happens at [walletlink.social](https://walletlink.social) with no code. The [API](/api-reference/introduction) covers the same ground programmatically, with one difference noted under [scan depth](/concepts/scan-depth).
+
+## Getting addresses in
+
+Three routes, equivalent once the lookup starts.
+
+<CardGroup cols={3}>
+  <Card title="Upload a file" icon="file-arrow-up">
+    CSV or Excel. Drop it anywhere on the page.
+  </Card>
+  <Card title="Paste a list" icon="clipboard">
+    Any text holding addresses. They are picked out of whatever surrounds them.
+  </Card>
+  <Card title="Import a contract" icon="cube">
+    Give a contract address, get its holders. Pro and Unlimited.
+  </Card>
+</CardGroup>
+
+### Files
+
+A CSV or `.xlsx` is scanned for a wallet column, and any balance or value column is detected automatically and used for priority scoring. Other columns come along unchanged and appear in the export, so a list arriving with a tier or a cohort label leaves with it.
+
+### Pasting
+
+Addresses are extracted by pattern, so a block of text with addresses scattered through it works as well as a clean list. Duplicates are removed.
+
+### Contract import
+
+Both NFT collections and token contracts are supported, on every network we cover: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain.**
+
+<Note>
+A holder list can be truncated. Token holder lists in particular come from an
+index with its own ceiling, and when a result fills that ceiling exactly we say
+so rather than implying the list is complete. Treat a truncation warning as
+real: the collection has more holders than you are looking at.
+</Note>
+
+## How many addresses per lookup
+
+| Plan | Addresses per lookup |
+| --- | --- |
+| Free | 500 |
+| Pro | 5,000 |
+| Unlimited | No limit |
+
+The cap is per lookup, not per month or per lifetime. There is no cumulative quota on any plan.
+
+## Choosing how hard to look
+
+Before starting, pick **Fast** or **Deep scan**. Deep is the default and finds the most; fast answers from the index alone and returns in seconds. The estimate on screen follows the choice.
+
+[Scan depth](/concepts/scan-depth) covers what each one reads and when the cheaper answer is the right one.
+
+## Keeping the result
+
+A lookup is saved to your history by default, and you can name it while it runs. An unnamed lookup is still saved; the name is there so you can find it again among twenty others.
+
+Turn saving off for a one-off, and export before you leave the page: nothing is kept.
+
+From a saved lookup you can **add addresses** later. New addresses are resolved and merged into the existing result rather than starting a separate one, which keeps a growing holder list in one place.
+
+## Getting results out
+
+<CardGroup cols={2}>
+  <Card title="CSV" icon="table">
+    Every column, every row, sorted by priority score. Your original columns
+    are preserved alongside the resolved identities.
+  </Card>
+  <Card title="Handle list" icon="list">
+    Just the handles, in the shape an X list import expects.
+  </Card>
+</CardGroup>
+
+Priority score ranks by holdings weighted by Farcaster reach, so the top of a CSV export is the part of your list worth contacting first. It is calculated on the paid plans.
+
+## Reaching people directly
+
+Unlimited accounts can send Farcaster direct messages to the resolved list from inside the app, without exporting first. This needs a Farcaster API key of your own, which the app stores only if you ask it to.
+
+X has no equivalent: there is no API route for messaging an arbitrary handle, so the handle list export is the path there.
+
+## Going the other way
+
+Reverse lookup takes an X handle or a Farcaster username and returns the wallets attached to that person. It is on the front page for Pro and Unlimited accounts, and it answers the question that comes up most often before a campaign: does this person already hold our token.
+
+Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).

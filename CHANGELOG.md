@@ -3,6 +3,34 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a control that painted itself out, and two missing doc pages)
+
+- **The scan-depth control was invisible on the upload panel.** Its track uses
+  the `muted` colour. The panel uses the same colour. So the control had no
+  edge: the unselected half showed only its text, and the selected half looked
+  like a white shape with no relation to it. The control now has a hairline
+  border, which is the rule that the design language already gives for
+  separation. The correction is in the component, not in the page, because the
+  next `muted` surface would cause the same fault.
+- **Checkboxes used the colour of the operating system.** A checkbox with no
+  style shows its tick in the accent colour of the operating system, which is
+  blue on macOS. Blue is not in this product’s palette. All checkboxes and radio
+  buttons now use the brand colour.
+- **The design language now gives a rule for this fault.** A control must show
+  its own edge. Examine each control on the page background, on the muted
+  background and in a card. If one of the three makes it disappear, it needs a
+  hairline border. No test can find this fault: the CSS is correct, each guard
+  gives a pass, and the control is not visible.
+- **Two new documentation pages.** “Running a lookup” gives the three ways to
+  supply addresses, the networks for a contract import, the address limit for
+  each plan, and the export formats. “Scan depth” gives the difference between a
+  fast scan and a deep scan, and it says that the API always behaves as a fast
+  scan.
+- **A code comment named 2 networks where the code supports 7.** The comment in
+  `lib/chains.ts` for token holder lists was written when two indexes were in
+  use. Comments become incorrect in the same way as documentation.
+
+
 ### 2026-08-15 (a health report for the social graph, and a weekly repair)
 
 The graph holds 4,755,201 rows. 99.5% of them have a reachable identity. The

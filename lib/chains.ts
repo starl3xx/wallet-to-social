@@ -45,9 +45,12 @@ export const SUPPORTED_CHAINS = Object.keys(CHAIN_IDS) as SupportedChain[];
  *
  * NFT holder lookups work on every supported chain via Alchemy. ERC-20 holder
  * lists always need an index, since balances are a mapping with no enumerable
- * owner list: Ethereum and Base come from Moralis, and Robinhood Chain from its
- * own Blockscout explorer, which Moralis does not cover. The UI uses this to
- * warn before a lookup that would fail server-side.
+ * owner list: six chains come from Moralis, and Robinhood Chain from its own
+ * Blockscout explorer, which Moralis does not cover. Every supported chain is
+ * currently backed, so this list and SUPPORTED_CHAINS happen to agree; they are
+ * still separate, because a new chain arrives on the RPC path before it arrives
+ * on an index. The UI uses this to warn before a lookup that would fail
+ * server-side.
  *
  * Keep in step with MORALIS_CHAIN_IDS and BLOCKSCOUT_BASE_URLS in
  * lib/contract-holders.ts: a chain listed here with no backing index would
