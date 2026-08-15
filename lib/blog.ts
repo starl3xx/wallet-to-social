@@ -50,11 +50,34 @@ export function getAllPosts(): BlogPost[] {
         description: data.meta_description || '',
         headlineVariations: data.headline_variations,
         content,
-        html: marked(content) as string,
+        html: marked(stripLeadingH1(content)) as string,
         publishedAt: (data.publish_date as string) || (data.date as string) || '2025-01-01',
       };
     })
     .filter(Boolean) as BlogPost[];
+}
+
+/**
+ * Removes the leading `# ` heading from post markdown.
+ *
+ * Every one of the 26 published posts carries its own h1, and the page renders
+ * another from frontmatter, so each post shipped two. The page hid the duplicate
+ * with `prose-h1:hidden`, which leaves it in the accessibility tree and in the
+ * document outline: display:none hides it visually, but the document still
+ * declares two top-level headings, and search engines still parse both.
+ *
+ * Only the FIRST h1 goes, and only if it is the first non-empty line. A later `# `
+ * would be a deliberate section break, and removing it would be a content change.
+ */
+function stripLeadingH1(md: string): string {
+  const lines = md.split('\n');
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i < lines.length && /^#\s+\S/.test(lines[i])) {
+    lines.splice(i, 1);
+    while (i < lines.length && lines[i].trim() === '') lines.splice(i, 1);
+  }
+  return lines.join('\n');
 }
 
 export function getPostBySlug(slug: string): BlogPost | null {
@@ -72,7 +95,7 @@ export function getPostBySlug(slug: string): BlogPost | null {
     description: data.meta_description || '',
     headlineVariations: data.headline_variations,
     content,
-    html: marked(content) as string,
+    html: marked(stripLeadingH1(content)) as string,
     publishedAt: (data.publish_date as string) || (data.date as string) || '2025-01-01',
   };
 }
