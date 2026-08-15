@@ -3,6 +3,31 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (each dialog keeps its contents now)
+
+- **The upgrade modal no longer puts its two buttons below the panel.** The
+  change on 2026-08-15 that was to correct this did only one half of the
+  operation, and the fault stayed. A dialog was a grid. Its body received
+  `min-h-0`, which lets the box become smaller. But the row of the grid stays
+  at `auto`, which is the size of the contents. So the row became larger than
+  the dialog, the body filled the row, and `overflow-y-auto` never received a
+  box that was too small. Thus it did not cut the contents and it did not show
+  a scroll bar.
+- **A dialog is a flex column now.** The body is `flex-1 min-h-0
+  overflow-y-auto`. A measurement in Chrome shows the difference at a screen of
+  663px: before, the panel was 631px and the body was 1298px, with the button
+  644px below the edge of the panel. After, the body is 629px and the button is
+  25px inside the panel.
+- **All 6 dialogs had this fault**, not only the upgrade modal. Each one is
+  correct now.
+- **The 2 upgrade buttons stay on the screen.** Each card holds its own button,
+  so one bar at the bottom is not possible. The card is the column: the list of
+  features moves, and the button stays at the bottom edge. On a telephone the
+  cards go one above the other and the dialog moves as before.
+- **A dialog uses `100dvh`, not `100vh`.** On a telephone, `vh` is the largest
+  size that the screen becomes. A dialog with this measurement goes behind the
+  address bar exactly when the address bar is on the screen.
+
 ### 2026-08-15 (the generator now makes the correct thing)
 
 - **The component generator makes Phosphor icons now.** `components.json` told
