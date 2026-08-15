@@ -11,6 +11,16 @@ interface ShareButtonsProps {
   farcasterCount: number;
   totalWallets: number;
   /**
+   * Distinct wallets reachable on any platform, which is NOT
+   * `twitterCount + farcasterCount`: most people with a Farcaster account also
+   * have an X handle, so adding the two counts each of them twice.
+   *
+   * This is the same figure the results header states, and it has to be passed
+   * in rather than derived here, because the overlap is only knowable from the
+   * rows themselves.
+   */
+  reachableCount: number;
+  /**
    * Render as overflow-menu rows rather than standalone buttons.
    *
    * Sharing is a secondary action, so in the results header it lives in the menu
@@ -24,13 +34,23 @@ export const ShareButtons = memo(function ShareButtons({
   twitterCount,
   farcasterCount,
   totalWallets,
+  reachableCount,
   asMenuItems,
 }: ShareButtonsProps) {
+  /**
+   * Distinct reachable over total, matching the results header exactly.
+   *
+   * This was `(twitterCount + farcasterCount) / totalWallets`, which
+   * double-counts everyone holding both accounts. On a real 1,057-wallet lookup
+   * that published "49% match rate" for a result the product itself reported as
+   * 30.8%: an outward-facing overstatement of the one number walletlink is sold
+   * on, in the copy most likely to be read by a prospect.
+   */
   const matchRate = totalWallets > 0
-    ? Math.round(((twitterCount + farcasterCount) / totalWallets) * 100)
+    ? Math.round((reachableCount / totalWallets) * 100)
     : 0;
 
-  const shareText = `Just resolved ${totalWallets.toLocaleString()} wallets into social profiles with walletlink.social: found ${twitterCount.toLocaleString()} Twitter + ${farcasterCount.toLocaleString()} Farcaster matches (${matchRate}% match rate)`;
+  const shareText = `Just resolved ${totalWallets.toLocaleString()} wallets with walletlink.social: ${reachableCount.toLocaleString()} reachable (${matchRate}%), ${twitterCount.toLocaleString()} on X and ${farcasterCount.toLocaleString()} on Farcaster`;
 
   const handleShareTwitter = useCallback(() => {
     Analytics.exportClicked('share_twitter', totalWallets);
