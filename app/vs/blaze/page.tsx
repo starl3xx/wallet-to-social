@@ -80,7 +80,7 @@ export default function BlazeComparison() {
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">What happened to Blaze?</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">What happened to Blaze?</h2>
             <p className="text-muted-foreground mb-4">
               Blaze was a Web3 CRM platform built around community management
               and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
@@ -104,7 +104,7 @@ export default function BlazeComparison() {
 
           {/* Migration table */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
               What Blaze offered vs what walletlink.social offers
             </h2>
             <div className="overflow-x-auto">
@@ -229,7 +229,7 @@ export default function BlazeComparison() {
 
           {/* What is walletlink.social */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -254,7 +254,7 @@ export default function BlazeComparison() {
 
           {/* Migrating from Blaze */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Migrating from Blaze</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Migrating from Blaze</h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
               <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to rebuild your wallet-to-Twitter workflow:
@@ -288,7 +288,7 @@ export default function BlazeComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing after Blaze</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Pricing after Blaze</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
@@ -331,7 +331,7 @@ export default function BlazeComparison() {
 
           {/* CTA */}
           <section className="text-center py-12 border-t">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">

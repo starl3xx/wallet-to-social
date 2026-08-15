@@ -80,7 +80,7 @@ export default function AirstackComparison() {
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">What happened to Airstack?</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">What happened to Airstack?</h2>
             <p className="text-muted-foreground mb-4">
               Airstack was a web3 data platform best known for its Farcaster
               APIs. Developers used it to query the Farcaster social graph,
@@ -103,7 +103,7 @@ export default function AirstackComparison() {
 
           {/* Migration table */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
               What Airstack offered vs what walletlink.social offers
             </h2>
             <div className="overflow-x-auto">
@@ -200,7 +200,7 @@ export default function AirstackComparison() {
 
           {/* What is walletlink.social */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -221,7 +221,7 @@ export default function AirstackComparison() {
 
           {/* Migrating from Airstack */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Migrating from Airstack</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Migrating from Airstack</h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
               <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to replace your Airstack integration:
@@ -255,7 +255,7 @@ export default function AirstackComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing after Airstack</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Pricing after Airstack</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
@@ -294,7 +294,7 @@ export default function AirstackComparison() {
 
           {/* CTA */}
           <section className="text-center py-12 border-t">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">

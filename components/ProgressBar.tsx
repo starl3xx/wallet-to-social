@@ -71,7 +71,7 @@ export const ProgressBar = memo(function ProgressBar({
                   {isProcessing ? 'Processing' : progress.status === 'complete' ? 'Complete' : 'Waiting'}
                 </h3>
               </div>
-              <p className="text-[13px] text-muted-foreground font-medium tabular-nums">
+              <p className="text-sm text-muted-foreground font-medium tabular-nums">
                 {processed.toLocaleString()} of {progress.total.toLocaleString()} wallets
               </p>
             </div>
@@ -159,7 +159,7 @@ export const ProgressBar = memo(function ProgressBar({
                     {/* Stage label */}
                     <span
                       className={`
-                        text-[10px] font-medium uppercase tracking-wider transition-colors duration-300
+                        font-mono text-xs uppercase tracking-[0.14em] transition-colors
                         ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground/70' : 'text-muted-foreground/50'}
                       `}
                     >
@@ -224,7 +224,7 @@ export const ProgressBar = memo(function ProgressBar({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-muted/30 border-t border-border/30">
-          <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-2">
+          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1">
               <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />

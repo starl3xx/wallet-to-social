@@ -206,7 +206,7 @@ export function InputMethodPicker({
           <span className="flex items-center gap-2 font-medium">
             From a contract
             {contractLocked && (
-              <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="rounded-full border px-2 py-0.5 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 Pro
               </span>
             )}
