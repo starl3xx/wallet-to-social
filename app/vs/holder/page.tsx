@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
-import { Check, X, ArrowRight } from '@phosphor-icons/react/dist/ssr';
+import { Button } from '@/components/ui/button';
+import { Figure } from '@/components/ui/figure';
+import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata: Metadata = {
   title: 'Holder alternative for wallet-based CRM (Holder shut down)',
@@ -68,14 +70,40 @@ export default function HolderComparison() {
       <PageShell>
         <article className="mx-auto max-w-[68ch]">
           <header className="mb-12">
-            <h1 className="mb-4 text-4xl font-extralight tracking-[-0.04em] sm:text-5xl">
-              Holder alternative for wallet-based CRM
+            {/* The emphasis span is the type system's one device: a 600-weight
+                word inside a 200-weight line. Both cuts are already loaded. */}
+            <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
+              Find them, then{' '}
+              <em className="font-semibold not-italic text-accent-brand">reach them</em>.
             </h1>
-            <p className="text-xl text-muted-foreground">
-              Holder shut down in June 2024; holder.xyz is gone. If you used
-              Holder’s web3 CRM to know and reach your token holders, here’s
-              where to migrate.
+            <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
+              Holder messages wallets. We resolve wallets to the accounts their owners actually read, so you can reach them anywhere.
             </p>
+
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <Button asChild>
+                <Link href="/">
+                  <MagnifyingGlass className="h-4 w-4" aria-hidden />
+                  Run a lookup
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <a href="https://docs.walletlink.social" target="_blank" rel="noopener noreferrer">
+                  <BookOpenText className="h-4 w-4" aria-hidden />
+                  Read the API docs
+                </a>
+              </Button>
+            </div>
+
+            {/* The proof row closes the hero. Four figures, each appearing once,
+                with the reachable one in brand because it is the number to act on
+                and coverage carrying a green mark because it is the measured one. */}
+            <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
+              <Figure value="4.7M" label="wallets indexed" />
+              <Figure value="100%" label="Farcaster coverage" attested />
+              <Figure value="13%" label="reachable on X or Farcaster" brand />
+              <Figure value="$149" label="once, no subscription" />
+            </dl>
           </header>
 
           {/* What happened */}
@@ -120,7 +148,7 @@ export default function HolderComparison() {
                 <tbody className="text-sm">
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Focus</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       Wallet → Social only
                     </td>
                     <td className="py-4 pl-4">
@@ -129,7 +157,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Pricing</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
                         $99 - $249
                       </span>{' '}
@@ -139,7 +167,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Holder identity enrichment</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (Twitter + Farcaster)
@@ -151,7 +179,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (complete protocol coverage)
@@ -163,7 +191,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Holder messaging</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (Farcaster DMs, Unlimited tier)
@@ -175,7 +203,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (Pro and Unlimited, on all seven supported chains)
@@ -187,7 +215,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
                     </td>
@@ -197,7 +225,7 @@ export default function HolderComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">CRM workflows</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint/60">
+                    <td className="py-4 px-4 bg-accent-brand-tint">
                       <X className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground ml-1">
                         (export to your own CRM)
@@ -239,7 +267,7 @@ export default function HolderComparison() {
           {/* Migrating from Holder */}
           <section className="mb-16">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Migrating from Holder</h2>
-            <div className="border rounded-lg p-6 bg-accent-brand-tint/60 border-accent-brand/30">
+            <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
               <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to rebuild your holder outreach:
               </h3>
@@ -299,7 +327,7 @@ export default function HolderComparison() {
               </div>
             </div>
 
-            <div className="p-4 border rounded-lg bg-accent-brand-tint/60 border-accent-brand/30">
+            <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
                 both paid tiers are one-time payments, and both include API
@@ -319,7 +347,7 @@ export default function HolderComparison() {
             </p>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
+              className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
             >
               Start your first lookup
               <ArrowRight className="h-4 w-4" />
