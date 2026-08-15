@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Detective, CircleNotch as Loader2, Warning as AlertTriangle, Lock } from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
+import { Segmented } from '@/components/ui/segmented';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';
@@ -116,45 +117,33 @@ export function ReverseLookup({
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        {/* Segmented pill rather than two separate buttons. The raised chip
-            carries the selected state by shape and elevation, so the brand
-            colour is doing emphasis rather than the whole job. Native radios
-            underneath keep arrow-key movement and a single tab stop. */}
-        <fieldset
-          className="flex h-10 items-center gap-0.5 rounded-full bg-muted p-1"
-          aria-label="Platform"
-        >
-          {(['twitter', 'farcaster'] as const).map((p) => (
-            <label key={p} className="cursor-pointer">
-              <input
-                type="radio"
-                name="reverse-platform"
-                value={p}
-                checked={platform === p}
-                onChange={() => setPlatform(p)}
-                className="peer sr-only"
-                // The visible label is 𝕏, which a screen reader announces as
-                // "mathematical double-struck capital X". A radio takes its
-                // accessible name from that label unless one is given here.
-                aria-label={p === 'twitter' ? 'X' : 'Farcaster'}
-              />
-              <span
-                style={
-                  p === 'twitter'
-                    ? ({ '--seg-bg': 'var(--x-bg)', '--seg-fg': 'var(--x-fg)' } as React.CSSProperties)
-                    : ({ '--seg-bg': '#8A63D2', '--seg-fg': '#FFFFFF' } as React.CSSProperties)
-                }
-                className="transition-control flex h-8 min-w-[4.5rem] items-center justify-center rounded-full px-4 text-sm text-muted-foreground peer-checked:bg-[var(--seg-bg)] peer-checked:font-semibold peer-checked:text-[var(--seg-fg)] peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1"
-              >
-                {p === 'twitter' ? (
-                  <XMark className="h-3.5 w-3.5" />
-                ) : (
-                  'Farcaster'
-                )}
-              </span>
-            </label>
-          ))}
-        </fieldset>
+        {/* Shares the Segmented primitive with ThemeToggle. The two were separate
+            implementations of one idea and had already drifted apart on height,
+            keyboard handling and whether the thumb moved. */}
+        <Segmented<Platform>
+          ariaLabel="Platform"
+          value={platform}
+          onChange={setPlatform}
+          className="w-[11rem]"
+          options={[
+            {
+              value: 'twitter',
+              label: 'X',
+              content: <XMark className="h-3.5 w-3.5" />,
+              // The selected platform takes that platform's own colours: the one
+              // named exception to violet being the only interactive hue.
+              thumbStyle: { background: 'var(--x-bg)' },
+              activeColor: 'var(--x-fg)',
+            },
+            {
+              value: 'farcaster',
+              label: 'Farcaster',
+              content: 'Farcaster',
+              thumbStyle: { background: '#8A63D2' },
+              activeColor: '#FFFFFF',
+            },
+          ]}
+        />
 
         <Input
           value={handle}

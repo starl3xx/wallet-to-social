@@ -228,6 +228,16 @@ Three durations, two curves.
   frame. Use `transform` and `opacity`.
 - **Never animate a virtualised row** beyond `background-color`.
 - Exits run shorter than entrances.
+- **A selected state moves; it does not teleport.** Any control with a visible
+  selection — segmented controls, tabs, toggles — animates the selection between
+  options rather than repainting it in place. The movement carries the one thing a
+  swap throws away: which option you just left. Use `components/ui/segmented.tsx`;
+  a second implementation of a moving selection is a second thing to get wrong,
+  and the two that existed had already drifted on height, keyboard handling and
+  whether the thumb moved at all.
+- Under `prefers-reduced-motion` the thumb still **moves**, it just arrives
+  immediately. Removing the transform would strand it under the wrong option,
+  which is a correctness bug rather than a motion preference.
 
 Delight is budgeted to two places: figures counting up when results land, and a
 periodic sweep across the Upgrade button (9s cycle, ~24% travel, `rgba(255,255,255,.20)`).
