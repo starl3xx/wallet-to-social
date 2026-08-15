@@ -1265,7 +1265,10 @@ export default function Home() {
           {/* Complete State */}
           {state === 'complete' && results.length > 0 && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              {/* Stacks on a phone. A row of buttons never wraps, so when the
+                  viewport cannot hold the name beside the actions the two go on
+                  separate lines rather than the row reflowing. */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   {/* Lookup name with edit capability */}
                   {isEditingName ? (
@@ -1337,12 +1340,17 @@ export default function Home() {
                     row, which gave "Export CSV" and "\u{1D54F} Share" the same emphasis and
                     ragged onto a second line. A row of buttons never wraps. */}
                 <div className="flex flex-none items-center gap-2">
+                  {/* Hidden below sm and offered in the menu instead. A row of
+                      buttons never wraps, so on a phone the row has to get
+                      shorter rather than reflow: ExportButton alone is two
+                      controls, and the name sits beside all of it. */}
                   {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
                     <Button
                       variant="outline"
                       onClick={() => setShowFarcasterDMModal(true)}
                       disabled={enrichingFids}
                       title="Send DMs to Farcaster users"
+                      className="hidden sm:inline-flex"
                     >
                       <Send className="h-4 w-4" />
                       {enrichingFids
@@ -1360,6 +1368,14 @@ export default function Home() {
                   />
 
                   <OverflowMenu>
+                    {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
+                      <div className="sm:hidden">
+                        <MenuItem onClick={() => setShowFarcasterDMModal(true)}>
+                          <Send className="h-4 w-4" aria-hidden />
+                          DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users
+                        </MenuItem>
+                      </div>
+                    )}
                     {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
                       <MenuItem onClick={handleAddAddressesFromResults}>
                         <Plus className="h-4 w-4" aria-hidden />

@@ -65,14 +65,17 @@ function Split({
   icon, label, value,
 }: { icon?: React.ReactNode; label: string; value: number }) {
   return (
-    <div>
-      <dd className="text-lg font-semibold tabular-nums text-foreground">
-        {value.toLocaleString()}
-      </dd>
+    /* dt before dd in the DOM, because a definition list requires the term first
+       and assistive tech reads the pairing from that order. flex-col-reverse puts
+       the figure on top visually without lying about the structure. */
+    <div className="flex flex-col-reverse">
       <dt className="mt-0.5 flex items-center gap-1.5">
         {icon}
         {label}
       </dt>
+      <dd className="ml-0 text-lg font-semibold tabular-nums text-foreground">
+        {value.toLocaleString()}
+      </dd>
     </div>
   );
 }
