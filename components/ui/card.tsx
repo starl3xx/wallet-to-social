@@ -50,7 +50,14 @@ function CardActivator({
       type="button"
       onClick={onClick}
       className={cn(
-        'absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2',
+        // `cursor-pointer` belongs here rather than on the card. The overlay is
+        // the hit target, and the browser's own stylesheet sets
+        // `button { cursor: default }`, which is an explicit declaration and so
+        // beats the card's inherited `cursor: pointer`. Measured in Chrome: a
+        // bare overlay button inside a `cursor-pointer` parent computes
+        // `default`; with this class it computes `pointer`. So the card kept a
+        // rule that could never apply while this component was present.
+        'absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2',
         'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         className
       )}

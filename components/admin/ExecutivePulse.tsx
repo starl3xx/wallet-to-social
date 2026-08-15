@@ -114,7 +114,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Lookups Today */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Lookups today: open the jobs tab"
@@ -139,7 +139,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Active Users */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Active users: open the behaviour tab"
@@ -159,7 +159,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Conversion Rate */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Conversion rate: open the revenue tab"
@@ -178,7 +178,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Revenue MTD */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Revenue this month: open the revenue tab"
@@ -205,7 +205,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Error Rate */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Error rate: open the health tab"
@@ -227,7 +227,7 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Queue Depth */}
-        <Card className="relative cursor-pointer hover:border-accent-brand transition-control">
+        <Card className="relative hover:border-accent-brand transition-control">
           {onMetricClick && (
             <CardActivator
               label="Queue depth: open the jobs tab"
