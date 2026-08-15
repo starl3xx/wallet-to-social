@@ -13,31 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Trash2,
-  Plus,
-  Loader2,
-  Lock,
-  Users,
-  Crown,
-  Zap,
-  Sparkles,
-  Eye,
-  RefreshCw,
-  XCircle,
-  Briefcase,
-  History,
-  Search,
-  BarChart3,
-  TrendingUp,
-  DollarSign,
-  Wrench,
-  Gauge,
-  RotateCcw,
-  X,
-  ExternalLink,
-  Pencil,
-} from 'lucide-react';
+import { Trash as Trash2, Plus, CircleNotch as Loader2, Lock, Users, Crown, Lightning as Zap, Sparkle as Sparkles, Eye, ArrowsClockwise as RefreshCw, XCircle, Briefcase, ClockCounterClockwise as History, MagnifyingGlass as Search, ChartBar as BarChart3, TrendUp as TrendingUp, CurrencyDollar as DollarSign, Wrench, Gauge, ArrowCounterClockwise as RotateCcw, X, ArrowSquareOut as ExternalLink, PencilSimple as Pencil } from '@phosphor-icons/react';
 import {
   ExecutivePulse,
   UserBehavior,

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
 
 // Revalidate every hour so scheduled posts appear on time

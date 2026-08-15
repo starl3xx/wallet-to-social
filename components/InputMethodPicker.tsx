@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Upload, ClipboardList, Boxes, Lock } from 'lucide-react';
+import { UploadSimple as Upload, ClipboardText as ClipboardList, Polygon as Boxes, Lock } from '@phosphor-icons/react';
 
 interface InputMethodPickerProps {
   onFileLoaded: (file: File) => void;

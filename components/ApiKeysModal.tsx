@@ -10,15 +10,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  KeyRound,
-  Copy,
-  Check,
-  Loader2,
-  AlertTriangle,
-  Trash2,
-  ExternalLink,
-} from 'lucide-react';
+import { Key as KeyRound, Copy, Check, CircleNotch as Loader2, Warning as AlertTriangle, Trash as Trash2, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
 import { API_PLANS, apiPlanForTier } from '@/lib/api-plans';
 
 interface ApiKeysModalProps {

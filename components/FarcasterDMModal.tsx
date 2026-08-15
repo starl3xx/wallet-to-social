@@ -10,23 +10,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Send,
-  Download,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Eye,
-  EyeOff,
-  Loader2,
-  ChevronRight,
-  ChevronLeft,
-  Key,
-  MessageSquare,
-  Play,
-  Square,
-} from 'lucide-react';
+import { PaperPlaneTilt as Send, DownloadSimple as Download, ArrowsClockwise as RefreshCw, CheckCircle as CheckCircle2, XCircle, WarningCircle as AlertCircle, Eye, EyeSlash as EyeOff, CircleNotch as Loader2, CaretRight as ChevronRight, CaretLeft as ChevronLeft, Key, ChatText as MessageSquare, Play, Square } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
 import {
   extractDMRecipients,

@@ -28,7 +28,7 @@ import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Pencil, Plus, Check, X, Send, AlertTriangle } from 'lucide-react';
+import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle } from '@phosphor-icons/react';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {

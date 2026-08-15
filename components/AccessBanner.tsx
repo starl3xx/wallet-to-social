@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Crown, Sparkles, LogIn, LogOut, ChevronDown, Rocket, KeyRound } from 'lucide-react';
+import { Lightning as Zap, Crown, Sparkle as Sparkles, SignIn as LogIn, SignOut as LogOut, CaretDown as ChevronDown, Rocket, Key as KeyRound } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { TIER_LIMITS } from '@/lib/access';
 import { AuthModal } from '@/components/AuthModal';

@@ -4,19 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkline } from './Sparkline';
-import {
-  Loader2,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Search,
-  DollarSign,
-  AlertCircle,
-  Layers,
-  Users,
-  BarChart3,
-} from 'lucide-react';
+import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, TrendUp as TrendingUp, TrendDown as TrendingDown, Minus, MagnifyingGlass as Search, CurrencyDollar as DollarSign, WarningCircle as AlertCircle, Stack as Layers, Users, ChartBar as BarChart3 } from '@phosphor-icons/react';
 
 interface PulseData {
   lookupsToday: number;

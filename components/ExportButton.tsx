@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Lock } from 'lucide-react';
+import { Lock } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/csv-parser';
 import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';

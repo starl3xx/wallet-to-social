@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Loader2, User, Briefcase, Wallet, Mail, X } from 'lucide-react';
+import { MagnifyingGlass as Search, CircleNotch as Loader2, User, Briefcase, Wallet, Envelope as Mail, X } from '@phosphor-icons/react';
 
 interface SearchResult {
   type: 'user' | 'job' | 'lookup';

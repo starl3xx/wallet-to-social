@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, Zap, Crown, Loader2, Rocket } from 'lucide-react';
+import { Check, Lightning as Zap, Crown, CircleNotch as Loader2, Rocket } from '@phosphor-icons/react';
 import { TIER_LIMITS, TIER_PRICES } from '@/lib/access';
 import { apiAllowanceLabel } from '@/lib/api-plans';
 import { Analytics } from '@/lib/client-analytics';

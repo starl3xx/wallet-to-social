@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
 import { Sparkline } from './Sparkline';
 
 interface DailyStat {

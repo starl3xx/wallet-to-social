@@ -247,8 +247,12 @@ parallels Söhne's.
 - **regular** at 16px for UI
 - **fill** for status dots
 
-Sizes: `size={16}` UI, `20` controls, `40` display. The `size` prop replaces
-`h-4 w-4`.
+Sizes stay in `className` (`h-4 w-4`), not the `size` prop. Phosphor offers both,
+and `size` was the original plan here, but a second sizing mechanism alongside
+Tailwind classes is one more thing to be inconsistent about: every other dimension
+in this codebase is a utility class. One mechanism, and the values are what the
+scale constrains — `h-4 w-4` for UI, `h-5 w-5` for controls, `h-10 w-10` for
+display.
 
 ### Three entrypoints, by render context
 
