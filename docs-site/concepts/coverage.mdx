@@ -41,16 +41,24 @@ This makes Farcaster matching **deterministic rather than probabilistic**. If a 
 
 That property is worth more than it first sounds. It means a Farcaster negative is real information, not an absence of information.
 
-### X coverage is owner-attested
+### X coverage is attested first, and labelled always
 
-X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so we never infer the link. Every X handle we return was published by the owner of the account, through one of two routes:
+X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so there is nothing to read the way Farcaster can be read. Our resolution layer works around that by drawing on several independent routes to the same fact, and telling you which one produced each match.
+
+**Two routes are owner-attested, and they carry almost all of the coverage.**
 
 - The owner verified their X account on Farcaster.
 - The owner set the handle in an ENS text record on their own address.
 
-Over a million wallets have a linked X handle on this basis.
+Both are published by the address owner, both are checkable without taking our word for it, and together they account for **over 99.9% of the 1.07 million wallets with a linked X handle**.
 
-The tradeoff is deliberate. Coverage would be considerably higher if we guessed, matching on display names or bios or timing correlations. We do not, because a marketing campaign that contacts the wrong person is worse than one that contacts fewer people. Everything returned is something the owner chose to publish.
+**Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner's own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
+
+**The routes grow. The labelling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you *how it was established*, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
+
+That guarantee is enforced rather than promised. Source classification is an allowlist, so a route nobody has classified yet returns no evidence class at all rather than defaulting into an existing one. A new pipeline cannot quietly widen what `onchain` or `farcaster` means. See [evidence classes](/concepts/data-quality#evidence-classes) for the full vocabulary.
+
+The tradeoff behind all of this is deliberate. Coverage would be considerably higher if we guessed, matching on display names or bios or timing correlations. We do not, at any evidence level, because a marketing campaign that contacts the wrong person is worse than one that contacts fewer people.
 
 <Warning>
 Attested does not mean current. Someone can verify a handle and later abandon

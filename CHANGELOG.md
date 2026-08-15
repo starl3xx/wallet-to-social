@@ -3,6 +3,33 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (say what the X coverage really is, in a way that stays true)
+
+- **The coverage page said “one of two routes”. The code has more.** It said
+  that each X handle comes from a Farcaster verification or from an ENS text
+  record. The pipeline also uses an identity index, which gives the `aggregated`
+  class. The measurement: 1,070,576 wallets have an X handle. 1,039,525 come
+  from a Farcaster verification and 39,906 from an onchain record or a manual
+  review. Only 201 come from the identity index alone. So the statement was
+  99.98% correct, and it was still not accurate.
+- **The page now gives the rule, not the count of the sources.** Two routes are
+  owner-attested and give almost all the coverage. An identity index gives the
+  rest, and each of those records has the `aggregated` label. The promise to the
+  customer is that each match carries its class of evidence, and that the
+  classes do not change when we add a source. That statement stays correct as
+  the number of sources increases.
+- **The guarantee is enforced, and the page says so.** The classification is an
+  allowlist. A new source with no classification gives no evidence class. It
+  cannot get the classification of a different route. So a new pipeline cannot
+  make `onchain` or `farcaster` mean something wider than it means today.
+- **The same statement was in the structured data and on four comparison
+  pages.** One said we return “only” owner-attested matches. One said the
+  matches come from onchain records, when most come from a Farcaster
+  verification. All are corrected. “We never guess” stays, because it is true at
+  each evidence level: an identity index correlates published profile data, and
+  it does not infer from a display name, a description or a time correlation.
+
+
 ### 2026-08-15 (a control that painted itself out, and two missing doc pages)
 
 - **The scan-depth control was invisible on the upload panel.** Its track uses

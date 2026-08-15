@@ -272,11 +272,11 @@ export default function BlazeComparison() {
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of 4.7M wallets with complete
-              Farcaster protocol coverage, refreshed daily. Twitter matches
-              are user-attested (links the wallet owner created themselves, such as
-              a verified Farcaster account or an onchain ENS record), so there is
-              no guesswork in your
-              outreach list.
+              Farcaster protocol coverage, refreshed daily. Over 99.9% of
+              Twitter matches are user-attested (links the wallet owner created
+              themselves, such as a verified Farcaster account or an onchain ENS
+              record), and every match carries the evidence behind it, so there
+              is no guesswork in your outreach list.
             </p>
           </section>
 
