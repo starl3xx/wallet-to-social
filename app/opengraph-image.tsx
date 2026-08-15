@@ -10,9 +10,9 @@ export default async function OGImage() {
   const [logoData, fonts] = await Promise.all([
     fetch(new URL('../public/icon.png', import.meta.url)).then((r) => r.arrayBuffer()),
     loadOgFonts({
+      extraleicht: new URL('../public/fonts/soehne-extraleicht.ttf', import.meta.url),
       book: new URL('../public/fonts/soehne-buch.ttf', import.meta.url),
       halbfett: new URL('../public/fonts/soehne-halbfett.ttf', import.meta.url),
-      fett: new URL('../public/fonts/soehne-fett.ttf', import.meta.url),
     }),
   ]);
 
@@ -46,15 +46,19 @@ export default async function OGImage() {
           <div
             style={{
               fontSize: '76px',
-              fontWeight: 400,
-              lineHeight: 1.04,
-              letterSpacing: '-0.035em',
+              // The display tier: 200, not 400. Satori substitutes the nearest
+              // available weight rather than failing, so before the extraleicht
+              // cut was loaded this rendered at 400 and produced a blunter card
+              // rather than a broken one, which is why it shipped unnoticed.
+              fontWeight: 200,
+              lineHeight: 1.02,
+              letterSpacing: '-0.04em',
               maxWidth: '880px',
               display: 'flex',
               flexWrap: 'wrap',
             }}
           >
-            Turn wallets into&nbsp;<span style={{ fontWeight: 800 }}>people</span>.
+            Turn wallets into&nbsp;<span style={{ fontWeight: 600 }}>people</span>.
           </div>
           <div
             style={{
