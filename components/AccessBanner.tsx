@@ -194,7 +194,7 @@ export function AccessBanner({
           <span className="sm:hidden">Free</span>
           <span className="hidden sm:inline">Free · {TIER_LIMITS.free.toLocaleString()} left</span>
         </span>
-        <Button size="sm" onClick={onUpgradeClick}>
+        <Button size="sm" className="btn-shine" onClick={onUpgradeClick}>
           <Zap className="h-3.5 w-3.5" weight="fill" />
           <span className="hidden sm:inline">Upgrade</span>
           <span className="sm:hidden">+</span>
