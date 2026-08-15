@@ -96,8 +96,15 @@ function SuccessContent() {
   const tierColor = tier === 'unlimited' ? 'text-caution' : 'text-accent-brand';
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="max-w-md w-full">
+    /* Deliberately NOT on PageShell. This is a post-payment interstitial, not a
+       document: a single decision, reached once, with one way onward. Wrapping it
+       in a header and a four-column navigation footer would invite people to
+       wander off a confirmation screen, which is the opposite of its job. It still
+       takes the tokens, because Card and Button are the same primitives everywhere
+       else. Consistency is the design language applying, not every page having the
+       same furniture. */
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           {state === 'verifying' && (
             <>
