@@ -12,6 +12,8 @@ import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import { RecentWins } from '@/components/RecentWins';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PageShell } from '@/components/ui/page-shell';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { XMark } from '@/components/ui/brand-marks';
 import { AccessBanner } from '@/components/AccessBanner';
 import { useAuth } from '@/components/AuthProvider';
@@ -28,7 +30,7 @@ import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle } from '@phosphor-icons/react';
+import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle, ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
@@ -1263,7 +1265,10 @@ export default function Home() {
           {/* Complete State */}
           {state === 'complete' && results.length > 0 && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              {/* Stacks on a phone. A row of buttons never wraps, so when the
+                  viewport cannot hold the name beside the actions the two go on
+                  separate lines rather than the row reflowing. */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   {/* Lookup name with edit capability */}
                   {isEditingName ? (
@@ -1297,24 +1302,31 @@ export default function Home() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xl font-semibold">
-                        {currentLookupName || 'Results'}
-                      </h2>
-                      {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditNameValue(currentLookupName || '');
-                            setIsEditingName(true);
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                          title="Edit lookup name"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                    <div>
+                      {/* The eyebrow is what says the string below it is a name you
+                          set, not a section heading. A pencil beside a word does not
+                          communicate "label this so you can find it later", and the
+                          affordance is visible at rest because on touch there is no
+                          hover to reveal it. */}
+                      <Eyebrow className="mb-1">Lookup name</Eyebrow>
+                      <div className="flex items-center gap-2.5">
+                        <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                          {currentLookupName || 'Results'}
+                        </h2>
+                        {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditNameValue(currentLookupName || '');
+                              setIsEditingName(true);
+                            }}
+                            className="transition-control inline-flex items-center gap-1.5 rounded-full border border-accent-brand px-2.5 py-1 text-xs font-medium text-accent-brand hover:bg-accent-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          >
+                            <Pencil className="h-3 w-3" aria-hidden />
+                            Rename
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   {cacheHits > 0 && (
@@ -1323,38 +1335,30 @@ export default function Home() {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  {/* DM Farcaster users button (Unlimited tier only, when FC users exist or enriching) */}
+                {/* One filled action, one contextual action, everything else in the
+                    menu. This was up to seven buttons of equal weight in a wrapping
+                    row, which gave "Export CSV" and "\u{1D54F} Share" the same emphasis and
+                    ragged onto a second line. A row of buttons never wraps. */}
+                <div className="flex flex-none items-center gap-2">
+                  {/* Hidden below sm and offered in the menu instead. A row of
+                      buttons never wraps, so on a phone the row has to get
+                      shorter rather than reflow: ExportButton alone is two
+                      controls, and the name sits beside all of it. */}
                   {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
                     <Button
                       variant="outline"
                       onClick={() => setShowFarcasterDMModal(true)}
                       disabled={enrichingFids}
                       title="Send DMs to Farcaster users"
-                      className="text-accent-brand border-accent-brand/30 hover:bg-accent-brand-tint dark:border-accent-brand dark:hover:bg-accent-brand-tint"
+                      className="hidden sm:inline-flex"
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      {enrichingFids ? (
-                        <>Loading FIDs...</>
-                      ) : (
-                        <>DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users</>
-                      )}
+                      <Send className="h-4 w-4" />
+                      {enrichingFids
+                        ? 'Loading FIDs...'
+                        : `DM ${results.filter(r => r.fc_fid).length.toLocaleString()}`}
                     </Button>
                   )}
-                  {/* Add addresses button (paid users only, when viewing a saved lookup) */}
-                  {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
-                    <Button
-                      variant="outline"
-                      onClick={handleAddAddressesFromResults}
-                      title="Add more addresses to this lookup"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add addresses
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={handleReset}>
-                    New lookup
-                  </Button>
+
                   <ExportButton
                     results={results}
                     extraColumns={extraColumns}
@@ -1362,11 +1366,34 @@ export default function Home() {
                     onUpgradeClick={handleOpenUpgradeModal}
                     lookupName={currentLookupName}
                   />
-                  <ShareButtons
-                    twitterCount={results.filter((r) => r.twitter_handle).length}
-                    farcasterCount={results.filter((r) => r.farcaster).length}
-                    totalWallets={results.length}
-                  />
+
+                  <OverflowMenu>
+                    {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
+                      <div className="sm:hidden">
+                        <MenuItem onClick={() => setShowFarcasterDMModal(true)}>
+                          <Send className="h-4 w-4" aria-hidden />
+                          DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users
+                        </MenuItem>
+                      </div>
+                    )}
+                    {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                      <MenuItem onClick={handleAddAddressesFromResults}>
+                        <Plus className="h-4 w-4" aria-hidden />
+                        Add addresses
+                      </MenuItem>
+                    )}
+                    <MenuItem onClick={handleReset}>
+                      <RefreshCw className="h-4 w-4" aria-hidden />
+                      New lookup
+                    </MenuItem>
+                    <div className="my-1 border-t border-border" />
+                    <ShareButtons
+                      twitterCount={results.filter((r) => r.twitter_handle).length}
+                      farcasterCount={results.filter((r) => r.farcaster).length}
+                      totalWallets={results.length}
+                      asMenuItems
+                    />
+                  </OverflowMenu>
                 </div>
               </div>
 

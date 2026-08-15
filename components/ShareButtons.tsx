@@ -2,18 +2,29 @@
 
 import { memo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { MenuItem } from '@/components/ui/overflow-menu';
+import { XMark, FarcasterMark } from '@/components/ui/brand-marks';
 import { Analytics } from '@/lib/client-analytics';
 
 interface ShareButtonsProps {
   twitterCount: number;
   farcasterCount: number;
   totalWallets: number;
+  /**
+   * Render as overflow-menu rows rather than standalone buttons.
+   *
+   * Sharing is a secondary action, so in the results header it lives in the menu
+   * with everything past the third control. The share *logic* is the same either
+   * way, which is why this is a prop rather than a second component.
+   */
+  asMenuItems?: boolean;
 }
 
 export const ShareButtons = memo(function ShareButtons({
   twitterCount,
   farcasterCount,
   totalWallets,
+  asMenuItems,
 }: ShareButtonsProps) {
   const matchRate = totalWallets > 0
     ? Math.round(((twitterCount + farcasterCount) / totalWallets) * 100)
@@ -32,6 +43,21 @@ export const ShareButtons = memo(function ShareButtons({
     const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText + '\n\nhttps://walletlink.social')}`;
     window.open(url, '_blank', 'noopener,noreferrer,width=550,height=420');
   }, [shareText, totalWallets]);
+
+  if (asMenuItems) {
+    return (
+      <>
+        <MenuItem onClick={handleShareTwitter}>
+          <XMark className="h-4 w-4" />
+          Share on X
+        </MenuItem>
+        <MenuItem onClick={handleShareFarcaster}>
+          <FarcasterMark className="h-4 w-4" />
+          Share on Farcaster
+        </MenuItem>
+      </>
+    );
+  }
 
   return (
     <div className="flex gap-2">
