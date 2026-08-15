@@ -114,6 +114,24 @@ at `shadow-lg`, and on the segmented control's active thumb. Border opacity
 modifiers (`/60`, `/50`, `/30`) are banned. `border-2` only with `border-dashed`,
 on a dropzone.
 
+**The segmented thumb takes two shadows, not one.** A wide soft shadow lifts it
+off the track; a tight dark one directly beneath draws its bottom edge, which is
+what makes a shape read as a physical control rather than as a lighter patch of
+background. A hairline does the same job on the top and sides, where a shadow
+cannot reach. Dropping either shadow is most of why a hand-rolled segmented
+control looks flat. In dark mode the shadow under a light thumb is invisible, so
+the lift comes from the edge instead.
+
+**An unselected segment is not muted.** Muted is the colour of text you cannot
+act on, and using it on the other half of a segmented control tells people that
+half is disabled. Unselected sits at `text-foreground/75`; the selected one
+carries weight and the accent.
+
+**Segments are divided by hairlines that vanish beside the selection.** The
+divider is what says "these are separate buttons" before anything is pressed,
+and removing it on both sides of the thumb is what keeps the control reading as
+one object rather than a row of tiles.
+
 **A control carries its own edge.** A component that reads only because of what
 happens to be behind it is broken the first time someone puts it somewhere else,
 and nothing catches that: the CSS is token-compliant, the guards pass, and the

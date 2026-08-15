@@ -42,7 +42,14 @@ const ModalContent = React.forwardRef<
       )}
       {...props}
     >
-      <div className="overflow-y-auto p-6 gap-4 grid">
+      {/* `min-h-0` is what makes `overflow-y-auto` work at all here.
+          A grid item defaults to `min-height: auto`, so it refuses to shrink
+          below its content: the max-height on the dialog was being ignored, the
+          child grew past it, and a tall modal simply spilled its last element
+          out of the bottom of the white panel with no scrollbar to reach it.
+          The upgrade modal did exactly this, dropping "Upgrade to Unlimited"
+          below the edge of the dialog. */}
+      <div className="grid min-h-0 gap-4 overflow-y-auto p-6">
         {children}
       </div>
       <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-sm bg-background p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">

@@ -319,6 +319,54 @@
   transition:
     transform var(--duration-base) var(--ease-out-soft),
     background-color var(--duration-fast) var(--ease-out-soft);
+  /* The thumb is the one place in the product where a shadow does work below
+     the floating layer, and the design language grants it by name.
+
+     Two shadows, not one. The wide soft one lifts the thumb off the track; the
+     tight dark one directly under it draws the bottom edge, which is what makes
+     a shape read as a physical control rather than as a lighter patch of
+     background. iOS uses the same pair, and dropping either one is most of why
+     a hand-rolled segmented control looks flat. The hairline does the same job
+     on the top and sides, where a shadow cannot reach. */
+  box-shadow:
+    0 3px 8px rgb(0 0 0 / 0.12),
+    0 3px 1px rgb(0 0 0 / 0.04);
+  border: 1px solid rgb(0 0 0 / 0.04);
+}
+
+/* Dark mode inverts the problem: a shadow under a light thumb on a dark track
+   is invisible, and the lift has to come from the edge instead. */
+:root[data-theme='dark'] .segmented-thumb,
+:root:not([data-theme='light']) .segmented-thumb {
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.4);
+  border-color: rgb(255 255 255 / 0.08);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .segmented-thumb {
+    box-shadow:
+      0 3px 8px rgb(0 0 0 / 0.12),
+      0 3px 1px rgb(0 0 0 / 0.04);
+    border-color: rgb(0 0 0 / 0.04);
+  }
+}
+
+/* Hairline dividers between segments, the detail that says "these are separate
+   buttons" before anything is pressed. They disappear on both sides of the
+   selected segment, so the thumb never has a line running into it. Same
+   behaviour as iOS, and the reason the control still reads as one object. */
+.segmented-option + .segmented-option::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 1px;
+  background: var(--border);
+  transition: opacity var(--duration-fast) var(--ease-out-soft);
+}
+.segmented-option[aria-checked='true']::before,
+.segmented-option[aria-checked='true'] + .segmented-option::before {
+  opacity: 0;
 }
 
 /* The label colour waits for the thumb.

@@ -3,6 +3,7 @@
 import { useEffect, useState, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SignIn } from '@phosphor-icons/react';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 import type { WalletSocialResult } from '@/lib/types';
@@ -150,6 +151,7 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
               Sign in to save and view your lookup history.
             </p>
             <Button size="sm" onClick={() => setShowAuthModal(true)}>
+              <SignIn className="h-4 w-4" aria-hidden />
               Sign in
             </Button>
           </CardContent>

@@ -158,9 +158,9 @@ export function UpgradeModal({
           </div>
 
           {/* Pricing cards */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-stretch gap-4 md:grid-cols-2">
             {/* Pro tier */}
-            <div className="rounded-lg border p-4 space-y-4">
+            <div className="flex flex-col rounded-lg border p-4 space-y-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <div className="p-1.5 rounded-lg bg-accent-brand-tint">
@@ -187,7 +187,7 @@ export function UpgradeModal({
                 ))}
               </ul>
               <Button
-                className="w-full"
+                className="mt-auto w-full"
                 onClick={() => handleUpgrade('pro')}
                 disabled={loading !== null || !proCoversList}
                 title={
@@ -210,7 +210,7 @@ export function UpgradeModal({
             </div>
 
             {/* Unlimited tier */}
-            <div className="rounded-lg border-2 border-accent-brand p-4 space-y-4 relative">
+            <div className="relative flex flex-col rounded-lg border-2 border-accent-brand p-4 space-y-4">
               <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
                 Best value
               </div>
@@ -240,7 +240,7 @@ export function UpgradeModal({
                 ))}
               </ul>
               <Button
-                className="w-full"
+                className="mt-auto w-full"
                 variant="default"
                 onClick={() => handleUpgrade('unlimited')}
                 disabled={loading !== null}

@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Detective, CircleNotch as Loader2, Warning as AlertTriangle, Lock } from '@phosphor-icons/react';
+import { Detective, CircleNotch as Loader2, Warning as AlertTriangle, Lock, Wallet } from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
 import { Segmented } from '@/components/ui/segmented';
 import type { WalletSocialResult } from '@/lib/types';
@@ -162,7 +162,14 @@ export function ReverseLookup({
         />
 
         <Button onClick={submit} disabled={!handle.trim() || loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Find wallets'}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Wallet className="h-4 w-4" aria-hidden />
+              Find wallets
+            </>
+          )}
         </Button>
       </div>
 
