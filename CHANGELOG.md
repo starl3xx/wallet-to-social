@@ -3,6 +3,23 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (Stripe Customers were never created)
+
+- `createCheckoutSession` never set `customer_creation`, which defaults to
+  `if_required`. A one-time card payment never requires a Customer, so Stripe
+  created none: the account held **zero Customer objects** despite real
+  completed sales. `customer_email` prefills the field, it does not create
+  anything. Every payment therefore stored an empty `stripe_customer_id`, and
+  the admin Users pane showed a dash in the Stripe column for every paying
+  account. Now set to `always`.
+- The Users pane falls back to the payment intent when no Customer exists, since
+  historic sales have none and the payment intent identifies the sale in Stripe
+  just as well. `/api/admin/users` now returns `stripePaymentId` for it.
+- `''` is no longer written to `stripe_customer_id`. Callers derive it from
+  `session.customer`, which is null whenever no Customer was created, and an
+  empty string in an id column reads as "we have one and it is blank".
+
+
 ### 2026-08-15 (apex is canonical, and everything now agrees)
 
 - Vercel now serves `walletlink.social` directly and 308-redirects `www` to it.

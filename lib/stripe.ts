@@ -40,6 +40,18 @@ export async function createCheckoutSession(
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     customer_email: email,
+    // Without this, no Stripe Customer is ever created.
+    //
+    // `customer_creation` defaults to `if_required`, and a one-time card payment
+    // never requires a Customer, so Stripe made none: the account held zero
+    // Customer objects despite real completed sales. `customer_email` only
+    // prefills the field, it does not create anything. The result was that every
+    // payment stored an empty `stripe_customer_id`, and the admin Users pane
+    // showed a dash in the Stripe column for every paying customer.
+    //
+    // Creating one also makes the buyer findable in the Stripe dashboard, and
+    // lets repeat purchases and refunds hang off a single identity.
+    customer_creation: 'always',
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: baseUrl,
