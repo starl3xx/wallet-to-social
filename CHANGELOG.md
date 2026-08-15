@@ -3,6 +3,72 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (one scan-depth control, in place of two checkboxes)
+
+- **The options row asked the wrong questions.** It gave four checkboxes in one
+  line: Save to history, ENS onchain lookup, Fast mode and Notify when done. Two
+  of them named parts of the pipeline. Those two also disagreed with each other.
+  Fast mode removed the slow sources. ENS is the slowest source. A person who
+  selected both asked for two opposite things. The panel now asks two questions,
+  each with its own label:
+  - How deep do you want the scan? Fast, or Deep scan.
+  - Do you want to keep this lookup? If yes, what is its name?
+- **Fast now does what its name says.** A fast scan reads the walletlink index
+  and the cache. It makes no live request, and it writes nothing back. Before
+  this change it skipped one live source and called another, so it was neither
+  quick nor complete, and one line of text could not describe it. The Farcaster
+  sweep is complete, so the index already holds almost all of the data that the
+  remaining call supplied.
+- **Deep scan is the default, and it includes onchain ENS.** An ENS text record
+  is the only source where the owner of the wallet publishes the handle. That
+  evidence is what makes a row attested instead of inferred, and the product is
+  sold on that difference. ENS was off by default before. ENS stays a paid
+  feature; a free account gets every other source.
+- **The time estimate follows the choice.** A deep scan calculates 18 seconds
+  for each 1,000 wallets: 10 seconds for the live sources, and 8 seconds for the
+  onchain ENS records. A fast scan calculates 5 seconds for each 5,000 wallets,
+  because two indexed queries do not get much slower as the list gets longer.
+  The estimate for a deep scan is now approximately twice the old number. The
+  old number did not include ENS.
+- **The two buttons have icons.** “Choose different file” has a swap icon.
+  “Start lookup” has a magnifying glass.
+- **A fast scan gave an empty row for a wallet that the index knows.** Step 1
+  applies a stored row only when its quality is high and fresh, or medium. A
+  high-quality row one day past its refresh window went to the live sources
+  instead, because the live answer must not lose to the old one. A fast scan has
+  no live pass, so those wallets came back empty. A fast scan now takes what is
+  stored. The other modes do not change.
+- **The cache step erased data that the index had found.** It merged the cached
+  row with a spread. Each field of a cached row is present, and an empty field
+  holds `undefined`, so the spread wrote `undefined` over a value from the
+  index. A wallet with a Farcaster name in the index and a Twitter-only cache
+  row lost its Farcaster name. The cache now supplies only the fields that it
+  has.
+- **Two contract imports in one visit recorded the first contract twice.** The
+  start-lookup callback did not list the contract in its dependencies. Each
+  setter that changes the contract also sets the input source, so the callback
+  usually refreshed. Two contract imports in sequence set the input source to
+  the same value, React stops an update that changes nothing, and the callback
+  kept the first contract. The admin Source column then gave the wrong name for
+  the second lookup.
+- **A fast scan wrote index rows back to the index.** The write resets the
+  “checked at” and “stale at” times. A fast scan makes no live request, so it
+  put a new time on data that no source had confirmed. A later deep scan then
+  trusted that time and did not call the sources. One fast scan stopped the next
+  correct scan for the full trust interval. A fast scan now writes nothing.
+- **The progress bar marked the ENS stage complete for a free account.** A job
+  that cannot use ENS goes directly to the next stage. The stage list still
+  included ENS, so the position moved one place too far, and a paid stage showed
+  as complete. The list now includes only the stages that the job runs.
+- **The progress bar showed the name of a data supplier.** The rule is to give
+  no supplier name in the interface. That stage is now “Profiles”. ENS and
+  Farcaster are protocols, not suppliers, so they keep their names. The stage
+  list also had the wrong order and did not include the index read that starts
+  each job. The list controls which dots are complete, so the order was
+  incorrect on the screen. A fast scan now shows only the two stages that it
+  runs.
+
+
 ### 2026-08-15 (job context in the admin panel, and two faults it exposed)
 
 - **The Jobs table showed a localStorage uuid in the User column.** A signed-in

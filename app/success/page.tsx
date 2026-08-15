@@ -173,7 +173,7 @@ function SuccessContent() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-accent-brand" />
-                    ENS onchain lookups
+                    Deep scan with onchain ENS
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-accent-brand" />

@@ -27,11 +27,13 @@ const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ de
 const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
-import { TIER_LIMITS, type UserTier } from '@/lib/access';
+import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle, ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
+import { Segmented } from '@/components/ui/segmented';
+import { SCAN_DEPTHS, scanDepthOptions, type ScanDepth } from '@/lib/scan-depth';
+import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle, ArrowsClockwise as RefreshCw, Lightning, Binoculars, Swap, MagnifyingGlass } from '@phosphor-icons/react';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
@@ -62,8 +64,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [cacheHits, setCacheHits] = useState(0);
   const [saveToHistory, setSaveToHistory] = useState(true);
-  const [includeENS, setIncludeENS] = useState(false);
-  const [fastMode, setFastMode] = useState(false);
+  /**
+   * Deep is the default, and it is the one the product is sold on: onchain ENS
+   * records are the only source where the wallet's owner published the handle
+   * themselves, so they are what makes a row attested rather than inferred.
+   * Fast is there for the person who wants an answer now and already knows most
+   * of their list is in the index.
+   */
+  const [scanDepth, setScanDepth] = useState<ScanDepth>('deep');
   const [lookupName, setLookupName] = useState('');
   const [notifyOnComplete, setNotifyOnComplete] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -232,11 +240,24 @@ export default function Home() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Estimate processing time: ~10 seconds per 1000 wallets (conservative)
-  // Actual: ~7s worst case, ~4.5s with typical cache hits
-  // Web3.bio + Neynar run in parallel, cache speeds things up significantly
-  const estimateTime = (walletCount: number): string => {
-    const seconds = Math.ceil((walletCount / 1000) * 10) + 5; // 10s per 1K + 5s overhead
+  /**
+   * Estimate processing time, per scan depth.
+   *
+   * Deep: ~10s per 1,000 across the live sources (measured ~7s worst case,
+   * ~4.5s with typical cache hits, since they run in parallel), plus ~8s per
+   * 1,000 for onchain ENS: reverse resolution runs 50 at a time, and only the
+   * wallets that resolve go on to read text records. 18s per 1,000 is the
+   * conservative sum, and it is deliberately conservative — an estimate that
+   * runs under is a pleasant surprise, one that runs over is a support ticket.
+   *
+   * Fast: two indexed queries against our own tables. Wall clock is the round
+   * trip rather than the row count, so the number barely moves with list size.
+   */
+  const estimateTime = (walletCount: number, depth: ScanDepth): string => {
+    const seconds =
+      depth === 'fast'
+        ? Math.ceil((walletCount / 5000) * 5) + 3
+        : Math.ceil((walletCount / 1000) * 18) + 5;
     if (seconds < 30) return 'less than 30 seconds';
     if (seconds < 60) return 'less than a minute';
     const minutes = Math.ceil(seconds / 60);
@@ -329,7 +350,7 @@ export default function Home() {
       setOriginalData(dataMap);
       setExtraColumns(cols);
       setInputSource('file_upload');
-    setSourceContract(null);
+      setSourceContract(null);
       setState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
@@ -373,8 +394,7 @@ export default function Home() {
           originalData,
           saveToHistory,
           historyName: lookupName || undefined,
-          includeENS,
-          fastMode,
+          ...scanDepthOptions(scanDepth),
           userId: getUserId(),
           email: userEmail || undefined,
           inputSource,
@@ -412,7 +432,12 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName, includeENS, fastMode, userTier, userEmail, inputSource]);
+    // `sourceContract` has to be here even though every setter that changes it
+    // also sets `inputSource`. Two contract imports in a row set inputSource to
+    // the same value twice, React bails out of that update, and without this
+    // dependency the callback keeps the first contract: the second import would
+    // be filed in the admin panel under the first one's name.
+  }, [wallets, originalData, saveToHistory, lookupName, scanDepth, userTier, userEmail, inputSource, sourceContract]);
 
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
@@ -710,8 +735,7 @@ export default function Home() {
     setCacheHits(0);
     setLookupName('');
     setReverseMeta(null);
-    setIncludeENS(false);
-    setFastMode(false);
+    setScanDepth('deep');
     setShowPasteInput(false);
     setPasteText('');
     setCurrentLookupId(null);
@@ -860,8 +884,7 @@ export default function Home() {
           wallets: newAddresses,
           originalData: {},
           saveToHistory: false, // Don't save - we'll merge
-          includeENS,
-          fastMode,
+          ...scanDepthOptions(scanDepth),
           userId: getUserId(),
           email: userEmail || undefined,
         }),
@@ -900,7 +923,7 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [includeENS, fastMode, userEmail]);
+  }, [scanDepth, userEmail]);
 
   // Handle creating new lookup from modal
   const handleCreateNewFromModal = useCallback((addresses: string[]) => {
@@ -1148,14 +1171,20 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Two questions, asked in words rather than in pipeline terms.
+                  This was four checkboxes in one wrapping row, two of which
+                  ("ENS onchain lookup", "Fast mode") named implementation
+                  details and pulled in opposite directions. What a person
+                  actually decides here is how long to wait and whether to keep
+                  the result, so those are the two things the panel asks. */}
               <div className="p-4 bg-muted rounded-lg space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="font-medium">
                       {wallets.length.toLocaleString()} wallet addresses loaded
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Estimated processing time: {estimateTime(wallets.length)}
+                      Estimated processing time: {estimateTime(wallets.length, scanDepth)}
                     </p>
                     {extraColumns.length > 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -1163,63 +1192,99 @@ export default function Home() {
                       </p>
                     )}
                   </div>
-                  <Button variant="outline" onClick={handleReset}>
+                  <Button variant="outline" onClick={handleReset} className="shrink-0">
+                    <Swap className="h-4 w-4" aria-hidden />
                     Choose different file
                   </Button>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="saveHistory"
-                      checked={saveToHistory}
-                      onChange={(e) => setSaveToHistory(e.target.checked)}
-                      className="rounded-sm"
-                    />
-                    <label htmlFor="saveHistory" className="text-sm">
-                      Save to history
-                    </label>
+                <div className="space-y-4 border-t pt-4">
+                  {/* How long against how thorough */}
+                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
+                    <Eyebrow className="sm:pt-2.5">
+                      Scan depth
+                    </Eyebrow>
+                    <div className="space-y-1.5">
+                      <Segmented<ScanDepth>
+                        ariaLabel="Scan depth"
+                        value={scanDepth}
+                        onChange={setScanDepth}
+                        className="w-full max-w-[17rem]"
+                        options={[
+                          {
+                            value: 'fast',
+                            label: SCAN_DEPTHS.fast.label,
+                            content: (
+                              <>
+                                <Lightning className="h-4 w-4" aria-hidden />
+                                {SCAN_DEPTHS.fast.label}
+                              </>
+                            ),
+                          },
+                          {
+                            value: 'deep',
+                            label: SCAN_DEPTHS.deep.label,
+                            content: (
+                              <>
+                                <Binoculars className="h-4 w-4" aria-hidden />
+                                {SCAN_DEPTHS.deep.label}
+                              </>
+                            ),
+                          },
+                        ]}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {SCAN_DEPTHS[scanDepth].blurb}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="includeENS"
-                      checked={includeENS}
-                      onChange={(e) => setIncludeENS(e.target.checked)}
-                      className="rounded-sm"
-                    />
-                    <label
-                      htmlFor="includeENS"
-                      className="text-sm"
-                      title="Query ENS text records onchain for Twitter handles (slower but most accurate)"
-                    >
-                      ENS onchain lookup
-                    </label>
+
+                  {/* Keep it, and under what name */}
+                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
+                    <Eyebrow className="sm:pt-2.5">
+                      History
+                    </Eyebrow>
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="saveHistory"
+                          className="flex h-control items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            id="saveHistory"
+                            checked={saveToHistory}
+                            onChange={(e) => setSaveToHistory(e.target.checked)}
+                            className="rounded-sm"
+                          />
+                          Save this lookup
+                        </label>
+                        {saveToHistory && (
+                          <Input
+                            placeholder="Name it (optional)"
+                            value={lookupName}
+                            onChange={(e) => setLookupName(e.target.value)}
+                            className="w-full max-w-xs"
+                            aria-label="Lookup name"
+                          />
+                        )}
+                      </div>
+                      {!saveToHistory && (
+                        <p className="text-xs text-muted-foreground">
+                          Results are not kept. Export them before you leave this page.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {includeENS && wallets.length > 1000 && (
-                    <span className="text-xs text-caution">
-                      Note: ENS lookups are slower for large batches
-                    </span>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="fastMode"
-                      checked={fastMode}
-                      onChange={(e) => setFastMode(e.target.checked)}
-                      className="rounded-sm"
-                    />
-                    <label
-                      htmlFor="fastMode"
-                      className="text-sm"
-                      title="Skip slower lookups for near-instant results. Gets Farcaster + verified Twitter only."
-                    >
-                      Fast mode
-                    </label>
-                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 border-t pt-4">
                   {canNotify() && (
-                    <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="notifyOnComplete"
+                      className="flex items-center gap-2 text-sm text-muted-foreground"
+                      title="Get a browser notification when lookup finishes"
+                    >
                       <input
                         type="checkbox"
                         id="notifyOnComplete"
@@ -1236,25 +1301,14 @@ export default function Home() {
                         }}
                         className="rounded-sm"
                       />
-                      <label
-                        htmlFor="notifyOnComplete"
-                        className="text-sm"
-                        title="Get a browser notification when lookup finishes"
-                      >
-                        Notify when done
-                      </label>
-                    </div>
-                  )}
-                  {saveToHistory && (
-                    <Input
-                      placeholder="Lookup name (optional)"
-                      value={lookupName}
-                      onChange={(e) => setLookupName(e.target.value)}
-                      className="max-w-xs"
-                    />
+                      Notify when done
+                    </label>
                   )}
                   <div className="flex-1" />
-                  <Button onClick={startLookup}>Start lookup</Button>
+                  <Button onClick={startLookup}>
+                    <MagnifyingGlass className="h-4 w-4" aria-hidden />
+                    Start lookup
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1262,7 +1316,7 @@ export default function Home() {
 
           {/* Processing State */}
           {state === 'processing' && (
-            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} />
+            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} scanDepth={scanDepth} includesEns={tierCanUseENS(userTier, isWhitelisted)} />
           )}
 
           {/* Error State */}

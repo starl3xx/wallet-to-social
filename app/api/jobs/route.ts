@@ -170,6 +170,10 @@ export async function POST(request: NextRequest) {
         walletCount: wallets.length,
         tier: access.tier,
         includeENS: includeENS && access.canUseENS,
+        // The choice the user made, kept alongside the flags it resolved to.
+        // `includeENS` alone cannot tell a fast scan from a free account's deep
+        // scan: both arrive as false, and they mean opposite things.
+        scanDepth: fastMode ? 'fast' : 'deep',
         saveToHistory,
       },
     });

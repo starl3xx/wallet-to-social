@@ -196,65 +196,31 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           graphNegativeHits++;
         } else if (graphResult.quality === 'high' && graphResult.data && !graphResult.needsRefresh) {
           // Trust high-quality data completely - skip all API calls for this wallet
-          const storedData = socialGraphToResult(graphResult.data);
-          results.set(wallet, {
-            ...existing,
-            ens_name: storedData.ens_name || existing.ens_name,
-            twitter_handle: storedData.twitter_handle || existing.twitter_handle,
-            twitter_url: storedData.twitter_url || existing.twitter_url,
-            farcaster: storedData.farcaster || existing.farcaster,
-            farcaster_url: storedData.farcaster_url || existing.farcaster_url,
-            fc_followers: storedData.fc_followers || existing.fc_followers,
-            fc_fid: storedData.fc_fid || existing.fc_fid,
-            lens: storedData.lens || existing.lens,
-            github: storedData.github || existing.github,
-            // Attestation rides with the identity it describes. `??` not
-            // `||`: false is a real answer here, meaning the graph was
-            // consulted and said not attested, and `||` would discard it.
-            twitter_verified: storedData.twitter_verified ?? existing.twitter_verified,
-            farcaster_verified: storedData.farcaster_verified ?? existing.farcaster_verified,
-            source: [...existing.source, 'graph'],
-            // Merge agent fields from social graph (don't overwrite known_list data)
-            is_agent: existing.is_agent || storedData.is_agent,
-            agent_name: existing.agent_name || storedData.agent_name,
-            agent_framework: existing.agent_framework || storedData.agent_framework,
-            agent_type: existing.agent_type || storedData.agent_type,
-            agent_token_symbol: existing.agent_token_symbol || storedData.agent_token_symbol,
-            agent_verified: existing.agent_verified || storedData.agent_verified,
-          });
+          results.set(wallet, mergeGraphRow(existing, graphResult.data));
           graphHits++;
         } else if (graphResult.quality === 'medium' && graphResult.data) {
           // Medium quality: use as base but still consider API refresh
-          const storedData = socialGraphToResult(graphResult.data);
-          results.set(wallet, {
-            ...existing,
-            ens_name: storedData.ens_name || existing.ens_name,
-            twitter_handle: storedData.twitter_handle || existing.twitter_handle,
-            twitter_url: storedData.twitter_url || existing.twitter_url,
-            farcaster: storedData.farcaster || existing.farcaster,
-            farcaster_url: storedData.farcaster_url || existing.farcaster_url,
-            fc_followers: storedData.fc_followers || existing.fc_followers,
-            fc_fid: storedData.fc_fid || existing.fc_fid,
-            lens: storedData.lens || existing.lens,
-            github: storedData.github || existing.github,
-            // Attestation rides with the identity it describes. `??` not
-            // `||`: false is a real answer here, meaning the graph was
-            // consulted and said not attested, and `||` would discard it.
-            twitter_verified: storedData.twitter_verified ?? existing.twitter_verified,
-            farcaster_verified: storedData.farcaster_verified ?? existing.farcaster_verified,
-            source: [...existing.source, 'graph'],
-            // Merge agent fields from social graph
-            is_agent: existing.is_agent || storedData.is_agent,
-            agent_name: existing.agent_name || storedData.agent_name,
-            agent_framework: existing.agent_framework || storedData.agent_framework,
-            agent_type: existing.agent_type || storedData.agent_type,
-            agent_token_symbol: existing.agent_token_symbol || storedData.agent_token_symbol,
-            agent_verified: existing.agent_verified || storedData.agent_verified,
-          });
+          results.set(wallet, mergeGraphRow(existing, graphResult.data));
           // Medium quality still needs lookup to potentially refresh data
           walletsNeedingLookup.push(wallet);
         } else {
-          // Low, stale, or missing - needs full lookup
+          // Low, stale, or missing - needs full lookup.
+          //
+          // The stored row is deliberately not applied on the normal path even
+          // when one exists. Every field merges as `stored || existing`, so
+          // seeding a stale value here would make the fresh answer lose to the
+          // old one when the live pass returns.
+          //
+          // A fast scan has no live pass, and the same silence would hand back
+          // an empty row for a wallet the index can answer for: a high-quality
+          // record one day past its refresh window, or a low-confidence one.
+          // "Answers from our index only" has to include those, so a fast scan
+          // takes what is stored. The counters are left alone on purpose. They
+          // measure how often the graph spared us a refresh, and this row still
+          // wanted one.
+          if (options.fastMode && graphResult.data) {
+            results.set(wallet, mergeGraphRow(existing, graphResult.data));
+          }
           walletsNeedingLookup.push(wallet);
         }
       }
@@ -314,11 +280,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             source: [...existing.source, 'cache'],
           });
         } else {
-          results.set(wallet, {
-            ...existing,
-            ...data,
-            source: [...existing.source, 'cache'],
-          });
+          results.set(wallet, mergeCacheRow(existing, data));
         }
       }
 
@@ -334,13 +296,25 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // STEP 3: Call external APIs for remaining uncached wallets
     // ENS and Neynar run in parallel since they're independent. Web3Bio runs
     // after both, filtered to only wallets still missing Twitter.
+    //
+    // Fast mode stops before this step. It answers from the social graph and
+    // the cache and nothing else: no live source is called, nothing is written
+    // back, and no negative is persisted. That is what the interface now
+    // promises ("answers from our index only"), and it is why a fast scan
+    // costs the same whether the list holds 200 wallets or 200,000.
+    //
+    // It used to skip Web3Bio alone and still call Neynar, which made "fast"
+    // an ambiguous middle: slower than an index read, cheaper than a real scan,
+    // and impossible to describe to a user in one line. The sweep has since
+    // taken Farcaster coverage to complete, so what that call added is, for the
+    // most part, already in the graph the step above already read.
     // =========================================================================
     // Wallets whose external check failed (not "not found") — those must never
     // be persisted as negatives, or an API outage would poison the graph with
     // false "no socials" answers for the whole recheck window.
     const apiFailedWallets = new Set<string>();
 
-    if (uncachedWallets.length > 0) {
+    if (uncachedWallets.length > 0 && !options.fastMode) {
       const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
       const canUseENS = options.includeENS && options.canUseENS !== false;
 
@@ -413,13 +387,10 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Filter wallets that still need Twitter lookup after ENS + Neynar
-      // Fast mode skips Web3Bio entirely — returns Neynar-only results near-instantly
-      const walletsNeedingWeb3Bio = options.fastMode
-        ? []
-        : uncachedWallets.filter((wallet) => {
-            const existing = results.get(wallet.toLowerCase());
-            return !existing?.twitter_handle;
-          });
+      const walletsNeedingWeb3Bio = uncachedWallets.filter((wallet) => {
+        const existing = results.get(wallet.toLowerCase());
+        return !existing?.twitter_handle;
+      });
 
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
@@ -447,36 +418,32 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Cache looked-up wallets, including negative results ("not found").
-      // Skip entirely in fast mode — Web3Bio was skipped, so both partial results
-      // (e.g. Farcaster-only) and empty results would poison normal-mode lookups.
-      if (!options.fastMode) {
-        try {
-          const walletsToCache = uncachedWallets
-            .map((w) => {
-              const r = results.get(w.toLowerCase())!;
-              if (r.source.includes('cache')) return null;
-              const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
-              if (!hasSocial && r.source.length === 0) {
-                return { ...r, source: ['none'] as string[] };
-              }
-              return r.source.length > 0 ? r : null;
-            })
-            .filter((r): r is WalletSocialResult => r !== null);
+      try {
+        const walletsToCache = uncachedWallets
+          .map((w) => {
+            const r = results.get(w.toLowerCase())!;
+            if (r.source.includes('cache')) return null;
+            const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+            if (!hasSocial && r.source.length === 0) {
+              return { ...r, source: ['none'] as string[] };
+            }
+            return r.source.length > 0 ? r : null;
+          })
+          .filter((r): r is WalletSocialResult => r !== null);
 
-          if (walletsToCache.length > 0) {
-            await cacheWalletResults(walletsToCache);
-          }
-        } catch (error) {
-          console.error('Cache write error:', error);
+        if (walletsToCache.length > 0) {
+          await cacheWalletResults(walletsToCache);
         }
+      } catch (error) {
+        console.error('Cache write error:', error);
       }
 
       // Persist negatives to the social graph so future lookups skip the APIs
       // entirely (the wallet_cache negative above only lives 7 days). Only
-      // wallets that completed the full pipeline count: fast mode skips
-      // Web3Bio, canUseNeynar=false means Farcaster was never checked, and
-      // apiFailedWallets covers per-batch/per-wallet API failures.
-      if (!options.fastMode && canUseNeynar) {
+      // wallets that completed the full pipeline count: canUseNeynar=false
+      // means Farcaster was never checked, and apiFailedWallets covers
+      // per-batch/per-wallet API failures. A fast scan never reaches here.
+      if (canUseNeynar) {
         const negativeWallets = uncachedWallets.filter((w) => {
           const wl = w.toLowerCase();
           if (apiFailedWallets.has(wl)) return false;
@@ -588,6 +555,90 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   }
 }
 
+/**
+ * Merge a stored `social_graph` row onto an in-flight result.
+ *
+ * This literal existed twice, character for character, and now three times over
+ * with the fast-scan path. It decides provenance for every row the graph
+ * serves, so two copies of it is two chances to diverge on which side wins.
+ *
+ * The field policy is not uniform, and each rule is deliberate:
+ *
+ * - Identity fields take the stored value first. The graph is the better
+ *   source; `existing` at this point holds little more than the wallet.
+ * - Attestation merges with `??`, not `||`. A `twitter_verified: false` is the
+ *   graph saying "consulted, not attested", which is a real answer that `||`
+ *   would throw away.
+ * - Agent fields keep `existing` first. `detectKnownAgents` has already run
+ *   against the curated list, and that list outranks the graph.
+ */
+function mergeGraphRow(
+  existing: WalletSocialResult,
+  row: NonNullable<SocialGraphQualityResult['data']>
+): WalletSocialResult {
+  const stored = socialGraphToResult(row);
+  return {
+    ...existing,
+    ens_name: stored.ens_name || existing.ens_name,
+    twitter_handle: stored.twitter_handle || existing.twitter_handle,
+    twitter_url: stored.twitter_url || existing.twitter_url,
+    farcaster: stored.farcaster || existing.farcaster,
+    farcaster_url: stored.farcaster_url || existing.farcaster_url,
+    fc_followers: stored.fc_followers || existing.fc_followers,
+    fc_fid: stored.fc_fid || existing.fc_fid,
+    lens: stored.lens || existing.lens,
+    github: stored.github || existing.github,
+    twitter_verified: stored.twitter_verified ?? existing.twitter_verified,
+    farcaster_verified: stored.farcaster_verified ?? existing.farcaster_verified,
+    source: [...existing.source, 'graph'],
+    is_agent: existing.is_agent || stored.is_agent,
+    agent_name: existing.agent_name || stored.agent_name,
+    agent_framework: existing.agent_framework || stored.agent_framework,
+    agent_type: existing.agent_type || stored.agent_type,
+    agent_token_symbol: existing.agent_token_symbol || stored.agent_token_symbol,
+    agent_verified: existing.agent_verified || stored.agent_verified,
+  };
+}
+
+/**
+ * Merge a `wallet_cache` row onto an in-flight result.
+ *
+ * This was `{ ...existing, ...data }`, which is not the same thing and loses
+ * data. `getCachedWallets` builds every field explicitly, so an empty one
+ * arrives as a present key holding `undefined` rather than as an absent key,
+ * and a spread writes that `undefined` over whatever the graph step already
+ * found. A wallet whose graph row held a Farcaster name and whose cache row
+ * held only a Twitter handle came out of this step with no Farcaster name.
+ *
+ * The cache is fresher than a graph row that reached this step, so it wins
+ * where it has an answer, and only where it has one. Agent fields keep the same
+ * exception as above: the curated list outranks both.
+ */
+function mergeCacheRow(
+  existing: WalletSocialResult,
+  data: WalletSocialResult
+): WalletSocialResult {
+  return {
+    ...existing,
+    ens_name: data.ens_name ?? existing.ens_name,
+    twitter_handle: data.twitter_handle ?? existing.twitter_handle,
+    twitter_url: data.twitter_url ?? existing.twitter_url,
+    farcaster: data.farcaster ?? existing.farcaster,
+    farcaster_url: data.farcaster_url ?? existing.farcaster_url,
+    fc_followers: data.fc_followers ?? existing.fc_followers,
+    fc_fid: data.fc_fid ?? existing.fc_fid,
+    lens: data.lens ?? existing.lens,
+    github: data.github ?? existing.github,
+    source: [...existing.source, 'cache'],
+    is_agent: existing.is_agent || data.is_agent,
+    agent_name: existing.agent_name || data.agent_name,
+    agent_framework: existing.agent_framework || data.agent_framework,
+    agent_type: existing.agent_type || data.agent_type,
+    agent_token_symbol: existing.agent_token_symbol || data.agent_token_symbol,
+    agent_verified: existing.agent_verified || data.agent_verified,
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function updateJobStage(db: any, jobId: string, stage: string) {
   await db
@@ -640,14 +691,27 @@ async function finalizeJobWithResults(
   let socialGraphWriteStatus: 'success' | 'partial' | 'failed' | null = null;
   let socialGraphWriteErrors: string[] = [];
 
-  const positiveResults = results.filter(
-    (r) =>
-      r.twitter_handle ||
-      r.farcaster ||
-      r.lens ||
-      r.github ||
-      r.ens_name
-  );
+  /**
+   * A fast scan writes nothing back, and this is the reason it must not.
+   *
+   * Every row it produced came out of the graph or the cache. Nothing was
+   * confirmed against a live source. `upsertSocialGraphWithRetry` resets
+   * `staleAt` and `lastCheckedAt`, so writing those rows would stamp unverified
+   * data as freshly checked, and a later deep scan would trust the stamp and
+   * skip the very sources meant to confirm it. One fast scan would suppress the
+   * next real one for the whole trust window, and the rows it protects are
+   * exactly the stale ones a fast scan now serves.
+   */
+  const positiveResults = options.fastMode
+    ? []
+    : results.filter(
+        (r) =>
+          r.twitter_handle ||
+          r.farcaster ||
+          r.lens ||
+          r.github ||
+          r.ens_name
+      );
 
   if (positiveResults.length > 0) {
     const writeResult = await upsertSocialGraphWithRetry(positiveResults);

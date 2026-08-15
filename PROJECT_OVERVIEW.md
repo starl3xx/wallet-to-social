@@ -106,9 +106,11 @@ Job processor runs (lib/job-processor.ts):
     1. Check social_graph FIRST — high-quality fresh rows and persisted
        negatives ("checked, no socials", trusted for 30 days) skip all APIs
     2. Check wallet_cache (7-day TTL, includes short-term negatives)
+       ↳ a fast scan (scanDepth 'fast') stops here: index only, no live
+         source, no cache write, no negative persisted
     3. Run Neynar batch API (fast - 200 wallets/request)
     4. Run Web3Bio for wallets without Twitter (slow - 1 request/wallet)
-    5. Optional: ENS onchain lookups
+    5. ENS onchain lookups (deep scan, paid tiers only)
     6. Cache results; persist positives AND negatives to social_graph
        (negatives only when the full pipeline ran and no API call failed)
     ↓
