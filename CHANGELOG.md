@@ -3,6 +3,28 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (the dialog footer holds, and selected text has one colour)
+
+- **`ModalFooter` holds its position now.** No dialog used it, and that was the
+  sign. It was inside the part that moves, so it held nothing. **A part that
+  nobody uses usually does not do the thing that its name says.**
+- **It is a property of `ModalContent`, not a child.** A child cannot go out of
+  the box that it is in. The property puts the row below the body, with a line
+  above it, so that you see it is separate from the text that moved up behind
+  it.
+- **The contract import preview uses it.** That step is tall: a chain selector,
+  a count of holders, a warning about a limit and an example of the addresses.
+  Its 2 buttons are the reason for the step, so they stay below the movement.
+  The 2 other steps are short and use no footer, because a footer takes space
+  from the screens that have the least.
+- **Selected text is one colour on each surface.** Before, it was the colour of
+  the operating system everywhere, but the brand colour inside an input. So the
+  product had 2 colours for one thing, and the one that did not agree was the
+  only one that a person chose.
+- The rule uses the light brand colour, not the full brand colour. A selection
+  covers a full paragraph, and a strong violet behind the words fights the words
+  that it must show.
+
 ### 2026-08-15 (a keyboard can reach the cards, and the trend lines are back)
 
 - **The 6 cards on the admin Pulse page work with a keyboard now.** Each card

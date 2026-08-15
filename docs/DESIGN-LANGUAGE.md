@@ -77,6 +77,22 @@ dropped one looks like a design.** The `colour-function-wrapper` rule rejects
 it. Pass `var(--token)`, which works anywhere a colour is accepted, including an
 SVG paint attribute.
 
+### Selected text
+
+One rule, in `globals.css`, on bare `::selection`. Selected text was the
+operating system's blue on every surface except inside an input, which carried
+its own `selection:` classes and so was the single place in the product that
+highlighted in the brand hue. Two treatments, and the inconsistent one was the
+only deliberate one.
+
+It is global for the same reason the checkbox accent is: selection applies to
+every surface and no primitive owns "text", so a per-component rule guarantees
+the next component gets it wrong.
+
+**The tint, not the solid accent.** Selection covers whole paragraphs at a time,
+and a saturated violet behind running text fights the text it is meant to be
+marking. `--foreground` stays on top, so contrast holds in both themes.
+
 ---
 
 ## Type
@@ -281,10 +297,22 @@ its feature list scrolls and its button is pinned to its bottom edge, so both
 choices stay visible. Below `md` the cards stack and the body scrolls normally,
 because a bounded column of stacked cards on a phone is worse than a scroll.
 
-**`ModalFooter` is used by none of the six dialogs.** Like the `link` button
-variant, a slot that nobody reaches for is usually a slot that does not do the
-thing its name promises: it sits *inside* the scrolling body, so it never
-pinned anything.
+**`ModalFooter` was used by none of the six dialogs**, which was the tell. Like
+the `link` button variant, a slot nobody reaches for is usually a slot that does
+not do what its name promises: it sat *inside* the scrolling body, so it pinned
+nothing.
+
+It is now passed as `ModalContent`'s `footer` prop rather than as a child,
+because **a child cannot escape the scroller it is inside.** The prop renders it
+below the body, `flex-none`, with a top hairline so the row reads as separate
+from content that has scrolled up behind it.
+
+Most dialogs should still pass nothing. A body that scrolls as one block is the
+better default, and a footer costs vertical space on the screens that have least
+of it. Pass one when the step is tall *and* its actions are the reason it
+exists: the contract import preview carries a chain picker, a holder count, a
+truncation warning and a sample of addresses above two buttons, so the buttons
+are held below. Its other two steps are short and pass nothing.
 
 ---
 

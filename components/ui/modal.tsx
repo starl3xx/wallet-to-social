@@ -30,8 +30,24 @@ ModalOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /**
+     * An action row held below the scrolling body, so it stays reachable however
+     * tall the content gets. Put a `ModalFooter` in it.
+     *
+     * It is a prop rather than a child because a child cannot escape the
+     * scroller it is inside, and that is exactly the bug this replaces:
+     * `ModalFooter` existed, sat inside the body, and therefore pinned nothing.
+     * All six dialogs declined to use it, which is the tell. A slot nobody
+     * reaches for is usually a slot that does not do what its name promises.
+     *
+     * Optional, and most dialogs are right not to pass it: a body that scrolls
+     * as one block is the better default, and a footer costs vertical space on
+     * the screens that have least of it.
+     */
+    footer?: React.ReactNode;
+  }
+>(({ className, children, footer, ...props }, ref) => (
   <ModalPortal>
     <ModalOverlay />
     <DialogPrimitive.Content
@@ -71,6 +87,12 @@ const ModalContent = React.forwardRef<
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
         {children}
       </div>
+      {/* `flex-none` so it keeps its height while the body above gives way, and
+          a top hairline so the row reads as separate from content that has
+          scrolled up behind it rather than as the next thing in the list. */}
+      {footer && (
+        <div className="flex-none border-t border-border px-6 py-4">{footer}</div>
+      )}
       <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-sm bg-background p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
@@ -100,7 +122,10 @@ const ModalFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
+      // `gap`, not `space-x`. `space-x` is margin on every child but the first,
+      // so it stacks with any gap the caller adds and disappears entirely when
+      // the row reverses. One mechanism owns the spacing.
+      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
       className
     )}
     {...props}
