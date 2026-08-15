@@ -27,6 +27,10 @@ export async function GET(request: NextRequest) {
         email: users.email,
         tier: users.tier,
         stripeCustomerId: users.stripeCustomerId,
+        // Returned so the admin table has something to show when no Customer
+        // exists. Historic sales have no `stripe_customer_id` at all, and the
+        // payment intent is the id that actually identifies the sale in Stripe.
+        stripePaymentId: users.stripePaymentId,
         paidAt: users.paidAt,
         createdAt: users.createdAt,
       })

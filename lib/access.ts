@@ -201,13 +201,18 @@ export async function upgradeUser(
   if (!db) throw new Error('Database not configured');
 
   const normalizedEmail = email.toLowerCase();
+  // '' is not an id. Callers derive this from `session.customer`, which is null
+  // for any checkout that did not create a Customer, and an empty string stored
+  // in an id column reads as "we have one and it is blank" rather than "there
+  // isn't one".
+  const customerId = stripeCustomerId || null;
 
   await db
     .insert(users)
     .values({
       email: normalizedEmail,
       tier,
-      stripeCustomerId,
+      stripeCustomerId: customerId,
       stripePaymentId,
       paidAt: new Date(),
       walletsUsed: 0,
@@ -216,7 +221,7 @@ export async function upgradeUser(
       target: users.email,
       set: {
         tier,
-        stripeCustomerId,
+        stripeCustomerId: customerId,
         stripePaymentId,
         paidAt: new Date(),
         // walletsUsed is deliberately left alone. It used to be reset for
@@ -270,6 +275,8 @@ export async function provisionPaidCheckout(
 
   const normalizedEmail = email.toLowerCase();
   const paidAt = new Date();
+  // Same reasoning as upgradeUser: an empty string is not an id.
+  const customerId = stripeCustomerId || null;
 
   // Both guards live inside the upsert rather than in a preceding SELECT, and
   // that is the whole point. Read-then-write is not safe here: the webhook and
@@ -292,7 +299,7 @@ export async function provisionPaidCheckout(
     .values({
       email: normalizedEmail,
       tier,
-      stripeCustomerId,
+      stripeCustomerId: customerId,
       stripePaymentId,
       paidAt,
       walletsUsed: 0,
@@ -301,7 +308,7 @@ export async function provisionPaidCheckout(
       target: users.email,
       set: {
         tier,
-        stripeCustomerId,
+        stripeCustomerId: customerId,
         stripePaymentId,
         paidAt,
         // Matches upgradeUser: walletsUsed is a lifetime record, never reset.
@@ -355,7 +362,7 @@ export async function provisionPaidCheckout(
       tier,
       amountCents: TIER_PRICES[tier] * 100,
       stripeSessionId: context.sessionId,
-      stripeCustomerId,
+      stripeCustomerId: customerId,
       via: context.via,
     },
   });

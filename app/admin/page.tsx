@@ -69,6 +69,7 @@ interface UserEntry {
   email: string;
   tier: string;
   stripeCustomerId: string | null;
+  stripePaymentId: string | null;
   paidAt: string | null;
   createdAt: string;
 }
@@ -1074,10 +1075,18 @@ export default function AdminPage() {
                     <TableCell>
                       <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
+                    {/* Customer id when one exists, otherwise the payment
+                        intent. Every sale taken before `customer_creation:
+                        'always'` has no Customer at all, so showing only the
+                        customer id rendered a dash next to genuine paying
+                        accounts. The payment intent identifies the sale in
+                        Stripe just as well. */}
+                    <TableCell className="font-mono text-xs" title={user.stripeCustomerId || user.stripePaymentId || undefined}>
                       {user.stripeCustomerId
-                        ? `${user.stripeCustomerId.slice(0, 12)}...`
-                        : '-'}
+                        ? `${user.stripeCustomerId.slice(0, 14)}…`
+                        : user.stripePaymentId
+                          ? `${user.stripePaymentId.slice(0, 14)}…`
+                          : '—'}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {user.paidAt ? new Date(user.paidAt).toLocaleString() : '-'}
