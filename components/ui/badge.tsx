@@ -43,13 +43,17 @@ export function Badge({
     <span
       title={title}
       className={cn(
-        'inline-flex max-w-[12ch] items-center truncate whitespace-nowrap rounded-sm px-1.5 py-0.5',
+        'inline-flex max-w-[12ch] items-center overflow-hidden rounded-sm px-1.5 py-0.5',
         'font-mono text-xs uppercase tracking-[0.14em]',
         TONES[tone],
         className
       )}
     >
-      {children}
+      {/* truncate goes on the inner span, not the container. On an inline-flex
+          box the text sits in anonymous flex items, so text-overflow has nothing
+          to apply to and the string clips with no ellipsis: cut off, with no sign
+          it was cut off. */}
+      <span className="truncate">{children}</span>
     </span>
   );
 }

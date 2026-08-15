@@ -68,6 +68,19 @@ for (const rule of RULES) {
   for (const s of f.bad) if (!rule.re.test(s)) { console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`); failed++; }
   for (const s of f.good) if (rule.re.test(s)) { console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`); failed++; }
 }
+// The comment strip must not eat a class that follows a URL on the same line.
+{
+  const line = 'href="https://x.com/foo" className="rounded-md"';
+  const stripped = line
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/(^|[^:])\/\/.*$/, '$1');
+  if (!RULES[0].re.test(stripped)) {
+    console.error('FIXTURE FAIL  comment strip ate a class after a URL');
+    failed++;
+  }
+}
+
 for (const s of ['uppercase tracking-wider', 'text-xs uppercase'])
   if (!uppercaseWithoutMono(s)) { console.error(`FIXTURE FAIL  uppercase missed: ${s}`); failed++; }
 for (const s of ['font-mono text-xs uppercase tracking-[0.14em]', 'text-sm font-medium'])
@@ -92,7 +105,14 @@ for (const file of [...walk('app'), ...walk('components')]) {
   readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
     // Comments explain the rules and quote the very classes they ban. Three
     // separate checks in this project have been fooled by their own prose.
-    const code = line.replace(/\/\*.*?\*\//g, '').replace(/\/\/.*$/, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+    // `[^:]` before `//` is load-bearing: without it the `//` in `https://`
+    // reads as a comment start and everything after it on the line is dropped,
+    // so a banned class beside a URL is invisible. That is the precise failure
+    // this script exists to prevent, and it shipped in the first draft of it.
+    const code = line
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/(^|[^:])\/\/.*$/, '$1');
     if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
     for (const rule of RULES) if (rule.re.test(code)) hits.push({ file, line: i + 1, rule: rule.name, msg: rule.msg, code: code.trim().slice(0, 90) });
     if (uppercaseWithoutMono(code)) hits.push({ file, line: i + 1, rule: 'uppercase', msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.', code: code.trim().slice(0, 90) });
