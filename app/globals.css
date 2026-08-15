@@ -358,6 +358,12 @@
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /* The delay has to go too. RecentWins tiles start at opacity:0 with a
+       staggered animation-delay, so shortening only the duration left them
+       invisible for the full delay and then snapping in: still a wait, and still
+       motion, for someone who asked for neither. */
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 
