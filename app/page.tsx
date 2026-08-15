@@ -961,15 +961,15 @@ export default function Home() {
           {/* One line, not three sentences that then repeat themselves in the
               strip below. The old copy stated 4.7M and complete Farcaster
               coverage in the paragraph and again in the stats line. */}
-          <p className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
+          <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
             Turn a wallet list into the{' '}
-            <XMark className="inline h-3 w-3 align-[-0.1em]" /> and Farcaster
+            <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
             accounts behind it.{' '}
             <a href="/vs/addressable" className="transition-control underline hover:text-accent-brand">
               Simple alternative to Addressable
             </a>
             .
-          </p>
+          </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span>
               <span className="font-medium tabular-nums text-foreground">
@@ -1032,7 +1032,7 @@ export default function Home() {
           results={results}
         />
 
-        <main className="space-y-6">
+        <div className="space-y-6">
           {/* Upload State */}
           {state === 'upload' && (
             <div className="space-y-6">
@@ -1397,7 +1397,7 @@ export default function Home() {
               />
             </div>
           )}
-        </main>
+        </div>
     </PageShell>
   );
 }
