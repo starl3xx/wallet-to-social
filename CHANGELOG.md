@@ -3,6 +3,22 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (recent wins, on one line)
+
+- **The homepage strip is named "Recent wins" now.** It says "Recent activity",
+  but it shows only the lookups with a hit rate above 8%. This filter is
+  correct, because the strip is proof for a buyer. But the name made a promise
+  of a full record. Of the last 25 lookups, 13 were below the line, so a day
+  with 12 lookups looked like a day with none. The filter stays. The word
+  changes.
+- **The strip keeps to one line at each width.** It asked for 6 cards and used
+  `auto-fill`, which makes as many columns as the space permits. At the full
+  width that is 5, so card 6 went to a second line alone. The count and the
+  columns are together in the code now: 1 card, then 2, then 3, then 5.
+- The steps come from a measurement of the card, not from an estimate. Below
+  about 177px the text in the card goes to a second line, so 2 cards start only
+  at 640px, where each one gets 290px.
+
 ### 2026-08-15 (the admin navigation shows all of itself)
 
 - **The 12 destinations in the admin panel now go on more than one line.** They
