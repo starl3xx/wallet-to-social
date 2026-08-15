@@ -561,14 +561,30 @@ export default function Home() {
                 });
                 const mergedResults = Array.from(resultMap.values());
 
-                // Update the lookup in the database
-                await fetch(`/api/history/${pendingMergeLookupId}`, {
+                // Update the lookup in the database.
+                //
+                // The response is checked rather than fired and forgotten. A
+                // rejected save used to leave the merged list on screen looking
+                // saved, and it survived until the next reload took it away
+                // with no explanation. Showing the new addresses without the
+                // old ones is the honest failure: it matches what is stored.
+                const saved = await fetch(`/api/history/${pendingMergeLookupId}`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ results: mergedResults }),
                 });
 
-                setResults(mergedResults);
+                if (saved.ok) {
+                  setResults(mergedResults);
+                } else {
+                  const reason = await saved.json().catch(() => null);
+                  console.error('Merge save rejected:', reason);
+                  setError(
+                    reason?.error ||
+                      'These addresses were resolved, but could not be added to the saved lookup.'
+                  );
+                  setResults(data.results || []);
+                }
               } else {
                 // Fallback to just showing new results
                 setResults(data.results || []);
@@ -1383,7 +1399,7 @@ export default function Home() {
                         <h2 className="text-xl font-semibold tracking-[-0.02em]">
                           {currentLookupName || 'Results'}
                         </h2>
-                        {currentLookupId && userTier === 'unlimited' && (
+                        {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1446,7 +1462,7 @@ export default function Home() {
                         </MenuItem>
                       </div>
                     )}
-                    {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                    {currentLookupId && userTier === 'unlimited' && (
                       <MenuItem onClick={handleAddAddressesFromResults}>
                         <Plus className="h-4 w-4" aria-hidden />
                         Add addresses
