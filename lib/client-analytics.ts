@@ -1,6 +1,7 @@
 'use client';
 
 import type { AnalyticsEventType } from './analytics';
+import type { PaidTier } from '@/lib/access';
 
 // Get or create a session ID for tracking
 function getSessionId(): string {
@@ -79,15 +80,15 @@ export const Analytics = {
   upgradeModalViewed: (trigger: string, currentTier: string) =>
     trackClientEvent('upgrade_modal_viewed', { trigger, currentTier }),
 
-  checkoutStarted: (tier: 'starter' | 'pro' | 'unlimited') =>
+  checkoutStarted: (tier: PaidTier) =>
     trackClientEvent('checkout_started', { tier }),
 
   /** Fired once Stripe has actually handed us a session URL. */
-  checkoutRedirected: (tier: 'starter' | 'pro' | 'unlimited') =>
+  checkoutRedirected: (tier: PaidTier) =>
     trackClientEvent('checkout_redirected', { tier }),
 
   /** Fired when checkout never reached Stripe, with the reason. */
-  checkoutFailed: (tier: 'starter' | 'pro' | 'unlimited', reason: string) =>
+  checkoutFailed: (tier: PaidTier, reason: string) =>
     trackClientEvent('checkout_failed', { tier, reason }),
 
   limitHit: (tier: string, limit: number, attempted: number) =>

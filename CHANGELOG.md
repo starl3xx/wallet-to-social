@@ -3,6 +3,27 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (Starter tier removed)
+
+- Starter was retired on 2026-08-12 but survived in 42 places across 12 files,
+  defended by a comment about keeping legacy accounts working. There were no
+  legacy accounts: **zero users ever held it and zero payments were ever taken
+  for it**, verified against production before removing anything.
+- Removed from `UserTier`, the price and limit maps, the tier ladder, checkout,
+  the webhook, the upgrade modal, the account chip and the analytics unions. New
+  `PaidTier` names the tiers that can actually be bought, so signatures no longer
+  spell the union out four different ways.
+- **The cumulative-quota machinery went with it.** `TIER_QUOTA`, `walletQuota`
+  and `walletsRemaining` existed solely because Starter capped at 10,000 wallets
+  in total; every remaining tier has a per-lookup limit and nothing else.
+  `walletsUsed` is still accumulated, now as a lifetime usage record that gates
+  nothing, and is no longer reset on upgrade since that would only destroy it.
+- `getUserAccess` now routes `users.tier` through a `normalizeTier()` rather than
+  casting it. The column is free text, and an unrecognised value used to index
+  the limit map to `undefined`, producing a broken lookup with no error rather
+  than a clear failure.
+
+
 ### 2026-08-15 (share text overstated the match rate)
 
 - The share card copy computed its match rate as

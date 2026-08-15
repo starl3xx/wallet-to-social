@@ -22,6 +22,7 @@ import { trackEvent } from '@/lib/analytics';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
+import type { UserTier } from '@/lib/access';
 
 // Process up to this many wallets per cron invocation
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
@@ -32,7 +33,7 @@ export interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
-  tier?: 'free' | 'starter' | 'pro' | 'unlimited';
+  tier?: UserTier;
   canUseNeynar?: boolean;
   canUseENS?: boolean;
   inputSource?: InputSource;
@@ -489,7 +490,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // This ensures we use high-quality cached data before calling external APIs
 
     // Calculate priority scores (paid tiers only)
-    const isPaidTier = options.tier === 'starter' || options.tier === 'pro' || options.tier === 'unlimited';
+    const isPaidTier = options.tier === 'pro' || options.tier === 'unlimited';
     for (const [wallet, result] of results) {
       if (!isPaidTier) {
         // Free tier doesn't get premium data

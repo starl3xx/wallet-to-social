@@ -1,17 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Lightning as Zap, Crown, User, SignIn as LogIn, SignOut as LogOut, CaretDown as ChevronDown, Rocket, Key as KeyRound } from '@phosphor-icons/react';
+import { Lightning as Zap, Crown, User, SignIn as LogIn, SignOut as LogOut, Key as KeyRound } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { TIER_LIMITS } from '@/lib/access';
+import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { AuthModal } from '@/components/AuthModal';
 import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { useAuth } from '@/components/AuthProvider';
 
 interface AccessBannerProps {
-  tier: 'free' | 'starter' | 'pro' | 'unlimited';
+  tier: UserTier;
   isWhitelisted?: boolean;
-  walletsRemaining?: number | null;
   onUpgradeClick?: () => void;
   /** Rendered between the tier chip and the account control. */
   trailing?: React.ReactNode;
@@ -30,7 +29,6 @@ const CHIP = 'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono 
 export function AccessBanner({
   tier,
   isWhitelisted,
-  walletsRemaining,
   onUpgradeClick,
   trailing,
 }: AccessBannerProps) {
@@ -151,20 +149,6 @@ export function AccessBanner({
           <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">
             Unlimited
-          </span>
-        </div>
-      );
-    }
-
-    if (tier === 'starter') {
-      return (
-        <div className={`${CHIP} bg-accent-brand-tint text-accent-brand`}>
-          <Rocket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand" />
-          <span className="font-medium text-accent-brand">Starter</span>
-          <span className="text-muted-foreground hidden sm:inline">
-            {walletsRemaining !== null && walletsRemaining !== undefined
-              ? `${walletsRemaining.toLocaleString()} left`
-              : '10,000 total'}
           </span>
         </div>
       );

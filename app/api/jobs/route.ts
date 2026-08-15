@@ -97,12 +97,8 @@ export async function POST(request: NextRequest) {
     void email;
     void wallet;
 
-    // Calculate effective limit considering cumulative quota
-    let effectiveLimit = access.walletLimit;
-    if (access.walletsRemaining !== null) {
-      // Starter tier: can't exceed remaining quota
-      effectiveLimit = Math.min(access.walletLimit, access.walletsRemaining);
-    }
+    // One limit per tier now that no tier carries a cumulative quota.
+    const effectiveLimit = access.walletLimit;
 
     if (wallets.length > effectiveLimit) {
       // Track limit hit event
@@ -112,14 +108,10 @@ export async function POST(request: NextRequest) {
           tier: access.tier,
           limit: effectiveLimit,
           attempted: wallets.length,
-          walletsRemaining: access.walletsRemaining,
         },
       });
 
-      // Customize error message for starter tier
-      const errorMessage = access.walletsRemaining !== null
-        ? `You have ${access.walletsRemaining.toLocaleString()} wallets remaining in your Starter quota`
-        : `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`;
+      const errorMessage = `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`;
 
       return NextResponse.json(
         {
@@ -128,8 +120,6 @@ export async function POST(request: NextRequest) {
           tier: access.tier,
           limit: effectiveLimit,
           requested: wallets.length,
-          walletsRemaining: access.walletsRemaining,
-          walletQuota: access.walletQuota,
           walletsUsed: access.walletsUsed,
         },
         { status: 403 }
@@ -152,8 +142,9 @@ export async function POST(request: NextRequest) {
       inputSource,
     });
 
-    // For starter tier, increment usage counter (session-derived email only)
-    if (access.tier === 'starter' && authedEmail) {
+    // Lifetime usage record. It gates nothing now that Starter's quota is gone,
+    // but it is the only measure of how much work an account has actually run.
+    if (authedEmail) {
       await incrementWalletsUsed(authedEmail, wallets.length);
     }
 
@@ -166,9 +157,6 @@ export async function POST(request: NextRequest) {
         tier: access.tier,
         includeENS: includeENS && access.canUseENS,
         saveToHistory,
-        walletsRemaining: access.walletsRemaining !== null
-          ? access.walletsRemaining - wallets.length
-          : null,
       },
     });
 

@@ -3,17 +3,30 @@ import { users, whitelist } from '@/db/schema';
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { trackEvent } from '@/lib/analytics';
 
-export type UserTier = 'free' | 'starter' | 'pro' | 'unlimited';
+export type UserTier = 'free' | 'pro' | 'unlimited';
+
+/** Paid tiers, i.e. the ones that can be bought. */
+export type PaidTier = Exclude<UserTier, 'free'>;
 
 export interface UserAccess {
   tier: UserTier;
   isWhitelisted: boolean;
   walletLimit: number;       // per-lookup limit
-  walletQuota: number | null; // total cumulative quota (starter only)
   walletsUsed: number;       // cumulative wallets processed
-  walletsRemaining: number | null; // quota - used (starter only)
   canUseNeynar: boolean;
   canUseENS: boolean;
+}
+
+/**
+ * `users.tier` is a free-text column, so anything could be in it.
+ *
+ * Everything downstream indexes maps by tier, and an unrecognised value would
+ * yield `undefined` for the wallet limit rather than an error: a broken lookup
+ * with no obvious cause. Treating unknown as free is both the safe default and
+ * the honest one, since an unrecognised tier is not a tier we sell.
+ */
+export function normalizeTier(value: string | null | undefined): UserTier {
+  return value === 'pro' || value === 'unlimited' ? value : 'free';
 }
 
 export const TIER_LIMITS: Record<UserTier, number> = {
@@ -22,9 +35,6 @@ export const TIER_LIMITS: Record<UserTier, number> = {
   // free lookups made Pro nearly redundant — only 7 lookups in the product's
   // history ever exceeded it, while the upgrade modal was viewed 261 times.
   free: 500,
-  // Retired 2026-08-12 and no longer purchasable, but kept so any legacy
-  // account holding it still resolves rather than crashing.
-  starter: 10000,
   // Pro sits at 5,000 rather than 10,000 deliberately. Historically the two are
   // identical — 140 of 142 lookups ever were under 5,000 — but at 10,000 Pro
   // swallows essentially every case and Unlimited has no volume story left.
@@ -34,15 +44,19 @@ export const TIER_LIMITS: Record<UserTier, number> = {
   unlimited: Infinity,
 };
 
-export const TIER_QUOTA: Record<UserTier, number | null> = {
-  free: null,      // no cumulative quota
-  starter: 10000,  // 10,000 total
-  pro: null,       // no cumulative quota
-  unlimited: null,
-};
-
-export const TIER_PRICES: Record<'starter' | 'pro' | 'unlimited', number> = {
-  starter: 49,
+/**
+ * No tier carries a cumulative quota.
+ *
+ * Starter was the only one that ever did (10,000 wallets total), and it was
+ * retired on 2026-08-12 having never been purchased by anyone. The quota
+ * machinery it required, `TIER_QUOTA` / `walletQuota` / `walletsRemaining`,
+ * went with it: every tier now has a per-lookup limit and nothing else, which
+ * is the model the product actually sells.
+ *
+ * `walletsUsed` is still accumulated. It no longer gates anything, but it is
+ * the only record of how much work an account has actually run.
+ */
+export const TIER_PRICES: Record<PaidTier, number> = {
   pro: 99,
   unlimited: 249,
 };
@@ -93,9 +107,7 @@ export async function getUserAccess(
     tier: 'free',
     isWhitelisted: false,
     walletLimit: TIER_LIMITS.free,
-    walletQuota: null,
     walletsUsed: 0,
-    walletsRemaining: null,
     canUseNeynar: true,
     canUseENS: false,
   };
@@ -111,9 +123,7 @@ export async function getUserAccess(
         tier: 'unlimited',
         isWhitelisted: true,
         walletLimit: Infinity,
-        walletQuota: null,
         walletsUsed: 0,
-        walletsRemaining: null,
         canUseNeynar: true,
         canUseENS: true,
       };
@@ -128,21 +138,18 @@ export async function getUserAccess(
         .limit(1);
 
       if (user) {
-        const tier = user.tier as UserTier;
-        const isPaid = tier === 'starter' || tier === 'pro' || tier === 'unlimited';
-        const quota = TIER_QUOTA[tier];
-        const walletsUsed = user.walletsUsed ?? 0;
-        const walletsRemaining = quota !== null ? Math.max(0, quota - walletsUsed) : null;
+        // Normalised rather than cast: the column is free text, and a value we
+        // do not recognise would otherwise index TIER_LIMITS to `undefined` and
+        // produce a lookup limit of NaN instead of an error.
+        const tier = normalizeTier(user.tier);
 
         return {
           tier,
           isWhitelisted: false,
           walletLimit: TIER_LIMITS[tier],
-          walletQuota: quota,
-          walletsUsed,
-          walletsRemaining,
+          walletsUsed: user.walletsUsed ?? 0,
           canUseNeynar: true,
-          canUseENS: isPaid,
+          canUseENS: tier !== 'free',
         };
       }
     }
@@ -186,7 +193,7 @@ export async function getOrCreateUser(email: string) {
  */
 export async function upgradeUser(
   email: string,
-  tier: 'starter' | 'pro' | 'unlimited',
+  tier: PaidTier,
   stripeCustomerId: string,
   stripePaymentId: string
 ): Promise<void> {
@@ -195,8 +202,6 @@ export async function upgradeUser(
 
   const normalizedEmail = email.toLowerCase();
 
-  // Upsert user with new tier
-  // For starter tier, reset walletsUsed to 0 on purchase
   await db
     .insert(users)
     .values({
@@ -205,7 +210,7 @@ export async function upgradeUser(
       stripeCustomerId,
       stripePaymentId,
       paidAt: new Date(),
-      walletsUsed: 0, // Reset usage on upgrade
+      walletsUsed: 0,
     })
     .onConflictDoUpdate({
       target: users.email,
@@ -214,8 +219,10 @@ export async function upgradeUser(
         stripeCustomerId,
         stripePaymentId,
         paidAt: new Date(),
-        // Reset walletsUsed only for starter tier upgrades
-        ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
+        // walletsUsed is deliberately left alone. It used to be reset for
+        // Starter, whose cumulative quota made the counter meaningful; with no
+        // tier carrying a quota it is a lifetime usage record, and resetting it
+        // on upgrade would only destroy history.
       },
     });
 }
@@ -225,9 +232,8 @@ export async function upgradeUser(
  */
 const TIER_RANK: Record<UserTier, number> = {
   free: 0,
-  starter: 1,
-  pro: 2,
-  unlimited: 3,
+  pro: 1,
+  unlimited: 2,
 };
 
 export interface ProvisionResult {
@@ -254,7 +260,7 @@ export interface ProvisionResult {
  */
 export async function provisionPaidCheckout(
   email: string,
-  tier: 'starter' | 'pro' | 'unlimited',
+  tier: PaidTier,
   stripeCustomerId: string,
   stripePaymentId: string,
   context: { sessionId: string; via: 'checkout.session' | 'payment_intent' | 'success-page' }
@@ -298,8 +304,7 @@ export async function provisionPaidCheckout(
         stripeCustomerId,
         stripePaymentId,
         paidAt,
-        // Matches upgradeUser: only starter resets cumulative usage.
-        ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
+        // Matches upgradeUser: walletsUsed is a lifetime record, never reset.
       },
       setWhere: and(
         // Idempotency on the payment intent. `ne` alone would not do: a NULL
@@ -425,7 +430,10 @@ export async function getWhitelistEntries() {
 }
 
 /**
- * Increment walletsUsed counter for starter tier users
+ * Add to a user's lifetime wallet count.
+ *
+ * This gated the Starter quota; with that tier gone it gates nothing, and is
+ * kept purely as a record of how much work an account has run.
  */
 export async function incrementWalletsUsed(
   email: string,
@@ -445,7 +453,7 @@ export async function incrementWalletsUsed(
  */
 export async function getAccessStats() {
   const db = getDb();
-  if (!db) return { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+  if (!db) return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
 
   try {
     const userStats = await db
@@ -460,7 +468,7 @@ export async function getAccessStats() {
       .select({ count: sql<number>`count(*)::int` })
       .from(whitelist);
 
-    const stats = { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    const stats = { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
     for (const row of userStats) {
       if (row.tier in stats) {
         stats[row.tier as keyof typeof stats] = row.count;
@@ -471,6 +479,6 @@ export async function getAccessStats() {
     return stats;
   } catch (error) {
     console.error('Stats error:', error);
-    return { free: 0, starter: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
   }
 }

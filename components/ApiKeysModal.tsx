@@ -12,11 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Key as KeyRound, Copy, Check, CircleNotch as Loader2, Warning as AlertTriangle, Trash as Trash2, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
 import { API_PLANS, apiPlanForTier } from '@/lib/api-plans';
+import type { UserTier } from '@/lib/access';
 
 interface ApiKeysModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tier: 'free' | 'starter' | 'pro' | 'unlimited';
+  tier: UserTier;
   onUpgradeClick?: () => void;
 }
 
