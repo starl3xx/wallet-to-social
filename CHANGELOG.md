@@ -3,6 +3,44 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a daily budget for the token holder index)
+
+- **A customer used 75% of the daily allowance in two hours.** The ERC-20
+  holder index has a daily limit. On this day a paying customer made 11 contract
+  imports, and 7 of them had the maximum of 10,000 wallets, on Ethereum and BNB
+  Chain. That is approximately 810 requests. The daily seed cron made
+  approximately 71 requests in the same period, which is 8% of the total. So the
+  cron is not the cause. A customer who uses the product is the cause.
+- **When the allowance stops, each ERC-20 import stops.** This applies to
+  Ethereum, Base, Arbitrum, Polygon, Optimism and BNB Chain together. NFT import
+  is not affected, because it uses a different supplier. Robinhood Chain is not
+  affected, because it uses its own explorer.
+- **The message said “try again in a moment”.** That is the message for a rate
+  limit. A daily allowance comes back tomorrow, not in a moment, so the customer
+  makes the same request again and it fails again. The message now says that the
+  limit comes back tomorrow, and it says which other methods still work. The
+  test reads the body of the response, not the status, because the status is
+  401 in some cases and 429 in others.
+- **`lib/holder-index-budget.ts` gives the cron a limit.** It follows the same
+  rule as the Neynar budget: measure each request, but stop background work
+  only. A customer is never refused.
+  - 80% of each day is held for customer imports. The cron gets the other 20%,
+    which is approximately 228 requests. Six ERC-20 seeds need approximately
+    126, so a normal day is not affected. The cron also runs at 07:00 UTC,
+    before the customers of the day.
+  - The cron measures its limit against the total for the day, not against its
+    own total. If it measured only its own use, a busy morning would let the
+    cron start with a full limit.
+  - The count is in requests, because we can count each request exactly. The
+    limit is in compute units, and the supplier gives no price for each
+    endpoint. The number 35 units for each request comes from measurement of
+    this day: approximately 880 requests used approximately 30,000 units. Two
+    environment variables can correct it without new code.
+  - If the count cannot be read, the guard permits the work. It exists to stop
+    high cost, and to stop each cron because of one failed query would make a
+    worse problem.
+
+
 ### 2026-08-15 (a modal that spilled, and controls that did not look like controls)
 
 - **The upgrade modal put its last button below its own edge.** The dialog has a

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { CHAIN_IDS, CHAIN_LABELS, SUPPORTED_CHAINS, type SupportedChain } from './chains';
+import { recordHolderIndexSpend } from './holder-index-budget';
 
 // Re-exported so existing server-side importers keep working unchanged.
 // Client components must import these from '@/lib/chains' instead — importing
@@ -530,9 +531,14 @@ async function getERC20Holders(
   const wallets: string[] = [];
   let cursor: string | null = null;
   let totalHolders = 0;
+  // Counted here rather than at the call site, because only this loop knows how
+  // many pages a contract actually needed. Reported once at the end, and in the
+  // failure paths too: a request that errors has already been billed.
+  let requestsMade = 0;
 
   // Paginate through results (Moralis returns max 100 per page)
   do {
+    requestsMade++;
     const url = new URL(`https://deep-index.moralis.io/api/v2.2/erc20/${address}/owners`);
     url.searchParams.set('chain', chainId);
     url.searchParams.set('limit', '100');
@@ -570,10 +576,12 @@ async function getERC20Holders(
       const exhausted = /compute unit|daily limit|quota|out of credit/i.test(errorText);
       if (exhausted) {
         console.error('Holder index allowance spent for the day:', errorText.slice(0, 200));
+        void recordHolderIndexSpend(requestsMade);
         throw new Error('DAILY_ALLOWANCE_SPENT');
       }
 
       if (response.status === 429) {
+        void recordHolderIndexSpend(requestsMade);
         throw new Error('RATE_LIMIT');
       }
       console.error('Moralis API error response:', {
@@ -581,6 +589,7 @@ async function getERC20Holders(
         body: errorText,
         url: url.toString().replace(moralisKey, '***'),
       });
+      void recordHolderIndexSpend(requestsMade);
       throw new Error(`Moralis API error: ${response.status} - ${errorText}`);
     }
 
@@ -609,6 +618,10 @@ async function getERC20Holders(
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   } while (cursor && wallets.length < limit);
+
+  // Not awaited. The accounting is for the cron's benefit, and making a
+  // customer's import wait on a bookkeeping write would be the wrong trade.
+  void recordHolderIndexSpend(requestsMade);
 
   // Dedupe and limit
   const uniqueWallets = [...new Set(wallets)].slice(0, limit);
