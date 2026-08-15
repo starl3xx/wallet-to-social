@@ -23,11 +23,33 @@ interface FunnelData {
   paymentCompleted: number;
 }
 
-interface DailyStat {
-  date: string;
-  revenueCents: number;
-  proPurchases: number;
-  unlimitedPurchases: number;
+interface Totals {
+  grossCents: number;
+  refundedCents: number;
+  netCents: number;
+  count: number;
+}
+
+interface Payment {
+  id: string;
+  email: string | null;
+  tier: string | null;
+  amountCents: number;
+  refundedCents: number;
+  netCents: number;
+  created: string;
+  fullyRefunded: boolean;
+}
+
+interface RevenueData {
+  configured: boolean;
+  allTime: Totals;
+  thisMonth: Totals;
+  byTier: Record<string, number>;
+  /** Lowercased email → highest tier actually purchased, across all payments. */
+  paidTierByEmail: Record<string, string>;
+  payments: Payment[];
+  truncated: boolean;
 }
 
 interface UserEntry {
@@ -43,9 +65,15 @@ interface RevenueDashboardProps {
   password: string;
 }
 
+/** Ladder order, so a held tier can be compared against a purchased one. */
+const TIER_RANK: Record<string, number> = { free: 0, starter: 1, pro: 2, unlimited: 3 };
+
+const money = (cents: number) =>
+  (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
 export function RevenueDashboard({ password }: RevenueDashboardProps) {
   const [funnel, setFunnel] = useState<FunnelData | null>(null);
-  const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
+  const [revenue, setRevenue] = useState<RevenueData | null>(null);
   const [paidUsers, setPaidUsers] = useState<UserEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,30 +83,25 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
     setError(null);
 
     try {
-      const [funnelRes, statsRes, usersRes] = await Promise.all([
-        fetch('/api/admin/analytics/funnel?days=30', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/analytics/aggregate?days=30', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/users', {
-          headers: { 'x-admin-password': password },
-        }),
+      const headers = { 'x-admin-password': password };
+      const [funnelRes, revenueRes, usersRes] = await Promise.all([
+        fetch('/api/admin/analytics/funnel?days=30', { headers }),
+        fetch('/api/admin/revenue', { headers }),
+        fetch('/api/admin/users', { headers }),
       ]);
 
-      if (!funnelRes.ok || !statsRes.ok || !usersRes.ok) {
+      if (!funnelRes.ok || !revenueRes.ok || !usersRes.ok) {
         throw new Error('Failed to fetch revenue data');
       }
 
-      const [funnelData, statsData, usersData] = await Promise.all([
+      const [funnelData, revenueData, usersData] = await Promise.all([
         funnelRes.json(),
-        statsRes.json(),
+        revenueRes.json(),
         usersRes.json(),
       ]);
 
       setFunnel(funnelData);
-      setDailyStats(statsData);
+      setRevenue(revenueData);
       setPaidUsers(usersData.users.filter((u: UserEntry) => u.tier !== 'free'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -91,20 +114,36 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
     fetchData();
   }, [fetchData]);
 
-  // Calculate totals
-  const totalRevenue = dailyStats.reduce((sum, s) => sum + s.revenueCents, 0) / 100;
-  const proPurchases = dailyStats.reduce((sum, s) => sum + s.proPurchases, 0);
-  const unlimitedPurchases = dailyStats.reduce((sum, s) => sum + s.unlimitedPurchases, 0);
+  /**
+   * Entitlement nobody paid for.
+   *
+   * Two shapes, and the second is the one that catches goodwill: an account with
+   * no surviving payment at all (whitelist, manual grant), and an account
+   * holding a tier *above* the highest tier it actually bought. On 2026-08-15
+   * the customer genuinely paid for Pro and was then moved to Unlimited as an
+   * apology, so an email-only check would have called them a paying Unlimited
+   * customer and quietly implied $249 of income again.
+   *
+   * These cost real API spend and belong on this screen. They are not revenue.
+   */
+  // Comes from the API, computed over every payment. Deriving it from
+  // `revenue.payments` would be wrong: that list is the 25 most recent, so any
+  // customer whose purchase has scrolled past the cut-off would be reported as
+  // complimentary.
+  // Typed with `| undefined` deliberately: a bare Record<string, string> index
+  // is typed as always returning a string, which would quietly make the
+  // "never paid" branch below unreachable to the type checker.
+  const highestPaidTierByEmail: Record<string, string | undefined> =
+    revenue?.paidTierByEmail ?? {};
 
-  // Get all-time revenue from paid users
-  const allTimeRevenue =
-    paidUsers.reduce((sum, u) => {
-      if (u.tier === 'pro') return sum + 99;
-      if (u.tier === 'unlimited') return sum + 249;
-      return sum;
-    }, 0);
+  const compedUsers = paidUsers
+    .map((u) => {
+      const paidFor = highestPaidTierByEmail[u.email.toLowerCase()] ?? null;
+      const gifted = !paidFor || (TIER_RANK[u.tier] ?? 0) > (TIER_RANK[paidFor] ?? 0);
+      return gifted ? { ...u, paidFor } : null;
+    })
+    .filter((u): u is UserEntry & { paidFor: string | null } => u !== null);
 
-  // Calculate conversion rate
   const conversionRate =
     funnel && funnel.upgradeModalViewed > 0
       ? (funnel.paymentCompleted / funnel.upgradeModalViewed) * 100
@@ -130,6 +169,9 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
     );
   }
 
+  const allTime = revenue?.allTime;
+  const thisMonth = revenue?.thisMonth;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -143,37 +185,61 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
         </Button>
       </div>
 
-      {/* Revenue Metrics */}
+      {revenue && !revenue.configured && (
+        <p className="text-sm text-caution">
+          Stripe is not configured, so revenue cannot be read. Figures below are zero, not empty.
+        </p>
+      )}
+
+      {/* Every figure here is net of refunds and read from Stripe. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <DollarSign className="h-3 w-3" />
-              <span>All-time revenue</span>
+              <span>Net revenue, all time</span>
             </div>
-            <div className="text-2xl font-bold">${allTimeRevenue.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">This month</div>
-            <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">Pro purchases</div>
-            <div className="text-2xl font-bold">{paidUsers.filter((u) => u.tier === 'pro').length}</div>
-            <div className="text-xs text-muted-foreground">This month: {proPurchases}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">Unlimited purchases</div>
-            <div className="text-2xl font-bold">
-              {paidUsers.filter((u) => u.tier === 'unlimited').length}
+            <div className="text-2xl font-bold tabular-nums">
+              {money(allTime?.netCents ?? 0)}
             </div>
-            <div className="text-xs text-muted-foreground">This month: {unlimitedPurchases}</div>
+            {!!allTime?.refundedCents && (
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {money(allTime.grossCents)} gross, {money(allTime.refundedCents)} refunded
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="text-xs text-muted-foreground mb-1">Net this month</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {money(thisMonth?.netCents ?? 0)}
+            </div>
+            {!!thisMonth?.refundedCents && (
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {money(thisMonth.refundedCents)} refunded
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="text-xs text-muted-foreground mb-1">Paid conversions</div>
+            <div className="text-2xl font-bold tabular-nums">{allTime?.count ?? 0}</div>
+            <div className="text-xs text-muted-foreground">
+              {Object.entries(revenue?.byTier ?? {})
+                .map(([tier, n]) => `${n} ${tier}`)
+                .join(' · ') || 'none yet'}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="text-xs text-muted-foreground mb-1">Complimentary</div>
+            <div className="text-2xl font-bold tabular-nums">{compedUsers.length}</div>
+            <div className="text-xs text-muted-foreground">
+              access beyond what was paid for
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -188,42 +254,42 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <div className="flex items-center justify-between gap-2 text-center">
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Lookups</div>
-                <div className="text-lg font-bold">{funnel.lookupsStarted}</div>
+                <div className="text-lg font-bold tabular-nums">{funnel.lookupsStarted}</div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Saw upgrade</div>
-                <div className="text-lg font-bold">{funnel.upgradeModalViewed}</div>
+                <div className="text-lg font-bold tabular-nums">{funnel.upgradeModalViewed}</div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Started checkout</div>
-                <div className="text-lg font-bold">{funnel.checkoutStarted}</div>
+                <div className="text-lg font-bold tabular-nums">{funnel.checkoutStarted}</div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Completed</div>
-                <div className="text-lg font-bold text-accent-brand">{funnel.paymentCompleted}</div>
+                <div className="text-lg font-bold tabular-nums text-accent-brand">{funnel.paymentCompleted}</div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t text-center">
               <span className="text-sm text-muted-foreground">
                 Modal → Payment conversion rate:{' '}
-                <span className="font-bold text-foreground">{conversionRate.toFixed(1)}%</span>
+                <span className="font-bold text-foreground tabular-nums">{conversionRate.toFixed(1)}%</span>
               </span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Recent Purchases */}
+      {/* Actual payments, straight from Stripe. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent purchases</CardTitle>
+          <CardTitle className="text-base">Payments</CardTitle>
         </CardHeader>
         <CardContent>
-          {paidUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No purchases yet</p>
+          {!revenue?.payments.length ? (
+            <p className="text-center text-muted-foreground py-4">No payments yet</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -231,54 +297,98 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>Tier</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Stripe ID</TableHead>
+                    <TableHead>Net</TableHead>
+                    <TableHead>Payment</TableHead>
                     <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paidUsers
-                    .sort(
-                      (a, b) =>
-                        new Date(b.paidAt || b.createdAt).getTime() -
-                        new Date(a.paidAt || a.createdAt).getTime()
-                    )
-                    .slice(0, 20)
-                    .map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.tier === 'unlimited'
-                                ? 'bg-caution-tint text-caution'
-                                : 'bg-accent-brand-tint text-accent-brand'
-                            }`}
-                          >
-                            {user.tier}
+                  {revenue.payments.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.email ?? '—'}</TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 rounded-sm text-xs font-medium bg-accent-brand-tint text-accent-brand">
+                          {p.tier ?? 'unknown'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {p.fullyRefunded ? (
+                          <span className="text-muted-foreground line-through">
+                            {money(p.amountCents)}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          ${user.tier === 'pro' ? '99' : user.tier === 'unlimited' ? '249' : '0'}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {user.stripeCustomerId
-                            ? `${user.stripeCustomerId.slice(0, 12)}...`
-                            : '-'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {user.paidAt
-                            ? new Date(user.paidAt).toLocaleDateString()
-                            : new Date(user.createdAt).toLocaleDateString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                        ) : (
+                          money(p.netCents)
+                        )}
+                        {p.fullyRefunded && (
+                          <span className="ml-2 text-xs text-caution">refunded</span>
+                        )}
+                        {!p.fullyRefunded && p.refundedCents > 0 && (
+                          <span className="ml-2 text-xs text-caution">
+                            {money(p.refundedCents)} back
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {p.id.slice(0, 14)}…
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {new Date(p.created).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
+              {revenue.truncated && (
+                <p className="mt-3 text-xs text-caution">
+                  Older payments exist beyond the fetch limit and are not counted above.
+                </p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Comps: real access, zero revenue. Listed so the gap between "paid
+          conversions" and "accounts on a paid tier" is always explainable. */}
+      {compedUsers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Complimentary accounts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Holds</TableHead>
+                    <TableHead>Paid for</TableHead>
+                    <TableHead>Since</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {compedUsers.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 rounded-sm text-xs font-medium bg-muted text-muted-foreground">
+                          {u.tier}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {u.paidFor ?? 'nothing'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {new Date(u.paidAt || u.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

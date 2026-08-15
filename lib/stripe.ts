@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { getSiteUrl } from '@/lib/site-url';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -33,7 +34,10 @@ export async function createCheckoutSession(
     throw new Error(`Price not configured for tier: ${tier}`);
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+  // Resolved centrally. This line read `process.env.NEXT_PUBLIC_URL ||
+  // 'http://localhost:3000'`, and because that variable was never set in
+  // production, two live payments were redirected to a dead localhost port.
+  const baseUrl = getSiteUrl();
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -64,6 +68,23 @@ export async function createCheckoutSession(
 }
 
 /**
+ * Thrown when the server is missing Stripe configuration, as distinct from a
+ * request that failed verification.
+ *
+ * These used to be indistinguishable: a missing secret key, a missing webhook
+ * secret and a forged signature all surfaced as the same 400 "signature
+ * verification failed". That reads as "the sender is wrong" when it can equally
+ * mean "this deployment is misconfigured", and it is the difference between
+ * blaming Stripe and looking at your own env vars.
+ */
+export class StripeConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StripeConfigError';
+  }
+}
+
+/**
  * Construct and verify a webhook event from Stripe
  */
 export function constructWebhookEvent(
@@ -71,12 +92,12 @@ export function constructWebhookEvent(
   signature: string
 ): Stripe.Event {
   if (!stripe) {
-    throw new Error('Stripe not configured');
+    throw new StripeConfigError('STRIPE_SECRET_KEY is not set');
   }
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    throw new Error('Stripe webhook secret not configured');
+    throw new StripeConfigError('STRIPE_WEBHOOK_SECRET is not set');
   }
 
   return stripe.webhooks.constructEvent(body, signature, webhookSecret);
@@ -122,12 +143,100 @@ export async function getCheckoutSession(
 }
 
 /**
+ * One settled payment, normalised for reporting.
+ *
+ * `netCents` is what actually stayed: gross minus anything refunded. The admin
+ * dashboard used to derive revenue from a user's *tier* instead (`unlimited`
+ * implied $249), which is wrong in both directions. It invents revenue for a
+ * gifted or whitelisted account, and it cannot see a refund at all, so on
+ * 2026-08-15 a $99 sale with a $99 duplicate refunded and a complimentary
+ * upgrade reported as $249.
+ */
+export interface PaymentRecord {
+  id: string;
+  email: string | null;
+  tier: CheckoutTier | null;
+  amountCents: number;
+  refundedCents: number;
+  netCents: number;
+  created: string;
+  fullyRefunded: boolean;
+}
+
+/**
+ * Every settled payment, newest first.
+ *
+ * Stripe is the source of truth for money, not our users table. Payment intents
+ * rather than charges, because our tier and email metadata is set at intent
+ * creation; `latest_charge` is expanded to get the refunded amount, which lives
+ * on the charge.
+ */
+export async function listPayments(
+  maxRecords = 300
+): Promise<{ payments: PaymentRecord[]; truncated: boolean }> {
+  if (!stripe) return { payments: [], truncated: false };
+
+  const payments: PaymentRecord[] = [];
+  let startingAfter: string | undefined;
+  let truncated = false;
+
+  while (payments.length < maxRecords) {
+    const page = await stripe.paymentIntents.list({
+      limit: 100,
+      expand: ['data.latest_charge'],
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+
+    for (const pi of page.data) {
+      if (pi.status !== 'succeeded') continue;
+
+      const charge =
+        pi.latest_charge && typeof pi.latest_charge !== 'string'
+          ? pi.latest_charge
+          : null;
+
+      const amountCents = charge?.amount ?? pi.amount_received ?? 0;
+      const refundedCents = charge?.amount_refunded ?? 0;
+
+      payments.push({
+        id: pi.id,
+        email:
+          pi.metadata?.email ||
+          charge?.billing_details?.email ||
+          charge?.receipt_email ||
+          null,
+        tier: (pi.metadata?.tier as CheckoutTier | undefined) ?? null,
+        amountCents,
+        refundedCents,
+        netCents: amountCents - refundedCents,
+        created: new Date(pi.created * 1000).toISOString(),
+        fullyRefunded: refundedCents > 0 && refundedCents >= amountCents,
+      });
+    }
+
+    if (!page.has_more) break;
+    startingAfter = page.data[page.data.length - 1]?.id;
+    if (!startingAfter) break;
+    if (payments.length >= maxRecords) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return { payments, truncated };
+}
+
+/**
  * Check if Stripe is configured
  */
 export function isStripeConfigured(): boolean {
+  // Deliberately does NOT require STRIPE_PRICE_STARTER. Starter was retired on
+  // 2026-08-12 and the checkout route rejects it outright, so gating on its
+  // price id meant deleting a dead env var would take the entire payment system
+  // down with a "Payment system not configured" 503 on every purchase, for a
+  // product that can no longer be bought.
   return !!(
     process.env.STRIPE_SECRET_KEY &&
-    process.env.STRIPE_PRICE_STARTER &&
     process.env.STRIPE_PRICE_PRO &&
     process.env.STRIPE_PRICE_UNLIMITED
   );

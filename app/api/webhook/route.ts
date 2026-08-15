@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { constructWebhookEvent, resolveCheckoutEmail } from '@/lib/stripe';
-import { upgradeUser } from '@/lib/access';
-import { trackEvent } from '@/lib/analytics';
+import {
+  constructWebhookEvent,
+  resolveCheckoutEmail,
+  StripeConfigError,
+} from '@/lib/stripe';
+import { provisionPaidCheckout } from '@/lib/access';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -22,6 +25,17 @@ export async function POST(request: NextRequest) {
     try {
       event = constructWebhookEvent(body, signature);
     } catch (err) {
+      // A misconfigured server is our fault, not the sender's, and it must not
+      // be reported as a 400. Stripe retries 5xx and gives up on 4xx, so
+      // answering 400 here would discard real payment events while the env var
+      // was being fixed.
+      if (err instanceof StripeConfigError) {
+        console.error('Stripe webhook misconfigured:', err.message);
+        return NextResponse.json(
+          { error: 'Webhook not configured' },
+          { status: 500 }
+        );
+      }
       console.error('Webhook signature verification failed:', err);
       return NextResponse.json(
         { error: 'Webhook signature verification failed' },
@@ -37,7 +51,11 @@ export async function POST(request: NextRequest) {
         break;
       }
       case 'payment_intent.succeeded': {
-        // Backup handler in case checkout.session.completed doesn't fire
+        // Backup handler in case checkout.session.completed doesn't fire.
+        // Note this only ever runs if `payment_intent.succeeded` is actually
+        // enabled on the endpoint in the Stripe dashboard; for most of this
+        // project's life the endpoint subscribed to checkout.session.completed
+        // alone, which made this "backup" unreachable.
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await handlePaymentSucceeded(paymentIntent);
         break;
@@ -76,20 +94,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       : session.payment_intent?.id || session.id;
 
   try {
-    await upgradeUser(email, tier, customerId, paymentIntentId);
-    console.log(`Upgraded user ${email} to ${tier}`);
+    const result = await provisionPaidCheckout(
+      email,
+      tier,
+      customerId,
+      paymentIntentId,
+      { sessionId: session.id, via: 'checkout.session' }
+    );
 
-    // Track payment completed event
-    const amountCents = tier === 'starter' ? 4900 : tier === 'pro' ? 9900 : tier === 'unlimited' ? 24900 : 0;
-    trackEvent('payment_completed', {
-      userId: email,
-      metadata: {
-        tier,
-        amountCents,
-        stripeSessionId: session.id,
-        stripeCustomerId: customerId,
-      },
-    });
+    console.log(
+      result.provisioned
+        ? `Upgraded user ${email} to ${tier}`
+        : `No upgrade for ${email}: ${result.reason}`
+    );
   } catch (error) {
     console.error('Failed to upgrade user:', error);
     throw error;
@@ -111,8 +128,21 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
       : paymentIntent.customer?.id || '';
 
   try {
-    await upgradeUser(email, tier, customerId, paymentIntent.id);
-    console.log(`Upgraded user ${email} to ${tier} (via payment_intent)`);
+    // This path recorded no sale at all before, so a payment arriving here
+    // rather than via checkout.session was invisible to revenue reporting.
+    const result = await provisionPaidCheckout(
+      email,
+      tier,
+      customerId,
+      paymentIntent.id,
+      { sessionId: paymentIntent.id, via: 'payment_intent' }
+    );
+
+    console.log(
+      result.provisioned
+        ? `Upgraded user ${email} to ${tier} (via payment_intent)`
+        : `No upgrade for ${email}: ${result.reason}`
+    );
   } catch (error) {
     console.error('Failed to upgrade user:', error);
     throw error;

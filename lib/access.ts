@@ -1,6 +1,7 @@
 import { getDb } from '@/db';
 import { users, whitelist } from '@/db/schema';
-import { eq, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { trackEvent } from '@/lib/analytics';
 
 export type UserTier = 'free' | 'starter' | 'pro' | 'unlimited';
 
@@ -217,6 +218,144 @@ export async function upgradeUser(
         ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
       },
     });
+}
+
+/**
+ * Rank of each tier, so a lower-tier grant can never clobber a higher one.
+ */
+const TIER_RANK: Record<UserTier, number> = {
+  free: 0,
+  starter: 1,
+  pro: 2,
+  unlimited: 3,
+};
+
+export interface ProvisionResult {
+  provisioned: boolean;
+  /** 'granted' | 'already-provisioned' | 'outranked' | 'no-account' */
+  reason: 'granted' | 'already-provisioned' | 'outranked' | 'no-account';
+  tier: UserTier;
+}
+
+/**
+ * Grant a paid tier exactly once, from whichever path notices the payment first.
+ *
+ * Two paths know a checkout succeeded: the Stripe webhook, and the /success page
+ * polling `checkout-status` with a session id. Before 2026-08-15 only the webhook
+ * granted anything, so when its endpoint was pointed at a redirecting URL every
+ * payment on the platform succeeded in Stripe and provisioned nothing. The
+ * customer had no recourse: the one system that could have fixed it up was
+ * already talking to Stripe and already knew the session was paid, and threw
+ * that knowledge away.
+ *
+ * Both paths now call this. It is idempotent on `stripePaymentId`, which is the
+ * natural key: whichever path arrives first writes the grant, the other becomes
+ * a no-op rather than a duplicate upgrade or a double-counted sale.
+ */
+export async function provisionPaidCheckout(
+  email: string,
+  tier: 'starter' | 'pro' | 'unlimited',
+  stripeCustomerId: string,
+  stripePaymentId: string,
+  context: { sessionId: string; via: 'checkout.session' | 'payment_intent' | 'success-page' }
+): Promise<ProvisionResult> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+
+  const normalizedEmail = email.toLowerCase();
+  const paidAt = new Date();
+
+  // Both guards live inside the upsert rather than in a preceding SELECT, and
+  // that is the whole point. Read-then-write is not safe here: the webhook and
+  // the /success poll are *designed* to run at the same moment on the same
+  // payment, so both could read "not yet provisioned", both pass, and both book
+  // the sale. Revenue is summed from those events, so the report would simply be
+  // wrong.
+  //
+  // With the conditions in `setWhere`, Postgres takes a row lock on conflict.
+  // The second writer blocks, then re-evaluates against the row the first one
+  // just committed, sees its own payment id already there, and matches nothing.
+  // `returning()` yields a row only when this call actually changed something,
+  // which makes it the authority on whether to record a sale.
+  const tiersThisCanOverwrite = (Object.keys(TIER_RANK) as UserTier[]).filter(
+    (t) => TIER_RANK[t] <= TIER_RANK[tier]
+  );
+
+  const [granted] = await db
+    .insert(users)
+    .values({
+      email: normalizedEmail,
+      tier,
+      stripeCustomerId,
+      stripePaymentId,
+      paidAt,
+      walletsUsed: 0,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        tier,
+        stripeCustomerId,
+        stripePaymentId,
+        paidAt,
+        // Matches upgradeUser: only starter resets cumulative usage.
+        ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
+      },
+      setWhere: and(
+        // Idempotency on the payment intent. `ne` alone would not do: a NULL
+        // stripe_payment_id compares as NULL rather than true, so a first-time
+        // upgrade of an existing free account would match nothing and silently
+        // never provision.
+        or(
+          isNull(users.stripePaymentId),
+          ne(users.stripePaymentId, stripePaymentId)
+        ),
+        // Never downgrade. Without this, someone on Unlimited re-opening an old
+        // Pro success URL would be quietly dropped a tier.
+        inArray(users.tier, tiersThisCanOverwrite)
+      ),
+    })
+    .returning();
+
+  if (!granted) {
+    // Nothing changed, so distinguish why purely for the caller's logs. This
+    // read races nothing: it only labels an outcome already decided above.
+    const [existing] = await db
+      .select({ tier: users.tier, stripePaymentId: users.stripePaymentId })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!existing) return { provisioned: false, reason: 'no-account', tier: 'free' };
+
+    return {
+      provisioned: false,
+      reason:
+        existing.stripePaymentId === stripePaymentId
+          ? 'already-provisioned'
+          : 'outranked',
+      tier: (existing.tier as UserTier) ?? 'free',
+    };
+  }
+
+  // Booked here rather than at the call sites, so a grant cannot happen without
+  // the sale being recorded, and it is reached only when the upsert above
+  // actually wrote. The webhook previously did this as a floating promise
+  // (`trackEvent(...)` with no await), which a serverless runtime is free to
+  // discard when the handler returns, and the payment_intent path recorded
+  // nothing at all.
+  await trackEvent('payment_completed', {
+    userId: normalizedEmail,
+    metadata: {
+      tier,
+      amountCents: TIER_PRICES[tier] * 100,
+      stripeSessionId: context.sessionId,
+      stripeCustomerId,
+      via: context.via,
+    },
+  });
+
+  return { provisioned: true, reason: 'granted', tier };
 }
 
 /**
