@@ -39,11 +39,14 @@ const FarcasterIcon = ({ className }: { className?: string }) => (
 );
 
 // Pulsing dot indicator
+/* A steady opacity pulse. animate-ping expands a halo outward, which reads as a
+   notification arriving rather than a system running, and it was the larger of
+   the two infinite animations that reduced-motion was not stopping. */
 const LiveDot = () => (
-  <span className="relative flex h-2 w-2">
-    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-attested opacity-75" />
-    <span className="relative inline-flex rounded-full h-2 w-2 bg-attested" />
-  </span>
+  <span
+    aria-hidden
+    className="inline-flex h-[7px] w-[7px] flex-none rounded-full bg-attested motion-safe:animate-pulse"
+  />
 );
 
 export const RecentWins = memo(function RecentWins() {
@@ -116,22 +119,20 @@ export const RecentWins = memo(function RecentWins() {
             <div
               key={win.id}
               className={`
-                min-w-0 p-4 rounded-lg
-                bg-card border border-border
-                hover:border-foreground/30
-                transition-colors
-                ${recent ? 'ring-1 ring-accent-brand/20' : ''}
+                min-w-0 p-4 rounded-lg border border-border
               `}
               style={{
-                animation: 'slideUp 0.4s ease-out forwards',
-                animationDelay: `${index * 80}ms`,
+                // The token step, capped at four. An uncapped 80ms stagger meant
+                // the sixth tile landed 400ms after the first had been read.
+                animation: 'slideUp var(--duration-base) var(--ease-out-soft) forwards',
+                animationDelay: `calc(var(--duration-stagger) * ${Math.min(index, 3)})`,
                 opacity: 0,
               }}
             >
               {/* Header: Total found (hero number) + time */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <p className="text-2xl font-bold tabular-nums tracking-[var(--tracking-title)] text-accent-brand">
+                  <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-display)] text-foreground">
                     {totalFound.toLocaleString()}
                   </p>
                   {/* "wallets reached", not "socials found": this is now the unique
@@ -141,13 +142,7 @@ export const RecentWins = memo(function RecentWins() {
                     wallets reached
                   </p>
                 </div>
-                <span className={`
-                  text-xs font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap
-                  ${recent
-                    ? 'bg-accent-brand/10 text-accent-brand'
-                    : 'bg-muted text-muted-foreground'
-                  }
-                `}>
+                <span className="whitespace-nowrap font-mono text-[0.5625rem] uppercase tracking-[var(--tracking-label)] text-muted-foreground">
                   {formatTime(win.completedAt)}
                 </span>
               </div>
@@ -155,11 +150,11 @@ export const RecentWins = memo(function RecentWins() {
               {/* Breakdown row */}
               <div className="flex items-center gap-3 text-sm mb-3">
                 <div className="flex items-center gap-1.5" title="Twitter/X found">
-                  <XIcon className="text-foreground/70" />
+                  <XIcon className="text-muted-foreground" />
                   <span className="font-medium tabular-nums text-muted-foreground">{win.twitterFound.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1.5" title="Farcaster found">
-                  <FarcasterIcon className="text-accent-brand" />
+                  <FarcasterIcon className="text-muted-foreground" />
                   <span className="font-medium tabular-nums text-muted-foreground">{win.farcasterFound.toLocaleString()}</span>
                 </div>
               </div>
@@ -167,13 +162,13 @@ export const RecentWins = memo(function RecentWins() {
               {/* Footer: wallet count + consistent "win" badge */}
               <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {win.walletCount.toLocaleString()} wallets
+                  {win.walletCount.toLocaleString()} in
                 </span>
                 {/* Green because a hit rate is a measured outcome, not an affordance.
                     The tick is gone: green already carries the claim, and a leading
                     glyph on something unpressable is what makes a label look like a
                     control. */}
-                <span className="text-xs font-medium text-attested bg-attested-tint px-1.5 py-0.5 rounded-sm whitespace-nowrap tabular-nums">
+                <span className="whitespace-nowrap font-medium tabular-nums text-attested">
                   {win.socialRate}% hit rate
                 </span>
               </div>
