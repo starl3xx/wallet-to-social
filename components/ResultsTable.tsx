@@ -350,9 +350,9 @@ export const ResultsTable = memo(function ResultsTable({
           identities as unattested. */}
       <div className="border rounded-lg overflow-hidden">
         {/* Header */}
-        <div className="bg-muted/50 border-b">
+        <div className="border-b border-border">
           <div
-            className="grid text-sm font-medium text-muted-foreground"
+            className="grid font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground"
             style={{
               gridTemplateColumns: gridTemplate,
             }}
@@ -361,20 +361,20 @@ export const ResultsTable = memo(function ResultsTable({
                 for the rows, and a label here would crowd 18px. */}
             <div aria-hidden="true" />
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('wallet')}
             >
               Wallet <SortIcon field="wallet" />
             </div>
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('ens_name')}
             >
               ENS <SortIcon field="ens_name" />
             </div>
             {hasHoldings && (
               <div
-                className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
                 onClick={() => handleSort('holdings')}
               >
                 Holdings <SortIcon field="holdings" />
@@ -386,25 +386,25 @@ export const ResultsTable = memo(function ResultsTable({
               </div>
             ))}
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('twitter_handle')}
             >
               Twitter <SortIcon field="twitter_handle" />
             </div>
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('farcaster')}
             >
               Farcaster <SortIcon field="farcaster" />
             </div>
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('fc_followers')}
             >
               FC Followers <SortIcon field="fc_followers" />
             </div>
             <div
-              className="px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
               onClick={() => handleSort('priority_score')}
               title="Based on holdings × follower reach"
             >
@@ -519,13 +519,13 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* ENS */}
-                    <div className="px-4 py-2 text-sm truncate">
+                    <div className="px-4 py-2 font-mono text-xs truncate">
                       {result.ens_name || '-'}
                     </div>
 
                     {/* Holdings */}
                     {hasHoldings && (
-                      <div className="px-4 py-2 font-mono text-sm">
+                      <div className="px-4 py-2 font-mono text-xs tabular-nums">
                         {formatHoldings(result.holdings)}
                       </div>
                     )}
@@ -538,7 +538,7 @@ export const ResultsTable = memo(function ResultsTable({
                     ))}
 
                     {/* Twitter */}
-                    <div className="px-4 py-2 text-sm">
+                    <div className="px-4 py-2 font-mono text-xs">
                       {result.twitter_handle ? (
                         <a
                           href={
@@ -557,7 +557,7 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Farcaster */}
-                    <div className="px-4 py-2 text-sm">
+                    <div className="px-4 py-2 font-mono text-xs">
                       {result.farcaster ? (
                         <a
                           href={
@@ -576,7 +576,11 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* FC Followers */}
-                    <div className="px-4 py-2 text-sm">
+                    {/* tabular-nums, not font-mono: a follower count is a figure to
+                        compare down a column, not an identifier to read. Söhne's
+                        tnum substitutes .lt glyphs at a uniform 608 units, so the
+                        digits align without changing face. */}
+                    <div className="px-4 py-2 text-sm tabular-nums">
                       {isPaidTier ? (
                         result.fc_followers !== undefined ? (
                           result.fc_followers.toLocaleString()
