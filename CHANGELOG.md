@@ -44,6 +44,13 @@ All notable changes to walletlink.social. Newest first.
   index. A wallet with a Farcaster name in the index and a Twitter-only cache
   row lost its Farcaster name. The cache now supplies only the fields that it
   has.
+- **Two contract imports in one visit recorded the first contract twice.** The
+  start-lookup callback did not list the contract in its dependencies. Each
+  setter that changes the contract also sets the input source, so the callback
+  usually refreshed. Two contract imports in sequence set the input source to
+  the same value, React stops an update that changes nothing, and the callback
+  kept the first contract. The admin Source column then gave the wrong name for
+  the second lookup.
 - **The progress bar showed the name of a data supplier.** The rule is to give
   no supplier name in the interface. That stage is now “Profiles”. ENS and
   Farcaster are protocols, not suppliers, so they keep their names. The stage

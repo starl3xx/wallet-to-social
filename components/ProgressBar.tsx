@@ -181,11 +181,15 @@ export const ProgressBar = memo(function ProgressBar({
                       <span className="relative">{stage.icon}</span>
                     </div>
 
-                    {/* Stage label */}
+                    {/* Stage label. Five of these do not fit across a phone,
+                        and the row grew from four when the graph read was
+                        added, so on a narrow screen only the stage you are on
+                        is named. The dots still show the whole pipeline. */}
                     <span
                       className={`
-                        font-mono text-xs uppercase tracking-[0.14em] transition-colors
+                        whitespace-nowrap font-mono text-xs uppercase tracking-[0.14em] transition-colors
                         ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground/70' : 'text-muted-foreground/50'}
+                        ${isActive ? '' : 'hidden sm:inline'}
                       `}
                     >
                       {stage.label}

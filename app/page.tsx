@@ -350,7 +350,7 @@ export default function Home() {
       setOriginalData(dataMap);
       setExtraColumns(cols);
       setInputSource('file_upload');
-    setSourceContract(null);
+      setSourceContract(null);
       setState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
@@ -432,7 +432,12 @@ export default function Home() {
       setProgress((prev) => ({ ...prev, status: 'error' }));
       setState('error');
     }
-  }, [wallets, originalData, saveToHistory, lookupName, scanDepth, userTier, userEmail, inputSource]);
+    // `sourceContract` has to be here even though every setter that changes it
+    // also sets `inputSource`. Two contract imports in a row set inputSource to
+    // the same value twice, React bails out of that update, and without this
+    // dependency the callback keeps the first contract: the second import would
+    // be filed in the admin panel under the first one's name.
+  }, [wallets, originalData, saveToHistory, lookupName, scanDepth, userTier, userEmail, inputSource, sourceContract]);
 
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
