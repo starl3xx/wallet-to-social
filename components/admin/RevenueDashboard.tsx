@@ -46,6 +46,8 @@ interface RevenueData {
   allTime: Totals;
   thisMonth: Totals;
   byTier: Record<string, number>;
+  /** Lowercased email → highest tier actually purchased, across all payments. */
+  paidTierByEmail: Record<string, string>;
   payments: Payment[];
   truncated: boolean;
 }
@@ -124,19 +126,19 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
    *
    * These cost real API spend and belong on this screen. They are not revenue.
    */
-  const highestPaidTierByEmail = new Map<string, string>();
-  for (const p of revenue?.payments ?? []) {
-    if (p.fullyRefunded || !p.email || !p.tier) continue;
-    const key = p.email.toLowerCase();
-    const held = highestPaidTierByEmail.get(key);
-    if (!held || TIER_RANK[p.tier] > TIER_RANK[held]) {
-      highestPaidTierByEmail.set(key, p.tier);
-    }
-  }
+  // Comes from the API, computed over every payment. Deriving it from
+  // `revenue.payments` would be wrong: that list is the 25 most recent, so any
+  // customer whose purchase has scrolled past the cut-off would be reported as
+  // complimentary.
+  // Typed with `| undefined` deliberately: a bare Record<string, string> index
+  // is typed as always returning a string, which would quietly make the
+  // "never paid" branch below unreachable to the type checker.
+  const highestPaidTierByEmail: Record<string, string | undefined> =
+    revenue?.paidTierByEmail ?? {};
 
   const compedUsers = paidUsers
     .map((u) => {
-      const paidFor = highestPaidTierByEmail.get(u.email.toLowerCase()) ?? null;
+      const paidFor = highestPaidTierByEmail[u.email.toLowerCase()] ?? null;
       const gifted = !paidFor || (TIER_RANK[u.tier] ?? 0) > (TIER_RANK[paidFor] ?? 0);
       return gifted ? { ...u, paidFor } : null;
     })

@@ -4,6 +4,14 @@ import { listPayments, isStripeConfigured } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
 
+/** Ladder order, so a tier held can be compared against a tier purchased. */
+const TIER_RANK: Record<string, number> = {
+  free: 0,
+  starter: 1,
+  pro: 2,
+  unlimited: 3,
+};
+
 /**
  * Net revenue, read from Stripe rather than inferred from our own users table.
  *
@@ -68,11 +76,30 @@ export async function GET(request: NextRequest) {
       byTier[p.tier] = (byTier[p.tier] ?? 0) + 1;
     }
 
+    // Highest tier each address actually paid for, computed over EVERY payment.
+    //
+    // This is sent to the client rather than derived there, because the client
+    // only receives the 25 most recent payments for the table. Deriving comp
+    // status from that truncated list would label any customer whose purchase
+    // has scrolled past the cut-off as complimentary, which is precisely the
+    // "revenue that was never earned" error this endpoint exists to prevent,
+    // wearing the opposite sign.
+    const paidTierByEmail: Record<string, string> = {};
+    for (const p of payments) {
+      if (p.fullyRefunded || !p.email || !p.tier) continue;
+      const key = p.email.toLowerCase();
+      const held = paidTierByEmail[key];
+      if (!held || TIER_RANK[p.tier] > TIER_RANK[held]) {
+        paidTierByEmail[key] = p.tier;
+      }
+    }
+
     return NextResponse.json({
       configured: true,
       allTime: sum(payments),
       thisMonth: sum(thisMonthRows),
       byTier,
+      paidTierByEmail,
       payments: payments.slice(0, 25),
       truncated,
     });
