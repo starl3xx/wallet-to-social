@@ -947,6 +947,7 @@ export default function Home() {
 
   return (
     <PageShell
+      continuesHeader
       onBrandClick={handleReset}
       actions={
         <>
@@ -962,11 +963,11 @@ export default function Home() {
       {/* Owns its own bottom spacing. It used to sit in the header, where the
           separation came from main's py-12 below it; as a sibling inside main
           there is nothing between it and the upload UI. */}
-      <div className="mb-8">
+      <div className="mb-8 border-b border-border pb-3.5">
         {/* One line, not three sentences that then repeat themselves in the
             strip below. The old copy stated 4.7M and complete Farcaster
             coverage in the paragraph and again in the stats line. */}
-        <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
+        <h1 className="max-w-[60ch] pt-2 text-sm text-muted-foreground sm:text-base">
           Turn a wallet list into the{' '}
           <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
           accounts behind it.{' '}
@@ -975,17 +976,19 @@ export default function Home() {
           </a>
           .
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            {/* The pulse goes on the figure that actually moves. Coverage is a
+                fixed 100%; this is the count that grows as lookups feed the
+                graph, which is what "and counting" claims. */}
+            <span className="h-1.5 w-1.5 rounded-full bg-attested motion-safe:animate-pulse" aria-hidden />
             <span className="font-medium tabular-nums text-foreground">
               {indexedWallets ?? '4.7M'}
             </span>{' '}
-            wallets indexed
+            wallets indexed and counting
           </span>
           <span aria-hidden="true" className="opacity-40">·</span>
-          <span className="inline-flex items-center gap-1.5">
-            {/* Green: a measured fact, not an affordance. */}
-            <span className="h-1.5 w-1.5 rounded-full bg-attested" />
+          <span>
             <span className="font-medium tabular-nums text-foreground">100%</span> Farcaster coverage
           </span>
           <span aria-hidden="true" className="opacity-40">·</span>

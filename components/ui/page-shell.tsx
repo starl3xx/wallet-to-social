@@ -35,6 +35,7 @@ export function PageShell({
   actions,
   wide,
   onBrandClick,
+  continuesHeader,
 }: {
   children: React.ReactNode;
   /** Interactive header controls. The homepage passes tier, upgrade and theme. */
@@ -50,12 +51,28 @@ export function PageShell({
    * nothing, so results would survive the click. The homepage passes its reset.
    */
   onBrandClick?: () => void;
+  /**
+   * The page renders a continuation of the header block at the top of <main>
+   * (proposition, proof strip) and draws the closing rule itself.
+   */
+  continuesHeader?: boolean;
 }) {
   const width = wide ? 'max-w-7xl' : 'max-w-6xl';
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-border">
-        <div className={`mx-auto flex w-full ${width} items-center gap-3 px-6 py-4`}>
+      {/* The rule belongs under the whole header block, not under the lockup row.
+          A border here plus main's py-12 drew a hairline immediately below the
+          wordmark and then left 48px of nothing before the page's own first line,
+          so the lockup floated alone above a gap.
+
+          The homepage continues the block with a proposition and a proof strip,
+          and those have to live in <main> because they contain the page's h1 and
+          a heading does not belong in the banner landmark. So the page owns the
+          rule instead: it sets `continuesHeader` and draws the border under its
+          own strip. Every other page keeps it here, where the lockup really is
+          the end of the block. */}
+      <header className={continuesHeader ? '' : 'border-b border-border'}>
+        <div className={`mx-auto flex w-full ${width} items-center gap-3 px-6 pt-5 pb-3`}>
           <Link
             href="/"
             onClick={onBrandClick}
@@ -73,7 +90,9 @@ export function PageShell({
         </div>
       </header>
 
-      <main className={`mx-auto w-full flex-1 ${width} px-6 py-12`}>{children}</main>
+      <main className={`mx-auto w-full flex-1 ${width} px-6 pb-12 ${continuesHeader ? 'pt-0' : 'pt-8'}`}>
+        {children}
+      </main>
 
       <SiteFooter />
     </div>

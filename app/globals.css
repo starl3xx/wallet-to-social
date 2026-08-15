@@ -328,6 +328,29 @@
    slide, which breaks the rule the colour is there to follow. So the incoming
    label holds its old colour until the thumb is nearly under it; the outgoing one
    has no delay, because the thumb is leaving it immediately. */
+/* A periodic sweep across the one revenue action. 9s cycle with ~24% travel, so
+   it reads as an occasional glint rather than a loading shimmer, and it is the
+   only decorative motion in the product. */
+.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  inset-block: -60%;
+  left: -80%;
+  width: 46%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.2), transparent);
+  pointer-events: none;
+  /* translateX, not `left`. Animating `left` forces layout on every frame, which
+     docs/DESIGN-LANGUAGE.md bans outright, and the two sibling keyframes in this
+     file (shimmer, slide) already travel by transform. */
+  animation: btn-sweep 9s ease-in-out infinite;
+}
+@keyframes btn-sweep {
+  0% { transform: translateX(0) skewX(-22deg); }
+  24% { transform: translateX(500%) skewX(-22deg); }
+  100% { transform: translateX(500%) skewX(-22deg); }
+}
+
 .segmented-option {
   transition: color var(--duration-fast) var(--ease-out-soft);
 }
