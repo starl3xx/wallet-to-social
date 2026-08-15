@@ -89,6 +89,18 @@ const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
 // Moralis chain IDs (hex form), the ERC-20 holder index. Verified live on the
 // free plan for every chain listed here. Robinhood is absent because Moralis
 // does not index it; it uses BLOCKSCOUT_BASE_URLS instead.
+/**
+ * Whether a chain's ERC-20 holder list is served by the metered index.
+ *
+ * Exported so callers can ask instead of assuming every ERC-20 import spends
+ * the daily allowance. Robinhood Chain does not: it resolves through its own
+ * explorer, which has no part in that budget, so throttling it when the
+ * allowance is tight refuses work that could not have helped.
+ */
+export function usesMeteredHolderIndex(chain: SupportedChain): boolean {
+  return chain in MORALIS_CHAIN_IDS;
+}
+
 const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   ethereum: '0x1',
   base: '0x2105',
@@ -536,6 +548,17 @@ async function getERC20Holders(
   // failure paths too: a request that errors has already been billed.
   let requestsMade = 0;
 
+  /**
+   * `try`/`finally` around the whole loop, so the count survives every exit.
+   *
+   * Recording at each `throw` looked equivalent and was not: a timeout, a
+   * network failure or a malformed body escapes from between those branches,
+   * and it takes with it not just the failed request but every page that
+   * already succeeded in the same loop. Those were billed. A guard fed by a
+   * counter that silently drops spend is a guard that lets the cron run on a
+   * day the allowance is already gone.
+   */
+  try {
   // Paginate through results (Moralis returns max 100 per page)
   do {
     requestsMade++;
@@ -576,12 +599,10 @@ async function getERC20Holders(
       const exhausted = /compute unit|daily limit|quota|out of credit/i.test(errorText);
       if (exhausted) {
         console.error('Holder index allowance spent for the day:', errorText.slice(0, 200));
-        void recordHolderIndexSpend(requestsMade);
         throw new Error('DAILY_ALLOWANCE_SPENT');
       }
 
       if (response.status === 429) {
-        void recordHolderIndexSpend(requestsMade);
         throw new Error('RATE_LIMIT');
       }
       console.error('Moralis API error response:', {
@@ -589,7 +610,6 @@ async function getERC20Holders(
         body: errorText,
         url: url.toString().replace(moralisKey, '***'),
       });
-      void recordHolderIndexSpend(requestsMade);
       throw new Error(`Moralis API error: ${response.status} - ${errorText}`);
     }
 
@@ -618,10 +638,11 @@ async function getERC20Holders(
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   } while (cursor && wallets.length < limit);
-
-  // Not awaited. The accounting is for the cron's benefit, and making a
-  // customer's import wait on a bookkeeping write would be the wrong trade.
-  void recordHolderIndexSpend(requestsMade);
+  } finally {
+    // Not awaited. The accounting serves the cron, and making a customer's
+    // import wait on a bookkeeping write would be the wrong trade.
+    void recordHolderIndexSpend(requestsMade);
+  }
 
   // Dedupe and limit
   const uniqueWallets = [...new Set(wallets)].slice(0, limit);

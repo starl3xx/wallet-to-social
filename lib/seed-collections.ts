@@ -25,6 +25,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import {
   getContractHolders,
+  usesMeteredHolderIndex,
   type HolderResult,
 } from './contract-holders';
 import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
@@ -386,10 +387,21 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
    * NFT seeds are not checked, because they resolve through a different
    * provider and cannot spend this allowance at all.
    */
-  if (candidate.kind === 'erc20') {
+  if (candidate.kind === 'erc20' && usesMeteredHolderIndex(candidate.chain)) {
     const indexBudget = await checkHolderIndexBudget(estimateRequests(HOLDER_CAP));
     if (!indexBudget.allowed) {
       console.log(`Seed skipped, holder index budget: ${indexBudget.reason}`);
+      /**
+       * Undo the attempt marker. `seedFirstViable` writes it before calling
+       * here, and a zero-holder row is `selectNovelCandidates`' way of
+       * recording a contract that failed, which locks it out for two days.
+       *
+       * This contract did not fail. It was never tried. Leaving the marker
+       * would punish a healthy token for a throttle it had no part in, and
+       * would quietly shrink the candidate pool every day the allowance ran
+       * short. The squeezed-timeout path already unmarks for this reason.
+       */
+      await unmarkSeedAttempt(candidate).catch(console.error);
       return {
         contract: candidate,
         holdersImported: 0,
