@@ -298,9 +298,17 @@ coverage.
 
 ## Enforcement
 
-`.github/workflows/design-tokens.yml` and `eslint.config.mjs` guard what a grep can
-see. Both must be **tested against fixtures**, not against the code they are meant
-to bless — the palette guard passed clean twice over live violations, once because
+Two CI jobs and an ESLint rule guard what a grep can see:
+
+| Guard | Covers |
+|---|---|
+| `scripts/check-palette-guard.mjs` | raw palette classes, all 22 shaded families |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label |
+| `eslint.config.mjs` | the palette rule, in the editor |
+
+Both scripts run their **own fixtures first**, so a guard that has stopped working
+fails before it can report a clean codebase. They must be tested against fixtures,
+not against the code they are meant to bless — the palette guard passed clean twice over live violations, once because
 its regex required whitespace before the class, once because it omitted six colour
 families.
 

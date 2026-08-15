@@ -1157,7 +1157,7 @@ export default function Home() {
                       id="saveHistory"
                       checked={saveToHistory}
                       onChange={(e) => setSaveToHistory(e.target.checked)}
-                      className="rounded"
+                      className="rounded-sm"
                     />
                     <label htmlFor="saveHistory" className="text-sm">
                       Save to history
@@ -1169,7 +1169,7 @@ export default function Home() {
                       id="includeENS"
                       checked={includeENS}
                       onChange={(e) => setIncludeENS(e.target.checked)}
-                      className="rounded"
+                      className="rounded-sm"
                     />
                     <label
                       htmlFor="includeENS"
@@ -1190,7 +1190,7 @@ export default function Home() {
                       id="fastMode"
                       checked={fastMode}
                       onChange={(e) => setFastMode(e.target.checked)}
-                      className="rounded"
+                      className="rounded-sm"
                     />
                     <label
                       htmlFor="fastMode"
@@ -1216,7 +1216,7 @@ export default function Home() {
                             localStorage.setItem('notifyOnComplete', 'false');
                           }
                         }}
-                        className="rounded"
+                        className="rounded-sm"
                       />
                       <label
                         htmlFor="notifyOnComplete"
