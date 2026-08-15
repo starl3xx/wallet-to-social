@@ -214,6 +214,21 @@ container, no header, no footer and no `max-w-*` of their own.
 
 Reading columns constrain **measure**, not the shell: prose is `max-w-[68ch]`.
 
+### Breakpoints
+
+Tailwind's own, plus **one**: `xs` at 360px.
+
+It exists because a two-across grid of *controls* fails earlier than a grid of
+tiles, and the difference is `whitespace-nowrap`. A tile's label wraps and the
+tile grows; a button's label cannot, so it spills out of the pill and over its
+neighbour. Measured with Söhne loaded: the admin nav's longest label needs
+138px, a 320px screen gives its cell 132px, and at 360px the cell is 152px and
+every label fits.
+
+The step is at the measured failure, not at a round number, and 360px is also
+the narrowest phone still in general use. **A grid of buttons needs one more
+step than a grid of text.**
+
 Spacing comes from nine steps only: 4, 8, 12, 16, 24, 32, 48, 64, 96px. Page
 padding `py-16`, section gap `space-y-16`, card padding `p-6`, stack inside a card
 `space-y-4`.

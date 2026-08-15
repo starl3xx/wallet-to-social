@@ -148,6 +148,16 @@
   --tracking-body: -0.006em;    /* body and UI */
   --tracking-label: 0.14em;     /* the one uppercase label */
 
+  /* One breakpoint below Tailwind's `sm`, at the width where a two-across grid
+     of controls stops fitting a control-length label.
+
+     Measured rather than picked: in Chrome with Söhne loaded, the admin nav's
+     longest label needs 138px and a 320px-wide screen gives its cell 132px, so
+     the text spilled out of the pill. At 360px the cell is 152px and every
+     label fits with room. 360px is also the narrowest phone still in use, so
+     the step lands exactly where the failure does. */
+  --breakpoint-xs: 22.5rem; /* 360px */
+
   /* Motion. Three durations, two curves. */
   --duration-press: 80ms;
   --duration-fast: 120ms;

@@ -90,9 +90,15 @@ function NavGroup({
       <Eyebrow as="h2" className="mb-2">
         {title}
       </Eyebrow>
-      {/* Reflows rather than scrolls. Six across matches the Pulse tile grid
-          directly beneath it, so the two read as one rhythm. */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Reflows rather than scrolls, and steps in exactly the places the Pulse
+          tile grid beneath it does, so the two read as one rhythm.
+
+          One step the tiles do not have: a single column below `xs`. A tile's
+          label wraps, a Button's does not, so at a 320px screen the two-across
+          cell is 132px and "Saved lookups" needs 138 and spilled out of the
+          pill. Measured with the real typeface; at 360px the cell is 152px and
+          every label fits. */}
+      <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {items.map((item) => {
           const Icon = item.icon;
           const current = active === item.value;
