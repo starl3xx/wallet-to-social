@@ -1125,7 +1125,7 @@ export default function AdminPage() {
        them would trade a real working constraint for a cosmetic one. */
     <PageShell wide>
         <header className="mb-8">
-          <h1 className="mb-2 text-3xl font-semibold tracking-tight">Admin dashboard</h1>
+          <h1 className="mb-2 text-3xl font-semibold tracking-[var(--tracking-display)]">Admin dashboard</h1>
           <p className="text-muted-foreground">
             Analytics, monitoring, and operational tools
           </p>

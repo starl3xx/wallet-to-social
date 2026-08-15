@@ -131,7 +131,7 @@ export const RecentWins = memo(function RecentWins() {
               {/* Header: Total found (hero number) + time */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <p className="text-2xl font-bold tabular-nums tracking-tight text-accent-brand">
+                  <p className="text-2xl font-bold tabular-nums tracking-[var(--tracking-title)] text-accent-brand">
                     {totalFound.toLocaleString()}
                   </p>
                   {/* "wallets reached", not "socials found": this is now the unique

@@ -25,7 +25,7 @@ interface AccessBannerProps {
  * chip should not compete with the things you can press, which is what the badge
  * treatment already encodes: uppercase mono, chip radius, tint fill, no border.
  */
-const CHIP = 'inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-mono text-xs uppercase tracking-[0.14em]';
+const CHIP = 'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)]';
 
 export function AccessBanner({
   tier,
@@ -62,7 +62,7 @@ export function AccessBanner({
             onClick={() => setShowDropdown(!showDropdown)}
             aria-label={`Account: ${user.email}`}
             title={user.email ?? undefined}
-            className="transition-control flex h-10 w-10 items-center justify-center rounded-full bg-accent-brand-tint text-accent-brand hover:bg-accent-brand hover:text-accent-brand-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="transition-control flex h-control w-control items-center justify-center rounded-full bg-accent-brand-tint text-accent-brand hover:bg-accent-brand hover:text-accent-brand-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <User className="h-4 w-4" aria-hidden />
           </button>
@@ -111,7 +111,9 @@ export function AccessBanner({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 sm:h-7 px-1.5 sm:px-2 text-xs sm:text-sm gap-1 sm:gap-1.5"
+          /* No height override. size="sm" supplies the control height, and this
+             was pinning the one control a signed-out visitor sees to 24px in a
+             row of 34px ones. */
           onClick={() => setAuthModalOpen(true)}
         >
           <LogIn className="h-3 w-3 sm:h-3.5 sm:w-3.5" />

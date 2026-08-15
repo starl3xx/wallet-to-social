@@ -133,10 +133,26 @@
   --radius-3xl: initial;
   --radius-4xl: initial;
 
+  /* Control height. Every control in a row resolves to this: button, segmented,
+     input, avatar. The doc has specified 34px since the design language landed
+     and the code never had the token, so controls arrived at 32, 40 and 28px and
+     the header read as four unrelated chips. A badge is NOT a control and must
+     stay visibly shorter, never within 2px of this. */
+  --height-control: 2.125rem; /* 34px */
+
+  /* Tracking, bound to size. Four steps, nothing between. `tracking-tight`
+     (-0.025em) is not one of them. */
+  --tracking-display: -0.04em;  /* >=32px */
+  --tracking-title: -0.028em;   /* 20-31px */
+  --tracking-lead: -0.012em;    /* 16-19px */
+  --tracking-body: -0.006em;    /* body and UI */
+  --tracking-label: 0.14em;     /* the one uppercase label */
+
   /* Motion. Three durations, two curves. */
   --duration-press: 80ms;
   --duration-fast: 120ms;
   --duration-base: 220ms;
+  --duration-stagger: 40ms;
   --ease-out-soft: cubic-bezier(0.2, 0, 0, 1);
   --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -275,6 +291,13 @@
 }
 
 @layer components {
+  /* Utilities for the control-height token. Tailwind generates spacing utilities
+     from --spacing-*, not from an arbitrary token, so these are written once here
+     rather than repeated as h-[2.125rem] at forty call sites. */
+  .h-control { height: var(--height-control); }
+  .w-control { width: var(--height-control); }
+  .size-control { height: var(--height-control); width: var(--height-control); }
+
   /* One transition for every control. Colour and press want different durations,
      which no single Tailwind transition-* class can express, and `transition-all`
      would animate layout properties that must never animate. */
@@ -322,6 +345,22 @@
    utility regardless of source order. Tailwind v4 already wraps every `hover:`
    utility in @media (hover: hover), so no touch gating is needed here. */
 @media (prefers-reduced-motion: reduce) {
+  /* Everything that moves, stops.
+     This block previously neutralised two transition helpers while every keyframe
+     animation kept running, including animate-ping on the live dot and
+     animate-shimmer on the progress bar, both infinite. A person who has asked
+     the operating system for less motion was still getting two things looping
+     forever, which is the case the setting exists for.
+     Colour transitions survive on purpose: they carry no movement, so removing
+     them takes away feedback and gives nothing back. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
   /* The thumb still moves, it just arrives immediately: removing the transform
      entirely would leave it stranded under the wrong option. */
   .segmented-thumb {

@@ -46,7 +46,7 @@ export function OverflowMenu({
         aria-expanded={open}
         title={label}
         onClick={() => setOpen((v) => !v)}
-        className="transition-control flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="transition-control flex h-control w-control items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <DotsThree className="h-5 w-5" weight="bold" aria-hidden />
       </button>

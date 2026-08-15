@@ -28,7 +28,7 @@ export function SiteFooter() {
           <div>
             <Link href="/" className="flex items-center gap-2.5">
               <Image src="/icon.png" alt="" width={30} height={30} className="rounded-mark" />
-              <span className="text-xl font-semibold tracking-tight">
+              <span className="text-xl font-semibold tracking-[var(--tracking-title)]">
                 <span className="text-accent-brand">walletlink</span>
                 <span className="text-muted-foreground">.social</span>
               </span>
