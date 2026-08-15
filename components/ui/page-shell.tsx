@@ -35,6 +35,7 @@ export function PageShell({
   actions,
   below,
   wide,
+  onBrandClick,
 }: {
   children: React.ReactNode;
   /** Interactive header controls. The homepage passes tier, upgrade and theme. */
@@ -43,13 +44,26 @@ export function PageShell({
   below?: React.ReactNode;
   /** Admin only. Dense tables genuinely need more than 1152px. */
   wide?: boolean;
+  /**
+   * Extra work on the brand click, for the homepage.
+   *
+   * CLAUDE.md: "Header logo is always clickable — returns user to homepage from
+   * any state." A plain <Link href="/"> satisfies that everywhere except the
+   * homepage itself, where navigating to the route you are already on clears
+   * nothing, so results would survive the click. The homepage passes its reset.
+   */
+  onBrandClick?: () => void;
 }) {
   const width = wide ? 'max-w-7xl' : 'max-w-6xl';
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border">
         <div className={`mx-auto flex w-full ${width} items-center gap-3 px-6 py-4`}>
-          <Link href="/" className="transition-control flex items-center gap-2.5 hover:opacity-80">
+          <Link
+            href="/"
+            onClick={onBrandClick}
+            className="transition-control flex items-center gap-2.5 hover:opacity-80"
+          >
             <Image src="/icon.png" alt="" width={36} height={36} priority className="rounded-mark" />
             {/* The brand sits on the name, not the suffix. ".social" is the
                 address; "walletlink" is the thing. */}
