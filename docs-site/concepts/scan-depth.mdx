@@ -7,8 +7,8 @@ Every lookup in the app asks one question before it starts: how hard should this
 
 <CardGroup cols={2}>
   <Card title="Fast" icon="bolt">
-    Answers from our index only. No live request goes out, so a list of any
-    size comes back in seconds.
+    Answers from the walletlink index only. No live request goes out, so a list
+    of any size comes back in seconds.
   </Card>
   <Card title="Deep scan" icon="binoculars">
     The index plus every live source, including onchain ENS records. Slower,
@@ -16,11 +16,13 @@ Every lookup in the app asks one question before it starts: how hard should this
   </Card>
 </CardGroup>
 
+Throughout this page, **the index** means [our own database of 4.7 million wallet identities](/#the-index), not a third party's.
+
 Deep is the default. It is the one that produces attested X handles, which is the difference the product is built on.
 
 ## What each one reads
 
-A fast scan reads two things: the identity index, and the short-term cache in front of it. That is the whole pipeline. Nothing is resolved live, nothing is written back, and the wall clock is dominated by the round trip rather than by how many addresses you sent.
+A fast scan reads two things: the walletlink index, and the short-term cache in front of it. That is the whole pipeline. Nothing is resolved live, nothing is written back, and the wall clock is dominated by the round trip rather than by how many addresses you sent.
 
 A deep scan reads those first, then resolves whatever is left against every live source available to your plan, including onchain ENS text records. It writes what it learns back, so the next lookup over the same addresses is faster for everyone.
 
@@ -48,7 +50,7 @@ The deep figure is deliberately conservative: ten seconds of live sources and ei
 
 ## Fast scans never write
 
-A fast scan does not update the index, and this is deliberate rather than an optimisation. Writing back would stamp records as freshly checked when nothing checked them, and a later deep scan would trust that stamp and skip the very sources meant to confirm them. One fast scan would suppress the next real one.
+A fast scan does not write to the index, and this is deliberate rather than an optimisation. Writing back would stamp records as freshly checked when nothing checked them, and a later deep scan would trust that stamp and skip the very sources meant to confirm them. One fast scan would suppress the next real one.
 
 So a fast scan is free of side effects in both directions: it takes what is there, and it leaves the index exactly as it found it.
 

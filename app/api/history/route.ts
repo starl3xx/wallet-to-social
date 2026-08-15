@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getLookupHistory, getHistorySummaries, getHistoryCount, getEnrichmentCounts } from '@/lib/history';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getUserAccess } from '@/lib/access';
 
 export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) {
@@ -49,9 +50,19 @@ export async function GET(request: NextRequest) {
     // Optionally include total count for pagination
     const totalCount = includeCount ? await getHistoryCount(userId) : undefined;
 
-    // Optionally include enrichment counts (how many wallets updated since last view)
+    /**
+     * Enrichment counts are the "N new matches" pills on the history list, and
+     * they are the same Unlimited feature as the NEW row markers inside a
+     * lookup. Gating one and not the other was worse than gating neither: the
+     * list advertised new matches, opening the lookup showed none, and the act
+     * of opening it advanced `lastViewedAt` and destroyed the window those
+     * matches were counted against.
+     */
+    const access = await getUserAccess(session.user.email ?? undefined);
+    const canSeeEnrichment = access.tier === 'unlimited';
+
     let enrichmentCounts: Record<string, number> | undefined;
-    if (includeEnrichment && history.length > 0) {
+    if (includeEnrichment && canSeeEnrichment && history.length > 0) {
       const lookupIds = history.map((h) => h.id);
       const countsMap = await getEnrichmentCounts(lookupIds);
       enrichmentCounts = Object.fromEntries(countsMap);

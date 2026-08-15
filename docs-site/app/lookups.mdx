@@ -52,7 +52,7 @@ The cap is per lookup, not per month or per lifetime. There is no cumulative quo
 
 ## Choosing how hard to look
 
-Before starting, pick **Fast** or **Deep scan**. Deep is the default and finds the most; fast answers from the index alone and returns in seconds. The estimate on screen follows the choice.
+Before starting, pick **Fast** or **Deep scan**. Deep is the default and finds the most; fast answers from [the walletlink index](/#the-index) alone and returns in seconds. The estimate on screen follows the choice.
 
 [Scan depth](/concepts/scan-depth) covers what each one reads and when the cheaper answer is the right one.
 
@@ -62,7 +62,14 @@ A lookup is saved to your history by default, and you can name it while it runs.
 
 Turn saving off for a one-off, and export before you leave the page: nothing is kept.
 
-From a saved lookup you can **add addresses** later. New addresses are resolved and merged into the existing result rather than starting a separate one, which keeps a growing holder list in one place.
+### Growing a saved lookup
+
+On **Unlimited**, a saved lookup is a living list rather than a snapshot.
+
+- **Add addresses** to it later. They are resolved and merged into the existing result rather than starting a separate one, so a holder list that grows stays in one place.
+- **See what is new since you last opened it.** The index gains identities every day, so a wallet that resolved to nothing in March may resolve now. Rows that gained an identity since your last visit are marked `NEW` when you reopen the lookup, which means a list you ran once keeps paying out without you re-running anything.
+
+On other plans a saved lookup is a fixed record: you can open it, rename it, and export it, but its contents do not change.
 
 ## Getting results out
 
