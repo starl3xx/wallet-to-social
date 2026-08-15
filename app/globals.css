@@ -108,6 +108,7 @@
   --color-caution-tint: var(--caution-tint);
   --color-caution-foreground: var(--caution-foreground);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-surface-raised: var(--surface-raised);
   --color-success-light: var(--success-light);
   --color-success-foreground: var(--success-foreground);
   /* An intentionally inverse surface. The product has three of them already: the
@@ -196,6 +197,12 @@
   --x-bg: #0F1419;
   --x-fg: #FFFFFF;
 
+  /* A thumb sitting on a muted track has to be lighter than it. --background is
+     lighter than --muted in light mode and DARKER in dark mode, so painting the
+     thumb with it inverts the raised metaphor on exactly one theme: the selected
+     segment reads as a hole rather than a lift. */
+  --surface-raised: oklch(1 0 0);
+
   /* Deliberately fixed in both themes: an inverse surface is a design decision,
      not a theme response. Restated identically under .dark so nothing inherits a
      flip from the tokens above it. */
@@ -257,6 +264,9 @@
      invisible, and the mark matters more than the exact swatch. */
   --x-bg: #FFFFFF;
   --x-fg: #0F1419;
+
+  /* Lifts above --muted (0.269), where --background (0.145) sinks below it. */
+  --surface-raised: oklch(0.37 0 0);
 
   /* Identical to :root on purpose. See the note there. */
   --surface-inverse: oklch(0.16 0.02 280);

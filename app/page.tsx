@@ -952,8 +952,8 @@ export default function Home() {
             tier={userTier}
             isWhitelisted={isWhitelisted}
             onUpgradeClick={handleOpenUpgradeModal}
+            trailing={<ThemeToggle />}
           />
-          <ThemeToggle />
         </>
       }
     >

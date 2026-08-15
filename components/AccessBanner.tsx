@@ -13,13 +13,26 @@ interface AccessBannerProps {
   isWhitelisted?: boolean;
   walletsRemaining?: number | null;
   onUpgradeClick?: () => void;
+  /** Rendered between the tier chip and the account control. */
+  trailing?: React.ReactNode;
 }
+
+/**
+ * Every tier state is the same object: a badge, not a control.
+ *
+ * These were five hand-rolled divs with `py-1 sm:py-1.5`, so their height came
+ * from padding and landed somewhere near 28px in a row of 40px controls. A status
+ * chip should not compete with the things you can press, which is what the badge
+ * treatment already encodes: uppercase mono, chip radius, tint fill, no border.
+ */
+const CHIP = 'inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-mono text-xs uppercase tracking-[0.14em]';
 
 export function AccessBanner({
   tier,
   isWhitelisted,
   walletsRemaining,
   onUpgradeClick,
+  trailing,
 }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
@@ -123,7 +136,7 @@ export function AccessBanner({
      */
     if (isWhitelisted) {
       return (
-        <div className="flex items-center gap-1.5 rounded-sm bg-attested-tint px-2 py-1 text-xs sm:gap-2 sm:px-2.5 sm:text-sm">
+        <div className={`${CHIP} bg-attested-tint text-attested`}>
           <span className="h-1.5 w-1.5 flex-none rounded-full bg-attested" aria-hidden />
           <span className="font-medium text-attested">Whitelisted</span>
         </div>
@@ -132,7 +145,7 @@ export function AccessBanner({
 
     if (tier === 'unlimited') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand-hover text-xs sm:text-sm">
+        <div className={`${CHIP} bg-accent-brand text-accent-brand-foreground`}>
           <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">
             Unlimited
@@ -143,7 +156,7 @@ export function AccessBanner({
 
     if (tier === 'starter') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand-tint text-xs sm:text-sm">
+        <div className={`${CHIP} bg-accent-brand-tint text-accent-brand`}>
           <Rocket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand" />
           <span className="font-medium text-accent-brand">Starter</span>
           <span className="text-muted-foreground hidden sm:inline">
@@ -157,7 +170,7 @@ export function AccessBanner({
 
     if (tier === 'pro') {
       return (
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-accent-brand text-xs sm:text-sm">
+        <div className={`${CHIP} bg-accent-brand text-accent-brand-foreground`}>
           <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">Pro</span>
           <span className="text-accent-brand-foreground/75 hidden sm:inline">
@@ -168,19 +181,19 @@ export function AccessBanner({
     }
 
     // Free tier - show upgrade CTA
+    // Deliberately NOT wrapped in CHIP. This is the only tier state containing an
+    // action, and CHIP is a label treatment: its font-mono, tracking and muted
+    // colour inherit straight into the Button and turn the one revenue CTA in the
+    // header into muted label type. A quota readout and its CTA are a label and an
+    // action, and those never share a treatment.
     return (
-      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-muted/50 border text-xs sm:text-sm">
-        <span className="text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span className={`${CHIP} bg-muted text-muted-foreground`}>
           <span className="sm:hidden">Free</span>
-          <span className="hidden sm:inline">Free ({TIER_LIMITS.free.toLocaleString()} wallets)</span>
+          <span className="hidden sm:inline">Free · {TIER_LIMITS.free.toLocaleString()} left</span>
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 sm:h-6 px-1.5 sm:px-2 text-xs"
-          onClick={onUpgradeClick}
-        >
-          <Zap className="h-3 w-3 mr-0.5 sm:mr-1" />
+        <Button size="sm" onClick={onUpgradeClick}>
+          <Zap className="h-3.5 w-3.5" weight="fill" />
           <span className="hidden sm:inline">Upgrade</span>
           <span className="sm:hidden">+</span>
         </Button>
@@ -189,8 +202,12 @@ export function AccessBanner({
   };
 
   return (
-    <div className="flex items-center gap-3 flex-shrink-0">
+    <div className="flex flex-shrink-0 items-center gap-2">
       <TierBadge />
+      {/* The theme control sits between status and account: an avatar is the
+          conventional end of a header row, and burying it mid-row makes the
+          whole cluster read as three unrelated chips. */}
+      {trailing}
       <AuthSection />
       {/* Rendered outside AuthSection: that component returns early while the
           session is loading, which would unmount an open modal mid-use. */}
