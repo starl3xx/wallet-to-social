@@ -3,6 +3,22 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (the admin navigation shows all of itself)
+
+- **The 12 destinations in the admin panel now go on more than one line.** They
+  were in 2 strips that moved sideways. A sideways scroll bar puts things behind
+  a movement that a person does not know is possible, and on a narrow screen it
+  hid one half of the panel. The design language does not permit this, and the
+  panel broke the rule in the most costly place: its own navigation.
+- **The buttons make a grid: 2, 3 or 6 across.** The count of 6 is the same as
+  the tiles below them, so the 2 parts make one rhythm.
+- **A screen reader gets a name for each group and the current position.** Each
+  group is a `nav` with a name, so a person can move past 12 controls. The
+  button for the open page says `aria-current`. Before, only the violet colour
+  said it.
+- The 12 buttons were written out one at a time in the page. They are one list
+  in `AdminNav` now, with the group titles in the standard label component.
+
 ### 2026-08-15 (the dialog footer holds, and selected text has one colour)
 
 - **`ModalFooter` holds its position now.** No dialog used it, and that was the
