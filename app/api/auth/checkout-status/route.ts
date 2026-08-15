@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
-import { getUserAccess, provisionPaidCheckout } from '@/lib/access';
+import { getUserAccess, provisionPaidCheckout, type PaidTier } from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   // Grant it here rather than waiting on the webhook. `tier` is our own metadata
   // from session creation, so an absent value means this session did not come
   // from our checkout route and nothing should be granted for it.
-  const tier = session.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
+  const tier = session.metadata?.tier as PaidTier | undefined;
 
   if (tier) {
     const customerId =

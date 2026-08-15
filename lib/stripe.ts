@@ -5,7 +5,7 @@ import { getSiteUrl } from '@/lib/site-url';
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
-export type CheckoutTier = 'starter' | 'pro' | 'unlimited';
+export type CheckoutTier = 'pro' | 'unlimited';
 
 interface CheckoutSessionResult {
   url: string;
@@ -26,9 +26,7 @@ export async function createCheckoutSession(
   const priceId =
     tier === 'unlimited'
       ? process.env.STRIPE_PRICE_UNLIMITED
-      : tier === 'pro'
-        ? process.env.STRIPE_PRICE_PRO
-        : process.env.STRIPE_PRICE_STARTER;
+      : process.env.STRIPE_PRICE_PRO;
 
   if (!priceId) {
     throw new Error(`Price not configured for tier: ${tier}`);
@@ -230,11 +228,10 @@ export async function listPayments(
  * Check if Stripe is configured
  */
 export function isStripeConfigured(): boolean {
-  // Deliberately does NOT require STRIPE_PRICE_STARTER. Starter was retired on
-  // 2026-08-12 and the checkout route rejects it outright, so gating on its
-  // price id meant deleting a dead env var would take the entire payment system
-  // down with a "Payment system not configured" 503 on every purchase, for a
-  // product that can no longer be bought.
+  // Only the tiers that can actually be bought. This used to also require
+  // STRIPE_PRICE_STARTER, so deleting that retired variable would have taken the
+  // whole payment system down with a "Payment system not configured" 503 on
+  // every purchase, for a product nobody could buy.
   return !!(
     process.env.STRIPE_SECRET_KEY &&
     process.env.STRIPE_PRICE_PRO &&

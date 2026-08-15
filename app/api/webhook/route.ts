@@ -4,7 +4,7 @@ import {
   resolveCheckoutEmail,
   StripeConfigError,
 } from '@/lib/stripe';
-import { provisionPaidCheckout } from '@/lib/access';
+import { provisionPaidCheckout, type PaidTier } from '@/lib/access';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = resolveCheckoutEmail(session);
-  const tier = session.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
+  const tier = session.metadata?.tier as PaidTier | undefined;
 
   if (!email || !tier) {
     console.error('Missing email or tier in checkout session:', session.id);
@@ -115,7 +115,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   const email = paymentIntent.metadata?.email;
-  const tier = paymentIntent.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
+  const tier = paymentIntent.metadata?.tier as PaidTier | undefined;
 
   if (!email || !tier) {
     // This is expected for non-upgrade payments

@@ -66,7 +66,7 @@ interface RevenueDashboardProps {
 }
 
 /** Ladder order, so a held tier can be compared against a purchased one. */
-const TIER_RANK: Record<string, number> = { free: 0, starter: 1, pro: 2, unlimited: 3 };
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, unlimited: 2 };
 
 const money = (cents: number) =>
   (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });

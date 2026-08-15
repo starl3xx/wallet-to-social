@@ -7,9 +7,8 @@ export const runtime = 'nodejs';
 /** Ladder order, so a tier held can be compared against a tier purchased. */
 const TIER_RANK: Record<string, number> = {
   free: 0,
-  starter: 1,
-  pro: 2,
-  unlimited: 3,
+  pro: 1,
+  unlimited: 2,
 };
 
 /**

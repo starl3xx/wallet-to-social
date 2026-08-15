@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, Lightning as Zap, Crown, CircleNotch as Loader2, Rocket } from '@phosphor-icons/react';
-import { TIER_LIMITS, TIER_PRICES } from '@/lib/access';
+import { TIER_LIMITS, TIER_PRICES, type PaidTier } from '@/lib/access';
 import { apiAllowanceLabel } from '@/lib/api-plans';
 import { Analytics } from '@/lib/client-analytics';
 
@@ -67,7 +67,7 @@ export function UpgradeModal({
   walletCount,
 }: UpgradeModalProps) {
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState<'starter' | 'pro' | 'unlimited' | null>(null);
+  const [loading, setLoading] = useState<PaidTier | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Track modal view when opened
@@ -78,7 +78,7 @@ export function UpgradeModal({
     }
   }, [open, walletCount, currentTier]);
 
-  const handleUpgrade = async (tier: 'starter' | 'pro' | 'unlimited') => {
+  const handleUpgrade = async (tier: PaidTier) => {
     if (!email || !email.includes('@')) {
       setError('Please enter a valid email');
       return;
