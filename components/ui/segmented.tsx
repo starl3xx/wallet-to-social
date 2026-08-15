@@ -100,8 +100,8 @@ export function Segmented<T extends string>({
           onKeyDown={(e) => onKeyDown(e, i)}
           onClick={() => onChange(o.value)}
           className={cn(
-            'relative z-10 flex h-8 flex-1 basis-0 items-center justify-center gap-1.5 rounded-full',
-            'px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2',
+            'segmented-option relative z-10 flex h-8 flex-1 basis-0 items-center justify-center gap-1.5 rounded-full',
+            'px-3 text-sm focus-visible:outline-none focus-visible:ring-2',
             'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             o.value === value ? 'font-semibold' : 'text-muted-foreground hover:text-foreground'
           )}

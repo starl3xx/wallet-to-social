@@ -298,6 +298,25 @@
     background-color var(--duration-fast) var(--ease-out-soft);
 }
 
+/* The label colour waits for the thumb.
+   activeColor only contrasts against the thumb, not against the track it slides
+   over: white on a light --muted is near-invisible. Applying it the instant
+   selection changes leaves the incoming label unreadable for the whole 220ms
+   slide, which breaks the rule the colour is there to follow. So the incoming
+   label holds its old colour until the thumb is nearly under it; the outgoing one
+   has no delay, because the thumb is leaving it immediately. */
+.segmented-option {
+  transition: color var(--duration-fast) var(--ease-out-soft);
+}
+.segmented-option[aria-checked='true'] {
+  transition-delay: calc(var(--duration-base) * 0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .segmented-option[aria-checked='true'] {
+    transition-delay: 0s;
+  }
+}
+
 /* Unlayered on purpose. These have to beat Tailwind's `active:` and
    `transition-*` utilities, and anything inside @layer components loses to a
    utility regardless of source order. Tailwind v4 already wraps every `hover:`
