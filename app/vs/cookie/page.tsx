@@ -72,7 +72,7 @@ export default function CookieComparison() {
 
           {/* Quick Summary */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Quick comparison</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Quick comparison</h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -191,7 +191,7 @@ export default function CookieComparison() {
 
           {/* What is Cookie.fun */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">What is Cookie.fun?</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">What is Cookie.fun?</h2>
             <p className="text-muted-foreground mb-4">
               Cookie.fun is a data layer and analytics platform for AI agents.
               It indexes agents across multiple frameworks and tracks their
@@ -212,7 +212,7 @@ export default function CookieComparison() {
 
           {/* What is walletlink.social */}
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -234,7 +234,7 @@ export default function CookieComparison() {
 
           {/* When to choose each */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">When to choose each</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">When to choose each</h2>
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* walletlink.social */}
@@ -297,7 +297,7 @@ export default function CookieComparison() {
 
           {/* Pricing Comparison */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-6">Pricing breakdown</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Pricing breakdown</h2>
 
             <div className="bg-muted/30 rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-4">walletlink.social</h3>
@@ -349,7 +349,7 @@ export default function CookieComparison() {
 
           {/* Use them together */}
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold mb-4">Better together</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">Better together</h2>
             <p className="text-muted-foreground mb-4">
               These tools complement each other. A typical workflow:
             </p>
@@ -363,7 +363,7 @@ export default function CookieComparison() {
 
           {/* CTA */}
           <section className="text-center py-12 border-t">
-            <h2 className="text-2xl font-semibold mb-4">
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">

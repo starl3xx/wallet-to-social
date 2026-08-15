@@ -1171,7 +1171,7 @@ export default function AdminPage() {
         )}
 
         {/* Tab navigation - Analytics section */}
-        <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="mb-2 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
           Analytics
         </div>
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
@@ -1223,7 +1223,7 @@ export default function AdminPage() {
         </div>
 
         {/* Tab navigation - Operations section */}
-        <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="mb-2 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
           Operations
         </div>
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">

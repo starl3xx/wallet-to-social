@@ -103,7 +103,7 @@ export const RecentWins = memo(function RecentWins() {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <LiveDot />
-        <h3 className="text-sm font-medium text-muted-foreground tracking-wide uppercase">
+        <h3 className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
           Recent activity
         </h3>
       </div>
@@ -142,7 +142,7 @@ export const RecentWins = memo(function RecentWins() {
                   </p>
                 </div>
                 <span className={`
-                  text-[10px] font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap
+                  text-xs font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap
                   ${recent
                     ? 'bg-accent-brand/10 text-accent-brand'
                     : 'bg-muted text-muted-foreground'
