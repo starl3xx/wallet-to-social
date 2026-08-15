@@ -171,6 +171,14 @@ export async function POST(request: NextRequest) {
         message: 'Too many requests, please try again in a moment',
         status: 429,
       },
+      DAILY_ALLOWANCE_SPENT: {
+        // Deliberately not "try again shortly". The allowance resets on a daily
+        // boundary, so telling someone to retry sends them into a loop that
+        // cannot succeed. No provider named, per the UI rule.
+        message:
+          'Token (ERC-20) holder import has reached its daily limit and will be available again tomorrow. NFT collections are unaffected, and an upload or a pasted list works now.',
+        status: 503,
+      },
       MORALIS_NOT_CONFIGURED: {
         message: 'Token holder lookup service not configured',
         status: 503,

@@ -551,10 +551,31 @@ async function getERC20Holders(
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+
+      /**
+       * A spent daily allowance is not "try again in a moment".
+       *
+       * The index bills by compute unit against a daily ceiling, and once that
+       * is gone it is gone until the ceiling resets. Reporting that as a rate
+       * limit told the customer to retry, which they did, which failed, which
+       * they did again. Telling them it comes back tomorrow is the difference
+       * between a wait and a fault.
+       *
+       * Matched on the body rather than the status because the status is not
+       * reliable for this: exhaustion has been seen as 401 and as 429, and a
+       * plain 429 for burst rate is a genuinely different answer. The body is
+       * what names the reason.
+       */
+      const exhausted = /compute unit|daily limit|quota|out of credit/i.test(errorText);
+      if (exhausted) {
+        console.error('Holder index allowance spent for the day:', errorText.slice(0, 200));
+        throw new Error('DAILY_ALLOWANCE_SPENT');
+      }
+
       if (response.status === 429) {
         throw new Error('RATE_LIMIT');
       }
-      const errorText = await response.text();
       console.error('Moralis API error response:', {
         status: response.status,
         body: errorText,
