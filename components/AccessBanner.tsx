@@ -174,9 +174,18 @@ export function AccessBanner({
     // action, and those never share a treatment.
     return (
       <div className="flex items-center gap-2">
-        <span className={`${CHIP} bg-muted text-muted-foreground`}>
-          <span className="sm:hidden">Free</span>
-          <span className="hidden sm:inline">Free · {TIER_LIMITS.free.toLocaleString()} left</span>
+        {/* Desktop only, and not purely for room. This is the one tier whose
+            chip tells a visitor nothing they want: someone with no account does
+            not need a badge saying so, they need the way in. Pro and Unlimited
+            keep theirs at every width, because there the chip is the only thing
+            saying the account is paid, and those rows are shorter anyway: no
+            Upgrade button, and an avatar instead of "Sign in".
+
+            It is also 61px of a header that measured 401px against a 375px
+            screen, which is what made the choice worth making rather than
+            merely arguable. */}
+        <span className={`${CHIP} hidden bg-muted text-muted-foreground sm:inline-flex`}>
+          Free · {TIER_LIMITS.free.toLocaleString()} left
         </span>
         <Button size="sm" className="btn-shine" onClick={onUpgradeClick}>
           <Zap className="h-3.5 w-3.5" weight="fill" />

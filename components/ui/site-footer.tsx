@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { XMark, FarcasterMark, GithubMark, ExternalMark } from './brand-marks';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
 
@@ -37,6 +38,15 @@ export function SiteFooter() {
               Wallet addresses to the identities their owners published. Attested,
               never inferred.
             </p>
+            {/* Below `sm` only, because above it the control is in the header.
+                The header row wants 606px and cannot shrink, and this control is
+                132px of that, so a phone gets it here where there is room. The
+                two are mutually exclusive: there is never a second one on
+                screen, which is the whole reason this carries `sm:hidden`
+                rather than simply existing. */}
+            <div className="mt-5 sm:hidden">
+              <ThemeToggle />
+            </div>
             <div className="mt-4 flex gap-2">
               <a href="https://x.com/walletlinkETH" target="_blank" rel="noopener noreferrer"
                 aria-label="walletlink.social on X"

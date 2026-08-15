@@ -1025,7 +1025,15 @@ export default function Home() {
             tier={userTier}
             isWhitelisted={isWhitelisted}
             onUpgradeClick={handleOpenUpgradeModal}
-            trailing={<ThemeToggle />}
+            /* The theme control is a three-option segmented at 132px, which is
+               40% of the header's action cluster and more than a phone can give
+               it. Below `sm` it renders in the footer instead, which is on every
+               page and has room. Exactly one is ever on screen. */
+            trailing={
+              <div className="hidden sm:block">
+                <ThemeToggle />
+              </div>
+            }
           />
         </>
       }

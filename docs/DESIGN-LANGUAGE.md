@@ -214,6 +214,39 @@ container, no header, no footer and no `max-w-*` of their own.
 
 Reading columns constrain **measure**, not the shell: prose is `max-w-[68ch]`.
 
+### The header on a phone
+
+A row of `flex-none`, `whitespace-nowrap` parts has one width, and it is the
+same width on a phone as on a desktop. The header measured **606px and never
+shrank**, so it overflowed every phone made: by 231px at 375, by 286px at 320.
+Nothing caught it, because nothing overflowed *its own* box; the row simply
+pushed past the viewport.
+
+The 606px, measured with Söhne loaded: 48 padding, 36 mark, 162 wordmark, 30
+gaps, and **338 of actions**. Actions are always the problem, because the brand
+is one object and the actions are four.
+
+What gives, below `sm`, and why each is defensible on its own and not only for
+space:
+
+| Part | Below `sm` | Why |
+|---|---|---|
+| `.social` | hidden | the address, not the name; 46px |
+| Theme toggle | moves to the footer | 132px, and the footer is on every page |
+| "Free · N left" chip | hidden | a visitor with no account does not need a badge saying so; 61px |
+| Mark and wordmark | 28px / 20px | steps down as one lockup, not a shrunken word beside a full-size mark |
+
+Pro and Unlimited keep their chip at every width: there it is the only thing
+saying the account is paid, and those rows are shorter anyway, with no Upgrade
+button and an avatar instead of "Sign in".
+
+That brings it to **316px**, which clears 320 by 4px and 375 by 59. Desktop is
+untouched at 606px.
+
+**Measure a header before trusting it.** Every part here was individually
+on-system, and the row was unusable on the most common screen size the product
+has.
+
 ### Breakpoints
 
 Tailwind's own, plus **one**: `xs` at 360px.
