@@ -22,19 +22,22 @@
 /**
  * The canonical production origin.
  *
- * This is `www`, not the apex, because www is what Vercel actually serves: the
- * apex 307-redirects to it. That distinction is not cosmetic. Stripe does not
- * follow redirects, so the webhook endpoint registered against the apex failed
- * every delivery from 2026-01-17 until it was repointed, and no payment ever
- * provisioned an account.
+ * The apex, and now genuinely so: as of 2026-08-15 Vercel serves
+ * `walletlink.social` directly and 308-redirects `www` to it. Before that the
+ * arrangement was reversed while `metadataBase`, `sitemap.ts`, `robots.ts` and
+ * every canonical tag declared the apex, so each of those published a URL that
+ * redirected.
  *
- * Note this disagrees with `metadataBase`, `sitemap.ts`, `robots.ts` and the
- * canonical tags, which all still declare the apex. That is a real
- * inconsistency and it belongs to SEO, not to payments: fixing it means
- * deciding apex-vs-www once and moving every declaration together. What must
- * not happen again is a machine-to-machine URL pointing at a redirect.
+ * That split was not cosmetic. Stripe does not follow redirects, so a webhook
+ * endpoint registered against the redirecting host failed every delivery from
+ * 2026-01-17 onward and no payment ever provisioned an account. The X card
+ * crawler hit the same redirect on `og:image` and served a stale card.
+ *
+ * The rule this leaves behind: a machine-to-machine URL must never point at a
+ * redirect, and there must be exactly one declared origin. Everything now
+ * resolves through this constant or agrees with it.
  */
-export const PRODUCTION_URL = 'https://www.walletlink.social';
+export const PRODUCTION_URL = 'https://walletlink.social';
 
 /**
  * Absolute origin for the current environment, with no trailing slash.

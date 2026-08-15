@@ -3,6 +3,26 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (apex is canonical, and everything now agrees)
+
+- Vercel now serves `walletlink.social` directly and 308-redirects `www` to it.
+  The arrangement used to be reversed while `metadataBase`, `sitemap.ts`,
+  `robots.ts` and every canonical tag declared the apex, so each of those
+  published a URL that redirected.
+- That split was the root cause of two separate failures. Stripe does not follow
+  redirects, so the webhook registered against the redirecting host failed every
+  delivery from 2026-01-17 and no payment ever provisioned an account. The X
+  card crawler hit the same redirect on `og:image` and kept serving a stale card.
+- `PRODUCTION_URL` moves to the apex, so the single resolver in `lib/site-url.ts`
+  and the SEO declarations now state the same origin. No `www` literal remains in
+  the codebase.
+- The Stripe webhook endpoint has been repointed to the apex, which now answers
+  directly rather than through a redirect.
+
+**The rule this leaves behind:** a machine-to-machine URL must never point at a
+redirect, and there must be exactly one declared origin.
+
+
 ### 2026-08-15 (Starter tier removed)
 
 - Starter was retired on 2026-08-12 but survived in 42 places across 12 files,
