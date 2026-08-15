@@ -957,6 +957,10 @@ export default function Home() {
         </>
       }
     >
+      {/* Owns its own bottom spacing. It used to sit in the header, where the
+          separation came from main's py-12 below it; as a sibling inside main
+          there is nothing between it and the upload UI. */}
+      <div className="mb-8">
         {/* One line, not three sentences that then repeat themselves in the
             strip below. The old copy stated 4.7M and complete Farcaster
             coverage in the paragraph and again in the stats line. */}
@@ -987,6 +991,7 @@ export default function Home() {
             <span className="font-medium tabular-nums text-foreground">13K+</span> AI agents flagged
           </span>
         </div>
+      </div>
 
         {/* Upgrade Modal */}
         <UpgradeModal
