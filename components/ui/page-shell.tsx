@@ -21,7 +21,12 @@ import { SiteFooter } from './site-footer';
  *     (24px mark at 4px radius beside a 14px muted span). The most repeated
  *     element on the site drifted the most.
  *   - ThemeToggle existed only on the homepage, so a dark-mode visitor on /vs had
- *     no way to switch back.
+ *     no way to switch back. **Still true above `sm`**, and this shell does not
+ *     fix it: the control arrives through `actions`, and only the homepage
+ *     passes any. Below `sm` the footer now carries one on every page, so the
+ *     gap is currently desktop-only. Listed here rather than quietly corrected,
+ *     because a docstring claiming a fix that never landed is worse than the
+ *     bug.
  *
  * Pages render `<PageShell>{content}</PageShell>` and declare no header, no
  * footer, no container and no max-w of their own. Reading columns constrain
@@ -72,18 +77,35 @@ export function PageShell({
           own strip. Every other page keeps it here, where the lockup really is
           the end of the block. */}
       <header className={continuesHeader ? '' : 'border-b border-border'}>
-        <div className={`mx-auto flex w-full ${width} items-center gap-3 px-6 pt-5 pb-3`}>
+        <div className={`mx-auto flex w-full ${width} items-center gap-2 px-6 pt-5 pb-3 sm:gap-3`}>
           <Link
             href="/"
             onClick={onBrandClick}
             className="transition-control flex items-center gap-2.5 hover:opacity-80"
           >
-            <Image src="/icon.png" alt="" width={36} height={36} priority className="rounded-mark" />
+            {/* The lockup steps down as a unit on phones, mark and wordmark
+                together, so it stays one object rather than a shrunken word
+                beside a full-size mark. */}
+            <Image
+              src="/icon.png"
+              alt=""
+              width={36}
+              height={36}
+              priority
+              className="h-7 w-7 rounded-mark sm:h-9 sm:w-9"
+            />
             {/* The brand sits on the name, not the suffix. ".social" is the
                 address; "walletlink" is the thing. */}
-            <span className="text-2xl font-semibold tracking-[var(--tracking-title)] sm:text-[2rem] sm:tracking-[var(--tracking-display)]">
+            <span className="text-xl font-semibold tracking-[var(--tracking-title)] sm:text-[2rem] sm:tracking-[var(--tracking-display)]">
               <span className="text-accent-brand">walletlink</span>
-              <span className="text-muted-foreground">.social</span>
+              {/* The suffix is the address, and the address is the one part a
+                  phone can spare. Measured with Söhne loaded, this row wants
+                  606px and never shrinks, because every part of it is
+                  `flex-none` and `whitespace-nowrap`: it overflowed a 375px
+                  screen by 231px and a 320px screen by 286px. Dropping ".social"
+                  returns 46px of that, and the mark plus "walletlink" still
+                  reads as the lockup. */}
+              <span className="hidden text-muted-foreground sm:inline">.social</span>
             </span>
           </Link>
           {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
