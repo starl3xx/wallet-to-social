@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardActivator, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkline } from './Sparkline';
 import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, TrendUp as TrendingUp, TrendDown as TrendingDown, Minus, MagnifyingGlass as Search, CurrencyDollar as DollarSign, WarningCircle as AlertCircle, Stack as Layers, Users, ChartBar as BarChart3 } from '@phosphor-icons/react';
@@ -114,10 +114,13 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Lookups Today */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('jobs')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Lookups today: open the jobs tab"
+              onClick={() => onMetricClick('jobs')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <Search className="h-3 w-3" />
@@ -129,17 +132,20 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
                 data={data.lookupsTrend}
                 width={60}
                 height={20}
-                color="hsl(var(--primary))"
+                color="var(--accent-brand)"
               />
             </div>
           </CardContent>
         </Card>
 
         {/* Active Users */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('behavior')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Active users: open the behaviour tab"
+              onClick={() => onMetricClick('behavior')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <Users className="h-3 w-3" />
@@ -153,10 +159,13 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Conversion Rate */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('revenue')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Conversion rate: open the revenue tab"
+              onClick={() => onMetricClick('revenue')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <BarChart3 className="h-3 w-3" />
@@ -169,10 +178,13 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Revenue MTD */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('revenue')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Revenue this month: open the revenue tab"
+              onClick={() => onMetricClick('revenue')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <DollarSign className="h-3 w-3" />
@@ -193,10 +205,13 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Error Rate */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('health')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Error rate: open the health tab"
+              onClick={() => onMetricClick('health')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <AlertCircle className="h-3 w-3" />
@@ -212,10 +227,13 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
         </Card>
 
         {/* Queue Depth */}
-        <Card
-          className="cursor-pointer hover:border-accent-brand transition-control"
-          onClick={() => onMetricClick?.('jobs')}
-        >
+        <Card className="relative hover:border-accent-brand transition-control">
+          {onMetricClick && (
+            <CardActivator
+              label="Queue depth: open the jobs tab"
+              onClick={() => onMetricClick('jobs')}
+            />
+          )}
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <Layers className="h-3 w-3" />

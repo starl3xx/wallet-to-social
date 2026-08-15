@@ -145,7 +145,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                   data={weeks.map((w) => w[1].newUsers)}
                   width={80}
                   height={24}
-                  color="hsl(var(--primary))"
+                  color="var(--accent-brand)"
                 />
               </div>
             </div>
