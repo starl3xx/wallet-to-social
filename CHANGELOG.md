@@ -3,6 +3,47 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (the same correction, applied to each surface that gives it)
+
+The previous entry corrected the X-coverage statement in the documentation, the
+structured data and the comparison pages. It did not examine the other places
+that give the same statement. This entry corrects those, and it found a second
+and more serious fault.
+
+- **The published blog gave the names of two data suppliers, and it gave the
+  order of the pipeline.** The rule is to give no supplier name in a public
+  place. Five published posts broke it, in the first person: “we use X”, “Via
+  the X API, we check…”, and a numbered list of the three steps in order. The
+  API deliberately does not give this information: `lib/api-sources.ts` maps
+  each internal name to a class of evidence, so that a customer cannot read the
+  supply chain from a response. The blog gave it in words instead.
+  - `farcaster-integration.md`: “We’ve integrated the X API”, and a 3-step list
+    that named a supplier for each step.
+  - `walletlink-vs-addressable.md`: a list with the title “walletlink.social
+    uses”, which named two suppliers.
+  - `farcaster-verified-addresses.md`: “(we use X)”, and a sentence that named
+    a supplier.
+  - `twenty-two-percent-match-rate.md`: two sentences that named a supplier.
+  - `docs/SEO-STRATEGY.md`: three answers written for a customer, each of which
+    named a supplier. This document supplies the words for future copy, so each
+    error in it makes more errors later.
+  - Each is now written as a class of evidence: an onchain record, a
+    protocol-level verification, an identity index.
+- **One post keeps the supplier names, and this is correct.**
+  `wallet-identity-stack.md` explains the identity ecosystem to a reader who is
+  building their own system. It names the products that exist in that ecosystem,
+  which is the subject of the post. Only one sentence tied that architecture to
+  ours, and that sentence is changed.
+- **`README.md` said “owner-attested only”.** The same absolute as the
+  documentation. The README is the first page a person sees in a public
+  repository, and `docs/README.md` says that the repository is public so that
+  this claim is checkable. So the README must be exact.
+- **`docs/SEO-STRATEGY.md` now gives the rule for future copy.** Do not write
+  “owner-attested only”. Write “over 99.9% are owner-attested, and each match
+  carries its evidence”. It is stronger, a person can check it, and it stays
+  correct when we add a source.
+
+
 ### 2026-08-15 (say what the X coverage really is, in a way that stays true)
 
 - **The coverage page said “one of two routes”. The code has more.** It said

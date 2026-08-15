@@ -6,7 +6,9 @@
 
 **Twitter coverage, corrected 2026-08-13:** it is **over 1 million wallets**, not the ~41k this document previously stated. The sweep had been discarding the verified X handles Neynar returns alongside Farcaster profiles; recovering them took the figure from 43,704 to 1,070,442. Nearly all are owner-attested: most from an X account verified on Farcaster, the rest from onchain ENS records.
 
-The old guidance here said "never market Twitter coverage as millions". That is now wrong and should not be followed. The claim to protect was never the size, it was the **provenance**: every match is one the owner attested, versus a competitor's probabilistic fingerprinting. Market the attestation, and keep the two figures distinct, since 4.7M is Farcaster coverage and Twitter is its own number.
+The old guidance here said "never market Twitter coverage as millions". That is now wrong and should not be followed. The claim to protect was never the size, it was the **provenance**: every match carries the class of evidence behind it, versus a competitor's probabilistic fingerprinting. Market that, and keep the two figures distinct, since 4.7M is Farcaster coverage and Twitter is its own number.
+
+**Do not write "owner-attested only" or "we only return attested matches".** Corrected 2026-08-15: of 1,070,576 wallets with an X handle, 201 come from an identity index alone with no attested route. The absolute was 99.98% true, which is exactly the kind of claim that survives review and then becomes indefensible the moment a source is added. Write "over 99.9% are owner-attested, and every match is labelled with its evidence" instead. That is stronger, it is checkable, and it stays true as the pipeline grows.
 
 **Match rate, verified 2026-08-13:** 23.7% any-identity, 95% CI 20.3–27.1%, measured on a random sample of 600 holders drawn from 26,619 across 18 collections on two chains (`scripts/benchmark-pipeline-sample.ts`). The 22% used throughout the site sits inside that interval and is its conservative end. Keep "any identity" (~23%, counts ENS and Lens) distinct from **"reachable on X or Farcaster" (~13%)**: the first is a resolution rate, the second is what a campaign can actually message.
 
@@ -113,7 +115,7 @@ description: "Find Twitter & Farcaster profiles from Ethereum wallet addresses. 
 > $99 for 5,000 wallets/lookup (Pro), $249 for unlimited. Both include API access. No monthly fees. No enterprise contracts.
 
 **3. All Major Sources**
-> We check ENS, Web3.bio, and Farcaster to maximize your match rate.
+> We check every source we have: onchain records, protocol-level verifications and identity indexes. Each match tells you which one it came from.
 
 ### Social Proof Section
 
@@ -141,16 +143,21 @@ Display RecentWins component showing:
 ### How It Works Section
 
 1. **Upload** - Drop your CSV with wallet addresses
-2. **Process** - We check ENS, Web3.bio, Neynar for matches
+2. **Process** - We resolve each wallet against every class of evidence we hold
 3. **Export** - Download CSV or export to Twitter List
 
 ### FAQ Section (Schema markup opportunity)
 
 **Q: What sources do you use?**
-> We aggregate data from ENS text records, Web3.bio (which indexes multiple protocols), and Neynar for Farcaster. This gives you the highest match rate without needing to configure multiple APIs yourself.
+> Every match is labelled with the evidence behind it: an onchain record the owner published, a protocol-level Farcaster verification, or a correlation from an identity index. Over 99.9% of X handles come from the first two. You run one lookup instead of wiring up several sources yourself.
+
+<!-- Never name a supplier in an answer that reaches a customer. The previous
+     version of this reply named two of them, which is a script for publishing
+     our own supply chain. Describe the class of evidence, never who provided
+     it. Same rule as the UI and docs-site. -->
 
 **Q: How accurate are the results?**
-> Our match rates average 15-25% depending on your wallet list, which is 6-10x higher than industry average (~2.5%). We only return verified connections - no guesses.
+> Our match rates average 15-25% depending on your wallet list, which is 6-10x higher than industry average (~2.5%). We never guess: every match carries the class of evidence behind it, so you can set your own confidence threshold rather than trusting ours.
 
 **Q: Why not use Addressable?**
 > Addressable is a full web3 marketing platform - great if you need attribution, ads, and CRM. But if you just need wallet-to-social lookups, you're paying for features you won't use. We focus on one thing and do it well.

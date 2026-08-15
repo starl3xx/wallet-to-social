@@ -21,6 +21,6 @@ That distinction is the rule to apply when deciding where a new document belongs
 - **Public**, if it helps someone verify what we claim about the data. `AI-SEARCH.md` stays public for exactly this reason: it documents an assistant anyone can already interrogate.
 - **Private**, if it mainly tells someone where to push.
 
-This repo stays public on purpose. walletlink's core claim is that matches are deterministic and owner-attested rather than inferred, and public code is what makes that claim checkable.
+This repo stays public on purpose. walletlink's core claim is that every match carries the class of evidence behind it and none of it is inferred, and public code is what makes that claim checkable.
 
 Those paths are gitignored here, so they remain on disk locally and the `ralph:*` scripts keep working unchanged.

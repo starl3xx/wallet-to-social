@@ -43,7 +43,7 @@ This distinction mattered more than any individual feature comparison.
 
 For wallet-to-social resolution specifically, match rate is the number that matters. A tool that resolves 22% of your wallets gives you 4x more actionable data than one resolving 5%.
 
-walletlink.social reports a 22% match rate, roughly 9x the industry average of 2.5%. This comes from deterministic, user-attested sources: Farcaster verified addresses, onchain ENS records, and a persistent social graph. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
+walletlink.social reports a 22% match rate, roughly 9x the industry average of 2.5%. Over 99.9% of it comes from deterministic, user-attested sources: Farcaster verified addresses and onchain ENS records, held in a persistent social graph. The remainder is correlated from identity indexes and carries that as its evidence class, so every match tells you how it was established. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
 
 Blaze's match rate varied depending on the community type and data sources used. Published benchmarks were hard to find, but users reported rates in the 5-8% range for general wallet lists. Blaze compensated by offering more tools to act on the data it did resolve.
 

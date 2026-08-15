@@ -205,7 +205,7 @@ If you're building your own resolution system, the recommended architecture is:
 4. **Deduplication** -- merge results where multiple sources resolve the same wallet
 5. **Confidence scoring** -- weight matches by source verification strength
 
-Alternatively, use a service like [walletlink.social](https://walletlink.social) that runs this pipeline at scale and returns the aggregated results. The 22% match rate reflects the combined output of all major sources with deduplication and quality filtering applied.
+Alternatively, use a service like [walletlink.social](https://walletlink.social) that solves the same problem at scale and returns matches already deduplicated, quality-scored and labelled with the class of evidence behind each one. The 22% match rate reflects the combined output of all major sources with deduplication and quality filtering applied.
 
 ## Where the Stack Is Heading
 

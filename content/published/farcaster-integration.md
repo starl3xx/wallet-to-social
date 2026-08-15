@@ -37,7 +37,7 @@ Farcaster is where Web3 lives. And now walletlink.social taps into it.
 
 ## What You Get
 
-We've integrated the Neynar API to bring Farcaster data into every lookup.
+Farcaster data is now part of every lookup.
 
 ### Farcaster Profiles in Results
 
@@ -77,10 +77,10 @@ The bottom line:
 
 Upload your CSV. We handle the rest.
 
-Behind the scenes:
-1. **Web3.bio** — ENS, Lens, and other identity sources
-2. **Neynar API** — Farcaster profiles and verified addresses
-3. **Onchain ENS** — direct text record lookups
+Behind the scenes, each wallet is resolved against several classes of evidence:
+1. **Protocol-level Farcaster verifications** — profiles and the addresses their owners proved
+2. **Onchain records** — ENS text records the address owner set themselves
+3. **Identity indexes** — correlated profiles across ENS, Lens and other namespaces
 
 Results cached 24 hours. 10K wallets in under 2 minutes.
 
