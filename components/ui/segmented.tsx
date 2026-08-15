@@ -99,6 +99,7 @@ export function Segmented<T extends string>({
       <span
         aria-hidden
         className="segmented-thumb absolute inset-y-1 left-1 rounded-full bg-surface-raised"
+        data-thumb
         style={{
           width: `calc((100% - 0.5rem) / ${options.length})`,
           transform: `translateX(${index * 100}%)`,
@@ -121,9 +122,12 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cn(
             'segmented-option relative z-10 flex h-full flex-1 basis-0 items-center justify-center gap-1.5 rounded-full',
-            'px-3 text-sm focus-visible:outline-none focus-visible:ring-2',
+            'px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2',
             'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            o.value === value ? 'font-semibold' : 'text-muted-foreground hover:text-foreground'
+            // An unselected segment reads at near-full contrast rather than as
+            // muted grey. Muted is the colour of text you cannot act on, and it
+            // was telling people the other half of the control was disabled.
+            o.value === value ? 'font-semibold' : 'text-foreground/75 hover:text-foreground'
           )}
           style={
             o.value === value ? { color: o.activeColor ?? 'var(--accent-brand)' } : undefined

@@ -3,6 +3,40 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a modal that spilled, and controls that did not look like controls)
+
+- **The upgrade modal put its last button below its own edge.** The dialog has a
+  maximum height, and the content in it has `overflow-y-auto`. But the content
+  is a grid item, and a grid item does not become smaller than its content
+  unless you tell it to. So the maximum height did nothing, no scroll bar came,
+  and the content went past the bottom of the white panel. “Upgrade to
+  Unlimited” was below the edge, and a person could not press it. One property
+  corrects it: `min-h-0`. Each modal in the product had this fault. Only the
+  upgrade modal was tall enough to show it.
+- **The two plan columns now have the same height, and their buttons align.**
+  Unlimited has more features than Pro, so the two buttons were at different
+  heights.
+- **The segmented controls now look like buttons.** The method is from iOS,
+  because iOS solved this first:
+  - The moving part has two shadows. A wide soft shadow lifts it off the track.
+    A narrow dark shadow below it draws the bottom edge. One shadow alone looks
+    flat.
+  - The unselected side is no longer grey. Grey is the colour of text that you
+    cannot use, so the control said that half of itself was not available.
+  - A hairline divides the segments, and it disappears on each side of the
+    selected segment. The line says “these are separate buttons”. Its absence
+    beside the selection keeps the control one object.
+- **The colour toggle: System is now in the middle.** The order is Light,
+  System, Dark. System is the default, and it is the middle of what the other
+  two mean.
+- **The colour toggle icons now use one weight.** The selected icon changed to
+  the filled weight, which the design language keeps for status dots. At 16 px
+  it makes the Monitor icon a solid block beside a line-drawn sun and moon. The
+  moving part and the colour already show the selection.
+- **Two buttons got an icon.** “Find wallets” has a wallet. “Sign in” in the My
+  lookups panel has the same icon as “Sign in” in the header.
+
+
 ### 2026-08-15 (a price we do not sell, a term we never defined, and a feature that moves tier)
 
 - **Five comparison pages showed $149.** Pro is $99. The number was written into
