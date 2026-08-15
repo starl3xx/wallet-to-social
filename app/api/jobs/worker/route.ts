@@ -57,11 +57,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Admit jobs in queue order until the wallet budget is spent. Anything left
-    // stays pending and is picked up by the next tick, a minute later.
+    /**
+     * Resume before you start. `getNextPendingJobs` returns every pending job
+     * ahead of every in-progress one, so a job part-way through sits at the end
+     * of the list. Admitting in that order while a budget is in force starves
+     * it: during a seed-cron backlog the large pending jobs would spend the
+     * whole budget every tick, and a customer's half-finished lookup would wait
+     * behind cron work, for longer than it did before the budget existed.
+     *
+     * A job in `processing` has already consumed API calls and holds a partial
+     * result. Finishing it releases a customer; deferring a `pending` job costs
+     * that customer only a minute.
+     */
+    const ordered = [...candidates].sort((a, b) => {
+      const aRunning = a.status === 'processing' ? 0 : 1;
+      const bRunning = b.status === 'processing' ? 0 : 1;
+      if (aRunning !== bRunning) return aRunning - bRunning;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    // Admit in that order until the wallet budget is spent. Anything left stays
+    // queued and is picked up by the next tick, a minute later.
     const jobs: typeof candidates = [];
     let walletsInFlight = 0;
-    for (const job of candidates) {
+    for (const job of ordered) {
       const size = job.wallets.length - job.processedCount;
       // Always admit the first, so one huge job cannot stall the queue forever.
       if (jobs.length > 0 && walletsInFlight + size > MAX_WALLETS_IN_FLIGHT) break;

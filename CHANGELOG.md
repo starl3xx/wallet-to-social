@@ -29,7 +29,10 @@ All notable changes to walletlink.social. Newest first.
   10,000 wallets hit Web3Bio together. Web3Bio answered 500 to about 1,200
   requests in each batch, and average latency went from about 20 seconds to 3.5
   minutes. The worker now budgets by wallets in flight, not by job count. Small
-  jobs still run together. Large jobs run one at a time.
+  jobs still run together. Large jobs run one at a time. It also admits a job
+  that is already in progress before it starts a new one, because a budget plus
+  the old queue order would let large cron jobs spend the whole budget each tick
+  and leave a customer's half-finished lookup waiting.
 
 The graph was not damaged by that incident. The guard in `job-processor.ts`
 excluded every wallet whose check failed, so 5,432 wallets kept no row instead
