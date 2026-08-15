@@ -3,6 +3,20 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (share text overstated the match rate)
+
+- The share card copy computed its match rate as
+  `(twitterCount + farcasterCount) / totalWallets`, which counts everyone
+  holding both an X handle and a Farcaster account twice. On a real
+  1,057-wallet lookup it published **49%** for a result the product itself
+  reported as **30.8%**: 190 people double-counted. It now uses the distinct
+  reachable figure, the same one the results header states, passed in from the
+  same predicate so the two cannot disagree.
+- This is the overlap error `StatsCards` was already fixed for. It survived in
+  `ShareButtons` because that component derives its own statistics rather than
+  receiving them.
+
+
 ### 2026-08-15 (checkout provisioning, after a customer paid twice for nothing)
 
 Two independent faults, either of which alone would have been survivable,

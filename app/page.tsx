@@ -1394,6 +1394,13 @@ export default function Home() {
                       twitterCount={results.filter((r) => r.twitter_handle).length}
                       farcasterCount={results.filter((r) => r.farcaster).length}
                       totalWallets={results.length}
+                      /* Same predicate as StatsCards, so the shared figure and
+                         the one on screen can never disagree. */
+                      reachableCount={
+                        results.filter(
+                          (r) => r.twitter_handle || r.farcaster || r.lens || r.github
+                        ).length
+                      }
                       asMenuItems
                     />
                   </OverflowMenu>
