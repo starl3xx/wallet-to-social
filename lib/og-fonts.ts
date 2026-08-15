@@ -17,7 +17,7 @@
 export interface OgFont {
   name: string;
   data: ArrayBuffer;
-  weight: 400 | 600 | 800;
+  weight: 200 | 400 | 600 | 800;
   style: 'normal';
 }
 
@@ -47,19 +47,26 @@ export const OG_FONT_FAMILY = 'Sohne';
  * runtime one, so it is at least loud.
  */
 export interface OgFontUrls {
+  extraleicht: URL;
   book: URL;
   halbfett: URL;
   fett: URL;
 }
 
 export async function loadOgFonts(urls: OgFontUrls): Promise<OgFont[]> {
-  const [book, halbfett, fett] = await Promise.all([
+  const [extraleicht, book, halbfett, fett] = await Promise.all([
+    fetch(urls.extraleicht).then((r) => r.arrayBuffer()),
     fetch(urls.book).then((r) => r.arrayBuffer()),
     fetch(urls.halbfett).then((r) => r.arrayBuffer()),
     fetch(urls.fett).then((r) => r.arrayBuffer()),
   ]);
 
   return [
+    // 200 is the display tier the card headline is set in. Satori substitutes the
+    // nearest available weight rather than failing, so without this the headline
+    // rendered at 400: a blunter card, not a broken one, which is exactly why it
+    // shipped unnoticed.
+    { name: OG_FONT_FAMILY, data: extraleicht, weight: 200, style: 'normal' },
     { name: OG_FONT_FAMILY, data: book, weight: 400, style: 'normal' },
     { name: OG_FONT_FAMILY, data: halbfett, weight: 600, style: 'normal' },
     { name: OG_FONT_FAMILY, data: fett, weight: 800, style: 'normal' },
