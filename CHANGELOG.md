@@ -15,6 +15,11 @@ All notable changes to walletlink.social. Newest first.
 - The Users pane falls back to the payment intent when no Customer exists, since
   historic sales have none and the payment intent identifies the sale in Stripe
   just as well. `/api/admin/users` now returns `stripePaymentId` for it.
+- The checkout reuses an existing Customer when Stripe already has one for that
+  email. `customer_creation: 'always'` on its own creates a *new* Customer per
+  checkout, so a Pro to Unlimited upgrade would have made a second Customer,
+  overwritten the stored id and orphaned the first: the opposite of the single
+  identity this change is for.
 - `''` is no longer written to `stripe_customer_id`. Callers derive it from
   `session.customer`, which is null whenever no Customer was created, and an
   empty string in an id column reads as "we have one and it is blank".

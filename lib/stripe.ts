@@ -37,21 +37,40 @@ export async function createCheckoutSession(
   // production, two live payments were redirected to a dead localhost port.
   const baseUrl = getSiteUrl();
 
+  /**
+   * Reuse this buyer's Customer if Stripe already has one.
+   *
+   * Two things are being fixed here at once, and they pull in opposite
+   * directions.
+   *
+   * `customer_creation` defaults to `if_required`, and a one-time card payment
+   * never requires a Customer, so Stripe created none at all: the account held
+   * zero Customer objects despite real completed sales, every payment stored an
+   * empty `stripe_customer_id`, and the admin Users pane showed a dash next to
+   * every paying account. `customer_email` only prefills the field.
+   *
+   * But `customer_creation: 'always'` on its own creates a *new* Customer for
+   * every checkout. A buyer upgrading from Pro to Unlimited would get a second
+   * Customer, overwrite the stored id with it, and orphan the first, which is
+   * the opposite of the single identity this is meant to give.
+   *
+   * So: look the buyer up by email first. Attach the session to the existing
+   * Customer when there is one, and only ask Stripe to create a Customer when
+   * there is not. Stripe rejects a session that sets both `customer` and
+   * `customer_email`, hence the either/or.
+   *
+   * The lookup goes to Stripe rather than to our own `stripeCustomerId`, because
+   * Stripe is the authority and every account predating this change has no
+   * stored id to offer.
+   */
+  const found = await stripe.customers.list({ email, limit: 1 });
+  const existingCustomerId = found.data[0]?.id;
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    customer_email: email,
-    // Without this, no Stripe Customer is ever created.
-    //
-    // `customer_creation` defaults to `if_required`, and a one-time card payment
-    // never requires a Customer, so Stripe made none: the account held zero
-    // Customer objects despite real completed sales. `customer_email` only
-    // prefills the field, it does not create anything. The result was that every
-    // payment stored an empty `stripe_customer_id`, and the admin Users pane
-    // showed a dash in the Stripe column for every paying customer.
-    //
-    // Creating one also makes the buyer findable in the Stripe dashboard, and
-    // lets repeat purchases and refunds hang off a single identity.
-    customer_creation: 'always',
+    ...(existingCustomerId
+      ? { customer: existingCustomerId }
+      : { customer_email: email, customer_creation: 'always' as const }),
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: baseUrl,
