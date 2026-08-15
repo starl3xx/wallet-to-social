@@ -29,6 +29,18 @@ export function normalizeTier(value: string | null | undefined): UserTier {
   return value === 'pro' || value === 'unlimited' ? value : 'free';
 }
 
+/**
+ * Whether an account may run onchain ENS lookups.
+ *
+ * Exported so the interface can ask the question rather than restate the rule.
+ * The progress bar has to know: a job that cannot use ENS skips straight to the
+ * next stage, and a stage list that still holds ENS then marks a paid step
+ * complete for an account that never ran it.
+ */
+export function tierCanUseENS(tier: UserTier, whitelisted = false): boolean {
+  return whitelisted || tier !== 'free';
+}
+
 export const TIER_LIMITS: Record<UserTier, number> = {
   // Free is deliberately enough to prove the product on a real list and not
   // enough to run a campaign on. It was 1,000, which combined with unlimited
@@ -149,7 +161,7 @@ export async function getUserAccess(
           walletLimit: TIER_LIMITS[tier],
           walletsUsed: user.walletsUsed ?? 0,
           canUseNeynar: true,
-          canUseENS: tier !== 'free',
+          canUseENS: tierCanUseENS(tier),
         };
       }
     }

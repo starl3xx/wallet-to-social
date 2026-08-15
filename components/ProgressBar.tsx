@@ -18,6 +18,13 @@ interface ProgressBarProps {
    * to hand us, and over-listing the stages is the safer of the two errors.
    */
   scanDepth?: ScanDepth;
+  /**
+   * Whether this account may run onchain ENS. A job that cannot use it skips
+   * straight to the next stage, so leaving ENS in the list puts the current
+   * stage one place further along than it is, and the paid step lights up as
+   * complete for an account that never ran it.
+   */
+  includesEns?: boolean;
 }
 
 // Parse the current stage from the message (e.g., "Processing: ens (0/4440)")
@@ -53,10 +60,19 @@ export const ProgressBar = memo(function ProgressBar({
   timeRemaining,
   onCancel,
   scanDepth = 'deep',
+  includesEns = true,
 }: ProgressBarProps) {
+  // The list has to match the stages the job will actually report, because
+  // `currentStageIndex` is an index into it. A stage that never runs does not
+  // just sit unlit: it shifts everything after it.
   const stages = useMemo(
-    () => (scanDepth === 'fast' ? STAGES.filter((s) => !s.live) : STAGES),
-    [scanDepth]
+    () =>
+      STAGES.filter((s) => {
+        if (scanDepth === 'fast' && s.live) return false;
+        if (s.id === 'ens' && !includesEns) return false;
+        return true;
+      }),
+    [scanDepth, includesEns]
   );
   const processed = displayedProcessed ?? progress.processed;
   const percentage =

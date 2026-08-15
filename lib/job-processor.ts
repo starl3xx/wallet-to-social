@@ -691,14 +691,27 @@ async function finalizeJobWithResults(
   let socialGraphWriteStatus: 'success' | 'partial' | 'failed' | null = null;
   let socialGraphWriteErrors: string[] = [];
 
-  const positiveResults = results.filter(
-    (r) =>
-      r.twitter_handle ||
-      r.farcaster ||
-      r.lens ||
-      r.github ||
-      r.ens_name
-  );
+  /**
+   * A fast scan writes nothing back, and this is the reason it must not.
+   *
+   * Every row it produced came out of the graph or the cache. Nothing was
+   * confirmed against a live source. `upsertSocialGraphWithRetry` resets
+   * `staleAt` and `lastCheckedAt`, so writing those rows would stamp unverified
+   * data as freshly checked, and a later deep scan would trust the stamp and
+   * skip the very sources meant to confirm it. One fast scan would suppress the
+   * next real one for the whole trust window, and the rows it protects are
+   * exactly the stale ones a fast scan now serves.
+   */
+  const positiveResults = options.fastMode
+    ? []
+    : results.filter(
+        (r) =>
+          r.twitter_handle ||
+          r.farcaster ||
+          r.lens ||
+          r.github ||
+          r.ens_name
+      );
 
   if (positiveResults.length > 0) {
     const writeResult = await upsertSocialGraphWithRetry(positiveResults);

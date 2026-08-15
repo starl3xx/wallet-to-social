@@ -51,6 +51,15 @@ All notable changes to walletlink.social. Newest first.
   the same value, React stops an update that changes nothing, and the callback
   kept the first contract. The admin Source column then gave the wrong name for
   the second lookup.
+- **A fast scan wrote index rows back to the index.** The write resets the
+  “checked at” and “stale at” times. A fast scan makes no live request, so it
+  put a new time on data that no source had confirmed. A later deep scan then
+  trusted that time and did not call the sources. One fast scan stopped the next
+  correct scan for the full trust interval. A fast scan now writes nothing.
+- **The progress bar marked the ENS stage complete for a free account.** A job
+  that cannot use ENS goes directly to the next stage. The stage list still
+  included ENS, so the position moved one place too far, and a paid stage showed
+  as complete. The list now includes only the stages that the job runs.
 - **The progress bar showed the name of a data supplier.** The rule is to give
   no supplier name in the interface. That stage is now “Profiles”. ENS and
   Farcaster are protocols, not suppliers, so they keep their names. The stage

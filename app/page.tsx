@@ -27,7 +27,7 @@ const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ de
 const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
-import { TIER_LIMITS, type UserTier } from '@/lib/access';
+import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1316,7 +1316,7 @@ export default function Home() {
 
           {/* Processing State */}
           {state === 'processing' && (
-            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} scanDepth={scanDepth} />
+            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} scanDepth={scanDepth} includesEns={tierCanUseENS(userTier, isWhitelisted)} />
           )}
 
           {/* Error State */}
