@@ -143,12 +143,100 @@ export async function getCheckoutSession(
 }
 
 /**
+ * One settled payment, normalised for reporting.
+ *
+ * `netCents` is what actually stayed: gross minus anything refunded. The admin
+ * dashboard used to derive revenue from a user's *tier* instead (`unlimited`
+ * implied $249), which is wrong in both directions. It invents revenue for a
+ * gifted or whitelisted account, and it cannot see a refund at all, so on
+ * 2026-08-15 a $99 sale with a $99 duplicate refunded and a complimentary
+ * upgrade reported as $249.
+ */
+export interface PaymentRecord {
+  id: string;
+  email: string | null;
+  tier: CheckoutTier | null;
+  amountCents: number;
+  refundedCents: number;
+  netCents: number;
+  created: string;
+  fullyRefunded: boolean;
+}
+
+/**
+ * Every settled payment, newest first.
+ *
+ * Stripe is the source of truth for money, not our users table. Payment intents
+ * rather than charges, because our tier and email metadata is set at intent
+ * creation; `latest_charge` is expanded to get the refunded amount, which lives
+ * on the charge.
+ */
+export async function listPayments(
+  maxRecords = 300
+): Promise<{ payments: PaymentRecord[]; truncated: boolean }> {
+  if (!stripe) return { payments: [], truncated: false };
+
+  const payments: PaymentRecord[] = [];
+  let startingAfter: string | undefined;
+  let truncated = false;
+
+  while (payments.length < maxRecords) {
+    const page = await stripe.paymentIntents.list({
+      limit: 100,
+      expand: ['data.latest_charge'],
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+
+    for (const pi of page.data) {
+      if (pi.status !== 'succeeded') continue;
+
+      const charge =
+        pi.latest_charge && typeof pi.latest_charge !== 'string'
+          ? pi.latest_charge
+          : null;
+
+      const amountCents = charge?.amount ?? pi.amount_received ?? 0;
+      const refundedCents = charge?.amount_refunded ?? 0;
+
+      payments.push({
+        id: pi.id,
+        email:
+          pi.metadata?.email ||
+          charge?.billing_details?.email ||
+          charge?.receipt_email ||
+          null,
+        tier: (pi.metadata?.tier as CheckoutTier | undefined) ?? null,
+        amountCents,
+        refundedCents,
+        netCents: amountCents - refundedCents,
+        created: new Date(pi.created * 1000).toISOString(),
+        fullyRefunded: refundedCents > 0 && refundedCents >= amountCents,
+      });
+    }
+
+    if (!page.has_more) break;
+    startingAfter = page.data[page.data.length - 1]?.id;
+    if (!startingAfter) break;
+    if (payments.length >= maxRecords) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return { payments, truncated };
+}
+
+/**
  * Check if Stripe is configured
  */
 export function isStripeConfigured(): boolean {
+  // Deliberately does NOT require STRIPE_PRICE_STARTER. Starter was retired on
+  // 2026-08-12 and the checkout route rejects it outright, so gating on its
+  // price id meant deleting a dead env var would take the entire payment system
+  // down with a "Payment system not configured" 503 on every purchase, for a
+  // product that can no longer be bought.
   return !!(
     process.env.STRIPE_SECRET_KEY &&
-    process.env.STRIPE_PRICE_STARTER &&
     process.env.STRIPE_PRICE_PRO &&
     process.env.STRIPE_PRICE_UNLIMITED
   );

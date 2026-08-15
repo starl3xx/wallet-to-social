@@ -34,6 +34,18 @@ combined to take $198 from the first paying customer and give them nothing.
 - A missing key or webhook secret no longer reports as "signature verification
   failed". Config errors are their own type and answer 500, so Stripe retries
   rather than discarding the event.
+- **Revenue is read from Stripe, net of refunds**, instead of being inferred
+  from each user's tier. The dashboard mapped `pro` to $99 and `unlimited` to
+  $249, which is entitlement rather than income: it invented revenue for
+  complimentary accounts and could not see a refund at all. With one $99 sale,
+  one refunded $99 duplicate and a goodwill upgrade, it reported $249 against an
+  actual net of $99. New `/api/admin/revenue`.
+- Accounts holding more than they paid for are now reported as complimentary,
+  including the partial case where someone bought Pro and was moved to
+  Unlimited. An email-only check would still have implied $249.
+- `isStripeConfigured()` no longer requires `STRIPE_PRICE_STARTER`. Starter was
+  retired on 2026-08-12 and checkout rejects it, so gating on its price id meant
+  deleting a dead env var would 503 every purchase.
 
 
 ### 2026-08-14 (AI assistant on the marketing site)
