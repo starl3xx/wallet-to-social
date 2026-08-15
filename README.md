@@ -29,7 +29,7 @@
 Wallet list in (CSV · contract address · paste)
   ├─ Resolve against a 4.7M-wallet identity index
   ├─ Farcaster: complete protocol coverage, refreshed daily
-  ├─ X handles: owner-attested only, never inferred
+  ├─ X handles: attested first, labelled always, never inferred
   ├─ Rank by holdings × follower reach
   └─ Export CSV, or an X list ready to import
 ```
@@ -53,7 +53,7 @@ The gap between 23% and 13% is mostly ENS. An ENS name is an identity, useful fo
 | Network | Nature of the match |
 |---|---|
 | **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information. |
-| **X** | Owner-attested only. Every handle was published by the account owner, either through a Farcaster verification or an onchain ENS record. Nothing is inferred from display names, bios or timing. |
+| **X** | Attested first, labelled always. Over 99.9% of handles were published by the account owner, through a Farcaster verification or an onchain ENS record. The rest are correlated from identity indexes and carry that as their evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
 
 Coverage would be higher if we guessed. Contacting the wrong person is worse than contacting fewer people.
 

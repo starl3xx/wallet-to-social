@@ -71,7 +71,7 @@ The most direct approach. For wallets with ENS names, we query the resolver cont
 
 ### Source 2: Farcaster Verified Addresses
 
-This is the single largest contributor to our match rate. Via the Neynar API, we check whether a wallet appears as a verified address for any Farcaster account.
+This is the single largest contributor to our match rate. We check whether a wallet appears as a verified address for any Farcaster account.
 
 The key advantage is cryptographic verification. When a wallet is listed as verified for a Farcaster Identity (FID), the owner signed a message proving control. There are zero false positives in this mapping.
 
@@ -177,7 +177,7 @@ Farcaster is the dominant source, providing 68% of all matches and 38% of unique
 
 Processing 10,000+ wallets efficiently required several architectural choices:
 
-**Batch API calls.** Instead of querying Neynar one wallet at a time, we batch into groups of 100. This reduces API round trips by 99% for large uploads.
+**Batch API calls.** Instead of querying one wallet at a time, we batch into groups of 100. This reduces API round trips by 99% for large uploads.
 
 **Cache layer with 24-hour TTL.** Results are cached in PostgreSQL with a 24-hour expiry. Repeat lookups for the same wallet (common when teams iterate on their analysis) hit the cache instead of external APIs.
 

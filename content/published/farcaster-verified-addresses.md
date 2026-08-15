@@ -76,7 +76,7 @@ Because verification requires a signature, there are zero false positives in the
 
 ### Richer social data
 
-A Farcaster profile gives you more than a username. Through the Farcaster API (we use Neynar), you get:
+A Farcaster profile gives you more than a username. Reading the protocol, you get:
 
 - Display name and bio
 - Follower count on Farcaster
@@ -163,4 +163,4 @@ It's the reason walletlink.social achieves 22% match rates where ENS-only approa
 
 **See the Farcaster difference on your own data.**
 
-[walletlink.social](https://walletlink.social) combines ENS, Farcaster verified addresses, and Web3.bio into a single resolution pipeline. Upload your wallet list and see how many holders you can identify.
+[walletlink.social](https://walletlink.social) combines onchain ENS records, protocol-level Farcaster verifications and correlated identity data into a single resolution pipeline, and labels every match with the evidence behind it. Upload your wallet list and see how many holders you can identify.

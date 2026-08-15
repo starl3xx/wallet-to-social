@@ -64,7 +64,7 @@ This is where we have less data to share, because Addressable doesn't publish th
 
 What we can say:
 
-- walletlink.social achieves a **22% match rate** across general wallet populations, driven by combining ENS, Farcaster verified addresses, and Web3.bio data.
+- walletlink.social achieves a **22% match rate** across general wallet populations, driven by combining onchain ENS records, protocol-level Farcaster verifications, and correlated identity data.
 - Industry average for wallet-to-social resolution (across all tools) sits around **2.5%**.
 - Addressable uses proprietary data sources and machine learning to match wallets, which likely gives them strong performance on certain wallet populations.
 
@@ -72,11 +72,11 @@ We haven't run a controlled head-to-head comparison, and we'd be skeptical of an
 
 ## Data Sources
 
-**walletlink.social** uses:
-- ENS onchain text records
-- Farcaster verified addresses (via Neynar)
-- Web3.bio aggregated profiles
-- Social graph enrichment from previously resolved wallets
+**walletlink.social** resolves against four classes of evidence, and labels every match with the one behind it:
+- Onchain ENS text records, set by the address owner
+- Protocol-level Farcaster verifications, proved by signature
+- Correlated profiles from identity indexes, labelled as correlated rather than attested
+- Our own social graph, built from every wallet resolved so far
 
 **Addressable** uses:
 - Proprietary data collection
@@ -84,7 +84,7 @@ We haven't run a controlled head-to-head comparison, and we'd be skeptical of an
 - Third-party data partnerships
 - Onchain analytics
 
-The approaches are fundamentally different. Ours is deterministic -- we match based on cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records). Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
+The approaches are fundamentally different. Over 99.9% of our matches are deterministic -- cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records) -- and the remainder is correlated from identity indexes and labelled as such, so every match tells you how it was established. Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
 
 ## Feature Comparison
 
