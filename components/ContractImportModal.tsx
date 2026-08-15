@@ -7,6 +7,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalFooter,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,7 +153,26 @@ export function ContractImportModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent className="max-w-md">
+      {/* The preview step is the tall one: a chain picker, a holder count, a
+          truncation warning and a sample of addresses. Its two buttons are the
+          only reason the step exists, so they are held below the scroll rather
+          than at the end of it. The other two steps are short and pass nothing,
+          because a footer costs vertical space on the screens with least of it. */}
+      <ModalContent
+        className="max-w-md"
+        footer={
+          step === 'preview' && result ? (
+            <ModalFooter>
+              <Button variant="outline" onClick={handleBack} className="flex-1">
+                Back
+              </Button>
+              <Button onClick={handleImport} className="flex-1">
+                Import {result.wallets.length.toLocaleString()} wallets
+              </Button>
+            </ModalFooter>
+          ) : undefined
+        }
+      >
         <ModalHeader>
           <ModalTitle className="flex items-center gap-2">
             <FileCode className="h-5 w-5" />
@@ -323,15 +343,6 @@ export function ContractImportModal({
               )}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleBack} className="flex-1">
-                Back
-              </Button>
-              <Button onClick={handleImport} className="flex-1">
-                Import {result.wallets.length.toLocaleString()} wallets
-              </Button>
-            </div>
           </div>
         )}
       </ModalContent>

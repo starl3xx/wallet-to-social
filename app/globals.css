@@ -459,6 +459,24 @@
     @apply bg-background text-foreground;
   }
 
+  /* Selected text was the operating system's blue everywhere except inside an
+     input, which carried its own `selection:` classes and so was the one place
+     in the product that highlighted in the brand hue. Two treatments, and the
+     inconsistent one was the only deliberate one.
+
+     Here rather than on a component, for the same reason as the checkbox
+     accent below: selection applies to every surface, and there is no primitive
+     that owns "text". One rule cannot drift.
+
+     The tint, not the solid accent. Selection covers whole paragraphs at a
+     time, and a saturated violet behind running text at full strength fights
+     the text it is meant to be marking. `--foreground` stays on top, so
+     contrast holds in both themes. */
+  ::selection {
+    background: var(--accent-brand-tint);
+    color: var(--foreground);
+  }
+
   /* A native checkbox paints its tick with the operating system's accent, so
      "Save this lookup" rendered in macOS blue next to a violet button. Blue is
      not in this product's palette at all, and the checkbox is an affordance,
