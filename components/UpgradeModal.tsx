@@ -41,7 +41,6 @@ const FEATURES = {
     'Priority score ranking',
     'Twitter list export',
     'Full lookup history',
-    'Add addresses to lookups',
   ],
   unlimited: [
     'Unlimited wallets/lookup',
@@ -54,7 +53,7 @@ const FEATURES = {
     'Priority score ranking',
     'Twitter list export',
     'Full lookup history',
-    'Add addresses to lookups',
+    'Grow a saved lookup, and see what is new since you last opened it',
     'Mass Farcaster DMs',
     'Priority support',
   ],

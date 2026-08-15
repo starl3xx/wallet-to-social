@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getLookupById, updateLookup, updateLookupName, markLookupViewed, getLookupLastViewedAt } from '@/lib/history';
 import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getUserAccess } from '@/lib/access';
 import type { WalletSocialResult } from '@/lib/types';
 
 /**
@@ -10,7 +11,11 @@ import type { WalletSocialResult } from '@/lib/types';
  * Returns 404 for both "not found" and "not owned" to prevent enumeration attacks
  */
 async function validateSessionAndOwnership(lookupId: string): Promise<
-  | { success: true; lookup: Awaited<ReturnType<typeof getLookupById>> }
+  | {
+      success: true;
+      lookup: Awaited<ReturnType<typeof getLookupById>>;
+      email: string | null;
+    }
   | { success: false; response: NextResponse }
 > {
   // Require authenticated session
@@ -52,7 +57,7 @@ async function validateSessionAndOwnership(lookupId: string): Promise<
     };
   }
 
-  return { success: true, lookup };
+  return { success: true, lookup, email: session.user.email ?? null };
 }
 
 export async function GET(
@@ -77,17 +82,31 @@ export async function GET(
 
     const lookup = validation.lookup!;
 
-    // Get the lastViewedAt BEFORE we update it (to find enrichments since last view)
-    const lastViewedAt = await getLookupLastViewedAt(id);
+    /**
+     * "What is new since you last looked" is the other half of the Unlimited
+     * saved-lookup feature, alongside adding addresses, so it is gated with it.
+     *
+     * Gating it here also skips the query rather than hiding its result: the
+     * enrichment scan reads every wallet in the lookup against the graph, which
+     * is the most expensive thing this endpoint does, and there is no reason to
+     * pay for an answer nobody is entitled to see.
+     */
+    const access = await getUserAccess(validation.email ?? undefined);
+    const canSeeEnrichment = access.tier === 'unlimited';
 
-    // Find wallets enriched since last view
+    // Get the lastViewedAt BEFORE we update it (to find enrichments since last view)
     let enrichedWallets: string[] = [];
-    if (lastViewedAt) {
-      const wallets = (lookup.results as WalletSocialResult[]).map((r) => r.wallet);
-      enrichedWallets = await getEnrichedWalletsSince(wallets, lastViewedAt);
+    if (canSeeEnrichment) {
+      const lastViewedAt = await getLookupLastViewedAt(id);
+      if (lastViewedAt) {
+        const wallets = (lookup.results as WalletSocialResult[]).map((r) => r.wallet);
+        enrichedWallets = await getEnrichedWalletsSince(wallets, lastViewedAt);
+      }
     }
 
-    // Update lastViewedAt timestamp (mark as viewed NOW)
+    // Mark viewed for everyone, whatever their plan. It is a record of when the
+    // lookup was opened, and keeping it accurate means the window is already
+    // correct on the day somebody upgrades.
     await markLookupViewed(id);
 
     return NextResponse.json({
@@ -142,6 +161,30 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'Invalid request - must include name or results' },
         { status: 400 }
+      );
+    }
+
+    /**
+     * Growing a saved lookup is an Unlimited feature.
+     *
+     * The gate is here rather than only on the button, because the button is
+     * not a gate: this endpoint is what actually writes the merged result, and
+     * anyone who can read the network tab can call it. A plan feature enforced
+     * in the browser is a suggestion.
+     *
+     * It guards the results branch alone. Renaming a lookup stays available to
+     * anyone who owns it, since Pro is sold with full lookup history and a
+     * history you cannot label is a worse product for no reason.
+     */
+    const access = await getUserAccess(validation.email ?? undefined);
+    if (access.tier !== 'unlimited') {
+      return NextResponse.json(
+        {
+          error: 'Adding addresses to a saved lookup is available on Unlimited.',
+          upgradeRequired: true,
+          tier: access.tier,
+        },
+        { status: 403 }
       );
     }
 

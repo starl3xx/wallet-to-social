@@ -1383,7 +1383,7 @@ export default function Home() {
                         <h2 className="text-xl font-semibold tracking-[-0.02em]">
                           {currentLookupName || 'Results'}
                         </h2>
-                        {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                        {currentLookupId && userTier === 'unlimited' && (
                           <button
                             type="button"
                             onClick={() => {

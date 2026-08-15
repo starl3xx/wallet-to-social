@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
+import { TIER_PRICES } from '@/lib/access';
 import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata: Metadata = {
@@ -102,7 +103,7 @@ export default function HolderComparison() {
               <Figure value="4.7M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
-              <Figure value="$149" label="once, no subscription" />
+              <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
             </dl>
           </header>
 
@@ -159,7 +160,7 @@ export default function HolderComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        $99 - $249
+                        ${TIER_PRICES.pro} - ${TIER_PRICES.unlimited}
                       </span>{' '}
                       one-time
                     </td>
@@ -253,7 +254,7 @@ export default function HolderComparison() {
               <li>Upload your CSV of wallet addresses</li>
               <li>We match them against our identity index</li>
               <li>Export Twitter handles and Farcaster profiles</li>
-              <li>Save lookups and add addresses over time (Pro+)</li>
+              <li>Save lookups (Pro+), and grow them with new addresses (Unlimited)</li>
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of 4.7M wallets with complete

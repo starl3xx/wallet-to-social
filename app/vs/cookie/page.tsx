@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
+import { TIER_PRICES } from '@/lib/access';
 import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata: Metadata = {
@@ -95,7 +96,7 @@ export default function CookieComparison() {
               <Figure value="4.7M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
-              <Figure value="$149" label="once, no subscription" />
+              <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
             </dl>
           </header>
 
@@ -132,7 +133,7 @@ export default function CookieComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        $99 - $249
+                        ${TIER_PRICES.pro} - ${TIER_PRICES.unlimited}
                       </span>{' '}
                       one-time
                     </td>

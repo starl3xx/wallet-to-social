@@ -204,7 +204,10 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {onAddAddresses && userTier !== 'free' && (
+                {/* Unlimited only. Growing a saved lookup is the top-tier
+                    feature, and the server enforces it on the write, so this
+                    is presentation rather than protection. */}
+                {onAddAddresses && userTier === 'unlimited' && (
                   <Button
                     variant="ghost"
                     size="sm"

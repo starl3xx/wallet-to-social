@@ -3,6 +3,38 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a price we do not sell, a term we never defined, and a feature that moves tier)
+
+- **Five comparison pages showed $149.** Pro is $99. The number was written into
+  each page, and it stayed after the price changed. A person who read a
+  comparison page got a price that no plan has. Each page now reads the price
+  from `TIER_PRICES`, which the checkout also reads, so the two cannot disagree
+  again. The tables that said “$99 - $249” were correct, and they now read the
+  same constant.
+- **The social-media skill also said $149.** That file writes future posts, so
+  it made new copy with the incorrect price. It is corrected, and it now has an
+  instruction to read the constant before each draft.
+- **“The index” had no definition.** Eight documentation pages use the term.
+  None of them said what it is. The documentation home page now gives the
+  definition first: the index is our own database of 4.7 million wallet
+  identities, not a cache in front of the API of another company. Each later use
+  links to that definition.
+- **Growth of a saved lookup is now an Unlimited feature.** This has two parts,
+  and both move together:
+  - Add addresses to a saved lookup.
+  - See which rows found an identity since you last opened it, which the `NEW`
+    label shows.
+  - The server enforces both. The `PATCH` that writes the joined result and the
+    `GET` that calculates the new rows each examine the plan. A control that is
+    only hidden is not a limit.
+  - A change of name stays available to each owner of a lookup, because Pro
+    includes full history, and a history that you cannot label is worse for no
+    reason.
+  - The gate on `GET` also stops the query, not only the answer. That query
+    examines each wallet in the lookup, and it is the most expensive operation
+    on the endpoint.
+
+
 ### 2026-08-15 (the same correction, applied to each surface that gives it)
 
 The previous entry corrected the X-coverage statement in the documentation, the
