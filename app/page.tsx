@@ -144,6 +144,16 @@ export default function Home() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [enrichedWallets, setEnrichedWallets] = useState<Set<string>>(new Set());
+  /**
+   * A merge that resolved but could not be saved back to the lookup.
+   *
+   * Deliberately not `error`. That one means the run failed and swaps the
+   * whole view for a failure screen, which would throw away results that are
+   * real and already on screen. This is the narrower case: the addresses
+   * resolved, and only the write to the saved lookup was refused. It renders
+   * as a notice above the results rather than in place of them.
+   */
+  const [mergeWarning, setMergeWarning] = useState<string | null>(null);
 
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
@@ -372,6 +382,7 @@ export default function Home() {
     setState('processing');
     setResults([]);
     setCacheHits(0);
+    setMergeWarning(null);
     setJobId(null);
     setDisplayedProcessed(0);
     setStartTime(Date.now());
@@ -579,7 +590,7 @@ export default function Home() {
                 } else {
                   const reason = await saved.json().catch(() => null);
                   console.error('Merge save rejected:', reason);
-                  setError(
+                  setMergeWarning(
                     reason?.error ||
                       'These addresses were resolved, but could not be added to the saved lookup.'
                   );
@@ -751,6 +762,7 @@ export default function Home() {
     setCacheHits(0);
     setLookupName('');
     setReverseMeta(null);
+    setMergeWarning(null);
     setScanDepth('deep');
     setShowPasteInput(false);
     setPasteText('');
@@ -778,6 +790,9 @@ export default function Home() {
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
       setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
+      // The notice belonged to a different run; it must not follow a lookup
+      // the user has just opened from history.
+      setMergeWarning(null);
       // A saved lookup carries its rows but not the truncation metadata, which
       // only ever existed in memory. Leaving a stale banner up would claim
       // "showing 100 of N" over a list that is no longer that query's result.
@@ -1351,6 +1366,15 @@ export default function Home() {
           {/* Complete State */}
           {state === 'complete' && results.length > 0 && (
             <div className="space-y-6">
+              {mergeWarning && (
+                <div className="flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-caution" aria-hidden />
+                  <p className="text-sm text-caution">
+                    {mergeWarning} You are looking at the new addresses only, and
+                    the saved lookup still holds what it held before.
+                  </p>
+                </div>
+              )}
               {/* Stacks on a phone. A row of buttons never wraps, so when the
                   viewport cannot hold the name beside the actions the two go on
                   separate lines rather than the row reflowing. */}
