@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -1143,10 +1144,12 @@ export default function AdminPage() {
 
   // Main admin view
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+    /* wide: admin is the one surface where 1152px is genuinely too narrow. Its
+       dashboards are dense tables with six or more numeric columns, and squeezing
+       them would trade a real working constraint for a cosmetic one. */
+    <PageShell wide>
         <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Admin dashboard</h1>
+          <h1 className="mb-2 text-3xl font-semibold tracking-tight">Admin dashboard</h1>
           <p className="text-muted-foreground">
             Analytics, monitoring, and operational tools
           </p>
@@ -1299,7 +1302,6 @@ export default function AdminPage() {
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}
         {activeTab === 'enrichment' && <WalletEnrichment password={password} />}
-      </div>
-    </div>
+    </PageShell>
   );
 }
