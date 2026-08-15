@@ -7,3 +7,5 @@ export { UniversalSearch } from './UniversalSearch';
 export { Sparkline } from './Sparkline';
 export { WalletEnrichment } from './WalletEnrichment';
 export { LookupDashboard } from './LookupDashboard';
+export { UsageMeter } from './UsageMeter';
+export { AccountDetail } from './AccountDetail';

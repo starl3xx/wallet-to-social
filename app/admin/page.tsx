@@ -23,10 +23,12 @@ import {
   UniversalSearch,
   WalletEnrichment,
   LookupDashboard,
+  UsageMeter,
+  AccountDetail,
 } from '@/components/admin';
 
 // Tab types - Analytics tabs first, then Operations tabs
-type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
+type Tab = 'pulse' | 'behavior' | 'growth' | 'revenue' | 'health' | 'usage' | 'whitelist' | 'dashboard' | 'jobs' | 'history' | 'users' | 'enrichment';
 
 // Interfaces
 interface WhitelistEntry {
@@ -110,6 +112,15 @@ export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>('password');
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('pulse');
+  /**
+   * The account currently opened for a closer look, by email.
+   *
+   * Held here rather than inside a tab, so any table anywhere in the panel can
+   * open one without each of them growing its own copy of the view. It takes
+   * over the content area while set, which is what makes it a drill-down rather
+   * than a thirteenth tab nobody would think to visit.
+   */
+  const [openAccount, setOpenAccount] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Whitelist state
@@ -1127,7 +1138,17 @@ export default function AdminPage() {
               <TableBody>
                 {usersList.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      {/* Opens the same drill-down the Usage pane does, so the
+                          panel has one account view rather than two. */}
+                      <button
+                        type="button"
+                        onClick={() => setOpenAccount(user.email)}
+                        className="text-accent-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        {user.email}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
                     </TableCell>
@@ -1314,6 +1335,15 @@ export default function AdminPage() {
             Users
           </Button>
           <Button
+            variant={activeTab === 'usage' ? 'default' : 'outline'}
+            onClick={() => { setActiveTab('usage'); setOpenAccount(null); }}
+            className="flex items-center gap-2"
+            size="sm"
+          >
+            <Gauge className="h-4 w-4" />
+            Usage
+          </Button>
+          <Button
             variant={activeTab === 'enrichment' ? 'default' : 'outline'}
             onClick={() => setActiveTab('enrichment')}
             className="flex items-center gap-2"
@@ -1324,6 +1354,17 @@ export default function AdminPage() {
           </Button>
         </div>
 
+        {/* An open account replaces the tab content entirely. Rendering it
+            above a tab would leave two subjects on screen at once, and the
+            reader would have to work out which numbers belonged to which. */}
+        {openAccount ? (
+          <AccountDetail
+            email={openAccount}
+            password={password}
+            onBack={() => setOpenAccount(null)}
+          />
+        ) : (
+        <>
         {/* Tab content - Analytics */}
         {activeTab === 'pulse' && (
           <div className="space-y-6">
@@ -1342,7 +1383,12 @@ export default function AdminPage() {
         {activeTab === 'jobs' && renderJobsTab()}
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}
+        {activeTab === 'usage' && (
+          <UsageMeter password={password} onAccountClick={setOpenAccount} />
+        )}
         {activeTab === 'enrichment' && <WalletEnrichment password={password} />}
+        </>
+        )}
     </PageShell>
   );
 }

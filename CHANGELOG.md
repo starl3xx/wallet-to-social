@@ -3,6 +3,34 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (a usage meter, and a page for each account)
+
+- **A new Usage panel measures daily volume. It does not limit it.** No plan has
+  a daily allowance, and this makes none. It exists so that a decision about a
+  limit uses the behaviour that we see, and not a number that seems correct.
+  - It reads in wallets, never in lookups. Eleven lookups of 200 wallets and
+    eleven lookups of 10,000 wallets are both “eleven”, and only one of them is
+    a problem. The worker learned this when it counted jobs.
+  - The most important column is the busiest single day of each account. A limit
+    is only reached on a busy day, so a limit below the highest day of an
+    account has already refused a customer one time.
+  - It also shows the money that this volume costs: the credits for this month
+    and the requests for today, from the same counters that the guards read. So
+    the panel and the limits cannot disagree.
+- **Each account now has a page.** Click an address in the Usage panel or in the
+  Users table. The page gives:
+  - The money paid, from Stripe, with each refund. A paid tier with no payment
+    gets the label “gifted, not paid”, because a tier is a permission and not a
+    receipt.
+  - Volume: the total for the life of the account, the busiest day, the days
+    with activity, and a graph for each day.
+  - The last 25 lookups, with the method, the network, the contract and the scan
+    depth of each one.
+  - The count of saved lookups and of API keys.
+- **The page replaces the panel, and does not sit above it.** Two subjects on
+  one screen make the reader decide which numbers belong to which.
+
+
 ### 2026-08-15 (a daily budget for the token holder index)
 
 - **A customer used 75% of the daily allowance in two hours.** The ERC-20
