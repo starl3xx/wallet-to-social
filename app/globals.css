@@ -188,6 +188,14 @@
   --success-light: oklch(0.96 0.03 162);
   --success-foreground: oklch(0.42 0.10 162);
 
+  /* Platform marks. The one named exception to violet being the only interactive
+     hue: these identify a platform rather than an affordance, and a wrong-coloured
+     brand mark is a worse error than an inconsistent one. Both themes define them,
+     because a var() with no definition resolves to nothing and the pill loses its
+     fill entirely: silent, and worst in the theme most people see first. */
+  --x-bg: #0F1419;
+  --x-fg: #FFFFFF;
+
   /* Deliberately fixed in both themes: an inverse surface is a design decision,
      not a theme response. Restated identically under .dark so nothing inherits a
      flip from the tokens above it. */
@@ -244,6 +252,11 @@
 
   --success-light: oklch(0.28 0.05 162);
   --success-foreground: oklch(0.75 0.13 162);
+
+  /* X inverts on a dark ground: a near-black pill on a near-black page is
+     invisible, and the mark matters more than the exact swatch. */
+  --x-bg: #FFFFFF;
+  --x-fg: #0F1419;
 
   /* Identical to :root on purpose. See the note there. */
   --surface-inverse: oklch(0.16 0.02 280);

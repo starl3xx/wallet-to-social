@@ -123,10 +123,23 @@ export function InputMethodPicker({
     };
   }, [handleFile, disabled]);
 
-  const cardBase =
-    'group relative flex flex-col items-center text-center gap-2 rounded-lg border p-6 transition-colors ' +
+  /**
+   * One primary action, two alternates. Three equal boxes gave the same weight to
+   * three things people do in very different proportions, and buried the most
+   * welcoming fact about the product: the whole page is a drop target. The primary
+   * says so with a dashed edge rather than mentioning it in a caption.
+   */
+  const dropBase =
+    'group flex w-full items-center gap-4 rounded-lg border border-dashed border-accent-brand ' +
+    'bg-accent-brand-tint p-5 text-left transition-control ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
-    (disabled ? 'opacity-50 pointer-events-none ' : 'hover:border-foreground/30 hover:bg-muted/40 ');
+    (disabled ? 'opacity-50 pointer-events-none ' : 'hover:border-accent-brand-hover ');
+
+  const altBase =
+    'group inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border ' +
+    'px-4 py-2.5 text-sm font-medium text-foreground/80 transition-control ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
+    (disabled ? 'opacity-50 pointer-events-none ' : 'hover:border-accent-brand hover:text-accent-brand ');
 
   return (
     <div>
@@ -140,58 +153,58 @@ export function InputMethodPicker({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {/* 1. Upload */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className={cardBase}
-          aria-label="Upload a CSV or Excel file"
-        >
-          <Upload className="h-6 w-6 text-muted-foreground" aria-hidden />
-          <span className="font-medium">Upload a file</span>
-          <span className="text-sm text-muted-foreground">
-            CSV or Excel, or drag it anywhere on this page
+      {/* Primary: the drop target, which is also the page-wide gesture. */}
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className={dropBase}
+        aria-label="Upload a CSV or Excel file, or drop one anywhere on this page"
+      >
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-accent-brand text-accent-brand-foreground">
+          <Upload className="h-5 w-5" aria-hidden weight="bold" />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-semibold">Drop a file, or click to browse</span>
+          <span className="block text-sm text-muted-foreground">
+            CSV or Excel &middot; drag it anywhere on this page
           </span>
           {fileName && (
-            <span className="mt-1 max-w-full truncate text-xs font-medium text-foreground">
+            <span className="mt-1 block max-w-full truncate font-mono text-xs text-foreground">
               {fileName}
             </span>
           )}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx"
-          className="hidden"
-          disabled={disabled}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-            // Reset so picking the same file twice still fires onChange
-            e.target.value = '';
-          }}
-        />
+        </span>
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx"
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          // Reset so picking the same file twice still fires onChange
+          e.target.value = '';
+        }}
+      />
 
-        {/* 2. Paste */}
+      {/* Alternates: same actions, demoted to their real frequency. */}
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
           onClick={onPasteClick}
           aria-expanded={pasteActive}
-          className={`${cardBase} ${pasteActive ? 'border-foreground/40 bg-muted/40' : ''}`}
+          className={`${altBase} ${pasteActive ? 'border-accent-brand text-accent-brand' : ''}`}
         >
-          <ClipboardList className="h-6 w-6 text-muted-foreground" aria-hidden />
-          <span className="font-medium">Paste a list</span>
-          <span className="text-sm text-muted-foreground">
-            Any format, we&rsquo;ll find the addresses
-          </span>
+          <ClipboardList className="h-4 w-4" aria-hidden />
+          Paste a list
         </button>
 
-        {/* 3. Contract import */}
         <button
           type="button"
           onClick={onContractClick}
-          className={cardBase}
+          className={altBase}
           aria-label={
             contractLocked
               ? 'Import from a contract address (available on Pro and Unlimited)'
@@ -199,21 +212,16 @@ export function InputMethodPicker({
           }
         >
           {contractLocked ? (
-            <Lock className="h-6 w-6 text-muted-foreground" aria-hidden />
+            <Lock className="h-4 w-4" aria-hidden />
           ) : (
-            <Boxes className="h-6 w-6 text-muted-foreground" aria-hidden />
+            <Boxes className="h-4 w-4" aria-hidden />
           )}
-          <span className="flex items-center gap-2 font-medium">
-            From a contract
-            {contractLocked && (
-              <span className="rounded-full border px-2 py-0.5 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Pro
-              </span>
-            )}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            Every holder of an NFT collection or token
-          </span>
+          Import from a contract
+          {contractLocked && (
+            <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              Pro
+            </span>
+          )}
         </button>
       </div>
 
