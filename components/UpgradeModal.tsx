@@ -166,7 +166,22 @@ export function UpgradeModal({
           </div>
 
           {/* Pricing cards */}
-          <div className="grid items-stretch gap-4 md:min-h-0 md:flex-1 md:grid-cols-2">
+          {/* `minmax(0,1fr)` says out loud that this row may be smaller than its
+              cards, which is what lets each card's list scroll inside it.
+
+              Measured, it is not currently required: this grid is a flex item
+              with `flex: 1 1 0%`, so flex hands it a *definite* height, and a
+              grid container with a definite height stretches an auto row to fit
+              rather than sizing it to max-content. Chrome behaves identically
+              with and without it at 713/533/413px.
+
+              It stays because relying on that distinction is precisely what went
+              wrong one level up: the dialog's grid had only a `max-height`,
+              which is not a definite height, so its auto row grew to max-content
+              and nothing clipped. Two grids, the same markup shape, opposite
+              behaviour. Stating the shrink beats depending on which case you are
+              in. */}
+          <div className="grid items-stretch gap-4 md:min-h-0 md:flex-1 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)]">
             {/* Pro tier */}
             <div className="flex min-h-0 flex-col gap-4 rounded-lg border p-4">
               <div>

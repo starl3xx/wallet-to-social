@@ -231,6 +231,29 @@ scrollable, button 25px inside the panel.
 so a dialog measured in it hides behind the address bar precisely when the bar
 is showing.
 
+### The distinction that makes grid look guilty
+
+A grid row shrinks when its container has a **definite** height. It does not
+when the container is merely capped by `max-height`.
+
+That is the whole difference, and it puts two nearly identical pieces of markup
+on opposite sides of the bug:
+
+| Grid | Height from | Auto row | Result |
+|---|---|---|---|
+| the dialog | `max-height` only | max-content | overflows, nothing clips |
+| the upgrade cards | `flex: 1 1 0%` on a bounded parent | stretched to fit | shrinks, inner list scrolls |
+
+A review of the second one will find the same implicit `auto` row as the first
+and reasonably call it the same defect. Measured across 713px, 533px and 413px,
+with and without an explicit row, Chrome behaves identically: the list scrolls
+and the button stays 42px inside the panel.
+
+Write `grid-rows-[minmax(0,1fr)]` anyway wherever a row must be allowed to
+shrink. It costs one class, it is the same courtesy `min-h-0` performs for flex,
+and depending on which of the two cases you are in is what produced the release
+this section exists to explain.
+
 ### Keeping the actions reachable
 
 A scrolling body is correct for almost every dialog. When the actions must stay
