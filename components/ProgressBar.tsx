@@ -67,7 +67,7 @@ export const ProgressBar = memo(function ProgressBar({
                     <span className="relative w-1.5 h-1.5 rounded-full bg-accent-brand" />
                   </div>
                 )}
-                <h3 className="text-base font-semibold tracking-tight">
+                <h3 className="text-base font-semibold tracking-[var(--tracking-lead)]">
                   {isProcessing ? 'Processing' : progress.status === 'complete' ? 'Complete' : 'Waiting'}
                 </h3>
               </div>

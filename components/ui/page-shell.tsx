@@ -64,7 +64,7 @@ export function PageShell({
             <Image src="/icon.png" alt="" width={36} height={36} priority className="rounded-mark" />
             {/* The brand sits on the name, not the suffix. ".social" is the
                 address; "walletlink" is the thing. */}
-            <span className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
+            <span className="text-2xl font-semibold tracking-[var(--tracking-title)] sm:text-[2rem] sm:tracking-[var(--tracking-display)]">
               <span className="text-accent-brand">walletlink</span>
               <span className="text-muted-foreground">.social</span>
             </span>
