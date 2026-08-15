@@ -1,6 +1,7 @@
 import { getDb } from '@/db';
 import { users, whitelist } from '@/db/schema';
 import { eq, or, sql } from 'drizzle-orm';
+import { trackEvent } from '@/lib/analytics';
 
 export type UserTier = 'free' | 'starter' | 'pro' | 'unlimited';
 
@@ -217,6 +218,93 @@ export async function upgradeUser(
         ...(tier === 'starter' ? { walletsUsed: 0 } : {}),
       },
     });
+}
+
+/**
+ * Rank of each tier, so a lower-tier grant can never clobber a higher one.
+ */
+const TIER_RANK: Record<UserTier, number> = {
+  free: 0,
+  starter: 1,
+  pro: 2,
+  unlimited: 3,
+};
+
+export interface ProvisionResult {
+  provisioned: boolean;
+  /** 'granted' | 'already-provisioned' | 'outranked' | 'no-account' */
+  reason: 'granted' | 'already-provisioned' | 'outranked' | 'no-account';
+  tier: UserTier;
+}
+
+/**
+ * Grant a paid tier exactly once, from whichever path notices the payment first.
+ *
+ * Two paths know a checkout succeeded: the Stripe webhook, and the /success page
+ * polling `checkout-status` with a session id. Before 2026-08-15 only the webhook
+ * granted anything, so when its endpoint was pointed at a redirecting URL every
+ * payment on the platform succeeded in Stripe and provisioned nothing. The
+ * customer had no recourse: the one system that could have fixed it up was
+ * already talking to Stripe and already knew the session was paid, and threw
+ * that knowledge away.
+ *
+ * Both paths now call this. It is idempotent on `stripePaymentId`, which is the
+ * natural key: whichever path arrives first writes the grant, the other becomes
+ * a no-op rather than a duplicate upgrade or a double-counted sale.
+ */
+export async function provisionPaidCheckout(
+  email: string,
+  tier: 'starter' | 'pro' | 'unlimited',
+  stripeCustomerId: string,
+  stripePaymentId: string,
+  context: { sessionId: string; via: 'checkout.session' | 'payment_intent' | 'success-page' }
+): Promise<ProvisionResult> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+
+  const normalizedEmail = email.toLowerCase();
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, normalizedEmail))
+    .limit(1);
+
+  // Already done by the other path. Not an error, and specifically not a second
+  // `payment_completed` event: revenue is summed from those.
+  if (existing?.stripePaymentId === stripePaymentId) {
+    return {
+      provisioned: false,
+      reason: 'already-provisioned',
+      tier: (existing.tier as UserTier) ?? 'free',
+    };
+  }
+
+  // A buyer who already holds a higher tier keeps it. Without this, someone on
+  // Unlimited who re-opens an old Pro success URL would be silently downgraded.
+  const currentTier = (existing?.tier as UserTier) ?? 'free';
+  if (TIER_RANK[currentTier] > TIER_RANK[tier]) {
+    return { provisioned: false, reason: 'outranked', tier: currentTier };
+  }
+
+  await upgradeUser(normalizedEmail, tier, stripeCustomerId, stripePaymentId);
+
+  // Booked here rather than at the call sites, so a grant cannot happen without
+  // the sale being recorded. The webhook previously did this as a floating
+  // promise (`trackEvent(...)` with no await), which a serverless runtime is
+  // free to discard when the handler returns, and the payment_intent path
+  // recorded nothing at all.
+  await trackEvent('payment_completed', {
+    userId: normalizedEmail,
+    metadata: {
+      tier,
+      amountCents: TIER_PRICES[tier] * 100,
+      stripeSessionId: context.sessionId,
+      stripeCustomerId,
+      via: context.via,
+    },
+  });
+
+  return { provisioned: true, reason: 'granted', tier };
 }
 
 /**

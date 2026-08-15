@@ -1,11 +1,11 @@
 import { Resend } from 'resend';
+import { getSiteUrl } from '@/lib/site-url';
 
 // Initialize Resend with API key
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const FROM_EMAIL = 'walletlink.social <noreply@walletlink.social>';
-const BASE_URL = process.env.NEXT_PUBLIC_URL || 'https://walletlink.social';
 
 /**
  * Send a magic link email for authentication
@@ -19,7 +19,9 @@ export async function sendMagicLink(
     return { success: false, error: 'Email service not configured' };
   }
 
-  const magicLink = `${BASE_URL}/api/auth/verify?token=${token}`;
+  // Resolved per call rather than at module load: a module-level constant is
+  // captured when the lambda cold-starts, which hides any later env change.
+  const magicLink = `${getSiteUrl()}/api/auth/verify?token=${token}`;
 
   try {
     const { error } = await resend.emails.send({

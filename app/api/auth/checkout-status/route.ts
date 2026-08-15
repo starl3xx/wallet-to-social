@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
-import { getUserAccess } from '@/lib/access';
+import { getUserAccess, provisionPaidCheckout } from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -19,7 +19,20 @@ export const runtime = 'nodejs';
  * a caller ask about someone else's account.
  *
  * The response is deliberately narrow: the success page only needs to know when
- * the Stripe webhook has landed and upgraded the account.
+ * the account has been upgraded.
+ *
+ * This endpoint also *performs* the upgrade rather than only waiting for the
+ * webhook to do it. That is not belt-and-braces, it is the lesson from
+ * 2026-08-15: the webhook endpoint was registered against a URL that redirects,
+ * Stripe does not follow redirects, and so every payment ever taken succeeded in
+ * Stripe and provisioned nothing. This route was already talking to Stripe, and
+ * already knew `payment_status === 'paid'`, and threw that away to go and ask
+ * the database whether some other system had noticed yet.
+ *
+ * Possessing the session id is proof of purchase, and the payment status comes
+ * from Stripe rather than from the caller, so granting here is exactly as
+ * trustworthy as granting from the webhook. Provisioning is idempotent on the
+ * payment intent, so whichever arrives first wins and the other is a no-op.
  */
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get('session_id');
@@ -54,6 +67,34 @@ export async function GET(request: NextRequest) {
   if (!email) {
     // Paid, but we can't tie it to an account yet. The client keeps polling.
     return NextResponse.json({ paid: true, tier: 'free', email: null });
+  }
+
+  // Grant it here rather than waiting on the webhook. `tier` is our own metadata
+  // from session creation, so an absent value means this session did not come
+  // from our checkout route and nothing should be granted for it.
+  const tier = session.metadata?.tier as 'starter' | 'pro' | 'unlimited' | undefined;
+
+  if (tier) {
+    const customerId =
+      typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id || '';
+
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || session.id;
+
+    try {
+      await provisionPaidCheckout(email, tier, customerId, paymentIntentId, {
+        sessionId: session.id,
+        via: 'success-page',
+      });
+    } catch (error) {
+      // A provisioning failure must not break the poll. The webhook may still
+      // land, and the next poll retries this anyway.
+      console.error('Provisioning from success page failed:', error);
+    }
   }
 
   const access = await getUserAccess(email);

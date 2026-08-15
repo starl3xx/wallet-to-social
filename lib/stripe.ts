@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { getSiteUrl } from '@/lib/site-url';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -33,7 +34,10 @@ export async function createCheckoutSession(
     throw new Error(`Price not configured for tier: ${tier}`);
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+  // Resolved centrally. This line read `process.env.NEXT_PUBLIC_URL ||
+  // 'http://localhost:3000'`, and because that variable was never set in
+  // production, two live payments were redirected to a dead localhost port.
+  const baseUrl = getSiteUrl();
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -64,6 +68,23 @@ export async function createCheckoutSession(
 }
 
 /**
+ * Thrown when the server is missing Stripe configuration, as distinct from a
+ * request that failed verification.
+ *
+ * These used to be indistinguishable: a missing secret key, a missing webhook
+ * secret and a forged signature all surfaced as the same 400 "signature
+ * verification failed". That reads as "the sender is wrong" when it can equally
+ * mean "this deployment is misconfigured", and it is the difference between
+ * blaming Stripe and looking at your own env vars.
+ */
+export class StripeConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StripeConfigError';
+  }
+}
+
+/**
  * Construct and verify a webhook event from Stripe
  */
 export function constructWebhookEvent(
@@ -71,12 +92,12 @@ export function constructWebhookEvent(
   signature: string
 ): Stripe.Event {
   if (!stripe) {
-    throw new Error('Stripe not configured');
+    throw new StripeConfigError('STRIPE_SECRET_KEY is not set');
   }
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    throw new Error('Stripe webhook secret not configured');
+    throw new StripeConfigError('STRIPE_WEBHOOK_SECRET is not set');
   }
 
   return stripe.webhooks.constructEvent(body, signature, webhookSecret);

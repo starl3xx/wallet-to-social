@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyMagicLinkToken, createSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { getOrCreateUser } from '@/lib/access';
 import { cookies } from 'next/headers';
+import { getSiteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const token = searchParams.get('token');
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://walletlink.social';
+  // Was `NEXT_PUBLIC_URL || 'https://walletlink.social'`. The apex fallback
+  // worked here only by luck: this redirect is a GET, so a browser follows the
+  // apex-to-www hop transparently. The same fallback in lib/stripe.ts pointed at
+  // localhost and cost a customer two payments.
+  const baseUrl = getSiteUrl();
 
   // Helper to redirect with error
   const redirectWithError = (error: string) => {

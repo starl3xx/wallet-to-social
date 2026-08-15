@@ -3,6 +3,39 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-15 (checkout provisioning, after a customer paid twice for nothing)
+
+Two independent faults, either of which alone would have been survivable,
+combined to take $198 from the first paying customer and give them nothing.
+
+- **The webhook had never worked.** The endpoint registered in Stripe was
+  `https://walletlink.social/api/webhook`, on the apex. Vercel serves this
+  project from `www` and the apex 307-redirects, and Stripe does not follow
+  redirects: it records a 3xx as a failed delivery. Every payment since the
+  endpoint was created on 2026-01-17 succeeded in Stripe and provisioned
+  nothing. Repointed to the `www` origin.
+- **`NEXT_PUBLIC_URL` was never set in production**, so `createCheckoutSession`
+  fell back to `http://localhost:3000` and built `success_url` against it. After
+  paying, the buyer was redirected to a dead port on their own machine, assumed
+  the payment had failed, and paid again. New `lib/site-url.ts` is the single
+  resolver: explicit env var, then the known production origin, then the preview
+  URL, then localhost only when genuinely not deployed. There is no longer a
+  localhost fallback that production can reach.
+- **`/api/auth/checkout-status` now grants the upgrade** instead of only
+  reporting whether some other system had. It was already asking Stripe and
+  already knew `payment_status === 'paid'`. Had it acted on that, the webhook
+  outage would have been invisible to customers.
+- **Provisioning is one function.** `provisionPaidCheckout()` is idempotent on
+  the payment intent and books the sale itself, so a grant cannot happen without
+  the revenue being recorded, and the two paths racing cannot double-count.
+- `payment_completed` was previously tracked as a floating promise the
+  serverless runtime was free to discard, and the `payment_intent.succeeded`
+  path recorded no sale at all. Both fixed.
+- A missing key or webhook secret no longer reports as "signature verification
+  failed". Config errors are their own type and answer 500, so Stripe retries
+  rather than discarding the event.
+
+
 ### 2026-08-14 (AI assistant on the marketing site)
 
 - Floating chat bubble backed by Cloudflare AI Search over both
