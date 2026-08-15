@@ -956,41 +956,37 @@ export default function Home() {
           <ThemeToggle />
         </>
       }
-      below={
-        <>
-          {/* One line, not three sentences that then repeat themselves in the
-              strip below. The old copy stated 4.7M and complete Farcaster
-              coverage in the paragraph and again in the stats line. */}
-          <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
-            Turn a wallet list into the{' '}
-            <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
-            accounts behind it.{' '}
-            <a href="/vs/addressable" className="transition-control underline hover:text-accent-brand">
-              Simple alternative to Addressable
-            </a>
-            .
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>
-              <span className="font-medium tabular-nums text-foreground">
-                {indexedWallets ?? '4.7M'}
-              </span>{' '}
-              wallets indexed
-            </span>
-            <span aria-hidden="true" className="opacity-40">·</span>
-            <span className="inline-flex items-center gap-1.5">
-              {/* Green: a measured fact, not an affordance. */}
-              <span className="h-1.5 w-1.5 rounded-full bg-attested" />
-              <span className="font-medium tabular-nums text-foreground">100%</span> Farcaster coverage
-            </span>
-            <span aria-hidden="true" className="opacity-40">·</span>
-            <span>
-              <span className="font-medium tabular-nums text-foreground">13K+</span> AI agents flagged
-            </span>
-          </div>
-        </>
-      }
     >
+        {/* One line, not three sentences that then repeat themselves in the
+            strip below. The old copy stated 4.7M and complete Farcaster
+            coverage in the paragraph and again in the stats line. */}
+        <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
+          Turn a wallet list into the{' '}
+          <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
+          accounts behind it.{' '}
+          <a href="/vs/addressable" className="transition-control underline hover:text-accent-brand">
+            Simple alternative to Addressable
+          </a>
+          .
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            <span className="font-medium tabular-nums text-foreground">
+              {indexedWallets ?? '4.7M'}
+            </span>{' '}
+            wallets indexed
+          </span>
+          <span aria-hidden="true" className="opacity-40">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            {/* Green: a measured fact, not an affordance. */}
+            <span className="h-1.5 w-1.5 rounded-full bg-attested" />
+            <span className="font-medium tabular-nums text-foreground">100%</span> Farcaster coverage
+          </span>
+          <span aria-hidden="true" className="opacity-40">·</span>
+          <span>
+            <span className="font-medium tabular-nums text-foreground">13K+</span> AI agents flagged
+          </span>
+        </div>
 
         {/* Upgrade Modal */}
         <UpgradeModal

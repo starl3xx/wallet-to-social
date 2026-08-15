@@ -33,15 +33,12 @@ import { SiteFooter } from './site-footer';
 export function PageShell({
   children,
   actions,
-  below,
   wide,
   onBrandClick,
 }: {
   children: React.ReactNode;
   /** Interactive header controls. The homepage passes tier, upgrade and theme. */
   actions?: React.ReactNode;
-  /** Full-bleed content directly under the header rule, inside the shell width. */
-  below?: React.ReactNode;
   /** Admin only. Dense tables genuinely need more than 1152px. */
   wide?: boolean;
   /**
@@ -74,9 +71,6 @@ export function PageShell({
           </Link>
           {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
         </div>
-        {below ? (
-          <div className={`mx-auto w-full ${width} px-6 pb-4`}>{below}</div>
-        ) : null}
       </header>
 
       <main className={`mx-auto w-full flex-1 ${width} px-6 py-12`}>{children}</main>
