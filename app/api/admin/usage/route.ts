@@ -4,7 +4,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { getPeriodSpend, MONTHLY_CREDIT_LIMIT, BACKGROUND_CEILING } from '@/lib/neynar-budget';
 import {
-  getDaySpend,
+  getRollingSpend,
   DAILY_REQUEST_LIMIT,
   BACKGROUND_CEILING as HOLDER_BACKGROUND_CEILING,
 } from '@/lib/holder-index-budget';
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
   // read, so the dashboard cannot disagree with the throttles.
   const [neynarSpend, holderSpend] = await Promise.all([
     getPeriodSpend().catch(() => 0),
-    getDaySpend().catch(() => 0),
+    getRollingSpend().catch(() => 0),
   ]);
 
   return NextResponse.json({
@@ -146,7 +146,11 @@ export async function GET(request: NextRequest) {
       },
       // Daily, and the one a heavy afternoon can exhaust on its own.
       holderIndex: {
-        label: 'Holder index requests, today',
+        // "Last 24 hours", not "today". The counter is a trailing window rather
+        // than a calendar day, because the provider's own reset is not aligned
+        // to UTC midnight. A label saying "today" would read as a figure that
+        // zeroes at midnight, and this one does not.
+        label: 'Holder index requests, last 24h',
         spent: holderSpend,
         limit: DAILY_REQUEST_LIMIT,
         backgroundCeiling: HOLDER_BACKGROUND_CEILING,
