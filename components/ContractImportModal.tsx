@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Modal,
   ModalContent,
@@ -33,6 +33,16 @@ interface ContractImportModalProps {
    * which is the only fact that explains a 1.6% match rate.
    */
   onImport: (wallets: string[], source: ImportedContract) => void;
+  /**
+   * Seed the form, for the `?contract=…&chain=…` deep link.
+   *
+   * It fills the field and stops. It deliberately does not press the button:
+   * fetching holders spends a metered daily allowance, and arriving on a URL is
+   * not the same as asking to spend it. The person still confirms what they are
+   * importing, which is also the only chance they get to see the chain.
+   */
+  initialAddress?: string;
+  initialChain?: SupportedChain;
 }
 
 export interface ImportedContract {
@@ -62,6 +72,8 @@ export function ContractImportModal({
   open,
   onOpenChange,
   onImport,
+  initialAddress,
+  initialChain,
 }: ContractImportModalProps) {
   const [step, setStep] = useState<Step>('input');
   const [contractAddress, setContractAddress] = useState('');
@@ -70,6 +82,22 @@ export function ContractImportModal({
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ContractResult | null>(null);
+
+  /**
+   * Seed from the deep link when the modal opens, not when the props arrive.
+   *
+   * `useState(initialAddress)` would not do: the page reads the URL in an
+   * effect, so the value lands after this component has already mounted with
+   * the modal closed, and an initialiser only ever runs once. Keying on `open`
+   * also means a close-then-reopen re-seeds rather than showing an empty form
+   * with the caller still holding a contract.
+   */
+  useEffect(() => {
+    if (!open || !initialAddress) return;
+    setContractAddress(initialAddress);
+    if (initialChain) setChain(initialChain);
+    setStep('input');
+  }, [open, initialAddress, initialChain]);
 
   // Validate address format
   const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(contractAddress);

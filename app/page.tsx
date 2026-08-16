@@ -28,7 +28,8 @@ const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').t
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
 import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
-import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
+import { SUPPORTED_CHAINS, CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
+import { parseContractDeepLink } from '@/lib/contract-deep-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
@@ -104,7 +105,7 @@ export default function Home() {
   }, []);
 
   // User access state from AuthProvider
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const userTier: UserTier = user?.tier || 'free';
   const isWhitelisted = user?.isWhitelisted || false;
   const userEmail = user?.email || null;
@@ -245,6 +246,56 @@ export default function Home() {
       setShowUpgradeModal(true);
     }
   }, [userTier]);
+
+  /**
+   * `/?contract=0x…&chain=base` opens the importer with the contract filled in.
+   *
+   * It exists so a link can carry a contract: from a bookmarklet on a
+   * marketplace page, from a shared message, from our own docs. The page is
+   * statically rendered, so this reads `window.location` in an effect rather
+   * than using `useSearchParams`, which would force a Suspense boundary and
+   * push the whole route to dynamic for one query string.
+   *
+   * Read once, on mount, and clear the URL immediately. Clearing before doing
+   * anything with the value means a refresh cannot replay the import, and the
+   * address does not sit in history or get copied out of the address bar with
+   * the rest of a shared link.
+   */
+  const [deepLinkContract, setDeepLinkContract] = useState<{
+    address: string;
+    chain: SupportedChain;
+  } | null>(null);
+  const deepLinkRead = useRef(false);
+  const deepLinkActed = useRef(false);
+
+  useEffect(() => {
+    if (deepLinkRead.current) return;
+    deepLinkRead.current = true;
+
+    const search = window.location.search;
+    if (!search.includes('contract=')) return;
+
+    window.history.replaceState({}, '', window.location.pathname);
+    setDeepLinkContract(parseContractDeepLink(search));
+  }, []);
+
+  /**
+   * Act on it only once the session has resolved.
+   *
+   * `userTier` falls back to 'free' while `useAuth` is still loading, so acting
+   * on mount would show a paying customer the upgrade modal for a feature they
+   * already have. The ref makes it fire once: without it, upgrading later would
+   * silently open an importer the person had moved on from.
+   */
+  useEffect(() => {
+    if (!deepLinkContract || authLoading || deepLinkActed.current) return;
+    deepLinkActed.current = true;
+    if (userTier === 'pro' || userTier === 'unlimited') {
+      setShowContractImportModal(true);
+    } else {
+      setShowUpgradeModal(true);
+    }
+  }, [deepLinkContract, authLoading, userTier]);
 
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -1105,8 +1156,15 @@ export default function Home() {
         {/* Contract Import Modal (Pro and Unlimited) */}
         <ContractImportModal
           open={showContractImportModal}
-          onOpenChange={setShowContractImportModal}
+          // Closing drops the deep link, so a later manual open starts blank
+          // rather than re-filling a contract the person has already dismissed.
+          onOpenChange={(next) => {
+            setShowContractImportModal(next);
+            if (!next) setDeepLinkContract(null);
+          }}
           onImport={handleContractImport}
+          initialAddress={deepLinkContract?.address}
+          initialChain={deepLinkContract?.chain}
         />
 
         {/* Farcaster DM Modal (Unlimited tier only) */}
