@@ -43,12 +43,22 @@ export const DAILY_CU_LIMIT = Number(process.env.HOLDER_INDEX_DAILY_CU ?? 40_000
 /**
  * Compute units per holder-page request.
  *
- * 35 is measured, not published: on 2026-08-15 roughly 880 requests consumed
- * about 30,000 units, which is ~34 each. Treat it as an estimate with real
- * uncertainty, and override `HOLDER_INDEX_CU_PER_REQUEST` if the provider ever
- * states the true figure.
+ * **50, and this one is read from the provider rather than inferred.** The
+ * response to `GET /erc20/{address}/owners` carries `x-request-weight: 50`, so
+ * there is no need to estimate it and no reason to trust an estimate over it.
+ * Re-check with one request and `curl -D` if the endpoint or plan ever changes.
+ *
+ * It was 35, back-derived from a day's totals: "roughly 880 requests consumed
+ * about 30,000 units". That arithmetic assumed the day's spend came only from
+ * requests we knew about, and it was 30% low. A number worked backwards from a
+ * total can only be as good as the assumption that nothing else was in the
+ * total, which is exactly the assumption a budget guard should not be making.
+ *
+ * At 50, a 10,000-holder import costs 101 requests and 5,050 units, so the free
+ * allowance is worth about **7.9 such imports a day**, not the 11 the old figure
+ * implied.
  */
-export const CU_PER_REQUEST = Number(process.env.HOLDER_INDEX_CU_PER_REQUEST ?? 35);
+export const CU_PER_REQUEST = Number(process.env.HOLDER_INDEX_CU_PER_REQUEST ?? 50);
 
 /**
  * Share of the day held back for customer imports.
@@ -69,9 +79,23 @@ export const BACKGROUND_CEILING = Math.floor(
 );
 
 /**
- * The day key. The provider's reset boundary is not published, so UTC midnight
- * is the assumption. If the real boundary differs the counter resets early or
- * late by hours, which only ever makes the cron more cautious near the edge.
+ * The day key. UTC midnight, and **known to be the wrong boundary**.
+ *
+ * The provider hard-blocked us at 06:11 UTC on 2026-08-16 and was serving again
+ * by 15:55 UTC the same day. A UTC-midnight window could not do that: it would
+ * have stayed blocked until the following midnight. So their window is a
+ * rolling one, or anchored somewhere we cannot see.
+ *
+ * This comment used to claim the mismatch "only ever makes the cron more
+ * cautious near the edge". That is backwards. When our bucket rolls over and
+ * theirs has not, our counter reads zero while theirs is nearly full, so the
+ * cron believes it has a whole day's allowance at exactly the moment there is
+ * none left. That is what happened: 7 imports late on the 15th and 2 early on
+ * the 16th sat in one provider window and two of ours.
+ *
+ * Correcting it properly means a rolling 24-hour sum, which this single-row
+ * counter cannot express. Left as a known limitation rather than papered over,
+ * because a guard whose window disagrees with the provider's is worth naming.
  */
 function currentDay(now = new Date()): string {
   return now.toISOString().slice(0, 10);

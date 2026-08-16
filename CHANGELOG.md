@@ -3,6 +3,22 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (the cost of a request, read and not calculated)
+
+- **A holder-page request costs 50 units, not 35.** The answer from the provider
+  has a header, `x-request-weight: 50`, so there is no need to estimate this and
+  no reason to prefer an estimate to it.
+- **The old 35 came from arithmetic on a day total**, and it was 30% low. That
+  method can only be as good as the belief that nothing else was in the total,
+  and a budget guard must not hold that belief.
+- **So the allowance is about 7.9 imports of 10,000 holders each day**, not 11.
+  One import costs 101 requests and 5,050 units.
+- **The day boundary of the provider is not midnight UTC.** They stopped each
+  request at 06:11 UTC and gave answers again at 15:55 UTC on the same day. Our
+  count starts again at midnight UTC, so when our day changes and theirs does
+  not, we read 0 while they read almost full. This is written down as a known
+  limit, because a correct answer needs a 24-hour moving total.
+
 ### 2026-08-16 (the meter was not connected)
 
 - **The count of holder-index requests was never written.** The database held no
