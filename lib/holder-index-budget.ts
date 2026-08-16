@@ -24,13 +24,13 @@
  *
  * ## Why this counts requests
  *
- * The ceiling is denominated in compute units, and the provider publishes no
- * per-endpoint price we can rely on staying put. What we can count exactly is
- * requests, since every page of holders is one. The conversion below is an
- * estimate derived from a real day rather than from a price list, and both
- * halves are env-overridable so a better number can replace it without a
- * deploy. Being wrong here costs accuracy in the cron's cutoff, never a
- * refused customer: no user path consults this to decide whether to run.
+ * The ceiling is denominated in compute units. What we can count exactly is
+ * requests, since every page of holders is one, and the provider states the
+ * conversion in the response itself: `x-request-weight: 50`. Both halves stay
+ * env-overridable so a plan change can be absorbed without a deploy.
+ *
+ * Being wrong here costs accuracy in the cron's cutoff, never a refused
+ * customer: no user path consults this to decide whether to run.
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
@@ -79,66 +79,102 @@ export const BACKGROUND_CEILING = Math.floor(
 );
 
 /**
- * The day key. UTC midnight, and **known to be the wrong boundary**.
+ * The window is a trailing 24 hours, not a calendar day.
  *
- * The provider hard-blocked us at 06:11 UTC on 2026-08-16 and was serving again
- * by 15:55 UTC the same day. A UTC-midnight window could not do that: it would
- * have stayed blocked until the following midnight. So their window is a
- * rolling one, or anchored somewhere we cannot see.
+ * It was a UTC-midnight bucket, and that was the wrong shape. The provider
+ * hard-blocked us at 06:11 UTC on 2026-08-16 and was serving again by 15:55 UTC
+ * **the same day**, which a UTC-midnight window cannot do: it would have stayed
+ * blocked until the following midnight. Their window rolls, or is anchored
+ * somewhere we cannot see.
  *
- * This comment used to claim the mismatch "only ever makes the cron more
- * cautious near the edge". That is backwards. When our bucket rolls over and
- * theirs has not, our counter reads zero while theirs is nearly full, so the
- * cron believes it has a whole day's allowance at exactly the moment there is
- * none left. That is what happened: 7 imports late on the 15th and 2 early on
- * the 16th sat in one provider window and two of ours.
+ * A bucket that rolls over at a different moment from theirs does not fail
+ * safely. When ours resets and theirs has not, our counter reads zero while
+ * theirs is nearly full, so the cron believes it has a whole day's allowance at
+ * exactly the moment there is none left. That is how the block happened: seven
+ * imports late on the 15th and two early on the 16th sat in one provider window
+ * and two of ours.
  *
- * Correcting it properly means a rolling 24-hour sum, which this single-row
- * counter cannot express. Left as a known limitation rather than papered over,
- * because a guard whose window disagrees with the provider's is worth naming.
+ * A trailing sum cannot be in phase with theirs either, because their anchor is
+ * unknown. What it can do is never be *behind* it: any request inside the last
+ * 24 hours is counted, whatever boundary the provider draws through it. That
+ * turns the mismatch from a hole into, at worst, a little extra caution.
  */
-function currentDay(now = new Date()): string {
-  return now.toISOString().slice(0, 10);
-}
+const WINDOW_SECONDS = 24 * 60 * 60;
 
-/** Requests recorded so far today. Returns 0 when the DB is unavailable. */
-export async function getDaySpend(): Promise<number> {
+/**
+ * Requests in the trailing 24 hours. Returns 0 when the DB is unavailable.
+ *
+ * The `CASE jsonb_typeof` guard reads a row written by the old shape,
+ * `{day, requests}`, as an empty window rather than throwing. There is no such
+ * row in production, because the write that would have created one never
+ * landed, but a guard that crashes on unexpected state is worse than one that
+ * starts from zero.
+ */
+export async function getRollingSpend(): Promise<number> {
   const db = getDb();
   if (!db) return 0;
-  const day = currentDay();
   const result = (await db.execute(sql`
-    SELECT value->>'requests' AS requests
-    FROM ingest_state
-    WHERE name = ${STATE_KEY} AND value->>'day' = ${day}
+    SELECT coalesce(sum((e->>'n')::bigint), 0) AS requests
+    FROM ingest_state,
+         jsonb_array_elements(
+           CASE jsonb_typeof(value->'events')
+             WHEN 'array' THEN value->'events'
+             ELSE '[]'::jsonb
+           END) AS e
+    WHERE name = ${STATE_KEY}
+      AND (e->>'at')::bigint > extract(epoch from now())::bigint - ${WINDOW_SECONDS}
   `)) as unknown as { rows: Array<{ requests: string | null }> };
   return Number(result.rows[0]?.requests ?? 0);
 }
 
 /**
- * Add to today's spend. One statement, so concurrent imports cannot lose each
- * other's increments, and the day rolls over on its own when the key changes.
+ * Append a spend event, pruning anything older than the window.
+ *
+ * One statement, so concurrent imports cannot lose each other's writes. That
+ * mattered under the old day-bucket shape and it matters more here: a
+ * read-modify-write on an array in JS would drop a whole event under
+ * concurrency, not merely an increment.
  *
  * **Every** caller reports, customer and cron alike. The cron's ceiling is
- * measured against the whole day's spend, not against its own, or a heavy
+ * measured against the whole window's spend, not against its own, or a heavy
  * customer morning would leave the cron thinking it still had room.
+ *
+ * The `LIMIT` is a backstop, not the mechanism. Time pruning already bounds the
+ * array to a day's writes, which is tens of entries in practice; the cap only
+ * stops a runaway loop turning one row into something unbounded.
  */
 export async function recordHolderIndexSpend(requests: number): Promise<void> {
   if (!Number.isFinite(requests) || requests <= 0) return;
   const db = getDb();
   if (!db) return;
-  const day = currentDay();
   const n = Math.round(requests);
   try {
     await db.execute(sql`
       INSERT INTO ingest_state (name, value, updated_at)
-      VALUES (${STATE_KEY}, jsonb_build_object('day', ${day}, 'requests', ${n}::bigint), now())
+      VALUES (
+        ${STATE_KEY},
+        jsonb_build_object('events', jsonb_build_array(
+          jsonb_build_object('at', extract(epoch from now())::bigint, 'n', ${n}::bigint))),
+        now()
+      )
       ON CONFLICT (name) DO UPDATE SET
-        value = CASE
-          WHEN ingest_state.value->>'day' = ${day}
-            THEN jsonb_build_object('day', ${day},
-                   'requests', ((ingest_state.value->>'requests')::bigint + ${n}::bigint))
-          ELSE jsonb_build_object('day', ${day}, 'requests', ${n}::bigint)
-        END,
+        value = jsonb_build_object('events',
+          (
+            SELECT coalesce(jsonb_agg(kept ORDER BY (kept->>'at')::bigint), '[]'::jsonb)
+            FROM (
+              SELECT e AS kept
+              FROM jsonb_array_elements(
+                     CASE jsonb_typeof(ingest_state.value->'events')
+                       WHEN 'array' THEN ingest_state.value->'events'
+                       ELSE '[]'::jsonb
+                     END) AS e
+              WHERE (e->>'at')::bigint > extract(epoch from now())::bigint - ${WINDOW_SECONDS}
+              ORDER BY (e->>'at')::bigint DESC
+              LIMIT 2000
+            ) recent
+          ) || jsonb_build_array(
+            jsonb_build_object('at', extract(epoch from now())::bigint, 'n', ${n}::bigint))
+        ),
         updated_at = now()
     `);
   } catch (error) {
@@ -170,7 +206,7 @@ export async function checkHolderIndexBudget(
 ): Promise<HolderBudgetCheck> {
   let spent: number;
   try {
-    spent = await getDaySpend();
+    spent = await getRollingSpend();
   } catch (error) {
     console.error('checkHolderIndexBudget: could not read spend, allowing:', error);
     return {

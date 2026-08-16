@@ -3,6 +3,26 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (a window that moves with the provider)
+
+- **The count of requests is a moving 24 hours now, not a calendar day.** It
+  was a box that emptied at midnight UTC. The provider does not empty its box
+  at midnight UTC: it stopped our requests at 06:11 UTC and gave answers again
+  at 15:55 UTC on the same day.
+- **A box that empties at a different moment does not fail safely.** When ours
+  empties and theirs does not, we read 0 while theirs is almost full, so the
+  background task believes that it has a full day at the moment when there is
+  nothing. This is how the stop happened: 7 imports late on one day and 2 early
+  on the next were in 1 window of theirs and 2 of ours.
+- **A moving total cannot agree with their box either**, because we do not know
+  where their box starts. But it is never behind: each request in the last 24
+  hours is in the count, wherever they put the line. The fault becomes a small
+  amount of extra care, not a hole.
+- **The write puts each event in one statement**, so 2 imports at the same time
+  cannot lose each other. Old events go away on the next write.
+- The Usage panel says "last 24h" now, not "today", because the number does not
+  become 0 at midnight.
+
 ### 2026-08-16 (the cost of a request, read and not calculated)
 
 - **A holder-page request costs 50 units, not 35.** The answer from the provider
