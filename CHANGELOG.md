@@ -3,6 +3,66 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (the meter was not connected)
+
+- **The count of holder-index requests was never written.** The database held no
+  record of it, for each import that the product has ever made. The write used
+  `void`, which starts the operation and does not wait for it. On a server that
+  stays alive, that is correct. Here the code runs in a function that can stop
+  the moment it sends its answer, and an operation that nobody waits for is the
+  one that stops.
+- **So each guard read zero.** The limit for the background task never operated,
+  because it compared its work against a count of 0. The Usage panel showed no
+  cost. The first sign of the fault was the provider, which stopped each request
+  for the remainder of the day.
+- **The write waits now.** The cost is one database operation, some tens of
+  milliseconds, at the end of an import that used some seconds and made as many
+  as 100 requests.
+- **A guard that fails open must show that it is open.** This one could not tell
+  the difference between "no cost today" and "no information", and gave 0 for
+  both.
+
+### 2026-08-15 (a link can carry a contract)
+
+- **`/?contract=0x…&chain=base` opens the importer with the address in place.**
+  For Pro and Unlimited only, the same as the importer. A person on the free
+  plan gets the upgrade window, which is what the contract card does.
+- **The link fills the field. It does not press the button.** To get the holders
+  has a cost against a daily allowance, and to arrive on a URL is not a request
+  to spend it. The person sees the address and the chain, then decides.
+- **The page reads the URL and then removes the parameters**, so a refresh
+  cannot do the import again and the address does not stay in the history.
+- **It waits for the account to load.** The tier is "free" while the session
+  loads, so a person with Pro would have seen a window that offers a thing they
+  have.
+
+### 2026-08-15 (you can see the edge of a field now)
+
+- **The line around a text field was almost invisible**: 1.26:1 against the page
+  in the light theme and 1.48:1 in the dark theme. The rule is 3:1, because the
+  line is the thing that says "this is a control".
+- **The same line is on the outline button**, where the edge is the full
+  affordance.
+- **The 2 values are calculated, not chosen.** Each is above 3:1 against each
+  surface that a control sits on.
+- **The line for a card or a table does not change.** The rule permits
+  decoration to stay quiet, and the thin-line look depends on it.
+- **A new test measures each colour pair in both themes.** It reads the tokens
+  from the CSS, and it tests its own colour mathematics against measurements
+  from a browser first.
+
+### 2026-08-15 (the header fits a telephone)
+
+- **The header went past the edge of each telephone screen.** It needed 606px
+  and did not become smaller, because each part had a fixed size and its text
+  could not go to a second line.
+- **Below 640px, 4 things change**: ".social" goes away, the theme control moves
+  to the foot of the page, the chip that says "Free" goes away, and the mark and
+  the name become smaller together.
+- **A person with Pro or Unlimited keeps the chip at each size**, where it is
+  the only thing that says the account is paid.
+- The header needs 309px now. On a computer, nothing changes.
+
 ### 2026-08-15 (recent wins, on one line)
 
 - **The homepage strip is named "Recent wins" now.** It says "Recent activity",
