@@ -639,9 +639,25 @@ async function getERC20Holders(
     }
   } while (cursor && wallets.length < limit);
   } finally {
-    // Not awaited. The accounting serves the cron, and making a customer's
-    // import wait on a bookkeeping write would be the wrong trade.
-    void recordHolderIndexSpend(requestsMade);
+    /**
+     * Awaited. It used to be `void`, on the reasoning that accounting serves
+     * the cron and a customer should not wait on a bookkeeping write. That
+     * reasoning is sound on a long-lived server and wrong here: this runs in a
+     * serverless function, which can be frozen the moment its response is sent,
+     * and a promise nobody is waiting on is exactly what gets dropped.
+     *
+     * The evidence is that `ingest_state` held no `holder_index_usage` row at
+     * all, through every import the product has ever run. The counter read zero
+     * forever, so the cron's ceiling never engaged, the admin Usage pane
+     * reported no spend, and the first sign of a problem was the provider
+     * hard-blocking every request for the rest of the day.
+     *
+     * The cost of awaiting is one indexed upsert against Neon, tens of
+     * milliseconds, at the end of an import that just spent several seconds
+     * making up to a hundred paged requests. Well under one percent, to know
+     * what we spent.
+     */
+    await recordHolderIndexSpend(requestsMade);
   }
 
   // Dedupe and limit
