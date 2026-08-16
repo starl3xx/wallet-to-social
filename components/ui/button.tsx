@@ -17,8 +17,14 @@ const buttonVariants = cva(
         // themes, and diluting either half breaks the contrast it guarantees.
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+        // `border-input` in both themes, not only dark. This is the variant
+        // whose entire affordance is its edge, so that edge has to clear 3:1;
+        // it was inheriting the decorative `--border` in light and reading at
+        // 1.26:1. The fills move to `--muted`, because a fill should come from
+        // a surface token: while they rode on `--input` they inherited every
+        // change made to the boundary for contrast reasons.
         outline:
-          'border bg-background hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          'border border-input bg-background hover:bg-accent hover:text-accent-foreground dark:bg-muted/30 dark:hover:bg-muted/50',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost:

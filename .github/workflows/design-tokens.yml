@@ -19,6 +19,7 @@ on:
       - 'eslint.config.mjs'
       - 'scripts/check-palette-guard.mjs'
       - 'scripts/check-design-language.mjs'
+      - 'scripts/check-contrast.mjs'
       - '.github/workflows/design-tokens.yml'
 
 jobs:
@@ -85,3 +86,26 @@ jobs:
       # how the palette guard came to report zero over eighteen live violations.
       - name: Design language holds
         run: node scripts/check-design-language.mjs
+
+  contrast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The other two guards ask whether a value is on-system. Neither can ask
+      # whether a person can see it, and that question has a number for an
+      # answer, so it belongs here rather than in review.
+      #
+      # It reads the tokens out of globals.css, so it cannot drift from what
+      # ships, and it validates its own OKLCH-to-sRGB conversion against hex
+      # values measured in Chrome before trusting a single ratio. A colour-space
+      # implementation that is subtly wrong produces entirely plausible numbers.
+      #
+      # Decorative separation is exempt from WCAG 1.4.11 and is deliberately not
+      # checked: card and table hairlines stay quiet on purpose. Only what is
+      # needed to identify a control has to clear 3:1.
+      - name: Both themes meet WCAG AA
+        run: node scripts/check-contrast.mjs

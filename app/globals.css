@@ -185,7 +185,18 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.51 0.19 27);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /* The boundary that says "this is a control": inputs, and the outline button.
+     Not the decorative hairline, which stays `--border`.
+
+     WCAG 1.4.11 asks for 3:1 against adjacent colour for anything needed to
+     identify a component, and this was 1.26:1 in light and 1.48:1 in dark: an
+     empty text field was a rectangle you had to already know was there.
+     Decorative separation is exempt from that rule, which is why cards and
+     table rules keep the quieter `--border` and only controls move.
+
+     Solved rather than picked, against the worst surface each theme puts a
+     control on. Light clears 3.08:1 on `--muted` and 3.36:1 on white. */
+  --input: oklch(0.640 0 0);
   --ring: oklch(0.42 0.19 280);
 
   /* Brand. One stop deeper than the violet this replaced, so it survives small
@@ -254,7 +265,11 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.62 0.18 27);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  /* See the light-theme note. Opaque rather than a white wash: a translucent
+     border changes with whatever is behind it, so it met the ratio on the page
+     and missed it on a card. This clears 4.06:1 on the page, 3.67:1 on a card
+     and 3.10:1 on a muted panel. */
+  --input: oklch(0.550 0 0);
   --ring: oklch(0.68 0.19 280);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);

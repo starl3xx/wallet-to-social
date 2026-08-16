@@ -77,6 +77,48 @@ dropped one looks like a design.** The `colour-function-wrapper` rule rejects
 it. Pass `var(--token)`, which works anywhere a colour is accepted, including an
 SVG paint attribute.
 
+### Contrast
+
+Both themes clear WCAG AA, measured rather than asserted, and
+`scripts/check-contrast.mjs` reads the tokens straight out of `globals.css` so
+the numbers cannot drift from what ships.
+
+| | dark | light |
+|---|---|---|
+| body text | 18.97:1 | 19.80:1 |
+| muted text | 7.66:1 | 4.74:1 |
+| brand | 6.41:1 | 9.17:1 |
+| attested | 8.47:1 | 6.15:1 |
+| destructive | 5.01:1 | — |
+
+**A control's edge is not decoration, and needs 3:1.** WCAG 1.4.11 asks for 3:1
+on anything required to identify a component. `--input`, which draws the
+boundary on text fields and on the outline button, was **1.26:1 in light and
+1.48:1 in dark**: an empty field was a rectangle you had to already know was
+there. It is now `oklch(0.64 0 0)` and `oklch(0.55 0 0)`, solved against the
+worst surface each theme puts a control on rather than picked by eye.
+
+**Decorative separation is exempt, and stays quiet.** A card border and a table
+rule are not controls, so `--border` keeps its 1.26:1 and the hairline aesthetic
+survives. This is the whole reason the fix is one token and not a re-tone: the
+guard checks control edges and deliberately does not check `--border`.
+
+**A control boundary must be opaque.** The dark value was `oklch(1 0 0 / 15%)`,
+a white wash, so its contrast changed with whatever sat behind it: it met the
+ratio on the page and missed it on a card. The guard rejects a translucent token
+in that position by name rather than by number.
+
+Two conventions this palette deliberately does not follow, recorded so the next
+audit does not re-litigate them:
+
+- **The page is `#0a0a0a`, darker than the `#121212` convention.** Near-black
+  raises halation around light text and can smear on OLED during scroll.
+- **Body text is `#fafafa`, effectively pure white**, where the convention
+  softens high-emphasis text to about 87% for the same reason.
+
+Both are legible by a wide margin and both are taste. They are listed as choices
+rather than left to look like oversights.
+
 ### Selected text
 
 One rule, in `globals.css`, on bare `::selection`. Selected text was the
@@ -630,6 +672,7 @@ Two CI jobs and an ESLint rule guard what a grep can see:
 |---|---|
 | `scripts/check-palette-guard.mjs` | raw palette classes, all 22 shaded families |
 | `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token, the wrong icon library |
+| `scripts/check-contrast.mjs` | WCAG AA in both themes: 4.5:1 text, 3:1 control edges |
 | `eslint.config.mjs` | the palette rule, in the editor |
 
 Both scripts run their **own fixtures first**, so a guard that has stopped working
