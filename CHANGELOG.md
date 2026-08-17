@@ -31,6 +31,25 @@ All notable changes to walletlink.social. Newest first.
   published statement "over 99.9% of Twitter matches are owner-attested" stays
   true at 99.98%.
 - Published numbers corrected in 20 places: the index is 4.9 million wallets.
+- **Corrected before release: the label went on rows it did not belong to.** The
+  first version of the write added the source name to every row it touched, and
+  not only the rows it agreed with. So a wallet where the new source named a
+  different account kept our handle, which is correct, and then took their
+  label, which is not. The API showed `attested-social` for 2,479 handles that
+  this source never attested. The write now uses the same agreement test for the
+  label that it uses for the account id, the 2,479 rows are repaired, and 129
+  scores that the label had raised are calculated again with the real function.
+- **Two more faults of the same kind, found by following the first.** The live
+  lookup path did not know the new source: it gave the source the unknown-source
+  score of 5, and it did not accept the source as attested, so the next lookup
+  would have quietly removed the verified mark from a handle that nothing had
+  disproved. Both are corrected, and the score in the sweep is now the same
+  number the live path calculates.
+- **An address that two people both claim is now dropped.** Postgres refuses to
+  change one row two times in one statement, so a repeated address would stop a
+  whole batch, after the conflicts for that batch were written. It is also the
+  right answer: if two people each say an address is theirs, this source cannot
+  say which, so it is not attested evidence.
 
 
 ### 2026-08-16 (colour that no guard was looking at)

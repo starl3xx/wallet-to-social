@@ -481,7 +481,12 @@ function prepareUpsertData(
  * Calculate data quality score (0-100) based on sources and verification status
  * Higher scores indicate more reliable data
  */
-function calculateQualityScore(
+/**
+ * Exported so a repair can recompute a score rather than guess what it used to
+ * be. Reimplementing this in SQL for the repair would have been the quick way
+ * and would have given the repair its own opinion about trust.
+ */
+export function calculateQualityScore(
   sources: string[],
   hasTwitter: boolean,
   hasFarcaster: boolean
@@ -511,6 +516,18 @@ function calculateQualityScore(
       case 'web3bio': // Aggregated data - good but less direct
         score += 15;
         break;
+      case 'ethos':
+        // An identity platform where the owner proved the wallet with a
+        // signature and the account with a sign-in. Peer of a Farcaster
+        // verification: both are platform-level attestations by the owner.
+        //
+        // It DOES stack with 'farcaster_sweep', unlike the pairs above, and
+        // that is deliberate rather than an oversight. Those de-stack because
+        // they read the same underlying record twice. This is an independent
+        // attestation of the same fact, so two of them really is more evidence
+        // than one.
+        score += 25;
+        break;
       case 'manual': // Admin-verified data
         score += 35;
         break;
@@ -535,9 +552,16 @@ function calculateQualityScore(
  * Determine if Twitter data is verified (from high-confidence source)
  */
 function isTwitterVerified(sources: string[]): boolean {
-  // Twitter is considered verified if it comes from ENS onchain or manual verification
+  // Twitter is considered verified when the owner established it themselves:
+  // an onchain ENS record, a review by us, or an identity platform where they
+  // signed with the wallet and signed in to the account.
+  //
+  // 'ethos' belongs here because the sweep writes twitter_verified = true for
+  // the rows it fills. Leaving it out meant the next live lookup that merged
+  // one of those rows would recompute the flag as false and silently unverify a
+  // handle nothing had disproved.
   return sources.some(
-    (s) => s === 'ens' || s === 'ens_onchain' || s === 'manual'
+    (s) => s === 'ens' || s === 'ens_onchain' || s === 'manual' || s === 'ethos'
   );
 }
 
