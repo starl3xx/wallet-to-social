@@ -39,19 +39,27 @@
  * a false pass: if one is delisted or renamed the check reports it and the fix
  * is to pick another off the same list.
  */
-import {
-  CHAIN_LABELS,
-  hasPublicHolderFallback,
-  SUPPORTED_CHAINS,
-  type SupportedChain,
-} from '../lib/contract-holders';
+/**
+ * Type-only, and every value comes from the dynamic import inside `main`.
+ *
+ * **Do not add a value import from `lib/contract-holders` here.** A static one
+ * evaluates that module before the `delete` below runs, and the later
+ * `import()` then returns the already-evaluated copy from the module cache. The
+ * env change would arrive too late for anything read at module scope, and the
+ * protection described below would be a comment rather than a fact. `import
+ * type` is erased at compile time and evaluates nothing, so it is safe.
+ */
+import type { SupportedChain } from '../lib/contract-holders';
 
 /**
- * Removed BEFORE the dynamic import below, which is what makes this a test of
- * the fallback rather than of the metered index. `lib/contract-holders` reads
- * the key at call time, so the order that matters is env-then-call, but the
- * import is dynamic anyway so a future module-load-time read cannot quietly
- * turn this check into a no-op.
+ * Removed BEFORE `lib/contract-holders` is ever evaluated, which is what makes
+ * this a test of the fallback rather than of the metered index.
+ *
+ * Today that module reads the key at call time, so plain ordering would do. The
+ * dynamic import is for tomorrow: if anyone adds a module-scope
+ * `const KEY = process.env.MORALIS_API_KEY`, this check must keep exercising
+ * the fallback instead of quietly passing through the metered index and
+ * reporting green for coverage it never tested.
  */
 delete process.env.MORALIS_API_KEY;
 
@@ -79,7 +87,10 @@ const PROBES: Probe[] = [
 const PROBE_LIMIT = 200;
 
 async function main() {
-  const { getContractHolders } = await import('../lib/contract-holders');
+  // Every value this script needs, loaded after the env change above. See the
+  // note on the type-only import at the top before moving any of these out.
+  const { getContractHolders, CHAIN_LABELS, hasPublicHolderFallback, SUPPORTED_CHAINS } =
+    await import('../lib/contract-holders');
 
   /**
    * Every chain that claims a fallback must be probed.
