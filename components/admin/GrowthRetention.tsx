@@ -163,7 +163,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                   data={weeks.map((w) => w[1].lookups)}
                   width={80}
                   height={24}
-                  color="hsl(142, 76%, 36%)"
+                  color="var(--accent-brand)"
                 />
               </div>
             </div>
@@ -232,7 +232,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                           style={{
                             backgroundColor:
                               rate > 0
-                                ? `rgba(34, 197, 94, ${Math.min(rate / 100, 1) * 0.5})`
+                                ? `color-mix(in oklch, var(--accent-brand) ${Math.min(rate / 100, 1) * 50}%, transparent)`
                                 : 'transparent',
                           }}
                         >

@@ -66,7 +66,7 @@ function getMagicLinkEmailHtml(magicLink: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign in to walletlink.social</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0C0E1A; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
     <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 9px; margin-bottom: 16px;">
     <h1 style="font-size: 24px; font-weight: 600; margin: 0;">walletlink.social</h1>
@@ -78,25 +78,25 @@ function getMagicLinkEmailHtml(magicLink: string): string {
 
   <div style="text-align: center; margin: 32px 0;">
     <a href="${magicLink}"
-       style="display: inline-block; background-color: #4131B0; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 999px; font-weight: 500; font-size: 16px;">
+       style="display: inline-block; background-color: #4131b0; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 999px; font-weight: 500; font-size: 16px;">
       Sign in
     </a>
   </div>
 
-  <p style="font-size: 14px; color: #6B7189; margin-top: 32px;">
-    If you didn't request this email, you can safely ignore it.
+  <p style="font-size: 14px; color: #737373; margin-top: 32px;">
+    If you didn’t request this email, you can safely ignore it.
   </p>
 
-  <p style="font-size: 14px; color: #6B7189;">
-    If the button doesn't work, copy and paste this link into your browser:
+  <p style="font-size: 14px; color: #737373;">
+    If the button doesn’t work, copy and paste this link into your browser:
     <br>
-    <a href="${magicLink}" style="color: #6B7189; word-break: break-all;">${magicLink}</a>
+    <a href="${magicLink}" style="color: #737373; word-break: break-all;">${magicLink}</a>
   </p>
 
-  <hr style="border: none; border-top: 1px solid #E2E3ED; margin: 32px 0;">
+  <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
 
-  <p style="font-size: 12px; color: #6B7189; text-align: center;">
-    walletlink.social — Turn your wallet list into Twitter handles and Farcaster profiles
+  <p style="font-size: 12px; color: #737373; text-align: center;">
+    walletlink.social: turn your wallet list into Twitter handles and Farcaster profiles
   </p>
 </body>
 </html>
@@ -114,9 +114,9 @@ Click the link below to sign in to your account. This link will expire in 15 min
 
 ${magicLink}
 
-If you didn't request this email, you can safely ignore it.
+If you didn’t request this email, you can safely ignore it.
 
 ---
-walletlink.social — Turn your wallet list into Twitter handles and Farcaster profiles
+walletlink.social: turn your wallet list into Twitter handles and Farcaster profiles
 `.trim();
 }

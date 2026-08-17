@@ -487,7 +487,10 @@ export const ResultsTable = memo(function ResultsTable({
                         >
                           {truncateWallet(result.wallet)}
                           {copiedWallet === result.wallet && (
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded-sm whitespace-nowrap z-10">
+                            /* bg-foreground/text-background, not bg-black/text-white. The
+                               dark theme's background is itself near-black, so a literally
+                               black toast on it had no edge at all. */
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded-sm whitespace-nowrap z-10">
                               Copied!
                             </span>
                           )}

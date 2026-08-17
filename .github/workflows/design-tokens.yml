@@ -16,10 +16,18 @@ on:
     paths:
       - 'app/**'
       - 'components/**'
+      # lib/ was missing, and that was the hole. lib/og-fonts.ts holds the share
+      # card palette and lib/email.ts the only HTML email, both of which write
+      # literal colours because Satori and email clients cannot read a CSS
+      # custom property. A PR touching only those files did not start this job
+      # at all, so the drift there was invisible twice over.
+      - 'lib/**'
       - 'eslint.config.mjs'
       - 'scripts/check-palette-guard.mjs'
       - 'scripts/check-design-language.mjs'
       - 'scripts/check-contrast.mjs'
+      - 'scripts/check-og-palette.mjs'
+      - 'scripts/lib/**'
       - '.github/workflows/design-tokens.yml'
 
 jobs:
@@ -67,6 +75,22 @@ jobs:
           echo
           echo "::error::Raw Tailwind palette classes found. Use a semantic token: accent-brand (brand and interactive), attested (a measured fact), caution (limits, staleness), destructive (removal), or muted. See app/globals.css and CLAUDE.md."
           exit 1
+
+  og-palette:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Satori and HTML email render outside the CSS cascade, so they cannot use
+      # var(--token) and must write literals. This checks that each literal is
+      # still a token's value, converting from globals.css at run time rather
+      # than against a copied table. Deliberate non-token values are listed in
+      # the script by value with a rendering reason.
+      - name: Share cards and email still use token values
+        run: node scripts/check-og-palette.mjs
 
   design-language:
     runs-on: ubuntu-latest
