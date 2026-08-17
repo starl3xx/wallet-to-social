@@ -3,6 +3,27 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (the design skill gave instructions that CI rejects)
+
+- **The frontend-design skill now points at `docs/DESIGN-LANGUAGE.md` first.**
+  The skill is written for new work with no design system. This project has one,
+  and the skill did not mention it. An agent that read the skill and not the
+  design language wrote code that looked correct and failed the build.
+- **Four raw colour values are gone from the skill.** It named hex values for the
+  accent, the border and two text colours. `app/globals.css` holds those values
+  as tokens, and an ESLint rule and `design-tokens.yml` both refuse a raw colour.
+  The skill now names the token and the meaning, not the value.
+- **The radius guidance was wrong in all three of its numbers.** It asked for
+  8-12px cards, 6-8px buttons and 4px badges. The scale is 14px containers,
+  pill controls and 6px chips. The skill now lists the five named values and says
+  which ones CI refuses.
+- **A reuse ladder was added before "write a new component".** Five questions,
+  stop at the first yes: does it need to exist, does it exist already in
+  `components/ui/`, does a token cover it, can it be a prop, and only then write
+  something new. It also says what may never be skipped: accessibility, error
+  states, input validation, and anything asked for by name.
+
+
 ### 2026-08-16 (a window that moves with the provider)
 
 - **The count of requests is a moving 24 hours now, not a calendar day.** It
