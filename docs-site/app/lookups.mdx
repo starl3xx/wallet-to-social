@@ -40,6 +40,19 @@ so rather than implying the list is complete. Treat a truncation warning as
 real: the collection has more holders than you are looking at.
 </Note>
 
+Token holder lists have a second index behind the first. If the primary one is
+unavailable, the import is served from a backup rather than failing, so a spent
+daily ceiling no longer stops the feature. **BNB Chain is the exception**: it has
+no backup, and token import there is unavailable until the ceiling resets. NFT
+collections are never affected on any network, because they resolve a different
+way.
+
+The backup is slower and returns fewer holders, so a list served from it is more
+often partial. It is marked truncated exactly as any other partial list is, so
+the flag on the result stays the thing to trust rather than the size of the
+list. If you need the complete set, run the import again once the primary index
+is serving.
+
 ## How many addresses per lookup
 
 | Plan | Addresses per lookup |

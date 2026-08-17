@@ -5,7 +5,8 @@
 # Encryption uses age with a PUBLIC recipient key — the private key never
 # touches the runner, so a compromised runner cannot read past backups.
 #
-# Required repository secrets (see docs/SECURITY.md):
+# Required repository secrets (the runbook that says where each is kept lives in
+# the private starl3xx/walletlink-ops repo, NOT in this one):
 #   BACKUP_DATABASE_URL     — the read-only backup_reader connection string
 #   BACKUP_AGE_PUBLIC_KEY   — an age recipient public key (age1...)
 #
@@ -35,7 +36,7 @@ jobs:
           AGE_PUB: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
         run: |
           if [ -z "$DB" ] || [ -z "$AGE_PUB" ]; then
-            echo "BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY must be set — see docs/SECURITY.md" >&2
+            echo "BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY must be set — see the runbook in starl3xx/walletlink-ops" >&2
             exit 1
           fi
 

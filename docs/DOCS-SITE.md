@@ -18,13 +18,18 @@ Content lives in **`docs-site/`**, not in this folder.
 Two folders, and mixing them up publishes internal material.
 
 - **`docs-site/`** is the published site. Safe for customers.
-- **`docs/`** (this folder) is internal only. `SECURITY.md` holds the database
-  role-split runbook and the backup/restore procedure. It must never be the
+- **`docs/`** (this folder) is internal engineering notes. It must never be the
   Mintlify content root.
 
 When connecting Mintlify's GitHub app, set the content directory to
-`docs-site/`. The default of repository root would publish this file, and
-`SECURITY.md` next to it.
+`docs-site/`. The default of repository root would publish this file and every
+other note in this folder.
+
+The database role-split runbook and the backup/restore procedure used to sit
+here as `SECURITY.md`. They now live in the private **starl3xx/walletlink-ops**
+repo and are gitignored here, so a checkout of this repository will not contain
+them. See `README.md` in this folder for the rule that decides where a new
+document belongs.
 
 ## What is written
 

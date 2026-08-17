@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
 import {
   getContractHolders,
+  hasPublicHolderFallback,
   CHAIN_LABELS,
   SUPPORTED_CHAINS,
   type SupportedChain,
@@ -172,11 +173,25 @@ export async function POST(request: NextRequest) {
         status: 429,
       },
       DAILY_ALLOWANCE_SPENT: {
-        // Deliberately not "try again shortly". The allowance resets on a daily
-        // boundary, so telling someone to retry sends them into a loop that
-        // cannot succeed. No provider named, per the UI rule.
-        message:
-          'Token (ERC-20) holder import has reached its daily limit and will be available again tomorrow. NFT collections are unaffected, and an upload or a pasted list works now.',
+        /**
+         * Two different situations reach this code, and they deserve opposite
+         * advice.
+         *
+         * On a chain with no public explorer behind the metered index (BNB
+         * Chain), the allowance really is gone until it resets, and "try again
+         * shortly" would send the customer into a loop that cannot succeed —
+         * which is what they did, repeatedly, before this message said so.
+         *
+         * On the five chains that do have one, reaching here means the fallback
+         * was attempted and failed as well. A backup explorer that failed this
+         * minute is far more likely to work in ten than to stay down all day,
+         * so pointing at tomorrow would be the misleading half of the pair.
+         *
+         * No provider named either way, per the UI rule.
+         */
+        message: chain && hasPublicHolderFallback(chain)
+          ? `Token (ERC-20) holder import on ${chainLabel} is temporarily unavailable. It is worth trying again in a few minutes. NFT collections are unaffected, and an upload or a pasted list works now.`
+          : 'Token (ERC-20) holder import has reached its daily limit and will be available again tomorrow. NFT collections are unaffected, and an upload or a pasted list works now.',
         status: 503,
       },
       MORALIS_NOT_CONFIGURED: {

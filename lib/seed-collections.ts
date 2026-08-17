@@ -412,7 +412,25 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
     }
   }
 
-  const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP);
+  /**
+   * `allowPublicFallback: false` — background work never borrows the public
+   * explorers.
+   *
+   * The guard above only refuses a seed once the cron's own 20% ceiling is
+   * reached. Customers hold the other 80%, so the provider can be fully spent
+   * while this cron still believes it has room: it calls the index, meets
+   * DAILY_ALLOWANCE_SPENT, and without this flag would silently redirect the
+   * rest of the day's seeding onto free public infrastructure. That is the same
+   * "spend somebody else's resources on work nobody asked for" that the budget
+   * guard exists to stop, just one provider along.
+   *
+   * Robinhood Chain is unaffected and deliberately so: its explorer is the only
+   * ERC-20 index that chain has, not a fallback, so this flag never applies to
+   * it. The rule is about *borrowing* an alternative, not about explorers.
+   */
+  const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP, {
+    allowPublicFallback: false,
+  });
 
   // Decided before recording: recordSeed needs to know whether this contract
   // should count as finished or stay in the retry window.

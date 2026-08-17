@@ -3,6 +3,49 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (a second index behind the first, and a runbook that had moved)
+
+- **A spent daily allowance no longer stops token import.** ERC-20 holder lists
+  need somebody's index, because balances are a mapping with no enumerable owner
+  list. There was one, it bills against a daily ceiling, and running out took
+  the feature down on six chains at once for reasons that were ours rather than
+  the customer's. A customer import that meets an exhausted, rate-limited or
+  unreachable index now retries against that chain's public block explorer.
+- **Five of the six chains, and the sixth is named.** Ethereum, Base, Arbitrum,
+  Polygon and Optimism all have a public instance. BNB Chain has none, so it is
+  the one chain where exhaustion still stops the feature, and the code and the
+  error message both say so instead of implying otherwise.
+- **Every URL was measured, not assumed.** One page of holders on a
+  customer-sized token: Ethereum 0.8s, Optimism 0.6s, Arbitrum 0.9s, Polygon
+  6.7s, Base 15.3s. Base has a latency floor near 11s that barely moves with
+  page size, so it returns a first page and usually not much more, correctly
+  marked truncated.
+- **The first measurement was nearly wrong in a way that would have cost two
+  chains.** Probing with USDC timed out on Base and Polygon at every page size,
+  which reads exactly like a dead explorer. USDC has 12.7M holders on Base. Both
+  instances are fine for the size of token a customer actually imports.
+- **Background work is not allowed to use it.** The daily budget reserves 80%
+  for customers, so the provider can be exhausted while the seed cron's own
+  ceiling still shows room. Without an explicit opt-out the cron would have
+  quietly moved a day of unasked-for seeding onto free public infrastructure.
+- **An explorer that answers 429 is not asked again for five minutes.** Found by
+  tripping Base's throttle while testing. Further calls cannot return holders,
+  so they only cost the customer a second on the way to the same error.
+- **The check runs weekly, because these URLs are not ours.** An instance can
+  move or retire an API version with no commit here, so a pull-request gate
+  cannot see it. `scripts/check-holder-fallback.ts` exercises the real fallback
+  path, and fails if a chain claims a fallback it has no probe for.
+- **The security runbook was not missing, it had moved.** Four places still
+  pointed at `docs/SECURITY.md` as a local path; it lives in the private ops
+  repo and is gitignored here, so anyone following those pointers found nothing.
+  They now say where it is.
+- **The half of it that is not a secret is now in `CLAUDE.md`.** A table created
+  after the role split inherits no grants, and nothing fails until CI reports
+  `permission denied for table <name>` on a run that passed locally. Which
+  credential lives where stays private; "a new table needs a grant" is a fact
+  about the schema and belongs with the schema.
+
+
 ### 2026-08-17 (every surface, not only the ones I had touched)
 
 - **Four surfaces were outside the check.** The README said 4.7M, two versions
