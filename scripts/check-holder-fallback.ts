@@ -153,15 +153,29 @@ async function main() {
           (result.totalHolders > 0 ? ` (of ${result.totalHolders.toLocaleString()} total)` : '')
       );
     } catch (error) {
-      /**
-       * The metered error is rethrown on purpose, so `message` here is always
-       * MORALIS_NOT_CONFIGURED and says nothing about the fallback. `cause`
-       * carries the fallback's own error and is the only thing that separates
-       * "the net failed" from "the net was never wired up".
-       */
+      const message = error instanceof Error ? error.message : String(error);
       const cause = error instanceof Error ? error.cause : undefined;
       const causeMessage =
         cause instanceof Error ? cause.message : cause ? String(cause) : null;
+
+      /**
+       * Anything that is not the rethrown metered error never reached the
+       * fallback, and its own message is the diagnosis.
+       *
+       * This branch is here because the first version assumed `message` was
+       * always MORALIS_NOT_CONFIGURED and replaced it with an invented
+       * explanation. CI then failed with "the fallback never engaged" for
+       * Ethereum when the truth was that a public RPC had refused the runner
+       * three steps earlier, and the real error had been thrown away by the
+       * code whose job was to report it. Report what came back.
+       */
+      if (message !== 'MORALIS_NOT_CONFIGURED') {
+        failures.push(
+          `${label}: could not get as far as the fallback — ${message} ` +
+            `(this is the chain's RPC or the contract, not the explorer)`
+        );
+        continue;
+      }
 
       /**
        * A 429 is not rot, and must not fail this check.

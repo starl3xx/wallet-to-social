@@ -172,28 +172,82 @@ async function withTimeout<T>(
 }
 
 /**
- * Get a provider for the specified chain
- * Uses Alchemy for Ethereum, public RPCs for Base (unless Alchemy Base is configured)
+ * Every RPC worth trying for a chain, best first.
+ *
+ * Alchemy goes first on Ethereum when a key is configured. The rest is
+ * `RPC_ENDPOINTS`, which lists two or three per chain and, until this was
+ * written, only ever had its first entry used — `getProvider` returned
+ * `endpoints[0]` and nothing ever reached the others. Three endpoints listed
+ * and one called is a promise the code does not keep: when llamarpc started
+ * refusing this repository's CI runners, contract type detection failed outright
+ * on Ethereum with two healthy endpoints sitting unused directly beneath it.
  */
-function getProvider(chain: SupportedChain): ethers.JsonRpcProvider {
+function providerUrls(chain: SupportedChain): string[] {
   const alchemyKey = process.env.ALCHEMY_KEY;
+  const urls: string[] = [];
 
   // For Ethereum, prefer Alchemy if available
   if (chain === 'ethereum' && alchemyKey) {
-    return new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
+    urls.push(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
   }
 
   // For every other chain, use public RPCs by default (Alchemy requires per-network
   // enablement per app). This avoids the "<NETWORK>_MAINNET is not enabled" error.
-  // Pin the network so ethers skips auto-detection, which matters on newer chains.
-  const endpoints = RPC_ENDPOINTS[chain];
-  if (!endpoints?.length) {
+  urls.push(...(RPC_ENDPOINTS[chain] ?? []));
+
+  if (urls.length === 0) {
     throw new Error('UNSUPPORTED_CHAIN');
   }
+  return urls;
+}
 
-  return new ethers.JsonRpcProvider(endpoints[0], CHAIN_IDS[chain], {
-    staticNetwork: true,
-  });
+// Pin the network so ethers skips auto-detection, which matters on newer chains.
+function makeProvider(url: string, chain: SupportedChain): ethers.JsonRpcProvider {
+  return new ethers.JsonRpcProvider(url, CHAIN_IDS[chain], { staticNetwork: true });
+}
+
+/**
+ * Run an RPC operation against each endpoint in turn until one answers.
+ *
+ * Bounded by the same deadline everything else in this module shares, and
+ * deliberately so. Failover multiplies wall clock: three endpoints times the
+ * three calls `detectContractType` makes, each with its own 15s ceiling, is
+ * over two minutes against a route that has 60 seconds. An unbounded retry loop
+ * turns one dead provider into a timeout for the whole import, which is a worse
+ * failure than the one it set out to fix.
+ *
+ * A caller that passes no deadline gets one attempt per endpoint with no extra
+ * gate, which is the old behaviour plus the retries.
+ */
+async function withProvider<T>(
+  chain: SupportedChain,
+  fn: (provider: ethers.JsonRpcProvider) => Promise<T>,
+  deadlineMs?: number
+): Promise<T> {
+  const urls = providerUrls(chain);
+  let lastError: unknown;
+
+  for (let i = 0; i < urls.length; i++) {
+    // Only the *retries* are gated. The first attempt always runs, so a caller
+    // arriving with no budget left still gets a real error from a real call
+    // rather than a confusing one about time.
+    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < RPC_TIMEOUT_MS) {
+      break;
+    }
+    try {
+      return await fn(makeProvider(urls[i], chain));
+    } catch (error) {
+      lastError = error;
+      if (i < urls.length - 1) {
+        console.warn(
+          `RPC ${new URL(urls[i]).host} failed on ${chain}, trying the next endpoint:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 
@@ -202,45 +256,64 @@ function getProvider(chain: SupportedChain): ethers.JsonRpcProvider {
  */
 export async function detectContractType(
   address: string,
-  chain: SupportedChain
+  chain: SupportedChain,
+  deadlineMs?: number
 ): Promise<ContractType> {
-  const provider = getProvider(chain);
+  /**
+   * "Not a contract" is returned, not thrown.
+   *
+   * It is a definitive answer from an RPC that worked, so it must not travel
+   * out through `withProvider`'s catch: that would read it as an endpoint
+   * failure and ask two more endpoints the same question, each of which would
+   * agree, at the cost of two round trips before the customer sees the error
+   * the first call already had.
+   */
+  const detected = await withProvider(
+    chain,
+    async (provider) => {
+      // Verify it's a contract (not an EOA)
+      const code = await withTimeout(
+        provider.getCode(address),
+        RPC_TIMEOUT_MS,
+        'Contract code check timed out'
+      );
 
-  // Verify it's a contract (not an EOA)
-  const code = await withTimeout(
-    provider.getCode(address),
-    RPC_TIMEOUT_MS,
-    'Contract code check timed out'
+      if (code === '0x') {
+        return 'NOT_A_CONTRACT' as const;
+      }
+
+      // Try ERC-165 interface detection
+      const contract = new ethers.Contract(address, ERC165_ABI, provider);
+
+      try {
+        // Check ERC-721
+        const isERC721 = await withTimeout(
+          contract.supportsInterface(ERC721_INTERFACE_ID),
+          RPC_TIMEOUT_MS,
+          'ERC-721 check timed out'
+        );
+        if (isERC721) return 'ERC-721' as ContractType;
+
+        // Check ERC-1155
+        const isERC1155 = await withTimeout(
+          contract.supportsInterface(ERC1155_INTERFACE_ID),
+          RPC_TIMEOUT_MS,
+          'ERC-1155 check timed out'
+        );
+        if (isERC1155) return 'ERC-1155' as ContractType;
+      } catch {
+        // Contract doesn't support ERC-165 - default to ERC-20
+      }
+
+      return 'ERC-20' as ContractType;
+    },
+    deadlineMs
   );
 
-  if (code === '0x') {
+  if (detected === 'NOT_A_CONTRACT') {
     throw new Error('NOT_A_CONTRACT');
   }
-
-  // Try ERC-165 interface detection
-  const contract = new ethers.Contract(address, ERC165_ABI, provider);
-
-  try {
-    // Check ERC-721
-    const isERC721 = await withTimeout(
-      contract.supportsInterface(ERC721_INTERFACE_ID),
-      RPC_TIMEOUT_MS,
-      'ERC-721 check timed out'
-    );
-    if (isERC721) return 'ERC-721';
-
-    // Check ERC-1155
-    const isERC1155 = await withTimeout(
-      contract.supportsInterface(ERC1155_INTERFACE_ID),
-      RPC_TIMEOUT_MS,
-      'ERC-1155 check timed out'
-    );
-    if (isERC1155) return 'ERC-1155';
-  } catch {
-    // Contract doesn't support ERC-165 - default to ERC-20
-  }
-
-  return 'ERC-20';
+  return detected;
 }
 
 /**
@@ -248,27 +321,46 @@ export async function detectContractType(
  */
 async function getTokenInfo(
   address: string,
-  chain: SupportedChain
+  chain: SupportedChain,
+  deadlineMs?: number
 ): Promise<{ name: string; symbol: string }> {
-  const provider = getProvider(chain);
-  const contract = new ethers.Contract(address, TOKEN_INFO_ABI, provider);
-
-  let name = 'Unknown Token';
-  let symbol = 'UNKNOWN';
-
   try {
-    const [nameResult, symbolResult] = await Promise.allSettled([
-      withTimeout(contract.name(), RPC_TIMEOUT_MS, 'name() timed out'),
-      withTimeout(contract.symbol(), RPC_TIMEOUT_MS, 'symbol() timed out'),
-    ]);
+    return await withProvider(
+      chain,
+      async (provider) => {
+        const contract = new ethers.Contract(address, TOKEN_INFO_ABI, provider);
 
-    if (nameResult.status === 'fulfilled') name = nameResult.value;
-    if (symbolResult.status === 'fulfilled') symbol = symbolResult.value;
+        const [nameResult, symbolResult] = await Promise.allSettled([
+          withTimeout(contract.name(), RPC_TIMEOUT_MS, 'name() timed out'),
+          withTimeout(contract.symbol(), RPC_TIMEOUT_MS, 'symbol() timed out'),
+        ]);
+
+        /**
+         * Both failing is thrown so the next endpoint gets a turn.
+         *
+         * `allSettled` never rejects, so the old shape could not fail over even
+         * once it had somewhere to fail over to: a dead endpoint returned
+         * "Unknown Token / UNKNOWN" and the customer saw that name on their
+         * import while two healthy endpoints sat unused. One of the two
+         * succeeding is treated as good enough, since a token legitimately may
+         * implement only one of the pair.
+         */
+        if (nameResult.status === 'rejected' && symbolResult.status === 'rejected') {
+          throw nameResult.reason;
+        }
+
+        return {
+          name: nameResult.status === 'fulfilled' ? nameResult.value : 'Unknown Token',
+          symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'UNKNOWN',
+        };
+      },
+      deadlineMs
+    );
   } catch {
-    // Use defaults if token info unavailable
+    // Every endpoint failed. The name is cosmetic and the holder list is not,
+    // so this stays non-fatal and the import continues without it.
+    return { name: 'Unknown Token', symbol: 'UNKNOWN' };
   }
-
-  return { name, symbol };
 }
 
 /**
@@ -921,10 +1013,14 @@ export async function getContractHolders(
   const effectiveLimit = Math.min(limit, HOLDER_LIMIT);
 
   // Detect contract type
-  const contractType = await detectContractType(normalizedAddress, chain);
+  const contractType = await detectContractType(normalizedAddress, chain, deadlineMs);
 
   // Get token info
-  const { name: tokenName, symbol: tokenSymbol } = await getTokenInfo(normalizedAddress, chain);
+  const { name: tokenName, symbol: tokenSymbol } = await getTokenInfo(
+    normalizedAddress,
+    chain,
+    deadlineMs
+  );
 
   // Fetch holders based on contract type
   let holdersResult: { wallets: string[]; totalHolders: number };
