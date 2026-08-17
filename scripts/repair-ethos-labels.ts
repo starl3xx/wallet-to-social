@@ -60,6 +60,45 @@ async function main() {
   }
   console.log(`rescored ${rescored} of ${stale.length} rows using the real scorer`);
 
+  /**
+   * The retired 60 floor left rows inflated, and GREATEST can never lower them.
+   *
+   * Only the INFLATED ones are corrected here. 68,756 rows sit at 60 where the
+   * real scorer says 45, because the first version of the sweep wrote a floor
+   * of 60 and `GREATEST(stored, floor)` only ever raises.
+   *
+   * Rows that are UNDERSTATED are deliberately left alone. A swept row carrying
+   * a coarse lower bound until a real lookup recomputes it is how every source
+   * in this pipeline already behaves, and raising 7,578 of them from 65 to 90
+   * would push them over the 70 trust line, which changes what the product does
+   * with them. That is a behaviour change, not a repair, and it does not belong
+   * in a fix for a labelling bug.
+   */
+  const inflated = (await sql`
+    SELECT wallet, sources, twitter_handle, farcaster, data_quality_score
+    FROM social_graph WHERE 'ethos' = ANY(sources) AND data_quality_score = 60`) as any[];
+  // Grouped by target score, then one statement per group. Row-at-a-time was
+  // the first attempt and it was 68,756 round trips to Neon, which is minutes of
+  // latency to change one integer. The scoring still happens in TypeScript with
+  // the real function; only the writing is batched.
+  const byScore = new Map<number, string[]>();
+  for (const r of inflated) {
+    const correct = calculateQualityScore(r.sources ?? [], !!r.twitter_handle, !!r.farcaster);
+    if (correct >= r.data_quality_score) continue; // understated: leave it
+    if (!byScore.has(correct)) byScore.set(correct, []);
+    byScore.get(correct)!.push(r.wallet);
+  }
+  let lowered = 0;
+  for (const [score, wallets] of byScore) {
+    for (let i = 0; i < wallets.length; i += 5000) {
+      const chunk = wallets.slice(i, i + 5000);
+      await sql`UPDATE social_graph SET data_quality_score = ${score} WHERE wallet = ANY(${chunk})`;
+      lowered += chunk.length;
+    }
+    console.log(`  -> ${score}: ${wallets.length} rows`);
+  }
+  console.log(`lowered ${lowered} rows the retired 60 floor had inflated`);
+
   const [after] = (await sql`
     SELECT count(*)::int AS n FROM handle_conflicts c JOIN social_graph g ON g.wallet = c.wallet
     WHERE c.resolved_at IS NULL AND 'ethos' = ANY(g.sources)`) as any[];

@@ -45,6 +45,13 @@ All notable changes to walletlink.social. Newest first.
   would have quietly removed the verified mark from a handle that nothing had
   disproved. Both are corrected, and the score in the sweep is now the same
   number the live path calculates.
+- **The quality number was wrong on 81,325 rows, in both directions.** The write
+  raised a score to a floor but could never lower one, so rows written with the
+  first, too-high floor kept it. 55,309 rows that said more than they should are
+  corrected. Rows that say less than they should are left alone on purpose: a
+  swept row that carries a low estimate until a real lookup calculates it is how
+  every source here already works, and raising them would move some across the
+  trust line, which changes what the product does with them.
 - **An address that two people both claim is now dropped.** Postgres refuses to
   change one row two times in one statement, so a repeated address would stop a
   whole batch, after the conflicts for that batch were written. It is also the
