@@ -3,6 +3,35 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (every surface, not only the ones I had touched)
+
+- **Four surfaces were outside the check.** The README said 4.7M, two versions
+  old. The AI assistant was told to say "reachable" in the sense we had just
+  retired. The blog held 71 uses of "22%" over 19 posts, a figure removed from
+  the structured data the same day because nobody could say where it came from.
+  The social media skill said 15-25%.
+- **Blog: only the search descriptions were changed.** A dated post saying 22% in
+  August is a record of what we believed then, not a claim about today. The
+  description is different: it is the text a search engine shows, so it speaks
+  in the present. Four were corrected; the body text stays.
+- **The check now works in both directions.** It compared each declared figure
+  with the database. It now also reads the copy and reports any figure that is
+  **not** declared. A registry catches a number that drifts; it cannot catch a
+  new number somebody writes tomorrow, which is how "22%" reached 19 posts while
+  every declared figure passed.
+- **Both directions were tested with wrong input, and both were broken.** The
+  new sweep asked "does this file have any declared figure", so one declared
+  figure made every other figure in the same file pass. Two false numbers put
+  into the README went through. It now works for each match, not each file.
+- **A comment is not published text.** The first correct version then reported
+  the explanation inside `lib/public-figures.ts` as an undeclared figure, which
+  would teach everyone to stop writing explanations. Comments are removed before
+  a source file is read.
+- The social media skill is outside the repository, so the check cannot see it.
+  It now carries the current figures and says plainly that it is checked by a
+  person, not by the machine.
+
+
 ### 2026-08-17 (one number, one place, and the claim moved to where people read it)
 
 - **The header said 4.8M, the documents said 4.9M, and a correction earlier the

@@ -58,6 +58,7 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/index.mdx',
       'docs-site/concepts/scan-depth.mdx',
+      'README.md',
       // app/layout.tsx is deliberately absent: it interpolates the constant, so
       // the literal exists in exactly one file. That is the point of the
       // constant, and this check noticed the moment it became true.
@@ -69,7 +70,7 @@ const CLAIMS: Claim[] = [
      * Twitter handle" as the index size, reporting 77% drift against a figure
      * that was never that claim.
      */
-    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'/,
+    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
     /**
      * The SAME predicate /api/public-stats uses, and not `count(*)`.
      *
@@ -240,7 +241,11 @@ async function main() {
     }
   }
 
+  const undeclared = sweepForUndeclared();
+  problems += undeclared;
+
   console.log(`\n${checked} published figures checked.`);
+  if (undeclared) console.error(`${undeclared} figure(s) published but never declared.`);
   if (problems) {
     console.error(
       `${problems} need updating. Published numbers go stale with no commit, so ` +
@@ -256,3 +261,106 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+/* ------------------------------------------------------------------ */
+/* The inverse check: a figure nobody declared                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Checking declared claims is only half the job.
+ *
+ * A registry catches a declared figure that drifts. It cannot catch a NEW
+ * figure somebody writes into a page tomorrow, and that is how "22%" reached 19
+ * blog posts and their meta descriptions while every declared number passed.
+ *
+ * So this sweeps the copy surfaces for anything shaped like one of our claims
+ * and errors on anything not accounted for. Adding a number to a page means
+ * adding it here, which is the friction that keeps every surface saying the
+ * same thing.
+ */
+const COPY_SURFACES = [
+  'README.md',
+  'docs/AI-SEARCH.md',
+  'lib/public-figures.ts',
+  'components/ReachabilityClaim.tsx',
+  'app/layout.tsx',
+];
+
+/** Shapes that read as one of our coverage claims. */
+const FIGURE_SHAPES = [
+  /\b[0-9]{1,2}(?:\.[0-9])?%\s*(?:match|reachab|of wallets|of the|live|suspended|unclaimed)/gi,
+  /\b[0-9](?:\.[0-9])?\s*(?:M|million)[- ]wallet/gi,
+  /\b[0-9](?:\.[0-9]+)? million wallets/gi,
+];
+
+/**
+ * Figures that are real but are not claims about our coverage.
+ *
+ * Each needs to be here for a reason a reader would accept, not because it was
+ * noisy. A growing list is a signal the shapes above are too broad.
+ */
+const NOT_A_COVERAGE_CLAIM = [
+  /2\.5%\s*(?:industry|average)/i, // the industry baseline we compare against
+  /9\.7% unclaimed/i, // covered by the reachability split
+  /20\.7% suspended/i, // covered by the reachability split
+];
+
+function sweepForUndeclared(): number {
+  const declared = CLAIMS.flatMap((c) => c.files);
+  let found = 0;
+
+  for (const file of COPY_SURFACES) {
+    let text: string;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+
+    /**
+     * A comment is not published copy.
+     *
+     * `lib/public-figures.ts` explains in its header why the figure is 4.8M and
+     * what went wrong before, which is prose about a claim rather than a claim.
+     * Scanning it flagged the explanation as an undeclared figure, which would
+     * have taught everyone to stop writing explanations.
+     */
+    if (/\.tsx?$/.test(file)) {
+      text = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    }
+
+    /**
+     * Where the declared claims actually sit in this file.
+     *
+     * The first version asked "does any claim declare this file", which meant
+     * one declared figure made every other figure in that file pass. Injecting
+     * "77% match rate" and "9.9M-wallet index" into the README proved it: both
+     * sailed through because the README has a declared claim elsewhere in it.
+     * Coverage has to be per match, not per file.
+     */
+    const claimedRanges: Array<[number, number]> = [];
+    for (const c of CLAIMS) {
+      if (!c.files.includes(file)) continue;
+      const dm = text.match(c.pattern);
+      if (dm && dm.index !== undefined) claimedRanges.push([dm.index, dm.index + dm[0].length]);
+    }
+
+    for (const shape of FIGURE_SHAPES) {
+      for (const m of text.matchAll(shape)) {
+        const hit = m[0];
+        const at = m.index ?? -1;
+        if (NOT_A_COVERAGE_CLAIM.some((ok) => ok.test(hit))) continue;
+        const covered = claimedRanges.some(([lo, hi]) => at >= lo - 60 && at <= hi + 60);
+        if (covered) continue;
+        console.error(
+          `  UNDECLARED ${file}: "${hit.trim()}" is not in the registry. ` +
+            `Add it to CLAIMS with the query that proves it, or to ` +
+            `NOT_A_COVERAGE_CLAIM with a reason.`
+        );
+        found++;
+      }
+    }
+  }
+  void declared;
+  return found;
+}

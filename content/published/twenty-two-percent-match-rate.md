@@ -1,6 +1,6 @@
 ---
 title: "The 22% Match Rate: How We Got 9x Better Than Average"
-meta_description: "Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 22% wallet-to-social match rate -- 9x the industry average."
+meta_description: "Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, against a 2.5% industry average."
 published: true
 publish_date: "2026-03-26"
 ---

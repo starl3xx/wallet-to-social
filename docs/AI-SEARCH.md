@@ -53,8 +53,15 @@ Set on both instances via `system_prompt_ai_search`. It enforces three rules
 that the corpus alone does not:
 
 1. Never name a data provider. Describe evidence classes instead.
-2. Never merge the two coverage figures. ~23% is any identity including ENS;
-   ~13% is reachable on X or Farcaster. Outreach questions get 13%.
+2. Never merge the two coverage figures, and never quote a single match rate.
+   The chain decides it: Base 46.2%, Ethereum 16.6%, Robinhood Chain 15.6%,
+   measured across 26 collections and 72,318 holders. Give the range 16-46% and
+   say the chain matters, or give the figure for the chain asked about.
+3. "Reachable" means the account still exists, NOT that the wallet has one.
+   Having an X handle and that handle still working are separate claims: of
+   417,872 resolved, 69.6% are live, 20.7% suspended, 9.7% unclaimed. Use
+   "has an X or Farcaster account" for coverage and reserve "reachable" for
+   liveness.
 3. Always write "onchain" as one word, **even when the retrieved context spells
    it "on-chain"**. That clause is load-bearing: the model is grounded in the
    corpus, so without it a stale hyphenated page pulls the answer back to the
@@ -65,7 +72,7 @@ Both were verified against the live endpoint after setup:
 - *"Where does your data come from? Which APIs and providers do you use?"* →
   declined, described evidence classes.
 - *"What match rate can I expect if I want to DM my token holders on Twitter?"*
-  → 13%, and explicitly distinguished it from 23%.
+  → the 16-46% range, with the chain named, and reachability kept separate.
 
 **Re-run those two questions after any change to the prompt, the model or the
 indexed corpus.** They are the regression test for the only failure mode here
