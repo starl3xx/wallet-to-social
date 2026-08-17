@@ -58,6 +58,22 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
    */
   ethos: 'attested-social',
 
+  /**
+   * Onchain attestations. The record lives on Base or Optimism, but the class is
+   * still `attested-social` rather than `onchain`: `onchain` means the address
+   * owner published it themselves, which is what an ENS text record is. Here a
+   * service attests on their behalf after they proved the account to it. The
+   * storage medium is not the evidence.
+   */
+  eas: 'attested-social',
+
+  /**
+   * A token deploy requested from an X account and delivered to a wallet. Both
+   * halves are established by the act: the account had to post, and the wallet
+   * had to be the one named.
+   */
+  clanker: 'attested-social',
+
   // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
 

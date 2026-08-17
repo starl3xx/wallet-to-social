@@ -516,10 +516,13 @@ export function calculateQualityScore(
       case 'web3bio': // Aggregated data - good but less direct
         score += 15;
         break;
+      case 'eas':
+      case 'clanker':
       case 'ethos':
-        // An identity platform where the owner proved the wallet with a
-        // signature and the account with a sign-in. Peer of a Farcaster
-        // verification: both are platform-level attestations by the owner.
+        // Attested sources where the owner established both halves: a wallet
+        // signature plus an account sign-in, an onchain attestation issued after
+        // the same proof, or a token deploy the account itself requested. Peers
+        // of a Farcaster verification, and scored the same.
         //
         // It DOES stack with 'farcaster_sweep', unlike the pairs above, and
         // that is deliberate rather than an oversight. Those de-stack because

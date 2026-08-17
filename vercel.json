@@ -25,6 +25,14 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/eas-sweep",
+      "schedule": "20 6 * * *"
+    },
+    {
+      "path": "/api/cron/clanker-sweep",
+      "schedule": "40 6 * * *"
+    },
+    {
       "path": "/api/cron/graph-repair",
       "schedule": "0 9 * * 1"
     }
