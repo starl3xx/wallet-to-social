@@ -3,6 +3,37 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (one number, one place, and the claim moved to where people read it)
+
+- **The header said 4.8M, the documents said 4.9M, and a correction earlier the
+  same day made 20 files say 5M.** Three numbers for one fact. The header was
+  right: `/api/public-stats` counts wallets with at least one identity. The
+  correction counted every row, which adds 235,858 records that mean "we checked
+  and found nothing". Those are real records and they are not wallets we
+  resolved to a person.
+- **`lib/public-figures.ts` now holds the figures.** Five comparison pages, the
+  share card, the page description, the structured data and the home page all
+  read from it. One change moves all of them. Live pages still read the API,
+  which is the true source; the file exists because documents and page
+  descriptions are built before a request exists.
+- **The match rate is a range now, with the measurement behind it.** There is no
+  single number: 26 collections, 72,318 holders, three chains, measured against
+  our own index with no outside calls. Base 46.2%, Ethereum 16.6%, Robinhood
+  Chain 15.6%. Base is about three times Ethereum because Base is where
+  Farcaster lives, so the chain moves the result more than the collection does.
+  An average would hide that.
+- **The old "22% match rate" claim is gone.** Nobody knew where it came from and
+  no measurement produced it.
+- **The check we look at is on the comparison pages now.** Farcaster stores a
+  proved X account as a name, written once, with no account number and no later
+  check. Every tool built on those proofs carries the same dead names, and none
+  can say which. We resolved all of them: 69.6% work, 20.7% suspended, 9.7% are
+  names nobody holds. One component, five pages, and the figures come from the
+  same file as everything else.
+- **The word "reachable" now means one thing.** It was used for "has an X or
+  Farcaster account" in marketing and for "the account still works" in the API.
+
+
 ### 2026-08-17 (a machine for the docs rule)
 
 - **Every number we publish is now checked against the database.**

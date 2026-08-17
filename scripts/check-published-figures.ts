@@ -115,8 +115,12 @@ const CLAIMS: Claim[] = [
   },
   {
     what: 'distinct X handles resolved',
-    files: ['docs-site/concepts/data-quality.mdx', 'docs-site/concepts/coverage.mdx'],
-    pattern: /([0-9]{1,3}(?:,[0-9]{3})+) of the distinct X handles|([0-9]{1,3}(?:,[0-9]{3})+) resolved by/,
+    files: [
+      'docs-site/concepts/data-quality.mdx',
+      'docs-site/concepts/coverage.mdx',
+      'components/ReachabilityClaim.tsx',
+    ],
+    pattern: /([0-9]{1,3}(?:,[0-9]{3})+) of the distinct X handles|([0-9]{1,3}(?:,[0-9]{3})+) resolved by|Of ([0-9]{1,3}(?:,[0-9]{3})+)\n?\s*checked/,
     actual: () => one(sql`SELECT count(*)::int FROM x_accounts`),
     /**
      * Tight, because this is published as an exact figure.
@@ -133,8 +137,12 @@ const CLAIMS: Claim[] = [
   },
   {
     what: 'share of resolved handles that are live',
-    files: ['docs-site/concepts/data-quality.mdx', 'docs-site/concepts/coverage.mdx'],
-    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were )?live|\| Live \| ([0-9]{2}\.[0-9])% \|/,
+    files: [
+      'docs-site/concepts/data-quality.mdx',
+      'docs-site/concepts/coverage.mdx',
+      'components/ReachabilityClaim.tsx',
+    ],
+    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
