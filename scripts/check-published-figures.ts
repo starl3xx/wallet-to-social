@@ -151,8 +151,15 @@ const CLAIMS: Claim[] = [
      * the check telling somebody to update the sentence, which is the entire
      * job. Room to drift is only appropriate for a figure that is rounded in
      * the copy, like the headline above.
+     *
+     * A CEILING, not a tolerance. This count only grows, so publishing fewer
+     * than we hold understates and is safe, while publishing more is false. The
+     * 0.02 band this had allowed 8,357 handles of error in a figure written out
+     * to the digit, which is exactly the slack the comment above says it does
+     * not get.
      */
-    tolerance: 0.02,
+    tolerance: 0,
+    kind: 'ceiling',
   },
   {
     what: 'share of resolved handles that are live',
