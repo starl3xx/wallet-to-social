@@ -58,14 +58,41 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/index.mdx',
       'docs-site/concepts/scan-depth.mdx',
-      'app/layout.tsx',
-      'app/page.tsx',
+      // app/layout.tsx is deliberately absent: it interpolates the constant, so
+      // the literal exists in exactly one file. That is the point of the
+      // constant, and this check noticed the moment it became true.
+      'lib/public-figures.ts',
     ],
-    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet|([0-9]+(?:\.[0-9])?) million wallets|'([0-9]+(?:\.[0-9])?)M'/,
-    actual: () => one(sql`SELECT count(*)::int FROM social_graph`),
+    /**
+     * Anchored on the index context. The first version matched any
+     * "N million wallets" and happily read "1.1 million wallets have a linked
+     * Twitter handle" as the index size, reporting 77% drift against a figure
+     * that was never that claim.
+     */
+    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'/,
+    /**
+     * The SAME predicate /api/public-stats uses, and not `count(*)`.
+     *
+     * Counting every row includes 235,858 persisted negatives: wallets we
+     * checked and found nothing for. A negative is a real record and it is not
+     * a wallet resolved to anybody, so it does not belong in a coverage figure.
+     * Using the wrong one here is exactly how "5 million" reached the docs while
+     * the homepage correctly said 4.8M.
+     */
+    actual: () =>
+      one(sql`SELECT count(*)::int FROM social_graph
+              WHERE twitter_handle IS NOT NULL OR farcaster IS NOT NULL
+                 OR ens_name IS NOT NULL OR lens IS NOT NULL OR github IS NOT NULL`),
     scale: 1_000_000,
-    // A headline rounded to the nearest million is allowed to lag by half of one.
-    tolerance: 0.1,
+    /**
+     * Tight enough that "5" cannot stand in for 4.81.
+     *
+     * It was 0.1, and at that width the docs kept saying "5 million" against a
+     * true 4.81 and passed at 3.9% off. A figure published to one decimal is
+     * precise enough to be read as different, so the check has to treat it that
+     * way.
+     */
+    tolerance: 0.03,
   },
   {
     what: 'wallets with an X handle, in millions',
@@ -75,6 +102,16 @@ const CLAIMS: Claim[] = [
       one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
     scale: 1_000_000,
     tolerance: 0.02,
+  },
+  {
+    what: 'wallets with an X handle, stated in app copy',
+    // Same reason as above: layout.tsx interpolates it now.
+    files: ['lib/public-figures.ts'],
+    pattern: /([0-9]+\.[0-9]+) million wallets have a linked Twitter handle|WALLETS_WITH_X = '([0-9]+\.[0-9]+) million'/,
+    actual: () =>
+      one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
+    scale: 1_000_000,
+    tolerance: 0.03,
   },
   {
     what: 'distinct X handles resolved',

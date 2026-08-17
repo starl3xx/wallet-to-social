@@ -5,6 +5,11 @@ import { DocsChat } from '@/components/DocsChat';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
 import './globals.css';
+import {
+  INDEXED_WALLETS,
+  INDEXED_WALLETS_LONG,
+  WALLETS_WITH_X,
+} from '@/lib/public-figures';
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
 // is no Google Fonts request for the body face any more. Geist Mono stays:
@@ -18,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
   title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
   description:
-    'Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a 5M-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.',
+    `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -55,7 +60,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
     description:
-      'Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a 5M-wallet index. No sales calls.',
+      `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
     type: 'website',
     siteName: 'walletlink.social',
   },
@@ -63,7 +68,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
     description:
-      'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a 5M-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.',
+      `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.`,
     creator: '@starl3xx',
   },
   alternates: {
@@ -82,7 +87,7 @@ const jsonLd = {
   applicationCategory: 'WebApplication',
   operatingSystem: 'Web',
   description:
-    'Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a 5M-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.',
+    `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
   offers: [
     {
       '@type': 'Offer',
@@ -146,7 +151,7 @@ const faqSchema = {
       name: 'How is walletlink.social different from Addressable?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over 99.9% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labelled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers 5M wallets with complete Farcaster coverage.',
+        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over 99.9% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labelled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS} wallets with complete Farcaster coverage.`,
       },
     },
     {
@@ -162,7 +167,7 @@ const faqSchema = {
       name: 'How many wallets does walletlink.social cover?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The index covers 5 million wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over 1.1 million wallets have a linked Twitter handle, nearly all of them owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X.',
+        text: `The index covers ${INDEXED_WALLETS_LONG} wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over ${WALLETS_WITH_X} wallets have a linked Twitter handle, nearly all of them owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X.`,
       },
     },
     {

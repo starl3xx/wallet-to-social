@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import { TIER_PRICES } from '@/lib/access';
 import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
+import { INDEXED_WALLETS } from '@/lib/public-figures';
 
 export const metadata: Metadata = {
   title: 'Airstack alternative for Farcaster lookups (API deprecated)',
@@ -100,7 +101,7 @@ export default function AirstackComparison() {
                 with the contactable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="5M" label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="have an X or Farcaster account" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
@@ -234,7 +235,7 @@ export default function AirstackComparison() {
             </h2>
             <p className="text-muted-foreground mb-4">
               We turn wallet addresses into social profiles, in the browser
-              or over a simple REST API. Our index covers 5M wallets with
+              or over a simple REST API. Our index covers {INDEXED_WALLETS} wallets with
               complete Farcaster protocol coverage: every account’s verified
               and custody addresses, usernames, and follower counts, refreshed
               daily. Over 99.9% of Twitter matches are user-attested, most
