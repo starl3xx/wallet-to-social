@@ -3,6 +3,12 @@
  *
  * Usage: npx tsx --env-file=.env.local scripts/migrate-ethos.ts
  *
+ * NOTE: a new table also needs a grant. CI connects as `sweep_runner`,
+ * which was granted when the role split was made and inherits nothing
+ * afterwards, so `scripts/migrate-grant-readonly.ts` must list any table a
+ * check reads. This was found when the published-figures check failed with
+ * "permission denied for table x_accounts" while passing locally.
+ *
  * Applied by hand rather than with drizzle-kit push, because production has
  * known drift from db/schema.ts on other tables and push would try to reconcile
  * those too. Idempotent: safe to run more than once.
