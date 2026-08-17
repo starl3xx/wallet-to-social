@@ -27,6 +27,37 @@ export interface HolderResult {
 const HOLDER_LIMIT = 10000;
 const RPC_TIMEOUT_MS = 15000;
 
+/**
+ * Wall-clock ceiling for a holder fetch when the caller names no deadline.
+ *
+ * 45s against the import route's `maxDuration = 60`, leaving room for the two
+ * RPC round trips that precede it (contract type and token metadata) and for
+ * the response itself. A caller that knows its own ceiling should pass one.
+ */
+const DEFAULT_HOLDER_BUDGET_MS = 45_000;
+
+export interface HolderFetchOptions {
+  /**
+   * Absolute epoch-ms ceiling for the whole fetch, shared across every attempt
+   * including a fallback. Defaults to `DEFAULT_HOLDER_BUDGET_MS` from now.
+   */
+  deadlineMs?: number;
+  /**
+   * May this call fall back to a public block explorer when the metered index
+   * cannot serve? Defaults to true, because the customer import path is the
+   * reason the fallback exists.
+   *
+   * **Background work must pass `false`.** The daily allowance reserves 80% of
+   * itself for customers, so the provider can be exhausted by customer traffic
+   * while the cron's own ceiling still shows room. Without this the cron would
+   * meet DAILY_ALLOWANCE_SPENT and quietly redirect its whole day of seeding
+   * onto free public infrastructure — the exact spending of somebody else's
+   * resources on work nobody asked for that `checkHolderIndexBudget` exists to
+   * prevent.
+   */
+  allowPublicFallback?: boolean;
+}
+
 // ERC-165 interface IDs
 const ERC721_INTERFACE_ID = '0x80ac58cd';
 const ERC1155_INTERFACE_ID = '0xd9b67a26';
@@ -99,6 +130,21 @@ const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
  */
 export function usesMeteredHolderIndex(chain: SupportedChain): boolean {
   return chain in MORALIS_CHAIN_IDS;
+}
+
+/**
+ * Does a spent metered allowance still have somewhere to go on this chain?
+ *
+ * Exported so the import route can tell the customer something true. Reaching
+ * DAILY_ALLOWANCE_SPENT means one thing on BNB Chain, which has no public
+ * explorer and really is finished until the allowance resets, and something
+ * else on the five chains that do: there, the fallback was tried and failed
+ * too, which is far more likely to be a bad minute than a bad day. Telling the
+ * second group to come back tomorrow would send them away from a feature that
+ * probably works again in a moment.
+ */
+export function hasPublicHolderFallback(chain: SupportedChain): boolean {
+  return chain in MORALIS_CHAIN_IDS && chain in BLOCKSCOUT_BASE_URLS;
 }
 
 const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
@@ -288,17 +334,96 @@ async function getERC721Holders(
 }
 
 /**
- * Blockscout instances that expose an ERC-20 holder index.
+ * Blockscout explorers that expose an ERC-20 holder index.
  *
- * Moralis does not index Robinhood Chain, which is why token import used to be
- * NFT-only there. That was a provider gap rather than a property of the chain:
- * the chain's own Blockscout explorer indexes ERC-20 holders and paginates
- * them, so it serves the same purpose. Only chains Moralis cannot serve need an
- * entry here.
+ * Two different jobs, decided by whether the chain also has an entry in
+ * `MORALIS_CHAIN_IDS`:
+ *
+ * - **Robinhood Chain**: the only source there is. The metered index does not
+ *   cover the chain at all, which is why token import used to be NFT-only.
+ * - **Everywhere else**: a free fallback for when the metered index cannot
+ *   serve. Losing the day's allowance used to take ERC-20 import down on every
+ *   chain at once, and a customer who had paid for the feature watched it stop
+ *   for reasons that were ours, not theirs.
+ *
+ * ## Measured, not assumed
+ *
+ * Every URL below was probed on 2026-08-17 against a customer-sized token on
+ * that chain (60k–75k holders, taken off each explorer's own token list so no
+ * address was guessed), through the two endpoints this module calls. Time for
+ * one v1 page:
+ *
+ * | Chain    | 200 rows | 1,000 rows | 2,000 rows | token meta |
+ * |----------|----------|------------|------------|------------|
+ * | Ethereum | 0.83s    | 0.78s      | 1.4s       | 0.14s      |
+ * | Optimism | 0.75s    | 0.56s      | 1.4s       | 0.13s      |
+ * | Arbitrum | 1.1s     | 0.92s      | 1.5s       | 0.14s      |
+ * | Polygon  | 7.2s     | 6.7s       | 7.7s       | 0.34s      |
+ * | Base     | 11.2s    | 15.3s      | 25.6s      | 0.31s      |
+ *
+ * **Base has a latency floor near 11s that barely moves with page size.** That
+ * is what `PAGE_SIZES` in `fetchHoldersV1` is up against: shrinking the page
+ * after a timeout is the right move on a size-limited explorer and pure waste
+ * on a latency-limited one, where the retry pays the floor again for fewer
+ * rows. Base therefore yields a first page and usually not much more, correctly
+ * marked truncated. A thousand real holders beats an error.
+ *
+ * Do not re-measure with USDC. It has 12.7M holders on Base and 4.2M on
+ * Polygon, and it times out on both at every page size, which reads as a dead
+ * explorer and is not one. That reading nearly removed both chains from this
+ * table.
+ *
+ * BNB Chain has no public Blockscout instance: `bsc.blockscout.com` and
+ * `bnb.blockscout.com` both answer 404 from the default backend. It is the one
+ * metered chain with no fallback, so it is the only one where a spent allowance
+ * still stops ERC-20 import.
  */
 const BLOCKSCOUT_BASE_URLS: Partial<Record<SupportedChain, string>> = {
   robinhood: 'https://robinhoodchain.blockscout.com',
+  ethereum: 'https://eth.blockscout.com',
+  base: 'https://base.blockscout.com',
+  arbitrum: 'https://arbitrum.blockscout.com',
+  polygon: 'https://polygon.blockscout.com',
+  // Not optimism.blockscout.com, which 301s here. Following the redirect works
+  // but pays an extra round trip on every request of every page.
+  optimism: 'https://explorer.optimism.io',
 };
+
+/**
+ * Explorers that have answered 429, and the moment we may call them again.
+ *
+ * Observed on 2026-08-17: a few dozen probe requests to the Base explorer over
+ * a few minutes was enough for it to start refusing, and it refused in 1.1s
+ * rather than hanging. These are free services with no contract behind them,
+ * and once one has said stop, the polite reading and the useful reading agree —
+ * further calls will not return holders, so they cost a customer a second of
+ * waiting to reach the same error, and cost the explorer a request it already
+ * declined.
+ *
+ * Per process, so a serverless deployment holds it only for the life of an
+ * instance. That is partial and worth having anyway: the case this protects
+ * against is a burst of imports landing on one warm instance after the metered
+ * allowance is gone, which is exactly when it is still in memory.
+ *
+ * Keyed by base URL rather than by chain, because two chains sharing a host
+ * share a limit.
+ */
+const explorerCooldowns = new Map<string, number>();
+const EXPLORER_COOLDOWN_MS = 5 * 60_000;
+
+function noteRateLimited(base: string): void {
+  explorerCooldowns.set(base, Date.now() + EXPLORER_COOLDOWN_MS);
+}
+
+function isCoolingDown(base: string): boolean {
+  const until = explorerCooldowns.get(base);
+  if (until === undefined) return false;
+  if (Date.now() >= until) {
+    explorerCooldowns.delete(base);
+    return false;
+  }
+  return true;
+}
 
 interface BlockscoutHolderItem {
   address?: { hash?: string } | string;
@@ -361,7 +486,10 @@ async function fetchHoldersV1(
       // 429 just spends the budget earning more 429s, and the public explorer
       // throttles hard enough that a burst of imports can lock the feature out
       // for everyone. Surface it immediately so the caller can say so.
-      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (res.status === 429) {
+        noteRateLimited(base);
+        throw new Error('RATE_LIMIT');
+      }
       if (!res.ok) throw new Error(`Blockscout v1 ${res.status}`);
       json = (await res.json()) as BlockscoutV1Response;
     } catch (error) {
@@ -410,22 +538,30 @@ async function fetchHoldersV1(
 async function getERC20HoldersBlockscout(
   address: string,
   chain: SupportedChain,
-  limit: number
+  limit: number,
+  deadlineMs: number
 ): Promise<{ wallets: string[]; totalHolders: number }> {
   const base = BLOCKSCOUT_BASE_URLS[chain];
   if (!base) throw new Error('CHAIN_NO_ERC20_SUPPORT');
+
+  // Do not call an explorer that has already refused us. See explorerCooldowns.
+  if (isCoolingDown(base)) throw new Error('RATE_LIMIT');
 
   const headers = { Accept: 'application/json', 'User-Agent': 'walletlink.social' };
   const seen = new Set<string>();
   let totalHolders = 0;
 
-  // ONE budget for everything this function does, started before the first
-  // request. The v1 attempt and the v2 fallback must share it: giving each its
-  // own timer let a slow token spend 40s failing over v1 and then a further 40s
-  // on v2, for 71s against a route whose ceiling is 60.
-  const startedAt = Date.now();
-  const BUDGET_MS = 40_000;
-  const remainingMs = () => BUDGET_MS - (Date.now() - startedAt);
+  // ONE budget for everything this function does. The v1 attempt and the v2
+  // fallback must share it: giving each its own timer let a slow token spend
+  // 40s failing over v1 and then a further 40s on v2, for 71s against a route
+  // whose ceiling is 60.
+  //
+  // It is a deadline passed in rather than a timer started here, because this
+  // is now reached two ways. As Robinhood's primary source it runs first and
+  // owns nearly the whole request. As a fallback it runs *after* the metered
+  // index has already spent some of it, and a fresh 40s counted from this line
+  // would measure from the wrong zero and overrun the route.
+  const remainingMs = () => deadlineMs - Date.now();
 
   // Holder count comes from the token record; the holders list itself does not
   // report a total, and we need it to tell the caller the result was truncated.
@@ -480,7 +616,10 @@ async function getERC20HoldersBlockscout(
         pageTimeoutMs,
         'Blockscout holders request timed out'
       );
-      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (res.status === 429) {
+        noteRateLimited(base);
+        throw new Error('RATE_LIMIT');
+      }
       if (!res.ok) throw new Error(`Blockscout holders ${res.status}`);
       json = (await res.json()) as BlockscoutHoldersResponse;
     } catch (error) {
@@ -513,28 +652,100 @@ async function getERC20HoldersBlockscout(
 }
 
 /**
- * Get ERC-20 token holders using Moralis API
+ * ERC-20 holders, from the metered index where there is one and the chain's
+ * block explorer where there is not, or where the index has stopped answering.
+ *
+ * ERC-20 holders cannot be derived from RPC state the way NFT owners can:
+ * balances are a mapping with no enumerable owner list, so they always need
+ * somebody's index. That is the whole reason a spent allowance used to be
+ * fatal here, and the reason a second index is worth having.
  */
 async function getERC20Holders(
   address: string,
   chain: SupportedChain,
-  limit: number = HOLDER_LIMIT
+  limit: number = HOLDER_LIMIT,
+  options: HolderFetchOptions = {}
 ): Promise<{ wallets: string[]; totalHolders: number }> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
   // at all, "no support for this chain" is the accurate error, and configuring a key
   // would not help. Checking the key first would mask that with a config error.
   const chainId = MORALIS_CHAIN_IDS[chain];
+  const explorer = BLOCKSCOUT_BASE_URLS[chain];
+  const deadlineMs = options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
+
   if (!chainId) {
-    // ERC-20 holders cannot be derived from RPC state the way NFT owners can
-    // (balances are a mapping with no enumerable owner list), so they always
-    // need an index. Where Moralis has none, fall back to the chain's own
-    // Blockscout explorer, which does.
-    if (BLOCKSCOUT_BASE_URLS[chain]) {
-      return getERC20HoldersBlockscout(address, chain, limit);
+    if (explorer) {
+      return getERC20HoldersBlockscout(address, chain, limit, deadlineMs);
     }
     throw new Error('CHAIN_NO_ERC20_SUPPORT');
   }
 
+  try {
+    return await fetchHoldersMetered(address, chainId, limit);
+  } catch (error) {
+    /**
+     * Fall back on **any** failure of the metered index, not a curated list of
+     * error codes.
+     *
+     * By this line the address has already passed `ethers.isAddress` and the
+     * chain is known to be indexed, so the failures that remain are all the
+     * provider's side of the line: allowance spent, burst limit, missing key,
+     * 5xx, timeout. Matching on specific codes would mean a provider that
+     * invents a new failure string next month silently loses the fallback, and
+     * the cost of being wrong is asymmetric — one wasted explorer request
+     * against a paying customer's import failing outright.
+     *
+     * A successful-but-empty response is deliberately NOT a trigger. It never
+     * reaches this catch: it returns normally and `getContractHolders` raises
+     * NO_HOLDERS. "The index says nobody holds this" is an answer, and
+     * second-guessing every empty result would double the load we put on free
+     * public infrastructure for the common case of a genuinely dead token.
+     */
+    if (!explorer || options.allowPublicFallback === false) throw error;
+
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `Metered holder index failed on ${chain} (${reason}); falling back to the public explorer.`
+    );
+
+    try {
+      return await getERC20HoldersBlockscout(address, chain, limit, deadlineMs);
+    } catch (fallbackError) {
+      /**
+       * Report the FIRST failure, not this one.
+       *
+       * The original names what actually went wrong and maps to copy that tells
+       * the customer something true and actionable — DAILY_ALLOWANCE_SPENT
+       * becomes "back tomorrow, and an upload works now". The fallback's own
+       * error is a second-order detail about a rescue attempt they never asked
+       * for, and surfacing it would replace a useful message with a confusing
+       * one.
+       *
+       * The fallback's error is attached as `cause` rather than dropped.
+       * Rethrowing the original is right for the customer and it erases the
+       * only evidence that a fallback ran at all: "did the safety net fail, or
+       * was it never wired up" become the same observation from outside. That
+       * cost `check-holder-fallback.ts` an accurate diagnosis the first time it
+       * caught a real throttle, and it would cost the same in an incident.
+       */
+      console.error(
+        `Public explorer fallback also failed on ${chain}:`,
+        fallbackError instanceof Error ? fallbackError.message : fallbackError
+      );
+      if (error instanceof Error) error.cause = fallbackError;
+      throw error;
+    }
+  }
+}
+
+/**
+ * Get ERC-20 token holders using Moralis API
+ */
+async function fetchHoldersMetered(
+  address: string,
+  chainId: string,
+  limit: number
+): Promise<{ wallets: string[]; totalHolders: number }> {
   const moralisKey = process.env.MORALIS_API_KEY;
   if (!moralisKey) {
     throw new Error('MORALIS_NOT_CONFIGURED');
@@ -683,8 +894,21 @@ export async function getContractHolders(
    * Pro account (5,000 per lookup) could import 8,000 holders and then be blocked
    * by the upgrade wall on the very list the feature just produced.
    */
-  limit: number = HOLDER_LIMIT
+  limit: number = HOLDER_LIMIT,
+  options: HolderFetchOptions = {}
 ): Promise<HolderResult> {
+  /**
+   * Started here, before the two RPC round trips below, rather than inside the
+   * holder fetch.
+   *
+   * Contract-type detection and token metadata are three calls to a public RPC
+   * and can take several seconds on a slow endpoint. A budget that begins after
+   * them measures from the wrong zero: on paper the fetch has its full
+   * allowance, in practice the route's 60s has already been eaten into and the
+   * function overruns rather than returning the partial list it had.
+   */
+  const deadlineMs = options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
+
   // Validate address format
   if (!ethers.isAddress(address)) {
     throw new Error('INVALID_ADDRESS');
@@ -708,7 +932,10 @@ export async function getContractHolders(
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
     holdersResult = await getERC721Holders(normalizedAddress, chain, effectiveLimit);
   } else {
-    holdersResult = await getERC20Holders(normalizedAddress, chain, effectiveLimit);
+    holdersResult = await getERC20Holders(normalizedAddress, chain, effectiveLimit, {
+      ...options,
+      deadlineMs,
+    });
   }
 
   if (holdersResult.wallets.length === 0) {

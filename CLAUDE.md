@@ -39,6 +39,17 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 - `lookup_history` - Saved lookup sessions with full results (JSONB)
 - `social_graph` - Permanent storage of all wallets with discovered social accounts, indexed for querying
 
+**A new table needs a grant before CI can read it.** Scheduled workflows connect
+as the `sweep_runner` role, not the owner, and a table created after the role
+split inherits nothing. Nothing fails at creation time; it fails later, in CI,
+as `permission denied for table <name>` on a run that passed locally against the
+owner role. Add the table to `READ_ONLY_TABLES` in
+`scripts/migrate-grant-readonly.ts` and run it with the **owner** `DATABASE_URL`.
+The script is idempotent and verifies the grants it made.
+
+This is the code-facing half of the role split. The half that says which role's
+credentials live where is in the private ops repo, deliberately.
+
 ### API Integrations
 
 - **Web3.bio** (`lib/web3bio.ts`) - Primary source for ENS, Twitter, Farcaster, Lens, GitHub
@@ -89,8 +100,11 @@ never provenance. The public `sources` field is mapped through
 `lib/api-sources.ts` for exactly this reason, on an allowlist so an unmapped
 internal source is dropped rather than leaked.
 
-**Never publish from `docs/`.** That folder is internal: `SECURITY.md` holds the
-backup and restore runbook. Only `docs-site/` is published.
+**Never publish from `docs/`.** That folder is internal engineering notes. Only
+`docs-site/` is published. The backup, restore and database-role runbook is not
+in this repo at all: it lives in the private **starl3xx/walletlink-ops**, since
+it is a map of which secrets exist and where each one is kept. `docs/README.md`
+gives the public/private test to apply when deciding where a new document goes.
 
 **Verify claims before publishing them.** Coverage numbers, match rates and
 completeness claims should be checked against the database or `/v1/stats`, not

@@ -29,7 +29,11 @@ concurrency:
   cancel-in-progress: false
 
 # Minimize the token's scope — this job only needs to read the repo. After the
-# role split (docs/SECURITY.md) its DATABASE_URL secret should be sweep_runner.
+# role split its DATABASE_URL secret should be sweep_runner, not the owner. That
+# role is granted per table and inherits nothing on a table created later, so a
+# new table needs adding to scripts/migrate-grant-readonly.ts or this job meets
+# "permission denied for table <name>". The runbook naming which credential
+# lives where is in the private starl3xx/walletlink-ops repo, not this one.
 permissions:
   contents: read
 

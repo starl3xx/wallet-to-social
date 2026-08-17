@@ -1,11 +1,22 @@
 /**
  * Daily budget for the ERC-20 holder index.
  *
- * The index bills by compute unit against a **daily** ceiling, and running out
- * takes ERC-20 holder import down on every chain it serves at once: Ethereum,
- * Base, Arbitrum, Polygon, Optimism and BNB Chain. NFT import is unaffected,
- * because it runs on a different provider, and Robinhood Chain is unaffected,
- * because it resolves through its own explorer.
+ * The index bills by compute unit against a **daily** ceiling.
+ *
+ * Running out used to take ERC-20 holder import down on every chain it serves
+ * at once: Ethereum, Base, Arbitrum, Polygon, Optimism and BNB Chain. Since
+ * 2026-08-17 a customer import that meets a spent allowance retries against the
+ * chain's public Blockscout explorer, so **BNB Chain is the only one left where
+ * exhaustion still stops the feature** — it is the one metered chain with no
+ * public instance. See BLOCKSCOUT_BASE_URLS in `lib/contract-holders.ts`.
+ *
+ * That makes this budget less load-bearing for availability and no less
+ * load-bearing for cost: the fallback is slower, less complete on Base, and
+ * somebody else's infrastructure. It is a safety net, not a second supplier.
+ *
+ * NFT import was never affected, because it runs on a different provider, and
+ * Robinhood Chain was never affected, because its explorer is its primary
+ * source rather than a fallback.
  *
  * On 2026-08-15 an account reached 75% of the day's allowance in about two
  * hours. Almost all of it was one paying customer running eleven contract

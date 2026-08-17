@@ -1,0 +1,50 @@
+# Checks that the public block explorers behind the ERC-20 holder index are
+# still reachable and still returning holders.
+#
+# WHY THIS IS SCHEDULED AND NOT A PR CHECK. Every URL in BLOCKSCOUT_BASE_URLS
+# belongs to somebody else. Instances move, retire an API version, or go behind
+# a key, and none of that arrives here as a commit. The promise that a customer
+# survives a spent allowance can therefore become false with no diff and nothing
+# to review — the same shape as published-figures drift, and it needs the same
+# answer.
+#
+# A FAILURE HERE IS NOT AN OUTAGE. ERC-20 import runs on the metered index and
+# keeps working; what has failed is the safety net under one chain. Fix the URL,
+# or drop the chain from BLOCKSCOUT_BASE_URLS so the code stops promising a
+# fallback it does not have.
+#
+# No secrets. The check deliberately unsets MORALIS_API_KEY so the metered index
+# fails and the fallback is what gets exercised.
+name: holder-fallback
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Monday 09:00 UTC, an hour after published-figures
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # On a PR only when the fallback itself changed. Rot is caught by the
+    # schedule; this catches a URL edited to one that does not work.
+    paths:
+      - 'lib/contract-holders.ts'
+      - 'lib/chains.ts'
+      - 'scripts/check-holder-fallback.ts'
+      - '.github/workflows/holder-fallback.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fallback:
+    runs-on: ubuntu-latest
+    # Base's explorer answers in ~11s per page and the check probes five chains
+    # in sequence, so this is generous on purpose. It is one small page each.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Public explorer fallback still works on every chain that claims one
+        run: npx tsx scripts/check-holder-fallback.ts
