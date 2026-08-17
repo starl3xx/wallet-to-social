@@ -3,6 +3,39 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (two more attested sources, and one shape for all of them)
+
+- **One set of write rules, three sources.** The rules that decide what reaches
+  the graph moved out of the Ethos code into `lib/attested-links.ts`. A source
+  now only produces a list of links; it cannot decide how they are written. This
+  was extracted, not copied, because the rule was wrong once already: it put a
+  source label on 2,479 rows that the source had never attested. Written one time
+  for each source, that is one chance to be wrong for each source.
+- **Proof that the move changed nothing.** The Ethos sweep was run again after
+  the change. Every number is the same: 83,891 links, 0 new, 0 filled, 81,412
+  agree, 2,479 conflicts.
+- **Onchain attestations: 5,492 new wallets.** Links published on Base and
+  Optimism as attestations. Two record types across two chains, read by one
+  adapter. 16,509 records give 6,343 links. This is chain data, so there is no
+  key, no meter, no rate limit and no supplier who can stop us.
+- **86% of them were wallets we had never seen.** The expectation was the
+  opposite. These people use crypto and our index already holds 4.7 million
+  Farcaster wallets, so we expected a large overlap. There is almost none.
+- **Clanker: 163 links in 30 days.** A person tells a bot on X to make a token,
+  and the bot writes the account and the wallet into the chain record. Both
+  halves are proved by the act. It is a small flow, and it is here because two
+  thirds of the records carry the **number** of the X account, which cannot go
+  stale the way a name can.
+- **The identifier has two shapes, so the shape decides, not the label.** The
+  same field holds a number for some records and a name for others, under seven
+  different platform labels. A number of five digits or more is an account
+  number; anything else is a name.
+- **Icebreaker was measured and refused.** Of 1,227 profiles, 84 give a verified
+  pair, and 69 of those we already hold. 15 new. The unverified ones are
+  self-declared, which is what this product says it does not use.
+- Index now 4,938,576 wallets, 1,149,451 with an X handle.
+
+
 ### 2026-08-16 (a new source, and the first way to see a handle go bad)
 
 - **72,867 more wallets have an X handle.** The count moved from 1,070,680 to

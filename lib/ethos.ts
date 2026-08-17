@@ -41,9 +41,8 @@
  * bare string does. In 200 checked disagreements, our handle was dead and theirs
  * live 108 times, and theirs was dead and ours live zero times.
  */
-import { getDb, socialGraph } from '@/db';
-import { sql } from 'drizzle-orm';
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { ingestLinks, type AttestedLink, type LinkSource } from './attested-links';
 
 const BASE = 'https://api.ethos.network/api/v2';
 
@@ -63,23 +62,6 @@ const PAGE_DELAY_MS = 250;
 /** Rows per upsert. Matches the batch size the other sweeps settled on. */
 const UPSERT_BATCH = 500;
 
-/**
- * Below the 70 trust line, like every other background source.
- *
- * Attested at both ends: the person proved wallet control with a signature and
- * X control with a sign-in. That is stronger than an identity index correlating
- * two facts.
- *
- * **45 because that is what the live path computes**, not because 45 feels
- * right. `calculateQualityScore` in lib/social-graph.ts is additive, and a
- * wallet with a handle from this source scores twitter(20) + ethos(25) = 45
- * there. Writing a different floor here would mean the same wallet had one
- * score after a sweep and another after a lookup, with GREATEST quietly keeping
- * whichever was larger. Two numbers for one fact is how a trust line stops
- * meaning anything.
- */
-const DATA_QUALITY = 45;
-
 export interface EthosUser {
   id: number;
   profileId: number | null;
@@ -88,15 +70,6 @@ export interface EthosUser {
   score: number;
   status: string;
   userkeys: string[];
-}
-
-/** One attested address-to-account link. */
-export interface EthosLink {
-  wallet: string;
-  handle: string;
-  /** The numeric X account id. The whole reason this source is worth having. */
-  twitterUserId: string;
-  ethosScore: number;
 }
 
 export interface EthosSweepStats {
@@ -154,18 +127,13 @@ export function addressesOf(u: EthosUser): string[] {
 }
 
 /** Turns one record into the links it supports, or none. */
-export function linksFrom(u: EthosUser): EthosLink[] {
+export function linksFrom(u: EthosUser): AttestedLink[] {
   if (!isRealUser(u)) return [];
   const twitterUserId = twitterIdOf(u);
   if (!twitterUserId) return [];
   const handle = cleanTwitterHandle(u.username!);
   if (!handle) return [];
-  return addressesOf(u).map((wallet) => ({
-    wallet,
-    handle,
-    twitterUserId,
-    ethosScore: u.score,
-  }));
+  return addressesOf(u).map((wallet) => ({ wallet, handle, twitterUserId }));
 }
 
 interface PageResult {
@@ -213,205 +181,23 @@ async function fetchPage(offset: number, onRateLimit: () => void): Promise<PageR
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /* ------------------------------------------------------------------ */
-/* Writing                                                             */
+/* Ingest                                                              */
 /* ------------------------------------------------------------------ */
 
 /**
- * Fill where we have nothing. Never overwrite, never contradict.
- *
- * Three cases, and the third is the one that matters:
- *
- * - **We have no handle.** Take theirs, and the account id with it.
- * - **We have the same handle.** Take only the id. This is the quiet win: it
- *   attaches a rot detector to a row that already looked fine.
- * - **We have a different handle.** Write NOTHING and record a conflict.
- *
- * That last rule is not caution, it is correctness. Writing their id beside our
- * handle would produce a row asserting that a specific numeric account owns a
- * handle it does not own, which is worse than either source alone: it would
- * launder a disagreement into a fact. The `CASE` below is what enforces it, and
- * the conflict rows are written separately.
- *
- * `last_checked_at` stays untouched on purpose. It means "the full pipeline
- * ran", and it did not. `last_updated_at` moves only when a handle is actually
- * filled, so a daily re-sweep does not light up "new matches" on every saved
- * lookup that happens to contain one of these wallets.
+ * Every rule about what reaches the graph now lives in `lib/attested-links.ts`,
+ * shared with the other attested sources. This file is a client and a shape
+ * conversion, which is all an adapter should ever be.
  */
-async function upsertLinks(links: EthosLink[]): Promise<number> {
-  const db = getDb();
-  if (!db || links.length === 0) return 0;
-
-  let upserted = 0;
-
-  for (let i = 0; i < links.length; i += UPSERT_BATCH) {
-    const batch = links.slice(i, i + UPSERT_BATCH);
-    const now = new Date();
-
-    const rows = batch.map((l) => ({
-      wallet: l.wallet,
-      twitterHandle: l.handle,
-      twitterUrl: `https://x.com/${l.handle}`,
-      twitterUserId: l.twitterUserId,
-      sources: ['ethos'],
-      twitterVerified: true,
-      dataQualityScore: DATA_QUALITY,
-      firstSeenAt: now,
-      lastUpdatedAt: now,
-    }));
-
-    const result = await db
-      .insert(socialGraph)
-      .values(rows)
-      .onConflictDoUpdate({
-        target: socialGraph.wallet,
-        set: {
-          // Fill only. COALESCE keeps whatever is already there.
-          twitterHandle: sql`COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle)`,
-          twitterUrl: sql`COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url)`,
-          // The id is written when we had no handle (so theirs is now ours), or
-          // when the two handles agree. Never when they disagree: see above.
-          twitterUserId: sql`CASE
-            WHEN social_graph.twitter_handle IS NULL
-              OR lower(social_graph.twitter_handle) = lower(EXCLUDED.twitter_handle)
-            THEN EXCLUDED.twitter_user_id
-            ELSE social_graph.twitter_user_id
-          END`,
-          twitterVerified: sql`CASE
-            WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
-            THEN true ELSE social_graph.twitter_verified
-          END`,
-          /**
-           * Gated on the SAME agreement test as the id, and this was a real bug
-           * before it was a rule. Appending the source unconditionally published
-           * `attested-social` on 2,479 rows whose handle this source never
-           * attested: it named a different account, we correctly kept ours, and
-           * then labelled ours with their evidence. Keeping the handle but
-           * taking the label is the worst of both, and it is exactly what the
-           * module comment above claimed not to do.
-           */
-          sources: sql`CASE
-            WHEN social_graph.twitter_handle IS NOT NULL
-              AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
-            THEN social_graph.sources
-            WHEN 'ethos' = ANY(COALESCE(social_graph.sources, ARRAY[]::text[]))
-            THEN social_graph.sources
-            ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ethos')
-          END`,
-          dataQualityScore: sql`CASE
-            WHEN social_graph.twitter_handle IS NOT NULL
-              AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
-            THEN social_graph.data_quality_score
-            ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), ${DATA_QUALITY})
-          END`,
-          lastUpdatedAt: sql`CASE
-            WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
-            THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at
-          END`,
-        },
-      });
-
-    upserted += batch.length;
-  }
-
-  return upserted;
-}
-
-/**
- * What this sweep is about to change, counted before it changes it.
- *
- * Worth a separate query rather than inferring from the upsert's RETURNING. An
- * upsert reports rows written, which on a daily re-sweep is almost every row
- * every day and says nothing about whether anything was learned. These four
- * numbers are the ones that answer "did this do anything", and getting them
- * wrong would mean a sweep that quietly stopped working still looked busy.
- */
-async function classify(links: EthosLink[]): Promise<{
-  newWallets: number;
-  wouldFill: number;
-  agree: number;
-  disagree: number;
-}> {
-  const db = getDb();
-  const empty = { newWallets: 0, wouldFill: 0, agree: 0, disagree: 0 };
-  if (!db || links.length === 0) return empty;
-
-  const totals = { ...empty };
-  for (let i = 0; i < links.length; i += UPSERT_BATCH) {
-    const batch = links.slice(i, i + UPSERT_BATCH);
-    const result = (await db.execute(sql`
-      SELECT
-        count(*) FILTER (WHERE g.wallet IS NULL)::int                         AS new_wallets,
-        count(*) FILTER (WHERE g.wallet IS NOT NULL
-                           AND g.twitter_handle IS NULL)::int                 AS would_fill,
-        count(*) FILTER (WHERE g.twitter_handle IS NOT NULL
-                           AND lower(g.twitter_handle) = lower(t.handle))::int AS agree,
-        count(*) FILTER (WHERE g.twitter_handle IS NOT NULL
-                           AND lower(g.twitter_handle) <> lower(t.handle))::int AS disagree
-      FROM unnest(${sql.param(batch.map((l) => l.wallet))}::text[],
-                  ${sql.param(batch.map((l) => l.handle))}::text[]) AS t(wallet, handle)
-      LEFT JOIN social_graph g ON g.wallet = t.wallet
-    `)) as unknown as {
-      rows: Array<{ new_wallets: number; would_fill: number; agree: number; disagree: number }>;
-    };
-    const r = result.rows[0];
-    if (!r) continue;
-    totals.newWallets += Number(r.new_wallets ?? 0);
-    totals.wouldFill += Number(r.would_fill ?? 0);
-    totals.agree += Number(r.agree ?? 0);
-    totals.disagree += Number(r.disagree ?? 0);
-  }
-  return totals;
-}
-
-/**
- * Record where we and Ethos name different accounts for the same wallet.
- *
- * Written after the upsert, and deliberately re-derived from the graph rather
- * than from what we just sent, so a conflict is only recorded when the stored
- * row really does disagree. `last_seen_at` moves on every sweep so a conflict
- * that quietly goes away stops being surfaced without anybody deleting a row.
- */
-async function recordConflicts(links: EthosLink[]): Promise<number> {
-  const db = getDb();
-  if (!db || links.length === 0) return 0;
-
-  let recorded = 0;
-  for (let i = 0; i < links.length; i += UPSERT_BATCH) {
-    const batch = links.slice(i, i + UPSERT_BATCH);
-    const wallets = batch.map((l) => l.wallet);
-    const handles = batch.map((l) => l.handle);
-    const ids = batch.map((l) => l.twitterUserId);
-
-    const result = await db.execute(sql`
-      INSERT INTO handle_conflicts
-        (wallet, platform, ours, our_sources, theirs, their_source, their_user_id, first_seen_at, last_seen_at)
-      SELECT g.wallet, 'twitter', g.twitter_handle, g.sources, t.handle, 'ethos', t.user_id, now(), now()
-      FROM unnest(${sql.param(wallets)}::text[], ${sql.param(handles)}::text[],
-                  ${sql.param(ids)}::text[]) AS t(wallet, handle, user_id)
-      JOIN social_graph g ON g.wallet = t.wallet
-      WHERE g.twitter_handle IS NOT NULL
-        AND lower(g.twitter_handle) <> lower(t.handle)
-      ON CONFLICT (wallet, platform, their_source) DO UPDATE SET
-        ours         = EXCLUDED.ours,
-        our_sources  = EXCLUDED.our_sources,
-        theirs       = EXCLUDED.theirs,
-        their_user_id= EXCLUDED.their_user_id,
-        last_seen_at = now(),
-        -- A conflict that changed shape is a new conflict, so reopen it.
-        resolved_at  = CASE
-          WHEN handle_conflicts.theirs <> EXCLUDED.theirs
-            OR handle_conflicts.ours <> EXCLUDED.ours
-          THEN NULL ELSE handle_conflicts.resolved_at END
-      RETURNING wallet
-    `);
-    recorded += (result as unknown as { rows?: unknown[] })?.rows?.length ?? 0;
-  }
-  return recorded;
-}
-
-/* ------------------------------------------------------------------ */
-/* Orchestration                                                       */
-/* ------------------------------------------------------------------ */
+const SOURCE: LinkSource = {
+  id: 'ethos',
+  /**
+   * 45 because that is what the live path computes, not because 45 feels right.
+   * `calculateQualityScore` is additive, and a wallet with a handle from this
+   * source scores twitter(20) + ethos(25) there.
+   */
+  quality: 45,
+};
 
 /**
  * Read the whole dataset and merge it.
@@ -446,7 +232,7 @@ export async function sweepEthos(
   onProgress?.(`Ethos: ${total} profiles to read`);
 
   const seen = new Set<number>();
-  const links: EthosLink[] = [];
+  const links: AttestedLink[] = [];
 
   const absorb = (page: PageResult) => {
     stats.pages++;
@@ -478,53 +264,13 @@ export async function sweepEthos(
     if (offset % 5000 === 0) onProgress?.(`Ethos: ${offset}/${total}, ${links.length} links`);
   }
 
-  /**
-   * Drop any address that two different people both claim.
-   *
-   * Two reasons, and the second is the one that would have bitten. Postgres
-   * refuses an `ON CONFLICT DO UPDATE` that touches the same row twice in one
-   * statement, so a duplicate wallet inside a batch fails the whole batch, and
-   * it would fail it *after* the conflicts for that batch had already been
-   * written. Deduping by person, which is all the page loop does, does not
-   * prevent it: two people can list the same address.
-   *
-   * The other reason is that dropping is the right answer anyway. If two people
-   * each attest that an address is theirs, at most one of them is right, and
-   * this source cannot say which. A contested address is not attested evidence,
-   * so it is not evidence we should be storing as attested.
-   *
-   * It did not happen on the first full run: 83,891 links over 83,891 distinct
-   * addresses. That makes it a latent fault rather than a live one, which is
-   * the kind that surfaces on the day the dataset changes and nobody is
-   * watching.
-   */
-  const byWallet = new Map<string, EthosLink>();
-  const contested = new Set<string>();
-  for (const link of links) {
-    const existing = byWallet.get(link.wallet);
-    if (existing && existing.twitterUserId !== link.twitterUserId) contested.add(link.wallet);
-    byWallet.set(link.wallet, link);
-  }
-  for (const wallet of contested) byWallet.delete(wallet);
-  if (contested.size > 0) {
-    onProgress?.(`Ethos: dropped ${contested.size} address(es) claimed by more than one person`);
-  }
-  stats.contested = contested.size;
-
-  links.length = 0;
-  links.push(...byWallet.values());
-  stats.links = links.length;
-
-  // Classified and recorded BEFORE the upsert, both for the same reason: after
-  // it runs, a wallet we just filled agrees with itself and a wallet we never
-  // had looks like an old friend. Read the state we are about to change.
-  const counts = await classify(links);
-  stats.newWallets = counts.newWallets;
-  stats.filled = counts.wouldFill;
-  stats.agree = counts.agree;
-  stats.conflicts = await recordConflicts(links);
-
-  await upsertLinks(links);
+  const ingested = await ingestLinks(links, SOURCE);
+  stats.links = ingested.links;
+  stats.contested = ingested.contested;
+  stats.newWallets = ingested.newWallets;
+  stats.filled = ingested.filled;
+  stats.agree = ingested.agree;
+  stats.conflicts = ingested.conflicts;
 
   onProgress?.(
     `Ethos: ${stats.links} links, ${stats.newWallets} new wallets, ` +

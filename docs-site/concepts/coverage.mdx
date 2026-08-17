@@ -50,10 +50,12 @@ X handles are a different shape of problem. There is no protocol-level registry 
 - The owner verified their X account on Farcaster. Arrives as `farcaster`.
 - The owner set the handle in an ENS text record on their own address. Arrives
   as `onchain`.
-- The owner proved the wallet with a signature and the X account with a sign-in,
-  on an identity platform. Arrives as `attested-social`.
+- The owner established both halves themselves: proving the wallet with a
+  signature and the account with a sign-in on an identity platform, an onchain
+  attestation issued after that same proof, or a token deploy the account itself
+  requested. All arrive as `attested-social`.
 
-All three are established by the address owner rather than inferred by us, and together they account for **over 99.9% of the 1.14 million wallets with a linked X handle**.
+All three are established by the address owner rather than inferred by us, and together they account for **over 99.9% of the 1.15 million wallets with a linked X handle**.
 
 The third route is the newest and it is worth saying what it adds beyond reach.
 The other two record a handle as a string, captured once. This one records the
