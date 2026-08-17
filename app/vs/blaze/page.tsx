@@ -97,12 +97,12 @@ export default function BlazeComparison() {
             </div>
 
             {/* The proof row closes the hero. Four figures, each appearing once,
-                with the reachable one in brand because it is the number to act on
+                with the contactable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value="5M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
-              <Figure value="13%" label="reachable on X or Farcaster" brand />
+              <Figure value="13%" label="have an X or Farcaster account" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
             </dl>
           </header>
