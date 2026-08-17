@@ -21,8 +21,15 @@ on:
     # by the schedule; this catches a claim edited to something already wrong.
     paths:
       - 'docs-site/**'
-      - 'app/layout.tsx'
-      - 'app/page.tsx'
+      - 'app/**'
+      # lib/public-figures.ts is now the single place published counts are
+      # edited, and it was not here: a PR changing only the constants never ran
+      # the gate that exists to catch a wrong claim before merge.
+      - 'lib/public-figures.ts'
+      - 'components/ReachabilityClaim.tsx'
+      - 'README.md'
+      - 'docs/AI-SEARCH.md'
+      - 'content/published/**'
       - 'scripts/check-published-figures.ts'
       - '.github/workflows/published-figures.yml'
 

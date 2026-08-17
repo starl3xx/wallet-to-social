@@ -41,8 +41,13 @@ interface Claim {
   pattern: RegExp;
   /** The truth, live. */
   actual: () => Promise<number>;
-  /** Fractional tolerance. A rounded headline needs slack; a stated count does not. */
+  /** Fractional tolerance, used only when `kind` is 'rounded'. */
   tolerance: number;
+  /**
+   * 'rounded' for a headline that is deliberately imprecise, 'ceiling' for a
+   * count that only grows and must never be overstated.
+   */
+  kind?: 'rounded' | 'ceiling';
   /** How the published value maps onto the actual one. */
   scale?: number;
 }
@@ -70,7 +75,7 @@ const CLAIMS: Claim[] = [
      * Twitter handle" as the index size, reporting 77% drift against a figure
      * that was never that claim.
      */
-    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
+    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9])?) million'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
     /**
      * The SAME predicate /api/public-stats uses, and not `count(*)`.
      *
@@ -120,8 +125,21 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
+      'README.md',
+      'docs/AI-SEARCH.md',
     ],
-    pattern: /([0-9]{1,3}(?:,[0-9]{3})+) of the distinct X handles|([0-9]{1,3}(?:,[0-9]{3})+) resolved by|Of ([0-9]{1,3}(?:,[0-9]{3})+)\n?\s*checked/,
+    /**
+     * Matched by neighbourhood, not by sentence.
+     *
+     * Five surfaces write this five ways: "417,872 of the distinct X handles",
+     * "417,872 resolved by", "Of 417,872 checked", "Of 417,872 X handles
+     * resolved", "417,872 resolved,". Enumerating phrasings meant README was
+     * silently unchecked, and an overstated 999,999 passed. A number followed
+     * within a short window by "resolved" or "checked" is the claim, whatever
+     * the sentence around it.
+     */
+    pattern:
+      /(?<=(?:resolved|checked)\s{0,3})([0-9]{1,3}(?:,[0-9]{3})+)|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,40}?(?:resolved|checked))/,
     actual: () => one(sql`SELECT count(*)::int FROM x_accounts`),
     /**
      * Tight, because this is published as an exact figure.
@@ -150,6 +168,56 @@ const CLAIMS: Claim[] = [
       );
       const total = await one(sql`SELECT count(*)::int FROM x_accounts`);
       return total === 0 ? 0 : (live / total) * 100;
+    },
+    tolerance: 0.05,
+  },
+  {
+    /**
+     * Declared rather than exempted.
+     *
+     * These two sat in NOT_A_COVERAGE_CLAIM with the note "covered by the
+     * reachability split", and they were not: only the live share was declared,
+     * so the suspended and unclaimed figures could drift anywhere in the copy
+     * while the sweep stayed green. An exemption that claims something is
+     * checked elsewhere has to be true.
+     */
+    what: 'share of resolved handles that are suspended',
+    files: [
+      'docs-site/concepts/data-quality.mdx',
+      'docs-site/concepts/coverage.mdx',
+      'components/ReachabilityClaim.tsx',
+      'README.md',
+      'docs/AI-SEARCH.md',
+    ],
+    pattern: /([0-9]{2}\.[0-9])% suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
+    actual: async () => {
+      const n = await one(
+        sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
+      );
+      const total = await one(sql`SELECT count(*)::int FROM x_accounts`);
+      return total === 0 ? 0 : (n / total) * 100;
+    },
+    tolerance: 0.05,
+  },
+  {
+    what: 'share of resolved handles whose name nobody holds',
+    files: [
+      'docs-site/concepts/data-quality.mdx',
+      'docs-site/concepts/coverage.mdx',
+      'components/ReachabilityClaim.tsx',
+      'README.md',
+      'docs/AI-SEARCH.md',
+    ],
+    // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
+    // holds" are the three phrasings in use. Matching the figure and a nearby
+    // keyword is more durable than trying to enumerate the prose.
+    pattern: /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use \| ([0-9]\.[0-9])% \|/,
+    actual: async () => {
+      const n = await one(
+        sql`SELECT count(*)::int FROM x_accounts WHERE status = 'not_found'`
+      );
+      const total = await one(sql`SELECT count(*)::int FROM x_accounts`);
+      return total === 0 ? 0 : (n / total) * 100;
     },
     tolerance: 0.05,
   },
@@ -196,7 +264,13 @@ async function main() {
         continue;
       }
 
-      const m = text.match(claim.pattern);
+      // matchAll, not match. `String.match` without /g returns only the FIRST
+      // hit, so a file repeating a figure (metadata, Open Graph, Twitter card,
+      // JSON-LD and FAQ copy all carry the index size) had every later instance
+      // unchecked. The check could pass while published text still lied.
+      const global = new RegExp(claim.pattern.source, claim.pattern.flags.replace('g', '') + 'g');
+      const all = [...text.matchAll(global)];
+      const m = all[0];
       if (!m) {
         /**
          * A no-match is an ERROR, not a note.
@@ -216,27 +290,46 @@ async function main() {
         continue;
       }
 
-      checked++;
-      const publishedRaw = m.slice(1).find((g) => g !== undefined)!;
-      const published = num(publishedRaw) * (claim.scale ?? 1);
-      const drift = Math.abs(published - truth) / (truth || 1);
-
-      // "over N%" is a floor. Publishing 99.9 while the truth is 99.98 is
-      // correct; publishing it while the truth is 94 is not.
-      const isFloor = /over /i.test(m[0]);
-      const ok = isFloor ? published <= truth : drift <= claim.tolerance;
-
       const fmt = (v: number) =>
         claim.scale ? (v / claim.scale).toFixed(2) : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
-      if (ok) {
-        console.log(`  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`);
-      } else {
-        console.error(
-          `  DRIFT  ${file}: ${claim.what} published as ${publishedRaw}, actual ${fmt(truth)}` +
-            (isFloor ? ' (a floor claim, and the floor is now above the truth)' : ` (${(drift * 100).toFixed(1)}% off)`)
-        );
-        problems++;
+      for (const hit of all) {
+        checked++;
+        const publishedRaw = hit.slice(1).find((g) => g !== undefined)!;
+        const published = num(publishedRaw) * (claim.scale ?? 1);
+        const drift = Math.abs(published - truth) / (truth || 1);
+
+        /**
+         * Three kinds of claim, because one tolerance cannot serve them.
+         *
+         * `floor` is "over N%": above the truth is wrong, below is fine.
+         * `ceiling` is a count that only ever grows, like handles resolved.
+         * Publishing fewer than we have understates and is safe; publishing
+         * more is false. A symmetric tolerance on those was documented as
+         * "exact figures get no slack" and still allowed 2% either way, which
+         * on 417,872 is 8,357 handles.
+         * `rounded` is a headline like "4.8M", where slack is the point.
+         */
+        const isFloor = /over /i.test(hit[0]);
+        const kind = isFloor ? 'floor' : (claim.kind ?? 'rounded');
+        const ok =
+          kind === 'floor'
+            ? published <= truth
+            : kind === 'ceiling'
+              ? published <= truth
+              : drift <= claim.tolerance;
+
+        if (ok) {
+          console.log(`  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`);
+        } else {
+          console.error(
+            `  DRIFT  ${file}: ${claim.what} published as ${publishedRaw}, actual ${fmt(truth)}` +
+              (kind === 'rounded'
+                ? ` (${(drift * 100).toFixed(1)}% off)`
+                : ' (published claims more than the database holds)')
+          );
+          problems++;
+        }
       }
     }
   }
@@ -291,6 +384,10 @@ const FIGURE_SHAPES = [
   /\b[0-9]{1,2}(?:\.[0-9])?%\s*(?:match|reachab|of wallets|of the|live|suspended|unclaimed)/gi,
   /\b[0-9](?:\.[0-9])?\s*(?:M|million)[- ]wallet/gi,
   /\b[0-9](?:\.[0-9]+)? million wallets/gi,
+  // A stated count. Without this the sweep could not see "417,872" at all, so a
+  // figure written into a page with no declaration was invisible in BOTH
+  // directions: undeclared, and unmatched by any claim.
+  /(?<=(?:resolved|checked)\s{0,3})[0-9]{1,3}(?:,[0-9]{3})+|\b[0-9]{1,3}(?:,[0-9]{3})+(?=[\s\S]{0,40}?(?:resolved|checked|handles))/g,
 ];
 
 /**
@@ -300,9 +397,9 @@ const FIGURE_SHAPES = [
  * noisy. A growing list is a signal the shapes above are too broad.
  */
 const NOT_A_COVERAGE_CLAIM = [
-  /2\.5%\s*(?:industry|average)/i, // the industry baseline we compare against
-  /9\.7% unclaimed/i, // covered by the reachability split
-  /20\.7% suspended/i, // covered by the reachability split
+  // The industry baseline we compare against. Not our figure, and not ours to
+  // verify against our own database.
+  /2\.5%\s*(?:industry|average)/i,
 ];
 
 function sweepForUndeclared(): number {
