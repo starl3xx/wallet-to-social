@@ -1,0 +1,44 @@
+# Checks that every number we publish still matches the database.
+#
+# WHY THIS IS SCHEDULED AND NOT A PR CHECK. The index grows every day. A figure
+# that was exactly right when it was written goes stale with no commit, no diff
+# and no pull request, which is precisely what a PR gate cannot see. On
+# 2026-08-17 the docs said we had resolved "all 440,700 distinct X handles" when
+# we had resolved 417,872, and no review would have caught it because nothing
+# about the sentence had changed.
+#
+# A failure here is normally not a bug. It means the world moved and the copy
+# has not. Fix the sentence and the number together.
+name: published-figures
+
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Monday 08:00 UTC
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # On a PR only when the copy or the checker itself changed. Drift is caught
+    # by the schedule; this catches a claim edited to something already wrong.
+    paths:
+      - 'docs-site/**'
+      - 'app/layout.tsx'
+      - 'app/page.tsx'
+      - 'scripts/check-published-figures.ts'
+      - '.github/workflows/published-figures.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  figures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Published numbers still match the database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx tsx scripts/check-published-figures.ts

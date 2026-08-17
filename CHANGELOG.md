@@ -3,6 +3,26 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (a machine for the docs rule)
+
+- **Every number we publish is now checked against the database.**
+  `scripts/check-published-figures.ts` holds a list of each published figure: the
+  file that holds it, how to read it, and the query that proves it. 11 figures
+  are checked today.
+- **It runs on a timer, not on a pull request.** The index grows every day, so a
+  number that was correct when written becomes wrong with no commit, no
+  difference and no pull request. A pull-request check cannot see that. It runs
+  every Monday, and also on a pull request that changes the copy.
+- **A claim it cannot find is an error, not a note.** If the words change and
+  the list is not changed, the check would silently examine fewer things each
+  time and report success all the way down.
+- **The check was tested with wrong numbers.** The first version had a 5%
+  tolerance on an exact count, and a wrong figure of 399,999 for a true 417,872
+  passed. A number written to the digit is an exact claim and gets no room.
+- **Corrected: the index passed 5 million**, so "4.9 million" was low in 2 doc
+  pages and 20 places in the app.
+
+
 ### 2026-08-17 (we check if the X account still works, and we say so)
 
 - **Every X name in the index is now checked against X.** All 440,700 of them.

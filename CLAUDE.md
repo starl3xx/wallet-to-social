@@ -97,6 +97,21 @@ completeness claims should be checked against the database or `/v1/stats`, not
 copied from older copy. Keep "has an identity" (~23%) and "reachable on X or
 Farcaster" (~13%) distinct wherever either appears.
 
+**Write the number that came back, not the number you set out to get.** On
+2026-08-17 the docs said we had resolved "all 440,700 distinct X handles". The
+sweep had resolved 417,872: it leaves transport failures unrecorded so they
+retry, so its result was never going to equal its target. The copy was written
+from the intention. Be most suspicious of "all", "every" and "complete" in your
+own sentences, because a pipeline with a retry path does not do all of anything
+on the first pass.
+
+**Every published figure must be declared in `scripts/check-published-figures.ts`.**
+It reads each number out of the copy and compares it with a live query, and a
+claim it can no longer find is an error rather than a shrug. This is a scheduled
+check, not a PR one, because the index grows daily: a figure goes stale with no
+commit, no diff and no pull request, which no review can catch. If you publish a
+new number, add it to the registry in the same change.
+
 ## UI Guidelines
 
 - **Never reference API providers in the UI** (e.g., Web3.bio, Neynar). Use generic terms like "all data sources" instead. API details are implementation details that users don't need to see.
