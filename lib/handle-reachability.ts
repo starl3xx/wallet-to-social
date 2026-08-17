@@ -155,3 +155,33 @@ export function publicTwitterField(input: {
   }
   return field;
 }
+
+/**
+ * Stamp a result set in place.
+ *
+ * A helper rather than two call sites doing it by hand, because the first
+ * version stamped only `/api/lookup` and the product UI submits through
+ * `/api/jobs`. The feature was live, correct, and reached no real user: the
+ * table saw nothing, the CSV column was always blank, and the handle export
+ * filtered nothing. A path that nothing fails without is a path somebody
+ * forgets, so there is now one function and both paths call it.
+ *
+ * Failure is swallowed on purpose. An unstamped result is a result missing one
+ * column; a thrown error is a failed lookup, and this is not worth turning one
+ * into the other.
+ */
+export async function stampReachability(
+  results: Array<{ twitter_handle?: string; twitter_reachability?: Reachability }>
+): Promise<void> {
+  try {
+    const map = await reachabilityFor(results.map((r) => r.twitter_handle));
+    if (map.size === 0) return;
+    for (const r of results) {
+      if (!r.twitter_handle) continue;
+      const hit = map.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
+      if (hit) r.twitter_reachability = hit.status;
+    }
+  } catch (error) {
+    console.error('Reachability stamp failed, continuing without it:', error);
+  }
+}

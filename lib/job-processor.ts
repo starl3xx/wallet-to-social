@@ -6,6 +6,7 @@ import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup, type InputSource } from '@/lib/history';
+import { stampReachability } from '@/lib/handle-reachability';
 import {
   upsertSocialGraphWithRetry,
   upsertNegativeWallets,
@@ -672,6 +673,19 @@ async function finalizeJobWithResults(
   cacheHits: number
 ): Promise<ProcessResult> {
   const options = job.options as JobOptions;
+
+  /**
+   * Stamped here, and BEFORE history is written.
+   *
+   * This is the path the product actually uses: the UI posts to /api/jobs, and
+   * everything funnels through this function. Stamping only the SSE route left
+   * the feature reaching no real user at all.
+   *
+   * Before `saveLookup` because it mutates these objects in place. Saving first
+   * would persist rows without the mark, so reopening a saved lookup would drop
+   * the dead-handle warnings and the export filtering that the live view had.
+   */
+  await stampReachability(results);
 
   // Save to history if requested
   if (options.saveToHistory) {

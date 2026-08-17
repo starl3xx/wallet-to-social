@@ -22,7 +22,7 @@ import {
   formatRateLimitHeaders,
 } from '@/lib/ip-rate-limiter';
 import type { WalletSocialResult } from '@/lib/types';
-import { reachabilityFor } from '@/lib/handle-reachability';
+import { stampReachability } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max
@@ -446,6 +446,10 @@ export async function POST(request: NextRequest) {
         let historyId: string | undefined;
         if (saveToHistory && dbConfigured) {
           try {
+            // Before saveLookup for the same reason as the jobs path: the
+            // stamp mutates these objects, and history must not persist a
+            // version without it.
+            await stampReachability(finalResults);
             const savedId = await saveLookup(finalResults, historyName);
             if (savedId) historyId = savedId;
           } catch (error) {
@@ -476,26 +480,6 @@ export async function POST(request: NextRequest) {
           } catch (error) {
             console.error('Social graph persist error:', error);
           }
-        }
-
-        /**
-         * Stamp reachability last, once every handle is settled.
-         *
-         * One query for the whole result set rather than a join in the pipeline:
-         * the handles arrive from several routes and only the final set is worth
-         * asking about. Failure is swallowed on purpose. An unstamped result is
-         * a result without one extra column; a failed lookup is a failed lookup,
-         * and this is not important enough to turn one into the other.
-         */
-        try {
-          const reach = await reachabilityFor(finalResults.map((r) => r.twitter_handle));
-          for (const r of finalResults) {
-            if (!r.twitter_handle) continue;
-            const hit = reach.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
-            if (hit) r.twitter_reachability = hit.status;
-          }
-        } catch (error) {
-          console.error('Reachability stamp failed, continuing without it:', error);
         }
 
         const reachableCount = finalResults.filter(
