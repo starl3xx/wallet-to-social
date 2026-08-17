@@ -19,34 +19,11 @@
  * Run: node scripts/check-contrast.mjs
  */
 
-import { readFileSync } from 'fs';
-
-/* ---------- OKLCH -> sRGB (Björn Ottosson's matrices) ---------- */
-
-function oklchToRgb(L, C, hDeg) {
-  const h = (hDeg * Math.PI) / 180;
-  const a = C * Math.cos(h);
-  const b = C * Math.sin(h);
-
-  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
-  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
-  const s_ = L - 0.0894841775 * a - 1.291485548 * b;
-
-  const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
-
-  const lin = [
-    +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ];
-
-  // Gamma-encode, then clamp. Clamping after encoding is what a browser does
-  // when a colour falls outside sRGB, and several brand tones here do.
-  return lin.map((v) => {
-    const enc = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
-    return Math.max(0, Math.min(255, Math.round(enc * 255)));
-  });
-}
+// The conversion and the token reader live in `scripts/lib/oklch.mjs` so that
+// `check-og-palette.mjs` uses the same ones. The fixtures below stay here: this
+// script owns them, runs them before anything else, and both guards run in the
+// same CI job, so a drifted conversion fails here first.
+import { oklchToRgb, hex, readTokens } from './lib/oklch.mjs';
 
 const relLuminance = ([r, g, b]) =>
   [r, g, b]
@@ -60,9 +37,6 @@ function contrast(a, b) {
   const [hi, lo] = [relLuminance(a), relLuminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
-
-const hex = ([r, g, b]) =>
-  '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 
 /* ---------- fixtures: the conversion must reproduce these ---------- */
 
@@ -99,23 +73,7 @@ if (failed) {
 
 /* ---------- read the real tokens ---------- */
 
-const css = readFileSync('app/globals.css', 'utf8');
-
-function block(selector) {
-  const re = new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'm');
-  const m = css.match(re);
-  if (!m) throw new Error(`Could not find the ${selector} block in app/globals.css`);
-  return m[1];
-}
-
-function token(body, name) {
-  const m = body.match(new RegExp(`--${name}:\\s*oklch\\(([^)]+)\\)`));
-  if (!m) return null;
-  const parts = m[1].trim().split(/[\s/]+/);
-  if (m[1].includes('/')) return { alpha: true };
-  const [L, C, h] = parts;
-  return oklchToRgb(parseFloat(L), parseFloat(C || 0), parseFloat(h || 0));
-}
+const { block, token } = readTokens('app/globals.css');
 
 const THEMES = { light: block(':root'), dark: block('\\.dark') };
 

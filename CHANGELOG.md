@@ -3,6 +3,41 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (colour that no guard was looking at)
+
+- **The share cards and the sign-in email did not use the brand colours.** Both
+  render outside the CSS cascade, so they must write colour values directly.
+  Eleven of those values had moved away from the tokens they stand for. Only two
+  were correct. Every grey had a blue tone in it, but the greys in the design are
+  pure grey. This is the mark of a person who took a colour from Tailwind.
+- **The blog card wrote eight colours of its own.** It uses the shared card
+  colours for the background and the text, then wrote the other eight directly,
+  because the shared set had no values for a light card. A shared set with a hole
+  in it does not get made larger; it gets avoided. The hole is the fault, and the
+  light-card values now close it.
+- **Two colours in the shared set were dead.** No card read them.
+- **Four Tailwind palette colours were live in the interface.** A green line on
+  the growth graph, a green heat map, and two greens in the assistant. Each was
+  written as `hsl()`, `rgba()` or a hex value, so the guard, which looks for
+  class names, could not see any of them. They are tokens now, and the assistant
+  uses the brand colour, because a button is an action and green is for a fact.
+- **The "Copied!" message was black on black in the dark theme.** It used
+  `bg-black text-white`. The dark background is almost black, so the message had
+  no edge. It uses `bg-foreground text-background`, which is correct in both.
+- **A new guard: `scripts/check-og-palette.mjs`.** It reads the tokens from
+  `app/globals.css` at the time it runs, not from a copy, and it fails the build
+  if a card or email colour is not a token value. Values that cannot be a token,
+  such as the gradient on the dark card, are listed by name with the reason. The
+  guard was tested against the three values that had moved, and it caught all
+  three.
+- **`lib/` was not in the design CI trigger.** A change to only `lib/og-fonts.ts`
+  did not start the check at all, so the fault was invisible two times over.
+- **The OKLCH maths moved to `scripts/lib/oklch.mjs`.** Two guards need it. Two
+  copies of a colour conversion give two chances to be wrong in a way that looks
+  correct.
+- Removed five unused Next.js example SVG files.
+
+
 ### 2026-08-16 (the design skill gave instructions that CI rejects)
 
 - **The frontend-design skill now points at `docs/DESIGN-LANGUAGE.md` first.**

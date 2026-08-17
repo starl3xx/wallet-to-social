@@ -45,8 +45,8 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logoBase64} width={44} height={44} style={{ borderRadius: '10px' }} alt="" />
           <div style={{ display: 'flex', fontSize: '26px', fontWeight: 600 }}>
-            <span style={{ color: '#4131B0' }}>walletlink</span>
-            <span style={{ color: '#6B7189' }}>.social</span>
+            <span style={{ color: OG.paperBrand }}>walletlink</span>
+            <span style={{ color: OG.paperMuted }}>.social</span>
           </div>
         </div>
 
@@ -55,8 +55,8 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
             style={{
               display: 'flex',
               alignSelf: 'flex-start',
-              background: '#EDEEF8',
-              color: '#4131B0',
+              background: OG.paperBrandTint,
+              color: OG.paperBrand,
               fontSize: '19px',
               fontWeight: 600,
               padding: '8px 18px',
@@ -80,21 +80,21 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '19px', color: '#6B7189' }}>walletlink.social/blog</span>
+          <span style={{ fontSize: '19px', color: OG.paperMuted }}>walletlink.social/blog</span>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '11px',
-              background: '#E8F6EF',
-              color: '#0F7A55',
+              background: OG.paperAttestedTint,
+              color: OG.paperAttested,
               fontSize: '18px',
               fontWeight: 600,
               padding: '10px 20px',
               borderRadius: '999px',
             }}
           >
-            <div style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#0F7A55' }} />
+            <div style={{ width: '10px', height: '10px', borderRadius: '999px', background: OG.paperAttested }} />
             attested data
           </div>
         </div>

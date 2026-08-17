@@ -149,10 +149,10 @@ export function DocsChat() {
           hide-branding="true"
           style={
             {
-              '--search-snippet-primary-color': '#10b981',
-              '--search-snippet-primary-hover': '#059669',
+              '--search-snippet-primary-color': 'var(--accent-brand)',
+              '--search-snippet-primary-hover': 'var(--accent-brand-hover)',
               '--chat-bubble-button-size': '56px',
-              '--chat-bubble-button-icon-color': '#ffffff',
+              '--chat-bubble-button-icon-color': 'var(--accent-brand-foreground)',
             } as React.CSSProperties
           }
         />
