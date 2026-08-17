@@ -11,7 +11,7 @@ It works in two directions, and the second one is the reason most people end up 
 
 Everything here rests on one thing, and the docs refer to it constantly, so it is worth defining before anything else.
 
-**The index is our own database of wallet identities.** It is not a cache in front of somebody else's API, and it is not assembled per request. It is 4.7 million wallets that we resolved, verified and stored ourselves, including complete coverage of the Farcaster protocol, and it is refreshed every day.
+**The index is our own database of wallet identities.** It is not a cache in front of somebody else's API, and it is not assembled per request. It is 4.9 million wallets that we resolved, verified and stored ourselves, including complete coverage of the Farcaster protocol, and it is refreshed every day.
 
 That is what makes a lookup fast: for most addresses the answer already exists before you ask. It is also what a match rate is measured against, what a fast scan reads, what a deep scan adds to, and what [`GET /api/v1/stats`](/api-reference/stats) reports on. Wherever these pages say “the index”, this is what they mean.
 

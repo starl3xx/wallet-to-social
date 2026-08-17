@@ -45,12 +45,22 @@ That property is worth more than it first sounds. It means a Farcaster negative 
 
 X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so there is nothing to read the way Farcaster can be read. Our resolution layer works around that by drawing on several independent routes to the same fact, and telling you which one produced each match.
 
-**Two routes are owner-attested, and they carry almost all of the coverage.**
+**Three routes are owner-attested, and they carry almost all of the coverage.**
 
-- The owner verified their X account on Farcaster.
-- The owner set the handle in an ENS text record on their own address.
+- The owner verified their X account on Farcaster. Arrives as `farcaster`.
+- The owner set the handle in an ENS text record on their own address. Arrives
+  as `onchain`.
+- The owner proved the wallet with a signature and the X account with a sign-in,
+  on an identity platform. Arrives as `attested-social`.
 
-Both are published by the address owner, both are checkable without taking our word for it, and together they account for **over 99.9% of the 1.07 million wallets with a linked X handle**.
+All three are established by the address owner rather than inferred by us, and together they account for **over 99.9% of the 1.14 million wallets with a linked X handle**.
+
+The third route is the newest and it is worth saying what it adds beyond reach.
+The other two record a handle as a string, captured once. This one records the
+account's permanent numeric id alongside it, so when a handle is a name its
+owner later changed, that is something we can detect rather than something that
+silently rots. See [when a handle stops being
+true](/concepts/data-quality#when-a-handle-stops-being-true).
 
 **Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner's own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
 

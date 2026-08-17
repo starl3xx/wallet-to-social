@@ -21,7 +21,12 @@
  */
 
 /** Evidence classes exposed on the public API. */
-export type PublicSource = 'onchain' | 'farcaster' | 'aggregated' | 'manual';
+export type PublicSource =
+  | 'onchain'
+  | 'farcaster'
+  | 'attested-social'
+  | 'aggregated'
+  | 'manual';
 
 const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   // Onchain ENS text records — self-published by the address owner.
@@ -36,6 +41,23 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   // Third-party identity index. Weaker evidence: correlated, not attested.
   web3bio: 'aggregated',
 
+  /**
+   * An identity platform where the person proved the wallet with a signature
+   * and the account with a sign-in.
+   *
+   * Its own class rather than `aggregated`, because it is not correlated: both
+   * ends are attested by the owner. It is not `farcaster` either, since that
+   * names a protocol-level record, and it is not `onchain`, since nothing here
+   * is published to a chain. Calling it `aggregated` would have been the
+   * cautious-looking choice and the inaccurate one, understating 68,894 matches
+   * that a customer filtering for attested evidence should be seeing.
+   *
+   * The class is named for the mechanism, never the vendor. A provider's name
+   * must not reach the public API for the same reason it must not reach the UI
+   * or the docs.
+   */
+  ethos: 'attested-social',
+
   // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
 
@@ -48,6 +70,7 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   // safe shape when more than one layer can apply it.
   onchain: 'onchain',
   farcaster: 'farcaster',
+  'attested-social': 'attested-social',
   aggregated: 'aggregated',
 
   // Persisted negatives. These rows are filtered out before serialization,
@@ -56,7 +79,13 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
 };
 
 /** Stable output order, so responses do not vary by insertion order. */
-const SOURCE_ORDER: PublicSource[] = ['onchain', 'farcaster', 'manual', 'aggregated'];
+const SOURCE_ORDER: PublicSource[] = [
+  'onchain',
+  'farcaster',
+  'attested-social',
+  'manual',
+  'aggregated',
+];
 
 /**
  * Translates internal source identifiers into public evidence classes.

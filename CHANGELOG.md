@@ -3,6 +3,62 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-16 (a new source, and the first way to see a handle go bad)
+
+- **72,867 more wallets have an X handle.** The count moved from 1,070,680 to
+  1,143,547, which is 6.8% more. The graph moved from 4,836,596 wallets to
+  4,905,352. The new source is an identity platform where a person proves the
+  wallet with a signature and the X account with a sign-in.
+- **The source is read once a day, not once for each lookup.** It holds 39,442
+  people and 83,891 addresses. That is all of it, in about 80 requests and under
+  three minutes. It covers about 0.3% of the wallets in a customer file, so a
+  call for each lookup would pay for a wait and change almost nothing.
+- **81,412 rows now hold the X account id.** This is the more important part. A
+  handle is a name that the owner can change, and a change tells us nothing. An
+  account id does not change. This is the first field in the pipeline that can
+  show the difference between a new name and a dead account.
+- **The id is only written next to a handle that it belongs to.** If we hold a
+  different handle, we write no id and we change no handle. To do it the other
+  way would make a row that says a specific account owns a name that it does not
+  own. That is worse than either source alone.
+- **2,479 disagreements are recorded in a new table, not settled in code.** Of
+  250 that were examined: our handle no longer opens an account 54% of the time,
+  and where both handles open an account, 90% of the time ours belongs to a
+  person who does not hold the wallet. A rule in code would throw that away.
+- **A new evidence class in the API: `attested-social`.** The owner attested
+  both ends, so `aggregated`, which means "correlated, not attested", was not
+  correct. The class is named for the method, never for the supplier. The
+  published statement "over 99.9% of Twitter matches are owner-attested" stays
+  true at 99.98%.
+- Published numbers corrected in 20 places: the index is 4.9 million wallets.
+- **Corrected before release: the label went on rows it did not belong to.** The
+  first version of the write added the source name to every row it touched, and
+  not only the rows it agreed with. So a wallet where the new source named a
+  different account kept our handle, which is correct, and then took their
+  label, which is not. The API showed `attested-social` for 2,479 handles that
+  this source never attested. The write now uses the same agreement test for the
+  label that it uses for the account id, the 2,479 rows are repaired, and 129
+  scores that the label had raised are calculated again with the real function.
+- **Two more faults of the same kind, found by following the first.** The live
+  lookup path did not know the new source: it gave the source the unknown-source
+  score of 5, and it did not accept the source as attested, so the next lookup
+  would have quietly removed the verified mark from a handle that nothing had
+  disproved. Both are corrected, and the score in the sweep is now the same
+  number the live path calculates.
+- **The quality number was wrong on 81,325 rows, in both directions.** The write
+  raised a score to a floor but could never lower one, so rows written with the
+  first, too-high floor kept it. 55,309 rows that said more than they should are
+  corrected. Rows that say less than they should are left alone on purpose: a
+  swept row that carries a low estimate until a real lookup calculates it is how
+  every source here already works, and raising them would move some across the
+  trust line, which changes what the product does with them.
+- **An address that two people both claim is now dropped.** Postgres refuses to
+  change one row two times in one statement, so a repeated address would stop a
+  whole batch, after the conflicts for that batch were written. It is also the
+  right answer: if two people each say an address is theirs, this source cannot
+  say which, so it is not attested evidence.
+
+
 ### 2026-08-16 (colour that no guard was looking at)
 
 - **The share cards and the sign-in email did not use the brand colours.** Both

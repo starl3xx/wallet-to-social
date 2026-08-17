@@ -100,7 +100,7 @@ export default function AirstackComparison() {
                 with the reachable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="4.7M" label="wallets indexed" />
+              <Figure value="4.9M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
@@ -234,7 +234,7 @@ export default function AirstackComparison() {
             </h2>
             <p className="text-muted-foreground mb-4">
               We turn wallet addresses into social profiles, in the browser
-              or over a simple REST API. Our index covers 4.7M wallets with
+              or over a simple REST API. Our index covers 4.9M wallets with
               complete Farcaster protocol coverage: every account’s verified
               and custody addresses, usernames, and follower counts, refreshed
               daily. Over 99.9% of Twitter matches are user-attested, most
