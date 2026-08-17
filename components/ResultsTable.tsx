@@ -4,8 +4,9 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Lock } from '@phosphor-icons/react';
+import { Lock, WarningCircle } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
+import { REACHABILITY_LABEL, REACHABILITY_DETAIL } from '@/lib/handle-reachability';
 
 type Attestation = 'attested' | 'matched' | 'none' | 'unknown';
 
@@ -32,6 +33,49 @@ function attestationOf(r: WalletSocialResult): Attestation {
   const wasChecked = r.twitter_verified !== undefined || r.farcaster_verified !== undefined;
   return wasChecked ? 'matched' : 'unknown';
 }
+
+/**
+ * The handle, and whether it still reaches anyone.
+ *
+ * Reachability is a SEPARATE axis from the gutter dot beside it. The dot says
+ * how the identity was established; this says whether it still works. A handle
+ * can be perfectly attested and completely dead, which is exactly the case worth
+ * showing, and folding the two into one mark would destroy the distinction the
+ * product is sold on.
+ *
+ * An unreachable handle is not a link. A suspended account goes to a suspension
+ * notice, and a freed handle may now belong to somebody else entirely, so the
+ * one thing a click must not do is present a stranger as the wallet's owner.
+ */
+const TwitterCell = memo(function TwitterCell({ result }: { result: WalletSocialResult }) {
+  const handle = result.twitter_handle!;
+  const reach = result.twitter_reachability;
+
+  if (reach && reach !== 'live') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-caution"
+        title={REACHABILITY_DETAIL[reach]}
+      >
+        <WarningCircle size={12} weight="fill" aria-hidden />
+        <span className="line-through decoration-caution/50">@{handle}</span>
+        <span className="sr-only">{REACHABILITY_LABEL[reach]}</span>
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={result.twitter_url || `https://x.com/${handle}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-accent-brand hover:underline"
+      title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
+    >
+      @{handle}
+    </a>
+  );
+});
 
 /**
  * Custom hook for debouncing a value
@@ -543,17 +587,7 @@ export const ResultsTable = memo(function ResultsTable({
                     {/* Twitter */}
                     <div className="px-4 py-2 font-mono text-xs">
                       {result.twitter_handle ? (
-                        <a
-                          href={
-                            result.twitter_url ||
-                            `https://x.com/${result.twitter_handle}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline"
-                        >
-                          @{result.twitter_handle}
-                        </a>
+                        <TwitterCell result={result} />
                       ) : (
                         '-'
                       )}

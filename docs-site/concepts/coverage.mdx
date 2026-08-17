@@ -72,11 +72,20 @@ That guarantee is enforced rather than promised. Source classification is an all
 
 The tradeoff behind all of this is deliberate. Coverage would be considerably higher if we guessed, matching on display names or bios or timing correlations. We do not, at any evidence level, because a marketing campaign that contacts the wrong person is worse than one that contacts fewer people.
 
-<Warning>
-Attested does not mean current. Someone can verify a handle and later abandon
-or rename that account. See [data quality](/concepts/data-quality) for how
-staleness is tracked and surfaced.
-</Warning>
+### Attested is not the same as reachable, and we report both
+
+Someone can verify a handle and later rename or lose that account. Nothing in
+any attestation notices, because an attestation records a name at a moment.
+
+So we resolve every X handle in the index against X itself. On 2026-08-17, of
+440,700 distinct handles, **69.6% were live, 20.7% suspended and 9.7% no longer
+in use**. Roughly a third of attested X handles reach nobody, and that is true of
+the underlying data rather than of us: it is what any product built on Farcaster
+verifications is carrying, whether or not it says so.
+
+Every X match therefore arrives with a `reachable` flag and a `reachability`
+value, and the handle export leaves out the ones we have checked and found dead.
+See [data quality](/concepts/data-quality#we-check-and-we-tell-you).
 
 ## Checking coverage yourself
 

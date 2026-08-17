@@ -24,6 +24,15 @@ export interface WalletSocialResult {
    */
   twitter_verified?: boolean;
   farcaster_verified?: boolean;
+  /**
+   * Whether the attested X handle still reaches anyone: 'live', 'suspended' or
+   * 'unclaimed'.
+   *
+   * Undefined follows the same rule as the flags above: it means "not checked",
+   * not "unreachable". Roughly a third of attested Farcaster X handles reach
+   * nobody, and this is the only field that says so.
+   */
+  twitter_reachability?: 'live' | 'suspended' | 'unclaimed';
   // Agent detection metadata
   is_agent?: boolean;
   agent_name?: string;

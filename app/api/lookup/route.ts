@@ -22,6 +22,7 @@ import {
   formatRateLimitHeaders,
 } from '@/lib/ip-rate-limiter';
 import type { WalletSocialResult } from '@/lib/types';
+import { reachabilityFor } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max
@@ -477,11 +478,40 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        /**
+         * Stamp reachability last, once every handle is settled.
+         *
+         * One query for the whole result set rather than a join in the pipeline:
+         * the handles arrive from several routes and only the final set is worth
+         * asking about. Failure is swallowed on purpose. An unstamped result is
+         * a result without one extra column; a failed lookup is a failed lookup,
+         * and this is not important enough to turn one into the other.
+         */
+        try {
+          const reach = await reachabilityFor(finalResults.map((r) => r.twitter_handle));
+          for (const r of finalResults) {
+            if (!r.twitter_handle) continue;
+            const hit = reach.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
+            if (hit) r.twitter_reachability = hit.status;
+          }
+        } catch (error) {
+          console.error('Reachability stamp failed, continuing without it:', error);
+        }
+
+        const reachableCount = finalResults.filter(
+          (r) => r.twitter_reachability === 'live'
+        ).length;
+        const unreachableCount = finalResults.filter(
+          (r) => r.twitter_reachability && r.twitter_reachability !== 'live'
+        ).length;
+
         sendEvent('complete', {
           results: finalResults,
           stats: {
             total: wallets.length,
             twitterFound: twitterCount,
+            twitterReachable: reachableCount,
+            twitterUnreachable: unreachableCount,
             farcasterFound: farcasterCount,
             lensFound: finalResults.filter((r) => r.lens).length,
             githubFound: finalResults.filter((r) => r.github).length,

@@ -30,7 +30,7 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
     <ResponseField name="wallet" type="string">Lowercased address. Always present.</ResponseField>
     <ResponseField name="ens_name" type="string">Primary ENS name.</ResponseField>
     <ResponseField name="twitter" type="object">
-      `handle`, `url`, and `verified`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look.
+      `handle`, `url`, `verified`, and, once we have checked, `reachable`, `reachability` and `reachability_checked_at`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look, and [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
     </ResponseField>
     <ResponseField name="farcaster" type="object">
       `username`, `url`, `followers`, `fid`, and `verified`.
@@ -70,7 +70,10 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
     "twitter": {
       "handle": "vitalikbuterin",
       "url": "https://twitter.com/vitalikbuterin",
-      "verified": true
+      "verified": true,
+      "reachable": true,
+      "reachability": "live",
+      "reachability_checked_at": "2026-08-17T09:41:02.000Z"
     },
     "farcaster": {
       "username": "vitalik.eth",

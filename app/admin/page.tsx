@@ -6,6 +6,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminNav, type AdminTab } from '@/components/admin/AdminNav';
+import { HandleConflicts } from '@/components/admin/HandleConflicts';
 import {
   Table,
   TableBody,
@@ -1278,6 +1279,7 @@ export default function AdminPage() {
         {/* Tab content - Operations */}
         {activeTab === 'whitelist' && renderWhitelistTab()}
         {activeTab === 'dashboard' && <LookupDashboard password={password} />}
+        {activeTab === 'conflicts' && <HandleConflicts password={password} />}
         {activeTab === 'jobs' && renderJobsTab()}
         {activeTab === 'history' && renderHistoryTab()}
         {activeTab === 'users' && renderUsersTab()}

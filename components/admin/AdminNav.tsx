@@ -15,6 +15,7 @@ import {
   // `PencilSimple`, not `Pencil`: they are different glyphs, and the page was
   // rendering this one.
   PencilSimple as Pencil,
+  WarningCircle,
   type Icon,
 } from '@phosphor-icons/react';
 
@@ -30,7 +31,8 @@ export type AdminTab =
   | 'jobs'
   | 'history'
   | 'users'
-  | 'enrichment';
+  | 'enrichment'
+  | 'conflicts';
 
 interface NavItem {
   value: AdminTab;
@@ -64,6 +66,7 @@ const OPERATIONS: NavItem[] = [
   { value: 'users', label: 'Users', icon: Users },
   { value: 'usage', label: 'Usage', icon: Gauge },
   { value: 'enrichment', label: 'Enrichment', icon: Pencil },
+  { value: 'conflicts', label: 'Conflicts', icon: WarningCircle },
 ];
 
 function NavGroup({

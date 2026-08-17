@@ -11,6 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
+import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -132,17 +133,25 @@ export async function GET(
   }
 
   // Build response array
+  const queriedReachability =
+    (await reachabilityFor([normalizedHandle])).get(normalizedHandle) ?? null;
+
   const data = results.map((result) => {
     const item: Record<string, unknown> = {
       wallet: result.wallet,
     };
 
     if (result.ensName) item.ens_name = result.ensName;
-    item.twitter = {
-      handle: result.twitterHandle,
-      url: result.twitterUrl || `https://twitter.com/${result.twitterHandle}`,
-      verified: result.twitterVerified ?? false,
-    };
+    // Every row here shares the handle that was queried, so it is looked up
+    // once outside the loop rather than per wallet.
+    item.twitter = publicTwitterField({
+      // Non-null by construction: the query matched on this handle. Falling
+      // back to the queried value keeps TypeScript honest without a cast.
+      handle: result.twitterHandle ?? normalizedHandle,
+      url: result.twitterUrl,
+      verified: result.twitterVerified,
+      reachability: queriedReachability,
+    });
     if (result.farcaster) {
       item.farcaster = {
         username: result.farcaster,

@@ -11,6 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
+import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -131,6 +132,8 @@ export async function GET(
     );
   }
 
+  const reach = await reachabilityFor(results.map((r) => r.twitterHandle));
+
   // Build response array
   const data = results.map((result) => {
     const item: Record<string, unknown> = {
@@ -139,11 +142,12 @@ export async function GET(
 
     if (result.ensName) item.ens_name = result.ensName;
     if (result.twitterHandle) {
-      item.twitter = {
+      item.twitter = publicTwitterField({
         handle: result.twitterHandle,
-        url: result.twitterUrl || `https://twitter.com/${result.twitterHandle}`,
-        verified: result.twitterVerified ?? false,
-      };
+        url: result.twitterUrl,
+        verified: result.twitterVerified,
+        reachability: reach.get(result.twitterHandle.toLowerCase()) ?? null,
+      });
     }
     item.farcaster = {
       username: result.farcaster,

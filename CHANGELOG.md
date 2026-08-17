@@ -3,6 +3,37 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (we check if the X account still works, and we say so)
+
+- **Every X name in the index is now checked against X.** All 440,700 of them.
+  69.6% work, 20.7% are suspended accounts, and 9.7% are names that nobody holds
+  now. About one third of every attested X name reaches no person.
+- **This is a strength, not a fault.** Farcaster records a proved X account as a
+  **name**, written one time, with no account number and no later check. So
+  nothing in the protocol sees a name change or a suspension. Every product
+  built on those proofs carries the same third. We are the only one that looked.
+  "The owner proved this, and it still works" is a stronger statement than
+  either half.
+- **Results table.** A name we checked and found dead is marked, is not a link,
+  and says why. It is not a link because a suspended account goes to a notice
+  page and a freed name may belong to a different person now, so a click could
+  show a stranger as the owner of the wallet.
+- **Handle list export leaves the dead ones out.** That file gets pasted into a
+  sending tool, so a dead name in it is a wasted send at best. Names we have not
+  checked stay in: "not checked" is not "dead". The button says how many were
+  left out and why.
+- **CSV export gains `twitter_reachable`.** Empty where we did not check.
+- **API: `reachable`, `reachability` and `reachability_checked_at`.** Absent, not
+  false, when we have not checked. `suspended` and `unclaimed` stay separate
+  because only one of them means the record can point at a different person.
+- **One builder for the twitter field.** Four routes described the same fact
+  three different ways, and one of them did not return `verified` at all.
+- **The conflict list can be read.** 2,671 open, of which 1,496 are cases where
+  what we serve reaches nobody and the other source works. Before this they were
+  saved and unreadable. It shows the evidence and does not decide: a suspension
+  can be lifted, and a person can hold two accounts.
+
+
 ### 2026-08-16 (two more attested sources, and one shape for all of them)
 
 - **One set of write rules, three sources.** The rules that decide what reaches
