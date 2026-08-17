@@ -181,6 +181,15 @@ const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
 
 
 /**
+ * A call that ran out of time, as opposed to one that came back with an answer.
+ *
+ * Its own type because `detectContractType` has to tell those apart and a
+ * message match is not a contract. The message is unchanged, so the route's
+ * `includes('timed out')` mapping to 504 still behaves as it did.
+ */
+class RpcTimeoutError extends Error {}
+
+/**
  * Wraps a promise with a timeout
  */
 async function withTimeout<T>(
@@ -189,7 +198,7 @@ async function withTimeout<T>(
   errorMessage: string
 ): Promise<T> {
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    setTimeout(() => reject(new RpcTimeoutError(errorMessage)), timeoutMs);
   });
   return Promise.race([promise, timeoutPromise]);
 }
@@ -360,7 +369,26 @@ export async function detectContractType(
           'ERC-1155 check timed out'
         );
         if (isERC1155) return 'ERC-1155' as ContractType;
-      } catch {
+      } catch (error) {
+        /**
+         * "It answered, and the answer was not ERC-165" is the only thing that
+         * may fall through to ERC-20. "It never answered" must not.
+         *
+         * This `catch` exists because a contract without ERC-165 makes
+         * `supportsInterface` revert, and treating that as ERC-20 is correct.
+         * It also swallowed timeouts, which was survivable while every call had
+         * a flat 15s and became a real defect once the phase clamp could cut one
+         * to a second: a slow first endpoint would misreport an NFT collection
+         * as a token, and because the error never left this block, `withProvider`
+         * saw success and never tried the healthy endpoint underneath. The
+         * import then took the ERC-20 path for a contract that has no ERC-20
+         * holders.
+         *
+         * Rethrowing is the safe direction. Worst case the import fails with a
+         * timeout the route already maps to a clear 504, instead of quietly
+         * fetching the wrong kind of holder list.
+         */
+        if (error instanceof RpcTimeoutError) throw error;
         // Contract doesn't support ERC-165 - default to ERC-20
       }
 
