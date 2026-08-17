@@ -43,21 +43,62 @@ Remember: Claude is capable of extraordinary creative work. Don't hold back, sho
 
 ---
 
-## Project-Specific Preference: Stripe-Inspired Aesthetic
+## Project-specific: read the design language first
+
+**`docs/DESIGN-LANGUAGE.md` is authoritative and it overrides everything above.**
+Radius, elevation, type scale, weight, tracking, spacing, control height, mono
+policy, numerals, affordance, motion and icons are all fixed there. The guidance
+above is written for greenfield work; this project is not greenfield. Preserve
+the existing aesthetic rather than reinventing it, and never pick a font,
+a radius or a colour that the design language has already decided.
+
+### Before writing a new component
+
+Ask these in order and stop at the first yes. Most UI work in this project stops
+at the second one.
+
+1. **Does it need to exist at all?** A pattern used once is not a component.
+2. **Does it already exist?** Look in `components/ui/` before writing anything.
+   One canonical component per pattern is the rule. A documented variant on the
+   existing component always beats a second implementation of the same idea.
+3. **Does a token or an existing utility already cover it?** Colour, radius,
+   elevation, type scale and control height all have names. A new raw value is
+   nearly always a value that already has one.
+4. **Can it be a prop on what is already there?**
+5. Only then write something new.
+
+When you do skip something, say so in one line and say when it would be worth
+adding. Never skip accessibility, error states, input validation, or anything
+the user asked for by name.
+
+### Aesthetic preference: Stripe-inspired
 
 **The user prefers a Stripe-like design language for this project.** Reference these characteristics:
 
 ### Visual Language
 - **Clean minimalism**: Generous whitespace, uncluttered layouts, clear visual hierarchy
-- **Soft rounded corners**: Cards (~8-12px), buttons (~6-8px), badges (~4px)
-- **Subtle borders**: Very light gray borders (e.g., `#e5e7eb`) on cards and inputs
+- **Soft rounded corners**: five named values, no others. `rounded-lg` for cards,
+  panels, inputs and modals (14px); `rounded-full` for buttons and segmented
+  controls; `rounded-sm` for badges and inline code (6px); `rounded-mark` for the
+  brand mark; 50% for dots and avatars. `rounded-md`, `rounded-xl`, `rounded-2xl`
+  and bare `rounded` are banned and CI rejects them.
+- **Subtle borders**: Very light grey borders on cards and inputs, always `border-border`
 - **Refined shadows**: Minimal, soft box-shadows for elevation when needed
 
 ### Color Palette
-- **Primary accent**: Soft indigo/purple for CTAs (e.g., `#635bff` or similar)
-- **Status colors**: Muted, pastel-toned badges (soft green for success, light backgrounds)
-- **Text hierarchy**: Dark headings (#1a1a1a), muted body text (#6b7280), lighter helper text
-- **Backgrounds**: Clean whites with occasional very light gray sections
+**Write the token, never the hex.** `app/globals.css` already holds the values
+below, an ESLint rule and `.github/workflows/design-tokens.yml` both reject a raw
+colour, and the tokens are theme-aware so a `dark:` variant restating the same
+token is redundant. This section names the intent; the token is the value.
+
+- **Primary accent**: soft indigo/violet for anything actionable, `accent-brand`
+  and `accent-brand-tint`. Affordance only: buttons, links, focus, selected.
+- **Status colours**: `attested` for a measured fact, `caution` for stale or
+  truncated, `destructive` for revoking and deleting. Each has a `-tint` for the
+  badge background. `attested` must never mark an inference.
+- **Text hierarchy**: `foreground` for headings, `muted-foreground` for body and
+  helper text.
+- **Backgrounds**: `background`, with `muted` for the occasional lighter section.
 
 ### Typography
 - **Bold, confident headings**: Large, heavy-weight titles that anchor the page
