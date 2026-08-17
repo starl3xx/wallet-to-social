@@ -442,14 +442,24 @@ export async function POST(request: NextRequest) {
         ).length;
         const farcasterCount = finalResults.filter((r) => r.farcaster).length;
 
+        /**
+         * Unconditional, and before the history block.
+         *
+         * Both halves of that were regressions. Tucking it inside
+         * `if (saveToHistory && dbConfigured)` meant a lookup that did not save
+         * history never stamped at all, which is the default. And it has to run
+         * before `saveLookup`, because it mutates these objects in place and
+         * saving first would persist a version without the mark.
+         *
+         * The jobs path does the same thing in the same order. Two call sites,
+         * one helper, one ordering.
+         */
+        await stampReachability(finalResults);
+
         // Save to history if requested
         let historyId: string | undefined;
         if (saveToHistory && dbConfigured) {
           try {
-            // Before saveLookup for the same reason as the jobs path: the
-            // stamp mutates these objects, and history must not persist a
-            // version without it.
-            await stampReachability(finalResults);
             const savedId = await saveLookup(finalResults, historyName);
             if (savedId) historyId = savedId;
           } catch (error) {
