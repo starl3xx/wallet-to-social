@@ -445,8 +445,21 @@ function sweepForUndeclared(): number {
     const claimedRanges: Array<[number, number]> = [];
     for (const c of CLAIMS) {
       if (!c.files.includes(file)) continue;
-      const dm = text.match(c.pattern);
-      if (dm && dm.index !== undefined) claimedRanges.push([dm.index, dm.index + dm[0].length]);
+      /**
+       * matchAll, matching the forward check.
+       *
+       * This used String.match and recorded only the first hit per claim, so a
+       * file declaring the same figure twice had the second fall outside every
+       * window and get reported as undeclared. `lib/public-figures.ts` states
+       * the index size as both a short and a long form, and the forward check
+       * validates both. A sweep that then calls one of them undeclared teaches
+       * people to silence it with an exemption, which is how a guard stops
+       * guarding.
+       */
+      const g = new RegExp(c.pattern.source, c.pattern.flags.replace('g', '') + 'g');
+      for (const dm of text.matchAll(g)) {
+        if (dm.index !== undefined) claimedRanges.push([dm.index, dm.index + dm[0].length]);
+      }
     }
 
     for (const shape of FIGURE_SHAPES) {
