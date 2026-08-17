@@ -216,14 +216,23 @@ function makeProvider(url: string, chain: SupportedChain): ethers.JsonRpcProvide
  * turns one dead provider into a timeout for the whole import, which is a worse
  * failure than the one it set out to fix.
  *
+ * `attemptCostMs` is what one attempt can cost in the worst case, and the
+ * caller must say. It defaults to a single timeout, which is right for one
+ * request and badly wrong for `detectContractType`: that makes three sequential
+ * timed calls, so gating on one `RPC_TIMEOUT_MS` would happily start a retry
+ * with 15s left that then spends 45s. The budget it overruns is shared with the
+ * public explorer fallback, so the cost lands exactly when the metered index
+ * has already failed and the fallback is the only thing left.
+ *
  * A caller that passes no deadline gets one attempt per endpoint with no extra
  * gate, which is the old behaviour plus the retries.
  */
 async function withProvider<T>(
   chain: SupportedChain,
   fn: (provider: ethers.JsonRpcProvider) => Promise<T>,
-  deadlineMs?: number
+  options: { deadlineMs?: number; attemptCostMs?: number } = {}
 ): Promise<T> {
+  const { deadlineMs, attemptCostMs = RPC_TIMEOUT_MS } = options;
   const urls = providerUrls(chain);
   let lastError: unknown;
 
@@ -231,7 +240,7 @@ async function withProvider<T>(
     // Only the *retries* are gated. The first attempt always runs, so a caller
     // arriving with no budget left still gets a real error from a real call
     // rather than a confusing one about time.
-    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < RPC_TIMEOUT_MS) {
+    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < attemptCostMs) {
       break;
     }
     try {
@@ -307,7 +316,9 @@ export async function detectContractType(
 
       return 'ERC-20' as ContractType;
     },
-    deadlineMs
+    // Three sequential timed calls in the worst case: getCode, then both
+    // supportsInterface probes.
+    { deadlineMs, attemptCostMs: RPC_TIMEOUT_MS * 3 }
   );
 
   if (detected === 'NOT_A_CONTRACT') {
@@ -354,7 +365,9 @@ async function getTokenInfo(
           symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'UNKNOWN',
         };
       },
-      deadlineMs
+      // name() and symbol() race in parallel, so one attempt costs one timeout,
+      // not two.
+      { deadlineMs, attemptCostMs: RPC_TIMEOUT_MS }
     );
   } catch {
     // Every endpoint failed. The name is cosmetic and the holder list is not,
@@ -459,6 +472,14 @@ async function getERC721Holders(
  * on a latency-limited one, where the retry pays the floor again for fewer
  * rows. Base therefore yields a first page and usually not much more, correctly
  * marked truncated. A thousand real holders beats an error.
+ *
+ * **Base is also the one that fails outright sometimes.** Across a dozen calls
+ * while this was written it returned holders four times, answered 500 twice,
+ * and throttled once. It is kept anyway, because the comparison for a fallback
+ * is not "reliable or not" but "this or nothing", and nothing is what Base
+ * ERC-20 import had on a spent allowance. What its flakiness does change is the
+ * check: `scripts/check-holder-fallback.ts` retries once before calling a chain
+ * broken, or a weekly alarm fires on Base's bad minute rather than on real rot.
  *
  * Do not re-measure with USDC. It has 12.7M holders on Base and 4.2M on
  * Polygon, and it times out on both at every page size, which reads as a dead

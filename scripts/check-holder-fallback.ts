@@ -118,33 +118,38 @@ async function main() {
     );
   }
 
-  for (const probe of PROBES) {
-    if (!claimed.includes(probe.chain)) continue;
-    const label = CHAIN_LABELS[probe.chain];
-    const startedAt = Date.now();
+  /**
+   * One attempt against one chain. `null` means it worked.
+   *
+   * `busy` is separated from `failed` because the two deserve opposite
+   * treatment: a throttled explorer is alive and answering, which is the
+   * opposite of what this check exists to detect.
+   */
+  type Attempt = null | { busy: true } | { busy: false; detail: string };
 
+  async function probeOnce(probe: Probe, label: string): Promise<Attempt> {
+    const startedAt = Date.now();
     try {
       const result = await getContractHolders(probe.token, probe.chain, PROBE_LIMIT);
       const ms = Date.now() - startedAt;
-
-      if (result.wallets.length === 0) {
-        failures.push(`${label}: explorer reachable but returned no holders for ${probe.symbol}`);
-        continue;
-      }
 
       /**
        * A holder list whose rows are not addresses is worse than an empty one,
        * because everything downstream treats it as a real import. Cheap to
        * check and it catches an explorer that changed its response shape, which
        * is the most likely way one of these breaks without going offline.
+       *
+       * An *empty* list needs no branch here: `getContractHolders` raises
+       * NO_HOLDERS before returning one, and that is handled below.
        */
       const malformed = result.wallets.filter((w) => !/^0x[0-9a-f]{40}$/.test(w));
       if (malformed.length > 0) {
-        failures.push(
-          `${label}: ${malformed.length} of ${result.wallets.length} rows are not wallet addresses ` +
-            `(first: ${malformed[0]})`
-        );
-        continue;
+        return {
+          busy: false,
+          detail:
+            `${malformed.length} of ${result.wallets.length} rows are not wallet ` +
+            `addresses (first: ${malformed[0]})`,
+        };
       }
 
       console.log(
@@ -152,6 +157,7 @@ async function main() {
           `of ${probe.symbol} in ${(ms / 1000).toFixed(1)}s` +
           (result.totalHolders > 0 ? ` (of ${result.totalHolders.toLocaleString()} total)` : '')
       );
+      return null;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const cause = error instanceof Error ? error.cause : undefined;
@@ -159,7 +165,22 @@ async function main() {
         cause instanceof Error ? cause.message : cause ? String(cause) : null;
 
       /**
-       * Anything that is not the rethrown metered error never reached the
+       * NO_HOLDERS means the fallback ran and came back empty.
+       *
+       * It is raised by `getContractHolders` *after* the fallback has already
+       * succeeded, so it must be read before the "never reached the fallback"
+       * branch below — which would otherwise blame the chain's RPC for a result
+       * the explorer produced.
+       */
+      if (message === 'NO_HOLDERS') {
+        return {
+          busy: false,
+          detail: `the fallback ran and returned no holders at all for ${probe.symbol}`,
+        };
+      }
+
+      /**
+       * Anything else that is not the rethrown metered error never reached the
        * fallback, and its own message is the diagnosis.
        *
        * This branch is here because the first version assumed `message` was
@@ -170,35 +191,60 @@ async function main() {
        * code whose job was to report it. Report what came back.
        */
       if (message !== 'MORALIS_NOT_CONFIGURED') {
-        failures.push(
-          `${label}: could not get as far as the fallback — ${message} ` +
-            `(this is the chain's RPC or the contract, not the explorer)`
-        );
-        continue;
+        return {
+          busy: false,
+          detail:
+            `could not get as far as the fallback — ${message} ` +
+            `(this is the chain's RPC or the contract, not the explorer)`,
+        };
       }
 
-      /**
-       * A 429 is not rot, and must not fail this check.
-       *
-       * It means the explorer is alive, answering, and busy — which is the
-       * opposite of the thing this check exists to detect. Failing on it would
-       * make a weekly alarm that fires when a free service has a popular
-       * minute, and an alarm that cries wolf gets ignored on the week it is
-       * right. Reported and passed.
-       */
-      if (causeMessage === 'RATE_LIMIT') {
-        console.log(
-          `  busy ${label.padEnd(15)} explorer reachable but throttling us — not a failure`
-        );
-        continue;
-      }
+      if (causeMessage === 'RATE_LIMIT') return { busy: true };
 
-      const detail =
-        causeMessage === null
-          ? 'the fallback never engaged — the metered error was rethrown with no cause attached'
-          : causeMessage;
-      failures.push(`${label}: ${detail}`);
+      return {
+        busy: false,
+        detail:
+          causeMessage === null
+            ? 'the fallback never engaged — the metered error was rethrown with no cause attached'
+            : causeMessage,
+      };
     }
+  }
+
+  for (const probe of PROBES) {
+    if (!claimed.includes(probe.chain)) continue;
+    const label = CHAIN_LABELS[probe.chain];
+
+    /**
+     * Two attempts before calling it broken.
+     *
+     * Not flake-hiding, which would be reporting a pass on a failure. These are
+     * free public services under load from everybody, and Base in particular
+     * answers 500 or times out on a minority of requests while working fine on
+     * the rest — measured across a dozen calls while building this. One attempt
+     * therefore samples the service's bad minute as readily as its real state,
+     * and a weekly alarm that fires on a coin flip is one nobody reads by the
+     * time it is right.
+     *
+     * A second failure is reported in full, and a retry that had to be used is
+     * printed, so an explorer degrading toward useless is visible long before
+     * it fails outright.
+     */
+    let attempt = await probeOnce(probe, label);
+    if (attempt !== null && attempt.busy === false) {
+      console.log(`  ...  ${label.padEnd(15)} first attempt failed, retrying once`);
+      await new Promise((r) => setTimeout(r, 3_000));
+      attempt = await probeOnce(probe, label);
+    }
+
+    if (attempt === null) continue;
+    if (attempt.busy) {
+      console.log(
+        `  busy ${label.padEnd(15)} explorer reachable but throttling us — not a failure`
+      );
+      continue;
+    }
+    failures.push(`${label}: ${attempt.detail} (failed twice)`);
   }
 
   console.log('');
