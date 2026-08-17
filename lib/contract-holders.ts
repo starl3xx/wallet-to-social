@@ -36,6 +36,22 @@ const RPC_TIMEOUT_MS = 15000;
  */
 const DEFAULT_HOLDER_BUDGET_MS = 45_000;
 
+/**
+ * The slice of that budget the RPC phase may spend before the holder fetch.
+ *
+ * Contract-type detection and token metadata come first and can fail over
+ * across three endpoints. Bounding them here is what stops that failover eating
+ * the time the public explorer fallback needs — which would land precisely when
+ * the metered index has already failed and the fallback is all that is left.
+ *
+ * 20s of 45s. Generous against a healthy endpoint, which answers in well under
+ * a second, and firm against three dead ones.
+ */
+const RPC_PHASE_BUDGET_MS = 20_000;
+
+/** Least time in which a retry against a healthy endpoint is worth starting. */
+const MIN_RPC_RETRY_MS = 2_000;
+
 export interface HolderFetchOptions {
   /**
    * Absolute epoch-ms ceiling for the whole fetch, shared across every attempt
@@ -75,10 +91,17 @@ const TOKEN_INFO_ABI = [
 
 // RPC endpoints for different chains
 const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
+  // Order is by what answers from a datacenter, measured in CI on 2026-08-17,
+  // not by reputation. llamarpc serves a Cloudflare interstitial (403 "Just a
+  // moment...") to GitHub Actions runners, and Ankr now requires an API key and
+  // answers with a JSON-RPC error telling you to get one. publicnode served
+  // every request. The two that fail are kept as third and fourth because they
+  // fail instantly and cost nothing, and because "blocks a datacenter IP" is a
+  // policy that can change back.
   ethereum: [
+    'https://ethereum.publicnode.com',
     'https://eth.llamarpc.com',
     'https://rpc.ankr.com/eth',
-    'https://ethereum.publicnode.com',
   ],
   base: [
     'https://mainnet.base.org',
@@ -216,13 +239,23 @@ function makeProvider(url: string, chain: SupportedChain): ethers.JsonRpcProvide
  * turns one dead provider into a timeout for the whole import, which is a worse
  * failure than the one it set out to fix.
  *
- * `attemptCostMs` is what one attempt can cost in the worst case, and the
- * caller must say. It defaults to a single timeout, which is right for one
- * request and badly wrong for `detectContractType`: that makes three sequential
- * timed calls, so gating on one `RPC_TIMEOUT_MS` would happily start a retry
- * with 15s left that then spends 45s. The budget it overruns is shared with the
- * public explorer fallback, so the cost lands exactly when the metered index
- * has already failed and the fallback is the only thing left.
+ * ## Why the gate does not try to predict what one attempt costs
+ *
+ * It did, for one commit, and that was a mistake worth recording. The concern
+ * is real: `detectContractType` makes three sequential timed calls, so gating a
+ * retry on a single `RPC_TIMEOUT_MS` lets one start with 15s left and spend 45.
+ * The obvious fix — require the worst case, three timeouts — made the gate
+ * impossible to satisfy, because three timeouts *is* the whole holder budget.
+ * Failover switched itself off silently, and CI failed on Ethereum reporting
+ * the first endpoint's error with two healthy endpoints never tried.
+ *
+ * The requirement was never "can this attempt finish". It is "will the public
+ * explorer fallback still have time afterwards", and that is answered by
+ * bounding the phase rather than forecasting it: callers pass an RPC-phase
+ * deadline that is a slice of the holder budget (see RPC_PHASE_BUDGET_MS), and
+ * every call inside clamps its own timeout to what is left of it. Failover then
+ * cannot overrun, whatever `fn` happens to do, and no caller has to describe
+ * its own cost correctly for the guard to hold.
  *
  * A caller that passes no deadline gets one attempt per endpoint with no extra
  * gate, which is the old behaviour plus the retries.
@@ -230,9 +263,8 @@ function makeProvider(url: string, chain: SupportedChain): ethers.JsonRpcProvide
 async function withProvider<T>(
   chain: SupportedChain,
   fn: (provider: ethers.JsonRpcProvider) => Promise<T>,
-  options: { deadlineMs?: number; attemptCostMs?: number } = {}
+  deadlineMs?: number
 ): Promise<T> {
-  const { deadlineMs, attemptCostMs = RPC_TIMEOUT_MS } = options;
   const urls = providerUrls(chain);
   let lastError: unknown;
 
@@ -240,7 +272,11 @@ async function withProvider<T>(
     // Only the *retries* are gated. The first attempt always runs, so a caller
     // arriving with no budget left still gets a real error from a real call
     // rather than a confusing one about time.
-    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < attemptCostMs) {
+    //
+    // A healthy endpoint answers these calls in well under a second, so a
+    // couple of seconds is enough for a retry to be worth starting; anything
+    // slower than that was not going to rescue this import anyway.
+    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < MIN_RPC_RETRY_MS) {
       break;
     }
     try {
@@ -280,10 +316,24 @@ export async function detectContractType(
   const detected = await withProvider(
     chain,
     async (provider) => {
+      /**
+       * Each call takes what is left of the phase, not a flat 15s.
+       *
+       * This is what makes the retry gate safe without predicting anything:
+       * three sequential calls cannot add up past the phase deadline, because
+       * the third one cannot start a 15s wait when 3s remain. Without the
+       * clamp the guard would depend on every call site describing its own
+       * worst case correctly, which is exactly the assumption that broke.
+       */
+      const budget = () =>
+        deadlineMs === undefined
+          ? RPC_TIMEOUT_MS
+          : Math.max(1_000, Math.min(RPC_TIMEOUT_MS, deadlineMs - Date.now()));
+
       // Verify it's a contract (not an EOA)
       const code = await withTimeout(
         provider.getCode(address),
-        RPC_TIMEOUT_MS,
+        budget(),
         'Contract code check timed out'
       );
 
@@ -298,7 +348,7 @@ export async function detectContractType(
         // Check ERC-721
         const isERC721 = await withTimeout(
           contract.supportsInterface(ERC721_INTERFACE_ID),
-          RPC_TIMEOUT_MS,
+          budget(),
           'ERC-721 check timed out'
         );
         if (isERC721) return 'ERC-721' as ContractType;
@@ -306,7 +356,7 @@ export async function detectContractType(
         // Check ERC-1155
         const isERC1155 = await withTimeout(
           contract.supportsInterface(ERC1155_INTERFACE_ID),
-          RPC_TIMEOUT_MS,
+          budget(),
           'ERC-1155 check timed out'
         );
         if (isERC1155) return 'ERC-1155' as ContractType;
@@ -316,9 +366,7 @@ export async function detectContractType(
 
       return 'ERC-20' as ContractType;
     },
-    // Three sequential timed calls in the worst case: getCode, then both
-    // supportsInterface probes.
-    { deadlineMs, attemptCostMs: RPC_TIMEOUT_MS * 3 }
+    deadlineMs
   );
 
   if (detected === 'NOT_A_CONTRACT') {
@@ -341,9 +389,15 @@ async function getTokenInfo(
       async (provider) => {
         const contract = new ethers.Contract(address, TOKEN_INFO_ABI, provider);
 
+        // Clamped to the phase for the same reason as in detectContractType.
+        const budget =
+          deadlineMs === undefined
+            ? RPC_TIMEOUT_MS
+            : Math.max(1_000, Math.min(RPC_TIMEOUT_MS, deadlineMs - Date.now()));
+
         const [nameResult, symbolResult] = await Promise.allSettled([
-          withTimeout(contract.name(), RPC_TIMEOUT_MS, 'name() timed out'),
-          withTimeout(contract.symbol(), RPC_TIMEOUT_MS, 'symbol() timed out'),
+          withTimeout(contract.name(), budget, 'name() timed out'),
+          withTimeout(contract.symbol(), budget, 'symbol() timed out'),
         ]);
 
         /**
@@ -365,9 +419,7 @@ async function getTokenInfo(
           symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'UNKNOWN',
         };
       },
-      // name() and symbol() race in parallel, so one attempt costs one timeout,
-      // not two.
-      { deadlineMs, attemptCostMs: RPC_TIMEOUT_MS }
+      deadlineMs
     );
   } catch {
     // Every endpoint failed. The name is cosmetic and the holder list is not,
@@ -1033,14 +1085,23 @@ export async function getContractHolders(
   // Never exceed the hard ceiling, even if a caller asks for more
   const effectiveLimit = Math.min(limit, HOLDER_LIMIT);
 
+  /**
+   * The RPC phase gets a bounded slice, and the holder fetch keeps the rest.
+   *
+   * Both calls below share one phase deadline computed here, so failover inside
+   * either cannot spend the time the holder fetch — and in particular the
+   * public explorer fallback — is going to need.
+   */
+  const rpcDeadlineMs = Math.min(deadlineMs, Date.now() + RPC_PHASE_BUDGET_MS);
+
   // Detect contract type
-  const contractType = await detectContractType(normalizedAddress, chain, deadlineMs);
+  const contractType = await detectContractType(normalizedAddress, chain, rpcDeadlineMs);
 
   // Get token info
   const { name: tokenName, symbol: tokenSymbol } = await getTokenInfo(
     normalizedAddress,
     chain,
-    deadlineMs
+    rpcDeadlineMs
   );
 
   // Fetch holders based on contract type
