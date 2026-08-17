@@ -10,6 +10,7 @@ import {
   boolean,
   date,
   numeric,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 
 // Cache individual wallet social lookups (24h TTL)
@@ -71,6 +72,21 @@ export const socialGraph = pgTable(
     ensName: text('ens_name'),
     twitterHandle: text('twitter_handle'),
     twitterUrl: text('twitter_url'),
+    /**
+     * The numeric X account id, where a source gave us one that provably
+     * belongs to the handle beside it.
+     *
+     * A handle is a string its owner can change; an id is not. Almost every
+     * handle in this table came from Farcaster, which stores the string and no
+     * id, so a rename is invisible to us: a random sample of 300 on 2026-08-16
+     * found 7.7% pointing at accounts that no longer exist. This column is the
+     * only thing in the pipeline that can tell a rename from a deletion.
+     *
+     * Only ever written next to a handle it belongs to. When two sources name
+     * different handles for one wallet, this is left alone and the
+     * disagreement goes to `handle_conflicts` instead.
+     */
+    twitterUserId: text('twitter_user_id'),
     farcaster: text('farcaster'),
     farcasterUrl: text('farcaster_url'),
     fcFollowers: integer('fc_followers'),
@@ -449,6 +465,42 @@ export const socialGraphHistory = pgTable(
   ]
 );
 
+/**
+ * Where two attested sources name different accounts for the same wallet.
+ *
+ * A disagreement between two owner-attested sources is evidence, not noise for
+ * whichever source wrote last to settle. Measured on 250 real conflicts: 54% of
+ * the time our stored handle no longer resolves to any X account, and among the
+ * cases where both handles are live, 90% of the time ours belongs to a person
+ * who does not claim the wallet at all. A silent overwrite would discard that
+ * signal; a silent keep goes on serving a handle that points at a stranger.
+ *
+ * Keyed by (wallet, platform, their_source) so one wallet can be in conflict
+ * with more than one source without the rows fighting each other.
+ */
+export const handleConflicts = pgTable(
+  'handle_conflicts',
+  {
+    wallet: text('wallet').notNull(),
+    platform: text('platform').notNull().default('twitter'),
+    ours: text('ours').notNull(),
+    ourSources: text('our_sources').array(),
+    theirs: text('theirs').notNull(),
+    theirSource: text('their_source').notNull(),
+    theirUserId: text('their_user_id'),
+    firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
+    // Moves on every sweep, so a conflict that quietly goes away stops being
+    // surfaced without anybody deleting a row.
+    lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
+    resolvedAt: timestamp('resolved_at'),
+    resolution: text('resolution'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.wallet, table.platform, table.theirSource] }),
+    index('handle_conflicts_unresolved_idx').on(table.lastSeenAt),
+  ]
+);
+
 // Types for insert/select
 export type WalletCache = typeof walletCache.$inferSelect;
 export type NewWalletCache = typeof walletCache.$inferInsert;
@@ -456,6 +508,8 @@ export type LookupHistory = typeof lookupHistory.$inferSelect;
 export type NewLookupHistory = typeof lookupHistory.$inferInsert;
 export type SocialGraph = typeof socialGraph.$inferSelect;
 export type NewSocialGraph = typeof socialGraph.$inferInsert;
+export type HandleConflict = typeof handleConflicts.$inferSelect;
+export type NewHandleConflict = typeof handleConflicts.$inferInsert;
 export type LookupJob = typeof lookupJobs.$inferSelect;
 export type NewLookupJob = typeof lookupJobs.$inferInsert;
 export type User = typeof users.$inferSelect;

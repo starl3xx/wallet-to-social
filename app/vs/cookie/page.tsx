@@ -93,7 +93,7 @@ export default function CookieComparison() {
                 with the reachable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="4.7M" label="wallets indexed" />
+              <Figure value="4.9M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />

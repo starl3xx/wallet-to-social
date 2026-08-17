@@ -13,6 +13,7 @@ Responses include a `sources` array describing what kind of evidence backs the r
 | --- | --- |
 | `onchain` | Published by the address owner in an onchain record. |
 | `farcaster` | A protocol-level Farcaster account verification. |
+| `attested-social` | The owner proved the wallet with a signature and the account with a sign-in, on an identity platform. |
 | `manual` | Reviewed by us directly. |
 | `aggregated` | Correlated from a third-party identity index. Weaker than the others. |
 
@@ -53,6 +54,34 @@ On [`GET /api/v1/wallet/{address}`](/api-reference/wallet) this surfaces in two 
 - `X-Data-Staleness: stale` and `X-Last-Updated`, response headers, sent only when the record is stale.
 
 Stale does not mean wrong. It means we have not re-confirmed it recently. Farcaster records refresh daily, so they rarely go stale. Onchain records are only re-read on a slower cycle, because they change rarely and reading them is expensive.
+
+## When a handle stops being true
+
+An attestation records what was true when the owner made it. An X handle is a
+name its owner can change at any time, and changing it breaks nothing on their
+side, so nothing announces it.
+
+This has a consequence worth stating plainly, because it is the one way an
+attested match can be wrong. If someone verified `@alice` and later renamed to
+`@alice_eth`, an attestation that stored only the string still says `@alice`.
+That name is now free, somebody else may hold it, and the record has quietly
+stopped pointing at the person who made it.
+
+Two things address it, and neither is a promise that it cannot happen.
+
+**We store the account id where a route provides one.** An id is permanent in a
+way a handle is not. Routes that carry one let us follow a rename instead of
+losing it, and `attested-social` is the route that carries one today.
+
+**We record disagreements rather than settling them.** When two owner-attested
+routes name different accounts for one wallet, that is evidence something moved.
+We do not overwrite one with the other and we do not silently pick a winner: the
+record keeps the handle it had, the conflicting account id is not written beside
+a handle it does not belong to, and the disagreement is queued for review.
+
+If you are running outreach on a list you enriched a while ago, re-check it
+rather than assuming a handle that was attested is still live. `meta.stale` and
+`X-Data-Staleness` tell you when we last re-confirmed a record.
 
 ## Found, missing, and checked
 

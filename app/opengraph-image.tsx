@@ -81,7 +81,7 @@ export default async function OGImage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '56px' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em' }}>4.7M</span>
+              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em' }}>4.9M</span>
               <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>wallets indexed</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>

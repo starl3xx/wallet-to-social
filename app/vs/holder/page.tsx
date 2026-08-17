@@ -100,7 +100,7 @@ export default function HolderComparison() {
                 with the reachable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="4.7M" label="wallets indexed" />
+              <Figure value="4.9M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
@@ -257,7 +257,7 @@ export default function HolderComparison() {
               <li>Save lookups (Pro+), and grow them with new addresses (Unlimited)</li>
             </ol>
             <p className="text-muted-foreground">
-              Lookups are backed by an index of 4.7M wallets with complete
+              Lookups are backed by an index of 4.9M wallets with complete
               Farcaster protocol coverage, refreshed daily. Over 99.9% of
               Twitter matches are user-attested (links the wallet owner created
               themselves, such as a verified Farcaster account or an onchain ENS
