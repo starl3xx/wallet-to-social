@@ -93,7 +93,7 @@ export default function AddressableComparison() {
                 with the reachable one in brand because it is the number to act on
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="4.9M" label="wallets indexed" />
+              <Figure value="5M" label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure value="13%" label="reachable on X or Farcaster" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
@@ -135,7 +135,7 @@ export default function AddressableComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Index size</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      4.9M wallets, complete Farcaster coverage
+                      5M wallets, complete Farcaster coverage
                     </td>
                     <td className="py-4 pl-4">
                       23M claimed (methodology undisclosed)
@@ -312,7 +312,7 @@ export default function AddressableComparison() {
             </ol>
             <p className="text-muted-foreground">
               Matches are deterministic and user-attested (Farcaster verified
-              accounts and onchain ENS records), backed by a 4.9M-wallet
+              accounts and onchain ENS records), backed by a 5M-wallet
               index covering the complete Farcaster protocol. Addressable
               advertises 23M matched owners built with probabilistic
               &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of our
