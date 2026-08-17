@@ -33,6 +33,17 @@ All notable changes to walletlink.social. Newest first.
 - **Icebreaker was measured and refused.** Of 1,227 profiles, 84 give a verified
   pair, and 69 of those we already hold. 15 new. The unverified ones are
   self-declared, which is what this product says it does not use.
+- **Corrected before release: 3,566 rows were saved and could not be found.**
+  The two new sources wrote the X name as the source wrote it, in mixed case.
+  The reverse search makes the question lower case and looks for an exact match,
+  so those rows were correct, present and impossible to find by name. 56.5% of
+  the new rows. The names are now made standard in the one shared place, where no
+  new source can forget the step, and the 3,566 rows are corrected.
+- **Two smaller faults found at the same time.** When the same wallet and name
+  arrived two times, the last one won, which could throw away the account number
+  that is the whole reason for the Clanker source. And a record type that failed
+  after its first page was counted as read, so a part-finished sweep reported
+  success.
 - Index now 4,938,576 wallets, 1,149,451 with an X handle.
 
 

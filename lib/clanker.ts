@@ -59,6 +59,7 @@ export interface ClankerSweepStats {
   withAccountId: number;
   links: number;
   contested: number;
+  rejected: number;
   newWallets: number;
   filled: number;
   agree: number;
@@ -225,6 +226,7 @@ export async function sweepClanker(
     withAccountId: 0,
     links: 0,
     contested: 0,
+    rejected: 0,
     newWallets: 0,
     filled: 0,
     agree: 0,
@@ -284,6 +286,7 @@ export async function sweepClanker(
   const ingested = await ingestLinks(links, SOURCE);
   stats.links = ingested.links;
   stats.contested = ingested.contested;
+  stats.rejected = ingested.rejected;
   stats.newWallets = ingested.newWallets;
   stats.filled = ingested.filled;
   stats.agree = ingested.agree;

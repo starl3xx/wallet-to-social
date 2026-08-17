@@ -31,9 +31,14 @@ export async function GET(request: NextRequest) {
     // Partial coverage is not a success. This runs unattended, so a schema we
     // could not read has to show up in the status code rather than in a field
     // nobody reads.
-    if (stats.schemasFailed > 0) {
+    if (stats.schemasFailed > 0 || stats.schemasPartial > 0) {
       return NextResponse.json(
-        { message: `${stats.schemasFailed} schema(s) unreadable`, ...stats },
+        {
+          message:
+            `${stats.schemasFailed} schema(s) unreadable, ` +
+            `${stats.schemasPartial} read only in part`,
+          ...stats,
+        },
         { status: 502 }
       );
     }

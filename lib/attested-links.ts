@@ -36,6 +36,7 @@
  */
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
+import { cleanTwitterHandle } from './twitter-cleaner';
 
 /** Rows per statement. What the other sweeps settled on. */
 const BATCH = 500;
@@ -70,6 +71,8 @@ export interface IngestStats {
   links: number;
   /** Addresses two different accounts both claimed, dropped rather than guessed. */
   contested: number;
+  /** Links whose handle could not be normalised into a usable one. */
+  rejected: number;
   newWallets: number;
   filled: number;
   agree: number;
@@ -91,19 +94,49 @@ export interface IngestStats {
 export function dedupeByWallet(links: AttestedLink[]): {
   links: AttestedLink[];
   contested: number;
+  rejected: number;
 } {
   const byWallet = new Map<string, AttestedLink>();
   const contested = new Set<string>();
-  for (const link of links) {
-    const wallet = link.wallet.toLowerCase();
-    const existing = byWallet.get(wallet);
-    if (existing && existing.handle.toLowerCase() !== link.handle.toLowerCase()) {
-      contested.add(wallet);
+  let rejected = 0;
+
+  for (const raw of links) {
+    /**
+     * Normalised HERE, not in each adapter, and this was a live defect before
+     * it was a rule. Two adapters skipped `cleanTwitterHandle` and stored the
+     * handle as the source wrote it, so 56.5% of their rows were mixed case.
+     * Reverse lookup compares a lowercased query with `eq`, so 3,566 wallets
+     * were invisible to handle search: present, correct, and unfindable.
+     *
+     * An adapter cannot be trusted to remember a normalisation step that
+     * nothing fails without, so it lives where every source passes through.
+     */
+    const handle = cleanTwitterHandle(raw.handle);
+    if (!handle) {
+      rejected++;
+      continue;
     }
-    byWallet.set(wallet, { ...link, wallet });
+    const wallet = raw.wallet.toLowerCase();
+    const link: AttestedLink = { wallet, handle, twitterUserId: raw.twitterUserId ?? null };
+
+    const existing = byWallet.get(wallet);
+    if (existing && existing.handle !== link.handle) {
+      contested.add(wallet);
+      byWallet.set(wallet, link);
+      continue;
+    }
+    /**
+     * When the same wallet and handle arrive twice, keep whichever carries an
+     * account id. Clanker emits both an id-shaped and a name-shaped record for
+     * the same account, so taking the last one would discard the id that this
+     * source exists to provide.
+     */
+    if (existing && existing.twitterUserId && !link.twitterUserId) continue;
+    byWallet.set(wallet, link);
   }
+
   for (const wallet of contested) byWallet.delete(wallet);
-  return { links: [...byWallet.values()], contested: contested.size };
+  return { links: [...byWallet.values()], contested: contested.size, rejected };
 }
 
 /**
@@ -288,7 +321,7 @@ export async function ingestLinks(
   rawLinks: AttestedLink[],
   source: LinkSource
 ): Promise<IngestStats> {
-  const { links, contested } = dedupeByWallet(rawLinks);
+  const { links, contested, rejected } = dedupeByWallet(rawLinks);
 
   const counts = await classifyLinks(links);
   const conflicts = await recordConflicts(links, source);
@@ -297,6 +330,7 @@ export async function ingestLinks(
   return {
     links: links.length,
     contested,
+    rejected,
     newWallets: counts.newWallets,
     filled: counts.wouldFill,
     agree: counts.agree,

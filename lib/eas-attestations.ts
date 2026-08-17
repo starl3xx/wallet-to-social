@@ -102,9 +102,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export interface EasSweepStats {
   schemasRead: number;
   schemasFailed: number;
+  /** Schemas read only in part. Coverage is short by an unknown amount. */
+  schemasPartial: number;
   attestations: number;
   links: number;
   contested: number;
+  rejected: number;
   newWallets: number;
   filled: number;
   agree: number;
@@ -163,7 +166,9 @@ function linkFrom(a: Attestation, shape: SchemaSource['shape']): AttestedLink | 
 }
 
 /** Page one schema. Returns null if it could not be read at all. */
-async function readSchema(s: SchemaSource): Promise<{ links: AttestedLink[]; rows: number } | null> {
+async function readSchema(
+  s: SchemaSource
+): Promise<{ links: AttestedLink[]; rows: number; partial: boolean } | null> {
   const links: AttestedLink[] = [];
   let rows = 0;
   let skip = 0;
@@ -193,7 +198,11 @@ async function readSchema(s: SchemaSource): Promise<{ links: AttestedLink[]; row
 
     // Page zero failing means the schema was never read; a later page failing
     // means partial coverage. Both are reported rather than silently accepted.
-    if (batch === null) return page === 0 ? null : { links, rows };
+    // Page zero failing means the schema was never read; a later page failing
+    // means partial coverage. Both are reported, and `partial` matters: without
+    // it a schema that died halfway counted as read and the cron returned 200
+    // on an incomplete sweep.
+    if (batch === null) return page === 0 ? null : { links, rows, partial: true };
     if (batch.length === 0) break;
 
     rows += batch.length;
@@ -205,7 +214,7 @@ async function readSchema(s: SchemaSource): Promise<{ links: AttestedLink[]; row
     await sleep(PAGE_DELAY_MS);
   }
 
-  return { links, rows };
+  return { links, rows, partial: false };
 }
 
 /**
@@ -223,6 +232,7 @@ export async function sweepEasAttestations(
   let attestations = 0;
   let schemasRead = 0;
   let schemasFailed = 0;
+  let schemasPartial = 0;
 
   for (const schema of SCHEMAS) {
     const result = await readSchema(schema);
@@ -232,6 +242,7 @@ export async function sweepEasAttestations(
       continue;
     }
     schemasRead++;
+    if (result.partial) schemasPartial++;
     attestations += result.rows;
     all.push(...result.links);
     onProgress?.(`EAS: ${schema.label}: ${result.rows} attestations, ${result.links.length} links`);
@@ -248,9 +259,11 @@ export async function sweepEasAttestations(
   return {
     schemasRead,
     schemasFailed,
+    schemasPartial,
     attestations,
     links: ingested.links,
     contested: ingested.contested,
+    rejected: ingested.rejected,
     newWallets: ingested.newWallets,
     filled: ingested.filled,
     agree: ingested.agree,
