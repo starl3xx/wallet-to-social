@@ -64,6 +64,9 @@ export const ExportButton = memo(function ExportButton({
       ),
       'twitter_handle',
       'twitter_url',
+      // Blank where we have not checked. An empty cell is honest about not
+      // knowing; writing "false" there would claim we looked and it failed.
+      'twitter_reachable',
       'farcaster',
       'farcaster_url',
       'fc_fid',
@@ -86,6 +89,14 @@ export const ExportButton = memo(function ExportButton({
       // is handed to the customer as a file, so it is the same disclosure
       // surface as an API response and gets the same treatment.
       source: (publicSources(result.source) ?? []).join(','),
+      // 'true' / 'false' / '' for unchecked, and the word rather than a status
+      // code because this cell is read by a person in a spreadsheet. The detail
+      // of WHY it is unreachable lives in the API, not here.
+      twitter_reachable: result.twitter_reachability
+        ? result.twitter_reachability === 'live'
+          ? 'true'
+          : 'false'
+        : '',
       is_agent: result.is_agent ? 'true' : '',
       agent_name: result.agent_name || '',
       agent_framework: result.agent_framework || '',
@@ -106,14 +117,27 @@ export const ExportButton = memo(function ExportButton({
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * The handle list is the one that gets acted on.
+   *
+   * A CSV is read; this file is pasted into an outreach tool. So handles we have
+   * checked and found unreachable are left out of it. Around a third of attested
+   * Farcaster X handles reach nobody, and a suspended account wastes a send
+   * while a freed handle may now belong to a stranger, which is worse.
+   *
+   * Only handles we have actually checked are excluded. An unchecked handle
+   * still goes in the file: we have no reason to withhold it, and treating "not
+   * checked" as "dead" would quietly shrink the list on no evidence.
+   */
   const handleExportTwitterList = () => {
-    // Filter results that have Twitter handles and extract them
-    const twitterHandles = sortedResults
-      .filter((r) => r.twitter_handle)
-      .map((r) => `@${r.twitter_handle}`);
+    const withHandles = sortedResults.filter((r) => r.twitter_handle);
+    const reachable = withHandles.filter(
+      (r) => !r.twitter_reachability || r.twitter_reachability === 'live'
+    );
+    const twitterHandles = reachable.map((r) => `@${r.twitter_handle}`);
 
     if (twitterHandles.length === 0) {
-      alert('No Twitter handles found to export');
+      alert('No reachable Twitter handles found to export');
       return;
     }
 
@@ -134,6 +158,10 @@ export const ExportButton = memo(function ExportButton({
   };
 
   const twitterCount = results.filter((r) => r.twitter_handle).length;
+  const unreachableCount = results.filter(
+    (r) => r.twitter_reachability && r.twitter_reachability !== 'live'
+  ).length;
+  const reachableCount = twitterCount - unreachableCount;
 
   return (
     <div className="flex gap-2">
@@ -141,8 +169,12 @@ export const ExportButton = memo(function ExportButton({
         <Button
           variant="outline"
           onClick={handleExportTwitterList}
-          disabled={disabled || twitterCount === 0}
-          title={`Export ${twitterCount} Twitter handles`}
+          disabled={disabled || reachableCount === 0}
+          title={
+            unreachableCount > 0
+              ? `Export ${reachableCount} reachable handles. ${unreachableCount} left out: the owner attested them and they no longer reach anyone.`
+              : `Export ${reachableCount} Twitter handles`
+          }
         >
           <svg
             className="w-4 h-4 mr-2"
@@ -152,7 +184,10 @@ export const ExportButton = memo(function ExportButton({
           >
             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
           </svg>
-          Export Twitter list ({twitterCount})
+          {/* The reachable count, not the total: the button exports that many.
+              A label counting handles it deliberately leaves out is a label
+              that quietly disagrees with the file it produces. */}
+          Export Twitter list ({reachableCount})
         </Button>
       ) : (
         <Button

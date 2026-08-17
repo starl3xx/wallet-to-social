@@ -11,6 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
+import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
       wallet: socialGraph.wallet,
       ensName: socialGraph.ensName,
       twitterHandle: socialGraph.twitterHandle,
+      twitterVerified: socialGraph.twitterVerified,
       twitterUrl: socialGraph.twitterUrl,
       farcaster: socialGraph.farcaster,
       farcasterUrl: socialGraph.farcasterUrl,
@@ -171,6 +173,8 @@ export async function POST(request: NextRequest) {
 
   // Build result map
   const resultMap = new Map<string, typeof results[0]>();
+  const reach = await reachabilityFor(results.map((r) => r.twitterHandle));
+
   for (const result of results) {
     resultMap.set(result.wallet, result);
   }
@@ -204,10 +208,14 @@ export async function POST(request: NextRequest) {
 
     if (result.ensName) item.ens_name = result.ensName;
     if (result.twitterHandle) {
-      item.twitter = {
+      // Also gains `verified`, which this route omitted while the other three
+      // returned it. One builder is how that stops happening.
+      item.twitter = publicTwitterField({
         handle: result.twitterHandle,
-        url: result.twitterUrl || `https://twitter.com/${result.twitterHandle}`,
-      };
+        url: result.twitterUrl,
+        verified: result.twitterVerified,
+        reachability: reach.get(result.twitterHandle.toLowerCase()) ?? null,
+      });
     }
     if (result.farcaster) {
       item.farcaster = {

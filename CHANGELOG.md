@@ -3,6 +3,117 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-17 (every surface, not only the ones I had touched)
+
+- **Four surfaces were outside the check.** The README said 4.7M, two versions
+  old. The AI assistant was told to say "reachable" in the sense we had just
+  retired. The blog held 71 uses of "22%" over 19 posts, a figure removed from
+  the structured data the same day because nobody could say where it came from.
+  The social media skill said 15-25%.
+- **Blog: only the search descriptions were changed.** A dated post saying 22% in
+  August is a record of what we believed then, not a claim about today. The
+  description is different: it is the text a search engine shows, so it speaks
+  in the present. Four were corrected; the body text stays.
+- **The check now works in both directions.** It compared each declared figure
+  with the database. It now also reads the copy and reports any figure that is
+  **not** declared. A registry catches a number that drifts; it cannot catch a
+  new number somebody writes tomorrow, which is how "22%" reached 19 posts while
+  every declared figure passed.
+- **Both directions were tested with wrong input, and both were broken.** The
+  new sweep asked "does this file have any declared figure", so one declared
+  figure made every other figure in the same file pass. Two false numbers put
+  into the README went through. It now works for each match, not each file.
+- **A comment is not published text.** The first correct version then reported
+  the explanation inside `lib/public-figures.ts` as an undeclared figure, which
+  would teach everyone to stop writing explanations. Comments are removed before
+  a source file is read.
+- The social media skill is outside the repository, so the check cannot see it.
+  It now carries the current figures and says plainly that it is checked by a
+  person, not by the machine.
+
+
+### 2026-08-17 (one number, one place, and the claim moved to where people read it)
+
+- **The header said 4.8M, the documents said 4.9M, and a correction earlier the
+  same day made 20 files say 5M.** Three numbers for one fact. The header was
+  right: `/api/public-stats` counts wallets with at least one identity. The
+  correction counted every row, which adds 235,858 records that mean "we checked
+  and found nothing". Those are real records and they are not wallets we
+  resolved to a person.
+- **`lib/public-figures.ts` now holds the figures.** Five comparison pages, the
+  share card, the page description, the structured data and the home page all
+  read from it. One change moves all of them. Live pages still read the API,
+  which is the true source; the file exists because documents and page
+  descriptions are built before a request exists.
+- **The match rate is a range now, with the measurement behind it.** There is no
+  single number: 26 collections, 72,318 holders, three chains, measured against
+  our own index with no outside calls. Base 46.2%, Ethereum 16.6%, Robinhood
+  Chain 15.6%. Base is about three times Ethereum because Base is where
+  Farcaster lives, so the chain moves the result more than the collection does.
+  An average would hide that.
+- **The old "22% match rate" claim is gone.** Nobody knew where it came from and
+  no measurement produced it.
+- **The check we look at is on the comparison pages now.** Farcaster stores a
+  proved X account as a name, written once, with no account number and no later
+  check. Every tool built on those proofs carries the same dead names, and none
+  can say which. We resolved all of them: 69.6% work, 20.7% suspended, 9.7% are
+  names nobody holds. One component, five pages, and the figures come from the
+  same file as everything else.
+- **The word "reachable" now means one thing.** It was used for "has an X or
+  Farcaster account" in marketing and for "the account still works" in the API.
+
+
+### 2026-08-17 (a machine for the docs rule)
+
+- **Every number we publish is now checked against the database.**
+  `scripts/check-published-figures.ts` holds a list of each published figure: the
+  file that holds it, how to read it, and the query that proves it. 11 figures
+  are checked today.
+- **It runs on a timer, not on a pull request.** The index grows every day, so a
+  number that was correct when written becomes wrong with no commit, no
+  difference and no pull request. A pull-request check cannot see that. It runs
+  every Monday, and also on a pull request that changes the copy.
+- **A claim it cannot find is an error, not a note.** If the words change and
+  the list is not changed, the check would silently examine fewer things each
+  time and report success all the way down.
+- **The check was tested with wrong numbers.** The first version had a 5%
+  tolerance on an exact count, and a wrong figure of 399,999 for a true 417,872
+  passed. A number written to the digit is an exact claim and gets no room.
+- **Corrected: the index passed 5 million**, so "4.9 million" was low in 2 doc
+  pages and 20 places in the app.
+
+
+### 2026-08-17 (we check if the X account still works, and we say so)
+
+- **Every X name in the index is now checked against X.** All 440,700 of them.
+  69.6% work, 20.7% are suspended accounts, and 9.7% are names that nobody holds
+  now. About one third of every attested X name reaches no person.
+- **This is a strength, not a fault.** Farcaster records a proved X account as a
+  **name**, written one time, with no account number and no later check. So
+  nothing in the protocol sees a name change or a suspension. Every product
+  built on those proofs carries the same third. We are the only one that looked.
+  "The owner proved this, and it still works" is a stronger statement than
+  either half.
+- **Results table.** A name we checked and found dead is marked, is not a link,
+  and says why. It is not a link because a suspended account goes to a notice
+  page and a freed name may belong to a different person now, so a click could
+  show a stranger as the owner of the wallet.
+- **Handle list export leaves the dead ones out.** That file gets pasted into a
+  sending tool, so a dead name in it is a wasted send at best. Names we have not
+  checked stay in: "not checked" is not "dead". The button says how many were
+  left out and why.
+- **CSV export gains `twitter_reachable`.** Empty where we did not check.
+- **API: `reachable`, `reachability` and `reachability_checked_at`.** Absent, not
+  false, when we have not checked. `suspended` and `unclaimed` stay separate
+  because only one of them means the record can point at a different person.
+- **One builder for the twitter field.** Four routes described the same fact
+  three different ways, and one of them did not return `verified` at all.
+- **The conflict list can be read.** 2,671 open, of which 1,496 are cases where
+  what we serve reaches nobody and the other source works. Before this they were
+  saved and unreadable. It shows the evidence and does not decide: a suspension
+  can be lifted, and a person can hold two accounts.
+
+
 ### 2026-08-16 (two more attested sources, and one shape for all of them)
 
 - **One set of write rules, three sources.** The rules that decide what reaches

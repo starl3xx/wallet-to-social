@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import { TIER_PRICES } from '@/lib/access';
 import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
+import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
   title: 'walletlink.social vs Addressable: Comparison (2026)',
@@ -90,15 +92,21 @@ export default function AddressableComparison() {
             </div>
 
             {/* The proof row closes the hero. Four figures, each appearing once,
-                with the reachable one in brand because it is the number to act on
+                with the contactable one in brand because it is the number to act on.
+                It is a range, not an average: Base measures 46.2% and Ethereum
+                16.6%, and an average would hide the thing that decides a campaign
                 and coverage carrying a green mark because it is the measured one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
-              <Figure value="4.9M" label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
-              <Figure value="13%" label="reachable on X or Farcaster" brand />
+              <Figure value="16-46%" label="have an X or Farcaster account" brand />
               <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
             </dl>
           </header>
+
+          <div className="mb-16">
+            <ReachabilityClaim competitor="Addressable" />
+          </div>
 
           {/* Quick Summary */}
           <section className="mb-16">
@@ -135,7 +143,7 @@ export default function AddressableComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Index size</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      4.9M wallets, complete Farcaster coverage
+                      {INDEXED_WALLETS} wallets, complete Farcaster coverage
                     </td>
                     <td className="py-4 pl-4">
                       23M claimed (methodology undisclosed)
@@ -312,7 +320,7 @@ export default function AddressableComparison() {
             </ol>
             <p className="text-muted-foreground">
               Matches are deterministic and user-attested (Farcaster verified
-              accounts and onchain ENS records), backed by a 4.9M-wallet
+              accounts and onchain ENS records), backed by a {INDEXED_WALLETS}-wallet
               index covering the complete Farcaster protocol. Addressable
               advertises 23M matched owners built with probabilistic
               &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of our

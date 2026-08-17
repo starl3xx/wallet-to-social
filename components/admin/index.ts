@@ -9,3 +9,4 @@ export { WalletEnrichment } from './WalletEnrichment';
 export { LookupDashboard } from './LookupDashboard';
 export { UsageMeter } from './UsageMeter';
 export { AccountDetail } from './AccountDetail';
+export { HandleConflicts } from './HandleConflicts';

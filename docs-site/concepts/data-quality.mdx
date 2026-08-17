@@ -67,10 +67,61 @@ attested match can be wrong. If someone verified `@alice` and later renamed to
 That name is now free, somebody else may hold it, and the record has quietly
 stopped pointing at the person who made it.
 
-Two things address it, and neither is a promise that it cannot happen.
+## We check, and we tell you
+
+Every X handle we hold is now resolved against X itself, and the answer travels
+with the record.
+
+```json
+"twitter": {
+  "handle": "someone",
+  "url": "https://x.com/someone",
+  "verified": true,
+  "reachable": true,
+  "reachability": "live",
+  "reachability_checked_at": "2026-08-17T09:41:02.000Z"
+}
+```
+
+| `reachability` | Meaning |
+| --- | --- |
+| `live` | The owner attested this account, and it still reaches them. |
+| `suspended` | The owner attested it and X has since suspended it. Messages will not arrive. |
+| `unclaimed` | The owner attested it and no account holds the name now, usually a rename. Somebody else may have taken it, so treat it as a lead rather than a contact. |
+
+The three fields are **absent, not false, when we have not checked**. That is the
+same rule the verified flags follow, for the same reason.
+
+`suspended` and `unclaimed` are kept apart because they mean different things. A
+suspended account still belongs to the same person and may come back. A freed
+name may already belong to somebody else, which is the only case where an old
+record can point at a stranger rather than at nobody.
+
+### What we found when we checked all of them
+
+On 2026-08-17 we resolved 417,872 of the distinct X handles in the index, which is 94% of them. The rest are working through the same daily check.
+
+| | Share |
+| --- | --- |
+| Live | 69.6% |
+| Suspended | 20.7% |
+| Name no longer in use | 9.7% |
+
+**Roughly a third of every attested X handle reaches nobody.** That is not a
+statement about our index in particular. It is a property of the underlying
+attestation: Farcaster records a verified X account as a name captured once, with
+no account id and no recheck, so nothing in the protocol notices a rename or a
+suspension. Any product built on those verifications carries the same third, and
+without checking there is no way to know which third.
+
+Checking does not weaken the attestation. It completes it. "The owner attested
+this, and it still works" is a stronger statement than either half, and it is
+one only a source that actually looked can make.
+
+### Two more things follow from it
 
 **We store the account id where a route provides one.** An id is permanent in a
-way a handle is not. Routes that carry one let us follow a rename instead of
+way a name is not. Routes that carry one let us follow a rename instead of
 losing it, and `attested-social` is the route that carries one today.
 
 **We record disagreements rather than settling them.** When two owner-attested

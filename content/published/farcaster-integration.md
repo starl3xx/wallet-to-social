@@ -1,6 +1,6 @@
 ---
 title: "walletlink.social Now Supports Farcaster: 3x More Wallet Matches"
-meta_description: "Farcaster integration brings 3x more wallet matches. Find your token holders' Twitter and Farcaster profiles instantly. 22% match rate vs 2.5% average."
+meta_description: "Farcaster integration brings 3x more wallet matches. Find your token holders' Twitter and Farcaster profiles instantly. 16-46% match rate by chain vs 2.5% average."
 headline_variations:
   - "walletlink.social Now Supports Farcaster: 3x More Wallet Matches"
   - "Farcaster Integration: Turn 10,000 Wallet Addresses Into Reachable Holders"

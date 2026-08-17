@@ -1,6 +1,6 @@
 ---
 title: "Wallets Are the New Social Profiles: Why Web3 Identity Changes Everything"
-meta_description: "The wallet identity problem is being solved. Here's what 22% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders."
+meta_description: "The wallet identity problem is being solved. Here's what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders."
 headline_variations:
   - "Wallets Are the New Social Profiles: Why Web3 Identity Changes Everything"
   - "From 2.5% to 22%: The Match Rate Gap Separating Web3 Marketing Success from Failure"

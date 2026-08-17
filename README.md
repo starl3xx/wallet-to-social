@@ -27,7 +27,7 @@
 
 ```
 Wallet list in (CSV · contract address · paste)
-  ├─ Resolve against a 4.7M-wallet identity index
+  ├─ Resolve against a 4.8M-wallet identity index
   ├─ Farcaster: complete protocol coverage, refreshed daily
   ├─ X handles: attested first, labelled always, never inferred
   ├─ Rank by holdings × follower reach
@@ -44,11 +44,13 @@ The number most tools quote is the one that flatters them. Two numbers matter he
 
 | Question | Answer |
 |---|---|
-| Wallets resolving to **any** identity | ~23% |
-| Wallets **reachable** on X or Farcaster | ~13% |
+| Wallets resolving to **any** identity | 16-47% by chain |
+| Wallets with an X or Farcaster account | 16-46% by chain |
 | Industry average for wallet-to-social | ~2.5% |
 
-The gap between 23% and 13% is mostly ENS. An ENS name is an identity, useful for display and deduplication, but you cannot message it. **If the plan is outreach, 13% is the planning number.**
+The chain decides this more than the collection does: measured across 26 collections and 72,318 holders, Base runs 46.2% and Ethereum 16.6%, because Base is where Farcaster lives. Use your chain's figure, not an average.
+
+Having an account and reaching it are different claims. Of 417,872 X handles resolved, 69.6% are live, 20.7% suspended and 9.7% are names nobody holds. Every match carries that answer.
 
 | Network | Nature of the match |
 |---|---|

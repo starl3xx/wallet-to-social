@@ -22,6 +22,7 @@ import {
   formatRateLimitHeaders,
 } from '@/lib/ip-rate-limiter';
 import type { WalletSocialResult } from '@/lib/types';
+import { stampReachability } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max
@@ -441,6 +442,20 @@ export async function POST(request: NextRequest) {
         ).length;
         const farcasterCount = finalResults.filter((r) => r.farcaster).length;
 
+        /**
+         * Unconditional, and before the history block.
+         *
+         * Both halves of that were regressions. Tucking it inside
+         * `if (saveToHistory && dbConfigured)` meant a lookup that did not save
+         * history never stamped at all, which is the default. And it has to run
+         * before `saveLookup`, because it mutates these objects in place and
+         * saving first would persist a version without the mark.
+         *
+         * The jobs path does the same thing in the same order. Two call sites,
+         * one helper, one ordering.
+         */
+        await stampReachability(finalResults);
+
         // Save to history if requested
         let historyId: string | undefined;
         if (saveToHistory && dbConfigured) {
@@ -477,11 +492,20 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const reachableCount = finalResults.filter(
+          (r) => r.twitter_reachability === 'live'
+        ).length;
+        const unreachableCount = finalResults.filter(
+          (r) => r.twitter_reachability && r.twitter_reachability !== 'live'
+        ).length;
+
         sendEvent('complete', {
           results: finalResults,
           stats: {
             total: wallets.length,
             twitterFound: twitterCount,
+            twitterReachable: reachableCount,
+            twitterUnreachable: unreachableCount,
             farcasterFound: farcasterCount,
             lensFound: finalResults.filter((r) => r.lens).length,
             githubFound: finalResults.filter((r) => r.github).length,

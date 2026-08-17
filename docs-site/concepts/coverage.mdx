@@ -8,19 +8,47 @@ The single most common question is “what percentage of my list will match”. 
 ## Two different numbers
 
 <CardGroup cols={2}>
-  <Card title="~23% has an identity">
-    Roughly a quarter of wallets in a typical collection resolve to *something*:
-    an ENS name, a Farcaster account, an X handle, or some combination.
+  <Card title="16% to 46% has an X or Farcaster account">
+    The chain decides this, more than anything else about your collection. See
+    the measurements below.
   </Card>
-  <Card title="~13% is reachable">
-    Roughly half of those resolve to an account you can actually contact on X
-    or Farcaster.
+  <Card title="Whether it still works is separate">
+    Having an account and reaching it are different claims. We check every
+    handle and report both: see
+    [reachability](/concepts/data-quality#we-check-and-we-tell-you).
   </Card>
 </CardGroup>
 
-The gap between them is mostly ENS. An ENS name is an identity, and it is useful for display and for deduplicating a list, but you cannot send a message to it. If your plan is outreach, **13% is your planning number**. If your plan is analysis or labelling, 23% is.
+## What a real collection resolves to
+
+There is no single match rate, and quoting one would hide the thing that matters
+most. We measured 26 collections across three chains on 2026-08-17, against our
+own index only, with no external API calls at measurement time.
+
+| Chain | Collections | Holders | On Farcaster | With an X handle | Either |
+| --- | --- | --- | --- | --- | --- |
+| Base | 8 | 35,294 | 44.4% | 32.1% | **46.2%** |
+| Ethereum | 9 | 17,462 | 12.2% | 12.6% | **16.6%** |
+| Robinhood Chain | 9 | 19,562 | 11.5% | 12.2% | **15.6%** |
+| **All three** | **26** | **72,318** | | | **30.8%** |
+
+**Base is roughly three times Ethereum**, and that is not a quirk of the
+collections we picked. Base is where Farcaster lives, so a Base collection's
+holders are disproportionately people who have already linked a social account
+to a wallet. If you are planning a campaign, the chain your holders are on will
+move your reachable audience more than the size of your collection does.
+
+Use the row for your chain rather than the average. The average is the honest
+summary of these 26 collections and it describes no collection in particular.
 
 For context, the industry average for wallet-to-social matching sits near 2.5%.
+Even the lowest chain here is six times that.
+
+<Note>
+These are counts of accounts that exist. Roughly a third of attested X handles
+no longer reach anybody, which we check per record rather than folding into the
+figures above. See [reachability](/concepts/data-quality#we-check-and-we-tell-you).
+</Note>
 
 <Note>
 These figures come from measured samples across real collections, not from a
@@ -72,11 +100,20 @@ That guarantee is enforced rather than promised. Source classification is an all
 
 The tradeoff behind all of this is deliberate. Coverage would be considerably higher if we guessed, matching on display names or bios or timing correlations. We do not, at any evidence level, because a marketing campaign that contacts the wrong person is worse than one that contacts fewer people.
 
-<Warning>
-Attested does not mean current. Someone can verify a handle and later abandon
-or rename that account. See [data quality](/concepts/data-quality) for how
-staleness is tracked and surfaced.
-</Warning>
+### Attested is not the same as reachable, and we report both
+
+Someone can verify a handle and later rename or lose that account. Nothing in
+any attestation notices, because an attestation records a name at a moment.
+
+So we resolve every X handle in the index against X itself, on a daily cycle.
+Of the 417,872 resolved by 2026-08-17, **69.6% were live, 20.7% suspended and
+9.7% no longer in use**. Roughly a third of attested X handles reach nobody, and that is true of
+the underlying data rather than of us: it is what any product built on Farcaster
+verifications is carrying, whether or not it says so.
+
+Every X match therefore arrives with a `reachable` flag and a `reachability`
+value, and the handle export leaves out the ones we have checked and found dead.
+See [data quality](/concepts/data-quality#we-check-and-we-tell-you).
 
 ## Checking coverage yourself
 

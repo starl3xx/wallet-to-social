@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { loadOgFonts, OG, OG_FONT_FAMILY } from '@/lib/og-fonts';
+import { INDEXED_WALLETS } from '@/lib/public-figures';
 
 export const runtime = 'edge';
 export const alt = 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster';
@@ -81,15 +82,18 @@ export default async function OGImage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '56px' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em' }}>4.9M</span>
+              <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em' }}>{INDEXED_WALLETS}</span>
               <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>wallets indexed</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {/* The reachable figure, not the 23% any-identity one. The share
-                  card is the first thing anyone sees, so it states the number a
-                  campaign can actually be planned against. */}
+              {/* The X-or-Farcaster figure, not the 23% any-identity one. The
+                  share card is the first thing anyone sees, so it states the
+                  number a campaign can actually be planned against.
+                  It deliberately no longer says "reachable": that word now has a
+                  precise meaning in the API (the handle still resolves to an
+                  account) and one word cannot carry both. */}
               <span style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.03em', color: OG.brand }}>13%</span>
-              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>reachable on X or Farcaster</span>
+              <span style={{ fontSize: '17px', color: OG.textMuted, marginTop: '4px' }}>have an X or Farcaster account</span>
             </div>
           </div>
 
