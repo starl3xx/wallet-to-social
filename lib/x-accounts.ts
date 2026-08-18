@@ -375,15 +375,23 @@ export async function pendingHandles(limit: number, staleDays = 90): Promise<str
        * Never-checked handles sort first, so without this the 22,828 that
        * returned no result on 2026-08-17 sit permanently at the head of the
        * queue and a capped daily run never reaches anything else. The delay
-       * doubles with each failed attempt (1 day, 2, 4, 8...) and is capped at
-       * 30, so a transient failure is retried tomorrow while a handle that can
-       * never resolve stops consuming the budget without ever being recorded as
-       * resolved. It stays unchecked, which is the truth about it.
+       * doubles with each failed attempt and is capped at 30 days. The
+       * exponent is attempts minus one, so the first failure waits ONE day.
+       * Raising 2 to attempts itself waited two, and a handle that failed once
+       * to a blip recovered a day later than the comment claimed. So the delays
+       * are 1, 2, 4, 8, 16, then 30.
+       *
+       * No backticks in this comment: it sits inside a tagged template literal,
+       * and one would end the string. That is what broke the first attempt.
+       *
+       * A transient failure is retried tomorrow, while a handle
+       * that can never resolve stops consuming the budget without ever being
+       * recorded as resolved. It stays unchecked, which is the truth about it.
        */
       AND (
         a.handle IS NULL
         OR a.last_attempt_at < now() - make_interval(
-             days => least(30, power(2, least(a.attempts, 5))::int))
+             days => least(30, power(2, least(a.attempts, 6) - 1)::int))
       )
     GROUP BY 1
     -- Never-checked first, then random within that group. Without the random
@@ -448,10 +456,20 @@ export async function sweepHandles(
   let buffer: XAccount[] = [];
   let failedHandles: string[] = [];
   let sinceControl = 0;
-  // A holder rather than a bare `let`: TypeScript's control-flow analysis does
-  // not see assignments made inside the worker closures below, so a plain
-  // variable narrows to `null` and then to `never` at the check after the loop.
-  const state: { stopped: string | null } = { stopped: null };
+  /**
+   * A holder rather than a bare `let`: TypeScript's control-flow analysis does
+   * not see assignments made inside the worker closures below, so a plain
+   * variable narrows to `null` and then to `never` at the check after the loop.
+   *
+   * `planned` is a field rather than something inferred from the message. It
+   * used to be `state.stopped.startsWith('credit cap')`, and when a deadline
+   * stop was added its message did not start with that, so a run that filled
+   * its working window threw after persisting real work and the cron reported
+   * an outage. The doc on `deadlineAt` said "a planned stop, not an error" in
+   * the same commit that made it an error. Whether a stop is expected is a
+   * property of the stop, not of how its sentence begins.
+   */
+  const state: { stopped: { reason: string; planned: boolean } | null } = { stopped: null };
 
   const flush = async () => {
     if (failedHandles.length > 0) {
@@ -480,11 +498,11 @@ export async function sweepHandles(
          */
         const worstCase = CREDITS_PER_LOOKUP * MAX_ATTEMPTS_PER_HANDLE;
         if (progress.creditsSpent + worstCase > opts.creditCap) {
-          state.stopped = `credit cap of ${opts.creditCap} reached`;
+          state.stopped = { reason: `credit cap of ${opts.creditCap} reached`, planned: true };
           return;
         }
         if (opts.deadlineAt !== undefined && Date.now() >= opts.deadlineAt) {
-          state.stopped = 'deadline reached';
+          state.stopped = { reason: 'deadline reached', planned: true };
           return;
         }
         const handle = queue.shift()!;
@@ -530,7 +548,10 @@ export async function sweepHandles(
         if (sinceControl >= controlEvery) {
           sinceControl = 0;
           if (!(await controlsHold(key))) {
-            state.stopped = `controls failed after ${progress.checked} lookups`;
+            state.stopped = {
+              reason: `controls failed after ${progress.checked} lookups`,
+              planned: false,
+            };
             return;
           }
           opts.onProgress?.({ ...progress });
@@ -540,9 +561,9 @@ export async function sweepHandles(
   );
 
   await flush();
-  // A credit cap is a planned stop; a control failure is not.
-  if (state.stopped && !state.stopped.startsWith('credit cap')) {
-    throw new Error(`x-accounts sweep: ${state.stopped}, stopped early`);
+  // Only an unplanned stop is an error. A cap or a deadline did its job.
+  if (state.stopped && !state.stopped.planned) {
+    throw new Error(`x-accounts sweep: ${state.stopped.reason}, stopped early`);
   }
   opts.onProgress?.({ ...progress });
   return progress;

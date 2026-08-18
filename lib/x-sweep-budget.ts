@@ -43,6 +43,21 @@ export const RESET_DAY = Number(process.env.X_RESOLVER_RESET_DAY ?? 17);
 const CREDITS_PER_LOOKUP = 18;
 
 /**
+ * The least a run must be allowed before it is worth starting.
+ *
+ * `sweepHandles` reserves the WORST case before each handle, because `resolve`
+ * retries up to three times, so it will not begin a handle unless three
+ * lookups' worth of the cap remains. Approving a run on one lookup's worth
+ * therefore produced a run that fetched work, spent credits on its control
+ * checks, resolved nothing, and returned 502: the cap was above the planner's
+ * threshold and below the sweeper's. Both now use the same number.
+ *
+ * This bites exactly in the near-reserve regime the formula exists to handle
+ * gracefully, which is where a silent no-op is least welcome.
+ */
+export const MIN_VIABLE_CREDITS = CREDITS_PER_LOOKUP * 3;
+
+/**
  * Whole days from `now` to the next reset.
  *
  * Never returns less than 1: a zero would divide the whole remaining balance
@@ -102,8 +117,14 @@ export function planSweep(balance: number | null, now: Date): SweepBudget {
   const creditCap = Math.floor((balance - RESERVE_CREDITS) / daysLeft);
   const handleCap = Math.floor(creditCap / CREDITS_PER_LOOKUP);
 
-  if (handleCap < 1) {
-    return { ...base, creditCap, refusal: 'the share for today is smaller than one lookup' };
+  if (creditCap < MIN_VIABLE_CREDITS) {
+    return {
+      ...base,
+      creditCap,
+      refusal:
+        `today's share is ${creditCap} credits, below the ${MIN_VIABLE_CREDITS} ` +
+        `a single handle can cost if it has to retry`,
+    };
   }
   return { ...base, creditCap, handleCap, refusal: null };
 }
