@@ -57,7 +57,7 @@ const TwitterCell = memo(function TwitterCell({ result }: { result: WalletSocial
         className="inline-flex items-center gap-1.5 text-caution"
         title={REACHABILITY_DETAIL[reach]}
       >
-        <WarningCircle size={12} weight="fill" aria-hidden />
+        <WarningCircle className="h-3 w-3" weight="fill" aria-hidden />
         <span className="line-through decoration-caution/50">@{handle}</span>
         <span className="sr-only">{REACHABILITY_LABEL[reach]}</span>
       </span>

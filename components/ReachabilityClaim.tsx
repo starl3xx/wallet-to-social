@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { SealCheck } from '@phosphor-icons/react/dist/ssr';
 
 /**
@@ -27,9 +28,8 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
     <section className="rounded-lg border border-border bg-muted/40 p-6">
       <div className="flex items-start gap-3">
         <SealCheck
-          size={20}
           weight="fill"
-          className="mt-0.5 flex-none text-attested"
+          className="mt-0.5 h-5 w-5 flex-none text-attested"
           aria-hidden
         />
         <div className="flex flex-col gap-3">
@@ -60,6 +60,20 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
             ones we checked and found dead, so a campaign is not sending into
             accounts that cannot receive it. A freed name matters most: somebody
             else may hold it now, and a message would reach a stranger.
+          </p>
+
+          {/* The claim above is large and about other people's data. Handing over
+              the means to test it is the only honest way to make it. */}
+          <p className="text-sm">
+            <Link
+              href="/check"
+              className="text-accent-brand underline underline-offset-4"
+            >
+              Check any handle yourself
+            </Link>
+            <span className="text-muted-foreground">
+              , free and without an account.
+            </span>
           </p>
         </div>
       </div>

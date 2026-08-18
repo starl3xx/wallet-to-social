@@ -20,6 +20,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      // The one page a stranger can act on without an account, so it earns a
+      // priority between the homepage and the comparison pages.
+      url: `${baseUrl}/check`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
       url: `${baseUrl}/vs/addressable`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
