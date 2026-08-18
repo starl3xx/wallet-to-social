@@ -11,7 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
+import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -132,9 +132,19 @@ export async function GET(
     );
   }
 
-  // Build response array
-  const queriedReachability =
-    (await reachabilityFor([normalizedHandle])).get(normalizedHandle) ?? null;
+  /**
+   * Per wallet, not once for the queried handle.
+   *
+   * Every row here shares the same handle, so this used to be one lookup
+   * outside the loop. That is right for the three handle-level states and
+   * wrong for `reassigned`, which compares the id attested alongside each
+   * wallet against the id the handle resolves to now. Two wallets can hold the
+   * same handle with different attested accounts, so one of them can be
+   * reassigned while the other is not.
+   */
+  const reach = await reachabilityForWallets(
+    results.map((r) => ({ wallet: r.wallet, handle: r.twitterHandle ?? normalizedHandle }))
+  );
 
   const data = results.map((result) => {
     const item: Record<string, unknown> = {
@@ -142,15 +152,13 @@ export async function GET(
     };
 
     if (result.ensName) item.ens_name = result.ensName;
-    // Every row here shares the handle that was queried, so it is looked up
-    // once outside the loop rather than per wallet.
     item.twitter = publicTwitterField({
       // Non-null by construction: the query matched on this handle. Falling
       // back to the queried value keeps TypeScript honest without a cast.
       handle: result.twitterHandle ?? normalizedHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
-      reachability: queriedReachability,
+      reachability: reach.get(result.wallet.toLowerCase()) ?? null,
     });
     if (result.farcaster) {
       item.farcaster = {
