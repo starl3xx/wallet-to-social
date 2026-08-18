@@ -3,6 +3,53 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-18 (things that looked fine and were not)
+
+- **Three "why is this empty" reports, none of which were empty.** The blog had
+  no sort at all, so it came back in filename order and opened on 27 February.
+  The admin funnel showed 0 page views above 34 lookups, because `page_view` and
+  `csv_upload` were defined in January and never once called: 2,569 events in
+  the table, not one of them either. Recent wins showed one tile because the 8%
+  filter ran in JavaScript after a SQL LIMIT, so it only ever saw the 25 newest
+  jobs while seven qualifying wins sat outside the fetch.
+- **The funnel was dividing by a number nobody had collected.** `pageViews || 1`
+  turned 34 lookups into "3400%" and 49 upgrade views into "4900%". A rate with
+  no denominator now reads n/a, including for windows that predate the fix.
+- **The token deploy scan was walking past links it could not resolve.** It
+  dropped deploys whose account id the resolver could not answer for, which is
+  right, and then advanced its checkpoint anyway, which made the drop permanent.
+  It cost nine owner-attested wallet-to-X links on the morning the resolver's
+  renamed env vars had not yet been set. The checkpoint is now a high-water mark
+  of blocks actually finished, and a run that defers work says so.
+- **The handle-liveness sweep is scheduled.** It had never had a cron while the
+  docs promised a daily cycle. Its budget derives from the live balance and the
+  reset date, `(balance - reserve) / daysUntilReset`, which cannot drive the
+  balance below the reserve however often it runs.
+- **Six faults had to be fixed before it could run unattended**, the worst being
+  that transport failures were never recorded. Never-checked handles sort first,
+  so the 22,828 that returned nothing on 2026-08-17 sat permanently at the head
+  of the queue: what looked like a backlog was a loop. They are now backed off
+  1, 2, 4, 8 days without anything being written to `x_accounts`, because a
+  failed attempt is not a resolution.
+- **A bulk pass no longer becomes a cliff.** All 417,998 rows were checked in a
+  four-hour window, so at a flat 90 day threshold 417,872 of them came due on
+  2026-11-15. Each handle now has its own threshold, derived from the handle, so
+  the same rows spread across 91 days peaking at 4,804 against a capacity near
+  5,112. Nothing rewrote `checked_at`: spreading the expiry is a policy, editing
+  the timestamps would be a claim about when we looked.
+- **The Health tab answers whether anything is configured and running.** Nine
+  capabilities with what breaks without each, seven jobs with their last
+  *successful* run, and a section for work that runs on no schedule, which is
+  how the missing cron stayed invisible. It makes no external requests.
+- **Two sweeps were reporting failures as successes.** Both wrote their event
+  before deciding they had failed, so a 502 left a record identical to a healthy
+  run and the panel read them as fine.
+- **walletlink.social/check.** One handle, no account, no key: reachable,
+  suspended, no longer in use, or not checked yet. It reports how many wallets
+  carry the handle and never which ones, because that is the paid reverse
+  lookup. Unchecked renders neutral rather than green, since guessing there is
+  the behaviour the page exists to disprove.
+
 ### 2026-08-17 (a second index behind the first, and a runbook that had moved)
 
 - **A spent daily allowance no longer stops token import.** ERC-20 holder lists
