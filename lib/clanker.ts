@@ -46,6 +46,37 @@ const CONTRACT = '0xe85a59c628f7d27878aceb4bf3b35733630083a9';
 const TOPIC =
   '0x9299d1d1a88d8e1abdc591ae7a167a6bc63a8f17d695804e9091ee33aa89fb67';
 
+/**
+ * The most blocks one run will scan, regardless of how far behind it is.
+ *
+ * This is what bounds the work, and it replaced a floor that bounded the
+ * CHECKPOINT instead. That floor was `head - a week` and it conflated two
+ * different things: "this deploy has been retried for a week" and "this block
+ * is far from the tip". On a cold start the lookback is about a month, so a
+ * single unresolved deploy early in the range put the frontier a month back,
+ * below the floor, and the floor then jumped the checkpoint forward over three
+ * weeks of history that had never been scanned at all.
+ *
+ * Bounding the run instead has none of that ambiguity. A stuck frontier now
+ * means the same window is rescanned each day, which is wasteful and safe, and
+ * it is reported as a failed run so a person sees it rather than losing links
+ * quietly.
+ *
+ * About a week of Base blocks, at roughly 43,200 a day. The size is a
+ * compromise between two costs, both measured against STEP (3,000 blocks per
+ * eth_getLogs call) and the route's 300s ceiling:
+ *
+ * - Too small and a cold start crawls. The default lookback is 1,300,000
+ *   blocks, so at two days a run it would take 15 runs, which is 15 days, to
+ *   reach the tip.
+ * - Too large and a stuck frontier rescans more every day for nothing.
+ *
+ * A week is 101 log requests, comfortably inside the ceiling (the uncapped
+ * version scanned the full month, 433 requests, and completed), and it brings a
+ * cold start to about five runs.
+ */
+const MAX_RUN_BLOCKS = 43_200 * 7;
+
 /** Alchemy caps a log range; 3,000 blocks is comfortably inside it. */
 const STEP = 3000;
 const STATE_KEY = 'clanker_scan';
@@ -65,9 +96,31 @@ export interface ClankerSweepStats {
   filled: number;
   agree: number;
   conflicts: number;
+  /**
+   * True when the scan checkpoint was deliberately not advanced, because at
+   * least one deploy carried an account id the resolver could not answer for.
+   * The same range is rescanned next run rather than those links being lost.
+   */
+  checkpointHeld: boolean;
+  /** Deploys dropped this run because their account id did not resolve. */
+  unresolvedAccountIds: number;
+  /**
+   * How far the checkpoint sits behind the chain tip after this run. Normal
+   * while catching up; a figure that grows every day means the frontier is
+   * stuck behind a deploy that will never resolve.
+   */
+  blocksBehindHead: number;
 }
 
 interface RawDeploy {
+  /**
+   * The block this deploy was logged in.
+   *
+   * Needed because the checkpoint is a high-water mark of blocks FULLY
+   * processed, and a deploy whose account id did not resolve is not processed.
+   * Without the block number there is no way to say where completed work ends.
+   */
+  block: number;
   wallet: string;
   /** Either a numeric account id or a handle. Resolved later. */
   identifier: string;
@@ -113,7 +166,7 @@ const isAccountId = (s: string) => /^\d{5,}$/.test(s);
  * matched rather than decoded: the surrounding tuple has moved between Clanker
  * versions and the JSON has not.
  */
-function parseDeploy(log: { topics?: string[]; data?: string }): RawDeploy | null {
+function parseDeploy(log: { topics?: string[]; data?: string; blockNumber?: string }): RawDeploy | null {
   const walletTopic = log.topics?.[2];
   if (!walletTopic || walletTopic.length !== 66) return null;
   const wallet = ('0x' + walletTopic.slice(26)).toLowerCase();
@@ -135,7 +188,12 @@ function parseDeploy(log: { topics?: string[]; data?: string }): RawDeploy | nul
   // the Farcaster sweep, so they are dropped rather than ingested twice.
   if (/farcaster/i.test(platform)) return null;
 
-  return { wallet, identifier };
+  const block = Number.parseInt(log.blockNumber ?? '', 16);
+  // A log with no readable block cannot contribute to the high-water mark, and
+  // guessing one would either lose work or replay it forever.
+  if (!Number.isFinite(block)) return null;
+
+  return { block, wallet, identifier };
 }
 
 /**
@@ -217,10 +275,20 @@ export async function sweepClanker(
   // Base produces about 43,200 blocks a day, so the default is roughly a month.
   const lookback = opts.lookbackBlocks ?? 1_300_000;
   const from = checkpoint !== null ? checkpoint + 1 : Math.max(0, head - lookback);
+  /**
+   * Scan at most MAX_RUN_BLOCKS in one run.
+   *
+   * Without this a frontier held back by an unresolvable deploy grows the range
+   * every day until it exceeds the route's maxDuration and the sweep stops
+   * ingesting entirely. Capping the run means a stuck frontier costs a repeated
+   * window, not a dead job, and the next run simply continues from wherever
+   * this one finished.
+   */
+  const scanTo = Math.min(head, from + MAX_RUN_BLOCKS - 1);
 
   const stats: ClankerSweepStats = {
     fromBlock: from,
-    toBlock: head,
+    toBlock: scanTo,
     deploys: 0,
     xDeploys: 0,
     withAccountId: 0,
@@ -231,12 +299,15 @@ export async function sweepClanker(
     filled: 0,
     agree: 0,
     conflicts: 0,
+    checkpointHeld: false,
+    unresolvedAccountIds: 0,
+    blocksBehindHead: 0,
   };
-  if (from > head) return stats;
+  if (from > scanTo) return stats;
 
   const raw: RawDeploy[] = [];
-  for (let start = from; start <= head; start += STEP) {
-    const end = Math.min(start + STEP - 1, head);
+  for (let start = from; start <= scanTo; start += STEP) {
+    const end = Math.min(start + STEP - 1, scanTo);
     const logs = (await rpc('eth_getLogs', [
       {
         address: CONTRACT,
@@ -244,7 +315,7 @@ export async function sweepClanker(
         fromBlock: '0x' + start.toString(16),
         toBlock: '0x' + end.toString(16),
       },
-    ])) as Array<{ topics?: string[]; data?: string }> | null;
+    ])) as Array<{ topics?: string[]; data?: string; blockNumber?: string }> | null;
 
     if (logs === null) {
       // A window we could not read is a gap. Stop and checkpoint before it, so
@@ -261,7 +332,7 @@ export async function sweepClanker(
     }
     if ((start - from) % (STEP * 50) === 0) {
       opts.onProgress?.(
-        `Clanker: ${start}/${head}, ${stats.deploys} deploys, ${raw.length} social`
+        `Clanker: ${start}/${scanTo}, ${stats.deploys} deploys, ${raw.length} social`
       );
     }
   }
@@ -273,10 +344,31 @@ export async function sweepClanker(
   const resolved = await resolveAccountIds(ids);
 
   const links: AttestedLink[] = [];
+  /**
+   * Deploys we could not resolve, and therefore must not walk past.
+   *
+   * `continue` below is correct: an unresolved account id is never guessed. But
+   * dropping the link and then advancing the checkpoint anyway makes the drop
+   * PERMANENT, because the block range is never scanned again.
+   *
+   * This is not hypothetical. On 2026-08-18 the resolver's env vars had been
+   * renamed and not yet set in production, so `resolveAccountIds` returned an
+   * empty map, all 9 of that run's id-carrying deploys were dropped, and the
+   * checkpoint still advanced to block 50122934. Nine owner-attested wallet to
+   * X links, gone, from a provider outage that lasted one morning.
+   */
+  let unresolved = 0;
+  let unresolvedFrom: number | null = null;
+
   for (const r of raw) {
     if (isAccountId(r.identifier)) {
       const handle = resolved.get(r.identifier);
-      if (!handle) continue; // unresolved: never guessed
+      if (!handle) {
+        unresolved++;
+        // The earliest block still owing work. Everything before it is done.
+        unresolvedFrom = unresolvedFrom === null ? r.block : Math.min(unresolvedFrom, r.block);
+        continue; // unresolved: never guessed
+      }
       links.push({ wallet: r.wallet, handle, twitterUserId: r.identifier });
     } else if (isHandle(r.identifier)) {
       links.push({ wallet: r.wallet, handle: r.identifier, twitterUserId: null });
@@ -292,7 +384,78 @@ export async function sweepClanker(
   stats.agree = ingested.agree;
   stats.conflicts = ingested.conflicts;
 
-  await setScanCheckpoint(stats.toBlock);
+  /**
+   * Advance only over blocks we actually finished.
+   *
+   * Holding the checkpoint costs one rescan of the same range next run, which
+   * is idempotent (the ingest upserts) and cheap: this sweep reads about 24
+   * X-linked deploys a day. Advancing over an unresolved deploy costs the link
+   * forever. Those are not close.
+   *
+   * The range cannot grow without bound, because `sweepClanker` already clamps
+   * its own lookback, so a long resolver outage means repeated work rather than
+   * an ever-growing scan.
+   */
+  stats.unresolvedAccountIds = unresolved;
+
+  /**
+   * The checkpoint is a high-water mark of blocks FULLY processed, which is the
+   * same shape this function already uses for a log window it could not read
+   * (`stats.toBlock = start - 1` above). It is not "advance" or "hold".
+   *
+   * The first attempt at this bug did hold, skipping setScanCheckpoint
+   * entirely, and that was worse than the bug. Two ways:
+   *
+   * 1. With no checkpoint row yet, `from` is recomputed as `head - lookback`
+   *    every run, so the window SLIDES. Holding loses exactly the trailing
+   *    deploys it was trying to protect, which is also what would happen to
+   *    anyone clearing `clanker_scan` to recover the links already lost.
+   * 2. With a checkpoint present, lookback does not apply at all, so `from`
+   *    froze while `head` advanced. One permanently unresolvable id (a deleted
+   *    account, or a resolver that answers without an id) would grow the daily
+   *    range without bound until it exceeded the route's maxDuration and the
+   *    sweep stopped ingesting anything new, forever.
+   *
+   * Both were asserted away in that commit message with "the lookback is
+   * already clamped", which is true only in the branch that does not apply.
+   * A checkpoint is now ALWAYS written, and it never moves backwards.
+   */
+  const completedThrough =
+    unresolvedFrom === null ? stats.toBlock : Math.min(stats.toBlock, unresolvedFrom - 1);
+
+  /**
+   * No floor, and nothing is ever abandoned.
+   *
+   * A floor of `head - a week` was tried and removed. It read "far from the
+   * chain tip" as "retried for a week", and those differ most exactly when it
+   * matters: on a cold start the lookback is about a month, so one unresolved
+   * deploy early in that range put the frontier below the floor immediately and
+   * the floor jumped the checkpoint over three weeks of history that had never
+   * been scanned. It could also mask itself, because a run shortened by an
+   * unreadable log window could leave the jumped checkpoint above
+   * `stats.toBlock`, so `checkpointHeld` read false and the skip reported as a
+   * healthy run.
+   *
+   * Unbounded work is bounded by MAX_RUN_BLOCKS instead, which is the thing
+   * that was actually at risk. A frontier stuck behind an unresolvable deploy
+   * now costs one repeated window a day, and the run reports failure so a
+   * person sees it. Wasteful and loud beats cheap and silent.
+   */
+  let nextCheckpoint = completedThrough;
+
+  // Never move the checkpoint backwards: a short run must not replay a range a
+  // longer one already finished.
+  if (checkpoint !== null) nextCheckpoint = Math.max(nextCheckpoint, checkpoint);
+
+  stats.checkpointHeld = nextCheckpoint < stats.toBlock;
+  stats.blocksBehindHead = Math.max(0, head - nextCheckpoint);
+  if (stats.checkpointHeld) {
+    console.warn(
+      `Clanker: ${unresolved} deploy(s) unresolved; checkpoint set to ` +
+        `${nextCheckpoint} rather than ${stats.toBlock}, so that range is rescanned.`
+    );
+  }
+  await setScanCheckpoint(nextCheckpoint);
   opts.onProgress?.(
     `Clanker: ${stats.links} links from ${stats.xDeploys} social deploys, ` +
       `${stats.newWallets} new, ${stats.conflicts} conflicts`

@@ -102,7 +102,7 @@ const JOBS: Array<{
   { name: 'ENS harvest', schedule: '05:00 daily', subtype: 'ens_harvest_incremental', maxAgeHours: 48, reportsOutcome: false },
   { name: 'Attestation sweep', schedule: '06:00 daily', subtype: 'ethos_sweep', maxAgeHours: 48, reportsOutcome: true },
   { name: 'Onchain attestation sweep', schedule: '06:20 daily', subtype: 'eas_sweep', maxAgeHours: 48, reportsOutcome: true },
-  { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48, reportsOutcome: false },
+  { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48, reportsOutcome: true },
   { name: 'Collection seeding', schedule: '07:00 daily', subtype: 'seed_contract', maxAgeHours: 48, reportsOutcome: false },
 ];
 

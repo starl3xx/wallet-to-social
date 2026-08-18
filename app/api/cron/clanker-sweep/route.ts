@@ -27,9 +27,28 @@ export async function GET(request: NextRequest) {
 
   try {
     const stats = await sweepClanker();
+
+    // A held checkpoint means the resolver could not answer, so this run did
+    // not finish its range. Recorded as a failure for the same reason the
+    // attestation sweeps do it: the health panel must be able to tell a run
+    // that worked from a run that merely happened.
+    const ok = !stats.checkpointHeld;
+
     trackEvent('lookup_completed', {
-      metadata: { eventSubtype: 'clanker_sweep', ...stats },
+      metadata: { eventSubtype: 'clanker_sweep', ok, ...stats },
     }).catch(console.error);
+
+    if (!ok) {
+      return NextResponse.json(
+        {
+          message:
+            `${stats.unresolvedAccountIds} deploy(s) unresolved; checkpoint held ` +
+            `so the range is rescanned rather than lost`,
+          ...stats,
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({ message: 'ok', ...stats });
   } catch (error) {
     console.error('Clanker sweep cron error:', error);
