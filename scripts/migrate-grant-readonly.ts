@@ -18,7 +18,7 @@
  */
 import { neon } from '@neondatabase/serverless';
 
-const READ_ONLY_TABLES = ['x_accounts', 'handle_conflicts'];
+const READ_ONLY_TABLES = ['x_accounts', 'handle_conflicts', 'x_handle_attempts'];
 const ROLE = 'sweep_runner';
 
 async function main() {
