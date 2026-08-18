@@ -11,7 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
+import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -142,12 +142,16 @@ export async function GET(
 
   if (result.ensName) data.ens_name = result.ensName;
   if (result.twitterHandle) {
-    const reach = await reachabilityFor([result.twitterHandle]);
+    // Wallet-aware: a handle can be live and still belong to somebody other
+    // than the account attested alongside THIS wallet. See reachabilityForWallets.
+    const reach = await reachabilityForWallets([
+      { wallet: result.wallet, handle: result.twitterHandle },
+    ]);
     data.twitter = publicTwitterField({
       handle: result.twitterHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
-      reachability: reach.get(result.twitterHandle.toLowerCase()) ?? null,
+      reachability: reach.get(result.wallet.toLowerCase()) ?? null,
     });
   }
   if (result.farcaster) {

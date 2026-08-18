@@ -32,7 +32,7 @@ export interface WalletSocialResult {
    * not "unreachable". Roughly a third of attested Farcaster X handles reach
    * nobody, and this is the only field that says so.
    */
-  twitter_reachability?: 'live' | 'suspended' | 'unclaimed';
+  twitter_reachability?: 'live' | 'suspended' | 'unclaimed' | 'reassigned';
   // Agent detection metadata
   is_agent?: boolean;
   agent_name?: string;

@@ -11,7 +11,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityFor, publicTwitterField } from '@/lib/handle-reachability';
+import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -173,7 +173,9 @@ export async function POST(request: NextRequest) {
 
   // Build result map
   const resultMap = new Map<string, typeof results[0]>();
-  const reach = await reachabilityFor(results.map((r) => r.twitterHandle));
+  const reach = await reachabilityForWallets(
+    results.map((r) => ({ wallet: r.wallet, handle: r.twitterHandle }))
+  );
 
   for (const result of results) {
     resultMap.set(result.wallet, result);
@@ -214,7 +216,8 @@ export async function POST(request: NextRequest) {
         handle: result.twitterHandle,
         url: result.twitterUrl,
         verified: result.twitterVerified,
-        reachability: reach.get(result.twitterHandle.toLowerCase()) ?? null,
+        // Keyed by wallet, not handle: reassigned is a per-wallet fact.
+        reachability: reach.get(result.wallet.toLowerCase()) ?? null,
       });
     }
     if (result.farcaster) {

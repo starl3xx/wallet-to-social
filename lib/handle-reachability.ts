@@ -45,7 +45,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 
 /** What the public API and the UI speak. */
-export type Reachability = 'live' | 'suspended' | 'unclaimed';
+export type Reachability = 'live' | 'suspended' | 'unclaimed' | 'reassigned';
 
 export interface HandleReachability {
   status: Reachability;
@@ -71,6 +71,7 @@ export const REACHABILITY_LABEL: Record<Reachability, string> = {
   live: 'Reachable',
   suspended: 'Account suspended',
   unclaimed: 'Handle no longer in use',
+  reassigned: 'Now a different account',
 };
 
 /**
@@ -85,6 +86,17 @@ export const REACHABILITY_DETAIL: Record<Reachability, string> = {
     'The owner attested this account and X has since suspended it. Messages will not arrive.',
   unclaimed:
     'The owner attested this handle and no account holds it now, usually a rename. Somebody else may have taken the name, so treat it as a lead rather than a contact.',
+  /**
+   * The strongest warning of the four, because it is the only one that is
+   * confirmed rather than suspected. `unclaimed` says somebody else *may* have
+   * taken the name. This says somebody else *has*: the handle resolves to a
+   * live account whose id is not the one attested alongside this wallet.
+   *
+   * It is also the only state where the handle looks perfectly healthy. It
+   * reaches a real, active person, and that person is not the wallet owner.
+   */
+  reassigned:
+    'The owner attested this handle, and it now belongs to a different live account. Messages would reach a stranger, not the wallet owner.',
 };
 
 /** True only where we checked and it reaches someone. Null where unchecked. */
@@ -136,6 +148,74 @@ export async function reachabilityFor(
 }
 
 /**
+ * Reachability keyed by WALLET, including the reassigned override.
+ *
+ * ## Why this exists alongside `reachabilityFor`
+ *
+ * `reachabilityFor` answers a question about a handle, and three of the four
+ * states are exactly that. `reassigned` is not: it compares the id a source
+ * attested **alongside a particular wallet** against the id the handle resolves
+ * to now, so the same handle can be reassigned for one wallet and correct for
+ * another, if two sources attested different accounts for the same name.
+ *
+ * The first version of this put that comparison inside `stampReachability`
+ * only, which is called by the lookup and jobs paths. Every `/v1` route builds
+ * its twitter field from `reachabilityFor` instead, so API consumers kept
+ * receiving `reachability: "live"` and `reachable: true` for exactly the rows
+ * the change existed to flag, while the docs published in the same change
+ * listed `reassigned` as a value of that field. A documented state that one
+ * caller can never return is worse than no state.
+ *
+ * So every caller with a wallet in hand uses this, and `reachabilityFor` is
+ * left for the one surface that genuinely has no wallet: the public handle
+ * checker at /check.
+ */
+export async function reachabilityForWallets(
+  rows: Array<{ wallet: string; handle?: string | null }>
+): Promise<Map<string, HandleReachability>> {
+  const out = new Map<string, HandleReachability>();
+  const db = getDb();
+  if (!db) return out;
+
+  const usable = rows.filter(
+    (r): r is { wallet: string; handle: string } =>
+      typeof r.wallet === 'string' && typeof r.handle === 'string' && r.handle.length > 0
+  );
+  if (usable.length === 0) return out;
+
+  const byHandle = await reachabilityFor(usable.map((r) => r.handle));
+
+  for (const r of usable) {
+    const hit = byHandle.get(r.handle.toLowerCase().replace(/^@/, ''));
+    if (hit) out.set(r.wallet.toLowerCase(), hit);
+  }
+
+  // The override. Same comparison as the sweep's rot detector, per wallet.
+  const wallets = usable.map((r) => r.wallet.toLowerCase());
+  for (let i = 0; i < wallets.length; i += 2000) {
+    const chunk = wallets.slice(i, i + 2000);
+    const moved = (await db.execute(sql`
+      SELECT lower(g.wallet) AS wallet, x.checked_at
+      FROM social_graph g
+      JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
+      WHERE lower(g.wallet) = ANY(${sql.param(chunk)}::text[])
+        AND g.twitter_user_id IS NOT NULL
+        AND x.user_id IS NOT NULL
+        AND g.twitter_user_id <> x.user_id
+    `)) as unknown as { rows: Array<{ wallet: string; checked_at: string }> };
+
+    for (const m of moved.rows) {
+      out.set(m.wallet, {
+        status: 'reassigned',
+        checkedAt: new Date(m.checked_at).toISOString(),
+      });
+    }
+  }
+
+  return out;
+}
+
+/**
  * The `twitter` object every public route returns.
  *
  * One builder so the four routes cannot drift into describing the same fact
@@ -177,15 +257,48 @@ export function publicTwitterField(input: {
  * into the other.
  */
 export async function stampReachability(
-  results: Array<{ twitter_handle?: string; twitter_reachability?: Reachability }>
+  results: Array<{ wallet?: string; twitter_handle?: string; twitter_reachability?: Reachability }>
 ): Promise<void> {
   try {
-    const map = await reachabilityFor(results.map((r) => r.twitter_handle));
-    if (map.size === 0) return;
-    for (const r of results) {
-      if (!r.twitter_handle) continue;
-      const hit = map.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
-      if (hit) r.twitter_reachability = hit.status;
+    /**
+     * One read, from the wallet-aware helper, whose result is already complete.
+     *
+     * The first version called `reachabilityFor` for the base statuses and then
+     * `reachabilityForWallets` for the override, and the second call runs the
+     * first internally. Every lookup and every job paid for the same
+     * `x_accounts` read twice, and the shared helper was reduced to supplying
+     * one of the four states it returns.
+     */
+    const withWallet = results.filter(
+      (r): r is typeof r & { wallet: string; twitter_handle: string } =>
+        Boolean(r.wallet) && Boolean(r.twitter_handle)
+    );
+
+    if (withWallet.length > 0) {
+      const byWallet = await reachabilityForWallets(
+        withWallet.map((r) => ({ wallet: r.wallet, handle: r.twitter_handle }))
+      );
+      for (const r of withWallet) {
+        const hit = byWallet.get(r.wallet.toLowerCase());
+        if (hit) r.twitter_reachability = hit.status;
+      }
+    }
+
+    /**
+     * A row with a handle and no wallet cannot be checked for reassignment,
+     * because the attested id hangs off the wallet. It still gets the three
+     * handle-level states rather than nothing. No current caller produces such
+     * a row, since `WalletSocialResult.wallet` is required, but the parameter
+     * type allows it and silently dropping those rows would be the kind of gap
+     * that only shows up once somebody adds a caller.
+     */
+    const handleOnly = results.filter((r) => !r.wallet && r.twitter_handle);
+    if (handleOnly.length > 0) {
+      const byHandle = await reachabilityFor(handleOnly.map((r) => r.twitter_handle));
+      for (const r of handleOnly) {
+        const hit = byHandle.get(r.twitter_handle!.toLowerCase().replace(/^@/, ''));
+        if (hit) r.twitter_reachability = hit.status;
+      }
     }
   } catch (error) {
     console.error('Reachability stamp failed, continuing without it:', error);
