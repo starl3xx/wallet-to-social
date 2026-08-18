@@ -128,9 +128,13 @@ All notable changes to walletlink.social. Newest first.
 
 ### 2026-08-17 (we check if the X account still works, and we say so)
 
-- **Every X name in the index is now checked against X.** All 440,700 of them.
-  69.6% work, 20.7% are suspended accounts, and 9.7% are names that nobody holds
-  now. About one third of every attested X name reaches no person.
+- **The X names in the index are now checked against X.** 417,872 of them
+  resolved. 69.6% work, 20.7% are suspended accounts, and 9.7% are names that
+  nobody holds now. About one third of every attested X name reaches no person.
+  (This entry said "All 440,700 of them" when it was written on 2026-08-17. That
+  was wrong on the day: 440,700 was the number of handles held, not the number
+  resolved, and the sweep leaves transport failures unrecorded so they retry.
+  Corrected 2026-08-18.)
 - **This is a strength, not a fault.** Farcaster records a proved X account as a
   **name**, written one time, with no account number and no later check. So
   nothing in the protocol sees a name change or a suspension. Every product

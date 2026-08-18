@@ -31,6 +31,7 @@
  * all digits and long enough is an account id, anything else is a handle.
  */
 import { ingestLinks, type AttestedLink, type LinkSource } from './attested-links';
+import { isConfigured, resolverHeaders, resolverUrl } from './x-resolver';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 
@@ -151,15 +152,14 @@ function parseDeploy(log: { topics?: string[]; data?: string }): RawDeploy | nul
  */
 async function resolveAccountIds(ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  const key = process.env.TWITTERAPI_IO_KEY;
-  if (!key || ids.length === 0) return out;
+  if (!isConfigured() || ids.length === 0) return out;
 
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100);
     try {
       const res = await fetch(
-        `https://api.twitterapi.io/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`,
-        { headers: { 'x-api-key': key } }
+        resolverUrl(`/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`),
+        { headers: resolverHeaders() }
       );
       if (!res.ok) continue;
       const body = (await res.json()) as {

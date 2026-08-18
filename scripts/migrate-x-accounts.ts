@@ -13,7 +13,7 @@
  * known drift from db/schema.ts on other tables. Idempotent.
  *
  * Keyed by handle, not by wallet. 1,143,547 rows carry a handle but there are
- * only 440,700 distinct handles, so a per-row design would pay 2.59 times over
+ * only 446,043 distinct handles, so a per-row design would pay 2.58 times over
  * for the same answer, and "does this string reach anyone" is a fact about the
  * string rather than about a wallet.
  */
