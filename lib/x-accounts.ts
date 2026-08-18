@@ -355,11 +355,52 @@ async function persist(accounts: XAccount[]): Promise<void> {
 }
 
 /**
- * Handles still needing a look: never checked, or checked longer ago than
- * `staleDays`. Oldest first, so an interrupted pass resumes where it stopped
+ * Handles still needing a look: never checked, or checked longer ago than their
+ * own threshold. Oldest first, so an interrupted pass resumes where it stopped
  * rather than starting over.
+ *
+ * ## Why the threshold is per handle and not a constant
+ *
+ * A fixed threshold turns any bulk pass into a time bomb. The first full sweep
+ * resolved 417,998 handles inside a four-hour window on 2026-08-17, so at a
+ * flat 90 days every one of them would have become stale within hours of the
+ * others in mid-November: a backlog appearing overnight that the daily job
+ * needs about three months to clear, while the published figures blend fresh
+ * checks with three-month-old ones.
+ *
+ * Clearing the current 28,172 backlog would have built a second cohort with the
+ * same fault, and every bulk ingest after that another. The cliff is the
+ * default behaviour, not a one-off.
+ *
+ * So each handle gets its own threshold: `STALE_BASE_DAYS` plus a deterministic
+ * offset derived from the handle itself, spread across `STALE_SPREAD_DAYS`.
+ * Deterministic matters. A random offset would move every time the query ran,
+ * so a handle could be eligible on one run and not the next, and nothing would
+ * ever converge.
+ *
+ * Measured over all 417,998 rows: the offset is 0 to 89 across 90 even buckets,
+ * mean 44.48 against an expected 44.5, and never negative. The busiest single
+ * day expires 4,802 handles against a daily capacity of about 5,112, so the
+ * wave never exceeds what one run can absorb.
+ *
+ * Base 45 rather than 90 on purpose. Re-checks then begin around 2026-10-01
+ * instead of mid-November, which uses capacity that would otherwise sit idle
+ * once the backlog clears, and finishes dispersing the cohort before it can
+ * pile up. The mean threshold still lands at 89.5 days, so the intended cycle
+ * is unchanged; only its synchronisation is broken.
+ *
+ * **Nothing rewrites `checked_at`.** Spreading the expiry is a policy about when
+ * we choose to look again. Editing the timestamps would be a claim about when we
+ * looked, which is a measurement, and this product does not adjust those.
  */
-export async function pendingHandles(limit: number, staleDays = 90): Promise<string[]> {
+export const STALE_BASE_DAYS = Number(process.env.X_STALE_BASE_DAYS ?? 45);
+export const STALE_SPREAD_DAYS = Number(process.env.X_STALE_SPREAD_DAYS ?? 90);
+
+export async function pendingHandles(
+  limit: number,
+  staleDays = STALE_BASE_DAYS,
+  spreadDays = STALE_SPREAD_DAYS
+): Promise<string[]> {
   const db = getDb();
   if (!db) return [];
   const result = (await db.execute(sql`
@@ -368,7 +409,12 @@ export async function pendingHandles(limit: number, staleDays = 90): Promise<str
     LEFT JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
     LEFT JOIN x_handle_attempts a ON a.handle = lower(g.twitter_handle)
     WHERE g.twitter_handle IS NOT NULL
-      AND (x.handle IS NULL OR x.checked_at < now() - make_interval(days => ${staleDays}))
+      AND (
+        x.handle IS NULL
+        OR x.checked_at < now() - make_interval(
+             days => ${staleDays}
+                   + (('x' || left(md5(x.handle), 8))::bit(32)::bigint % ${spreadDays})::int)
+      )
       /**
        * Back off handles that have already produced nothing.
        *

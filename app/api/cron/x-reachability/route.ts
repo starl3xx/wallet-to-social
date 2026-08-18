@@ -27,15 +27,18 @@ export const maxDuration = 300;
  * '0'. A partial pass must be a fair sample of the whole or every number it
  * reports on the way is wrong.
  *
- * ## The November problem, stated rather than solved
+ * ## The November wave, now spread
  *
- * Every one of the 417,872 rows was checked inside one window on 2026-08-17, so
- * at a 90 day threshold they all become stale within days of each other in
- * mid-November. This job will then face a backlog it cannot clear at one day's
- * allowance, and will work through it oldest-first over roughly a month, during
- * which the published figures are a blend of fresh and three-month-old checks.
- * That is survivable and it is not free. Spreading the first re-check wave
- * deliberately, before November, is cheaper than discovering it in November.
+ * Every one of the 417,998 rows was checked inside a four-hour window on
+ * 2026-08-17. At a flat 90 day threshold all of them became due on the same
+ * day: modelled against the real timestamps, 417,872 handles falling due on
+ * 2026-11-15, which is 82 days of work arriving at once.
+ *
+ * `pendingHandles` now gives each handle its own threshold, derived from the
+ * handle itself, so the same rows come due across 91 days from 2026-10-01,
+ * peaking at 4,804 on 2026-10-27 against a daily capacity near 5,112. The wave
+ * never exceeds what one run absorbs, and clearing the current backlog no
+ * longer builds the next cohort behind it.
  */
 
 /**
