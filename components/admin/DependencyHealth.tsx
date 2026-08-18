@@ -37,9 +37,10 @@ interface Dependency {
 interface Job {
   name: string;
   schedule: string;
+  lastRun: string | null;
   lastSuccess: string | null;
   hoursAgo: number | null;
-  status: 'ok' | 'late' | 'never';
+  status: 'ok' | 'late' | 'failing' | 'never' | 'unknown';
 }
 
 interface Payload {
@@ -49,8 +50,9 @@ interface Payload {
   summary: {
     missingCritical: number;
     missingDegraded: number;
-    jobsLate: number;
-    databaseReachable: boolean;
+    jobsUnhealthy: number;
+    /** null when the query never resolved. Not the same as false. */
+    databaseReachable: boolean | null;
   };
 }
 
@@ -87,7 +89,10 @@ export function DependencyHealth({ password }: { password: string }) {
   }
 
   const { summary } = data;
-  const allWell = summary.missingCritical === 0 && summary.jobsLate === 0;
+  const allWell =
+    summary.missingCritical === 0 &&
+    summary.jobsUnhealthy === 0 &&
+    summary.databaseReachable === true;
 
   return (
     <div className="space-y-6">
@@ -107,6 +112,13 @@ export function DependencyHealth({ password }: { password: string }) {
           </Button>
         </CardHeader>
         <CardContent className="space-y-6">
+          {data.summary.databaseReachable === false && (
+            <p className="text-sm text-destructive">
+              Job history could not be read, so every row below says “could not check” rather
+              than accusing a job of not running. The dependency list above is unaffected: it
+              needs no database.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             Read locally: an environment variable’s presence, and a timestamp already in the
             database. No request leaves the server, so nothing here can be slow or cost anything,
@@ -169,8 +181,22 @@ export function DependencyHealth({ password }: { password: string }) {
                     <TableCell className="font-medium">{j.name}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{j.schedule}</TableCell>
                     <TableCell className="text-sm tabular-nums">
-                      {j.status === 'never' ? (
+                      {j.status === 'unknown' ? (
+                        <span
+                          className="text-muted-foreground"
+                          title="The query for job history did not complete, so this says nothing about the job"
+                        >
+                          could not check
+                        </span>
+                      ) : j.status === 'never' ? (
                         <span className="text-destructive">never recorded</span>
+                      ) : j.status === 'failing' ? (
+                        <span
+                          className="text-destructive"
+                          title="The job ran and reported that it failed. Running is not succeeding."
+                        >
+                          ran, reported failure
+                        </span>
                       ) : (
                         <span className={j.status === 'late' ? 'text-destructive' : undefined}>
                           {j.hoursAgo !== null && j.hoursAgo < 1

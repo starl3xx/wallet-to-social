@@ -32,13 +32,28 @@ export async function GET(request: NextRequest) {
   try {
     const stats = await sweepEthos();
 
+    /**
+     * `ok` decided BEFORE the event is written, by the same expression that
+     * decides the status code.
+     *
+     * The event used to be written first and unconditionally, so a sweep that
+     * read nothing and returned 502 left a record identical to a healthy one.
+     * The dependency panel read those records and reported this job "ok",
+     * which is the precise failure it exists to prevent: a job that runs and
+     * fails looked the same as a job that runs and works.
+     *
+     * One expression, used twice, so the status code and the record can never
+     * disagree.
+     */
+    const ok = stats.links > 0;
+
     trackEvent('lookup_completed', {
-      metadata: { eventSubtype: 'ethos_sweep', ...stats },
+      metadata: { eventSubtype: 'ethos_sweep', ok, ...stats },
     }).catch(console.error);
 
     // A sweep that read no pages is a failure that returns 200 otherwise, and
     // this runs unattended, so say so in the status code.
-    if (stats.links === 0) {
+    if (!ok) {
       return NextResponse.json(
         { message: 'Ethos sweep read no links', ...stats },
         { status: 502 }

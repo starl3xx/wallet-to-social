@@ -81,16 +81,29 @@ function dependency(
 const JOBS: Array<{
   name: string;
   schedule: string;
-  /** `metadata->>'eventSubtype'` written on success. */
+  /** `metadata->>'eventSubtype'`, written whether the run succeeded or not. */
   subtype: string;
   maxAgeHours: number;
+  /**
+   * Does this job write `metadata.ok` to say whether the run actually worked?
+   *
+   * It matters because "it ran" and "it worked" are different facts and this
+   * panel was reporting the first as the second. The attestation sweeps return
+   * 502 on an empty or partial run, and both wrote their event before deciding
+   * that, so a chronically failing sweep showed as `ok` here: exactly the
+   * outage this page exists to surface, hidden by the page itself.
+   *
+   * Both now write `ok`. Where a job cannot fail this way, any recorded run is
+   * a success and this stays false.
+   */
+  reportsOutcome: boolean;
 }> = [
-  { name: 'Farcaster sweep', schedule: '05:30 daily', subtype: 'farcaster_sweep_incremental', maxAgeHours: 48 },
-  { name: 'ENS harvest', schedule: '05:00 daily', subtype: 'ens_harvest_incremental', maxAgeHours: 48 },
-  { name: 'Attestation sweep', schedule: '06:00 daily', subtype: 'ethos_sweep', maxAgeHours: 48 },
-  { name: 'Onchain attestation sweep', schedule: '06:20 daily', subtype: 'eas_sweep', maxAgeHours: 48 },
-  { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48 },
-  { name: 'Collection seeding', schedule: '07:00 daily', subtype: 'seed_contract', maxAgeHours: 48 },
+  { name: 'Farcaster sweep', schedule: '05:30 daily', subtype: 'farcaster_sweep_incremental', maxAgeHours: 48, reportsOutcome: false },
+  { name: 'ENS harvest', schedule: '05:00 daily', subtype: 'ens_harvest_incremental', maxAgeHours: 48, reportsOutcome: false },
+  { name: 'Attestation sweep', schedule: '06:00 daily', subtype: 'ethos_sweep', maxAgeHours: 48, reportsOutcome: true },
+  { name: 'Onchain attestation sweep', schedule: '06:20 daily', subtype: 'eas_sweep', maxAgeHours: 48, reportsOutcome: true },
+  { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48, reportsOutcome: false },
+  { name: 'Collection seeding', schedule: '07:00 daily', subtype: 'seed_contract', maxAgeHours: 48, reportsOutcome: false },
 ];
 
 /**
@@ -142,52 +155,131 @@ export async function GET(request: NextRequest) {
   ];
 
   const db = getDb();
-  let jobs: Array<{
+
+  interface JobStatus {
     name: string;
     schedule: string;
+    lastRun: string | null;
     lastSuccess: string | null;
     hoursAgo: number | null;
-    status: 'ok' | 'late' | 'never';
-  }> = JOBS.map((j) => ({ name: j.name, schedule: j.schedule, lastSuccess: null, hoursAgo: null, status: 'never' }));
+    status: 'ok' | 'late' | 'failing' | 'never' | 'unknown';
+  }
+
+  /**
+   * Starts as `unknown`, not `never`.
+   *
+   * "We have no record of this job" and "we could not find out" are different
+   * statements, and only one of them is an accusation against the job. The
+   * first version began at `never`, so a failed query rendered every job as
+   * having never run while the summary still reported the database reachable:
+   * the panel would have blamed six healthy crons for its own outage.
+   */
+  let jobs: JobStatus[] = JOBS.map((j) => ({
+    name: j.name,
+    schedule: j.schedule,
+    lastRun: null,
+    lastSuccess: null,
+    hoursAgo: null,
+    status: 'unknown',
+  }));
+
+  /** Null until the query resolves either way. Never assumed from `getDb()`. */
+  let databaseReachable: boolean | null = db ? null : false;
 
   if (db) {
     try {
+      /**
+       * Last run and last SUCCESSFUL run, separately.
+       *
+       * `ok` is absent on rows written before the sweeps recorded it, so
+       * `ok <> 'false'` counts an unmarked row as a success. That is the right
+       * default for the four jobs that have no failure path at all, and for the
+       * two that do it self-corrects on their next run rather than showing a
+       * day of false alarms about runs whose outcome was never recorded.
+       */
       const rows = (await db.execute(sql`
-        SELECT metadata->>'eventSubtype' AS subtype, max(created_at) AS last_success
+        SELECT
+          metadata->>'eventSubtype' AS subtype,
+          max(created_at) AS last_run,
+          max(created_at) FILTER (WHERE coalesce(metadata->>'ok', 'true') <> 'false') AS last_success
         FROM analytics_events
         WHERE metadata->>'eventSubtype' = ANY(${sql.param(JOBS.map((j) => j.subtype))}::text[])
         GROUP BY 1
-      `)) as unknown as { rows: Array<{ subtype: string; last_success: string }> };
+      `)) as unknown as {
+        /**
+         * `Date`, not `string`. The driver returns timestamptz as a Date
+         * object, verified against the live database rather than assumed, and
+         * declaring it a string would invite a `.slice()` that throws. Every
+         * comparison below goes through `msOf`, so nothing depends on the type
+         * or on `>` happening to do the right thing across two of them.
+         */
+        rows: Array<{
+          subtype: string;
+          last_run: Date | string | null;
+          last_success: Date | string | null;
+        }>;
+      };
 
-      const seen = new Map(rows.rows.map((r) => [r.subtype, r.last_success]));
+      const msOf = (v: Date | string | null): number | null => {
+        if (v === null) return null;
+        const t = new Date(v).getTime();
+        return Number.isFinite(t) ? t : null;
+      };
+
+      const seen = new Map(rows.rows.map((r) => [r.subtype, r]));
+      databaseReachable = true;
 
       jobs = JOBS.map((j) => {
-        const last = seen.get(j.subtype);
-        if (!last) {
-          return { name: j.name, schedule: j.schedule, lastSuccess: null, hoursAgo: null, status: 'never' as const };
+        const row = seen.get(j.subtype);
+        const base = { name: j.name, schedule: j.schedule };
+        const runMs = msOf(row?.last_run ?? null);
+        const successMs = msOf(row?.last_success ?? null);
+
+        if (runMs === null) {
+          return { ...base, lastRun: null, lastSuccess: null, hoursAgo: null, status: 'never' as const };
         }
-        const hoursAgo = (Date.now() - new Date(last).getTime()) / 3_600_000;
+
+        const lastRun = new Date(runMs).toISOString();
+
+        // It ran, and every run it recorded said it failed.
+        if (successMs === null) {
+          return { ...base, lastRun, lastSuccess: null, hoursAgo: null, status: 'failing' as const };
+        }
+
+        const hoursAgo = (Date.now() - successMs) / 3_600_000;
         return {
-          name: j.name,
-          schedule: j.schedule,
-          lastSuccess: new Date(last).toISOString(),
+          ...base,
+          lastRun,
+          lastSuccess: new Date(successMs).toISOString(),
           hoursAgo: Math.round(hoursAgo * 10) / 10,
-          status: hoursAgo > j.maxAgeHours ? ('late' as const) : ('ok' as const),
+          // A job whose latest run failed is "failing" even if an older run
+          // succeeded inside the window. Recency beats presence.
+          status:
+            j.reportsOutcome && runMs > successMs
+              ? ('failing' as const)
+              : hoursAgo > j.maxAgeHours
+                ? ('late' as const)
+                : ('ok' as const),
         };
       });
     } catch (error) {
       console.error('Dependency health: job query failed', error);
+      databaseReachable = false;
     }
   }
 
   const missingCritical = dependencies.filter((d) => !d.configured && d.severity === 'critical').length;
   const missingDegraded = dependencies.filter((d) => !d.configured && d.severity === 'degrades').length;
-  const jobsLate = jobs.filter((j) => j.status !== 'ok').length;
+  // `unknown` is deliberately not counted as a problem: it is a statement about
+  // this endpoint, reported by `databaseReachable`, not about the jobs.
+  const jobsUnhealthy = jobs.filter(
+    (j) => j.status === 'late' || j.status === 'failing' || j.status === 'never'
+  ).length;
 
   return NextResponse.json({
     dependencies,
     jobs,
     unscheduled: UNSCHEDULED,
-    summary: { missingCritical, missingDegraded, jobsLate, databaseReachable: Boolean(db) },
+    summary: { missingCritical, missingDegraded, jobsUnhealthy, databaseReachable },
   });
 }
