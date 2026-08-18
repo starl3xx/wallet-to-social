@@ -45,7 +45,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 
 /** What the public API and the UI speak. */
-export type Reachability = 'live' | 'suspended' | 'unclaimed';
+export type Reachability = 'live' | 'suspended' | 'unclaimed' | 'reassigned';
 
 export interface HandleReachability {
   status: Reachability;
@@ -71,6 +71,7 @@ export const REACHABILITY_LABEL: Record<Reachability, string> = {
   live: 'Reachable',
   suspended: 'Account suspended',
   unclaimed: 'Handle no longer in use',
+  reassigned: 'Now a different account',
 };
 
 /**
@@ -85,6 +86,17 @@ export const REACHABILITY_DETAIL: Record<Reachability, string> = {
     'The owner attested this account and X has since suspended it. Messages will not arrive.',
   unclaimed:
     'The owner attested this handle and no account holds it now, usually a rename. Somebody else may have taken the name, so treat it as a lead rather than a contact.',
+  /**
+   * The strongest warning of the four, because it is the only one that is
+   * confirmed rather than suspected. `unclaimed` says somebody else *may* have
+   * taken the name. This says somebody else *has*: the handle resolves to a
+   * live account whose id is not the one attested alongside this wallet.
+   *
+   * It is also the only state where the handle looks perfectly healthy. It
+   * reaches a real, active person, and that person is not the wallet owner.
+   */
+  reassigned:
+    'The owner attested this handle, and it now belongs to a different live account. Messages would reach a stranger, not the wallet owner.',
 };
 
 /** True only where we checked and it reaches someone. Null where unchecked. */
@@ -177,7 +189,7 @@ export function publicTwitterField(input: {
  * into the other.
  */
 export async function stampReachability(
-  results: Array<{ twitter_handle?: string; twitter_reachability?: Reachability }>
+  results: Array<{ wallet?: string; twitter_handle?: string; twitter_reachability?: Reachability }>
 ): Promise<void> {
   try {
     const map = await reachabilityFor(results.map((r) => r.twitter_handle));
@@ -186,6 +198,49 @@ export async function stampReachability(
       if (!r.twitter_handle) continue;
       const hit = map.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
       if (hit) r.twitter_reachability = hit.status;
+    }
+
+    /**
+     * Applied AFTER the handle status, because it overrides it.
+     *
+     * A reassigned handle is `live` by every measure the handle table has: it
+     * resolves, to a real account, right now. What the handle table cannot see
+     * is that the account it resolves to is not the one a source attested
+     * alongside this wallet. That comparison needs the wallet, which is why it
+     * is a second pass here rather than part of `reachabilityFor`.
+     *
+     * Measured on 2026-08-18 across the 73,701 wallets holding both ids: 32 of
+     * them, on 16 distinct handles, every one currently live and none flagged
+     * anywhere. Small, and the worst error available to us, because the row
+     * looks clean and the message arrives at somebody real.
+     */
+    const wallets = results
+      .filter((r) => r.wallet && r.twitter_handle)
+      .map((r) => r.wallet!.toLowerCase());
+    if (wallets.length === 0) return;
+
+    const db = getDb();
+    if (!db) return;
+
+    for (let i = 0; i < wallets.length; i += 2000) {
+      const chunk = wallets.slice(i, i + 2000);
+      const moved = (await db.execute(sql`
+        SELECT lower(g.wallet) AS wallet
+        FROM social_graph g
+        JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
+        WHERE lower(g.wallet) = ANY(${sql.param(chunk)}::text[])
+          AND g.twitter_user_id IS NOT NULL
+          AND x.user_id IS NOT NULL
+          AND g.twitter_user_id <> x.user_id
+      `)) as unknown as { rows: Array<{ wallet: string }> };
+
+      if (moved.rows.length === 0) continue;
+      const flagged = new Set(moved.rows.map((m) => m.wallet));
+      for (const r of results) {
+        if (r.wallet && flagged.has(r.wallet.toLowerCase())) {
+          r.twitter_reachability = 'reassigned';
+        }
+      }
     }
   } catch (error) {
     console.error('Reachability stamp failed, continuing without it:', error);

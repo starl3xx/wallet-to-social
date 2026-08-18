@@ -88,6 +88,7 @@ with the record.
 | `live` | The owner attested this account, and it still reaches them. |
 | `suspended` | The owner attested it and X has since suspended it. Messages will not arrive. |
 | `unclaimed` | The owner attested it and no account holds the name now, usually a rename. Somebody else may have taken it, so treat it as a lead rather than a contact. |
+| `reassigned` | The owner attested it and the name now belongs to a **different live account**. Messages would reach a stranger, not the wallet owner. |
 
 The three fields are **absent, not false, when we have not checked**. That is the
 same rule the verified flags follow, for the same reason.
@@ -96,6 +97,13 @@ same rule the verified flags follow, for the same reason.
 suspended account still belongs to the same person and may come back. A freed
 name may already belong to somebody else, which is the only case where an old
 record can point at a stranger rather than at nobody.
+
+`reassigned` is that case, confirmed rather than suspected. Where a source
+recorded the numeric account id alongside the wallet, we can compare it against
+the id the name resolves to today, and a mismatch is proof the name has moved on.
+It is the only state where the record looks perfectly healthy: the name resolves,
+to a real and active account, and that account is not the one that attested it.
+`reachable` is false for it, and the handle export leaves it out.
 
 ### What we found when we checked all of them
 
