@@ -100,14 +100,14 @@ export function DependencyHealth({ password }: { password: string }) {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base flex items-center gap-2">
             {allWell ? (
-              <CheckCircle size={18} weight="fill" className="text-attested" aria-hidden />
+              <CheckCircle weight="fill" className="h-5 w-5 text-attested" aria-hidden />
             ) : (
-              <WarningCircle size={18} weight="fill" className="text-destructive" aria-hidden />
+              <WarningCircle weight="fill" className="h-5 w-5 text-destructive" aria-hidden />
             )}
             Dependencies and scheduled work
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
-            <ArrowsClockwise size={16} aria-hidden />
+            <ArrowsClockwise className="h-4 w-4" aria-hidden />
             <span className="sr-only">Refresh</span>
           </Button>
         </CardHeader>
@@ -146,7 +146,7 @@ export function DependencyHealth({ password }: { password: string }) {
                     <TableCell>
                       {d.configured ? (
                         <span className="inline-flex items-center gap-1.5 text-attested text-sm">
-                          <CheckCircle size={15} weight="fill" aria-hidden /> set
+                          <CheckCircle className="h-4 w-4" weight="fill" aria-hidden /> set
                         </span>
                       ) : (
                         <span
@@ -154,7 +154,7 @@ export function DependencyHealth({ password }: { password: string }) {
                             d.severity === 'critical' ? 'text-destructive' : 'text-muted-foreground'
                           }`}
                         >
-                          <XCircle size={15} weight="fill" aria-hidden />
+                          <XCircle className="h-4 w-4" weight="fill" aria-hidden />
                           {d.severity === 'critical' ? 'MISSING' : 'not set'}
                         </span>
                       )}

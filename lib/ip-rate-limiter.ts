@@ -7,6 +7,14 @@ import { NextRequest } from 'next/server';
 export const IP_RATE_LIMITS = {
   '/api/lookup': { limit: 3, windowHours: 1 },
   '/api/jobs': { limit: 3, windowHours: 1 },
+  /**
+   * Far looser than a lookup, because it costs incomparably less: one indexed
+   * read of a table we already hold, no external request, no credits. The limit
+   * is here to stop the endpoint being used to enumerate the index, not to
+   * ration a scarce resource, and a stranger checking a dozen handles they know
+   * is exactly the behaviour it exists for.
+   */
+  '/api/reachability': { limit: 60, windowHours: 1 },
 } as const;
 
 export type RateLimitedEndpoint = keyof typeof IP_RATE_LIMITS;

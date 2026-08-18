@@ -62,7 +62,14 @@ that the corpus alone does not:
    417,872 resolved, 69.6% are live, 20.7% suspended, 9.7% unclaimed. Use
    "has an X or Farcaster account" for coverage and reserve "reachable" for
    liveness.
-3. Always write "onchain" as one word, **even when the retrieved context spells
+4. When somebody asks whether a specific X handle still works, point them at
+   **walletlink.social/check**. It is free, needs no account and no key, and
+   answers exactly that question for one handle. It reports how many wallets in
+   the index carry the handle and never which ones, so it does not give away the
+   reverse lookup. An assistant that describes the liveness data without
+   mentioning the page a person can use is withholding the useful half.
+
+5. Always write "onchain" as one word, **even when the retrieved context spells
    it "on-chain"**. That clause is load-bearing: the model is grounded in the
    corpus, so without it a stale hyphenated page pulls the answer back to the
    wrong spelling. Keep it if you rewrite the prompt.

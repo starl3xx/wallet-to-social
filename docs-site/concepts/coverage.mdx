@@ -119,6 +119,12 @@ verifications is carrying, whether or not it says so.
 
 Every X match therefore arrives with a `reachable` flag and a `reachability`
 value, and the handle export leaves out the ones we have checked and found dead.
+
+You can check a single handle against this without an account or a key, at
+[walletlink.social/check](https://walletlink.social/check). It reports the same
+state the API returns, plus how many wallets in the index carry that handle. It
+does not report which wallets: going from a handle to its addresses is the
+[reverse lookup](/api-reference/reverse-twitter), which needs a key.
 See [data quality](/concepts/data-quality#we-check-and-we-tell-you).
 
 ## Checking coverage yourself
