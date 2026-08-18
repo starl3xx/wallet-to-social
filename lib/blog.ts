@@ -54,7 +54,22 @@ export function getAllPosts(): BlogPost[] {
         publishedAt: (data.publish_date as string) || (data.date as string) || '2025-01-01',
       };
     })
-    .filter(Boolean) as BlogPost[];
+    .filter(Boolean)
+    /**
+     * Newest first. There was no sort at all, so posts came back in whatever
+     * order the directory read produced, which is alphabetical by filename:
+     * the live blog opened with 27 February, then 16 March, then 23 March,
+     * because the files begin ai-agent-, ai-agents-, airdrop-. A reader had no
+     * way to tell what was new, and the first thing on the page was chosen by
+     * the letter a.
+     *
+     * `publish_date` is written as an ISO date ("2026-02-27") in every post's
+     * frontmatter, so a plain string comparison is already chronological and
+     * needs no Date parsing. The fallback in the map above is "2025-01-01",
+     * which sorts a post missing a date to the bottom rather than the top: an
+     * undated post is not news.
+     */
+    .sort((a, b) => b!.publishedAt.localeCompare(a!.publishedAt)) as BlogPost[];
 }
 
 /**

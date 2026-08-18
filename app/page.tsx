@@ -395,6 +395,12 @@ export default function Home() {
       const walletList = result.rows.map((r) => r.wallet);
       setWallets(walletList);
 
+      // The funnel's second step. `Analytics.csvUpload` existed since January
+      // and was never called, so `csv_upload` had zero rows and the step below
+      // "page views" was permanently empty. Recorded after the parse succeeds,
+      // so a rejected file is not counted as an upload.
+      Analytics.csvUpload(file.size, result.rows.length);
+
       // Store original data (extra columns)
       const dataMap: Record<string, Record<string, string>> = {};
       const cols: string[] = [];
