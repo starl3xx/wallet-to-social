@@ -24,14 +24,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const stats = await sweepEasAttestations();
+
+    // Decided before the event is written, by the same expression that decides
+    // the status code. See the note in ethos-sweep: an unconditional event made
+    // a failed sweep indistinguishable from a healthy one in the health panel.
+    const ok = stats.schemasFailed === 0 && stats.schemasPartial === 0;
+
     trackEvent('lookup_completed', {
-      metadata: { eventSubtype: 'eas_sweep', ...stats },
+      metadata: { eventSubtype: 'eas_sweep', ok, ...stats },
     }).catch(console.error);
 
     // Partial coverage is not a success. This runs unattended, so a schema we
     // could not read has to show up in the status code rather than in a field
     // nobody reads.
-    if (stats.schemasFailed > 0 || stats.schemasPartial > 0) {
+    if (!ok) {
       return NextResponse.json(
         {
           message:

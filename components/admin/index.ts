@@ -10,3 +10,4 @@ export { LookupDashboard } from './LookupDashboard';
 export { UsageMeter } from './UsageMeter';
 export { AccountDetail } from './AccountDetail';
 export { HandleConflicts } from './HandleConflicts';
+export { DependencyHealth } from './DependencyHealth';
