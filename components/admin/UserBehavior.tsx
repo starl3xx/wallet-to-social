@@ -101,14 +101,23 @@ export function UserBehavior({ password }: UserBehaviorProps) {
   }: {
     label: string;
     count: number;
-    rate: number;
+    /** null when there is no denominator to divide by. Rendered as an em space. */
+    rate: number | null;
     isLast?: boolean;
   }) => (
     <div className="flex items-center">
       <div className="flex-1 text-center">
         <div className="text-xs text-muted-foreground mb-1">{label}</div>
-        <div className="text-lg font-bold">{count.toLocaleString()}</div>
-        <div className="text-xs text-muted-foreground">{rate.toFixed(0)}%</div>
+        <div className="text-lg font-bold tabular-nums">{count.toLocaleString()}</div>
+        <div className="text-xs text-muted-foreground tabular-nums">
+          {rate === null ? (
+            <span title="No page views recorded in this window, so a rate cannot be computed">
+              n/a
+            </span>
+          ) : (
+            `${rate.toFixed(0)}%`
+          )}
+        </div>
       </div>
       {!isLast && (
         <ChevronRight className="h-4 w-4 text-muted-foreground mx-1 flex-shrink-0" />
@@ -136,7 +145,22 @@ export function UserBehavior({ password }: UserBehaviorProps) {
     );
   }
 
-  const baseCount = funnel?.pageViews || 1;
+  /**
+   * `null` when there is no denominator, NOT 1.
+   *
+   * This was `funnel?.pageViews || 1`, and page views were never recorded, so
+   * every rate below became a percentage of one: 34 lookups read "3400%" and 49
+   * upgrade-modal views read "4900%". A number that cannot be computed has to
+   * say so. Substituting a denominator to keep the arithmetic running turns a
+   * missing measurement into a confident wrong one, which is the failure this
+   * product exists to avoid everywhere else.
+   *
+   * It stays null-aware after the tracking fix, because any window that predates
+   * it still has no page views and must render honestly rather than retroactively
+   * inventing a rate.
+   */
+  const baseCount = funnel?.pageViews ? funnel.pageViews : null;
+  const rateOf = (n: number) => (baseCount === null ? null : (n / baseCount) * 100);
 
   return (
     <div className="space-y-6">
@@ -162,32 +186,32 @@ export function UserBehavior({ password }: UserBehaviorProps) {
               <FunnelStep
                 label="Page views"
                 count={funnel.pageViews}
-                rate={100}
+                rate={baseCount === null ? null : 100}
               />
               <FunnelStep
                 label="CSV uploads"
                 count={funnel.csvUploads}
-                rate={(funnel.csvUploads / baseCount) * 100}
+                rate={rateOf(funnel.csvUploads)}
               />
               <FunnelStep
                 label="Lookups started"
                 count={funnel.lookupsStarted}
-                rate={(funnel.lookupsStarted / baseCount) * 100}
+                rate={rateOf(funnel.lookupsStarted)}
               />
               <FunnelStep
                 label="Exports"
                 count={funnel.exportsClicked}
-                rate={(funnel.exportsClicked / baseCount) * 100}
+                rate={rateOf(funnel.exportsClicked)}
               />
               <FunnelStep
                 label="Upgrade modal"
                 count={funnel.upgradeModalViewed}
-                rate={(funnel.upgradeModalViewed / baseCount) * 100}
+                rate={rateOf(funnel.upgradeModalViewed)}
               />
               <FunnelStep
                 label="Paid"
                 count={funnel.paymentCompleted}
-                rate={(funnel.paymentCompleted / baseCount) * 100}
+                rate={rateOf(funnel.paymentCompleted)}
                 isLast
               />
             </div>

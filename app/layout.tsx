@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
+import { PageViewTracker } from '@/components/PageViewTracker';
 import { DocsChat } from '@/components/DocsChat';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
@@ -219,6 +220,8 @@ export default function RootLayout({
           <DocsChat />
         </ThemeProvider>
         <Analytics />
+        {/* Vercel's counts traffic; ours feeds the admin funnel. Both, on purpose. */}
+        <PageViewTracker />
       </body>
     </html>
   );
