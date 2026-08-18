@@ -5,8 +5,14 @@
  *
  * Farcaster records a verified X account as a **string**, captured once, with no
  * account id and no recheck. That is the source of 1,039,550 of our handles, and
- * nothing in the protocol notices when somebody renames or gets suspended. We
- * resolved all 440,700 distinct handles we hold on 2026-08-17:
+ * nothing in the protocol notices when somebody renames or gets suspended.
+ *
+ * On 2026-08-17 we resolved 417,872 distinct handles. Not "all" of them:
+ * the sweep leaves transport failures unrecorded so they retry, so its result
+ * was never going to equal its target. The index holds 446,043 distinct handles
+ * today, which puts coverage at 93.7% and falling, because new handles arrive
+ * continuously and no scheduled job resolves them. The percentages below are
+ * shares of the 417,872 that returned a state:
  *
  *     live          290,945   69.6%
  *     suspended      86,537   20.7%

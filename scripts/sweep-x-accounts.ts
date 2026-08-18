@@ -8,7 +8,7 @@
  * were checked longer ago than the stale window, oldest first, so an interrupted
  * run continues rather than restarting. Safe to run repeatedly.
  *
- * A full first pass is 440,700 handles at 18 credits each, about 7.93M credits.
+ * A full first pass is 446,043 handles at 18 credits each, about 8.03M credits.
  * The account holds 10.5M a month, so the pass fits with roughly 2.5M to spare,
  * and every pass after it is cheaper: once a handle has resolved we hold its id,
  * and by-id lookups batch at 10 credits.
@@ -19,6 +19,7 @@ import {
   remainingCredits,
   CREDITS_PER_LOOKUP,
 } from '../lib/x-accounts';
+import { isConfigured, resolverKey } from '../lib/x-resolver';
 
 const arg = (name: string, fallback: number): number => {
   const i = process.argv.indexOf(`--${name}`);
@@ -28,9 +29,9 @@ const arg = (name: string, fallback: number): number => {
 };
 
 async function main() {
-  const key = process.env.TWITTERAPI_IO_KEY;
-  if (!key) {
-    console.error('TWITTERAPI_IO_KEY is required');
+  const key = resolverKey();
+  if (!isConfigured()) {
+    console.error('X_RESOLVER_API_BASE and X_RESOLVER_API_KEY are both required');
     process.exit(1);
   }
   if (!process.env.DATABASE_URL) {

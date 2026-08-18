@@ -127,6 +127,20 @@ const CLAIMS: Claim[] = [
       'components/ReachabilityClaim.tsx',
       'README.md',
       'docs/AI-SEARCH.md',
+      /**
+       * A doc comment, declared deliberately, against this file's own rule that
+       * a comment is not published copy.
+       *
+       * That rule earns its place in the undeclared SWEEP, where scanning prose
+       * about a figure would flag every explanation. It is the wrong rule for a
+       * DECLARED claim. This header stated "we resolved all 440,700 distinct
+       * handles" for a day after the docs had been corrected to 417,872, and
+       * nothing caught it, because the only files anybody thought to declare
+       * were the ones a customer reads. A number asserted as fact in the module
+       * that defines the feature is a claim; whoever reads it next will repeat
+       * it.
+       */
+      'lib/handle-reachability.ts',
     ],
     /**
      * Matched by neighbourhood, not by sentence.

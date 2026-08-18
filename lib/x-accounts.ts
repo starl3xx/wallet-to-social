@@ -2,14 +2,13 @@
  * What an X handle currently resolves to.
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
- * whenever they like without telling anyone. A measured sample of 3,000 rows on
- * 2026-08-16 found **8.47% reaching no account at all** (95% CI 7.52 to 9.52),
- * which is roughly 88,000 of the rows we serve.
+ * whenever they like without telling anyone. Measured across the whole index on
+ * 2026-08-17: of 417,872 handles resolved, 30.4% reach nobody.
  *
  * ## Why this is a table about handles, not a column on wallets
  *
- * 1,143,547 rows carry a handle, but there are only 440,700 distinct handles:
- * 2.59 rows per handle. Resolving per row would pay 2.59 times over for the same
+ * 1,149,670 rows carry a handle, but there are only 446,043 distinct handles:
+ * 2.58 rows per handle. Resolving per row would pay 2.58 times over for the same
  * answer. More importantly, "does this string reach anyone" is a fact about the
  * string, and storing a fact about a string on a row about a wallet is how a
  * column comes to mean two things.
@@ -30,19 +29,23 @@
  * person. Nothing else can see that, and it works today on the 81,412 rows that
  * carry an attested id.
  *
- * ## Why not read x.com directly
+ * ## Why a paid API and not the public web
  *
- * Because x.com's robots.txt is `User-agent: * / Disallow: /` with
- * `Crawl-delay: 1`. A one-off sample with a crawler user-agent measured the
- * problem; 440,700 requests a pass would be an automated crawler against an
- * explicit refusal at roughly ten times the stated delay. The paid API answers
- * the same question, is permitted, and returns the account id as well, which the
- * HTML never would.
+ * x.com's robots.txt refuses automated clients outright, so scraping it is not
+ * available to us on any terms we would accept: a pass over this index is
+ * hundreds of thousands of requests, and no volume of them becomes acceptable
+ * because the refusal is explicit rather than rate-shaped.
+ *
+ * A paid API is the permitted route, and it is also the better one. It returns
+ * the numeric account id alongside the handle, which the public HTML never
+ * would, and that id is the only thing that can tell a renamed handle from a
+ * handle that a stranger now holds.
  */
 import { getDb } from '@/db';
+import { resolverUrl } from './x-resolver';
 import { sql } from 'drizzle-orm';
 
-const BASE = 'https://api.twitterapi.io';
+// Endpoint and key both come from the environment. See lib/x-resolver.ts.
 
 /**
  * The provider documents 200 QPS per client. Measured throughput here is about
@@ -134,7 +137,7 @@ async function resolve(handle: string, key: string): Promise<XAccount | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(
-        `${BASE}/twitter/user/info?userName=${encodeURIComponent(handle)}`,
+        resolverUrl(`/twitter/user/info?userName=${encodeURIComponent(handle)}`),
         { headers: { 'x-api-key': key } }
       );
 
@@ -231,7 +234,7 @@ async function controlsHold(key: string): Promise<boolean> {
 /** Credits left on the account, or null if the balance cannot be read. */
 export async function remainingCredits(key: string): Promise<number | null> {
   try {
-    const res = await fetch(`${BASE}/oapi/my/info`, { headers: { 'x-api-key': key } });
+    const res = await fetch(resolverUrl('/oapi/my/info'), { headers: { 'x-api-key': key } });
     if (!res.ok) return null;
     const b = (await res.json()) as {
       recharge_credits?: number;
