@@ -22,6 +22,7 @@ import {
   GrowthRetention,
   RevenueDashboard,
   SystemHealth,
+  DependencyHealth,
   UniversalSearch,
   WalletEnrichment,
   LookupDashboard,
@@ -1274,7 +1275,15 @@ export default function AdminPage() {
         {activeTab === 'behavior' && <UserBehavior password={password} />}
         {activeTab === 'growth' && <GrowthRetention password={password} />}
         {activeTab === 'revenue' && <RevenueDashboard password={password} />}
-        {activeTab === 'health' && <SystemHealth password={password} />}
+        {activeTab === 'health' && (
+          <div className="space-y-6">
+            {/* Above SystemHealth on purpose: "is it configured and running"
+                has to be answered before "how did it perform", or a panel of
+                zeroes reads as calm rather than as switched off. */}
+            <DependencyHealth password={password} />
+            <SystemHealth password={password} />
+          </div>
+        )}
 
         {/* Tab content - Operations */}
         {activeTab === 'whitelist' && renderWhitelistTab()}
