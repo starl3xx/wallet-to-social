@@ -109,6 +109,23 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    /**
+     * The count matches on lower(twitter_handle), deliberately, and it is
+     * indexed. This comment sits outside the template because a tagged template
+     * ends at the first backtick, and putting a prose note with backticks
+     * inside one broke the build twice today.
+     *
+     * Measured on the live database: the predicate below plans as a Bitmap
+     * Index Scan on social_graph_twitter_lower_idx in 0.133ms. Matching the
+     * column directly is a hair faster at 0.092ms because it can go index-only,
+     * and every row is stored lowercase today, so the two agree.
+     *
+     * They agree until they do not. On 2026-08-17, 3,566 rows were written with
+     * mixed case and became invisible to a reverse lookup that compared the
+     * column directly against a lowercased query. That is this exact
+     * substitution, and it cost a repair script. A predicate robust to storage
+     * beats 41 microseconds on a keyless endpoint.
+     */
     const result = (await db.execute(sql`
       SELECT
         (SELECT count(*)::int FROM social_graph

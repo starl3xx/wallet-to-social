@@ -68,7 +68,13 @@ export function ReachabilityChecker() {
         setAnswer(body);
       }
     } catch {
-      if (mine === seq.current) setError('Check failed. Try again in a moment.');
+      if (mine === seq.current) {
+        setError('Check failed. Try again in a moment.');
+        // Clear the previous answer too, as the non-OK branch does. Leaving it
+        // put a red failure message beside a stale result card, which reads as
+        // "this handle failed" rather than "the check did not complete".
+        setAnswer(null);
+      }
     } finally {
       if (mine === seq.current) setLoading(false);
     }
