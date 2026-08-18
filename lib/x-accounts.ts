@@ -471,6 +471,29 @@ export async function sweepHandles(
    */
   const state: { stopped: { reason: string; planned: boolean } | null } = { stopped: null };
 
+  /**
+   * Record a stop. **An unplanned stop can never be lost.**
+   *
+   * `state.stopped` is one slot shared by 50 workers. A worker sitting inside
+   * `controlsHold`, which awaits several network calls, can record a control
+   * failure while another worker is hitting the deadline; a plain assignment
+   * let the deadline land second and overwrite it. The run then flushed its
+   * batch, did not throw, and reported success, having possibly just written
+   * `not_found` across live handles because the resolver had started answering
+   * that to everything. That is the single most expensive thing this function
+   * can do, and the guard against it was being overwritten by a routine event.
+   *
+   * The rule: nothing displaces an unplanned stop, and an unplanned stop
+   * displaces a planned one. Between two of the same kind the first wins,
+   * because the first is what actually ended the work.
+   */
+  const recordStop = (reason: string, planned: boolean) => {
+    const current = state.stopped;
+    if (current === null || (current.planned && !planned)) {
+      state.stopped = { reason, planned };
+    }
+  };
+
   const flush = async () => {
     if (failedHandles.length > 0) {
       const failed = failedHandles;
@@ -498,11 +521,11 @@ export async function sweepHandles(
          */
         const worstCase = CREDITS_PER_LOOKUP * MAX_ATTEMPTS_PER_HANDLE;
         if (progress.creditsSpent + worstCase > opts.creditCap) {
-          state.stopped = { reason: `credit cap of ${opts.creditCap} reached`, planned: true };
+          recordStop(`credit cap of ${opts.creditCap} reached`, true);
           return;
         }
         if (opts.deadlineAt !== undefined && Date.now() >= opts.deadlineAt) {
-          state.stopped = { reason: 'deadline reached', planned: true };
+          recordStop('deadline reached', true);
           return;
         }
         const handle = queue.shift()!;
@@ -548,10 +571,7 @@ export async function sweepHandles(
         if (sinceControl >= controlEvery) {
           sinceControl = 0;
           if (!(await controlsHold(key))) {
-            state.stopped = {
-              reason: `controls failed after ${progress.checked} lookups`,
-              planned: false,
-            };
+            recordStop(`controls failed after ${progress.checked} lookups`, false);
             return;
           }
           opts.onProgress?.({ ...progress });
