@@ -53,6 +53,12 @@ import { sql } from 'drizzle-orm';
  * enough for a full pass inside two hours, and comfortably below a ceiling that
  * we have no reason to sit against.
  */
+/**
+ * Per-request ceiling. Deliberately far below the route's 300s: a resolver that
+ * has stopped answering should cost one handle's worth of time, not a run's.
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 const CONCURRENCY = 50;
 
 /**
@@ -78,6 +84,9 @@ export const CREDITS_PER_BATCHED_LOOKUP = 10;
 const LIVE_CONTROL = 'jack';
 const DEAD_CONTROL = 'zzzznotarealhandle99123';
 const CONTROL_EVERY = 2000;
+
+/** `resolve` retries at most this many times, so a handle costs at most this. */
+const MAX_ATTEMPTS_PER_HANDLE = 3;
 
 /**
  * What happened when we asked.
@@ -106,6 +115,12 @@ export interface SweepProgress {
   unavailable: number;
   failed: number;
   creditsSpent: number;
+  /**
+   * HTTP requests actually issued, retries included. `creditsSpent` is derived
+   * from this rather than from the handle count, because billing is per
+   * request and `resolve` makes up to three.
+   */
+  requestsIssued: number;
 }
 
 interface ApiUser {
@@ -133,12 +148,34 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * `return null`, so the handle is retried rather than recorded as gone. That is
  * the right way round for a shape we do not control.
  */
-async function resolve(handle: string, key: string): Promise<XAccount | null> {
+async function resolve(
+  handle: string,
+  key: string,
+  /**
+   * Called once per HTTP request actually issued, including retries.
+   *
+   * Billing is per request and this function makes up to three, but the caller
+   * used to charge itself exactly one per handle. During the provider outage
+   * that triggers the retries, real spend ran up to three times the number the
+   * credit cap was checking, which is precisely when the cap needs to hold.
+   */
+  onRequest?: () => void
+): Promise<XAccount | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      onRequest?.();
       const res = await fetch(
         resolverUrl(`/twitter/user/info?userName=${encodeURIComponent(handle)}`),
-        { headers: { 'x-api-key': key } }
+        {
+          headers: { 'x-api-key': key },
+          /**
+           * Without this the request inherits undici's default header timeout
+           * of 300s, which equals the cron route's entire maxDuration. One
+           * provider socket that accepts and never answers would consume the
+           * whole run and every row already paid for in the buffer.
+           */
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        }
       );
 
       if (res.status === 429 || res.status >= 500) {
@@ -234,7 +271,10 @@ async function controlsHold(key: string): Promise<boolean> {
 /** Credits left on the account, or null if the balance cannot be read. */
 export async function remainingCredits(key: string): Promise<number | null> {
   try {
-    const res = await fetch(resolverUrl('/oapi/my/info'), { headers: { 'x-api-key': key } });
+    const res = await fetch(resolverUrl('/oapi/my/info'), {
+      headers: { 'x-api-key': key },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const b = (await res.json()) as {
       recharge_credits?: number;
@@ -243,6 +283,46 @@ export async function remainingCredits(key: string): Promise<number | null> {
     return (b.recharge_credits ?? 0) + (b.total_bonus_credits ?? 0);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Note that these handles were tried and produced nothing.
+ *
+ * Deliberately does NOT touch `x_accounts`. A failed attempt is not a
+ * resolution, and every published reachability figure counts rows in that
+ * table, so recording failures there would change what those numbers mean.
+ */
+async function recordAttempts(handles: string[]): Promise<void> {
+  const db = getDb();
+  if (!db || handles.length === 0) return;
+  try {
+    await db.execute(sql`
+      INSERT INTO x_handle_attempts (handle, attempts, last_attempt_at, last_reason)
+      SELECT h, 1, now(), 'no result'
+      FROM unnest(${sql.param(handles.map((h) => h.toLowerCase()))}::text[]) AS h
+      ON CONFLICT (handle) DO UPDATE SET
+        attempts        = x_handle_attempts.attempts + 1,
+        last_attempt_at = now(),
+        last_reason     = EXCLUDED.last_reason
+    `);
+  } catch (error) {
+    // Accounting must never break the work it measures.
+    console.error('recordAttempts failed:', error);
+  }
+}
+
+/** A handle that resolved has nothing outstanding. */
+async function clearAttempts(handles: string[]): Promise<void> {
+  const db = getDb();
+  if (!db || handles.length === 0) return;
+  try {
+    await db.execute(sql`
+      DELETE FROM x_handle_attempts
+      WHERE handle = ANY(${sql.param(handles.map((h) => h.toLowerCase()))}::text[])
+    `);
+  } catch (error) {
+    console.error('clearAttempts failed:', error);
   }
 }
 
@@ -286,8 +366,33 @@ export async function pendingHandles(limit: number, staleDays = 90): Promise<str
     SELECT lower(g.twitter_handle) AS handle, min(x.checked_at) AS checked_at
     FROM social_graph g
     LEFT JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
+    LEFT JOIN x_handle_attempts a ON a.handle = lower(g.twitter_handle)
     WHERE g.twitter_handle IS NOT NULL
       AND (x.handle IS NULL OR x.checked_at < now() - make_interval(days => ${staleDays}))
+      /**
+       * Back off handles that have already produced nothing.
+       *
+       * Never-checked handles sort first, so without this the 22,828 that
+       * returned no result on 2026-08-17 sit permanently at the head of the
+       * queue and a capped daily run never reaches anything else. The delay
+       * doubles with each failed attempt and is capped at 30 days. The
+       * exponent is attempts minus one, so the first failure waits ONE day.
+       * Raising 2 to attempts itself waited two, and a handle that failed once
+       * to a blip recovered a day later than the comment claimed. So the delays
+       * are 1, 2, 4, 8, 16, then 30.
+       *
+       * No backticks in this comment: it sits inside a tagged template literal,
+       * and one would end the string. That is what broke the first attempt.
+       *
+       * A transient failure is retried tomorrow, while a handle
+       * that can never resolve stops consuming the budget without ever being
+       * recorded as resolved. It stays unchecked, which is the truth about it.
+       */
+      AND (
+        a.handle IS NULL
+        OR a.last_attempt_at < now() - make_interval(
+             days => least(30, power(2, least(a.attempts, 6) - 1)::int))
+      )
     GROUP BY 1
     -- Never-checked first, then random within that group. Without the random
     -- tie-break Postgres returns them in storage order, which here is
@@ -313,8 +418,25 @@ export async function pendingHandles(limit: number, staleDays = 90): Promise<str
 export async function sweepHandles(
   handles: string[],
   key: string,
-  opts: { creditCap: number; onProgress?: (p: SweepProgress) => void }
+  opts: {
+    creditCap: number;
+    /**
+     * Absolute epoch-ms ceiling. Reached is a planned stop, not an error: the
+     * buffer is flushed and what was resolved is kept. Without it a Vercel kill
+     * at maxDuration discards up to a full batch of rows already paid for.
+     */
+    deadlineAt?: number;
+    /**
+     * Lookups between control checks. Defaults to the long-run value; a short
+     * scheduled run should pass something much smaller, because a run capped
+     * below the default gets no mid-flight check at all and its entire output
+     * rests on the single pre-flight one.
+     */
+    controlEvery?: number;
+    onProgress?: (p: SweepProgress) => void;
+  }
 ): Promise<SweepProgress> {
+  const controlEvery = opts.controlEvery ?? CONTROL_EVERY;
   const progress: SweepProgress = {
     checked: 0,
     live: 0,
@@ -322,6 +444,7 @@ export async function sweepHandles(
     unavailable: 0,
     failed: 0,
     creditsSpent: 0,
+    requestsIssued: 0,
   };
   if (handles.length === 0) return progress;
 
@@ -331,33 +454,110 @@ export async function sweepHandles(
 
   const queue = [...handles];
   let buffer: XAccount[] = [];
+  let failedHandles: string[] = [];
   let sinceControl = 0;
-  // A holder rather than a bare `let`: TypeScript's control-flow analysis does
-  // not see assignments made inside the worker closures below, so a plain
-  // variable narrows to `null` and then to `never` at the check after the loop.
-  const state: { stopped: string | null } = { stopped: null };
+  /**
+   * A holder rather than a bare `let`: TypeScript's control-flow analysis does
+   * not see assignments made inside the worker closures below, so a plain
+   * variable narrows to `null` and then to `never` at the check after the loop.
+   *
+   * `planned` is a field rather than something inferred from the message. It
+   * used to be `state.stopped.startsWith('credit cap')`, and when a deadline
+   * stop was added its message did not start with that, so a run that filled
+   * its working window threw after persisting real work and the cron reported
+   * an outage. The doc on `deadlineAt` said "a planned stop, not an error" in
+   * the same commit that made it an error. Whether a stop is expected is a
+   * property of the stop, not of how its sentence begins.
+   */
+  const state: { stopped: { reason: string; planned: boolean } | null } = { stopped: null };
+
+  /**
+   * Record a stop. **An unplanned stop can never be lost.**
+   *
+   * `state.stopped` is one slot shared by 50 workers. A worker sitting inside
+   * `controlsHold`, which awaits several network calls, can record a control
+   * failure while another worker is hitting the deadline; a plain assignment
+   * let the deadline land second and overwrite it. The run then flushed its
+   * batch, did not throw, and reported success, having possibly just written
+   * `not_found` across live handles because the resolver had started answering
+   * that to everything. That is the single most expensive thing this function
+   * can do, and the guard against it was being overwritten by a routine event.
+   *
+   * The rule: nothing displaces an unplanned stop, and an unplanned stop
+   * displaces a planned one. Between two of the same kind the first wins,
+   * because the first is what actually ended the work.
+   */
+  const recordStop = (reason: string, planned: boolean) => {
+    const current = state.stopped;
+    if (current === null || (current.planned && !planned)) {
+      state.stopped = { reason, planned };
+    }
+  };
 
   const flush = async () => {
+    if (failedHandles.length > 0) {
+      const failed = failedHandles;
+      failedHandles = [];
+      await recordAttempts(failed);
+    }
     if (buffer.length === 0) return;
     const batch = buffer;
     buffer = [];
     await persist(batch);
+    // A handle that resolved has no outstanding attempt to defer.
+    await clearAttempts(batch.map((a) => a.handle));
   };
 
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
       while (queue.length && !state.stopped) {
-        if (progress.creditsSpent + CREDITS_PER_LOOKUP > opts.creditCap) {
-          state.stopped = `credit cap of ${opts.creditCap} reached`;
+        /**
+         * Reserve the WORST case before starting a handle, not the best.
+         *
+         * `resolve` can issue three requests, so charging one up front let a
+         * run finish over its cap during exactly the provider trouble that
+         * causes retries. Reserving three and refunding the unused part keeps
+         * the cap a ceiling rather than an estimate.
+         */
+        const worstCase = CREDITS_PER_LOOKUP * MAX_ATTEMPTS_PER_HANDLE;
+        if (progress.creditsSpent + worstCase > opts.creditCap) {
+          recordStop(`credit cap of ${opts.creditCap} reached`, true);
+          return;
+        }
+        if (opts.deadlineAt !== undefined && Date.now() >= opts.deadlineAt) {
+          recordStop('deadline reached', true);
           return;
         }
         const handle = queue.shift()!;
-        progress.creditsSpent += CREDITS_PER_LOOKUP;
-        const account = await resolve(handle, key);
+        /**
+         * Charged inside the callback, not from a delta afterwards.
+         *
+         * The first version captured `requestsIssued` before the call and
+         * subtracted after, which is a read-modify-write across an await with
+         * 50 workers running. Every worker's delta included every other
+         * worker's requests: a real run of 11 handles issuing 11 requests
+         * reported 66, because the deltas summed 1+2+...+11. The callback body
+         * has no await, so incrementing there is atomic in this runtime and
+         * counts exactly the requests this handle caused.
+         */
+        const account = await resolve(handle, key, () => {
+          progress.requestsIssued++;
+          progress.creditsSpent += CREDITS_PER_LOOKUP;
+        });
         progress.checked++;
 
         if (!account) {
           progress.failed++;
+          /**
+           * Recorded, so the next run does not serve this handle first again.
+           *
+           * Nothing is written to `x_accounts`: the handle stays genuinely
+           * unchecked and nothing about it is published. Only the retry is
+           * deferred. Without this the 22,828 handles that produced nothing on
+           * 2026-08-17 sit permanently at the front of `pendingHandles`, and a
+           * capped daily run would spend its whole budget on them forever.
+           */
+          failedHandles.push(handle);
         } else {
           buffer.push(account);
           if (account.status === 'live') progress.live++;
@@ -368,10 +568,10 @@ export async function sweepHandles(
         if (buffer.length >= 500) await flush();
 
         sinceControl++;
-        if (sinceControl >= CONTROL_EVERY) {
+        if (sinceControl >= controlEvery) {
           sinceControl = 0;
           if (!(await controlsHold(key))) {
-            state.stopped = `controls failed after ${progress.checked} lookups`;
+            recordStop(`controls failed after ${progress.checked} lookups`, false);
             return;
           }
           opts.onProgress?.({ ...progress });
@@ -381,9 +581,9 @@ export async function sweepHandles(
   );
 
   await flush();
-  // A credit cap is a planned stop; a control failure is not.
-  if (state.stopped && !state.stopped.startsWith('credit cap')) {
-    throw new Error(`x-accounts sweep: ${state.stopped}, stopped early`);
+  // Only an unplanned stop is an error. A cap or a deadline did its job.
+  if (state.stopped && !state.stopped.planned) {
+    throw new Error(`x-accounts sweep: ${state.stopped.reason}, stopped early`);
   }
   opts.onProgress?.({ ...progress });
   return progress;

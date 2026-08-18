@@ -104,6 +104,7 @@ const JOBS: Array<{
   { name: 'Onchain attestation sweep', schedule: '06:20 daily', subtype: 'eas_sweep', maxAgeHours: 48, reportsOutcome: true },
   { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48, reportsOutcome: true },
   { name: 'Collection seeding', schedule: '07:00 daily', subtype: 'seed_contract', maxAgeHours: 48, reportsOutcome: false },
+  { name: 'X handle liveness', schedule: '08:00 daily', subtype: 'x_reachability_sweep', maxAgeHours: 48, reportsOutcome: true },
 ];
 
 /**
@@ -116,11 +117,15 @@ const JOBS: Array<{
  * exactly the blindness that let the wrong claim ship.
  */
 const UNSCHEDULED: Array<{ name: string; how: string; why: string }> = [
-  {
-    name: 'X handle liveness sweep',
-    how: 'manual: scripts/sweep-x-accounts.ts',
-    why: 'No cron. Coverage decays as new handles arrive, so any published reachability figure ages from the day it was measured.',
-  },
+  /**
+   * Empty, and kept rather than deleted.
+   *
+   * The handle-liveness sweep sat here until it was scheduled on 2026-08-18.
+   * The section stays because the failure it exists to catch recurs: work that
+   * runs on no schedule produces no failures, which is how the docs came to
+   * promise a daily cadence for a job that had never had a cron. When the next
+   * piece of unscheduled work appears, it goes here.
+   */
 ];
 
 export async function GET(request: NextRequest) {
