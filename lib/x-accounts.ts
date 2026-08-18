@@ -333,8 +333,10 @@ async function persist(accounts: XAccount[]): Promise<void> {
 
   await db.execute(sql`
     INSERT INTO x_accounts
-      (handle, user_id, display_name, followers, status, unavailable_reason, checked_at)
-    SELECT lower(t.handle), nullif(t.user_id, ''), nullif(t.display_name, ''),
+      (handle, user_id, last_live_user_id, display_name, followers, status,
+       unavailable_reason, checked_at)
+    SELECT lower(t.handle), nullif(t.user_id, ''), nullif(t.user_id, ''),
+           nullif(t.display_name, ''),
            nullif(t.followers, '')::int, t.status, nullif(t.reason, ''), now()
     FROM unnest(
       ${sql.param(accounts.map((a) => a.handle.toLowerCase()))}::text[],
@@ -345,7 +347,18 @@ async function persist(accounts: XAccount[]): Promise<void> {
       ${sql.param(accounts.map((a) => a.unavailableReason ?? ''))}::text[]
     ) AS t(handle, user_id, display_name, followers, status, reason)
     ON CONFLICT (handle) DO UPDATE SET
+      -- "the id this handle resolves to NOW". Cleared on purpose when a handle
+      -- stops resolving, because that is the true answer and the rename
+      -- detection depends on it meaning exactly this.
       user_id            = EXCLUDED.user_id,
+      -- "the id this handle pointed at the last time it pointed anywhere".
+      -- Never cleared. A suspended or vacated handle resolves with no id, so
+      -- the old assignment above used to destroy the only durable identifier
+      -- the row had, permanently, the first time a live handle went away. It
+      -- has cost nothing yet only because there has been one pass; rechecks
+      -- begin 2026-10-01. This is also what a batched-by-id lookup needs, which
+      -- is 10 credits against 18.
+      last_live_user_id  = coalesce(EXCLUDED.user_id, x_accounts.last_live_user_id),
       display_name       = EXCLUDED.display_name,
       followers          = EXCLUDED.followers,
       status             = EXCLUDED.status,
