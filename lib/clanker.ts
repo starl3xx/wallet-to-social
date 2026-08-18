@@ -65,6 +65,14 @@ export interface ClankerSweepStats {
   filled: number;
   agree: number;
   conflicts: number;
+  /**
+   * True when the scan checkpoint was deliberately not advanced, because at
+   * least one deploy carried an account id the resolver could not answer for.
+   * The same range is rescanned next run rather than those links being lost.
+   */
+  checkpointHeld: boolean;
+  /** Deploys dropped this run because their account id did not resolve. */
+  unresolvedAccountIds: number;
 }
 
 interface RawDeploy {
@@ -231,6 +239,8 @@ export async function sweepClanker(
     filled: 0,
     agree: 0,
     conflicts: 0,
+    checkpointHeld: false,
+    unresolvedAccountIds: 0,
   };
   if (from > head) return stats;
 
@@ -273,10 +283,28 @@ export async function sweepClanker(
   const resolved = await resolveAccountIds(ids);
 
   const links: AttestedLink[] = [];
+  /**
+   * Deploys we could not resolve, and therefore must not walk past.
+   *
+   * `continue` below is correct: an unresolved account id is never guessed. But
+   * dropping the link and then advancing the checkpoint anyway makes the drop
+   * PERMANENT, because the block range is never scanned again.
+   *
+   * This is not hypothetical. On 2026-08-18 the resolver's env vars had been
+   * renamed and not yet set in production, so `resolveAccountIds` returned an
+   * empty map, all 9 of that run's id-carrying deploys were dropped, and the
+   * checkpoint still advanced to block 50122934. Nine owner-attested wallet to
+   * X links, gone, from a provider outage that lasted one morning.
+   */
+  let unresolved = 0;
+
   for (const r of raw) {
     if (isAccountId(r.identifier)) {
       const handle = resolved.get(r.identifier);
-      if (!handle) continue; // unresolved: never guessed
+      if (!handle) {
+        unresolved++;
+        continue; // unresolved: never guessed
+      }
       links.push({ wallet: r.wallet, handle, twitterUserId: r.identifier });
     } else if (isHandle(r.identifier)) {
       links.push({ wallet: r.wallet, handle: r.identifier, twitterUserId: null });
@@ -292,7 +320,29 @@ export async function sweepClanker(
   stats.agree = ingested.agree;
   stats.conflicts = ingested.conflicts;
 
-  await setScanCheckpoint(stats.toBlock);
+  /**
+   * Advance only over blocks we actually finished.
+   *
+   * Holding the checkpoint costs one rescan of the same range next run, which
+   * is idempotent (the ingest upserts) and cheap: this sweep reads about 24
+   * X-linked deploys a day. Advancing over an unresolved deploy costs the link
+   * forever. Those are not close.
+   *
+   * The range cannot grow without bound, because `sweepClanker` already clamps
+   * its own lookback, so a long resolver outage means repeated work rather than
+   * an ever-growing scan.
+   */
+  stats.unresolvedAccountIds = unresolved;
+  if (unresolved > 0) {
+    stats.checkpointHeld = true;
+    console.warn(
+      `Clanker: holding checkpoint at the previous block. ${unresolved} deploy(s) ` +
+        `carried an account id the resolver could not answer for, and advancing ` +
+        `past them would lose those links permanently.`
+    );
+  } else {
+    await setScanCheckpoint(stats.toBlock);
+  }
   opts.onProgress?.(
     `Clanker: ${stats.links} links from ${stats.xDeploys} social deploys, ` +
       `${stats.newWallets} new, ${stats.conflicts} conflicts`
