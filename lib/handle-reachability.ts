@@ -260,27 +260,45 @@ export async function stampReachability(
   results: Array<{ wallet?: string; twitter_handle?: string; twitter_reachability?: Reachability }>
 ): Promise<void> {
   try {
-    const map = await reachabilityFor(results.map((r) => r.twitter_handle));
-    if (map.size === 0) return;
-    for (const r of results) {
-      if (!r.twitter_handle) continue;
-      const hit = map.get(r.twitter_handle.toLowerCase().replace(/^@/, ''));
-      if (hit) r.twitter_reachability = hit.status;
+    /**
+     * One read, from the wallet-aware helper, whose result is already complete.
+     *
+     * The first version called `reachabilityFor` for the base statuses and then
+     * `reachabilityForWallets` for the override, and the second call runs the
+     * first internally. Every lookup and every job paid for the same
+     * `x_accounts` read twice, and the shared helper was reduced to supplying
+     * one of the four states it returns.
+     */
+    const withWallet = results.filter(
+      (r): r is typeof r & { wallet: string; twitter_handle: string } =>
+        Boolean(r.wallet) && Boolean(r.twitter_handle)
+    );
+
+    if (withWallet.length > 0) {
+      const byWallet = await reachabilityForWallets(
+        withWallet.map((r) => ({ wallet: r.wallet, handle: r.twitter_handle }))
+      );
+      for (const r of withWallet) {
+        const hit = byWallet.get(r.wallet.toLowerCase());
+        if (hit) r.twitter_reachability = hit.status;
+      }
     }
 
     /**
-     * The wallet-aware pass, delegated so the API and the app cannot disagree.
-     * See reachabilityForWallets for why this is not part of reachabilityFor.
+     * A row with a handle and no wallet cannot be checked for reassignment,
+     * because the attested id hangs off the wallet. It still gets the three
+     * handle-level states rather than nothing. No current caller produces such
+     * a row, since `WalletSocialResult.wallet` is required, but the parameter
+     * type allows it and silently dropping those rows would be the kind of gap
+     * that only shows up once somebody adds a caller.
      */
-    const withWallets = results.filter((r) => r.wallet && r.twitter_handle);
-    if (withWallets.length === 0) return;
-    const byWallet = await reachabilityForWallets(
-      withWallets.map((r) => ({ wallet: r.wallet!, handle: r.twitter_handle }))
-    );
-    for (const r of results) {
-      if (!r.wallet) continue;
-      const hit = byWallet.get(r.wallet.toLowerCase());
-      if (hit?.status === 'reassigned') r.twitter_reachability = 'reassigned';
+    const handleOnly = results.filter((r) => !r.wallet && r.twitter_handle);
+    if (handleOnly.length > 0) {
+      const byHandle = await reachabilityFor(handleOnly.map((r) => r.twitter_handle));
+      for (const r of handleOnly) {
+        const hit = byHandle.get(r.twitter_handle!.toLowerCase().replace(/^@/, ''));
+        if (hit) r.twitter_reachability = hit.status;
+      }
     }
   } catch (error) {
     console.error('Reachability stamp failed, continuing without it:', error);
