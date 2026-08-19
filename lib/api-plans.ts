@@ -80,11 +80,6 @@ export const TIER_RANK: Record<string, number> = {
   unlimited: 2,
 };
 
-/** True when `candidate` sits above `current` on the ladder. Unknown ranks as 0. */
-export function isTierUpgrade(candidate: string, current: string): boolean {
-  return (TIER_RANK[candidate] ?? 0) > (TIER_RANK[current] ?? 0);
-}
-
 /** The api_plans id this tier is entitled to, or null if it has no API access. */
 export function apiPlanForTier(tier: string): string | null {
   return TIER_API_PLAN[tier] ?? null;
