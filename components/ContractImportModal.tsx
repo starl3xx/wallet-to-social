@@ -53,12 +53,16 @@ export interface ImportedContract {
   contractType?: string;
   totalHolders?: number;
   truncated?: boolean;
+  /** Wallet (lowercased) to bag size. Absent when the source did not report it. */
+  balances?: Record<string, number>;
 }
 
 type Step = 'input' | 'loading' | 'preview';
 
 interface ContractResult {
   wallets: string[];
+  /** Wallet (lowercased) to bag size; absent when the source did not report it. */
+  balances?: Record<string, number>;
   tokenName: string;
   tokenSymbol: string;
   contractType: ContractType;
@@ -156,6 +160,7 @@ export function ContractImportModal({
       contractType: result.contractType,
       totalHolders: result.totalHolders,
       truncated: result.truncated,
+      balances: result.balances,
     });
     handleClose();
   }, [result, onImport, handleClose, contractAddress, chain]);

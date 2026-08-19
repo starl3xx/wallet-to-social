@@ -118,6 +118,37 @@ export const ExportButton = memo(function ExportButton({
   };
 
   /**
+   * The handles this export will actually contain: reachable, and each one once.
+   *
+   * One person with several wallets is several rows and one handle, which is
+   * the thing this index exists to reveal, so a per-row list repeated them. The
+   * file is for pasting into an X list, where a repeat is at best noise.
+   *
+   * Deduped on the lowercased handle because X handles are case-insensitive and
+   * our sources do not agree on casing; the first spelling encountered is the
+   * one exported, and row order is preserved so the priority sort still governs
+   * who appears first.
+   *
+   * The button's count is derived from this same array rather than counted
+   * separately. It used to be rows-with-handles minus rows-unreachable, which
+   * after deduping would have promised more handles than the file delivers.
+   */
+  const reachableHandles = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of sortedResults) {
+      const handle = r.twitter_handle;
+      if (!handle) continue;
+      if (r.twitter_reachability && r.twitter_reachability !== 'live') continue;
+      const key = handle.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(handle);
+    }
+    return out;
+  }, [sortedResults]);
+
+  /**
    * The handle list is the one that gets acted on.
    *
    * A CSV is read; this file is pasted into an outreach tool. So handles we have
@@ -130,11 +161,7 @@ export const ExportButton = memo(function ExportButton({
    * checked" as "dead" would quietly shrink the list on no evidence.
    */
   const handleExportTwitterList = () => {
-    const withHandles = sortedResults.filter((r) => r.twitter_handle);
-    const reachable = withHandles.filter(
-      (r) => !r.twitter_reachability || r.twitter_reachability === 'live'
-    );
-    const twitterHandles = reachable.map((r) => `@${r.twitter_handle}`);
+    const twitterHandles = reachableHandles.map((h) => `@${h}`);
 
     if (twitterHandles.length === 0) {
       alert('No reachable Twitter handles found to export');
@@ -157,11 +184,26 @@ export const ExportButton = memo(function ExportButton({
     URL.revokeObjectURL(url);
   };
 
-  const twitterCount = results.filter((r) => r.twitter_handle).length;
-  const unreachableCount = results.filter(
-    (r) => r.twitter_reachability && r.twitter_reachability !== 'live'
-  ).length;
-  const reachableCount = twitterCount - unreachableCount;
+
+  /**
+   * Distinct handles left out, counted the same way as the ones going in.
+   *
+   * Counting rows here while counting handles above would put two different
+   * units in one sentence: "export 40 handles, 12 left out" where the 12 are
+   * rows is simply a different measurement, and several of those rows can be
+   * one person's dead handle held across several wallets.
+   */
+  const unreachableCount = useMemo(() => {
+    const dead = new Set<string>();
+    for (const r of results) {
+      if (!r.twitter_handle) continue;
+      if (!r.twitter_reachability || r.twitter_reachability === 'live') continue;
+      dead.add(r.twitter_handle.toLowerCase());
+    }
+    return dead.size;
+  }, [results]);
+
+  const reachableCount = reachableHandles.length;
 
   return (
     <div className="flex gap-2">

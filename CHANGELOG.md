@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-19 (the Bag, and a list that repeated people)
+
+- **A contract import now shows how much each wallet holds.** Every holder
+  source already returned the balance beside the address and all three parsers
+  read the address and dropped it. The column itself needed no building: CSV
+  uploads have had a holdings column all along, sortable, and feeding the
+  priority score. Contract import was the one path that never filled it, so this
+  is mostly a matter of stopping the discard and naming the column.
+- **Whole units, or nothing.** An ERC-20 balance is an integer in the token's
+  smallest unit and means nothing without `decimals`, so `decimals()` joins
+  `name()` and `symbol()` on the metadata call. When it does not answer, the
+  column is hidden rather than filled by assuming the usual 18: a wrong exponent
+  misstates every row by orders of magnitude, and no column is honest where a
+  confident wrong number is not. Balances go through `BigInt` before
+  `formatUnits`, because a whale balance loses precision in a double well before
+  the decimal point.
+- **NFTs count items.** `getOwnersForContract` was asking for
+  `withTokenBalances=false`; it now asks for true and sums the quantities per
+  owner, so ERC-721 reads as the number owned and ERC-1155 as total quantity
+  held. The cost is a response that grows with supply rather than with holder
+  count, for the same single request.
+- **A wallet missing from the map is one we did not measure**, not one holding
+  nothing, so nothing is zero-filled anywhere along the path.
+- **The header says "Bag" only where it is one.** A contract import is always a
+  balance or an item count; an uploaded CSV column may be a USD value, and
+  relabelling that "Bag" would be wrong. Same column, same sort, same score.
+- **The Twitter list export repeated people.** One person with several wallets
+  is several rows and one handle, which is the thing this index exists to
+  reveal, and the file listed them once per wallet. Deduped on the lowercased
+  handle, since X is case-insensitive and our sources disagree on casing. The
+  button's count is now derived from that same list rather than counted
+  separately, and the "left out" figure counts distinct dead handles too:
+  reporting handles going in and rows left out put two different units in one
+  sentence.
+
+
 ### 2026-08-19 (the footer names the company)
 
 - **The site footer now reads "© 2026 Starl3xx Labs LLC"** rather than naming

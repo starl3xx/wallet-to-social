@@ -1036,7 +1036,29 @@ export default function Home() {
   const handleContractImport = useCallback((importedWallets: string[], source: ImportedContract) => {
     if (importedWallets.length === 0) return;
     setWallets(importedWallets);
-    setOriginalData({});
+    /**
+     * Feed the bag sizes in as a "Bag" column rather than as a new field.
+     *
+     * `/api/lookup` already finds a holdings column by name in `originalData`
+     * and parses it into `result.holdings`, which the table already renders and
+     * sorts and the priority score already uses. Naming the column is the whole
+     * integration; a second path for the same number would be a second thing to
+     * keep in step.
+     *
+     * Wallets we could not measure are simply absent, so the column stays
+     * hidden when nothing was measured instead of showing a column of zeros.
+     */
+    const bags = source.balances;
+    setOriginalData(
+      bags
+        ? Object.fromEntries(
+            importedWallets
+              .map((w) => w.toLowerCase())
+              .filter((w) => typeof bags[w] === 'number')
+              .map((w) => [w, { Bag: String(bags[w]) }])
+          )
+        : {}
+    );
     setExtraColumns([]);
     setInputSource('contract_import');
     setSourceContract(source);
@@ -1616,6 +1638,7 @@ export default function Home() {
                 userTier={userTier}
                 onUpgradeClick={handleOpenUpgradeModal}
                 enrichedWallets={enrichedWallets}
+                holdingsLabel={inputSource === 'contract_import' ? 'Bag' : 'Holdings'}
               />
             </div>
           )}
