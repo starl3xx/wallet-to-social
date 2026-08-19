@@ -65,6 +65,21 @@ export const TIER_API_PLAN: Record<string, string> = {
   unlimited: 'startup',
 };
 
+/**
+ * Ladder order, so one tier can be compared against another.
+ *
+ * Lived in `app/api/admin/revenue/route.ts`, which needed it to tell a tier
+ * held from a tier purchased. It belongs here with the rest of the tier
+ * definitions: the second caller was a provisioning script that overwrote a
+ * tier somebody had raised by hand, precisely because it had no way to ask
+ * which of two tiers was higher.
+ */
+export const TIER_RANK: Record<string, number> = {
+  free: 0,
+  pro: 1,
+  unlimited: 2,
+};
+
 /** The api_plans id this tier is entitled to, or null if it has no API access. */
 export function apiPlanForTier(tier: string): string | null {
   return TIER_API_PLAN[tier] ?? null;

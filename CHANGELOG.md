@@ -2,6 +2,39 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-19 (a first-party consumer, and a sentence that expired overnight)
+
+- **A first-party project now reads the index through the public API**, on its
+  own service account with a real plan rather than an internal bypass. One
+  account per consuming project, so revoking one touches nothing else and the
+  usage panel attributes load to the project that caused it rather than to a
+  person who owns several. `scripts/provision-api-account.ts` does it, and
+  writes the key to a file at 0600 rather than printing it, because terminal
+  scrollback gets pasted into issues.
+- **The plan is metered on purpose.** The rate limiter is the only thing between
+  a first-party consumer and the live lookup path a customer is on, and the
+  Developer plan's 60/min is tight enough to catch the real failure mode of a
+  key wired into a bot, which is a retry loop rather than steady load.
+- **Provisioning never downgrades, and never pretends to rotate.** `--tier`
+  defaults to `pro`, so re-running to mint a second key would have dropped an
+  `unlimited` account to Developer limits without a word, and the key's plan came
+  from the argument rather than from the account, which is the same downgrade by
+  another route. The tier now only ever moves up the ladder, and the plan is
+  derived from the tier the account actually holds. Minting also does not revoke:
+  that is right for adding a consumer and wrong for a leak, so existing active
+  keys are named as **STILL VALID** and `--revoke-existing` is the flag that
+  makes a rotation a rotation. `TIER_RANK` moved to `lib/api-plans.ts`, since
+  this was the second caller needing to compare two tiers and the first one had
+  it as a private const.
+- **The reachability docstring had gone stale in one day.** It said coverage was
+  "93.7% and falling, because new handles arrive continuously and no scheduled
+  job resolves them". The cron scheduled the next day is exactly the job it says
+  does not exist, and coverage is now 94.8% and rising, with 422,990 handles
+  checked and none left unchecked. The figure guard passed throughout, because
+  it checks numbers against the database and this was a false clause sitting
+  beside numbers that were merely stale.
+
+
 
 ### 2026-08-19 (the safe direction was still a dead end)
 

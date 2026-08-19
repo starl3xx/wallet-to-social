@@ -7,16 +7,25 @@
  * account id and no recheck. That is the source of 1,039,550 of our handles, and
  * nothing in the protocol notices when somebody renames or gets suspended.
  *
- * On 2026-08-17 we resolved 417,872 distinct handles. Not "all" of them:
- * the sweep leaves transport failures unrecorded so they retry, so its result
- * was never going to equal its target. The index holds 446,043 distinct handles
- * today, which puts coverage at 93.7% and falling, because new handles arrive
- * continuously and no scheduled job resolves them. The percentages below are
- * shares of the 417,872 that returned a state:
+ * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
+ * 2026-08-18. It has checked 422,990 distinct handles, with none now left
+ * unchecked in the table. Against the 446,070 distinct handles the index holds,
+ * that is 94.8% coverage, and **rising**.
  *
- *     live          290,945   69.6%
- *     suspended      86,537   20.7%
- *     unclaimed      40,390    9.7%
+ * This paragraph used to end "and falling, because new handles arrive
+ * continuously and no scheduled job resolves them", which was true when it was
+ * written and stopped being true the next day. The docs had promised customers
+ * a daily cycle for months before one existed; the cron closed that gap, and
+ * this is the sentence that had to change with it.
+ *
+ * The first pass, on 2026-08-17, did 417,872 in a single run. Not "all" of
+ * them: the sweep leaves transport failures unrecorded so they retry, so its
+ * result was never going to equal its target. The percentages below are shares
+ * of the 422,990 that returned a state:
+ *
+ *     live          294,505   69.6%
+ *     suspended      87,510   20.7%
+ *     unclaimed      40,975    9.7%
  *
  * **Roughly a third of every attested X handle in the Farcaster protocol reaches
  * nobody.** Anyone reselling Farcaster verifications is shipping that blind,
