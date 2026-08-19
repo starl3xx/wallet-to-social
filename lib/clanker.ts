@@ -57,10 +57,13 @@ const TOPIC =
  * below the floor, and the floor then jumped the checkpoint forward over three
  * weeks of history that had never been scanned at all.
  *
- * Bounding the run instead has none of that ambiguity. A stuck frontier now
- * means the same window is rescanned each day, which is wasteful and safe, and
- * it is reported as a failed run so a person sees it rather than losing links
- * quietly.
+ * Bounding the run instead has none of that ambiguity. A stuck frontier means
+ * the same window is rescanned each day, and it is reported as a failed run so
+ * a person sees it rather than losing links quietly.
+ *
+ * It bounds the work, not the stall: `from` is `checkpoint + 1`, so a frontier
+ * that never advances keeps scanning one fixed window and goes blind to new
+ * blocks once the tip passes it. `DEAD_AFTER_ATTEMPTS` is what ends a stall.
  *
  * About a week of Base blocks, at roughly 43,200 a day. The size is a
  * compromise between two costs, both measured against STEP (3,000 blocks per
@@ -104,6 +107,14 @@ export interface ClankerSweepStats {
   checkpointHeld: boolean;
   /** Deploys dropped this run because their account id did not resolve. */
   unresolvedAccountIds: number;
+  /**
+   * The subset of those the frontier was allowed to pass, because the resolver
+   * has now denied the id on `DEAD_AFTER_ATTEMPTS` separate runs.
+   *
+   * A non-zero value is the only moment a link is knowingly given up, so it is
+   * reported rather than inferred from the checkpoint moving.
+   */
+  abandonedAccountIds: number;
   /**
    * How far the checkpoint sits behind the chain tip after this run. Normal
    * while catching up; a figure that grows every day means the frontier is
@@ -208,9 +219,28 @@ function parseDeploy(log: { topics?: string[]; data?: string; blockNumber?: stri
  * we do not know the handle, and inventing one is the failure mode this whole
  * pipeline exists to avoid.
  */
-async function resolveAccountIds(ids: string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  if (!isConfigured() || ids.length === 0) return out;
+interface ResolveResult {
+  /** Account id to handle, for the ids the resolver knew. */
+  resolved: Map<string, string>;
+  /**
+   * The ids the resolver actually answered about, whether or not it knew them.
+   *
+   * This is the load-bearing half. "The resolver told us it has no such user"
+   * and "we could not reach the resolver" both leave an id unresolved, and only
+   * the first is evidence about the id. Counting the second as evidence would
+   * let one outage retire ids that are perfectly fine, which is the mistake
+   * `x_handle_attempts` was created to stop in the handle sweep.
+   *
+   * Note that "reached the resolver" is not the same as a 200. See the status
+   * check below: this provider answers its own failures with HTTP 200.
+   */
+  answered: Set<string>;
+}
+
+async function resolveAccountIds(ids: string[]): Promise<ResolveResult> {
+  const resolved = new Map<string, string>();
+  const answered = new Set<string>();
+  if (!isConfigured() || ids.length === 0) return { resolved, answered };
 
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100);
@@ -221,15 +251,117 @@ async function resolveAccountIds(ids: string[]): Promise<Map<string, string>> {
       );
       if (!res.ok) continue;
       const body = (await res.json()) as {
+        status?: string;
+        msg?: string;
         users?: Array<{ id?: string; userName?: string }>;
       };
-      for (const u of body.users ?? []) {
-        if (u.id && u.userName && isHandle(u.userName)) out.set(u.id, u.userName);
+
+      /**
+       * `res.ok` is not the test. This resolver reports its own failures as
+       * HTTP 200 with `status: "error"` and a message: out of credits, rate
+       * limited, upstream trouble. `resolve()` in `lib/x-accounts.ts` already
+       * knows this and treats anything that is not `success` as no answer.
+       *
+       * Reading those bodies as answers is the exact bug this file is meant to
+       * be immune to: five error responses in a row would retire live account
+       * ids and walk the frontier past deploys that were never denied. An
+       * outage must not be able to manufacture evidence.
+       *
+       * A missing `users` array is an unrecognised shape rather than an empty
+       * result, and the shape is not ours to rely on, so it is not an answer
+       * either. Both fall through to the next run, which is the safe direction:
+       * the frontier holds.
+       */
+      if (body.status !== 'success' || !Array.isArray(body.users)) continue;
+
+      // Only now is the chunk evidence. An id absent from `users` in a
+      // successful response is one the resolver denies knowing.
+      for (const id of chunk) answered.add(id);
+      for (const u of body.users) {
+        if (u.id && u.userName && isHandle(u.userName)) resolved.set(u.id, u.userName);
       }
     } catch {
-      // Leave them unresolved; the next run tries again.
+      // Leave them unresolved and unanswered; the next run tries again.
     }
     await sleep(200);
+  }
+  return { resolved, answered };
+}
+
+/**
+ * How many times the resolver must deny an id before the frontier passes it.
+ *
+ * The sweep runs once a day, and only a run that reached the resolver counts,
+ * so this is five separate days of the same answer. It is deliberately more
+ * patience than any outage we have had: the 2026-08-18 incident lasted one
+ * morning, and under `answered` it would have recorded no attempts at all.
+ *
+ * The cost of being wrong is asymmetric and that sets the direction. Retiring
+ * an id too early loses one owner-attested link. Retiring it too late costs a
+ * repeated block range, which is free. Five is on the patient side on purpose.
+ */
+const DEAD_AFTER_ATTEMPTS = 5;
+
+/**
+ * Note that the resolver denied these ids.
+ *
+ * Deliberately does not touch `social_graph`. A denied id is not a link, and
+ * this table records only that we asked and were told no.
+ */
+async function recordDenials(ids: string[], reason: string): Promise<void> {
+  const db = getDb();
+  if (!db || ids.length === 0) return;
+  try {
+    await db.execute(sql`
+      INSERT INTO clanker_unresolved_ids (identifier, attempts, last_attempt_at, last_reason)
+      SELECT i, 1, now(), ${reason}
+      FROM unnest(${sql.param(ids)}::text[]) AS i
+      ON CONFLICT (identifier) DO UPDATE SET
+        attempts        = clanker_unresolved_ids.attempts + 1,
+        last_attempt_at = now(),
+        last_reason     = EXCLUDED.last_reason
+    `);
+  } catch (error) {
+    // Accounting must never break the work it measures. Failing to write here
+    // leaves the frontier held, which is the safe direction.
+    console.error('clanker recordDenials failed:', error);
+  }
+}
+
+/** An id that resolved has nothing outstanding against it. */
+async function clearDenials(ids: string[]): Promise<void> {
+  const db = getDb();
+  if (!db || ids.length === 0) return;
+  try {
+    await db.execute(sql`
+      DELETE FROM clanker_unresolved_ids
+      WHERE identifier = ANY(${sql.param(ids)}::text[])
+    `);
+  } catch (error) {
+    console.error('clanker clearDenials failed:', error);
+  }
+}
+
+/**
+ * The ids denied often enough that they no longer hold the frontier.
+ *
+ * Read after this run's denial is recorded, so the threshold counts answers
+ * rather than answers-plus-one.
+ */
+async function abandonedIds(ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const db = getDb();
+  if (!db || ids.length === 0) return out;
+  try {
+    const result = (await db.execute(sql`
+      SELECT identifier FROM clanker_unresolved_ids
+      WHERE identifier = ANY(${sql.param(ids)}::text[])
+        AND attempts >= ${DEAD_AFTER_ATTEMPTS}
+    `)) as unknown as { rows: Array<{ identifier: string }> };
+    for (const r of result.rows) out.add(r.identifier);
+  } catch (error) {
+    // On a read failure nothing is abandoned, so the frontier holds. Safe.
+    console.error('clanker abandonedIds failed:', error);
   }
   return out;
 }
@@ -301,6 +433,7 @@ export async function sweepClanker(
     conflicts: 0,
     checkpointHeld: false,
     unresolvedAccountIds: 0,
+    abandonedAccountIds: 0,
     blocksBehindHead: 0,
   };
   if (from > scanTo) return stats;
@@ -341,7 +474,22 @@ export async function sweepClanker(
 
   const ids = [...new Set(raw.filter((r) => isAccountId(r.identifier)).map((r) => r.identifier))];
   stats.withAccountId = ids.length;
-  const resolved = await resolveAccountIds(ids);
+  const { resolved, answered } = await resolveAccountIds(ids);
+
+  /**
+   * Record what the resolver said, then ask which ids have run out of patience.
+   *
+   * An id is denied when the resolver answered and did not know it. That is the
+   * only condition that counts, so a resolver outage adds nothing here and the
+   * frontier simply holds, exactly as it did before this existed.
+   *
+   * The denial is written BEFORE `abandonedIds` reads, so the threshold means
+   * "denied on this many runs including this one" rather than one more.
+   */
+  const denied = ids.filter((id) => answered.has(id) && !resolved.has(id));
+  await recordDenials(denied, 'resolver returned no such user');
+  await clearDenials([...resolved.keys()]);
+  const abandoned = await abandonedIds(denied);
 
   const links: AttestedLink[] = [];
   /**
@@ -365,6 +513,24 @@ export async function sweepClanker(
       const handle = resolved.get(r.identifier);
       if (!handle) {
         unresolved++;
+        if (abandoned.has(r.identifier)) {
+          /**
+           * Given up on, so it does not owe work any more.
+           *
+           * The link is lost, which is the cost this whole mechanism exists to
+           * avoid, and it is paid only against `DEAD_AFTER_ATTEMPTS` separate
+           * answers from a reachable resolver. The alternative is worse: an id
+           * that can never resolve pins `from` to its own block forever, and
+           * once the run cap passes the tip the sweep ingests nothing new at
+           * all while still reporting a run every day.
+           */
+          stats.abandonedAccountIds++;
+          console.warn(
+            `Clanker: abandoning account id at block ${r.block} after ` +
+              `${DEAD_AFTER_ATTEMPTS} denials; the frontier may pass it.`
+          );
+          continue;
+        }
         // The earliest block still owing work. Everything before it is done.
         unresolvedFrom = unresolvedFrom === null ? r.block : Math.min(unresolvedFrom, r.block);
         continue; // unresolved: never guessed
@@ -424,7 +590,7 @@ export async function sweepClanker(
     unresolvedFrom === null ? stats.toBlock : Math.min(stats.toBlock, unresolvedFrom - 1);
 
   /**
-   * No floor, and nothing is ever abandoned.
+   * No floor. Abandonment is counted in answers, never in blocks.
    *
    * A floor of `head - a week` was tried and removed. It read "far from the
    * chain tip" as "retried for a week", and those differ most exactly when it
@@ -436,10 +602,26 @@ export async function sweepClanker(
    * `stats.toBlock`, so `checkpointHeld` read false and the skip reported as a
    * healthy run.
    *
-   * Unbounded work is bounded by MAX_RUN_BLOCKS instead, which is the thing
-   * that was actually at risk. A frontier stuck behind an unresolvable deploy
-   * now costs one repeated window a day, and the run reports failure so a
-   * person sees it. Wasteful and loud beats cheap and silent.
+   * `DEAD_AFTER_ATTEMPTS` replaces it, and the difference is what gets counted.
+   * A block distance measures how long we have been stuck, which says nothing
+   * about the deploy that stuck us. A denial count measures how many times a
+   * reachable resolver has told us this specific id does not exist. Only the
+   * second is evidence, and it cannot be manufactured by an outage, a cold
+   * start, or a slow day.
+   *
+   * ## Why a permanent hold was not survivable
+   *
+   * MAX_RUN_BLOCKS bounds the run, and the comment on it said a capped run
+   * "simply continues from wherever this one finished". That holds only while
+   * the checkpoint moves. `from` is `checkpoint + 1`, so a frontier pinned by an
+   * id that can never resolve leaves the run scanning one fixed window; when the
+   * tip passes `from + MAX_RUN_BLOCKS`, the sweep stops seeing new blocks
+   * entirely and still reports a run every day.
+   *
+   * That was not hypothetical either. On 2026-08-19 a deploy wrote the tweet's
+   * status id into the account id field, so the value was 19 digits, passed
+   * `isAccountId`, and named a user that has never existed. It would have ended
+   * Clanker ingestion around 2026-08-25.
    */
   let nextCheckpoint = completedThrough;
 
