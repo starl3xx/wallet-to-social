@@ -140,6 +140,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       wallets: result.wallets,
+      // Absent when the source did not report balances, or when an ERC-20's
+      // decimals could not be read. The client hides the column rather than
+      // showing zeros; see HolderResult.balances.
+      balances: result.balances,
       tokenName: result.tokenName,
       tokenSymbol: result.tokenSymbol,
       contractType: result.contractType,

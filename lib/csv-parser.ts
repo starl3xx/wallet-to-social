@@ -158,6 +158,8 @@ const HOLDINGS_COLUMN_PATTERNS = [
   'value',
   'balance',
   'holdings',
+  // Contract imports label the column "Bag", and a customer CSV may too.
+  'bag',
   'amount',
   'usd',
   'usd_value',

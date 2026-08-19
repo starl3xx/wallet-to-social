@@ -101,6 +101,16 @@ interface ResultsTableProps {
   userTier?: 'free' | 'pro' | 'unlimited';
   onUpgradeClick?: () => void;
   enrichedWallets?: Set<string>; // Wallets that have been enriched since last view
+  /**
+   * Header for the holdings column.
+   *
+   * "Holdings" is right for an uploaded CSV, where the column may hold a USD
+   * value or anything else the customer chose. A contract import is always a
+   * token balance or an item count, so it says "Bag". Same column, same sort,
+   * same priority score; only the word changes, because only the word can be
+   * wrong.
+   */
+  holdingsLabel?: string;
 }
 
 type SortField =
@@ -121,6 +131,7 @@ export const ResultsTable = memo(function ResultsTable({
   userTier = 'free',
   onUpgradeClick,
   enrichedWallets,
+  holdingsLabel = 'Holdings',
 }: ResultsTableProps) {
   const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
   const [search, setSearch] = useState('');
@@ -148,7 +159,11 @@ export const ResultsTable = memo(function ResultsTable({
         (col) =>
           !col.toLowerCase().includes('value') &&
           !col.toLowerCase().includes('balance') &&
-          !col.toLowerCase().includes('holdings')
+          !col.toLowerCase().includes('holdings') &&
+          // Same reason as the three above: this one is rendered as the
+          // holdings column, so listing it again as an extra column would
+          // print every bag twice.
+          !col.toLowerCase().includes('bag')
       ),
     [extraColumns]
   );
@@ -421,7 +436,7 @@ export const ResultsTable = memo(function ResultsTable({
                 className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
                 onClick={() => handleSort('holdings')}
               >
-                Holdings <SortIcon field="holdings" />
+                {holdingsLabel} <SortIcon field="holdings" />
               </div>
             )}
             {filteredExtraColumns.map((col) => (

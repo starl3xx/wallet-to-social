@@ -13,6 +13,18 @@ export type ContractType = 'ERC-20' | 'ERC-721' | 'ERC-1155';
 
 export interface HolderResult {
   wallets: string[];
+  /**
+   * How much of this contract each wallet holds, keyed by lowercased address.
+   *
+   * The Bag: an ERC-20 balance in whole units, or the count of items held for
+   * an NFT contract. Every holder source already returns this beside the
+   * address and the parsers used to read the address and drop it.
+   *
+   * Optional, and sparse when present. A wallet absent from this map is one we
+   * could not measure, not one holding nothing, so callers must not zero-fill:
+   * the column is hidden entirely rather than showing a confident 0.
+   */
+  balances?: Record<string, number>;
   /** The per-lookup cap actually applied, so callers can report it accurately. */
   appliedLimit: number;
   tokenName: string;
@@ -87,6 +99,8 @@ const ERC165_ABI = [
 const TOKEN_INFO_ABI = [
   'function name() view returns (string)',
   'function symbol() view returns (string)',
+  // Turns a raw ERC-20 balance into whole units for the Bag column.
+  'function decimals() view returns (uint8)',
 ];
 
 // RPC endpoints for different chains
@@ -410,7 +424,7 @@ async function getTokenInfo(
   address: string,
   chain: SupportedChain,
   deadlineMs?: number
-): Promise<{ name: string; symbol: string }> {
+): Promise<{ name: string; symbol: string; decimals: number }> {
   try {
     return await withProvider(
       chain,
@@ -423,9 +437,10 @@ async function getTokenInfo(
             ? RPC_TIMEOUT_MS
             : Math.max(1_000, Math.min(RPC_TIMEOUT_MS, deadlineMs - Date.now()));
 
-        const [nameResult, symbolResult] = await Promise.allSettled([
+        const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
           withTimeout(contract.name(), budget, 'name() timed out'),
           withTimeout(contract.symbol(), budget, 'symbol() timed out'),
+          withTimeout(contract.decimals(), budget, 'decimals() timed out'),
         ]);
 
         /**
@@ -445,6 +460,14 @@ async function getTokenInfo(
         return {
           name: nameResult.status === 'fulfilled' ? nameResult.value : 'Unknown Token',
           symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'UNKNOWN',
+          /**
+           * 18 is the ERC-20 default and the safe guess, but a wrong guess
+           * misstates every Bag by orders of magnitude, so `getContractHolders`
+           * suppresses balances entirely when this call did not succeed rather
+           * than publishing a number it cannot stand behind. -1 is that signal.
+           */
+          decimals:
+            decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : -1,
         };
       },
       deadlineMs
@@ -452,7 +475,7 @@ async function getTokenInfo(
   } catch {
     // Every endpoint failed. The name is cosmetic and the holder list is not,
     // so this stays non-fatal and the import continues without it.
-    return { name: 'Unknown Token', symbol: 'UNKNOWN' };
+    return { name: 'Unknown Token', symbol: 'UNKNOWN', decimals: -1 };
   }
 }
 
@@ -463,14 +486,24 @@ async function getERC721Holders(
   address: string,
   chain: SupportedChain,
   limit: number = HOLDER_LIMIT
-): Promise<{ wallets: string[]; totalHolders: number }> {
+): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
   const alchemyKey = process.env.ALCHEMY_KEY;
   const baseUrl = ALCHEMY_ENDPOINTS[chain];
 
   if (!alchemyKey) throw new Error('ALCHEMY_KEY required for NFT holder lookups');
   if (!baseUrl) throw new Error('CHAIN_NO_NFT_SUPPORT');
 
-  const url = `${baseUrl}/${alchemyKey}/getOwnersForContract?contractAddress=${address}&withTokenBalances=false`;
+  /**
+   * `withTokenBalances=true` is what fills the Bag column for NFTs.
+   *
+   * It changes each owner from a bare address into an address plus one entry
+   * per token id held, so the response grows with total supply rather than with
+   * holder count. That is the cost: a collection where holders own many items
+   * returns a much larger payload for the same owner list. It buys the only
+   * number that makes the column meaningful for an NFT contract, and it is the
+   * same single request either way.
+   */
+  const url = `${baseUrl}/${alchemyKey}/getOwnersForContract?contractAddress=${address}&withTokenBalances=true`;
 
   const response = await withTimeout(
     fetch(url, {
@@ -503,10 +536,44 @@ async function getERC721Holders(
   }
 
   const data = await response.json();
-  const owners: string[] = data.owners || [];
+  /**
+   * With balances requested, an owner is an object rather than a string. The
+   * string form is still handled: the flag is ours to change, and a parser that
+   * only understands the shape we asked for today breaks silently the moment
+   * somebody flips it back.
+   */
+  const owners: Array<
+    string | { ownerAddress?: string; tokenBalances?: Array<{ balance?: string }> }
+  > = data.owners || [];
 
-  // Normalize to lowercase and dedupe
-  const uniqueOwners = [...new Set(owners.map((w: string) => w.toLowerCase()))];
+  const balances = new Map<string, string>();
+  const seen: string[] = [];
+
+  for (const entry of owners) {
+    const addr = (typeof entry === 'string' ? entry : entry.ownerAddress)?.toLowerCase();
+    if (!addr) continue;
+    if (!balances.has(addr)) seen.push(addr);
+
+    if (typeof entry !== 'string' && Array.isArray(entry.tokenBalances)) {
+      /**
+       * The Bag is the number of items held, summed across token ids.
+       *
+       * ERC-721 sends one entry of balance "1" per token, so the sum is the
+       * count of NFTs owned. ERC-1155 sends a quantity per id, and summing is
+       * the reading that matches the column: "how much of this contract do you
+       * hold", not "how many distinct ids".
+       */
+      let total = 0;
+      for (const tb of entry.tokenBalances) total += Number(tb.balance ?? 0);
+      if (Number.isFinite(total) && total > 0) {
+        balances.set(addr, String(total + Number(balances.get(addr) ?? 0)));
+      }
+    } else if (!balances.has(addr)) {
+      balances.set(addr, '');
+    }
+  }
+
+  const uniqueOwners = [...new Set(seen)];
   const totalHolders = uniqueOwners.length;
 
   // Apply limit
@@ -515,6 +582,7 @@ async function getERC721Holders(
   return {
     wallets: limitedOwners,
     totalHolders,
+    balances: new Map(limitedOwners.map((w) => [w, balances.get(w) ?? ''])),
   };
 }
 
@@ -620,6 +688,8 @@ function isCoolingDown(base: string): boolean {
 
 interface BlockscoutHolderItem {
   address?: { hash?: string } | string;
+  /** Raw balance: token units for ERC-20, item count for an NFT contract. */
+  value?: string;
 }
 
 interface BlockscoutHoldersResponse {
@@ -630,7 +700,7 @@ interface BlockscoutHoldersResponse {
 
 interface BlockscoutV1Response {
   status?: string;
-  result?: Array<{ address?: string }> | string;
+  result?: Array<{ address?: string; value?: string }> | string;
 }
 
 /**
@@ -650,8 +720,12 @@ async function fetchHoldersV1(
   limit: number,
   headers: Record<string, string>,
   remainingMs: () => number
-): Promise<string[] | null> {
-  const seen = new Set<string>();
+): Promise<Map<string, string> | null> {
+  // Keyed by wallet so a repeated address cannot double-count, and valued by
+  // the raw balance the explorer already sends beside it. Reading the address
+  // and discarding the value is what left the Bag column empty for every
+  // contract import.
+  const seen = new Map<string, string>();
   // Start big and shrink on failure, like multicallAdaptive in the ENS harvest.
   // A 5,000-row request is one round trip on a healthy token but can exceed
   // what a loaded explorer will serve for a very large one, and spending the
@@ -687,7 +761,7 @@ async function fetchHoldersV1(
       json = (await res.json()) as BlockscoutV1Response;
     } catch (error) {
       if (error instanceof Error && error.message === 'RATE_LIMIT') {
-        if (seen.size > 0) return Array.from(seen);
+        if (seen.size > 0) return seen;
         throw error;
       }
       // Shrink and retry only while nothing has been collected. Page numbering
@@ -698,18 +772,18 @@ async function fetchHoldersV1(
         page--;
         continue;
       }
-      return seen.size > 0 ? Array.from(seen) : null;
+      return seen.size > 0 ? seen : null;
     }
 
     // v1 reports "no records found" as status 0 with a string result
     if (json.status !== '1' || !Array.isArray(json.result)) {
-      return seen.size > 0 ? Array.from(seen) : null;
+      return seen.size > 0 ? seen : null;
     }
 
     const rows = json.result;
     for (const row of rows) {
       const a = row.address?.toLowerCase();
-      if (a?.startsWith('0x')) seen.add(a);
+      if (a?.startsWith('0x')) seen.set(a, row.value ?? '');
       if (seen.size >= limit) break;
     }
 
@@ -717,7 +791,7 @@ async function fetchHoldersV1(
     if (rows.length < want) break;
   }
 
-  return Array.from(seen);
+  return seen;
 }
 
 /**
@@ -733,7 +807,7 @@ async function getERC20HoldersBlockscout(
   chain: SupportedChain,
   limit: number,
   deadlineMs: number
-): Promise<{ wallets: string[]; totalHolders: number }> {
+): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
   const base = BLOCKSCOUT_BASE_URLS[chain];
   if (!base) throw new Error('CHAIN_NO_ERC20_SUPPORT');
 
@@ -741,7 +815,7 @@ async function getERC20HoldersBlockscout(
   if (isCoolingDown(base)) throw new Error('RATE_LIMIT');
 
   const headers = { Accept: 'application/json', 'User-Agent': 'walletlink.social' };
-  const seen = new Set<string>();
+  const seen = new Map<string, string>();
   let totalHolders = 0;
 
   // ONE budget for everything this function does. The v1 attempt and the v2
@@ -773,13 +847,18 @@ async function getERC20HoldersBlockscout(
   }
 
   const v1 = await fetchHoldersV1(base, address, limit, headers, remainingMs);
-  if (v1 && v1.length > 0) {
+  if (v1 && v1.size > 0) {
   // `totalHolders` stays 0 when the source did not tell us the real total.
   // It used to fall back to the number of wallets returned, which made
   // `truncated` (wallets.length < totalHolders) impossible to ever be true: a
   // capped list reported itself complete. USDG imported 5,000 of its holders
   // and told the buyer that was all of them.
-    return { wallets: v1.slice(0, limit), totalHolders };
+    const wallets = Array.from(v1.keys()).slice(0, limit);
+    return {
+      wallets,
+      totalHolders,
+      balances: new Map(wallets.map((w) => [w, v1.get(w) ?? ''])),
+    };
   }
 
   let params: Record<string, string | number> | null = null;
@@ -829,7 +908,7 @@ async function getERC20HoldersBlockscout(
     for (const item of items) {
       const hash =
         typeof item.address === 'string' ? item.address : item.address?.hash;
-      if (hash && hash.startsWith('0x')) seen.add(hash.toLowerCase());
+      if (hash && hash.startsWith('0x')) seen.set(hash.toLowerCase(), item.value ?? '');
       if (seen.size >= limit) break;
     }
 
@@ -839,9 +918,10 @@ async function getERC20HoldersBlockscout(
     await new Promise((r) => setTimeout(r, 120));
   }
 
-  const wallets = Array.from(seen).slice(0, limit);
+  const wallets = Array.from(seen.keys()).slice(0, limit);
+  const balances = new Map(wallets.map((w) => [w, seen.get(w) ?? '']));
   // 0 means "the source never reported a total". See the note above.
-  return { wallets, totalHolders };
+  return { wallets, totalHolders, balances };
 }
 
 /**
@@ -858,7 +938,7 @@ async function getERC20Holders(
   chain: SupportedChain,
   limit: number = HOLDER_LIMIT,
   options: HolderFetchOptions = {}
-): Promise<{ wallets: string[]; totalHolders: number }> {
+): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
   // at all, "no support for this chain" is the accurate error, and configuring a key
   // would not help. Checking the key first would mask that with a config error.
@@ -938,13 +1018,15 @@ async function fetchHoldersMetered(
   address: string,
   chainId: string,
   limit: number
-): Promise<{ wallets: string[]; totalHolders: number }> {
+): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
   const moralisKey = process.env.MORALIS_API_KEY;
   if (!moralisKey) {
     throw new Error('MORALIS_NOT_CONFIGURED');
   }
 
   const wallets: string[] = [];
+  // Raw balances the index sends beside each address; see the Bag column.
+  const balances = new Map<string, string>();
   let cursor: string | null = null;
   let totalHolders = 0;
   // Counted here rather than at the call site, because only this loop knows how
@@ -1024,11 +1106,19 @@ async function fetchHoldersMetered(
       totalHolders = data.total;
     }
 
-    // Extract wallet addresses
-    const pageWallets = (data.result || []).map((h: { owner_address: string }) =>
-      h.owner_address.toLowerCase()
-    );
-    wallets.push(...pageWallets);
+    // Extract wallet addresses, and the balance the index already sends with
+    // each one. `balance` is the raw integer; `balance_formatted` is a decimal
+    // string when Moralis knows the token's decimals. Prefer the raw value so
+    // one conversion path serves every source.
+    const rows = (data.result || []) as Array<{
+      owner_address: string;
+      balance?: string;
+    }>;
+    for (const h of rows) {
+      const w = h.owner_address.toLowerCase();
+      wallets.push(w);
+      if (h.balance !== undefined) balances.set(w, h.balance);
+    }
 
     cursor = data.cursor || null;
 
@@ -1071,12 +1161,63 @@ async function fetchHoldersMetered(
     wallets: uniqueWallets,
     // 0 means "the source never reported a total". See the note above.
     totalHolders,
+    balances: new Map(uniqueWallets.map((w) => [w, balances.get(w) ?? ''])),
   };
 }
 
 /**
  * Main entry point: Get all holders for a contract
  */
+/**
+ * Raw holder balances to the number a person reads in the Bag column.
+ *
+ * ERC-20 balances arrive as integers in the token's smallest unit, so they mean
+ * nothing without `decimals`. If `decimals()` did not answer we return nothing
+ * rather than assuming the usual 18: a wrong exponent misstates every row by
+ * orders of magnitude, and an absent column is honest where a confidently wrong
+ * number is not.
+ *
+ * NFT balances are already counts of items and are used as-is.
+ *
+ * Returns undefined when there is nothing trustworthy to show, which hides the
+ * column rather than filling it with zeros. A wallet we could not measure is
+ * not a wallet holding none.
+ */
+function toBagSizes(
+  raw: Map<string, string> | undefined,
+  contractType: ContractType,
+  decimals: number
+): Record<string, number> | undefined {
+  if (!raw || raw.size === 0) return undefined;
+
+  const isNft = contractType === 'ERC-721' || contractType === 'ERC-1155';
+  if (!isNft && (decimals < 0 || !Number.isFinite(decimals))) return undefined;
+
+  const out: Record<string, number> = {};
+  for (const [wallet, value] of raw) {
+    if (!value) continue;
+    let n: number;
+    if (isNft) {
+      n = Number(value);
+    } else {
+      /**
+       * BigInt then divide, because these integers routinely exceed what a
+       * double holds exactly: a whale balance parsed straight through
+       * `Number()` loses precision well before the decimal point. formatUnits
+       * returns a decimal string, and the float that comes out of it is only
+       * asked to carry a human-sized number.
+       */
+      try {
+        n = Number(ethers.formatUnits(BigInt(value), decimals));
+      } catch {
+        continue; // Unparseable value: omit the row rather than guess it.
+      }
+    }
+    if (Number.isFinite(n) && n > 0) out[wallet] = n;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export async function getContractHolders(
   address: string,
   chain: SupportedChain,
@@ -1126,14 +1267,18 @@ export async function getContractHolders(
   const contractType = await detectContractType(normalizedAddress, chain, rpcDeadlineMs);
 
   // Get token info
-  const { name: tokenName, symbol: tokenSymbol } = await getTokenInfo(
+  const { name: tokenName, symbol: tokenSymbol, decimals } = await getTokenInfo(
     normalizedAddress,
     chain,
     rpcDeadlineMs
   );
 
   // Fetch holders based on contract type
-  let holdersResult: { wallets: string[]; totalHolders: number };
+  let holdersResult: {
+    wallets: string[];
+    totalHolders: number;
+    balances?: Map<string, string>;
+  };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
     holdersResult = await getERC721Holders(normalizedAddress, chain, effectiveLimit);
@@ -1150,6 +1295,7 @@ export async function getContractHolders(
 
   return {
     wallets: holdersResult.wallets,
+    balances: toBagSizes(holdersResult.balances, contractType, decimals),
     tokenName,
     tokenSymbol,
     contractType,
