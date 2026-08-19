@@ -23,6 +23,18 @@ export const metadata: Metadata = {
       'A third of X handles verified on Farcaster reach nobody. Check any one of them here, free and without an account.',
     url: 'https://walletlink.social/check',
   },
+  /**
+   * X reads `twitter:*` in preference to `og:*`, so without this block the card
+   * inherited the root layout's title and showed the generic homepage headline
+   * on a page about one specific question. Every /vs page and the blog already
+   * set their own; this one shipped with only an openGraph block.
+   */
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Check whether an X handle still reaches anyone',
+    description:
+      'A third of X handles verified on Farcaster reach nobody. Free, no account, no key.',
+  },
 };
 
 /**
