@@ -1045,17 +1045,26 @@ export default function Home() {
      * integration; a second path for the same number would be a second thing to
      * keep in step.
      *
-     * Wallets we could not measure are simply absent, so the column stays
-     * hidden when nothing was measured instead of showing a column of zeros.
+     * EVERY wallet carries the key, and an unmeasured one carries an empty
+     * string. The map must not be sparse: `/api/lookup` detects the holdings
+     * column from the keys of the FIRST wallet alone, so a first wallet with no
+     * measured balance would leave it finding no column at all and silently
+     * dropping every bag in the import, hiding the column and sending priority
+     * scoring back to treating holdings as 1.
+     *
+     * An empty string is not a zero. `parseHoldingsValue` returns null for it
+     * and the caller skips it before parsing, so an unmeasured wallet still
+     * ends up with no holdings rather than a confident 0.
      */
     const bags = source.balances;
     setOriginalData(
       bags
         ? Object.fromEntries(
-            importedWallets
-              .map((w) => w.toLowerCase())
-              .filter((w) => typeof bags[w] === 'number')
-              .map((w) => [w, { Bag: String(bags[w]) }])
+            importedWallets.map((w) => {
+              const key = w.toLowerCase();
+              const bag = bags[key];
+              return [key, { Bag: typeof bag === 'number' ? String(bag) : '' }];
+            })
           )
         : {}
     );

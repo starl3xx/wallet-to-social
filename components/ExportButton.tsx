@@ -194,14 +194,26 @@ export const ExportButton = memo(function ExportButton({
    * one person's dead handle held across several wallets.
    */
   const unreachableCount = useMemo(() => {
+    /**
+     * Left out means left out of THIS file, so the exported set decides.
+     *
+     * One handle can appear on several wallets and disagree with itself: live
+     * on one row, dead on another. Counting the two sets independently put such
+     * a handle in both, and the tooltip then reported it as going in and being
+     * left out at once. Any row saying it reaches somebody is enough to export
+     * it, so it is not left out.
+     */
+    const exported = new Set(reachableHandles.map((h) => h.toLowerCase()));
     const dead = new Set<string>();
     for (const r of results) {
       if (!r.twitter_handle) continue;
       if (!r.twitter_reachability || r.twitter_reachability === 'live') continue;
-      dead.add(r.twitter_handle.toLowerCase());
+      const key = r.twitter_handle.toLowerCase();
+      if (exported.has(key)) continue;
+      dead.add(key);
     }
     return dead.size;
-  }, [results]);
+  }, [results, reachableHandles]);
 
   const reachableCount = reachableHandles.length;
 
