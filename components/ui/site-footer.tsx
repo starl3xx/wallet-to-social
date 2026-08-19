@@ -95,8 +95,9 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-xs text-muted-foreground">
-          <span>© {new Date().getFullYear()} walletlink.social</span>
-          <a href="https://x.com/starl3xx" target="_blank" rel="noopener noreferrer"
+          {/* The site is the product; the copyright is the company that owns it. */}
+          <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
+          <a href="https://starl3xx.fun" target="_blank" rel="noopener noreferrer"
             className="transition-control hover:text-foreground">
             made with 🌠 by <span className="font-medium text-foreground">@starl3xx</span>
           </a>
