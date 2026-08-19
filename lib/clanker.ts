@@ -230,6 +230,9 @@ interface ResolveResult {
    * the first is evidence about the id. Counting the second as evidence would
    * let one outage retire ids that are perfectly fine, which is the mistake
    * `x_handle_attempts` was created to stop in the handle sweep.
+   *
+   * Note that "reached the resolver" is not the same as a 200. See the status
+   * check below: this provider answers its own failures with HTTP 200.
    */
   answered: Set<string>;
 }
@@ -248,12 +251,33 @@ async function resolveAccountIds(ids: string[]): Promise<ResolveResult> {
       );
       if (!res.ok) continue;
       const body = (await res.json()) as {
+        status?: string;
+        msg?: string;
         users?: Array<{ id?: string; userName?: string }>;
       };
-      // Only now is the chunk evidence: the request succeeded and the body
-      // parsed. An id absent from `users` is one the resolver denies knowing.
+
+      /**
+       * `res.ok` is not the test. This resolver reports its own failures as
+       * HTTP 200 with `status: "error"` and a message: out of credits, rate
+       * limited, upstream trouble. `resolve()` in `lib/x-accounts.ts` already
+       * knows this and treats anything that is not `success` as no answer.
+       *
+       * Reading those bodies as answers is the exact bug this file is meant to
+       * be immune to: five error responses in a row would retire live account
+       * ids and walk the frontier past deploys that were never denied. An
+       * outage must not be able to manufacture evidence.
+       *
+       * A missing `users` array is an unrecognised shape rather than an empty
+       * result, and the shape is not ours to rely on, so it is not an answer
+       * either. Both fall through to the next run, which is the safe direction:
+       * the frontier holds.
+       */
+      if (body.status !== 'success' || !Array.isArray(body.users)) continue;
+
+      // Only now is the chunk evidence. An id absent from `users` in a
+      // successful response is one the resolver denies knowing.
       for (const id of chunk) answered.add(id);
-      for (const u of body.users ?? []) {
+      for (const u of body.users) {
         if (u.id && u.userName && isHandle(u.userName)) resolved.set(u.id, u.userName);
       }
     } catch {
