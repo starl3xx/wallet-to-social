@@ -4,12 +4,9 @@ import { listPayments, isStripeConfigured } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
 
-/** Ladder order, so a tier held can be compared against a tier purchased. */
-const TIER_RANK: Record<string, number> = {
-  free: 0,
-  pro: 1,
-  unlimited: 2,
-};
+// Ladder order lives with the rest of the tier definitions, so a second
+// caller cannot quietly disagree with this one about which tier is higher.
+import { TIER_RANK } from '@/lib/api-plans';
 
 /**
  * Net revenue, read from Stripe rather than inferred from our own users table.

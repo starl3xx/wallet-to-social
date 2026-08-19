@@ -15,6 +15,17 @@ All notable changes to walletlink.social. Newest first.
   a first-party consumer and the live lookup path a customer is on, and the
   Developer plan's 60/min is tight enough to catch the real failure mode of a
   key wired into a bot, which is a retry loop rather than steady load.
+- **Provisioning never downgrades, and never pretends to rotate.** `--tier`
+  defaults to `pro`, so re-running to mint a second key would have dropped an
+  `unlimited` account to Developer limits without a word, and the key's plan came
+  from the argument rather than from the account, which is the same downgrade by
+  another route. The tier now only ever moves up the ladder, and the plan is
+  derived from the tier the account actually holds. Minting also does not revoke:
+  that is right for adding a consumer and wrong for a leak, so existing active
+  keys are named as **STILL VALID** and `--revoke-existing` is the flag that
+  makes a rotation a rotation. `TIER_RANK` moved to `lib/api-plans.ts`, since
+  this was the second caller needing to compare two tiers and the first one had
+  it as a private const.
 - **The reachability docstring had gone stale in one day.** It said coverage was
   "93.7% and falling, because new handles arrive continuously and no scheduled
   job resolves them". The cron scheduled the next day is exactly the job it says
