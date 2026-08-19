@@ -2,6 +2,13 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-19 (the footer names the company)
+
+- **The site footer now reads "© 2026 Starl3xx Labs LLC"** rather than naming
+  the site back to itself, and the byline points at starl3xx.fun rather than at
+  an X profile. The year stays derived from the clock, so it is right next
+  January without anyone remembering it.
+
 ### 2026-08-19 (a first-party consumer, and a sentence that expired overnight)
 
 - **A first-party project now reads the index through the public API**, on its
