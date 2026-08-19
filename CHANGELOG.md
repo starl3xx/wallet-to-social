@@ -3,6 +3,47 @@
 All notable changes to walletlink.social. Newest first.
 
 
+### 2026-08-19 (the safe direction was still a dead end)
+
+- **Yesterday's fix worked, and that is how we found the next one.** The Clanker
+  sweep held its checkpoint rather than walking past a deploy it could not
+  resolve, reported the run as failed, and the failure was real: the frontier had
+  stopped at a single block and was 37,372 blocks behind the chain tip.
+- **The account id was not an account id.** That deploy wrote the tweet's own
+  status id into the `id` field instead of the user id. It is 19 digits, so
+  `isAccountId` accepts it, and it names a user that has never existed. The
+  resolver answers “no such user” and always will. Holding for a resolver that
+  might recover is the right instinct against an outage and the wrong one here.
+- **A permanent hold ends ingestion, quietly.** The scan starts at
+  `checkpoint + 1`, so a frontier that never advances scans one fixed window.
+  `MAX_RUN_BLOCKS` bounds that window to a week, which means once the tip passed
+  it the sweep would have gone blind to new blocks while still reporting a run
+  every day. That was due about 2026-08-25. The run cap bounds the work; it was
+  never going to end the stall.
+- **The frontier now gives up on evidence, not on elapsed time.** An id is
+  retired after a reachable resolver has denied it on five separate runs, kept in
+  `clanker_unresolved_ids`. A block distance measures how long we have been
+  stuck and says nothing about the deploy that stuck us; a denial count is about
+  the id itself and cannot be manufactured by an outage.
+- **Only an answer counts as an answer.** `resolveAccountIds` now reports which
+  ids the resolver actually replied about, separately from which it knew. A
+  request that fails or never lands records nothing, so a repeat of the
+  2026-08-18 outage, when the resolver's env vars were renamed and unset, would
+  have added zero attempts rather than spending a fifth of every id's patience.
+  This is the same distinction `x_handle_attempts` exists to make for handles.
+- **Abandoning is not a failed run, and is still reported.** The range is
+  finished, so the run is a success; `abandonedAccountIds` rides in the event
+  metadata because it is the only path by which a link is knowingly given up.
+- **The stuck block was cleared by hand, and cost nothing.** Waiting five days
+  for the new threshold would have left four of them inside the blind window. The
+  skipped deploy turned out to carry a link the same wallet had already
+  established 104 blocks later in a well-formed deploy, so the graph lost
+  nothing at all. `scripts/repair-clanker-checkpoint.ts` does this, refuses to
+  move the checkpoint backwards, and needs `--apply` to write.
+- **The catch-up run then cleared the whole backlog**: 18 links from 25 social
+  deploys, 5 new wallets, and `blocksBehindHead` back to 0.
+
+
 ### 2026-08-18 (things that looked fine and were not)
 
 - **Three "why is this empty" reports, none of which were empty.** The blog had

@@ -32,6 +32,11 @@ export async function GET(request: NextRequest) {
     // not finish its range. Recorded as a failure for the same reason the
     // attestation sweeps do it: the health panel must be able to tell a run
     // that worked from a run that merely happened.
+    //
+    // Abandoning an id does NOT make a run fail. It is the mechanism working:
+    // the frontier moved, so the range is finished. It still needs to be seen,
+    // because it is the only path by which a link is knowingly given up, and
+    // `abandonedAccountIds` rides in the event metadata for exactly that.
     const ok = !stats.checkpointHeld;
 
     trackEvent('lookup_completed', {
