@@ -90,6 +90,39 @@ All notable changes to walletlink.social. Newest first.
   cheapest place to find that out is a local run.
 
 
+### 2026-08-20 (a comparison page aimed at the wrong Cookie)
+
+- **`/vs/cookie` argued against a product that does not compete with us.** The
+  page was built around Cookie.fun, which indexes AI agents and gates its premium
+  analytics behind staking 10,000 $COOKIE. It ranks agent mindshare. It does not
+  resolve a wallet list to anybody, so nobody choosing between it and us was
+  making a real choice, and the page drew agent traders rather than people with a
+  holder list. The competitor is Cookie3, a separate subscription product that
+  sells "Advertise: Twitter<>Wallet Matching" as a line item on a published price
+  sheet. `/vs/cookie3` replaces the page, and `/vs/cookie` 308s to it rather than
+  404ing, because the old URL is in a sitemap that has already been crawled and
+  is linked from four sibling pages and the footer.
+
+- **The argument turned out to be a ceiling, not a price.** Cookie3's own plan
+  table caps Twitter matching at 10,000 accounts on Website ($59/mo), Basic
+  ($299/mo) and Growth ($749/mo) alike. Paying more buys wallet volume and export
+  headroom and leaves the cap exactly where it was; only Enterprise, which is
+  unpriced, lifts it. So a 50,000-wallet match is not buyable at any published
+  price. That is their number rather than ours, which is what makes it worth
+  building a page on.
+
+- **Their prices carry the date they were read.** A competitor's price sheet is
+  the one fact on a comparison page that goes stale without anything failing, so
+  the table says when it was taken. Cookie3 does not make it easy to check: the
+  nav "Pricing" link is inert and /pricing 404s, so the real table sits partway
+  down /business.
+
+- **The page also says the two Cookies apart.** The names collide, both products
+  come from the same orbit, and a reader who lands on the wrong one has no way to
+  tell. A short section names which is which and sends the agent-research reader
+  where they meant to go.
+
+
 ### 2026-08-19 (a dot that only lined up at one row height)
 
 - **A manual correction now reaches the saved lookups that show it.** Editing a
