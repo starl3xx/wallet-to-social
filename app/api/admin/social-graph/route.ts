@@ -3,6 +3,7 @@ import {
   getSocialGraphWallet,
   upsertManualSocialGraph,
   getRecentManualEdits,
+  propagateManualCorrection,
 } from '@/lib/social-graph';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -97,9 +98,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /**
+     * A correction that only reaches the graph leaves the wrong value on every
+     * saved lookup that already shows it, which is where a customer actually
+     * reads it. Reported in the response so the amendment is visible rather
+     * than silent.
+     */
+    const amendedLookups = await propagateManualCorrection(wallet, {
+      twitter_handle: cleanTwitter ?? null,
+      farcaster: cleanFarcaster ?? null,
+      ens_name: ensName ?? null,
+    });
+
     return NextResponse.json({
       message: 'Social graph updated',
       wallet: result,
+      amendedLookups,
     });
   } catch (error) {
     console.error('Social graph update error:', error);

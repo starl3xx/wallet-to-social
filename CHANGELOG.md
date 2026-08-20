@@ -4,6 +4,16 @@ All notable changes to walletlink.social. Newest first.
 
 ### 2026-08-19 (a dot that only lined up at one row height)
 
+- **A manual correction now reaches the saved lookups that show it.** Editing a
+  wallet in the admin enrichment tab wrote to `social_graph` and stopped there,
+  so every completed lookup kept the value a person had just declared wrong.
+  A completed lookup is normally a record of what was true when it ran, and that
+  is right; a manual edit is the one exception, because its whole purpose is to
+  say the stored value was an error. Found on a real import, where a wallet kept
+  showing a handle that no longer belongs to its owner after the correct one had
+  been entered by hand. Only the corrected wallet's own row is touched, and only
+  the fields the edit set.
+
 - **The attestation dot sat below the address it belongs to.** The gutter pinned
   it with `items-start pt-3`, a fixed 12px from the top edge, while every other
   cell in the row is centred by the row's own `items-center`. The two agree at
