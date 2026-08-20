@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SealCheck } from '@phosphor-icons/react/dist/ssr';
+import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
 
 /**
  * The claim that no competitor on any of these pages can make.
@@ -46,8 +47,9 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
           </p>
 
           <p className="text-sm text-muted-foreground">
-            We resolved every X handle in the index against X itself. Of 417,872
-            checked: <strong className="text-foreground">69.6% live</strong>,{' '}
+            We resolved every X handle in the index against X itself. Of{' '}
+            {X_HANDLES_RESOLVED} checked:{' '}
+            <strong className="text-foreground">69.6% live</strong>,{' '}
             <strong className="text-foreground">20.7% suspended</strong>, and{' '}
             <strong className="text-foreground">
               9.7% names nobody holds any more

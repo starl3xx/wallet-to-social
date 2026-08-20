@@ -48,6 +48,20 @@ interface Claim {
    * count that only grows and must never be overstated.
    */
   kind?: 'rounded' | 'ceiling';
+  /**
+   * How far a ceiling claim may fall BEHIND the truth before it is stale.
+   *
+   * A ceiling passes whenever published <= truth, because understating a count
+   * that only grows is safe. Safe is not the same as true. On 2026-08-20 the
+   * resolved-handle figure had been 417,872 across five surfaces for three days
+   * while the database held 428,059, and every weekly run would have reported
+   * green forever: the claim can only fail by growing, and it never grows.
+   *
+   * So a ceiling gets a second bound in the other direction. Falling behind is
+   * not an error the way overstating is, but it is copy nobody has looked at,
+   * and this check exists to make somebody look.
+   */
+  staleBelow?: number;
   /** How the published value maps onto the actual one. */
   scale?: number;
 }
@@ -124,7 +138,13 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
-      'components/ReachabilityClaim.tsx',
+      /**
+       * `components/ReachabilityClaim.tsx` is deliberately absent, for the same
+       * reason `app/layout.tsx` is absent from the index-size claim above: it
+       * interpolates `X_HANDLES_RESOLVED` now, so the literal exists in exactly
+       * one file. That is the point of the constant.
+       */
+      'lib/public-figures.ts',
       'README.md',
       'docs/AI-SEARCH.md',
       /**
@@ -153,7 +173,7 @@ const CLAIMS: Claim[] = [
      * the sentence around it.
      */
     pattern:
-      /(?<=(?:resolved|checked)\s{0,3})([0-9]{1,3}(?:,[0-9]{3})+)|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,40}?(?:resolved|checked))/,
+      /X_HANDLES_RESOLVED = '([0-9]{1,3}(?:,[0-9]{3})+)'|(?<=(?:resolved|checked)\s{0,3})([0-9]{1,3}(?:,[0-9]{3})+)|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,25}?(?:resolved|checked))/,
     actual: () => one(sql`SELECT count(*)::int FROM x_accounts`),
     /**
      * Tight, because this is published as an exact figure.
@@ -174,6 +194,60 @@ const CLAIMS: Claim[] = [
      */
     tolerance: 0,
     kind: 'ceiling',
+    /**
+     * Two per cent of 428,059 is roughly 8,600 handles, which the daily cron
+     * takes a while to add. Tight enough that a figure cannot sit three days
+     * stale as this one did, loose enough that the weekly run is not a standing
+     * chore.
+     */
+    staleBelow: 0.02,
+  },
+  {
+    /**
+     * The denominator, declared because it was already three numbers.
+     *
+     * 446,070 in one module header, 446,043 in the docs and in a second module
+     * header, 446,329 in the database. Nothing checked it, because only the
+     * numerator was ever declared, and a coverage percentage is only as honest
+     * as the number underneath it.
+     */
+    what: 'distinct X handles held',
+    files: [
+      'docs-site/concepts/coverage.mdx',
+      'lib/public-figures.ts',
+      'lib/handle-reachability.ts',
+    ],
+    pattern:
+      /X_HANDLES_HELD = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,30}?distinct handles (?:the index holds|we hold))/,
+    actual: () =>
+      one(sql`SELECT count(DISTINCT lower(twitter_handle))::int FROM social_graph
+              WHERE twitter_handle IS NOT NULL`),
+    tolerance: 0,
+    kind: 'ceiling',
+    staleBelow: 0.02,
+  },
+  {
+    /**
+     * One digit from the index size and a different fact entirely.
+     *
+     * 4.7M is the Farcaster half, 4.8M is every wallet with any identity. Only
+     * the second was declared, so the blog post and `lib/eas-attestations.ts`
+     * carried an undeclared 4.7M that read exactly like a stale 4.8M. It is
+     * neither. It is correct, and it was one careless edit away from being
+     * "corrected" into the wrong number.
+     */
+    what: 'Farcaster wallets, in millions',
+    files: [
+      'content/published/twenty-two-percent-match-rate.md',
+      'lib/eas-attestations.ts',
+      'lib/public-figures.ts',
+    ],
+    pattern:
+      /FARCASTER_WALLETS = '([0-9]+\.[0-9]) million'|([0-9]+\.[0-9])M wallets, refreshed daily|([0-9]+\.[0-9]) million Farcaster wallets/,
+    actual: () =>
+      one(sql`SELECT count(*)::int FROM social_graph WHERE farcaster IS NOT NULL`),
+    scale: 1_000_000,
+    tolerance: 0.03,
   },
   {
     what: 'share of resolved handles that are live',
@@ -182,7 +256,7 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
     ],
-    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
+    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
@@ -210,7 +284,7 @@ const CLAIMS: Claim[] = [
       'README.md',
       'docs/AI-SEARCH.md',
     ],
-    pattern: /([0-9]{2}\.[0-9])% suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
+    pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -261,7 +335,144 @@ const CLAIMS: Claim[] = [
   },
 ];
 
+/**
+ * Figures no query can settle.
+ *
+ * The match rates are not properties of the database. 23.7% any-identity, and
+ * the ~13% reachable figure beside it, came from a random sample of 600 holders
+ * drawn from 26,619 across 18 collections on two chains. There is no SELECT that
+ * returns them, and inventing one would be worse than leaving them undeclared:
+ * the closest query, the share of index rows carrying a handle, measures index
+ * composition rather than what a customer's list will match, and a green tick
+ * against the wrong predicate is a lie with a checkmark on it.
+ *
+ * So they are checked the only two honest ways. The published figure must still
+ * equal what the measurement produced, which catches an edit that changed the
+ * number without redoing the work. And the measurement must not be too old,
+ * which catches the real failure: a sample taken once, quoted for a year, while
+ * the index it sampled tripled.
+ */
+interface Measurement {
+  what: string;
+  /** Where the measurement is recorded, with the date it was taken. */
+  recordedIn: string;
+  /** Reads the measurement date. First capture group is an ISO date. */
+  datePattern: RegExp;
+  /** Re-measure after this many days. */
+  maxAgeDays: number;
+  /** How to repeat it. Printed on failure, because the fix is to run this. */
+  by: string;
+  /** Surfaces publishing a figure derived from it, and what each must say. */
+  published: { file: string; pattern: RegExp; value: string }[];
+}
+
+const MEASUREMENTS: Measurement[] = [
+  {
+    what: 'pipeline match rate, by sample',
+    recordedIn: 'docs/SEO-STRATEGY.md',
+    datePattern: /\*\*Match rate, verified ([0-9]{4}-[0-9]{2}-[0-9]{2}):\*\*/,
+    /**
+     * Four months. The sample is expensive enough that monthly is a chore
+     * nobody will do, and the index grows fast enough that a year-old sample
+     * describes a different product.
+     */
+    maxAgeDays: 120,
+    by: 'npx tsx --env-file=.env.local scripts/benchmark-pipeline-sample.ts',
+    published: [
+      {
+        file: 'app/opengraph-image.tsx',
+        // The share card is the first thing anyone sees, and this figure was
+        // the only number on it that nothing checked.
+        pattern: /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
+        value: '13',
+      },
+    ],
+  },
+];
+
+/**
+ * NOT declared, and said out loud rather than quietly.
+ *
+ * "22%" appears in roughly ten blog posts as the conservative end of the
+ * interval above. It is not registered here, because the same two digits also
+ * carry unrelated facts in the same folder: a case study's governance
+ * participation went from 5.2% to 22.4%, and a pattern loose enough to catch
+ * the match rate catches that too, then reports it as drift. Declaring them
+ * properly means one entry per post with a phrase-anchored pattern, which is a
+ * job rather than a line, and pretending otherwise would be the kind of
+ * exemption this file already refuses elsewhere.
+ */
+const KNOWN_UNDECLARED = [
+  'the 22% match rate repeated across content/published/*.md',
+];
+
 const num = (s: string) => Number(s.replace(/,/g, ''));
+
+function checkMeasurements(): number {
+  let problems = 0;
+
+  for (const m of MEASUREMENTS) {
+    let record: string;
+    try {
+      record = readFileSync(m.recordedIn, 'utf8');
+    } catch {
+      console.error(`MISSING  ${m.recordedIn} (records "${m.what}")`);
+      return problems + 1;
+    }
+
+    const dated = record.match(m.datePattern);
+    if (!dated) {
+      console.error(
+        `  NO DATE  ${m.recordedIn}: cannot find when "${m.what}" was measured.`
+      );
+      problems++;
+      continue;
+    }
+
+    const ageDays = Math.floor(
+      (Date.now() - Date.parse(dated[1])) / 86_400_000
+    );
+    if (ageDays > m.maxAgeDays) {
+      console.error(
+        `  OLD    ${m.what}: measured ${dated[1]}, ${ageDays} days ago ` +
+          `(limit ${m.maxAgeDays}). Re-run: ${m.by}`
+      );
+      problems++;
+    } else {
+      console.log(
+        `  ok     ${m.recordedIn}: ${m.what} measured ${dated[1]}, ${ageDays}d old`
+      );
+    }
+
+    for (const p of m.published) {
+      let text: string;
+      try {
+        text = readFileSync(p.file, 'utf8');
+      } catch {
+        console.error(`MISSING  ${p.file} (publishes "${m.what}")`);
+        problems++;
+        continue;
+      }
+      const hit = text.match(p.pattern);
+      if (!hit) {
+        console.error(
+          `  NO MATCH ${p.file}: cannot find the published "${m.what}" figure.`
+        );
+        problems++;
+      } else if (hit[1] !== p.value) {
+        console.error(
+          `  DRIFT  ${p.file}: "${m.what}" published as ${hit[1]}, measured ` +
+            `${p.value}. A figure changed without the measurement behind it.`
+        );
+        problems++;
+      } else {
+        console.log(`  ok     ${p.file}: ${m.what} = ${hit[1]} (as measured)`);
+      }
+    }
+  }
+
+  return problems;
+}
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -333,15 +544,31 @@ async function main() {
          */
         const isFloor = /over /i.test(hit[0]);
         const kind = isFloor ? 'floor' : (claim.kind ?? 'rounded');
+        const overstated = published > truth;
+        // A ceiling that has fallen further behind than its own bound allows.
+        // Not false, just unlooked-at, and reported as its own kind of problem
+        // so the fix is obvious from the line.
+        const stale =
+          kind === 'ceiling' &&
+          claim.staleBelow !== undefined &&
+          !overstated &&
+          drift > claim.staleBelow;
         const ok =
           kind === 'floor'
             ? published <= truth
             : kind === 'ceiling'
-              ? published <= truth
+              ? !overstated && !stale
               : drift <= claim.tolerance;
 
         if (ok) {
           console.log(`  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`);
+        } else if (stale) {
+          console.error(
+            `  STALE  ${file}: ${claim.what} published as ${publishedRaw}, actual ` +
+              `${fmt(truth)} (${(drift * 100).toFixed(1)}% behind, limit ` +
+              `${(claim.staleBelow! * 100).toFixed(0)}%). Not wrong, just old.`
+          );
+          problems++;
         } else {
           console.error(
             `  DRIFT  ${file}: ${claim.what} published as ${publishedRaw}, actual ${fmt(truth)}` +
@@ -355,8 +582,14 @@ async function main() {
     }
   }
 
+  problems += checkMeasurements();
+
   const undeclared = sweepForUndeclared();
   problems += undeclared;
+
+  for (const known of KNOWN_UNDECLARED) {
+    console.log(`  note   not declared, deliberately: ${known}`);
+  }
 
   console.log(`\n${checked} published figures checked.`);
   if (undeclared) console.error(`${undeclared} figure(s) published but never declared.`);

@@ -2,6 +2,61 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-20 (a figure that could only fail by growing)
+
+- **A published count sat three days stale and every check reported green.**
+  The resolved-handle figure said 417,872 across the docs, the README, the
+  reachability panel and the AI prompt while the database held 428,059. Nothing
+  caught it, and nothing was ever going to: the claim is declared as a `ceiling`,
+  which passes whenever the published number is at or below the truth, because
+  understating a count that only grows is safe. Safe is not the same as true. A
+  ceiling now takes a second bound in the other direction, `staleBelow`, and
+  fails at 2% behind with its own `STALE` line rather than an overstatement
+  warning that would read as the wrong problem.
+
+- **One fact, three numbers, again.** 417,872 in five surfaces, 422,990 in
+  `lib/handle-reachability.ts`, 428,059 in the database. Its denominator was in
+  the same state: 446,070 in one module header, 446,043 in another and in the
+  docs, 446,329 in the database. Both now live in `lib/public-figures.ts` as
+  `X_HANDLES_RESOLVED` and `X_HANDLES_HELD`, the reachability panel interpolates
+  the first the way the homepage already interpolated the index size, and the
+  denominator is declared for the first time. A coverage percentage is only as
+  honest as the number underneath it, and nothing had ever looked at that one.
+
+- **4.7M and 4.8M are two facts one digit apart, and only one was declared.**
+  4.7 million is the Farcaster half; 4.8 million is every wallet with any
+  identity. The blog post and `lib/eas-attestations.ts` carried an undeclared
+  4.7M that reads exactly like a stale 4.8M. It is neither: it is correct, and it
+  was one well-meaning correction away from becoming the wrong number, which is
+  precisely how 4.8M, 4.9M and 5M happened the first time. Declared now.
+
+- **The match rates cannot be settled by a query, so they are checked another
+  way.** 23.7% any-identity and the ~13% reachable figure beside it came from a
+  random sample of 600 holders across 18 collections, not from the database. The
+  nearest query measures index composition rather than what a customer's list
+  will match, and a green tick against the wrong predicate is a lie with a
+  checkmark on it. Instead the measurement carries its date, the check fails when
+  the sample is older than 120 days, and the published figure must still equal
+  what the sample produced. That catches both real failures: an edit that changed
+  the number without redoing the work, and a sample quoted for a year while the
+  index it sampled tripled.
+
+- **What is deliberately not declared, said out loud.** "22%" appears in about
+  ten blog posts, and the same two digits carry unrelated facts in the same
+  folder: one case study's governance participation went from 5.2% to 22.4%. A
+  pattern loose enough to catch the match rate catches that too and reports it as
+  drift. Declaring them properly is one entry per post, which is a job rather
+  than a line, so the checker prints the gap as a note instead of pretending.
+
+- **Four patterns were wrong the moment they were written**, and the check said
+  so before this shipped: the resolved-handle window reached 33 characters into a
+  neighbouring sentence and read "235,858 persisted negatives" as the claim, the
+  denominator pattern matched the numerator sitting one sentence above it, and
+  the coverage page's split stopped matching when its sentence moved from "were
+  live" to "are live". The registry is only as good as its patterns, and the
+  cheapest place to find that out is a local run.
+
+
 ### 2026-08-19 (a dot that only lined up at one row height)
 
 - **A manual correction now reaches the saved lookups that show it.** Editing a
