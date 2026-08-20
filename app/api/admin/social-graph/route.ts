@@ -3,6 +3,7 @@ import {
   getSocialGraphWallet,
   upsertManualSocialGraph,
   getRecentManualEdits,
+  propagateManualCorrection,
 } from '@/lib/social-graph';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -97,9 +98,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /**
+     * A correction that only reaches the graph leaves the wrong value on every
+     * saved lookup that shows it, which is where a customer actually reads it.
+     * The count comes back in the response so the amendment is visible.
+     *
+     * Values taken from the row the upsert returned, not from the form body.
+     *
+     * The body carries all three fields on every save, so a blank one arrives
+     * as null. Propagating that would clear identities the editor never touched
+     * — the upsert merges and keeps them, and the saved lookup must agree with
+     * the graph rather than with the shape of the form.
+     */
+    const amendedLookups = await propagateManualCorrection(wallet, {
+      twitter_handle: result.twitterHandle ?? null,
+      farcaster: result.farcaster ?? null,
+      ens_name: result.ensName ?? null,
+    });
+
     return NextResponse.json({
       message: 'Social graph updated',
       wallet: result,
+      amendedLookups,
     });
   } catch (error) {
     console.error('Social graph update error:', error);

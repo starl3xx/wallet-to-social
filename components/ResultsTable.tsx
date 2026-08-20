@@ -513,7 +513,12 @@ export const ResultsTable = memo(function ResultsTable({
                         saw, get nothing rather than a mark that would overstate
                         what is known. The title carries the same fact in words,
                         so nothing depends on distinguishing two colours. */}
-                    <div className="flex items-start justify-center pt-3">
+                    {/* Centred, not pinned with a top padding.
+                        `pt-3` aligned the dot with the address at exactly one
+                        row height and drifted at any other, because every other
+                        cell is centred by the row's own `items-center` while
+                        this one measured from the top edge. */}
+                    <div className="flex items-center justify-center">
                       {(() => {
                         const state = attestationOf(result);
                         if (state === 'attested') {

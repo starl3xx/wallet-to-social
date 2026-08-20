@@ -1117,3 +1117,144 @@ export async function getSocialGraphStats(): Promise<{
     };
   }
 }
+
+/**
+ * Push a manual correction out into the saved lookups that already show it.
+ *
+ * A completed lookup is normally a record of what was true when it ran, and
+ * that is right: an exported list should not change under its owner. A MANUAL
+ * correction is the one exception, because it exists only to say the stored
+ * value was wrong. Leaving a known-wrong handle in place republishes an error
+ * we have already agreed is an error.
+ *
+ * ## Both tables, because customers read the second one
+ *
+ * `lookup_jobs.partial_results` is the job record; `lookup_history.results` is
+ * what a person reopens from Saved lookups, written when the job finishes.
+ * Amending only the job leaves the customer-facing copy wrong while reporting
+ * success, which is worse than not propagating at all.
+ *
+ * ## Values come from the merged graph row, not the request
+ *
+ * The caller passes the row `upsertManualSocialGraph` returned, so the saved
+ * lookup ends up agreeing with the graph exactly. Taking them from the form
+ * body instead would write a null for every field the editor left blank and
+ * clear identities the edit never touched, where the upsert itself merges.
+ */
+export async function propagateManualCorrection(
+  wallet: string,
+  fields: { twitter_handle?: string | null; farcaster?: string | null; ens_name?: string | null }
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const walletLower = wallet.toLowerCase();
+  const patch = Object.fromEntries(
+    Object.entries(fields).filter(([, v]) => v !== undefined)
+  );
+  if (Object.keys(patch).length === 0) return 0;
+
+  /**
+   * A handle is not the only thing a stored row says about a handle.
+   *
+   * The saved row also carries `twitter_url`, `farcaster_url` and
+   * `twitter_reachability`. The table links from the stored URL and strikes
+   * through from the stored reachability, so replacing the handle alone leaves
+   * a row that shows the corrected name, opens the OLD profile, and still reads
+   * as dead. That is precisely the case this feature was built for, where the
+   * superseded handle had already been stamped unreachable.
+   */
+  const nextTwitter =
+    'twitter_handle' in patch ? (patch.twitter_handle as string | null) : undefined;
+  const nextFarcaster =
+    'farcaster' in patch ? (patch.farcaster as string | null) : undefined;
+  if (nextTwitter !== undefined) {
+    patch.twitter_url = nextTwitter ? `https://x.com/${nextTwitter}` : null;
+  }
+  if (nextFarcaster !== undefined) {
+    patch.farcaster_url = nextFarcaster ? `https://warpcast.com/${nextFarcaster}` : null;
+  }
+
+  const match = JSON.stringify([{ wallet: walletLower }]);
+
+  /** Rewrite one JSONB results array, returning null when nothing matched. */
+  const amend = (
+    rows: Array<Record<string, unknown>>
+  ): Array<Record<string, unknown>> | null => {
+    if (!Array.isArray(rows)) return null;
+    let touched = false;
+    const next = rows.map((row) => {
+      if (typeof row?.wallet !== 'string') return row;
+      if (row.wallet.toLowerCase() !== walletLower) return row;
+      touched = true;
+
+      const merged: Record<string, unknown> = { ...row, ...patch };
+
+      /**
+       * A new handle inherits no verdict from the old one.
+       *
+       * Reachability is a measurement of a specific handle. Carrying the
+       * previous handle's result across a correction would keep striking the
+       * row through and keep it out of the Twitter export, on evidence about a
+       * name this wallet no longer uses. Cleared rather than guessed at: the
+       * corrected handle is unchecked until the liveness sweep reaches it, and
+       * unchecked renders neutral, which is the honest state.
+       */
+      const oldHandle = typeof row.twitter_handle === 'string' ? row.twitter_handle : null;
+      const changed =
+        nextTwitter !== undefined &&
+        (oldHandle ?? '').toLowerCase() !== (nextTwitter ?? '').toLowerCase();
+      if (changed) {
+        merged.twitter_reachability = null;
+        merged.twitter_reachability_checked_at = null;
+      }
+      return merged;
+    });
+    return touched ? next : null;
+  };
+
+  let amended = 0;
+  try {
+    /**
+     * Containment rather than a scan: `@>` asks Postgres whether the array
+     * holds an object with this wallet. A saved lookup can hold 10,000 rows, so
+     * pulling every one into memory to look would not stay cheap.
+     */
+    const jobs = (await db.execute(sql`
+      SELECT id, partial_results AS rows FROM lookup_jobs
+      WHERE partial_results IS NOT NULL AND partial_results @> ${match}::jsonb
+    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
+
+    for (const job of jobs.rows) {
+      const next = amend(job.rows);
+      if (!next) continue;
+      await db.execute(sql`
+        UPDATE lookup_jobs SET partial_results = ${JSON.stringify(next)}::jsonb WHERE id = ${job.id}
+      `);
+    }
+
+    const history = (await db.execute(sql`
+      SELECT id, results AS rows FROM lookup_history
+      WHERE results IS NOT NULL AND results @> ${match}::jsonb
+    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
+
+    for (const h of history.rows) {
+      const next = amend(h.rows);
+      if (!next) continue;
+      await db.execute(sql`
+        UPDATE lookup_history SET results = ${JSON.stringify(next)}::jsonb WHERE id = ${h.id}
+      `);
+      // Counted on the customer-facing table only, so the number the admin sees
+      // is the number of saved lookups a person could actually reopen.
+      amended++;
+    }
+    return amended;
+  } catch (error) {
+    /**
+     * Never fails the correction itself. The graph write has already happened,
+     * and a stale saved lookup is where we were before this existed.
+     */
+    console.error('propagateManualCorrection failed:', error);
+    return amended;
+  }
+}
