@@ -4,6 +4,30 @@ All notable changes to walletlink.social. Newest first.
 
 ### 2026-08-20 (a figure that could only fail by growing)
 
+- **Review fixes, and both were the same mistake twice.** The measurement guard
+  hardcoded the expected `13` in the checker instead of reading it from the
+  record, which checks that the copy still agrees with the checker rather than
+  with the measurement: change the sample's rate in `docs/SEO-STRATEGY.md` and
+  everything stays green, which is exactly the failure the guard was added to
+  catch. Both rates now come out of the record, so there is one authority and
+  the checker is not it. The blog table publishing 23.7% is declared too, having
+  been left out of the first version.
+- **A consolidation that leaves one copy behind has not consolidated anything.**
+  `lib/x-accounts.ts` still asserted its own 417,872 in the present tense,
+  outside both claims, in the same commit that corrected the literal everywhere a
+  customer reads it. Declared now, on the numerator and the denominator.
+- **A dated record of one run is not a claim about the current total.** That file
+  also says the first sweep resolved 417,998 handles in a four-hour window on
+  2026-08-17, twice, as the evidence for why the staleness threshold is per
+  handle. Both sentences are correct and stay correct: rewriting accurate history
+  to satisfy a regex is the worse trade. Claims take an `ignoreNear` list for
+  this, kept to narrow phrases rather than a file-level opt-out, because an
+  exemption has to be honest about what it exempts.
+- **And the anchor phrase stopped matching mid-commit, which is the argument for
+  all of it.** Reflowing a doc comment split "we hold" across a line, the
+  denominator pattern went quiet, and only the check's own NO MATCH line caught
+  it. Every word of that phrase now tolerates a comment continuation.
+
 - **A published count sat three days stale and every check reported green.**
   The resolved-handle figure said 417,872 across the docs, the README, the
   reachability panel and the AI prompt while the database held 428,059. Nothing

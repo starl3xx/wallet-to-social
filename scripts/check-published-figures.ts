@@ -62,6 +62,22 @@ interface Claim {
    * and this check exists to make somebody look.
    */
   staleBelow?: number;
+  /**
+   * Contexts where a number that looks like this claim is a different fact.
+   *
+   * A dated record of one past run is not a claim about the current total. The
+   * first sweep resolved 417,998 handles in a four-hour window on 2026-08-17,
+   * and `lib/x-accounts.ts` says so twice while explaining why the staleness
+   * threshold is per handle. That sentence is correct and must stay correct: it
+   * is the evidence for a design decision, and rewriting history so a regex is
+   * happy would be the worse trade.
+   *
+   * Tested against a window around the match, so an occurrence is skipped when
+   * it is anchored to a specific run rather than asserting a running total.
+   * An exemption has to be honest about what it exempts, which is why these are
+   * narrow phrases rather than a file-level opt-out.
+   */
+  ignoreNear?: RegExp[];
   /** How the published value maps onto the actual one. */
   scale?: number;
 }
@@ -161,6 +177,14 @@ const CLAIMS: Claim[] = [
        * it.
        */
       'lib/handle-reachability.ts',
+      /**
+       * Added after Bugbot pointed out that this module asserted its own
+       * 417,872 in the present tense, outside both claims, three commits after
+       * the same literal was corrected everywhere a customer reads it. A
+       * consolidation that leaves one copy behind has not consolidated
+       * anything; it has just moved where the next wrong number will come from.
+       */
+      'lib/x-accounts.ts',
     ],
     /**
      * Matched by neighbourhood, not by sentence.
@@ -194,6 +218,13 @@ const CLAIMS: Claim[] = [
      */
     tolerance: 0,
     kind: 'ceiling',
+    ignoreNear: [
+      // "The first full sweep resolved 417,998 handles inside a four-hour
+      // window on 2026-08-17" and "Measured over all 417,998 rows". Both are
+      // that one run, quoted as evidence for the per-handle threshold.
+      /first full sweep/i,
+      /Measured over all/i,
+    ],
     /**
      * Two per cent of 428,059 is roughly 8,600 handles, which the daily cron
      * takes a while to add. Tight enough that a figure cannot sit three days
@@ -210,15 +241,24 @@ const CLAIMS: Claim[] = [
      * header, 446,329 in the database. Nothing checked it, because only the
      * numerator was ever declared, and a coverage percentage is only as honest
      * as the number underneath it.
+     *
+     * `[\s*]+` rather than a space between every word of the anchor phrase:
+     * two of the three surfaces are doc comments, so the phrase can wrap across
+     * a line and pick up a leading `*`. A plain space stops matching the moment
+     * somebody reflows a paragraph, and a claim that quietly stops being
+     * checked is the failure this whole file exists to prevent. It happened
+     * here, in this commit, to this pattern.
      */
     what: 'distinct X handles held',
     files: [
       'docs-site/concepts/coverage.mdx',
       'lib/public-figures.ts',
       'lib/handle-reachability.ts',
+      // Same omission as the numerator above, and the same fix.
+      'lib/x-accounts.ts',
     ],
     pattern:
-      /X_HANDLES_HELD = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,30}?distinct handles (?:the index holds|we hold))/,
+      /X_HANDLES_HELD = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,30}?distinct[\s*]+handles[\s*]+(?:the[\s*]+index[\s*]+holds|we[\s*]+hold))/,
     actual: () =>
       one(sql`SELECT count(DISTINCT lower(twitter_handle))::int FROM social_graph
               WHERE twitter_handle IS NOT NULL`),
@@ -358,12 +398,23 @@ interface Measurement {
   recordedIn: string;
   /** Reads the measurement date. First capture group is an ISO date. */
   datePattern: RegExp;
+  /**
+   * The rates the measurement produced, READ OUT OF THE RECORD.
+   *
+   * The first version of this hardcoded the expected value here in the checker,
+   * which Bugbot caught: a hardcoded expectation checks that the copy still
+   * matches the checker, not that it matches the measurement. Change the
+   * measured rate in the record and the check stays green, which is precisely
+   * the failure this guard was added to catch. Both halves now come from the
+   * record, so there is one authority and the checker is not it.
+   */
+  rates: Record<string, RegExp>;
   /** Re-measure after this many days. */
   maxAgeDays: number;
   /** How to repeat it. Printed on failure, because the fix is to run this. */
   by: string;
-  /** Surfaces publishing a figure derived from it, and what each must say. */
-  published: { file: string; pattern: RegExp; value: string }[];
+  /** Surfaces publishing a figure derived from it, and which rate each states. */
+  published: { file: string; pattern: RegExp; rate: string }[];
 }
 
 const MEASUREMENTS: Measurement[] = [
@@ -378,13 +429,35 @@ const MEASUREMENTS: Measurement[] = [
      */
     maxAgeDays: 120,
     by: 'npx tsx --env-file=.env.local scripts/benchmark-pipeline-sample.ts',
+    /**
+     * Two rates, kept apart on purpose. CLAUDE.md requires it: "has an
+     * identity" counts ENS and Lens and is a resolution rate; "reachable on X
+     * or Farcaster" is what a campaign can actually message. Roughly a factor
+     * of two between them, so publishing the first where the second belongs
+     * overstates an audience by half.
+     */
+    rates: {
+      anyIdentity: /verified [0-9-]{10}:\*\* ([0-9]{2}\.[0-9])% any-identity/,
+      reachable: /"reachable on X or Farcaster" \(~([0-9]{2})%\)/,
+    },
     published: [
       {
         file: 'app/opengraph-image.tsx',
         // The share card is the first thing anyone sees, and this figure was
         // the only number on it that nothing checked.
         pattern: /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
-        value: '13',
+        rate: 'reachable',
+      },
+      {
+        /**
+         * The blog table stating the sample's headline figure, which the first
+         * version of this entry left out. It is the one surface that publishes
+         * the any-identity rate to a decimal, so it is the one most obviously
+         * wrong if the sample is re-run and the post is not.
+         */
+        file: 'content/published/twenty-two-percent-match-rate.md',
+        pattern: /\*\*Any identity\*\*[^|]*\| \*\*([0-9]{2}\.[0-9])%\*\*/,
+        rate: 'anyIdentity',
       },
     ],
   },
@@ -444,7 +517,27 @@ function checkMeasurements(): number {
       );
     }
 
+    // The measured values, read out of the record rather than from this file.
+    const measured: Record<string, string> = {};
+    for (const [name, pattern] of Object.entries(m.rates)) {
+      const hit = record.match(pattern);
+      if (!hit) {
+        console.error(
+          `  NO RATE  ${m.recordedIn}: cannot read the "${name}" rate. The ` +
+            `record was reworded, or the rate is gone.`
+        );
+        problems++;
+        continue;
+      }
+      measured[name] = hit[1];
+      console.log(`  ok     ${m.recordedIn}: ${name} measured at ${hit[1]}%`);
+    }
+
     for (const p of m.published) {
+      const expected = measured[p.rate];
+      // Already reported as NO RATE. Saying it twice per surface adds noise.
+      if (expected === undefined) continue;
+
       let text: string;
       try {
         text = readFileSync(p.file, 'utf8');
@@ -456,17 +549,17 @@ function checkMeasurements(): number {
       const hit = text.match(p.pattern);
       if (!hit) {
         console.error(
-          `  NO MATCH ${p.file}: cannot find the published "${m.what}" figure.`
+          `  NO MATCH ${p.file}: cannot find the published "${p.rate}" figure.`
         );
         problems++;
-      } else if (hit[1] !== p.value) {
+      } else if (hit[1] !== expected) {
         console.error(
-          `  DRIFT  ${p.file}: "${m.what}" published as ${hit[1]}, measured ` +
-            `${p.value}. A figure changed without the measurement behind it.`
+          `  DRIFT  ${p.file}: "${p.rate}" published as ${hit[1]}, measured ` +
+            `${expected} in ${m.recordedIn}. One of the two was edited alone.`
         );
         problems++;
       } else {
-        console.log(`  ok     ${p.file}: ${m.what} = ${hit[1]} (as measured)`);
+        console.log(`  ok     ${p.file}: ${p.rate} = ${hit[1]} (as measured)`);
       }
     }
   }
@@ -526,6 +619,14 @@ async function main() {
         claim.scale ? (v / claim.scale).toFixed(2) : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
       for (const hit of all) {
+        // A 120-character window each side: wide enough to see the sentence the
+        // figure sits in, narrow enough not to reach the next one.
+        if (claim.ignoreNear?.length) {
+          const at = hit.index ?? 0;
+          const around = text.slice(Math.max(0, at - 120), at + 120);
+          if (claim.ignoreNear.some((re) => re.test(around))) continue;
+        }
+
         checked++;
         const publishedRaw = hit.slice(1).find((g) => g !== undefined)!;
         const published = num(publishedRaw) * (claim.scale ?? 1);
