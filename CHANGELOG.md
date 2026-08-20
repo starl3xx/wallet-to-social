@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-19 (a dot that only lined up at one row height)
+
+- **The attestation dot sat below the address it belongs to.** The gutter pinned
+  it with `items-start pt-3`, a fixed 12px from the top edge, while every other
+  cell in the row is centred by the row's own `items-center`. The two agree at
+  exactly one row height and drift at any other, which is why it looked fine
+  when it was written and wrong in a screenshot. The gutter now centres like
+  everything beside it.
+
+
 ### 2026-08-19 (the Bag, and a list that repeated people)
 
 - **A contract import now shows how much each wallet holds.** Every holder
