@@ -475,10 +475,10 @@ export default function AddressableComparison() {
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
                 <Link
-                  href="/vs/cookie"
+                  href="/vs/cookie3"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  walletlink.social vs Cookie.fun
+                  walletlink.social vs Cookie3
                 </Link>
               </li>
               <li>

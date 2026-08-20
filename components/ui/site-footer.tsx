@@ -76,7 +76,7 @@ export function SiteFooter() {
             <FooterLink href="/vs/addressable">vs Addressable</FooterLink>
             <FooterLink href="/vs/blaze">vs Blaze</FooterLink>
             <FooterLink href="/vs/holder">vs Holder</FooterLink>
-            <FooterLink href="/vs/cookie">vs Cookie</FooterLink>
+            <FooterLink href="/vs/cookie3">vs Cookie3</FooterLink>
             <FooterLink href="/vs/airstack">vs Airstack</FooterLink>
           </FooterColumn>
 

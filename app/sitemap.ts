@@ -40,7 +40,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/vs/cookie`,
+      url: `${baseUrl}/vs/cookie3`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
