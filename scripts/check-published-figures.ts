@@ -594,22 +594,47 @@ async function main() {
       // JSON-LD and FAQ copy all carry the index size) had every later instance
       // unchecked. The check could pass while published text still lied.
       const global = new RegExp(claim.pattern.source, claim.pattern.flags.replace('g', '') + 'g');
-      const all = [...text.matchAll(global)];
-      const m = all[0];
-      if (!m) {
+
+      /**
+       * Exemptions are applied BEFORE the no-match test, not inside the loop
+       * after it.
+       *
+       * Bugbot caught the other order: the test asked whether the regex found
+       * anything, then the loop skipped the exempted ones. A file whose every
+       * hit is exempt therefore satisfied the test and compared nothing, so it
+       * passed green with zero verification. `lib/x-accounts.ts` sits exactly
+       * there: reword its one live sentence and only the two dated historical
+       * figures still match, both exempt, and the file goes quiet instead of
+       * failing. That is the precise outcome the no-match error exists to
+       * prevent, reintroduced by the fix for a different problem.
+       *
+       * Filtering first means the question the test asks is the right one: not
+       * "did the regex hit anything" but "is there a live claim here to check".
+       */
+      const all = [...text.matchAll(global)].filter((hit) => {
+        if (!claim.ignoreNear?.length) return true;
+        // A 120-character window each side: wide enough to see the sentence the
+        // figure sits in, narrow enough not to reach the next one.
+        const at = hit.index ?? 0;
+        const around = text.slice(Math.max(0, at - 120), at + 120);
+        return !claim.ignoreNear.some((re) => re.test(around));
+      });
+
+      if (all.length === 0) {
         /**
          * A no-match is an ERROR, not a note.
          *
-         * It means one of two things and both need a person: the copy was
-         * rewritten and this registry is now stale, or the figure was removed
-         * and its entry should have gone with it. A guard that shrugs at a claim
-         * it can no longer find checks fewer things every time somebody edits
-         * prose, and reports success the whole way down.
+         * It means one of three things and all need a person: the copy was
+         * rewritten and this registry is now stale, the figure was removed and
+         * its entry should have gone with it, or every occurrence left is
+         * exempt and the file no longer states the claim at all. A guard that
+         * shrugs at a claim it can no longer find checks fewer things every
+         * time somebody edits prose, and reports success the whole way down.
          */
         console.error(
-          `  NO MATCH ${file}: cannot find "${claim.what}". Either the copy ` +
-            `changed and this registry needs updating, or the figure is gone ` +
-            `and its entry should be too.`
+          `  NO MATCH ${file}: no live "${claim.what}" to check. The copy ` +
+            `changed and this registry needs updating, the figure is gone and ` +
+            `its entry should be too, or every occurrence is exempt.`
         );
         problems++;
         continue;
@@ -618,15 +643,8 @@ async function main() {
       const fmt = (v: number) =>
         claim.scale ? (v / claim.scale).toFixed(2) : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
+      // Already filtered above, so every hit here is a live claim.
       for (const hit of all) {
-        // A 120-character window each side: wide enough to see the sentence the
-        // figure sits in, narrow enough not to reach the next one.
-        if (claim.ignoreNear?.length) {
-          const at = hit.index ?? 0;
-          const around = text.slice(Math.max(0, at - 120), at + 120);
-          if (claim.ignoreNear.some((re) => re.test(around))) continue;
-        }
-
         checked++;
         const publishedRaw = hit.slice(1).find((g) => g !== undefined)!;
         const published = num(publishedRaw) * (claim.scale ?? 1);

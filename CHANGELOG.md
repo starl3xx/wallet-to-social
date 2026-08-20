@@ -27,6 +27,15 @@ All notable changes to walletlink.social. Newest first.
   all of it.** Reflowing a doc comment split "we hold" across a line, the
   denominator pattern went quiet, and only the check's own NO MATCH line caught
   it. Every word of that phrase now tolerates a comment continuation.
+- **The exemption then created the hole it was meant to avoid.** `ignoreNear`
+  skipped historical figures inside the comparison loop, but the NO MATCH test
+  ran before it, on raw regex hits. So a file whose every occurrence is exempt
+  satisfied the test and compared nothing: green, with zero verification.
+  `lib/x-accounts.ts` sits exactly there, one reworded sentence away from going
+  quiet with two dated historical figures still matching. Exemptions are applied
+  before the test now, so the question it asks is "is there a live claim here"
+  rather than "did the regex hit anything". Verified by rewording that sentence:
+  it fails NO MATCH where it previously passed.
 
 - **A published count sat three days stale and every check reported green.**
   The resolved-handle figure said 417,872 across the docs, the README, the
