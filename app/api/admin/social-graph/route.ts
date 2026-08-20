@@ -104,10 +104,18 @@ export async function POST(request: NextRequest) {
      * reads it. Reported in the response so the amendment is visible rather
      * than silent.
      */
+    /**
+     * Values taken from the row the upsert returned, not from the form body.
+     *
+     * The body carries all three fields on every save, so a blank one arrives
+     * as null. Propagating that would clear identities the editor never touched
+     * — the upsert merges and keeps them, and the saved lookup must agree with
+     * the graph rather than with the shape of the form.
+     */
     const amendedLookups = await propagateManualCorrection(wallet, {
-      twitter_handle: cleanTwitter ?? null,
-      farcaster: cleanFarcaster ?? null,
-      ens_name: ensName ?? null,
+      twitter_handle: result.twitterHandle ?? null,
+      farcaster: result.farcaster ?? null,
+      ens_name: result.ensName ?? null,
     });
 
     return NextResponse.json({

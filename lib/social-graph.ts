@@ -1124,17 +1124,22 @@ export async function getSocialGraphStats(): Promise<{
  * A completed lookup is normally a record of what was true when it ran, and
  * that is right: an exported list should not change under its owner. A MANUAL
  * correction is the one exception, because it exists only to say the stored
- * value was wrong. Leaving a known-wrong handle in every saved lookup, after a
- * person has explicitly corrected it, publishes an error we have already agreed
- * is an error.
+ * value was wrong. Leaving a known-wrong handle in place republishes an error
+ * we have already agreed is an error.
  *
- * Only the fields the correction actually set are touched, and only on the
- * corrected wallet's own row. Everything else in the saved result — the other
- * wallets, the ordering, the holdings, the run's own metadata — is left exactly
- * as it was.
+ * ## Both tables, because customers read the second one
  *
- * Returns how many saved lookups were amended, so the caller can say so rather
- * than leaving the propagation invisible.
+ * `lookup_jobs.partial_results` is the job record; `lookup_history.results` is
+ * what a person reopens from Saved lookups, written when the job finishes.
+ * Amending only the job leaves the customer-facing copy wrong while reporting
+ * success, which is worse than not propagating at all.
+ *
+ * ## Values come from the merged graph row, not the request
+ *
+ * The caller passes the row `upsertManualSocialGraph` returned, so the saved
+ * lookup ends up agreeing with the graph exactly. Taking them from the form
+ * body instead would write a null for every field the editor left blank and
+ * clear identities the edit never touched, where the upsert itself merges.
  */
 export async function propagateManualCorrection(
   wallet: string,
@@ -1144,54 +1149,70 @@ export async function propagateManualCorrection(
   if (!db) return 0;
 
   const walletLower = wallet.toLowerCase();
-  const set = Object.entries(fields).filter(([, v]) => v !== undefined);
-  if (set.length === 0) return 0;
+  const patch = Object.fromEntries(
+    Object.entries(fields).filter(([, v]) => v !== undefined)
+  );
+  if (Object.keys(patch).length === 0) return 0;
 
+  const match = JSON.stringify([{ wallet: walletLower }]);
+
+  /** Rewrite one JSONB results array, returning null when nothing matched. */
+  const amend = (
+    rows: Array<Record<string, unknown>>
+  ): Array<Record<string, unknown>> | null => {
+    if (!Array.isArray(rows)) return null;
+    let touched = false;
+    const next = rows.map((row) => {
+      if (typeof row?.wallet !== 'string') return row;
+      if (row.wallet.toLowerCase() !== walletLower) return row;
+      touched = true;
+      return { ...row, ...patch };
+    });
+    return touched ? next : null;
+  };
+
+  let amended = 0;
   try {
     /**
-     * Containment rather than a scan: `@>` asks Postgres whether the results
-     * array holds an object with this wallet, which it can answer from a GIN
-     * index if one exists and cheaply enough without one. A saved lookup can
-     * hold 10,000 rows, so pulling every job into memory to look would not
-     * stay cheap as the table grows.
+     * Containment rather than a scan: `@>` asks Postgres whether the array
+     * holds an object with this wallet. A saved lookup can hold 10,000 rows, so
+     * pulling every one into memory to look would not stay cheap.
      */
     const jobs = (await db.execute(sql`
-      SELECT id, partial_results
-      FROM lookup_jobs
-      WHERE partial_results IS NOT NULL
-        AND partial_results @> ${JSON.stringify([{ wallet: walletLower }])}::jsonb
-    `)) as unknown as {
-      rows: Array<{ id: string; partial_results: Array<Record<string, unknown>> }>;
-    };
+      SELECT id, partial_results AS rows FROM lookup_jobs
+      WHERE partial_results IS NOT NULL AND partial_results @> ${match}::jsonb
+    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
 
-    let amended = 0;
     for (const job of jobs.rows) {
-      const results = job.partial_results;
-      if (!Array.isArray(results)) continue;
-
-      let touched = false;
-      const next = results.map((row) => {
-        if (typeof row?.wallet !== 'string') return row;
-        if (row.wallet.toLowerCase() !== walletLower) return row;
-        touched = true;
-        return { ...row, ...Object.fromEntries(set) };
-      });
-      if (!touched) continue;
-
+      const next = amend(job.rows);
+      if (!next) continue;
       await db.execute(sql`
-        UPDATE lookup_jobs SET partial_results = ${JSON.stringify(next)}::jsonb
-        WHERE id = ${job.id}
+        UPDATE lookup_jobs SET partial_results = ${JSON.stringify(next)}::jsonb WHERE id = ${job.id}
       `);
+    }
+
+    const history = (await db.execute(sql`
+      SELECT id, results AS rows FROM lookup_history
+      WHERE results IS NOT NULL AND results @> ${match}::jsonb
+    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
+
+    for (const h of history.rows) {
+      const next = amend(h.rows);
+      if (!next) continue;
+      await db.execute(sql`
+        UPDATE lookup_history SET results = ${JSON.stringify(next)}::jsonb WHERE id = ${h.id}
+      `);
+      // Counted on the customer-facing table only, so the number the admin sees
+      // is the number of saved lookups a person could actually reopen.
       amended++;
     }
     return amended;
   } catch (error) {
     /**
-     * Never fails the correction itself. The graph write is the thing that
-     * matters and has already happened; a saved lookup that keeps a stale value
-     * is the situation we were in before this existed.
+     * Never fails the correction itself. The graph write has already happened,
+     * and a stale saved lookup is where we were before this existed.
      */
     console.error('propagateManualCorrection failed:', error);
-    return 0;
+    return amended;
   }
 }
