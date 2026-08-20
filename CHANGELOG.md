@@ -88,6 +88,13 @@ All notable changes to walletlink.social. Newest first.
   the coverage page's split stopped matching when its sentence moved from "were
   live" to "are live". The registry is only as good as its patterns, and the
   cheapest place to find that out is a local run.
+- **A guard whose tolerance is wider than the gap it guards does nothing.** The
+  Farcaster claim exists to stop 4.7 being "corrected" into the 4.8
+  any-identity figure, and at a 3% tolerance that exact mix-up passed: 4.8
+  against a true 4.6996 is 2.14% off. The mirror passed too, 4.7 against a true
+  4.813 being 2.35% off. Both are 1% now. The rule a tolerance has to satisfy is
+  not "is this close enough to be honest" but "is this tighter than the
+  distance to the nearest value it could be confused with".
 
 
 ### 2026-08-20 (a comparison page aimed at the wrong Cookie)

@@ -121,14 +121,23 @@ const CLAIMS: Claim[] = [
                  OR ens_name IS NOT NULL OR lens IS NOT NULL OR github IS NOT NULL`),
     scale: 1_000_000,
     /**
-     * Tight enough that "5" cannot stand in for 4.81.
+     * Tight enough that "5" cannot stand in for 4.81, and now tight enough that
+     * "4.7" cannot either.
      *
      * It was 0.1, and at that width the docs kept saying "5 million" against a
      * true 4.81 and passed at 3.9% off. A figure published to one decimal is
      * precise enough to be read as different, so the check has to treat it that
      * way.
+     *
+     * Then 0.03, which Bugbot showed was still too loose once the Farcaster
+     * claim existed: 4.7 against a true 4.813 is 2.35% off and passed, so the
+     * index size could be "corrected" into the Farcaster figure and the check
+     * would agree. The rule a tolerance has to satisfy is not "is this close
+     * enough to be honest" but "is this tighter than the distance to the
+     * nearest value it could be confused with". That distance is 2.1 to 2.4%
+     * here, so 1% is the widest defensible band.
      */
-    tolerance: 0.03,
+    tolerance: 0.01,
   },
   {
     what: 'wallets with an X handle, in millions',
@@ -287,7 +296,19 @@ const CLAIMS: Claim[] = [
     actual: () =>
       one(sql`SELECT count(*)::int FROM social_graph WHERE farcaster IS NOT NULL`),
     scale: 1_000_000,
-    tolerance: 0.03,
+    /**
+     * 1%, not 3%, and the reason is the entire point of this entry.
+     *
+     * Bugbot caught the first version: this claim exists to stop 4.7 being
+     * "corrected" into the 4.8 any-identity figure, and at 0.03 that exact
+     * mix-up passed, because 4.8 against a true 4.6996 is only 2.14% off. A
+     * guard whose tolerance is wider than the gap it guards does nothing.
+     *
+     * The two figures are 2.1 to 2.4% apart depending on direction, so the
+     * band has to sit under that. At 1%: 4.7 passes at 0.01% off, 4.8 fails at
+     * 2.14%, which is the behaviour asked for.
+     */
+    tolerance: 0.01,
   },
   {
     what: 'share of resolved handles that are live',
