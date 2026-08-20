@@ -1154,6 +1154,27 @@ export async function propagateManualCorrection(
   );
   if (Object.keys(patch).length === 0) return 0;
 
+  /**
+   * A handle is not the only thing a stored row says about a handle.
+   *
+   * The saved row also carries `twitter_url`, `farcaster_url` and
+   * `twitter_reachability`. The table links from the stored URL and strikes
+   * through from the stored reachability, so replacing the handle alone leaves
+   * a row that shows the corrected name, opens the OLD profile, and still reads
+   * as dead. That is precisely the case this feature was built for, where the
+   * superseded handle had already been stamped unreachable.
+   */
+  const nextTwitter =
+    'twitter_handle' in patch ? (patch.twitter_handle as string | null) : undefined;
+  const nextFarcaster =
+    'farcaster' in patch ? (patch.farcaster as string | null) : undefined;
+  if (nextTwitter !== undefined) {
+    patch.twitter_url = nextTwitter ? `https://x.com/${nextTwitter}` : null;
+  }
+  if (nextFarcaster !== undefined) {
+    patch.farcaster_url = nextFarcaster ? `https://warpcast.com/${nextFarcaster}` : null;
+  }
+
   const match = JSON.stringify([{ wallet: walletLower }]);
 
   /** Rewrite one JSONB results array, returning null when nothing matched. */
@@ -1166,7 +1187,28 @@ export async function propagateManualCorrection(
       if (typeof row?.wallet !== 'string') return row;
       if (row.wallet.toLowerCase() !== walletLower) return row;
       touched = true;
-      return { ...row, ...patch };
+
+      const merged: Record<string, unknown> = { ...row, ...patch };
+
+      /**
+       * A new handle inherits no verdict from the old one.
+       *
+       * Reachability is a measurement of a specific handle. Carrying the
+       * previous handle's result across a correction would keep striking the
+       * row through and keep it out of the Twitter export, on evidence about a
+       * name this wallet no longer uses. Cleared rather than guessed at: the
+       * corrected handle is unchecked until the liveness sweep reaches it, and
+       * unchecked renders neutral, which is the honest state.
+       */
+      const oldHandle = typeof row.twitter_handle === 'string' ? row.twitter_handle : null;
+      const changed =
+        nextTwitter !== undefined &&
+        (oldHandle ?? '').toLowerCase() !== (nextTwitter ?? '').toLowerCase();
+      if (changed) {
+        merged.twitter_reachability = null;
+        merged.twitter_reachability_checked_at = null;
+      }
+      return merged;
     });
     return touched ? next : null;
   };

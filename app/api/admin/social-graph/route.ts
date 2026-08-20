@@ -100,11 +100,9 @@ export async function POST(request: NextRequest) {
 
     /**
      * A correction that only reaches the graph leaves the wrong value on every
-     * saved lookup that already shows it, which is where a customer actually
-     * reads it. Reported in the response so the amendment is visible rather
-     * than silent.
-     */
-    /**
+     * saved lookup that shows it, which is where a customer actually reads it.
+     * The count comes back in the response so the amendment is visible.
+     *
      * Values taken from the row the upsert returned, not from the form body.
      *
      * The body carries all three fields on every save, so a blank one arrives
