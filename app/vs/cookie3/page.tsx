@@ -579,9 +579,9 @@ export default function Cookie3Comparison() {
               <p className="text-sm">
                 <span className="font-medium">What the money buys:</span> a year
                 on Cookie3 Growth is $8,988, or $7,188 paid annually, for a
-                suite whose matching stops at 10,000 accounts. Our top tier is $
-                {TIER_PRICES.unlimited} once, for the matching alone, with no
-                ceiling and nothing to renew. They are not the same purchase,
+                suite whose matching stops at 10,000 accounts. Our top tier is{' '}
+                {`$${TIER_PRICES.unlimited}`} once, for the matching alone, with
+                no ceiling and nothing to renew. They are not the same purchase,
                 and if you need the analytics suite the arithmetic does not
                 favour us.
               </p>
