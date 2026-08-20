@@ -53,5 +53,37 @@ export const INDEXED_WALLETS_LONG = '4.8 million';
  */
 export const WALLETS_WITH_X = '1.15 million';
 
+/**
+ * Wallets carrying a Farcaster identity.
+ *
+ * One digit from `INDEXED_WALLETS` and a different fact. 4.7M is the Farcaster
+ * half; 4.8M is every wallet with any identity at all. Both are true, and on
+ * 2026-08-20 only one of them was declared here, which is the arrangement that
+ * produced "4.8M or 4.9M or 5M" the first time. Two numbers this close either
+ * both live in one place or they eventually become one wrong number.
+ */
+export const FARCASTER_WALLETS = '4.7 million';
+
+/**
+ * Distinct X handles resolved against X itself, written out to the digit.
+ *
+ * This lived as a literal in five published surfaces plus two module headers,
+ * and by 2026-08-20 it was three different numbers: 417,872 in the docs, the
+ * README, the reachability panel and the AI prompt; 422,990 in
+ * `lib/handle-reachability.ts`; and 428,059 in the database. Every one of them
+ * passed the figures check, because the claim is a ceiling and understating is
+ * safe. Safe is not the same as true, so the check now also fails when a
+ * ceiling claim falls too far behind, and the literal lives here.
+ */
+export const X_HANDLES_RESOLVED = '428,059';
+
+/**
+ * Distinct X handles the index holds. The denominator for the figure above.
+ *
+ * Also previously duplicated and also already divergent: 446,070 in one module
+ * header, 446,043 in the docs, 446,329 in the database.
+ */
+export const X_HANDLES_HELD = '446,329';
+
 /** Supported EVM chains. Derived from `SUPPORTED_CHAINS`, not counted by hand. */
 export const CHAIN_COUNT_WORD = 'seven';

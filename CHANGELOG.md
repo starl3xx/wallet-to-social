@@ -2,6 +2,101 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-20 (a figure that could only fail by growing)
+
+- **Review fixes, and both were the same mistake twice.** The measurement guard
+  hardcoded the expected `13` in the checker instead of reading it from the
+  record, which checks that the copy still agrees with the checker rather than
+  with the measurement: change the sample's rate in `docs/SEO-STRATEGY.md` and
+  everything stays green, which is exactly the failure the guard was added to
+  catch. Both rates now come out of the record, so there is one authority and
+  the checker is not it. The blog table publishing 23.7% is declared too, having
+  been left out of the first version.
+- **A consolidation that leaves one copy behind has not consolidated anything.**
+  `lib/x-accounts.ts` still asserted its own 417,872 in the present tense,
+  outside both claims, in the same commit that corrected the literal everywhere a
+  customer reads it. Declared now, on the numerator and the denominator.
+- **A dated record of one run is not a claim about the current total.** That file
+  also says the first sweep resolved 417,998 handles in a four-hour window on
+  2026-08-17, twice, as the evidence for why the staleness threshold is per
+  handle. Both sentences are correct and stay correct: rewriting accurate history
+  to satisfy a regex is the worse trade. Claims take an `ignoreNear` list for
+  this, kept to narrow phrases rather than a file-level opt-out, because an
+  exemption has to be honest about what it exempts.
+- **And the anchor phrase stopped matching mid-commit, which is the argument for
+  all of it.** Reflowing a doc comment split "we hold" across a line, the
+  denominator pattern went quiet, and only the check's own NO MATCH line caught
+  it. Every word of that phrase now tolerates a comment continuation.
+- **The exemption then created the hole it was meant to avoid.** `ignoreNear`
+  skipped historical figures inside the comparison loop, but the NO MATCH test
+  ran before it, on raw regex hits. So a file whose every occurrence is exempt
+  satisfied the test and compared nothing: green, with zero verification.
+  `lib/x-accounts.ts` sits exactly there, one reworded sentence away from going
+  quiet with two dated historical figures still matching. Exemptions are applied
+  before the test now, so the question it asks is "is there a live claim here"
+  rather than "did the regex hit anything". Verified by rewording that sentence:
+  it fails NO MATCH where it previously passed.
+
+- **A published count sat three days stale and every check reported green.**
+  The resolved-handle figure said 417,872 across the docs, the README, the
+  reachability panel and the AI prompt while the database held 428,059. Nothing
+  caught it, and nothing was ever going to: the claim is declared as a `ceiling`,
+  which passes whenever the published number is at or below the truth, because
+  understating a count that only grows is safe. Safe is not the same as true. A
+  ceiling now takes a second bound in the other direction, `staleBelow`, and
+  fails at 2% behind with its own `STALE` line rather than an overstatement
+  warning that would read as the wrong problem.
+
+- **One fact, three numbers, again.** 417,872 in five surfaces, 422,990 in
+  `lib/handle-reachability.ts`, 428,059 in the database. Its denominator was in
+  the same state: 446,070 in one module header, 446,043 in another and in the
+  docs, 446,329 in the database. Both now live in `lib/public-figures.ts` as
+  `X_HANDLES_RESOLVED` and `X_HANDLES_HELD`, the reachability panel interpolates
+  the first the way the homepage already interpolated the index size, and the
+  denominator is declared for the first time. A coverage percentage is only as
+  honest as the number underneath it, and nothing had ever looked at that one.
+
+- **4.7M and 4.8M are two facts one digit apart, and only one was declared.**
+  4.7 million is the Farcaster half; 4.8 million is every wallet with any
+  identity. The blog post and `lib/eas-attestations.ts` carried an undeclared
+  4.7M that reads exactly like a stale 4.8M. It is neither: it is correct, and it
+  was one well-meaning correction away from becoming the wrong number, which is
+  precisely how 4.8M, 4.9M and 5M happened the first time. Declared now.
+
+- **The match rates cannot be settled by a query, so they are checked another
+  way.** 23.7% any-identity and the ~13% reachable figure beside it came from a
+  random sample of 600 holders across 18 collections, not from the database. The
+  nearest query measures index composition rather than what a customer's list
+  will match, and a green tick against the wrong predicate is a lie with a
+  checkmark on it. Instead the measurement carries its date, the check fails when
+  the sample is older than 120 days, and the published figure must still equal
+  what the sample produced. That catches both real failures: an edit that changed
+  the number without redoing the work, and a sample quoted for a year while the
+  index it sampled tripled.
+
+- **What is deliberately not declared, said out loud.** "22%" appears in about
+  ten blog posts, and the same two digits carry unrelated facts in the same
+  folder: one case study's governance participation went from 5.2% to 22.4%. A
+  pattern loose enough to catch the match rate catches that too and reports it as
+  drift. Declaring them properly is one entry per post, which is a job rather
+  than a line, so the checker prints the gap as a note instead of pretending.
+
+- **Four patterns were wrong the moment they were written**, and the check said
+  so before this shipped: the resolved-handle window reached 33 characters into a
+  neighbouring sentence and read "235,858 persisted negatives" as the claim, the
+  denominator pattern matched the numerator sitting one sentence above it, and
+  the coverage page's split stopped matching when its sentence moved from "were
+  live" to "are live". The registry is only as good as its patterns, and the
+  cheapest place to find that out is a local run.
+- **A guard whose tolerance is wider than the gap it guards does nothing.** The
+  Farcaster claim exists to stop 4.7 being "corrected" into the 4.8
+  any-identity figure, and at a 3% tolerance that exact mix-up passed: 4.8
+  against a true 4.6996 is 2.14% off. The mirror passed too, 4.7 against a true
+  4.813 being 2.35% off. Both are 1% now. The rule a tolerance has to satisfy is
+  not "is this close enough to be honest" but "is this tighter than the
+  distance to the nearest value it could be confused with".
+
+
 ### 2026-08-20 (a comparison page aimed at the wrong Cookie)
 
 - **`/vs/cookie` argued against a product that does not compete with us.** The

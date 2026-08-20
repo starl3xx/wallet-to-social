@@ -48,6 +48,36 @@ interface Claim {
    * count that only grows and must never be overstated.
    */
   kind?: 'rounded' | 'ceiling';
+  /**
+   * How far a ceiling claim may fall BEHIND the truth before it is stale.
+   *
+   * A ceiling passes whenever published <= truth, because understating a count
+   * that only grows is safe. Safe is not the same as true. On 2026-08-20 the
+   * resolved-handle figure had been 417,872 across five surfaces for three days
+   * while the database held 428,059, and every weekly run would have reported
+   * green forever: the claim can only fail by growing, and it never grows.
+   *
+   * So a ceiling gets a second bound in the other direction. Falling behind is
+   * not an error the way overstating is, but it is copy nobody has looked at,
+   * and this check exists to make somebody look.
+   */
+  staleBelow?: number;
+  /**
+   * Contexts where a number that looks like this claim is a different fact.
+   *
+   * A dated record of one past run is not a claim about the current total. The
+   * first sweep resolved 417,998 handles in a four-hour window on 2026-08-17,
+   * and `lib/x-accounts.ts` says so twice while explaining why the staleness
+   * threshold is per handle. That sentence is correct and must stay correct: it
+   * is the evidence for a design decision, and rewriting history so a regex is
+   * happy would be the worse trade.
+   *
+   * Tested against a window around the match, so an occurrence is skipped when
+   * it is anchored to a specific run rather than asserting a running total.
+   * An exemption has to be honest about what it exempts, which is why these are
+   * narrow phrases rather than a file-level opt-out.
+   */
+  ignoreNear?: RegExp[];
   /** How the published value maps onto the actual one. */
   scale?: number;
 }
@@ -91,14 +121,23 @@ const CLAIMS: Claim[] = [
                  OR ens_name IS NOT NULL OR lens IS NOT NULL OR github IS NOT NULL`),
     scale: 1_000_000,
     /**
-     * Tight enough that "5" cannot stand in for 4.81.
+     * Tight enough that "5" cannot stand in for 4.81, and now tight enough that
+     * "4.7" cannot either.
      *
      * It was 0.1, and at that width the docs kept saying "5 million" against a
      * true 4.81 and passed at 3.9% off. A figure published to one decimal is
      * precise enough to be read as different, so the check has to treat it that
      * way.
+     *
+     * Then 0.03, which Bugbot showed was still too loose once the Farcaster
+     * claim existed: 4.7 against a true 4.813 is 2.35% off and passed, so the
+     * index size could be "corrected" into the Farcaster figure and the check
+     * would agree. The rule a tolerance has to satisfy is not "is this close
+     * enough to be honest" but "is this tighter than the distance to the
+     * nearest value it could be confused with". That distance is 2.1 to 2.4%
+     * here, so 1% is the widest defensible band.
      */
-    tolerance: 0.03,
+    tolerance: 0.01,
   },
   {
     what: 'wallets with an X handle, in millions',
@@ -124,7 +163,13 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
-      'components/ReachabilityClaim.tsx',
+      /**
+       * `components/ReachabilityClaim.tsx` is deliberately absent, for the same
+       * reason `app/layout.tsx` is absent from the index-size claim above: it
+       * interpolates `X_HANDLES_RESOLVED` now, so the literal exists in exactly
+       * one file. That is the point of the constant.
+       */
+      'lib/public-figures.ts',
       'README.md',
       'docs/AI-SEARCH.md',
       /**
@@ -141,6 +186,14 @@ const CLAIMS: Claim[] = [
        * it.
        */
       'lib/handle-reachability.ts',
+      /**
+       * Added after Bugbot pointed out that this module asserted its own
+       * 417,872 in the present tense, outside both claims, three commits after
+       * the same literal was corrected everywhere a customer reads it. A
+       * consolidation that leaves one copy behind has not consolidated
+       * anything; it has just moved where the next wrong number will come from.
+       */
+      'lib/x-accounts.ts',
     ],
     /**
      * Matched by neighbourhood, not by sentence.
@@ -153,7 +206,7 @@ const CLAIMS: Claim[] = [
      * the sentence around it.
      */
     pattern:
-      /(?<=(?:resolved|checked)\s{0,3})([0-9]{1,3}(?:,[0-9]{3})+)|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,40}?(?:resolved|checked))/,
+      /X_HANDLES_RESOLVED = '([0-9]{1,3}(?:,[0-9]{3})+)'|(?<=(?:resolved|checked)\s{0,3})([0-9]{1,3}(?:,[0-9]{3})+)|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,25}?(?:resolved|checked))/,
     actual: () => one(sql`SELECT count(*)::int FROM x_accounts`),
     /**
      * Tight, because this is published as an exact figure.
@@ -174,6 +227,88 @@ const CLAIMS: Claim[] = [
      */
     tolerance: 0,
     kind: 'ceiling',
+    ignoreNear: [
+      // "The first full sweep resolved 417,998 handles inside a four-hour
+      // window on 2026-08-17" and "Measured over all 417,998 rows". Both are
+      // that one run, quoted as evidence for the per-handle threshold.
+      /first full sweep/i,
+      /Measured over all/i,
+    ],
+    /**
+     * Two per cent of 428,059 is roughly 8,600 handles, which the daily cron
+     * takes a while to add. Tight enough that a figure cannot sit three days
+     * stale as this one did, loose enough that the weekly run is not a standing
+     * chore.
+     */
+    staleBelow: 0.02,
+  },
+  {
+    /**
+     * The denominator, declared because it was already three numbers.
+     *
+     * 446,070 in one module header, 446,043 in the docs and in a second module
+     * header, 446,329 in the database. Nothing checked it, because only the
+     * numerator was ever declared, and a coverage percentage is only as honest
+     * as the number underneath it.
+     *
+     * `[\s*]+` rather than a space between every word of the anchor phrase:
+     * two of the three surfaces are doc comments, so the phrase can wrap across
+     * a line and pick up a leading `*`. A plain space stops matching the moment
+     * somebody reflows a paragraph, and a claim that quietly stops being
+     * checked is the failure this whole file exists to prevent. It happened
+     * here, in this commit, to this pattern.
+     */
+    what: 'distinct X handles held',
+    files: [
+      'docs-site/concepts/coverage.mdx',
+      'lib/public-figures.ts',
+      'lib/handle-reachability.ts',
+      // Same omission as the numerator above, and the same fix.
+      'lib/x-accounts.ts',
+    ],
+    pattern:
+      /X_HANDLES_HELD = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)(?=[\s\S]{0,30}?distinct[\s*]+handles[\s*]+(?:the[\s*]+index[\s*]+holds|we[\s*]+hold))/,
+    actual: () =>
+      one(sql`SELECT count(DISTINCT lower(twitter_handle))::int FROM social_graph
+              WHERE twitter_handle IS NOT NULL`),
+    tolerance: 0,
+    kind: 'ceiling',
+    staleBelow: 0.02,
+  },
+  {
+    /**
+     * One digit from the index size and a different fact entirely.
+     *
+     * 4.7M is the Farcaster half, 4.8M is every wallet with any identity. Only
+     * the second was declared, so the blog post and `lib/eas-attestations.ts`
+     * carried an undeclared 4.7M that read exactly like a stale 4.8M. It is
+     * neither. It is correct, and it was one careless edit away from being
+     * "corrected" into the wrong number.
+     */
+    what: 'Farcaster wallets, in millions',
+    files: [
+      'content/published/twenty-two-percent-match-rate.md',
+      'lib/eas-attestations.ts',
+      'lib/public-figures.ts',
+    ],
+    pattern:
+      /FARCASTER_WALLETS = '([0-9]+\.[0-9]) million'|([0-9]+\.[0-9])M wallets, refreshed daily|([0-9]+\.[0-9]) million Farcaster wallets/,
+    actual: () =>
+      one(sql`SELECT count(*)::int FROM social_graph WHERE farcaster IS NOT NULL`),
+    scale: 1_000_000,
+    /**
+     * 1%, not 3%, and the reason is the entire point of this entry.
+     *
+     * Bugbot caught the first version: this claim exists to stop 4.7 being
+     * "corrected" into the 4.8 any-identity figure, and at 0.03 that exact
+     * mix-up passed, because 4.8 against a true 4.6996 is only 2.14% off. A
+     * guard whose tolerance is wider than the gap it guards does nothing.
+     *
+     * The two figures are 2.1 to 2.4% apart depending on direction, so the
+     * band has to sit under that. At 1%: 4.7 passes at 0.01% off, 4.8 fails at
+     * 2.14%, which is the behaviour asked for.
+     */
+    tolerance: 0.01,
   },
   {
     what: 'share of resolved handles that are live',
@@ -182,7 +317,7 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
     ],
-    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
+    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
@@ -210,7 +345,7 @@ const CLAIMS: Claim[] = [
       'README.md',
       'docs/AI-SEARCH.md',
     ],
-    pattern: /([0-9]{2}\.[0-9])% suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
+    pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -261,7 +396,197 @@ const CLAIMS: Claim[] = [
   },
 ];
 
+/**
+ * Figures no query can settle.
+ *
+ * The match rates are not properties of the database. 23.7% any-identity, and
+ * the ~13% reachable figure beside it, came from a random sample of 600 holders
+ * drawn from 26,619 across 18 collections on two chains. There is no SELECT that
+ * returns them, and inventing one would be worse than leaving them undeclared:
+ * the closest query, the share of index rows carrying a handle, measures index
+ * composition rather than what a customer's list will match, and a green tick
+ * against the wrong predicate is a lie with a checkmark on it.
+ *
+ * So they are checked the only two honest ways. The published figure must still
+ * equal what the measurement produced, which catches an edit that changed the
+ * number without redoing the work. And the measurement must not be too old,
+ * which catches the real failure: a sample taken once, quoted for a year, while
+ * the index it sampled tripled.
+ */
+interface Measurement {
+  what: string;
+  /** Where the measurement is recorded, with the date it was taken. */
+  recordedIn: string;
+  /** Reads the measurement date. First capture group is an ISO date. */
+  datePattern: RegExp;
+  /**
+   * The rates the measurement produced, READ OUT OF THE RECORD.
+   *
+   * The first version of this hardcoded the expected value here in the checker,
+   * which Bugbot caught: a hardcoded expectation checks that the copy still
+   * matches the checker, not that it matches the measurement. Change the
+   * measured rate in the record and the check stays green, which is precisely
+   * the failure this guard was added to catch. Both halves now come from the
+   * record, so there is one authority and the checker is not it.
+   */
+  rates: Record<string, RegExp>;
+  /** Re-measure after this many days. */
+  maxAgeDays: number;
+  /** How to repeat it. Printed on failure, because the fix is to run this. */
+  by: string;
+  /** Surfaces publishing a figure derived from it, and which rate each states. */
+  published: { file: string; pattern: RegExp; rate: string }[];
+}
+
+const MEASUREMENTS: Measurement[] = [
+  {
+    what: 'pipeline match rate, by sample',
+    recordedIn: 'docs/SEO-STRATEGY.md',
+    datePattern: /\*\*Match rate, verified ([0-9]{4}-[0-9]{2}-[0-9]{2}):\*\*/,
+    /**
+     * Four months. The sample is expensive enough that monthly is a chore
+     * nobody will do, and the index grows fast enough that a year-old sample
+     * describes a different product.
+     */
+    maxAgeDays: 120,
+    by: 'npx tsx --env-file=.env.local scripts/benchmark-pipeline-sample.ts',
+    /**
+     * Two rates, kept apart on purpose. CLAUDE.md requires it: "has an
+     * identity" counts ENS and Lens and is a resolution rate; "reachable on X
+     * or Farcaster" is what a campaign can actually message. Roughly a factor
+     * of two between them, so publishing the first where the second belongs
+     * overstates an audience by half.
+     */
+    rates: {
+      anyIdentity: /verified [0-9-]{10}:\*\* ([0-9]{2}\.[0-9])% any-identity/,
+      reachable: /"reachable on X or Farcaster" \(~([0-9]{2})%\)/,
+    },
+    published: [
+      {
+        file: 'app/opengraph-image.tsx',
+        // The share card is the first thing anyone sees, and this figure was
+        // the only number on it that nothing checked.
+        pattern: /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
+        rate: 'reachable',
+      },
+      {
+        /**
+         * The blog table stating the sample's headline figure, which the first
+         * version of this entry left out. It is the one surface that publishes
+         * the any-identity rate to a decimal, so it is the one most obviously
+         * wrong if the sample is re-run and the post is not.
+         */
+        file: 'content/published/twenty-two-percent-match-rate.md',
+        pattern: /\*\*Any identity\*\*[^|]*\| \*\*([0-9]{2}\.[0-9])%\*\*/,
+        rate: 'anyIdentity',
+      },
+    ],
+  },
+];
+
+/**
+ * NOT declared, and said out loud rather than quietly.
+ *
+ * "22%" appears in roughly ten blog posts as the conservative end of the
+ * interval above. It is not registered here, because the same two digits also
+ * carry unrelated facts in the same folder: a case study's governance
+ * participation went from 5.2% to 22.4%, and a pattern loose enough to catch
+ * the match rate catches that too, then reports it as drift. Declaring them
+ * properly means one entry per post with a phrase-anchored pattern, which is a
+ * job rather than a line, and pretending otherwise would be the kind of
+ * exemption this file already refuses elsewhere.
+ */
+const KNOWN_UNDECLARED = [
+  'the 22% match rate repeated across content/published/*.md',
+];
+
 const num = (s: string) => Number(s.replace(/,/g, ''));
+
+function checkMeasurements(): number {
+  let problems = 0;
+
+  for (const m of MEASUREMENTS) {
+    let record: string;
+    try {
+      record = readFileSync(m.recordedIn, 'utf8');
+    } catch {
+      console.error(`MISSING  ${m.recordedIn} (records "${m.what}")`);
+      return problems + 1;
+    }
+
+    const dated = record.match(m.datePattern);
+    if (!dated) {
+      console.error(
+        `  NO DATE  ${m.recordedIn}: cannot find when "${m.what}" was measured.`
+      );
+      problems++;
+      continue;
+    }
+
+    const ageDays = Math.floor(
+      (Date.now() - Date.parse(dated[1])) / 86_400_000
+    );
+    if (ageDays > m.maxAgeDays) {
+      console.error(
+        `  OLD    ${m.what}: measured ${dated[1]}, ${ageDays} days ago ` +
+          `(limit ${m.maxAgeDays}). Re-run: ${m.by}`
+      );
+      problems++;
+    } else {
+      console.log(
+        `  ok     ${m.recordedIn}: ${m.what} measured ${dated[1]}, ${ageDays}d old`
+      );
+    }
+
+    // The measured values, read out of the record rather than from this file.
+    const measured: Record<string, string> = {};
+    for (const [name, pattern] of Object.entries(m.rates)) {
+      const hit = record.match(pattern);
+      if (!hit) {
+        console.error(
+          `  NO RATE  ${m.recordedIn}: cannot read the "${name}" rate. The ` +
+            `record was reworded, or the rate is gone.`
+        );
+        problems++;
+        continue;
+      }
+      measured[name] = hit[1];
+      console.log(`  ok     ${m.recordedIn}: ${name} measured at ${hit[1]}%`);
+    }
+
+    for (const p of m.published) {
+      const expected = measured[p.rate];
+      // Already reported as NO RATE. Saying it twice per surface adds noise.
+      if (expected === undefined) continue;
+
+      let text: string;
+      try {
+        text = readFileSync(p.file, 'utf8');
+      } catch {
+        console.error(`MISSING  ${p.file} (publishes "${m.what}")`);
+        problems++;
+        continue;
+      }
+      const hit = text.match(p.pattern);
+      if (!hit) {
+        console.error(
+          `  NO MATCH ${p.file}: cannot find the published "${p.rate}" figure.`
+        );
+        problems++;
+      } else if (hit[1] !== expected) {
+        console.error(
+          `  DRIFT  ${p.file}: "${p.rate}" published as ${hit[1]}, measured ` +
+            `${expected} in ${m.recordedIn}. One of the two was edited alone.`
+        );
+        problems++;
+      } else {
+        console.log(`  ok     ${p.file}: ${p.rate} = ${hit[1]} (as measured)`);
+      }
+    }
+  }
+
+  return problems;
+}
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -290,22 +615,47 @@ async function main() {
       // JSON-LD and FAQ copy all carry the index size) had every later instance
       // unchecked. The check could pass while published text still lied.
       const global = new RegExp(claim.pattern.source, claim.pattern.flags.replace('g', '') + 'g');
-      const all = [...text.matchAll(global)];
-      const m = all[0];
-      if (!m) {
+
+      /**
+       * Exemptions are applied BEFORE the no-match test, not inside the loop
+       * after it.
+       *
+       * Bugbot caught the other order: the test asked whether the regex found
+       * anything, then the loop skipped the exempted ones. A file whose every
+       * hit is exempt therefore satisfied the test and compared nothing, so it
+       * passed green with zero verification. `lib/x-accounts.ts` sits exactly
+       * there: reword its one live sentence and only the two dated historical
+       * figures still match, both exempt, and the file goes quiet instead of
+       * failing. That is the precise outcome the no-match error exists to
+       * prevent, reintroduced by the fix for a different problem.
+       *
+       * Filtering first means the question the test asks is the right one: not
+       * "did the regex hit anything" but "is there a live claim here to check".
+       */
+      const all = [...text.matchAll(global)].filter((hit) => {
+        if (!claim.ignoreNear?.length) return true;
+        // A 120-character window each side: wide enough to see the sentence the
+        // figure sits in, narrow enough not to reach the next one.
+        const at = hit.index ?? 0;
+        const around = text.slice(Math.max(0, at - 120), at + 120);
+        return !claim.ignoreNear.some((re) => re.test(around));
+      });
+
+      if (all.length === 0) {
         /**
          * A no-match is an ERROR, not a note.
          *
-         * It means one of two things and both need a person: the copy was
-         * rewritten and this registry is now stale, or the figure was removed
-         * and its entry should have gone with it. A guard that shrugs at a claim
-         * it can no longer find checks fewer things every time somebody edits
-         * prose, and reports success the whole way down.
+         * It means one of three things and all need a person: the copy was
+         * rewritten and this registry is now stale, the figure was removed and
+         * its entry should have gone with it, or every occurrence left is
+         * exempt and the file no longer states the claim at all. A guard that
+         * shrugs at a claim it can no longer find checks fewer things every
+         * time somebody edits prose, and reports success the whole way down.
          */
         console.error(
-          `  NO MATCH ${file}: cannot find "${claim.what}". Either the copy ` +
-            `changed and this registry needs updating, or the figure is gone ` +
-            `and its entry should be too.`
+          `  NO MATCH ${file}: no live "${claim.what}" to check. The copy ` +
+            `changed and this registry needs updating, the figure is gone and ` +
+            `its entry should be too, or every occurrence is exempt.`
         );
         problems++;
         continue;
@@ -314,6 +664,7 @@ async function main() {
       const fmt = (v: number) =>
         claim.scale ? (v / claim.scale).toFixed(2) : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
+      // Already filtered above, so every hit here is a live claim.
       for (const hit of all) {
         checked++;
         const publishedRaw = hit.slice(1).find((g) => g !== undefined)!;
@@ -333,15 +684,31 @@ async function main() {
          */
         const isFloor = /over /i.test(hit[0]);
         const kind = isFloor ? 'floor' : (claim.kind ?? 'rounded');
+        const overstated = published > truth;
+        // A ceiling that has fallen further behind than its own bound allows.
+        // Not false, just unlooked-at, and reported as its own kind of problem
+        // so the fix is obvious from the line.
+        const stale =
+          kind === 'ceiling' &&
+          claim.staleBelow !== undefined &&
+          !overstated &&
+          drift > claim.staleBelow;
         const ok =
           kind === 'floor'
             ? published <= truth
             : kind === 'ceiling'
-              ? published <= truth
+              ? !overstated && !stale
               : drift <= claim.tolerance;
 
         if (ok) {
           console.log(`  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`);
+        } else if (stale) {
+          console.error(
+            `  STALE  ${file}: ${claim.what} published as ${publishedRaw}, actual ` +
+              `${fmt(truth)} (${(drift * 100).toFixed(1)}% behind, limit ` +
+              `${(claim.staleBelow! * 100).toFixed(0)}%). Not wrong, just old.`
+          );
+          problems++;
         } else {
           console.error(
             `  DRIFT  ${file}: ${claim.what} published as ${publishedRaw}, actual ${fmt(truth)}` +
@@ -355,8 +722,14 @@ async function main() {
     }
   }
 
+  problems += checkMeasurements();
+
   const undeclared = sweepForUndeclared();
   problems += undeclared;
+
+  for (const known of KNOWN_UNDECLARED) {
+    console.log(`  note   not declared, deliberately: ${known}`);
+  }
 
   console.log(`\n${checked} published figures checked.`);
   if (undeclared) console.error(`${undeclared} figure(s) published but never declared.`);

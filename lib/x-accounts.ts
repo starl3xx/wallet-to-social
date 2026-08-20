@@ -2,14 +2,14 @@
  * What an X handle currently resolves to.
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
- * whenever they like without telling anyone. Measured across the whole index on
- * 2026-08-17: of 417,872 handles resolved, 30.4% reach nobody.
+ * whenever they like without telling anyone. Measured across the whole index:
+ * of 428,059 handles resolved, 30.4% reach nobody.
  *
  * ## Why this is a table about handles, not a column on wallets
  *
- * 1,149,670 rows carry a handle, but there are only 446,043 distinct handles:
- * 2.58 rows per handle. Resolving per row would pay 2.58 times over for the same
- * answer. More importantly, "does this string reach anyone" is a fact about the
+ * 1,150,285 rows carry a handle, but there are only 446,329 distinct handles we
+ * hold: 2.58 rows per handle. Resolving per row would pay 2.58 times over for
+ * the same answer. More importantly, "does this string reach anyone" is a fact about the
  * string, and storing a fact about a string on a row about a wallet is how a
  * column comes to mean two things.
  *
