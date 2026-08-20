@@ -1,6 +1,25 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  /**
+   * `/vs/cookie` compared against Cookie.fun, which does not compete with us:
+   * it indexes AI agents and gates premium analytics behind staking $COOKIE.
+   * The competitor is Cookie3, a separate product that sells wallet-to-Twitter
+   * matching on a price sheet, and the page was rewritten around it.
+   *
+   * A 308 rather than a delete: the old URL is in the sitemap Google already
+   * crawled, and it is linked from four sibling pages and the footer that
+   * shipped before this change. Permanent, because the page is not coming back.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/vs/cookie',
+        destination: '/vs/cookie3',
+        permanent: true,
+      },
+    ];
+  },
   experimental: {
     /**
      * Next.js optimizes barrel imports for a built-in list of packages, and

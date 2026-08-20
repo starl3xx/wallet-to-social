@@ -363,10 +363,10 @@ export default function AirstackComparison() {
               </li>
               <li>
                 <Link
-                  href="/vs/cookie"
+                  href="/vs/cookie3"
                   className="text-muted-foreground hover:text-foreground underline"
                 >
-                  walletlink.social vs Cookie.fun
+                  walletlink.social vs Cookie3
                 </Link>
               </li>
               <li>

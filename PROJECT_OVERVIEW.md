@@ -57,7 +57,9 @@ wallet-to-social/
 │   ├── admin/page.tsx        # Admin dashboard
 │   ├── vs/                   # Competitor comparison pages (SEO)
 │   │   ├── addressable/
+│   │   ├── airstack/
 │   │   ├── blaze/
+│   │   ├── cookie3/          # `/vs/cookie` 308s here (see next.config.ts)
 │   │   └── holder/
 │   └── api/
 │       ├── jobs/             # Job queue endpoints
