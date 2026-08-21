@@ -3,7 +3,13 @@
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Detective, CircleNotch as Loader2, Warning as AlertTriangle, Lock, Wallet } from '@phosphor-icons/react';
+import {
+  Detective,
+  CircleNotch as Loader2,
+  Warning as AlertTriangle,
+  Lock,
+  Wallet,
+} from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
 import { Segmented } from '@/components/ui/segmented';
 import type { WalletSocialResult } from '@/lib/types';
@@ -43,7 +49,10 @@ export function ReverseLookup({
   // toggle at render time meant flipping it after a miss rewrote the reason:
   // an X miss could be explained as complete Farcaster coverage, which is the
   // exact conflation the copy exists to prevent.
-  const [empty, setEmpty] = useState<{ handle: string; platform: Platform } | null>(null);
+  const [empty, setEmpty] = useState<{
+    handle: string;
+    platform: Platform;
+  } | null>(null);
 
   const submit = useCallback(async () => {
     const value = handle.trim();
@@ -98,17 +107,32 @@ export function ReverseLookup({
     } finally {
       setLoading(false);
     }
-  }, [handle, loading, locked, platform, onResults, onUpgradeClick, onSignInRequired]);
+  }, [
+    handle,
+    loading,
+    locked,
+    platform,
+    onResults,
+    onUpgradeClick,
+    onSignInRequired,
+  ]);
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4">
       <div className="mb-3 flex items-center gap-2">
-        <Detective className="h-[18px] w-[18px] text-accent-brand" weight="duotone" aria-hidden />
+        <Detective
+          className="h-[18px] w-[18px] text-accent-brand"
+          weight="duotone"
+          aria-hidden
+        />
         <h2 className="text-base font-semibold">Reverse lookup</h2>
+        {/* Named by what unlocks it, not by a tier nobody can buy. Any pack
+            does, and so does the free allowance, so "Credits" is the honest
+            one-word answer. */}
         {locked && (
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <Lock className="h-3 w-3" />
-            Pro
+            Credits
           </span>
         )}
         <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
@@ -158,7 +182,9 @@ export function ReverseLookup({
           }}
           placeholder={platform === 'twitter' ? '@vitalikbuterin' : 'dwr'}
           className="flex-1"
-          aria-label={platform === 'twitter' ? 'X handle' : 'Farcaster username'}
+          aria-label={
+            platform === 'twitter' ? 'X handle' : 'Farcaster username'
+          }
         />
 
         <Button onClick={submit} disabled={!handle.trim() || loading}>

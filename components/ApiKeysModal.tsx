@@ -10,7 +10,15 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Key as KeyRound, Copy, Check, CircleNotch as Loader2, Warning as AlertTriangle, Trash as Trash2, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
+import {
+  Key as KeyRound,
+  Copy,
+  Check,
+  CircleNotch as Loader2,
+  Warning as AlertTriangle,
+  Trash as Trash2,
+  ArrowSquareOut as ExternalLink,
+} from '@phosphor-icons/react';
 import { API_PLANS, apiPlanForTier } from '@/lib/api-plans';
 import type { UserTier } from '@/lib/access';
 
@@ -79,11 +87,14 @@ export function ApiKeysModal({
     try {
       const res = await fetch('/api/developer/keys');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load your API keys');
+      if (!res.ok)
+        throw new Error(data.error || 'Could not load your API keys');
       setKeys(data.keys ?? []);
       setHasLoaded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load your API keys');
+      setError(
+        err instanceof Error ? err.message : 'Could not load your API keys'
+      );
     } finally {
       setLoading(false);
     }
@@ -136,12 +147,16 @@ export function ApiKeysModal({
       setRevokingId(id);
       setError(null);
       try {
-        const res = await fetch(`/api/developer/keys/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/developer/keys/${id}`, {
+          method: 'DELETE',
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Could not revoke the key');
         await loadKeys();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not revoke the key');
+        setError(
+          err instanceof Error ? err.message : 'Could not revoke the key'
+        );
       } finally {
         setRevokingId(null);
         setConfirmRevokeId(null);
@@ -159,7 +174,9 @@ export function ApiKeysModal({
     } catch {
       // Clipboard can be blocked by permissions or a non-secure context. The
       // key is selectable in the field either way, so this is not fatal.
-      setError('Could not copy automatically. Select the key and copy it manually.');
+      setError(
+        'Could not copy automatically. Select the key and copy it manually.'
+      );
     }
   }, [revealedKey]);
 
@@ -174,7 +191,7 @@ export function ApiKeysModal({
           <ModalDescription>
             {hasApiAccess
               ? 'Programmatic access to the wallet index. Keys carry your whole plan allowance, so treat them as server-side secrets.'
-              : 'API access is included with Pro and Unlimited.'}
+              : 'API access comes with credits, and draws on the same balance. Buy a pack to get a key.'}
           </ModalDescription>
         </ModalHeader>
 
@@ -247,8 +264,8 @@ export function ApiKeysModal({
                 <div className="mb-2 flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
                   <p className="text-xs text-caution">
-                    Copy this now. It is shown once and only a hash is stored, so
-                    it cannot be recovered later, only replaced.
+                    Copy this now. It is shown once and only a hash is stored,
+                    so it cannot be recovered later, only replaced.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
