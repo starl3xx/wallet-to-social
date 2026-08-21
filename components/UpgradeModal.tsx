@@ -223,7 +223,7 @@ export function UpgradeModal({
               {[
                 'All seven chains',
                 'Full CSV export, never capped',
-                'API access, same credits',
+                'API access, drawing the same credits',
                 'Reverse lookup: handle → wallets',
                 'Deep scan with onchain ENS',
                 '𝕏 reachability on every match',

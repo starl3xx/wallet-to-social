@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getDb } from '@/db';
+import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
+import { normalizeTier, type UserTier } from '@/lib/access';
 import { validateApiKey } from './api-keys';
 import { checkRateLimit, type RateLimitHeaders } from './rate-limiter';
 import { trackApiUsage } from './api-usage';
@@ -73,6 +78,24 @@ export function apiSuccess<T>(
 }
 
 /**
+ * The tier behind an API key, for the unmetered-legacy check.
+ *
+ * A separate read rather than a join, because `validateApiKey` is on the hot
+ * path of every request and widening what it returns would make every endpoint
+ * pay for a column only this check uses.
+ */
+async function tierForApiKey(userId: string): Promise<UserTier> {
+  const db = getDb();
+  if (!db) return 'free';
+  const [row] = await db
+    .select({ tier: users.tier })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return normalizeTier(row?.tier);
+}
+
+/**
  * Authenticates an API request
  * Returns either an error response or the authenticated context
  */
@@ -97,15 +120,43 @@ export async function authenticateApiRequest(
 
   if (!keyResult) {
     return {
-      error: apiError(
-        'Invalid or expired API key',
-        'INVALID_API_KEY',
-        401
-      ),
+      error: apiError('Invalid or expired API key', 'INVALID_API_KEY', 401),
     };
   }
 
   const { key, plan } = keyResult;
+
+  /**
+   * The API draws on the same credit balance as the app.
+   *
+   * Without this, a $29 pack buys 5,000 API requests a day forever, which at
+   * the batch endpoint's 50 addresses per request is 250,000 wallets a day: an
+   * export licence for the index, sold by accident. The rate limit bounds the
+   * burst, not the total, and the total is the thing worth bounding.
+   *
+   * Checked here rather than in each endpoint because this is the one gate they
+   * all pass through, and a metered endpoint somebody forgot to wire is the
+   * same hole with extra steps.
+   *
+   * A balance check, not a debit. What a call costs is not known until it
+   * resolves, so the debit belongs where the matches are counted, exactly as it
+   * does for a job. This refuses the call when nothing is left.
+   */
+  const tier = await tierForApiKey(key.userId);
+  if (!legacyTierIsUnmetered(tier)) {
+    const balance = await getBalance(key.userId);
+    if (balance.available <= 0) {
+      return {
+        error: apiError(
+          balance.onFreeAllowance
+            ? 'Free allowance used up for this 30-day window. Buy a pack to continue.'
+            : 'No credits left. Buy a pack to continue.',
+          'NO_CREDITS',
+          402
+        ),
+      };
+    }
+  }
 
   // Check rate limits
   const rateLimitResult = await checkRateLimit(key, plan, credits);
@@ -140,7 +191,10 @@ export function withApiAuth<T>(
     params: T
   ) => Promise<NextResponse>
 ) {
-  return async (request: NextRequest, { params }: { params: Promise<T> }): Promise<NextResponse> => {
+  return async (
+    request: NextRequest,
+    { params }: { params: Promise<T> }
+  ): Promise<NextResponse> => {
     const startTime = Date.now();
     const resolvedParams = await params;
 
@@ -181,7 +235,12 @@ export function withApiAuth<T>(
         creditsUsed: 0,
       }).catch(console.error);
 
-      return apiError('Internal server error', 'INTERNAL_ERROR', 500, context.rateLimitHeaders);
+      return apiError(
+        'Internal server error',
+        'INTERNAL_ERROR',
+        500,
+        context.rateLimitHeaders
+      );
     }
   };
 }

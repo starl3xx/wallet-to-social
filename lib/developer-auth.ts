@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { apiPlanForTier, TIER_API_PLAN } from '@/lib/api-plans';
+import { getBalance } from '@/lib/credits';
 
 // Re-exported so existing importers keep working.
 export { apiPlanForTier, TIER_API_PLAN };
@@ -29,6 +30,8 @@ const API_TIERS = ['pro', 'unlimited'] as const;
 export interface DeveloperIdentity {
   email: string;
   tier: string;
+  /** Whether live credits are backing this account, independent of tier. */
+  hasCredits: boolean;
 }
 
 type GuardResult =
@@ -44,7 +47,7 @@ type GuardResult =
  */
 export async function requireDeveloperAccess(
   requestedEmail?: string | null,
-  options: { requireApiTier?: boolean } = {},
+  options: { requireApiTier?: boolean } = {}
 ): Promise<GuardResult> {
   const { requireApiTier = true } = options;
 
@@ -54,7 +57,10 @@ export async function requireDeveloperAccess(
   if (!token) {
     return {
       ok: false,
-      response: NextResponse.json({ error: 'Authentication required' }, { status: 401 }),
+      response: NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      ),
     };
   }
 
@@ -62,7 +68,10 @@ export async function requireDeveloperAccess(
   if (!session.user) {
     return {
       ok: false,
-      response: NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 }),
+      response: NextResponse.json(
+        { error: 'Invalid or expired session' },
+        { status: 401 }
+      ),
     };
   }
 
@@ -73,26 +82,47 @@ export async function requireDeveloperAccess(
       ok: false,
       response: NextResponse.json(
         { error: 'You can only manage API keys for your own account' },
-        { status: 403 },
+        { status: 403 }
       ),
     };
   }
 
   const access = await getUserAccess(sessionEmail);
 
-  if (requireApiTier && !API_TIERS.includes(access.tier as (typeof API_TIERS)[number])) {
+  /**
+   * Credits grant API access, and a pack buyer's tier is still `free`.
+   *
+   * The gate used to be tier-only, which was right when the only way to pay was
+   * to buy a tier. Packs are sold with "API access, same credits" on every card,
+   * so a buyer holding credits and a `free` tier must not be told to upgrade to
+   * a tier that is no longer for sale.
+   *
+   * Live credits, not lifetime: an account whose credits have run out or expired
+   * is in the same position as one that never bought any, and an API key that
+   * outlives the credits behind it is a key that 402s on every call.
+   */
+  const hasCredits = (await getBalance(session.user.id)).available > 0;
+
+  if (
+    requireApiTier &&
+    !hasCredits &&
+    !API_TIERS.includes(access.tier as (typeof API_TIERS)[number])
+  ) {
     return {
       ok: false,
       response: NextResponse.json(
         {
-          error: 'API access is available on Pro and Unlimited',
+          error: 'API access needs credits. Buy a pack to get a key.',
           upgradeRequired: true,
           tier: access.tier,
         },
-        { status: 403 },
+        { status: 403 }
       ),
     };
   }
 
-  return { ok: true, identity: { email: sessionEmail, tier: access.tier } };
+  return {
+    ok: true,
+    identity: { email: sessionEmail, tier: access.tier, hasCredits },
+  };
 }

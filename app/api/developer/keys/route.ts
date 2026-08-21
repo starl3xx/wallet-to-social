@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, apiPlans } from '@/db/schema';
 import { createApiKeyIfUnderCap, listApiKeys } from '@/lib/api-keys';
-import { requireDeveloperAccess, apiPlanForTier } from '@/lib/developer-auth';
+import { requireDeveloperAccess } from '@/lib/developer-auth';
+import { apiPlanForAccount } from '@/lib/api-plans';
 
 export const runtime = 'nodejs';
 
@@ -40,10 +41,7 @@ export async function GET(request: NextRequest) {
     .limit(1);
 
   if (!user) {
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // List API keys
@@ -74,10 +72,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
   const { email: requested, name } = body;
@@ -93,12 +88,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Derived from the tier, never taken from the request body. A caller-supplied
-  // plan would let a Pro account request 'enterprise' limits.
-  const plan = apiPlanForTier(auth.identity.tier);
+  // Derived from the account, never taken from the request body. A
+  // caller-supplied plan would let a Pro account request 'enterprise' limits.
+  const plan = apiPlanForAccount(auth.identity.tier, auth.identity.hasCredits);
   if (!plan) {
     return NextResponse.json(
-      { error: 'API access is available on Pro and Unlimited', upgradeRequired: true },
+      {
+        error: 'API access needs credits. Buy a pack to get a key.',
+        upgradeRequired: true,
+      },
       { status: 403 }
     );
   }
@@ -169,7 +167,8 @@ export async function POST(request: NextRequest) {
   // Return the new key - this is the ONLY time the raw key is shown
   return NextResponse.json(
     {
-      message: 'API key created successfully. Store this key securely - it will not be shown again.',
+      message:
+        'API key created successfully. Store this key securely - it will not be shown again.',
       key: {
         id: result.key.id,
         name: result.key.name,
