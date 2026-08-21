@@ -25,13 +25,13 @@ Open [walletlink.social](https://walletlink.social), give it addresses one of th
   </Step>
 </Steps>
 
-Reverse lookup works in the app too, on Pro and Unlimited. Enter an X handle or a Farcaster username and you get the wallets attached to that person, in the same table with the same export. Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).
+Reverse lookup works in the app too, on any paid plan. Enter an X handle or a Farcaster username and you get the wallets attached to that person, in the same table with the same export. Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).
 
 ## With the API
 
 ### Get a key
 
-API access is included with the **Pro** and **Unlimited** tiers.
+API access is included with every credit pack, drawing on the same balance.
 
 Sign in at [walletlink.social](https://walletlink.social), open the account menu in the top right, and choose **API keys**. Name the key after wherever it will run, so a leaked one is easy to trace, then copy it.
 
@@ -87,7 +87,7 @@ Only genuine failures use error status codes.
 
 ### Go bigger
 
-One address at a time gets slow quickly. [`POST /api/v1/batch`](/api-reference/batch) takes up to 50 addresses per request on Pro, 200 on Unlimited:
+One address at a time gets slow quickly. [`POST /api/v1/batch`](/api-reference/batch) takes up to 50 addresses per request, or 200 on a legacy Unlimited account:
 
 ```bash
 curl -X POST https://walletlink.social/api/v1/batch \
