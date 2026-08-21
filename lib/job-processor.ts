@@ -897,7 +897,17 @@ async function finalizeJobWithResults(
    * cost of a missed debit is one uncharged job, which is strictly better than
    * a completed job that reports as failed.
    */
-  if (options.meteredUserId && anySocialFound > 0) {
+  /**
+   * Called for every job by a signed-in account, including zero-match ones.
+   *
+   * The earlier `anySocialFound > 0` guard skipped the cheap case, and that was
+   * wrong once legacy accounts started recording usage: they are never charged
+   * but their submitted-wallet counts feed the daily anti-enumeration ceiling,
+   * and a run that matched nothing is exactly the shape enumeration takes.
+   * `chargeForJob` returns early for the metered zero-match case, so the only
+   * cost here is one function call.
+   */
+  if (options.meteredUserId) {
     try {
       await chargeForJob(
         options.meteredUserId,

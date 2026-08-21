@@ -33,6 +33,7 @@ import {
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
   SUBMISSION_MULTIPLIER,
+  LEGACY_UNLIMITED_DAILY_WALLETS,
   PACKS,
   type PackId,
 } from '@/lib/packs';
@@ -163,10 +164,35 @@ export async function canSubmit(
   tier: UserTier
 ): Promise<SubmissionVerdict> {
   if (legacyTierIsUnmetered(tier)) {
+    /**
+     * The one condition on "unlimited forever", and it is an anti-enumeration
+     * guard rather than a quota.
+     *
+     * Attaching any condition to a promise sold without one is a retraction, so
+     * this is set where it cannot reach a customer: the largest job anyone has
+     * ever run is 13,294 wallets, and the ceiling is 75x that per day. Somebody
+     * exceeding it is walking the index, not running campaigns.
+     *
+     * Counted over a rolling day rather than per submission, because per
+     * submission is the thing splitting a file defeats.
+     */
+    const today = await walletsSubmittedSince(
+      userId,
+      new Date(Date.now() - 24 * 60 * 60 * 1000)
+    );
+    if (today + walletCount > LEGACY_UNLIMITED_DAILY_WALLETS) {
+      return {
+        allowed: false,
+        reason: `This account has submitted ${today.toLocaleString()} wallets in the last 24 hours. Unlimited has no cap on what you can look up, but it does have one on bulk extraction of the index. Get in touch and we will lift it.`,
+        maxWallets: Math.max(0, LEGACY_UNLIMITED_DAILY_WALLETS - today),
+        balance: EMPTY_BALANCE,
+      };
+    }
+
     return {
       allowed: true,
       reason: '',
-      maxWallets: Number.POSITIVE_INFINITY,
+      maxWallets: LEGACY_UNLIMITED_DAILY_WALLETS - today,
       balance: EMPTY_BALANCE,
     };
   }
@@ -208,6 +234,33 @@ export async function canSubmit(
  * Returns the matches actually debited, which is zero for an unmetered legacy
  * account and zero for a job already charged.
  */
+/**
+ * Wallets this account has submitted since a moment.
+ *
+ * Reads `credit_ledger`, which records every job's submitted count whether or
+ * not anything was charged for it. That is why an unmetered account still gets
+ * a ledger row: without one there is nothing to measure a daily ceiling
+ * against, and the row is a usage record rather than a debit.
+ */
+async function walletsSubmittedSince(
+  userId: string,
+  since: Date
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const [row] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${creditLedger.walletsSubmitted}), 0)::int`,
+    })
+    .from(creditLedger)
+    .where(
+      and(eq(creditLedger.userId, userId), gt(creditLedger.createdAt, since))
+    );
+
+  return row?.total ?? 0;
+}
+
 export async function chargeForJob(
   userId: string,
   jobId: string,
@@ -215,7 +268,31 @@ export async function chargeForJob(
   walletsSubmitted: number,
   tier: UserTier
 ): Promise<number> {
-  if (legacyTierIsUnmetered(tier)) return 0;
+  /**
+   * An unmetered account is recorded but never debited.
+   *
+   * `paidFrom: 'legacy'` and `matches: 0`, so nothing is charged and no balance
+   * moves, while `walletsSubmitted` still lands. The daily ceiling above needs
+   * that number, and so does any future question about what these two accounts
+   * actually cost to serve.
+   */
+  if (legacyTierIsUnmetered(tier)) {
+    const db = getDb();
+    if (!db) return 0;
+    try {
+      await db.insert(creditLedger).values({
+        userId,
+        jobId,
+        matches: 0,
+        walletsSubmitted,
+        paidFrom: 'legacy',
+      });
+    } catch {
+      // Already recorded for this job.
+    }
+    return 0;
+  }
+
   if (matches <= 0) return 0;
 
   const db = getDb();
