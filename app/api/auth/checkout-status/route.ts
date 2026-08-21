@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrCreateUser } from '@/lib/access';
-import { grantPack, getBalance } from '@/lib/credits';
+import { cookies } from 'next/headers';
+import { getBalance } from '@/lib/credits';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId } from '@/lib/packs';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
 import {
@@ -96,14 +98,31 @@ export async function GET(request: NextRequest) {
         : session.payment_intent?.id || session.id;
 
     try {
-      const user = await getOrCreateUser(email);
-      await grantPack(
-        user.id,
+      const { userId } = await fulfilPackPurchase(
+        email,
         pack,
         paymentIntentId,
         session.amount_total ?? PACKS[pack].priceCents
       );
-      const balance = await getBalance(user.id);
+      const balance = await getBalance(userId);
+
+      /**
+       * Whether this browser is already signed in as the buyer.
+       *
+       * Checkout does not require an account, so the common case is a buyer
+       * returning from Stripe still signed out, holding credits on an account
+       * they cannot reach. A sign-in link is emailed on every purchase, and the
+       * page needs to know whether to point at it or stay quiet.
+       *
+       * Compared by email rather than trusting the session alone: someone
+       * signed in as one account can buy credits for another, and telling them
+       * they are ready to go would be wrong.
+       */
+      const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+      const current = token ? await validateSession(token) : { user: null };
+      const signedInAsBuyer =
+        current.user?.email?.toLowerCase() === email.toLowerCase();
+
       return NextResponse.json({
         paid: true,
         email,
@@ -111,6 +130,7 @@ export async function GET(request: NextRequest) {
         packName: PACKS[pack].name,
         matchesGranted: PACKS[pack].matches,
         balance: balance.available,
+        signedInAsBuyer,
         // The success page renders a plan when it sees a tier. A pack purchase
         // has none, and reporting the buyer's *access* tier here is what showed
         // a whitelisted account "Unlimited Plan" after a $29 Trial.

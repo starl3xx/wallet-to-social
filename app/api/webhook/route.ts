@@ -9,7 +9,7 @@ import {
   provisionPaidCheckout,
   type PaidTier,
 } from '@/lib/access';
-import { grantPack } from '@/lib/credits';
+import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
 import type Stripe from 'stripe';
 
@@ -102,8 +102,12 @@ async function grantPackFromWebhook(
   amountCents: number,
   via: string
 ) {
-  const user = await getOrCreateUser(email);
-  const granted = await grantPack(user.id, pack, stripePaymentId, amountCents);
+  const { granted } = await fulfilPackPurchase(
+    email,
+    pack,
+    stripePaymentId,
+    amountCents
+  );
   console.log(
     granted
       ? `Granted ${PACKS[pack].matches} matches (${pack}) to ${email} via ${via}`

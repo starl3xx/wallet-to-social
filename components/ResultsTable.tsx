@@ -6,7 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Lock, WarningCircle } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
-import { REACHABILITY_LABEL, REACHABILITY_DETAIL } from '@/lib/handle-reachability';
+import {
+  REACHABILITY_LABEL,
+  REACHABILITY_DETAIL,
+} from '@/lib/handle-reachability';
 
 type Attestation = 'attested' | 'matched' | 'none' | 'unknown';
 
@@ -23,14 +26,22 @@ type Attestation = 'attested' | 'matched' | 'none' | 'unknown';
  *               reason: absence of evidence is not evidence of absence.
  */
 function attestationOf(r: WalletSocialResult): Attestation {
-  const hasIdentity = !!(r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github);
+  const hasIdentity = !!(
+    r.twitter_handle ||
+    r.farcaster ||
+    r.ens_name ||
+    r.lens ||
+    r.github
+  );
   if (!hasIdentity) return 'none';
 
-  if (r.twitter_verified === true || r.farcaster_verified === true) return 'attested';
+  if (r.twitter_verified === true || r.farcaster_verified === true)
+    return 'attested';
 
   // An explicit false on either flag means the graph was consulted and said no.
   // Both undefined means nobody ever asked.
-  const wasChecked = r.twitter_verified !== undefined || r.farcaster_verified !== undefined;
+  const wasChecked =
+    r.twitter_verified !== undefined || r.farcaster_verified !== undefined;
   return wasChecked ? 'matched' : 'unknown';
 }
 
@@ -47,7 +58,11 @@ function attestationOf(r: WalletSocialResult): Attestation {
  * notice, and a freed handle may now belong to somebody else entirely, so the
  * one thing a click must not do is present a stranger as the wallet's owner.
  */
-const TwitterCell = memo(function TwitterCell({ result }: { result: WalletSocialResult }) {
+const TwitterCell = memo(function TwitterCell({
+  result,
+}: {
+  result: WalletSocialResult;
+}) {
   const handle = result.twitter_handle!;
   const reach = result.twitter_reachability;
 
@@ -261,7 +276,11 @@ export const ResultsTable = memo(function ResultsTable({
         return field;
       }
       // Default to descending for numeric fields
-      if (field === 'fc_followers' || field === 'holdings' || field === 'priority_score') {
+      if (
+        field === 'fc_followers' ||
+        field === 'holdings' ||
+        field === 'priority_score'
+      ) {
         setSortDirection('desc');
       } else {
         setSortDirection('asc');
@@ -273,7 +292,9 @@ export const ResultsTable = memo(function ResultsTable({
   const SortIcon = useCallback(
     ({ field }: { field: SortField }) => {
       if (sortField !== field) return null;
-      return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
+      return (
+        <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+      );
     },
     [sortField, sortDirection]
   );
@@ -476,7 +497,9 @@ export const ResultsTable = memo(function ResultsTable({
         <div
           ref={parentRef}
           className="overflow-auto"
-          style={{ height: Math.min(filteredAndSorted.length * ROW_HEIGHT, 600) }}
+          style={{
+            height: Math.min(filteredAndSorted.length * ROW_HEIGHT, 600),
+          }}
         >
           {filteredAndSorted.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
@@ -492,7 +515,9 @@ export const ResultsTable = memo(function ResultsTable({
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const result = filteredAndSorted[virtualRow.index];
-                const isEnriched = enrichedWallets?.has(result.wallet.toLowerCase());
+                const isEnriched = enrichedWallets?.has(
+                  result.wallet.toLowerCase()
+                );
                 return (
                   <div
                     key={result.wallet}
@@ -569,10 +594,13 @@ export const ResultsTable = memo(function ResultsTable({
                             className="shrink-0 max-w-[12ch] truncate whitespace-nowrap rounded-sm bg-accent-brand-tint px-1.5 py-0.5 text-xs font-medium text-accent-brand"
                             title={[
                               result.agent_name,
-                              result.agent_framework && `Framework: ${result.agent_framework}`,
+                              result.agent_framework &&
+                                `Framework: ${result.agent_framework}`,
                               result.agent_type && `Type: ${result.agent_type}`,
                               result.agent_token_symbol,
-                            ].filter(Boolean).join(' | ')}
+                            ]
+                              .filter(Boolean)
+                              .join(' | ')}
                           >
                             {result.agent_name || 'Agent'}
                           </span>
@@ -648,10 +676,10 @@ export const ResultsTable = memo(function ResultsTable({
                         <button
                           onClick={onUpgradeClick}
                           className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-                          title="Upgrade to see FC followers"
+                          title="Buy credits to see FC followers"
                         >
                           <Lock className="h-3 w-3" />
-                          <span className="text-xs">Upgrade</span>
+                          <span className="text-xs">Locked</span>
                         </button>
                       )}
                     </div>
@@ -664,10 +692,10 @@ export const ResultsTable = memo(function ResultsTable({
                         <button
                           onClick={onUpgradeClick}
                           className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-                          title="Upgrade to see priority score"
+                          title="Buy credits to see priority score"
                         >
                           <Lock className="h-3 w-3" />
-                          <span className="text-xs">Upgrade</span>
+                          <span className="text-xs">Locked</span>
                         </button>
                       )}
                     </div>

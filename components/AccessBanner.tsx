@@ -1,9 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Lightning as Zap, Crown, User, SignIn as LogIn, SignOut as LogOut, Key as KeyRound } from '@phosphor-icons/react';
+import {
+  Lightning as Zap,
+  Crown,
+  User,
+  SignIn as LogIn,
+  SignOut as LogOut,
+  Key as KeyRound,
+} from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
+import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
 import { AuthModal } from '@/components/AuthModal';
 import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { useAuth } from '@/components/AuthProvider';
@@ -37,7 +45,8 @@ interface AccessBannerProps {
  * last one, so `hidden` wins at the base and `sm:inline-flex` still applies from
  * `sm`. A concatenated class string cannot express "override", only "append".
  */
-const CHIP = 'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)]';
+const CHIP =
+  'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)]';
 
 export function AccessBanner({
   tier,
@@ -150,7 +159,10 @@ export function AccessBanner({
     if (isWhitelisted) {
       return (
         <div className={cn(CHIP, 'bg-attested-tint text-attested')}>
-          <span className="h-1.5 w-1.5 flex-none rounded-full bg-attested" aria-hidden />
+          <span
+            className="h-1.5 w-1.5 flex-none rounded-full bg-attested"
+            aria-hidden
+          />
           <span className="font-medium text-attested">Whitelisted</span>
         </div>
       );
@@ -158,7 +170,9 @@ export function AccessBanner({
 
     if (tier === 'unlimited') {
       return (
-        <div className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}>
+        <div
+          className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+        >
           <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">
             Unlimited
@@ -169,7 +183,9 @@ export function AccessBanner({
 
     if (tier === 'pro') {
       return (
-        <div className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}>
+        <div
+          className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+        >
           <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">Pro</span>
           <span className="text-accent-brand-foreground/75 hidden sm:inline">
@@ -197,12 +213,24 @@ export function AccessBanner({
             It is also 61px of a header that measured 401px against a 375px
             screen, which is what made the choice worth making rather than
             merely arguable. */}
-        <span className={cn(CHIP, 'hidden bg-muted text-muted-foreground sm:inline-flex')}>
-          Free · {TIER_LIMITS.free.toLocaleString()} left
+        {/* Matches, not wallets, and per rolling window rather than per
+            lookup. It read "500 left" from TIER_LIMITS.free, which is the old
+            per-lookup wallet cap: a number that never decreased however much
+            somebody used, and that now describes nothing the product sells. */}
+        <span
+          className={cn(
+            CHIP,
+            'hidden bg-muted text-muted-foreground sm:inline-flex'
+          )}
+        >
+          Free · {FREE_MATCHES_PER_WINDOW} matches
         </span>
+        {/* "Buy credits", matching the modal it opens and what is actually
+            sold. "Upgrade" named a tier ladder that no longer exists, and a
+            control is labelled by function. */}
         <Button size="sm" className="btn-shine" onClick={onUpgradeClick}>
           <Zap className="h-3.5 w-3.5" weight="fill" />
-          <span className="hidden sm:inline">Upgrade</span>
+          <span className="hidden sm:inline">Buy credits</span>
           <span className="sm:hidden">+</span>
         </Button>
       </div>

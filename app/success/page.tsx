@@ -33,6 +33,8 @@ function SuccessContent() {
     name: string;
     matchesGranted: number;
     balance: number;
+    /** Whether this browser is already signed in as the buyer. */
+    signedInAsBuyer: boolean;
   } | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,7 @@ function SuccessContent() {
             name: data.packName,
             matchesGranted: data.matchesGranted,
             balance: data.balance,
+            signedInAsBuyer: !!data.signedInAsBuyer,
           });
           setState('success');
           return;
@@ -216,8 +219,28 @@ function SuccessContent() {
                 </p>
               )}
 
+              {/* Checkout does not require an account, so most buyers arrive
+                  here signed out, holding credits on an account they have no
+                  way into. Saying so is the point: the alternative was a button
+                  back to a signed-out app with no explanation. */}
+              {!pack.signedInAsBuyer && (
+                <div className="rounded-lg border border-accent-brand bg-accent-brand-tint p-4">
+                  <p className="text-sm">
+                    <span className="font-medium">
+                      Check your email to sign in.
+                    </span>{' '}
+                    We sent a link to {email || 'your address'}. Your credits
+                    are waiting on that account.
+                  </p>
+                </div>
+              )}
+
               <Button asChild className="w-full">
-                <Link href="/">Start Using walletlink.social</Link>
+                <Link href="/">
+                  {pack.signedInAsBuyer
+                    ? 'Start Using walletlink.social'
+                    : 'Back to walletlink.social'}
+                </Link>
               </Button>
             </>
           )}

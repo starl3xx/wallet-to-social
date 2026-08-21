@@ -19,6 +19,7 @@ import {
   type PackId,
 } from '@/lib/packs';
 import { Analytics } from '@/lib/client-analytics';
+import { cn } from '@/lib/utils';
 
 interface UpgradeModalProps {
   open: boolean;
@@ -41,6 +42,18 @@ function approxWallets(matches: number): string {
   const magnitude = Math.pow(10, Math.floor(Math.log10(raw)) - 1);
   return (Math.round(raw / magnitude) * magnitude).toLocaleString();
 }
+
+/**
+ * The pack marked when nothing about the buyer's list is known.
+ *
+ * There is always exactly one, because "one primary action per view, stated at
+ * a different scale" needs something to be primary. With four outline buttons
+ * and no mark, the modal asked a question instead of making a recommendation.
+ *
+ * Campaign rather than Trial: it keeps the $99 headline five comparison pages
+ * already carry, and it is the rung that covers a real launch.
+ */
+const DEFAULT_SUGGESTION: PackId = 'campaign';
 
 /** Dollars, without a trailing `.00` on the whole numbers every pack uses. */
 function price(cents: number): string {
@@ -106,17 +119,19 @@ export function UpgradeModal({
    * through to the largest pack, which is the honest answer when nothing fits:
    * buy the biggest and run it in two passes.
    */
-  const suggested: PackId | null = walletCount
+  const suggested: PackId = walletCount
     ? (PACK_IDS.find(
         (id) => PACKS[id].matches * SUBMISSION_MULTIPLIER >= walletCount
       ) ?? PACK_IDS[PACK_IDS.length - 1])
-    : null;
+    : DEFAULT_SUGGESTION;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent className="max-w-5xl">
         <ModalHeader className="flex-none">
-          <ModalTitle className="text-2xl">Buy credits</ModalTitle>
+          <ModalTitle className="text-2xl font-light tracking-[var(--tracking-title)]">
+            Buy credits
+          </ModalTitle>
           <ModalDescription>
             {walletCount
               ? `Your file has ${walletCount.toLocaleString()} wallets. You are charged only for the ones we resolve to an 𝕏 or Farcaster account.`
@@ -163,38 +178,47 @@ export function UpgradeModal({
               return (
                 <div
                   key={id}
-                  className={`relative flex flex-col gap-3 rounded-lg p-4 ${
-                    isSuggested
-                      ? 'border-2 border-accent-brand'
-                      : 'border border-border'
-                  }`}
+                  className={cn(
+                    'relative flex flex-col gap-4 rounded-lg border p-4',
+                    // One hairline carries separation, and colour tells the
+                    // suggested card apart. `border-2` is banned outside a
+                    // dashed dropzone.
+                    isSuggested ? 'border-accent-brand' : 'border-border'
+                  )}
                 >
+                  {/* A badge, so it takes the badge treatment: mono, upper,
+                      tint, no border. It was a filled sentence-case pill, which
+                      is the treatment reserved for actions, and it sat directly
+                      above a button wearing the same clothes. */}
                   {isSuggested && (
-                    <div className="absolute -top-3 left-4 rounded-full bg-accent-brand px-3 py-0.5 text-xs font-medium text-accent-brand-foreground">
-                      Fits your list
-                    </div>
+                    <span className="absolute -top-2.5 left-4 rounded-sm bg-accent-brand-tint px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)] text-accent-brand">
+                      {walletCount ? 'Fits your list' : 'Most bought'}
+                    </span>
                   )}
 
                   <div>
-                    <h3 className="font-semibold">{pack.name}</h3>
-                    <div className="mt-1">
-                      <span className="text-2xl font-bold tabular-nums">
+                    <h3 className="text-sm font-semibold">{pack.name}</h3>
+                    {/* The figure treatment from `Figure`: weight 300 at title
+                        tracking. It was `font-bold`, which is 700 and not one
+                        of the five weights the scale defines. */}
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="text-2xl font-light tabular-nums tracking-[var(--tracking-title)]">
                         {price(pack.priceCents)}
                       </span>
-                      <span className="ml-1 text-sm text-muted-foreground">
+                      <span className="text-sm text-muted-foreground">
                         once
                       </span>
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-sm">
+                  <div className="space-y-0.5 text-sm">
                     <p className="font-medium tabular-nums">
                       {pack.matches.toLocaleString()} matches
                     </p>
                     {/* Secondary and muted on purpose. The match count is what
                         is sold and what is billed; the wallet figure is a
                         translation for someone holding a file. */}
-                    <p className="text-muted-foreground">
+                    <p className="tabular-nums text-muted-foreground">
                       ≈ {approxWallets(pack.matches)} wallets
                     </p>
                   </div>
