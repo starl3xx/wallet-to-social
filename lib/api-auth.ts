@@ -3,7 +3,7 @@ import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
-import { normalizeTier, type UserTier } from '@/lib/access';
+import { effectiveTierForUserId } from '@/lib/access';
 import { validateApiKey } from './api-keys';
 import { checkRateLimit, type RateLimitHeaders } from './rate-limiter';
 import { trackApiUsage } from './api-usage';
@@ -78,24 +78,6 @@ export function apiSuccess<T>(
 }
 
 /**
- * The tier behind an API key, for the unmetered-legacy check.
- *
- * A separate read rather than a join, because `validateApiKey` is on the hot
- * path of every request and widening what it returns would make every endpoint
- * pay for a column only this check uses.
- */
-async function tierForApiKey(userId: string): Promise<UserTier> {
-  const db = getDb();
-  if (!db) return 'free';
-  const [row] = await db
-    .select({ tier: users.tier })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  return normalizeTier(row?.tier);
-}
-
-/**
  * Authenticates an API request
  * Returns either an error response or the authenticated context
  */
@@ -142,7 +124,7 @@ export async function authenticateApiRequest(
    * resolves, so the debit belongs where the matches are counted, exactly as it
    * does for a job. This refuses the call when nothing is left.
    */
-  const tier = await tierForApiKey(key.userId);
+  const tier = await effectiveTierForUserId(key.userId);
   if (!legacyTierIsUnmetered(tier)) {
     const balance = await getBalance(key.userId);
     if (balance.available <= 0) {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
-import { normalizeTier } from '@/lib/access';
+import { effectiveTierForUserId } from '@/lib/access';
 import { FREE_MATCHES_PER_WINDOW, SUBMISSION_MULTIPLIER } from '@/lib/packs';
 
 export const runtime = 'nodejs';
@@ -33,7 +33,12 @@ export async function GET() {
     });
   }
 
-  const tier = normalizeTier(session.user.tier);
+  /**
+   * Whitelist-aware, so this agrees with what the lookup path will actually
+   * do. Reading `session.user.tier` would show a whitelisted account a credit
+   * balance it is never going to spend.
+   */
+  const tier = await effectiveTierForUserId(session.user.id);
 
   if (legacyTierIsUnmetered(tier)) {
     return NextResponse.json({ signedIn: true, unmetered: true, tier });
