@@ -10,9 +10,14 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, Lightning as Zap, Crown, CircleNotch as Loader2, Rocket } from '@phosphor-icons/react';
-import { TIER_LIMITS, TIER_PRICES, type PaidTier } from '@/lib/access';
-import { apiAllowanceLabel } from '@/lib/api-plans';
+import { Check, CircleNotch as Loader2 } from '@phosphor-icons/react';
+import {
+  PACKS,
+  PACK_IDS,
+  MEASURED_MATCH_RATE,
+  SUBMISSION_MULTIPLIER,
+  type PackId,
+} from '@/lib/packs';
 import { Analytics } from '@/lib/client-analytics';
 
 interface UpgradeModalProps {
@@ -22,42 +27,25 @@ interface UpgradeModalProps {
   walletCount?: number;
 }
 
-const FEATURES = {
-  free: [
-    'Up to 500 wallets/lookup',
-    'Basic data sources',
-    'Basic CSV export',
-    'Twitter/Farcaster handles',
-    '1 saved lookup',
-  ],
-  pro: [
-    'Up to 5,000 wallets/lookup',
-    'Import from contract address',
-    `API access (${apiAllowanceLabel('pro')})`,
-    'Reverse lookup: 𝕏 handle or Farcaster username → wallets',
-    'All data sources',
-    'Deep scan with onchain ENS',
-    'Farcaster follower counts',
-    'Priority score ranking',
-    'Twitter list export',
-    'Full lookup history',
-  ],
-  unlimited: [
-    'Unlimited wallets/lookup',
-    'Import from contract address',
-    `API access (${apiAllowanceLabel('unlimited')})`,
-    'Reverse lookup: 𝕏 handle or Farcaster username → wallets',
-    'All data sources',
-    'Deep scan with onchain ENS',
-    'Farcaster follower counts',
-    'Priority score ranking',
-    'Twitter list export',
-    'Full lookup history',
-    'Grow a saved lookup, and see what is new since you last opened it',
-    'Mass Farcaster DMs',
-    'Priority support',
-  ],
-};
+/**
+ * Roughly how many wallets a pack covers.
+ *
+ * Deliberately approximate and deliberately shown. The buyer thinks in wallets
+ * because that is what they have in a file, and refusing to translate would
+ * make the price sheet unreadable. Rounded to two significant figures so it
+ * reads as the estimate it is: "≈1,100 wallets" invites a sanity check in a way
+ * that "1,055 wallets" does not.
+ */
+function approxWallets(matches: number): string {
+  const raw = matches / MEASURED_MATCH_RATE;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(raw)) - 1);
+  return (Math.round(raw / magnitude) * magnitude).toLocaleString();
+}
+
+/** Dollars, without a trailing `.00` on the whole numbers every pack uses. */
+function price(cents: number): string {
+  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+}
 
 export function UpgradeModal({
   open,
@@ -66,10 +54,9 @@ export function UpgradeModal({
   walletCount,
 }: UpgradeModalProps) {
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState<PaidTier | null>(null);
+  const [loading, setLoading] = useState<PackId | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Track modal view when opened
   useEffect(() => {
     if (open) {
       const trigger = walletCount ? 'limit' : 'feature';
@@ -77,23 +64,21 @@ export function UpgradeModal({
     }
   }, [open, walletCount, currentTier]);
 
-  const handleUpgrade = async (tier: PaidTier) => {
+  const handleBuy = async (pack: PackId) => {
     if (!email || !email.includes('@')) {
-      setError('Please enter a valid email');
+      setError('Please enter a valid email address');
       return;
     }
 
-    setLoading(tier);
+    setLoading(pack);
     setError(null);
-
-    // Track checkout started
-    Analytics.checkoutStarted(tier);
+    Analytics.checkoutStarted(pack);
 
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, tier }),
+        body: JSON.stringify({ email, pack }),
       });
 
       const data = await response.json();
@@ -102,55 +87,44 @@ export function UpgradeModal({
         throw new Error(data.error || 'Checkout failed');
       }
 
-      // Store email for post-payment access check
-      localStorage.setItem('user_email', email);
-
-      // Only now do we know Stripe actually gave us a session
-      Analytics.checkoutRedirected(tier);
-
-      // Redirect to Stripe checkout
+      Analytics.checkoutRedirected(pack);
       window.location.href = data.url;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed';
-      Analytics.checkoutFailed(tier, message);
+      Analytics.checkoutFailed(pack, message);
       setError(message);
       setLoading(null);
     }
   };
 
-  // Pro cannot serve a list larger than its per-lookup ceiling. Offering it
-  // anyway means someone pays $99 and is still blocked by the exact lookup that
-  // opened this modal, so the card is disabled and says why.
-  const proCoversList = !walletCount || walletCount <= TIER_LIMITS.pro;
+  /**
+   * The smallest pack whose submission headroom covers this list.
+   *
+   * Headroom, not matches: the buyer is billed for matches but blocked on
+   * wallets submitted, and a pack that cannot accept the file they are holding
+   * is the wrong recommendation however well it matches their spend. Falls
+   * through to the largest pack, which is the honest answer when nothing fits:
+   * buy the biggest and run it in two passes.
+   */
+  const suggested: PackId | null = walletCount
+    ? (PACK_IDS.find(
+        (id) => PACKS[id].matches * SUBMISSION_MULTIPLIER >= walletCount
+      ) ?? PACK_IDS[PACK_IDS.length - 1])
+    : null;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      {/* The two buttons are the point of this modal, and they cannot share one
-          footer because each belongs to a plan. So the card owns the scroll:
-          its feature list scrolls and its button stays pinned to its bottom
-          edge, which keeps both choices on screen at any height. */}
-      <ModalContent className="max-w-4xl">
+      <ModalContent className="max-w-5xl">
         <ModalHeader className="flex-none">
-          <ModalTitle className="text-2xl">Upgrade your plan</ModalTitle>
+          <ModalTitle className="text-2xl">Buy credits</ModalTitle>
           <ModalDescription>
             {walletCount
-              ? `Your file has ${walletCount.toLocaleString()} wallets. ${
-                  !proCoversList
-                    ? `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} per lookup, so this list needs Unlimited.`
-                    : currentTier === 'free'
-                      ? `Free tier is limited to ${TIER_LIMITS.free.toLocaleString()} wallets.`
-                      : ''
-                }`
-              : 'Get access to more wallets and premium features.'}
+              ? `Your file has ${walletCount.toLocaleString()} wallets. You are charged only for the ones we resolve to an 𝕏 or Farcaster account.`
+              : 'You are charged only for the wallets we resolve to an 𝕏 or Farcaster account. Misses are free.'}
           </ModalDescription>
         </ModalHeader>
 
-        {/* Only from `md` does this claim the height. On a phone the cards are
-            stacked, so letting them run to their natural height and scrolling
-            the modal body is the better reading experience, and it keeps the
-            chain of `flex-1` off a layout that does not want it. */}
         <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
-          {/* Email input */}
           <div className="flex-none space-y-2">
             <label className="text-sm font-medium">Email address</label>
             <Input
@@ -159,131 +133,112 @@ export function UpgradeModal({
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (error) setError(null); // Only clear error if there was one
+                if (error) setError(null);
               }}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
-          {/* Pricing cards */}
-          {/* `minmax(0,1fr)` says out loud that this row may be smaller than its
-              cards, which is what lets each card's list scroll inside it.
+          {/* Four packs. One column on a phone, two from `md`, four from `lg`,
+              because four cards at tablet width leaves each one too narrow to
+              hold a price and a match count on separate lines. The body scrolls
+              rather than each card, unlike the two-tier version this replaces:
+              a pack card is short enough that an inner scroll would be a
+              scrollbar around three lines of text. */}
+          <div className="grid gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-4">
+            {PACK_IDS.map((id) => {
+              const pack = PACKS[id];
+              const isSuggested = suggested === id;
 
-              Measured, it is not currently required: this grid is a flex item
-              with `flex: 1 1 0%`, so flex hands it a *definite* height, and a
-              grid container with a definite height stretches an auto row to fit
-              rather than sizing it to max-content. Chrome behaves identically
-              with and without it at 713/533/413px.
-
-              It stays because relying on that distinction is precisely what went
-              wrong one level up: the dialog's grid had only a `max-height`,
-              which is not a definite height, so its auto row grew to max-content
-              and nothing clipped. Two grids, the same markup shape, opposite
-              behaviour. Stating the shrink beats depending on which case you are
-              in. */}
-          <div className="grid items-stretch gap-4 md:min-h-0 md:flex-1 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)]">
-            {/* Pro tier */}
-            <div className="flex min-h-0 flex-col gap-4 rounded-lg border p-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-accent-brand-tint">
-                    <Zap className="h-4 w-4 text-accent-brand" />
-                  </div>
-                  <h3 className="font-semibold">Pro</h3>
-                </div>
-                <div>
-                  <span className="text-2xl font-bold">${TIER_PRICES.pro}</span>
-                  <span className="text-sm text-muted-foreground ml-1">one-time</span>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Up to {TIER_LIMITS.pro.toLocaleString()} wallets/lookup
-              </p>
-              {/* The one part that gives way. Below `md` the cards are stacked
-                  and the modal body scrolls instead, so this stays natural. */}
-              <ul className="space-y-2 md:min-h-0 md:flex-1 md:overflow-y-auto">
-                {FEATURES.pro.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <div className="rounded-full bg-success-light p-0.5">
-                      <Check className="h-3 w-3 text-success-foreground" />
+              return (
+                <div
+                  key={id}
+                  className={`relative flex flex-col gap-3 rounded-lg p-4 ${
+                    isSuggested
+                      ? 'border-2 border-accent-brand'
+                      : 'border border-border'
+                  }`}
+                >
+                  {isSuggested && (
+                    <div className="absolute -top-3 left-4 rounded-full bg-accent-brand px-3 py-0.5 text-xs font-medium text-accent-brand-foreground">
+                      Fits your list
                     </div>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full flex-none"
-                onClick={() => handleUpgrade('pro')}
-                disabled={loading !== null || !proCoversList}
-                title={
-                  proCoversList
-                    ? undefined
-                    : `Pro covers up to ${TIER_LIMITS.pro.toLocaleString()} wallets per lookup`
-                }
-              >
-                {loading === 'pro' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : proCoversList ? (
-                  'Upgrade to Pro'
-                ) : (
-                  'Too small for this list'
-                )}
-              </Button>
-            </div>
+                  )}
 
-            {/* Unlimited tier */}
-            <div className="relative flex min-h-0 flex-col gap-4 rounded-lg border-2 border-accent-brand p-4">
-              <div className="absolute -top-3 left-4 bg-accent-brand text-accent-brand-foreground px-3 py-0.5 rounded-full text-xs font-medium">
-                Best value
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-caution-tint">
-                    <Crown className="h-4 w-4 text-caution" />
-                  </div>
-                  <h3 className="font-semibold">Unlimited</h3>
-                </div>
-                <div>
-                  <span className="text-2xl font-bold">${TIER_PRICES.unlimited}</span>
-                  <span className="text-sm text-muted-foreground ml-1">one-time</span>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Unlimited wallets forever
-              </p>
-              {/* The one part that gives way. Below `md` the cards are stacked
-                  and the modal body scrolls instead, so this stays natural. */}
-              <ul className="space-y-2 md:min-h-0 md:flex-1 md:overflow-y-auto">
-                {FEATURES.unlimited.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <div className="rounded-full bg-success-light p-0.5">
-                      <Check className="h-3 w-3 text-success-foreground" />
+                  <div>
+                    <h3 className="font-semibold">{pack.name}</h3>
+                    <div className="mt-1">
+                      <span className="text-2xl font-bold tabular-nums">
+                        {price(pack.priceCents)}
+                      </span>
+                      <span className="ml-1 text-sm text-muted-foreground">
+                        once
+                      </span>
                     </div>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full flex-none"
-                variant="default"
-                onClick={() => handleUpgrade('unlimited')}
-                disabled={loading !== null}
-              >
-                {loading === 'unlimited' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Upgrade to Unlimited'
-                )}
-              </Button>
-            </div>
+                  </div>
+
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium tabular-nums">
+                      {pack.matches.toLocaleString()} matches
+                    </p>
+                    {/* Secondary and muted on purpose. The match count is what
+                        is sold and what is billed; the wallet figure is a
+                        translation for someone holding a file. */}
+                    <p className="text-muted-foreground">
+                      ≈ {approxWallets(pack.matches)} wallets
+                    </p>
+                  </div>
+
+                  <p className="flex-1 text-sm text-muted-foreground">
+                    {pack.fits}
+                  </p>
+
+                  <Button
+                    className="w-full flex-none"
+                    variant={isSuggested ? 'default' : 'outline'}
+                    onClick={() => handleBuy(id)}
+                    disabled={loading !== null}
+                  >
+                    {loading === id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Buy ${pack.name}`
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
 
+          {/* Said once, below the cards, rather than repeated as a feature
+              bullet on all four. Every pack carries every one of these, so
+              listing them per card would be four identical lists and would
+              imply a difference between the rungs that does not exist. */}
+          <div className="flex-none rounded-lg bg-muted/40 p-4">
+            <p className="mb-2 text-sm font-medium">Every pack includes</p>
+            <ul className="grid gap-x-6 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+              {[
+                'All seven chains',
+                'Full CSV export, never capped',
+                'API access, same credits',
+                'Reverse lookup: handle → wallets',
+                'Deep scan with onchain ENS',
+                '𝕏 reachability on every match',
+                'Import from a contract address',
+                'Credits last 12 months',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <div className="rounded-full bg-success-light p-0.5">
+                    <Check className="h-3 w-3 text-success-foreground" />
+                  </div>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </ModalContent>
     </Modal>
