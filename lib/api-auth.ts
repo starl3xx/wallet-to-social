@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/db';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 import { validateApiKey } from './api-keys';
