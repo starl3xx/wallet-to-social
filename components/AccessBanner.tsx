@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Lightning as Zap,
   Crown,
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
+import { useCredits } from '@/lib/use-credits';
 import { AuthModal } from '@/components/AuthModal';
 import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { useAuth } from '@/components/AuthProvider';
@@ -54,43 +55,18 @@ export function AccessBanner({
   onUpgradeClick,
   trailing,
 }: AccessBannerProps) {
-  /**
-   * The credit balance, for the chip.
-   *
-   * Fetched rather than derived from `tier`, because `tier` cannot answer the
-   * question any more: a pack buyer's tier is `free`, so the free branch below
-   * would have told somebody holding 25,000 matches that they had 100. Null
-   * while loading, for an anonymous visitor, and for anyone the ledger does not
-   * apply to, where a number would imply a meter that never runs.
-   */
-  const [credits, setCredits] = useState<number | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { user, isLoading, signOut } = useAuth();
-
-  useEffect(() => {
-    // No synchronous setState on the signed-out path: React flags it as a
-    // cascading render, and it is unnecessary anyway. `credits` starts null and
-    // the chip already reads null as "no balance to show", so signing out only
-    // has to stop the in-flight request rather than reset the value.
-    if (!user) return;
-
-    let cancelled = false;
-    fetch('/api/credits')
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        setCredits(d.unmetered ? null : (d.available ?? null));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      // Clearing on teardown rather than on the next run keeps one account's
-      // balance from being shown to the next one signed in.
-      setCredits(null);
-    };
-  }, [user]);
+  /**
+   * The balance, and whether paid features are unlocked.
+   *
+   * Both come from the one hook rather than a fetch here, so the chip, the API
+   * keys modal and every gate on the page agree. `tier` cannot answer either
+   * question: a pack buyer's tier is `free`.
+   */
+  const credits = useCredits(!!user);
 
   const handleSignOut = async () => {
     setShowDropdown(false);
@@ -256,9 +232,9 @@ export function AccessBanner({
             'hidden bg-muted text-muted-foreground sm:inline-flex'
           )}
         >
-          {credits === null
+          {credits.available === null
             ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
-            : `${credits.toLocaleString()} matches`}
+            : `${credits.available.toLocaleString()} matches`}
         </span>
         {/* "Buy credits", matching the modal it opens and what is actually
             sold. "Upgrade" named a tier ladder that no longer exists, and a
@@ -282,7 +258,10 @@ export function AccessBanner({
       <AuthSection />
       {/* Rendered outside AuthSection: that component returns early while the
           session is loading, which would unmount an open modal mid-use. */}
+      {/* Credits unlock a key, not a tier. `entitled` excludes the free
+          allowance deliberately: those features were never part of free. */}
       <ApiKeysModal
+        entitled={credits.entitled}
         open={apiKeysOpen}
         onOpenChange={setApiKeysOpen}
         tier={tier}

@@ -19,13 +19,15 @@ import {
   Trash as Trash2,
   ArrowSquareOut as ExternalLink,
 } from '@phosphor-icons/react';
-import { API_PLANS, apiPlanForTier } from '@/lib/api-plans';
+import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
 import type { UserTier } from '@/lib/access';
 
 interface ApiKeysModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tier: UserTier;
+  /** Whether credits back this account. See lib/use-credits.ts. */
+  entitled?: boolean;
   onUpgradeClick?: () => void;
 }
 
@@ -55,6 +57,7 @@ export function ApiKeysModal({
   open,
   onOpenChange,
   tier,
+  entitled = false,
   onUpgradeClick,
 }: ApiKeysModalProps) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -75,7 +78,10 @@ export function ApiKeysModal({
   // modal closes. The server stores a hash, so this really is unrecoverable.
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
-  const planId = apiPlanForTier(tier);
+  // apiPlanForAccount, not apiPlanForTier: a pack buyer's tier is `free`, and
+  // the description two hundred lines below already tells them API access comes
+  // with credits. The gate has to agree with the copy.
+  const planId = apiPlanForAccount(tier, entitled);
   const plan = planId ? API_PLANS[planId] : null;
   const hasApiAccess = !!plan;
 

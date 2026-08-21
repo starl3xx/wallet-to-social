@@ -226,7 +226,15 @@ export async function POST(request: NextRequest) {
     const effectiveUserId = session.user?.id || userId;
 
     const jobId = await createJob(wallets, originalData, {
-      includeENS: includeENS && access.canUseENS,
+      /**
+       * Credits unlock the deep scan, not a tier.
+       *
+       * `access.canUseENS` is tier-derived, and a pack buyer's tier is `free`,
+       * so the client would offer the deep scan, the server would strip it, and
+       * the progress bar would mark a stage complete that never ran. "Deep scan
+       * with onchain ENS" is listed under "Every pack includes".
+       */
+      includeENS: includeENS && (access.canUseENS || creditsCoverThisLookup),
       fastMode,
       saveToHistory,
       historyName,
@@ -235,7 +243,7 @@ export async function POST(request: NextRequest) {
       meteredUserId: session.user?.id,
       tier: access.tier,
       canUseNeynar: access.canUseNeynar,
-      canUseENS: access.canUseENS,
+      canUseENS: access.canUseENS || creditsCoverThisLookup,
       inputSource,
       // Recorded so the admin Jobs table can name the contract behind a lookup.
       // Only meaningful for a contract import; undefined for an upload.
@@ -255,7 +263,7 @@ export async function POST(request: NextRequest) {
         jobId,
         walletCount: wallets.length,
         tier: access.tier,
-        includeENS: includeENS && access.canUseENS,
+        includeENS: includeENS && (access.canUseENS || creditsCoverThisLookup),
         // The choice the user made, kept alongside the flags it resolved to.
         // `includeENS` alone cannot tell a fast scan from a free account's deep
         // scan: both arrive as false, and they mean opposite things.

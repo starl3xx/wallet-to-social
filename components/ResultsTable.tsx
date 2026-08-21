@@ -113,7 +113,15 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 interface ResultsTableProps {
   results: WalletSocialResult[];
   extraColumns?: string[];
-  userTier?: 'free' | 'pro' | 'unlimited';
+  /**
+   * Whether paid features are unlocked, decided by the caller.
+   *
+   * Was `userTier`, and reading entitlement off a tier stopped working the day
+   * packs shipped: a pack purchase leaves `users.tier` as `free`, so this
+   * component locked FC followers and priority score for someone who
+   * had just paid for it.
+   */
+  entitled?: boolean;
   onUpgradeClick?: () => void;
   enrichedWallets?: Set<string>; // Wallets that have been enriched since last view
   /**
@@ -143,12 +151,12 @@ const ROW_HEIGHT = 44; // Fixed row height for virtualization
 export const ResultsTable = memo(function ResultsTable({
   results,
   extraColumns = [],
-  userTier = 'free',
+  entitled = false,
   onUpgradeClick,
   enrichedWallets,
   holdingsLabel = 'Holdings',
 }: ResultsTableProps) {
-  const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
+  const isPaidTier = entitled;
   const [search, setSearch] = useState('');
   // Debounce search to prevent re-filtering on every keystroke (300ms delay)
   const debouncedSearch = useDebouncedValue(search, 300);
