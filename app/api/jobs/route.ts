@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
+import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -108,6 +109,54 @@ export async function POST(request: NextRequest) {
     void email;
     void wallet;
 
+    /**
+     * The credit check, for accounts the ledger applies to.
+     *
+     * Runs before the per-lookup limit below, because it is the real meter now
+     * and its message is the useful one: "you have N matches left" tells a
+     * caller what to do, where "free tier limited to 500 wallets" tells them to
+     * split the file, which is exactly the behaviour the ledger exists to end.
+     *
+     * Only for signed-in accounts. An anonymous caller has no identity to meter
+     * against (`userId` is a localStorage value that a cleared cache resets), so
+     * anonymous keeps the per-lookup cap and the IP rate limit, which is the
+     * demo that earns the signup.
+     */
+    if (session.user && !legacyTierIsUnmetered(access.tier)) {
+      const verdict = await canSubmit(
+        session.user.id,
+        wallets.length,
+        access.tier
+      );
+
+      if (!verdict.allowed) {
+        trackEvent('limit_hit', {
+          userId: session.user.email,
+          metadata: {
+            tier: access.tier,
+            reason: 'credits',
+            available: verdict.balance.available,
+            attempted: wallets.length,
+            onFreeAllowance: verdict.balance.onFreeAllowance,
+          },
+        });
+
+        return NextResponse.json(
+          {
+            error: verdict.reason,
+            upgradeRequired: true,
+            tier: access.tier,
+            creditsAvailable: verdict.balance.available,
+            maxWallets: verdict.maxWallets,
+            onFreeAllowance: verdict.balance.onFreeAllowance,
+            freeWindowResetsAt: verdict.balance.freeWindowResetsAt,
+            requested: wallets.length,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // One limit per tier now that no tier carries a cumulative quota.
     const effectiveLimit = access.walletLimit;
 
@@ -147,6 +196,8 @@ export async function POST(request: NextRequest) {
       saveToHistory,
       historyName,
       userId: effectiveUserId,
+      // Only a signed-in account can be debited; see JobOptions.meteredUserId.
+      meteredUserId: session.user?.id,
       tier: access.tier,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS,

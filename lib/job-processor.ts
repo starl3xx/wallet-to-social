@@ -20,6 +20,7 @@ import {
   calculatePriorityScore,
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
+import { chargeForJob } from '@/lib/credits';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
@@ -34,6 +35,16 @@ export interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
+  /**
+   * The `users.id` to debit, set only when a signed-in account created the job.
+   *
+   * Separate from `userId`, which for an anonymous caller is a localStorage
+   * value that a cleared cache resets. Guessing at uuid shape to tell them
+   * apart would charge a ledger row to a string that is not an account, so the
+   * caller states it instead: `/api/jobs` sets this from the session and
+   * nowhere else can.
+   */
+  meteredUserId?: string;
   tier?: UserTier;
   canUseNeynar?: boolean;
   canUseENS?: boolean;
@@ -777,6 +788,36 @@ async function finalizeJobWithResults(
       socialGraphWriteErrors: socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
     })
     .where(eq(lookupJobs.id, job.id));
+
+  /**
+   * Charge for the matches, after the job is marked complete.
+   *
+   * Deliberately after. A job that fails partway is not charged, and the debit
+   * is keyed on the job id, so a resumed job that reaches here twice inserts
+   * once and the second attempt is swallowed by the unique index.
+   *
+   * `anySocialFound` is the meter: wallets carrying an X handle or a Farcaster
+   * account. Misses are free, which is the whole pricing position, so this must
+   * not be `processedCount` however tempting the symmetry.
+   *
+   * Never fatal. A ledger write that fails must not fail a lookup the caller
+   * has already waited for; the work is done and the results are theirs. The
+   * cost of a missed debit is one uncharged job, which is strictly better than
+   * a completed job that reports as failed.
+   */
+  if (options.meteredUserId && anySocialFound > 0) {
+    try {
+      await chargeForJob(
+        options.meteredUserId,
+        job.id,
+        anySocialFound,
+        job.wallets.length,
+        options.tier ?? 'free'
+      );
+    } catch (error) {
+      console.error('Credit charge failed (job still succeeded):', error);
+    }
+  }
 
   // Track lookup completed event
   const durationMs = completedAt.getTime() - (job.startedAt?.getTime() || job.createdAt.getTime());
