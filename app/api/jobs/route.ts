@@ -160,11 +160,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Purchased credits, or an unmetered legacy tier, both of which supersede
-      // the per-lookup ceiling below. The free allowance does not: it is the
-      // demo, and 100 matches should not unlock unlimited submission size.
-      creditsCoverThisLookup =
-        legacyTierIsUnmetered(access.tier) || !verdict.balance.onFreeAllowance;
+      /**
+       * Purchased credits supersede the per-lookup ceiling. Legacy tiers do
+       * not, and that distinction cost a round of review.
+       *
+       * The first version exempted every unmetered tier, which handed legacy
+       * `pro` an infinite per-lookup limit instead of the 5,000 it was sold.
+       * `unlimited` was already infinite so nothing changed there, but `pro`
+       * would have quietly received more than it paid for, and the published
+       * copy still promises exactly that cap. Honouring a legacy purchase means
+       * both directions: never metering it, and never silently enlarging it.
+       *
+       * The free allowance does not supersede it either: it is the demo, and
+       * 100 matches should not unlock unlimited submission size.
+       */
+      creditsCoverThisLookup = !verdict.balance.onFreeAllowance;
     }
 
     /**

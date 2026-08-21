@@ -19,11 +19,18 @@ export async function trackApiUsage(usage: {
   /**
    * Matches this call returned, which is what the caller is billed for.
    *
-   * Omit it on an endpoint that resolves nothing (`/v1/stats`, `/v1/usage`);
-   * pass 0 explicitly when a resolving endpoint found nothing, because a miss
-   * is free and that is different from not having asked.
+   * **Required, and `null` rather than omitted for a non-resolving endpoint.**
+   * It was optional, and two rounds of review found the same bug twice: an
+   * endpoint that simply never passed it resolved wallets for free. An optional
+   * billing field on a shared helper is a hole that reopens every time somebody
+   * adds an endpoint, because forgetting it is silent and looks like working
+   * code.
+   *
+   * `null` says "this endpoint resolves nothing" (`/v1/stats`, `/v1/usage`).
+   * `0` says "it resolves, and found nothing", which is free but is a different
+   * fact. Both are now deliberate, and the compiler asks the question.
    */
-  matches?: number;
+  matches: number | null;
 }): Promise<void> {
   const db = getDb();
   if (!db) return;
@@ -61,7 +68,7 @@ export async function trackApiUsage(usage: {
    * their answer, and one uncharged call beats a successful response reported
    * as an error.
    */
-  if (usage.matches !== undefined && usage.matches > 0) {
+  if (usage.matches !== null && usage.matches > 0) {
     try {
       const [key] = await db
         .select({ userId: apiKeys.userId })

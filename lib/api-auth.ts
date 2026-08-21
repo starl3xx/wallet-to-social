@@ -219,6 +219,17 @@ export function withApiAuth<T>(
         responseStatus: response.status,
         latencyMs: Date.now() - startTime,
         creditsUsed: 1,
+        /**
+         * A generic wrapper cannot know what the handler resolved, so it never
+         * bills. Every endpoint currently in `/v1` calls `trackApiUsage`
+         * itself with a real count; this path exists for handlers that do not,
+         * and it records the request without charging for it.
+         *
+         * If a resolving endpoint is ever written on top of `withApiAuth`
+         * alone, it will run free. Better that than a wrapper guessing at a
+         * number it cannot see.
+         */
+        matches: null,
       }).catch(console.error);
 
       return response;
@@ -233,6 +244,8 @@ export function withApiAuth<T>(
         responseStatus: 500,
         latencyMs: Date.now() - startTime,
         creditsUsed: 0,
+        // A request that threw resolved nothing and is not billed.
+        matches: null,
       }).catch(console.error);
 
       return apiError(
