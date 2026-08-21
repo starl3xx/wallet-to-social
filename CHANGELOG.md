@@ -2,6 +2,66 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-20 (credits, and a rating nobody gave us)
+
+- **Pricing moves from one-time tiers to credit packs, metered in matches.** A
+  match is a wallet resolved to an 𝕏 or Farcaster account; a wallet we cannot
+  resolve costs nothing. Free is 100 matches every 30 days, then Trial $29 for
+  250, Campaign $99 for 1,500, Scale $299 for 6,000, Index $899 for 25,000.
+  Credits last 12 months. Still one-time payments: Stripe stays on
+  `mode: 'payment'`.
+
+- **The meter was the actual problem, not the price.** Free was 500 wallets per
+  lookup with unlimited lookups and no cumulative quota, so the largest job in
+  the product's history split into 27 free uploads and the median job of 300
+  fitted whole. Nothing the product has ever done needed paying for. A
+  per-lookup cap punishes the honest user and rewards splitting a file; the
+  allowance is cumulative and account-wide now, so twenty runs of 500 debit
+  exactly what one run of 10,000 debits.
+
+- **Why packs rather than the subscription that was proposed.** 95 of 100
+  identified people were active in exactly one calendar month and never
+  returned, and 104 of 110 person-months consumed under 1,000 wallets. A monthly
+  plan against that distribution posts roughly 95% logo churn at month two,
+  nine to twenty-five times worse than the worst benchmark bucket for companies
+  with no annual option. Packs also avoid building a customer portal, dunning,
+  proration and the revocation path that `provisionPaidCheckout` is deliberately
+  built without.
+
+- **Why a match rather than a submitted wallet.** The median hit rate on a real
+  list is 2.7%, and 29 of 64 real-list jobs returned under 2%. Billing by
+  submitted wallet charges people for our coverage gaps. Billing by match makes
+  the weakest number in the product irrelevant to what anyone pays, and it is
+  the only version of "we do not guess" that reaches the invoice.
+
+- **`aggregateRating` claimed 4.8 from 50 ratings, and there are no 50
+  ratings.** The product has 102 accounts, one payment, and no review collected
+  anywhere. That was fabricated structured data served to Google and to AI
+  assistants, on a site whose whole position is reporting only what it can
+  evidence, sitting two hundred lines from a FAQ answer about how carefully we
+  distinguish an attested handle from an inferred one. Removed.
+
+- **The two existing paying accounts keep exactly what they bought.** Neither is
+  metered, on any path. The Unlimited account gets one condition, an
+  anti-enumeration ceiling of 1,000,000 wallets in a rolling 24 hours, which is
+  75x the largest job anyone has ever run and cannot reach a customer. Attaching
+  any condition to a promise sold without one is a retraction, which is why it
+  is set that high and why the message says the cap is on bulk extraction rather
+  than on lookups.
+
+- **Export is never capped, on any plan, and that is now a stated position.**
+  The export is the product: upload a CSV, get a resolved CSV back. Cookie3 caps
+  enriched exports at 5,000 wallets on a $299 plan and `/vs/cookie3` attacks
+  them for it, so capping ours would have deleted our own comparison page. What
+  gets gated instead is volume, and nothing else.
+
+- **`PackPricing` is one component on five comparison pages**, for the same
+  reason as `ReachabilityClaim`: it belongs everywhere and it contains numbers.
+  Each page previously hardcoded a pricing section beside an interpolated
+  `TIER_PRICES`, so half the figures moved when the constants moved and half did
+  not.
+
+
 ### 2026-08-20 (a figure that could only fail by growing)
 
 - **Review fixes, and both were the same mistake twice.** The measurement guard
