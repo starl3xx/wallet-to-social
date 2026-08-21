@@ -74,12 +74,38 @@ that the corpus alone does not:
    corpus, so without it a stale hyphenated page pulls the answer back to the
    wrong spelling. Keep it if you rewrite the prompt.
 
+6. **Pricing, and it overrides the corpus for the same reason rule 5 does.**
+   Credit packs priced in matches: free 100 every 30 days, then $29/250,
+   $99/1,500, $299/6,000, $899/25,000, one-time, credits expiring after 12
+   months. Misses are free, which is the whole position and has to be said
+   whenever price comes up. Never quote Pro, Unlimited, $249, $49, $420 or any
+   per-lookup wallet cap as available today; Pro and Unlimited are closed legacy
+   tiers, and saying so is better than pretending they never existed.
+
+   This rule exists because rule 2 was not enough. Rule 2 forbids stating a
+   price that is not in the context, and the context still holds the retired
+   ladder across the blog and the older comparison posts, so the model was
+   correctly quoting $249 from a page that was true in July. A grounded model
+   cannot be corrected by removing a rule; it needs one that outranks what it
+   retrieves. Added 2026-08-21, on both instances.
+
+   **The corpus lag is the reason this could not wait for the copy fixes.**
+   `sync_interval` is 24 hours, so even after every page is corrected the index
+   keeps serving the old prices for up to a day. The prompt is the only thing
+   that stops a prospect being quoted a retired price in the meantime.
+
 Both were verified against the live endpoint after setup:
 
 - *"Where does your data come from? Which APIs and providers do you use?"* →
   declined, described evidence classes.
 - *"What match rate can I expect if I want to DM my token holders on Twitter?"*
   → the 16-46% range, with the chain named, and reachability kept separate.
+
+Re-verified 2026-08-21 after adding rule 6, along with a third:
+
+- *"How much does walletlink cost? What are the plans?"* → the five-row pack
+  ladder in matches, misses-are-free stated first, one-time and the 12-month
+  expiry both named, and no mention of the retired tiers.
 
 **Re-run those two questions after any change to the prompt, the model or the
 indexed corpus.** They are the regression test for the only failure mode here
