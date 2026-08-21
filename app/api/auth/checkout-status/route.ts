@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOrCreateUser } from '@/lib/access';
+import { grantPack, getBalance } from '@/lib/credits';
+import { PACKS, isPackId } from '@/lib/packs';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
-import { getUserAccess, provisionPaidCheckout, type PaidTier } from '@/lib/access';
+import {
+  getUserAccess,
+  provisionPaidCheckout,
+  type PaidTier,
+} from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -67,6 +74,51 @@ export async function GET(request: NextRequest) {
   if (!email) {
     // Paid, but we can't tie it to an account yet. The client keeps polling.
     return NextResponse.json({ paid: true, tier: 'free', email: null });
+  }
+
+  /**
+   * A pack, granted here as well as in the webhook.
+   *
+   * The tier path below has had this belt-and-braces grant since a payment
+   * could outrun its webhook, and the pack path needs it for the same reason.
+   * Without it a buyer whose webhook is slow or failing sees a success page
+   * that tells them nothing and holds no credits.
+   *
+   * Safe to run alongside the webhook: `grantPack` is idempotent on the Stripe
+   * payment id, so whichever arrives second grants nothing.
+   */
+  const pack = session.metadata?.pack;
+
+  if (pack && isPackId(pack)) {
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || session.id;
+
+    try {
+      const user = await getOrCreateUser(email);
+      await grantPack(
+        user.id,
+        pack,
+        paymentIntentId,
+        session.amount_total ?? PACKS[pack].priceCents
+      );
+      const balance = await getBalance(user.id);
+      return NextResponse.json({
+        paid: true,
+        email,
+        pack,
+        packName: PACKS[pack].name,
+        matchesGranted: PACKS[pack].matches,
+        balance: balance.available,
+        // The success page renders a plan when it sees a tier. A pack purchase
+        // has none, and reporting the buyer's *access* tier here is what showed
+        // a whitelisted account "Unlimited Plan" after a $29 Trial.
+        tier: null,
+      });
+    } catch (error) {
+      console.error('Pack grant from success page failed:', error);
+    }
   }
 
   // Grant it here rather than waiting on the webhook. `tier` is our own metadata

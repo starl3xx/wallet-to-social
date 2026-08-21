@@ -352,14 +352,25 @@ export async function listPayments(
 /**
  * Check if Stripe is configured
  */
+/**
+ * Can this deployment take a payment at all?
+ *
+ * The secret key, and nothing else. Which *price* is needed depends on what is
+ * being bought, and both purchase paths already check their own: the tier path
+ * throws "Price not configured for tier", the pack path throws
+ * "STRIPE_PRICE_PACK_TRIAL is not configured". Both name the missing variable,
+ * which a blanket 503 never could.
+ *
+ * It used to also require STRIPE_PRICE_PRO and STRIPE_PRICE_UNLIMITED, and that
+ * was the same mistake this function's previous comment already described: it
+ * had required STRIPE_PRICE_STARTER, so deleting a retired variable would have
+ * 503'd every purchase for a product nobody could buy. Packs made it live
+ * again. Pro and Unlimited are no longer sold, removing their variables is the
+ * obvious tidy-up, and doing it would have taken pack checkout down with them.
+ *
+ * Caught by testing locally with only the pack variables set, which is exactly
+ * the configuration a fresh deployment would have.
+ */
 export function isStripeConfigured(): boolean {
-  // Only the tiers that can actually be bought. This used to also require
-  // STRIPE_PRICE_STARTER, so deleting that retired variable would have taken the
-  // whole payment system down with a "Payment system not configured" 503 on
-  // every purchase, for a product nobody could buy.
-  return !!(
-    process.env.STRIPE_SECRET_KEY &&
-    process.env.STRIPE_PRICE_PRO &&
-    process.env.STRIPE_PRICE_UNLIMITED
-  );
+  return !!process.env.STRIPE_SECRET_KEY;
 }

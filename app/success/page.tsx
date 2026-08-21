@@ -5,7 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, CircleNotch as Loader2, Crown, Lightning as Zap } from '@phosphor-icons/react';
+import {
+  Check,
+  CircleNotch as Loader2,
+  Crown,
+  Lightning as Zap,
+} from '@phosphor-icons/react';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 
 type VerificationState = 'verifying' | 'success' | 'error';
@@ -16,6 +21,19 @@ function SuccessContent() {
 
   const [state, setState] = useState<VerificationState>('verifying');
   const [tier, setTier] = useState<UserTier | null>(null);
+  /**
+   * A pack purchase, which has no tier.
+   *
+   * Separate state rather than a widened `tier`, because they are different
+   * things: a tier is a permanent entitlement and a pack is a credit balance.
+   * Collapsing them is what showed a whitelisted account "Unlimited Plan" after
+   * a $29 Trial, since `getUserAccess` reports whitelist access as `unlimited`.
+   */
+  const [pack, setPack] = useState<{
+    name: string;
+    matchesGranted: number;
+    balance: number;
+  } | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +73,17 @@ function SuccessContent() {
 
         if (data.email) {
           setEmail(data.email);
+        }
+
+        // Packs first: a session carries one or the other, never both.
+        if (data.pack) {
+          setPack({
+            name: data.packName,
+            matchesGranted: data.matchesGranted,
+            balance: data.balance,
+          });
+          setState('success');
+          return;
         }
 
         if (data.tier && data.tier !== 'free') {
@@ -145,11 +174,61 @@ function SuccessContent() {
             </p>
           )}
 
-          {state === 'success' && tier && (
+          {state === 'success' && pack && (
+            <>
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-muted py-4">
+                <Zap className="h-6 w-6 text-accent-brand" />
+                <span className="text-lg font-semibold">{pack.name} pack</span>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <p className="text-center text-muted-foreground">
+                  {pack.matchesGranted.toLocaleString()} matches added. Your
+                  balance is{' '}
+                  <span className="font-medium text-foreground">
+                    {pack.balance.toLocaleString()}
+                  </span>
+                  .
+                </p>
+                <ul className="space-y-1">
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-accent-brand" />
+                    You are charged only for wallets we resolve
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-accent-brand" />
+                    All seven chains, uncapped CSV export
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-accent-brand" />
+                    API access, drawing the same credits
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-accent-brand" />
+                    Credits last 12 months
+                  </li>
+                </ul>
+              </div>
+
+              {email && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Credits added to: <span className="font-medium">{email}</span>
+                </p>
+              )}
+
+              <Button asChild className="w-full">
+                <Link href="/">Start Using walletlink.social</Link>
+              </Button>
+            </>
+          )}
+
+          {state === 'success' && tier && !pack && (
             <>
               <div className="flex items-center justify-center gap-2 py-4 bg-muted rounded-lg">
                 <TierIcon className={`h-6 w-6 ${tierColor}`} />
-                <span className="text-lg font-semibold capitalize">{tier} Plan</span>
+                <span className="text-lg font-semibold capitalize">
+                  {tier} Plan
+                </span>
               </div>
 
               <div className="space-y-2 text-sm">
