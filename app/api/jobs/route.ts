@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
   // Check for authenticated session - authenticated users bypass IP rate limits
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+  const session = sessionToken
+    ? await validateSession(sessionToken)
+    : { user: null };
 
   // Apply IP rate limiting only for unauthenticated requests
   if (!session.user) {
@@ -235,7 +237,10 @@ export async function POST(request: NextRequest) {
       try {
         await processJobChunk(jobId);
       } catch (error) {
-        console.error('Inline processing error (cron will retry):', error instanceof Error ? error.message : error);
+        console.error(
+          'Inline processing error (cron will retry):',
+          error instanceof Error ? error.message : error
+        );
       }
     } else {
       try {
@@ -245,7 +250,10 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         // Inngest not configured or failed - cron worker will pick up the job
-        console.log('Inngest trigger skipped (cron will process):', error instanceof Error ? error.message : error);
+        console.log(
+          'Inngest trigger skipped (cron will process):',
+          error instanceof Error ? error.message : error
+        );
       }
     }
 

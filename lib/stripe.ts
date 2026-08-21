@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { getSiteUrl } from '@/lib/site-url';
+import { PACKS, type PackId } from '@/lib/packs';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -79,14 +80,20 @@ export async function createCheckoutSession(
    * Stripe is the authority and every account predating this change has no
    * stored id to offer.
    */
-  const found = await stripe.customers.list({ email: normalizedEmail, limit: 1 });
+  const found = await stripe.customers.list({
+    email: normalizedEmail,
+    limit: 1,
+  });
   const existingCustomerId = found.data[0]?.id;
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     ...(existingCustomerId
       ? { customer: existingCustomerId }
-      : { customer_email: normalizedEmail, customer_creation: 'always' as const }),
+      : {
+          customer_email: normalizedEmail,
+          customer_creation: 'always' as const,
+        }),
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: baseUrl,
@@ -110,6 +117,77 @@ export async function createCheckoutSession(
     url: session.url,
     sessionId: session.id,
   };
+}
+
+/**
+ * Create a checkout session for a credit pack.
+ *
+ * Deliberately a second function rather than a branch inside
+ * `createCheckoutSession`. The two sell different things: a tier is a
+ * permanent grant keyed on the account, a pack is a dated lot keyed on the
+ * payment. They share the Customer-reuse logic and nothing else, and folding
+ * them together would mean a `tier ?? pack` metadata shape that the webhook has
+ * to disambiguate on every event.
+ *
+ * Same `mode: 'payment'`. That is the point of packs: no subscription
+ * lifecycle, no portal, no dunning, no proration, and no revocation path.
+ */
+export async function createPackCheckoutSession(
+  email: string,
+  pack: PackId
+): Promise<CheckoutSessionResult> {
+  if (!stripe) {
+    throw new Error('Stripe not configured');
+  }
+
+  // Same normalisation as the tier path, for the same reason: `customers.list`
+  // matches case-sensitively while everything downstream lowercases.
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const priceId = process.env[PACKS[pack].priceEnvVar];
+  if (!priceId) {
+    throw new Error(`${PACKS[pack].priceEnvVar} is not configured`);
+  }
+
+  const baseUrl = getSiteUrl();
+
+  const found = await stripe.customers.list({
+    email: normalizedEmail,
+    limit: 1,
+  });
+  const existingCustomerId = found.data[0]?.id;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    ...(existingCustomerId
+      ? { customer: existingCustomerId }
+      : {
+          customer_email: normalizedEmail,
+          customer_creation: 'always' as const,
+        }),
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: baseUrl,
+    metadata: {
+      pack,
+      email: normalizedEmail,
+    },
+    // Mirrored onto the PaymentIntent because the webhook has two provisioning
+    // paths and either may be the one that fires. A pack visible on only one of
+    // them is a payment taken with no credits granted.
+    payment_intent_data: {
+      metadata: {
+        pack,
+        email: normalizedEmail,
+      },
+    },
+  });
+
+  if (!session.url) {
+    throw new Error('Failed to create checkout session URL');
+  }
+
+  return { url: session.url, sessionId: session.id };
 }
 
 /**

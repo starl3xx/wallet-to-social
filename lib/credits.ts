@@ -118,7 +118,9 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
     now.getTime() - FREE_WINDOW_DAYS * 24 * 60 * 60 * 1000
   );
   const [used] = await db
-    .select({ total: sql<number>`coalesce(sum(${creditLedger.matches}), 0)::int` })
+    .select({
+      total: sql<number>`coalesce(sum(${creditLedger.matches}), 0)::int`,
+    })
     .from(creditLedger)
     .where(
       and(

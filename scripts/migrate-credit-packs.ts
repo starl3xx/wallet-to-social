@@ -79,10 +79,20 @@ async function main() {
   `;
   console.log('credit_ledger indexes: ok');
 
-  const [lots] = (await sql`SELECT count(*)::int AS n FROM credit_lots`) as unknown as Array<{ n: number }>;
-  const [ledger] = (await sql`SELECT count(*)::int AS n FROM credit_ledger`) as unknown as Array<{ n: number }>;
-  console.log(`\nverified: credit_lots has ${lots.n} rows, credit_ledger has ${ledger.n}`);
-  console.log('Next: add both tables to READ_ONLY_TABLES in scripts/migrate-grant-readonly.ts');
+  const [lots] =
+    (await sql`SELECT count(*)::int AS n FROM credit_lots`) as unknown as Array<{
+      n: number;
+    }>;
+  const [ledger] =
+    (await sql`SELECT count(*)::int AS n FROM credit_ledger`) as unknown as Array<{
+      n: number;
+    }>;
+  console.log(
+    `\nverified: credit_lots has ${lots.n} rows, credit_ledger has ${ledger.n}`
+  );
+  console.log(
+    'Next: add both tables to READ_ONLY_TABLES in scripts/migrate-grant-readonly.ts'
+  );
 }
 
 main().catch((e) => {

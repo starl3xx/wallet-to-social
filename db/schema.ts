@@ -143,9 +143,7 @@ export const knownAgents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [
-    index('known_agents_framework_idx').on(table.framework),
-  ]
+  (table) => [index('known_agents_framework_idx').on(table.framework)]
 );
 
 // Background job queue for large lookups
@@ -338,7 +336,10 @@ export const analyticsEvents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('analytics_events_type_created_idx').on(table.eventType, table.createdAt),
+    index('analytics_events_type_created_idx').on(
+      table.eventType,
+      table.createdAt
+    ),
     index('analytics_events_user_id_idx').on(table.userId),
     index('analytics_events_session_id_idx').on(table.sessionId),
   ]
@@ -358,30 +359,32 @@ export const apiMetrics = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('api_metrics_provider_created_idx').on(table.provider, table.createdAt),
+    index('api_metrics_provider_created_idx').on(
+      table.provider,
+      table.createdAt
+    ),
     index('api_metrics_job_id_idx').on(table.jobId),
   ]
 );
 
 // Daily aggregated statistics (computed nightly)
-export const dailyStats = pgTable(
-  'daily_stats',
-  {
-    date: date('date').primaryKey(),
-    totalLookups: integer('total_lookups').default(0).notNull(),
-    totalWalletsProcessed: integer('total_wallets_processed').default(0).notNull(),
-    uniqueUsers: integer('unique_users').default(0).notNull(),
-    newUsers: integer('new_users').default(0).notNull(),
-    revenueCents: integer('revenue_cents').default(0).notNull(),
-    proPurchases: integer('pro_purchases').default(0).notNull(),
-    unlimitedPurchases: integer('unlimited_purchases').default(0).notNull(),
-    avgMatchRate: numeric('avg_match_rate', { precision: 5, scale: 2 }),
-    cacheHitRate: numeric('cache_hit_rate', { precision: 5, scale: 2 }),
-    avgLatencyMs: integer('avg_latency_ms'),
-    errorCount: integer('error_count').default(0).notNull(),
-    computedAt: timestamp('computed_at').defaultNow().notNull(),
-  }
-);
+export const dailyStats = pgTable('daily_stats', {
+  date: date('date').primaryKey(),
+  totalLookups: integer('total_lookups').default(0).notNull(),
+  totalWalletsProcessed: integer('total_wallets_processed')
+    .default(0)
+    .notNull(),
+  uniqueUsers: integer('unique_users').default(0).notNull(),
+  newUsers: integer('new_users').default(0).notNull(),
+  revenueCents: integer('revenue_cents').default(0).notNull(),
+  proPurchases: integer('pro_purchases').default(0).notNull(),
+  unlimitedPurchases: integer('unlimited_purchases').default(0).notNull(),
+  avgMatchRate: numeric('avg_match_rate', { precision: 5, scale: 2 }),
+  cacheHitRate: numeric('cache_hit_rate', { precision: 5, scale: 2 }),
+  avgLatencyMs: integer('avg_latency_ms'),
+  errorCount: integer('error_count').default(0).notNull(),
+  computedAt: timestamp('computed_at').defaultNow().notNull(),
+});
 
 // ============================================================================
 // Authentication
