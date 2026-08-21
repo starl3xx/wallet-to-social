@@ -11,7 +11,10 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
+import {
+  reachabilityForWallets,
+  publicTwitterField,
+} from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -108,6 +111,13 @@ export async function GET(
       result.github)
   );
 
+  /**
+   * `hasSocials` is wider than a match: it counts ENS, Lens and GitHub too, and
+   * the app bills for neither. A wallet that resolves only to an ENS name is a
+   * 200 the caller wanted and a miss they are not charged for.
+   */
+  const isMatch = !!(result && (result.twitterHandle || result.farcaster));
+
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
@@ -117,6 +127,7 @@ export async function GET(
     responseStatus: hasSocials ? 200 : 404,
     latencyMs: Date.now() - startTime,
     creditsUsed: 1,
+    matches: isMatch ? 1 : 0,
   }).catch(console.error);
 
   if (!result || !hasSocials) {

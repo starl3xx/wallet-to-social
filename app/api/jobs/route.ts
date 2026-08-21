@@ -124,7 +124,9 @@ export async function POST(request: NextRequest) {
      * anonymous keeps the per-lookup cap and the IP rate limit, which is the
      * demo that earns the signup.
      */
-    if (session.user && !legacyTierIsUnmetered(access.tier)) {
+    let creditsCoverThisLookup = false;
+
+    if (session.user) {
       const verdict = await canSubmit(
         session.user.id,
         wallets.length,
@@ -157,10 +159,31 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
+
+      // Purchased credits, or an unmetered legacy tier, both of which supersede
+      // the per-lookup ceiling below. The free allowance does not: it is the
+      // demo, and 100 matches should not unlock unlimited submission size.
+      creditsCoverThisLookup =
+        legacyTierIsUnmetered(access.tier) || !verdict.balance.onFreeAllowance;
     }
 
-    // One limit per tier now that no tier carries a cumulative quota.
-    const effectiveLimit = access.walletLimit;
+    /**
+     * The legacy per-lookup ceiling, and who it still applies to.
+     *
+     * A pack purchase leaves `users.tier` as `free`, so `getUserAccess` hands
+     * back a 500-wallet limit for someone holding 25,000 matches. Applying it
+     * would block an Index buyer at 500 wallets a lookup, which is the tier
+     * model reaching past its own retirement to cap a customer who paid to
+     * escape it.
+     *
+     * Credits carry their own ceiling and it is the right one: submitted
+     * wallets are bounded at ten times the remaining balance, checked above.
+     * So this applies only where no credits do, which is an anonymous caller
+     * or a signed-in account that has never bought anything.
+     */
+    const effectiveLimit = creditsCoverThisLookup
+      ? Number.POSITIVE_INFINITY
+      : access.walletLimit;
 
     if (wallets.length > effectiveLimit) {
       // Track limit hit event

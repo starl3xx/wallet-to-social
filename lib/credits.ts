@@ -131,12 +131,38 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
     );
 
   const spent = used?.total ?? 0;
+
+  /**
+   * When the oldest debit in the window ages out, not `now`.
+   *
+   * The first version computed `windowStart + FREE_WINDOW_DAYS`, and
+   * `windowStart` is `now - FREE_WINDOW_DAYS`, so it always returned the
+   * present moment: a reset time that says "already". Bugbot caught it.
+   *
+   * A rolling window does not reset all at once, it dribbles back as
+   * individual debits age past the boundary. The honest single answer is when
+   * the *next* one does, which is the oldest debit still inside the window plus
+   * the window length. Null when nothing has been spent, because there is
+   * nothing to wait for.
+   */
+  const [oldest] = await db
+    .select({ at: creditLedger.createdAt })
+    .from(creditLedger)
+    .where(
+      and(
+        eq(creditLedger.userId, userId),
+        gt(creditLedger.createdAt, windowStart)
+      )
+    )
+    .orderBy(asc(creditLedger.createdAt))
+    .limit(1);
+
   return {
     available: Math.max(0, FREE_MATCHES_PER_WINDOW - spent),
     freeUsedThisWindow: spent,
-    freeWindowResetsAt: new Date(
-      windowStart.getTime() + FREE_WINDOW_DAYS * 24 * 60 * 60 * 1000
-    ),
+    freeWindowResetsAt: oldest
+      ? new Date(oldest.at.getTime() + FREE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+      : null,
     lots: [],
     onFreeAllowance: true,
   };
@@ -324,6 +350,46 @@ export async function chargeForJob(
     .update(users)
     .set({ walletsUsed: sql`${users.walletsUsed} + ${walletsSubmitted}` })
     .where(eq(users.id, userId));
+
+  return matches;
+}
+
+/**
+ * Debit for an API call.
+ *
+ * Deliberately not `chargeForJob`. That one is idempotent on a job id, because
+ * a worker resuming after a transport failure is one piece of work reaching the
+ * charge point twice. Two API calls are two pieces of work and cost us twice,
+ * so this has no idempotency key and is expected to charge every time.
+ *
+ * `jobId` is left null, which the partial unique index permits.
+ */
+export async function chargeForApiCall(
+  userId: string,
+  matches: number,
+  walletsSubmitted: number,
+  tier: UserTier
+): Promise<number> {
+  if (legacyTierIsUnmetered(tier)) return 0;
+  if (matches <= 0) return 0;
+
+  const db = getDb();
+  if (!db) return 0;
+
+  const balance = await getBalance(userId);
+  const paidFrom = balance.onFreeAllowance ? 'free' : 'lots';
+
+  await db.insert(creditLedger).values({
+    userId,
+    jobId: null,
+    matches,
+    walletsSubmitted,
+    paidFrom,
+  });
+
+  if (paidFrom === 'lots') {
+    await drawDown(userId, matches);
+  }
 
   return matches;
 }

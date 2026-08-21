@@ -11,7 +11,10 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
+import {
+  reachabilityForWallets,
+  publicTwitterField,
+} from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -38,7 +41,10 @@ interface BatchRequestBody {
 // can force us to buffer and parse.
 const MAX_BODY_BYTES = 1_000_000;
 
-async function readBodyCapped(request: NextRequest, maxBytes: number): Promise<string | null> {
+async function readBodyCapped(
+  request: NextRequest,
+  maxBytes: number
+): Promise<string | null> {
   if (!request.body) return null;
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -61,7 +67,12 @@ export async function POST(request: NextRequest) {
 
   const raw = await readBodyCapped(request, MAX_BODY_BYTES);
   if (raw === null) {
-    return apiError('Request body too large', 'INVALID_REQUEST', 413, corsHeaders);
+    return apiError(
+      'Request body too large',
+      'INVALID_REQUEST',
+      413,
+      corsHeaders
+    );
   }
 
   // Parse the (now size-bounded) body to get the wallet count for rate limiting
@@ -172,7 +183,7 @@ export async function POST(request: NextRequest) {
     .where(inArray(socialGraph.wallet, uniqueWallets));
 
   // Build result map
-  const resultMap = new Map<string, typeof results[0]>();
+  const resultMap = new Map<string, (typeof results)[0]>();
   const reach = await reachabilityForWallets(
     results.map((r) => ({ wallet: r.wallet, handle: r.twitterHandle }))
   );
@@ -249,6 +260,16 @@ export async function POST(request: NextRequest) {
     data.push(item);
   }
 
+  /**
+   * Billed on matches, the same predicate the app uses: an X handle or a
+   * Farcaster account. Not `data.length`, which counts every row including the
+   * ones that resolved to nothing, and not ENS or Lens or GitHub, which the app
+   * does not bill for either.
+   */
+  const matches = data.filter(
+    (item) => item?.twitter || item?.farcaster
+  ).length;
+
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
@@ -258,6 +279,7 @@ export async function POST(request: NextRequest) {
     responseStatus: 200,
     latencyMs: Date.now() - startTime,
     creditsUsed: uniqueWallets.length,
+    matches,
   }).catch(console.error);
 
   return apiSuccess(
