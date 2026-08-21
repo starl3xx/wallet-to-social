@@ -5,7 +5,6 @@ import {
   StripeConfigError,
 } from '@/lib/stripe';
 import {
-  getOrCreateUser,
   provisionPaidCheckout,
   type PaidTier,
 } from '@/lib/access';
@@ -87,8 +86,8 @@ export async function POST(request: NextRequest) {
  * makes it safe to call from both `checkout.session.completed` and
  * `payment_intent.succeeded`. Whichever arrives second inserts nothing.
  *
- * `getOrCreateUser` rather than a lookup: a pack can be the first thing someone
- * ever buys, and their account may not exist yet. The tier path has the same
+ * `fulfilPackPurchase` creates the account if it does not exist, because a pack
+ * can be the first thing someone ever buys. The tier path has the same
  * property, through `provisionPaidCheckout`.
  *
  * A pack never changes `users.tier`. Tier is the legacy one-time entitlement

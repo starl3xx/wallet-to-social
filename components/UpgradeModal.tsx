@@ -10,7 +10,14 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, CircleNotch as Loader2 } from '@phosphor-icons/react';
+import {
+  Check,
+  CircleNotch as Loader2,
+  Lightning,
+  Rocket,
+  TrendUp,
+  Stack,
+} from '@phosphor-icons/react';
 import {
   PACKS,
   PACK_IDS,
@@ -54,6 +61,25 @@ function approxWallets(matches: number): string {
  * already carry, and it is the rung that covers a real launch.
  */
 const DEFAULT_SUGGESTION: PackId = 'campaign';
+
+/**
+ * One icon per pack, in a tinted enclosure.
+ *
+ * A pack card carries four short lines and nothing else, because the features
+ * are shared and stating them four times would imply a difference that does not
+ * exist. That left the cards thin. An icon gives each one something to lead
+ * with, which is what the two-tier modal this replaces had and what it was
+ * missing.
+ *
+ * The enclosure matters: per the affordance table an icon inside one reads as a
+ * control, and an icon beside bare text reads as identification. These identify.
+ */
+const PACK_ICON: Record<PackId, typeof Lightning> = {
+  trial: Lightning,
+  campaign: Rocket,
+  scale: TrendUp,
+  index: Stack,
+};
 
 /** Dollars, without a trailing `.00` on the whole numbers every pack uses. */
 function price(cents: number): string {
@@ -164,16 +190,19 @@ export function UpgradeModal({
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
-          {/* Four packs. One column on a phone, two from `md`, four from `lg`,
-              because four cards at tablet width leaves each one too narrow to
-              hold a price and a match count on separate lines. The body scrolls
-              rather than each card, unlike the two-tier version this replaces:
-              a pack card is short enough that an inner scroll would be a
-              scrollbar around three lines of text. */}
-          <div className="grid gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-4">
+          {/* Four packs. One column on a phone, two from `sm`, four from `lg`,
+              because four cards at tablet width leave each one too narrow to
+              hold a price and a match count on separate lines.
+
+              No `overflow-y-auto` here. It made this grid a clipping context,
+              and the badge that sits above the suggested card's top edge was
+              cut in half by it. The modal body already scrolls, which is where
+              scrolling belongs; `pt-3` is the room the badge needs. */}
+          <div className="grid gap-3 pt-3 sm:grid-cols-2 lg:grid-cols-4">
             {PACK_IDS.map((id) => {
               const pack = PACKS[id];
               const isSuggested = suggested === id;
+              const Icon = PACK_ICON[id];
 
               return (
                 <div
@@ -197,12 +226,20 @@ export function UpgradeModal({
                   )}
 
                   <div>
-                    <h3 className="text-sm font-semibold">{pack.name}</h3>
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="rounded-sm bg-accent-brand-tint p-1.5">
+                        <Icon
+                          className="h-4 w-4 text-accent-brand"
+                          weight="fill"
+                        />
+                      </span>
+                      <h3 className="text-sm font-semibold">{pack.name}</h3>
+                    </div>
                     {/* The figure treatment from `Figure`: weight 300 at title
                         tracking. It was `font-bold`, which is 700 and not one
                         of the five weights the scale defines. */}
                     <div className="mt-1 flex items-baseline gap-1.5">
-                      <span className="text-2xl font-light tabular-nums tracking-[var(--tracking-title)]">
+                      <span className="text-2xl font-medium tabular-nums tracking-[var(--tracking-title)]">
                         {price(pack.priceCents)}
                       </span>
                       <span className="text-sm text-muted-foreground">
