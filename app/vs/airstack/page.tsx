@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
+import { PackPricing } from '@/components/PackPricing';
+import { PACKS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
-import { TIER_PRICES } from '@/lib/access';
-import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
+import {
+  ArrowRight,
+  BookOpenText,
+  Check,
+  MagnifyingGlass,
+  X,
+} from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
@@ -60,7 +67,8 @@ const jsonLd = {
   },
   datePublished: '2026-08-12',
   dateModified: new Date().toISOString().split('T')[0],
-  keywords: 'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
+  keywords:
+    'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
 };
 
 export default function AirstackComparison() {
@@ -77,10 +85,14 @@ export default function AirstackComparison() {
                 word inside a 200-weight line. Both cuts are already loaded. */}
             <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
               One answer, not an{' '}
-              <em className="font-semibold not-italic text-accent-brand">API surface</em>.
+              <em className="font-semibold not-italic text-accent-brand">
+                API surface
+              </em>
+              .
             </h1>
             <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
-              Airstack gives you a query language. We give you the one join it is usually built to perform, as a CSV or an endpoint.
+              Airstack gives you a query language. We give you the one join it
+              is usually built to perform, as a CSV or an endpoint.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2.5">
@@ -91,7 +103,11 @@ export default function AirstackComparison() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <a href="https://docs.walletlink.social" target="_blank" rel="noopener noreferrer">
+                <a
+                  href="https://docs.walletlink.social"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <BookOpenText className="h-4 w-4" aria-hidden />
                   Read the API docs
                 </a>
@@ -106,8 +122,15 @@ export default function AirstackComparison() {
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
-              <Figure value="16-46%" label="have an X or Farcaster account" brand />
-              <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
+              <Figure
+                value="16-46%"
+                label="have an X or Farcaster account"
+                brand
+              />
+              <Figure
+                value={`$${PACKS.trial.priceCents / 100}`}
+                label="to start, no subscription"
+              />
             </dl>
           </header>
 
@@ -117,7 +140,9 @@ export default function AirstackComparison() {
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">What happened to Airstack?</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
+              What happened to Airstack?
+            </h2>
             <p className="text-muted-foreground mb-4">
               Airstack was a web3 data platform best known for its Farcaster
               APIs. Developers used it to query the Farcaster social graph,
@@ -132,9 +157,9 @@ export default function AirstackComparison() {
             </ul>
             <p className="text-muted-foreground">
               The company deprecated those APIs and pivoted to Senpi, an AI
-              agent product. Apps and scripts built on the old endpoints
-              stopped working; if your product depended on Airstack for
-              Farcaster identity data, that dependency needs a new home.
+              agent product. Apps and scripts built on the old endpoints stopped
+              working; if your product depended on Airstack for Farcaster
+              identity data, that dependency needs a new home.
             </p>
           </section>
 
@@ -151,7 +176,9 @@ export default function AirstackComparison() {
                     <th className="text-left py-4 px-4 bg-accent-brand-tint rounded-tl-lg">
                       <span className="font-semibold">walletlink.social</span>
                     </th>
-                    <th className="text-left py-4 pl-4">What Airstack offered</th>
+                    <th className="text-left py-4 pl-4">
+                      What Airstack offered
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -160,10 +187,14 @@ export default function AirstackComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       Live, refreshed daily
                     </td>
-                    <td className="py-4 pl-4">API deprecated (pivoted to Senpi)</td>
+                    <td className="py-4 pl-4">
+                      API deprecated (pivoted to Senpi)
+                    </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster coverage</td>
+                    <td className="py-4 pr-4 font-medium">
+                      Farcaster coverage
+                    </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       Complete protocol: every FID’s verified and custody
                       addresses
@@ -173,10 +204,14 @@ export default function AirstackComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Wallet → socials API</td>
+                    <td className="py-4 pr-4 font-medium">
+                      Wallet → socials API
+                    </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Pro+)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Offered, no longer available
@@ -212,14 +247,17 @@ export default function AirstackComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        ${TIER_PRICES.pro} - ${TIER_PRICES.unlimited}
+                        ${PACKS.trial.priceCents / 100} - $
+                        {PACKS.index.priceCents / 100}
                       </span>{' '}
                       one-time, API included
                     </td>
                     <td className="py-4 pl-4">Was usage-based subscription</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Onchain data queries</td>
+                    <td className="py-4 pr-4 font-medium">
+                      Onchain data queries
+                    </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <X className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -241,26 +279,28 @@ export default function AirstackComparison() {
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
-              We turn wallet addresses into social profiles, in the browser
-              or over a simple REST API. Our index covers {INDEXED_WALLETS} wallets with
-              complete Farcaster protocol coverage: every account’s verified
-              and custody addresses, usernames, and follower counts, refreshed
-              daily. Over 99.9% of Twitter matches are user-attested, most
-              through an X account verified on Farcaster and the rest through
-              onchain ENS records.
+              We turn wallet addresses into social profiles, in the browser or
+              over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
+              with complete Farcaster protocol coverage: every account’s
+              verified and custody addresses, usernames, and follower counts,
+              refreshed daily. Over 99.9% of Twitter matches are user-attested,
+              most through an X account verified on Farcaster and the rest
+              through onchain ENS records.
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API
               (included with Pro and Unlimited) covers the same core jobs:
-              wallet → socials, and reverse lookup from any Farcaster handle
-              to its wallets. If you only need a one-off enrichment, skip the
-              API entirely and upload a CSV.
+              wallet → socials, and reverse lookup from any Farcaster handle to
+              its wallets. If you only need a one-off enrichment, skip the API
+              entirely and upload a CSV.
             </p>
           </section>
 
           {/* Migrating from Airstack */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Migrating from Airstack</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+              Migrating from Airstack
+            </h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
               <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to replace your Airstack integration:
@@ -269,16 +309,16 @@ export default function AirstackComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
-                    Map your queries: wallet-to-identity and
-                    handle-to-wallets calls both have direct equivalents in
-                    our REST API
+                    Map your queries: wallet-to-identity and handle-to-wallets
+                    calls both have direct equivalents in our REST API
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
-                    Grab an API key, included with Pro ($99) and Unlimited
-                    ($249), both one-time payments
+                    Grab an API key, included with every pack from $
+                    {PACKS.trial.priceCents / 100}, drawing the same credits as
+                    the app
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -294,39 +334,18 @@ export default function AirstackComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Pricing after Airstack</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+              Pricing after Airstack
+            </h2>
 
-            <div className="bg-muted/30 rounded-lg p-6 mb-6">
-              <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Free</p>
-                  <p className="text-2xl font-bold">$0</p>
-                  <p className="text-muted-foreground">Up to 500 wallets/lookup</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Pro</p>
-                  <p className="text-2xl font-bold">$99</p>
-                  <p className="text-muted-foreground">
-                    Up to 5,000 wallets/lookup + API (one-time)
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Unlimited</p>
-                  <p className="text-2xl font-bold">$249</p>
-                  <p className="text-muted-foreground">
-                    Unlimited wallets + API forever
-                  </p>
-                </div>
-              </div>
-            </div>
+            <PackPricing />
 
             <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">No metered billing:</span> both
-                paid tiers are one-time payments with API access included, so there are no
-                usage-based invoices to forecast, and no deprecation risk
-                priced into a subscription.
+                paid tiers are one-time payments with API access included, so
+                there are no usage-based invoices to forecast, and no
+                deprecation risk priced into a subscription.
               </p>
             </div>
           </section>
@@ -337,8 +356,7 @@ export default function AirstackComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 500 wallets, no credit card
-              required.
+              Try walletlink.social free - 500 wallets, no credit card required.
             </p>
             <Link
               href="/"
@@ -388,7 +406,6 @@ export default function AirstackComparison() {
             </ul>
           </nav>
         </article>
-
       </PageShell>
     </>
   );

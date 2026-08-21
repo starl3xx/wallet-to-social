@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
+import { PackPricing } from '@/components/PackPricing';
+import { PACKS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
-import { TIER_LIMITS, TIER_PRICES } from '@/lib/access';
+import { TIER_LIMITS } from '@/lib/access';
 import {
   ArrowRight,
   BookOpenText,
@@ -150,7 +152,7 @@ export default function Cookie3Comparison() {
                 brand
               />
               <Figure
-                value={`$${TIER_PRICES.pro}`}
+                value={`$${PACKS.trial.priceCents / 100}`}
                 label="once, no subscription"
               />
             </dl>
@@ -233,7 +235,7 @@ export default function Cookie3Comparison() {
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        ${TIER_PRICES.pro}
+                        ${PACKS.trial.priceCents / 100}
                       </span>{' '}
                       once
                     </td>
@@ -521,33 +523,7 @@ export default function Cookie3Comparison() {
               Pricing breakdown
             </h2>
 
-            <div className="bg-muted/30 rounded-lg p-6 mb-6">
-              <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Free</p>
-                  <p className="text-2xl font-bold">$0</p>
-                  <p className="text-muted-foreground">
-                    Up to {TIER_LIMITS.free} wallets per lookup
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Pro</p>
-                  <p className="text-2xl font-bold">${TIER_PRICES.pro}</p>
-                  <p className="text-muted-foreground">
-                    Up to {TIER_LIMITS.pro.toLocaleString()} wallets per lookup,
-                    one-time
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Unlimited</p>
-                  <p className="text-2xl font-bold">${TIER_PRICES.unlimited}</p>
-                  <p className="text-muted-foreground">
-                    Unlimited wallets per lookup, forever
-                  </p>
-                </div>
-              </div>
-            </div>
+            <PackPricing />
 
             <div className="bg-muted/30 rounded-lg p-6">
               <h3 className="font-semibold mb-4">Cookie3</h3>
@@ -580,10 +556,10 @@ export default function Cookie3Comparison() {
                 <span className="font-medium">What the money buys:</span> a year
                 on Cookie3 Growth is $8,988, or $7,188 paid annually, for a
                 suite whose matching stops at 10,000 accounts. Our top tier is{' '}
-                {`$${TIER_PRICES.unlimited}`} once, for the matching alone, with
-                no ceiling and nothing to renew. They are not the same purchase,
-                and if you need the analytics suite the arithmetic does not
-                favour us.
+                {`$${PACKS.index.priceCents / 100}`} once, for the matching
+                alone, with no ceiling and nothing to renew. They are not the
+                same purchase, and if you need the analytics suite the
+                arithmetic does not favour us.
               </p>
             </div>
           </section>

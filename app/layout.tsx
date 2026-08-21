@@ -1,4 +1,10 @@
 import type { Metadata } from 'next';
+import {
+  PACKS,
+  PACK_IDS,
+  FREE_MATCHES_PER_WINDOW,
+  FREE_WINDOW_DAYS,
+} from '@/lib/packs';
 import { Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { PageViewTracker } from '@/components/PageViewTracker';
@@ -22,9 +28,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
-  title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-  description:
-    `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
+  title:
+    'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
+  description: `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -59,17 +65,17 @@ export const metadata: Metadata = {
     'find nft holders across chains',
   ],
   openGraph: {
-    title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-    description:
-      `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
+    title:
+      'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
+    description: `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
     type: 'website',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-    description:
-      `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.`,
+    title:
+      'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
+    description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.`,
     creator: '@starl3xx',
   },
   alternates: {
@@ -87,36 +93,44 @@ const jsonLd = {
   name: 'walletlink.social',
   applicationCategory: 'WebApplication',
   operatingSystem: 'Web',
-  description:
-    `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
+  description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
+  /**
+   * Credit packs. A match is a wallet resolved to an X or Farcaster account,
+   * and a miss costs nothing, which is why every price here is quoted against
+   * matches rather than against wallets submitted.
+   *
+   * Still one-time payments. That is a real differentiator against every priced
+   * competitor in the category and it is load-bearing for the /vs/ pages, so it
+   * is stated in the FAQ answer below rather than left to be inferred.
+   */
   offers: [
     {
       '@type': 'Offer',
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: 'Up to 500 wallets per lookup',
+      description: '100 matches every 30 days',
     },
-    {
+    ...PACK_IDS.map((id) => ({
       '@type': 'Offer',
-      name: 'Pro',
-      price: '99',
+      name: PACKS[id].name,
+      price: String(PACKS[id].priceCents / 100),
       priceCurrency: 'USD',
-      description: 'Up to 5,000 wallets per lookup, contract import and API access - one-time payment',
-    },
-    {
-      '@type': 'Offer',
-      name: 'Unlimited',
-      price: '249',
-      priceCurrency: 'USD',
-      description: 'Unlimited wallets forever - one-time payment',
-    },
+      description: `${PACKS[id].matches.toLocaleString()} matches, one-time payment, credits last 12 months`,
+    })),
   ],
-  aggregateRating: {
-    '@type': 'AggregateRating',
-    ratingValue: '4.8',
-    ratingCount: '50',
-  },
+  /**
+   * `aggregateRating` is deliberately absent.
+   *
+   * It said 4.8 from 50 ratings. There are no 50 ratings: the product has 102
+   * accounts and one payment, and no review has ever been collected anywhere.
+   * That is fabricated structured data served to Google, on a site whose entire
+   * position is that it reports only what it can evidence, and it sat two
+   * hundred lines from a FAQ answer about how carefully we distinguish an
+   * attested handle from an inferred one.
+   *
+   * If ratings are ever collected, they can go back with a source behind them.
+   */
 };
 
 const faqSchema = {
@@ -144,7 +158,7 @@ const faqSchema = {
       name: 'How much does walletlink.social cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social offers a free tier (500 wallets per lookup), Pro ($99 one-time for 5,000 wallets per lookup with contract import, API access including reverse lookup from any Farcaster handle to its wallets, and full history), and Unlimited ($249 one-time for unlimited wallets forever). Both paid plans are one-time payments, not subscriptions.',
+        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes all seven chains, uncapped CSV export, API access, reverse lookup from a handle to its wallets, deep scan with onchain ENS, and X reachability on every match. All packs are one-time payments, not subscriptions, and credits last 12 months.`,
       },
     },
     {
@@ -199,7 +213,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -209,9 +227,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       </head>
-      <body
-        className={`${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistMono.variable} antialiased`}>
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
           {/* Inside ThemeProvider so the widget follows the site's own theme
