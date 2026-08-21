@@ -1,7 +1,12 @@
 /**
  * Create the four pack prices in Stripe TEST mode.
  *
- * Usage: STRIPE_SECRET_KEY=sk_test_... npx tsx scripts/create-test-packs.ts
+ * Usage: npx tsx --env-file=.env.local scripts/create-test-packs.ts
+ *
+ * Reads `STRIPE_TEST_SECRET_KEY`, falling back to `STRIPE_SECRET_KEY`. Two
+ * names rather than one so both keys can live in `.env.local` at once: the live
+ * key is what the app and `check-stripe-packs.ts` need, and swapping it back
+ * and forth to run this is how the wrong one ends up in place afterwards.
  *
  * ## Why a script rather than four visits to the dashboard
  *
@@ -31,17 +36,23 @@ import Stripe from 'stripe';
 import { PACKS, PACK_IDS } from '../lib/packs';
 
 async function main() {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key =
+    process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
   if (!key) {
-    console.error('STRIPE_SECRET_KEY is required (the TEST one, sk_test_...).');
+    console.error(
+      'No Stripe key. Add STRIPE_TEST_SECRET_KEY=sk_test_... to .env.local.'
+    );
     process.exit(1);
   }
   if (!key.startsWith('sk_test')) {
     console.error(
-      'This is not a test key. It refuses to run against live, because a\n' +
-        'script that creates products should not be able to reach the live\n' +
-        'catalogue by accident. Get the test key from Stripe: Developers,\n' +
-        'API keys, with the test-mode toggle on.'
+      'This is not a test key, and it refuses to run against live: a script\n' +
+        'that creates products should not be able to reach the live catalogue\n' +
+        'by accident.\n\n' +
+        'Add the test key to .env.local as a SECOND variable, leaving the live\n' +
+        'one where it is:\n\n' +
+        '  STRIPE_TEST_SECRET_KEY=sk_test_...\n\n' +
+        'Stripe: Developers, API keys, with the test-mode toggle on.'
     );
     process.exit(1);
   }
