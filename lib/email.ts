@@ -212,12 +212,29 @@ export async function sendLifecycleEmail(
   }
 }
 
+/**
+ * The two inline markers the approved copy uses. Applied to our own strings
+ * only, never to user input, so no escaping pass precedes it.
+ */
+function inlineMarkup(p: string): string {
+  return p
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function stripMarkup(p: string): string {
+  return p.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+}
+
 function getLifecycleEmailHtml(
   content: LifecycleEmailContent,
   unsub: string
 ): string {
   const paragraphs = content.paragraphs
-    .map((p) => `  <p style="font-size: 16px; margin-bottom: 24px;">${p}</p>`)
+    .map(
+      (p) =>
+        `  <p style="font-size: 16px; margin-bottom: 24px;">${inlineMarkup(p)}</p>`
+    )
     .join('\n');
   return `
 <!DOCTYPE html>
@@ -265,7 +282,7 @@ function getLifecycleEmailText(
   return `
 ${content.subject}
 
-${content.paragraphs.join('\n\n')}
+${content.paragraphs.map(stripMarkup).join('\n\n')}
 
 ${content.button.label}: ${content.button.url}
 

@@ -2,6 +2,19 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the welcome sequence goes live for new signups)
+
+- **The five-email welcome sequence sends, daily at 15:00 UTC.** Jake
+  approved the copy (his edits in `docs/EMAIL-SEQUENCE.md` are canonical and
+  are mirrored verbatim in `lib/welcome-sequence.ts`, with `**bold**` and
+  `*italic*` markers now rendered by the lifecycle template).
+  Enrollment starts at accounts created on or after 2026-08-23: the earlier
+  ~100 signups stay reserved for the relaunch campaign, which has still not
+  been sent. Exits: any credit lot, opt-out, legacy tier, whitelist. Every
+  send is at-most-once via `lifecycle_emails`; a missed day catches up one
+  email per user per run. The cron heartbeats as `welcome_sequence` and the
+  admin health pane watches it.
+
 ### 2026-08-22 (/llms.txt: the marketing site becomes citable)
 
 - **`/llms.txt` exists** (`app/llms.txt/route.ts`). The docs site already

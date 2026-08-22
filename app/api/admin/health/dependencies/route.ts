@@ -155,6 +155,13 @@ const JOBS: Array<{
     maxAgeHours: 48,
     reportsOutcome: true,
   },
+  {
+    name: 'Welcome email sequence',
+    schedule: '15:00 daily',
+    subtype: 'welcome_sequence',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
 ];
 
 /**
