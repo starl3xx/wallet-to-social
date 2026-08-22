@@ -2,6 +2,15 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (two open copy decisions closed)
+
+- **The homepage headline is confirmed.** "Wallets in. People out." stays; the
+  placeholder marker in `app/page.tsx` is gone.
+- **The Buy credits dialog keeps its display-size title.** The one named
+  exception to the dialog anatomy is now decided, not pending:
+  `docs/DESIGN-LANGUAGE.md` records the reason (the purchase moment earns
+  display type).
+
 ### 2026-08-22 (reverse lookups paginate, and the slice is no longer arbitrary)
 
 - **`/v1/reverse/twitter/{handle}` and `/v1/reverse/farcaster/{username}` take

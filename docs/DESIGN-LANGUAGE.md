@@ -345,8 +345,9 @@ hand-roll a dialog out of `fixed inset-0`.
 `max-h-[calc(100dvh-2rem)]`, and its body is `flex-1 min-h-0 overflow-y-auto`.
 
 **Six dialogs, one anatomy.** Title at 18px/600 with no leading icon (Buy
-credits keeps a display-size title as the one named exception, pending a
-decision); actions in `ModalFooter`, which has one layout; inset panels on
+credits keeps a display-size title as the one named exception: the purchase
+moment earns display type; decided 2026-08-22); actions in `ModalFooter`,
+which has one layout; inset panels on
 `bg-muted` at `p-4`; an error beside a control is `InlineError`
 (`components/ui/inline-error.tsx`): a 14px destructive line with the 16px
 warning glyph, announced as an alert, never a box. The panel arrives by fade

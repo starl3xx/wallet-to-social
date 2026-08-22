@@ -1370,7 +1370,6 @@ export default function Home() {
             link is gone from here; the footer's Compare column carries it.
             No `sm:text-5xl` step on this page, so the dropzone stays above
             the fold at 1280x900. */}
-        {/* Placeholder headline; Jake to confirm the words */}
         <h1 className="max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)]">
           Wallets in.{' '}
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
