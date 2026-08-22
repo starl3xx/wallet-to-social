@@ -4,7 +4,7 @@ description: "GET /v1/reverse/twitter/{handle}"
 api: "GET https://walletlink.social/api/v1/reverse/twitter/{handle}"
 ---
 
-Finds every wallet linked to an X handle. Costs **2 credits**.
+Finds every wallet linked to an X handle. Costs **1 match credit per wallet returned**, up to 100. A handle with no wallets attached costs nothing. Separately, it weighs 2 units against your rate limit.
 
 This runs the graph backwards, and it answers a question most wallet tooling cannot: given a person, what do they hold?
 
