@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InlineError } from '@/components/ui/inline-error';
 import {
   CircleNotch as Loader2,
   Envelope as Mail,
@@ -56,7 +57,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   const handleSendMagicLink = async () => {
     if (!email || !email.includes('@')) {
-      setError('Please enter a valid email');
+      // The same sentence Buy credits uses for the same check.
+      setError('Please enter a valid email address');
       return;
     }
 
@@ -129,7 +131,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   disabled={loading}
                   autoFocus
                 />
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                {error && <InlineError>{error}</InlineError>}
               </div>
 
               {/* The action row in ModalFooter's one layout: natural width at
@@ -155,7 +157,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </>
         ) : (
           <>
-            <ModalHeader>
+            {/* `pr-0`: the header's clearance for the close control would
+                pull this centred moment 16px off the panel's centre, and the
+                icon leads here, so nothing sits beside the X. */}
+            <ModalHeader className="pr-0">
               {/* A display moment, so the icon is `h-10 w-10` duotone with no
                   disc: it was a 24px icon in a 48px tinted disc, two sizes the
                   icon scale does not have. Green, because the link went: a
@@ -167,8 +172,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 weight="duotone"
               />
               <ModalTitle className="text-center">Check your email</ModalTitle>
+              {/* The address at 500, the label weight, lifted to foreground
+                  against the muted sentence. It was `<strong>`, which
+                  resolved to the 700 cut the five-weight scale does not have.
+                  Sans, not mono: a value inside a running sentence stays in
+                  the sentence's face. */}
               <ModalDescription className="text-center">
-                We sent a sign-in link to <strong>{email}</strong>
+                We sent a sign-in link to{' '}
+                <span className="font-medium text-foreground">{email}</span>
               </ModalDescription>
             </ModalHeader>
 
@@ -215,7 +226,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
               </ModalFooter>
 
               {error && (
-                <p className="text-sm text-destructive text-center">{error}</p>
+                <InlineError className="justify-center">{error}</InlineError>
               )}
             </div>
           </>

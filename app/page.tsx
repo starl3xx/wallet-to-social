@@ -13,6 +13,8 @@ import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import { RecentWins } from '@/components/RecentWins';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
+import { Figure } from '@/components/ui/figure';
+import { Card } from '@/components/ui/card';
 import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { XMark } from '@/components/ui/brand-marks';
 import { useAuth } from '@/components/AuthProvider';
@@ -1361,58 +1363,41 @@ export default function Home() {
           shell's ran edge to edge on every other page, and the shell's is the
           one that stays. */}
       <div className="mb-8">
-        {/* One line, not three sentences that then repeat themselves in the
-            strip below. The old copy stated a hardcoded figure and complete Farcaster
-            coverage in the paragraph and again in the stats line. */}
-        <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
-          Turn a wallet list into the{' '}
-          <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and
-          Farcaster accounts behind it.{' '}
-          <a
-            href="/vs/addressable"
-            className="transition-control underline hover:text-accent-brand"
-          >
-            Simple alternative to Addressable
-          </a>
-          .
+        {/* The same opening as every other page: a display h1 with the one
+            emphasis span, a 300-weight lede, then the proof row as Figures.
+            This was the only page without the signature, a muted 14px line
+            at 400 with the competitor link underlined inside the h1. The
+            link is gone from here; the footer's Compare column carries it.
+            No `sm:text-5xl` step on this page, so the dropzone stays above
+            the fold at 1280x900. */}
+        {/* Placeholder headline; Jake to confirm the words */}
+        <h1 className="max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)]">
+          Wallets in.{' '}
+          <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
+          out.
         </h1>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>
-            <span className="font-medium tabular-nums text-foreground">
-              {indexedWallets ?? INDEXED_WALLETS}
-            </span>{' '}
-            wallets indexed and counting
-          </span>
-          <span aria-hidden="true" className="opacity-40">
-            ·
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            {/* The green mark sits on the measured claim, as it does on the
-                /vs proof strip (`Figure attested` on the same 100%). It used
-                to pulse beside the growing count instead, so the same four
-                facts carried the dot on a different one per page. Coverage
-                is the figure the product is sold on; the count is context.
-                One dot, no pulse: a pulse says the system is running, and
-                Recent wins already carries that one below. */}
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-attested"
-              aria-hidden
-            />
-            <span className="font-medium tabular-nums text-foreground">
-              100%
-            </span>{' '}
-            Farcaster coverage
-          </span>
-          <span aria-hidden="true" className="opacity-40">
-            ·
-          </span>
-          <span>
-            <span className="font-medium tabular-nums text-foreground">
-              13K+
-            </span>{' '}
-            AI agents flagged
-          </span>
-        </div>
+        <p className="mt-4 max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
+          Turn a wallet list into the{' '}
+          <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
+          Farcaster accounts behind it.
+        </p>
+        {/* The proof row, the same three figures the /vs pages set as
+            Figure. They were 12px spans on one line with middots between
+            them, and on a phone the middot dangled at the end of line one;
+            flex-wrap with gaps needs no separator. The green mark sits on
+            the measured claim, coverage, as it does on the /vs proof strip
+            (`Figure attested` on the same 100%); the count is context. No
+            pulse: a pulse says the system is running, and Recent wins
+            already carries that one below. Gaps 48/16, pt 16: the /vs row's
+            40/20/20 are not spacing steps. */}
+        <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4 border-t border-border pt-4">
+          <Figure
+            value={indexedWallets ?? INDEXED_WALLETS}
+            label="wallets indexed"
+          />
+          <Figure value="100%" label="Farcaster coverage" attested />
+          <Figure value="13K+" label="AI agents flagged" />
+        </dl>
       </div>
 
       {/* Add Addresses Modal */}
@@ -1480,9 +1465,12 @@ export default function Home() {
             />
 
             {/* Paste panel, opened by the middle card */}
+            {/* A Card, not a `bg-muted/30` wash with a hairline: that tint
+                was an unnamed surface, and in dark mode it read as the page
+                with a line round it. Card stack `gap-4`. */}
             <div className="text-center">
               {showPasteInput && (
-                <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
+                <Card className="gap-4 p-6 text-left">
                   <Textarea
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
@@ -1520,7 +1508,7 @@ export default function Home() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </Card>
               )}
             </div>
 
@@ -1641,8 +1629,15 @@ export default function Home() {
                   ("ENS onchain lookup", "Fast mode") named implementation
                   details and pulled in opposite directions. What a person
                   actually decides here is how long to wait and whether to keep
-                  the result, so those are the two things the panel asks. */}
-            <div className="p-4 bg-muted rounded-lg space-y-4">
+                  the result, so those are the two things the panel asks.
+
+                  A Card, the one top-level panel. It was a borderless
+                  `bg-muted` block at p-4 beside panels that were Card and
+                  panels that were a `bg-muted/30` wash with a hairline: four
+                  surfaces on one page. The segmented control inside it also
+                  painted itself out on a muted ground (docs/DESIGN-LANGUAGE.md,
+                  "A control carries its own edge"). Card stack `gap-4`. */}
+            <Card className="gap-4 p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   {/* 600, the card-title weight: this is the preflight
@@ -1782,7 +1777,7 @@ export default function Home() {
                   Start lookup
                 </Button>
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -1835,12 +1830,18 @@ export default function Home() {
               <div>
                 {/* Lookup name with edit capability */}
                 {isEditingName ? (
+                  /* Every control in a row resolves to `--h-ctl`: the Input
+                     at its default height and the two icon Buttons at
+                     `size="icon"`. They were three 32px overrides (`h-8`,
+                     `h-8 w-8 p-0`), the only controls in the product at that
+                     height. The icon buttons are named, since a glyph alone
+                     is not a name a screen reader can announce. */
                   <div className="flex items-center gap-2">
                     <Input
                       value={editNameValue}
                       onChange={(e) => setEditNameValue(e.target.value)}
                       placeholder="Enter lookup name..."
-                      className="max-w-xs h-8"
+                      className="max-w-xs"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSaveLookupName();
@@ -1848,20 +1849,20 @@ export default function Home() {
                       }}
                     />
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
                       onClick={handleSaveLookupName}
-                      className="h-8 w-8 p-0"
+                      aria-label="Save name"
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="h-4 w-4" aria-hidden />
                     </Button>
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
                       onClick={() => setIsEditingName(false)}
-                      className="h-8 w-8 p-0"
+                      aria-label="Cancel renaming"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-4 w-4" aria-hidden />
                     </Button>
                   </div>
                 ) : (
@@ -1872,28 +1873,40 @@ export default function Home() {
                           affordance is visible at rest because on touch there is no
                           hover to reveal it. */}
                     <Eyebrow className="mb-1">Lookup name</Eyebrow>
-                    <div className="flex items-center gap-2.5">
+                    {/* gap-2, the step: 10px is not one. */}
+                    <div className="flex items-center gap-2">
                       {/* Every path that reaches here sets a name; the
-                          size is the last resort, never a generic noun. */}
-                      <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                          size is the last resort, never a generic noun.
+                          20px takes the title tracking token; `-0.02em` was
+                          a fifth value the four-step scale does not have. */}
+                      <h2 className="text-xl font-semibold tracking-[var(--tracking-title)]">
                         {currentLookupName ||
                           `${results.length.toLocaleString()} wallets`}
                       </h2>
                       {/* Any signed-in owner may rename. The server allows it
                             for whoever owns the lookup, and a history you cannot
-                            label is a worse product for no reason. */}
+                            label is a worse product for no reason.
+
+                            Button outline at `size="sm"`, so it resolves to
+                            `--h-ctl` like every control in a row. It was a
+                            hand-rolled pill whose height came from `px-2.5
+                            py-1` around 12px text, about 26px, which no other
+                            control in the product agreed with. The brand edge
+                            and text say it acts on the name beside it. */}
                       {currentLookupId && user && (
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => {
                             setEditNameValue(currentLookupName || '');
                             setIsEditingName(true);
                           }}
-                          className="transition-control inline-flex items-center gap-1.5 rounded-full border border-accent-brand px-2.5 py-1 text-xs font-medium text-accent-brand hover:bg-accent-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          className="border-accent-brand text-accent-brand hover:bg-accent-brand-tint hover:text-accent-brand"
                         >
-                          <Pencil className="h-3 w-3" aria-hidden />
+                          <Pencil className="h-4 w-4" aria-hidden />
                           Rename
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>

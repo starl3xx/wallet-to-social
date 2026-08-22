@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { SealCheck } from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
 
 /**
@@ -27,7 +28,11 @@ import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
  */
 export function ReachabilityClaim({ competitor }: { competitor: string }) {
   return (
-    <section className="rounded-lg border border-border bg-muted/40 p-6">
+    /* A Card, the one top-level panel. It was a hand-rolled box on a
+       `bg-muted/40` wash, an unnamed tint the surface rule has no row for.
+       The title is at the card-title weight, 600; it sat at 500, which the
+       weight table reserves for labels and buttons. */
+    <Card className="p-6">
       <div className="flex items-start gap-3">
         <SealCheck
           weight="fill"
@@ -35,7 +40,7 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
           aria-hidden
         />
         <div className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium">
+          <h2 className="text-lg font-semibold">
             We check whether the X account still exists. {competitor} does not.
           </h2>
 
@@ -89,6 +94,6 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
           </p>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }

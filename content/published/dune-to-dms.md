@@ -1,11 +1,11 @@
 ---
-title: 'From Dune Dashboard to DMs: Turning Analytics into Action'
+title: 'From Dune dashboard to DMs: turning analytics into action'
 meta_description: "Dune shows who holds your token. But you can't DM a wallet address. Here's how to bridge the gap between onchain analytics and real outreach."
 published: true
 publish_date: '2026-05-07'
 ---
 
-# From Dune Dashboard to DMs: Turning Analytics into Action
+# From Dune dashboard to DMs: turning analytics into action
 
 Dune Analytics is one of the best tools in crypto. You can query any EVM chain, build dashboards that track holder behavior in real time, and share everything publicly. For understanding onchain activity, nothing else comes close.
 
@@ -13,11 +13,11 @@ But Dune has a hard stop. It tells you what is happening onchain. It does not te
 
 This is the gap between analytics and action, and it is where most token projects get stuck.
 
-## The Dashboard Plateau
+## The dashboard plateau
 
 Here is a scenario that plays out constantly:
 
-A project team builds a Dune dashboard tracking their token holders. They can see wallet-level data -- balances, transaction history, holding duration, governance votes. They identify their most valuable holders, their most active participants, and their at-risk wallets showing signs of selling.
+A project team builds a Dune dashboard tracking their token holders. They can see wallet-level data: balances, transaction history, holding duration, governance votes. They identify their most valuable holders, their most active participants, and their at-risk wallets showing signs of selling.
 
 Then what?
 
@@ -25,13 +25,13 @@ The dashboard gives them a list of addresses. They know `0xABC...` has held 100K
 
 These are actionable insights trapped behind an identity wall. You cannot DM a hex string.
 
-## What Teams Actually Do (And Why It Doesn't Work)
+## What teams actually do (and why it doesn’t work)
 
 Faced with this gap, most teams default to one of three approaches:
 
 **1. Ignore the individual data, blast the group.**
 
-Post a general announcement in Discord: "Governance vote this week, please participate!" This reaches maybe 2-3% of holders. The specific wallet you identified as a non-voting whale never sees it.
+Post a general announcement in Discord: “Governance vote this week, please participate!” This reaches maybe 2-3% of holders. The specific wallet you identified as a non-voting whale never sees it.
 
 **2. Try to manually identify addresses.**
 
@@ -43,7 +43,7 @@ Some larger teams build custom scripts that check ENS, cross-reference known add
 
 None of these approaches actually close the gap. The data stays in the dashboard.
 
-## The Missing Step
+## The missing step
 
 The workflow that actually works has four steps, not three:
 
@@ -56,11 +56,11 @@ The workflow that actually works has four steps, not three:
 
 Most teams stop after step 2 because step 3 has historically been difficult. There was no reliable way to batch-resolve thousands of wallet addresses to social profiles. You could check ENS one at a time. You could search Farcaster manually. But there was no pipeline.
 
-This is exactly the problem that [walletlink.social](https://walletlink.social) solves. You take your Dune export, upload the wallet list, and get back Twitter handles, Farcaster accounts, and ENS names for every resolvable address. At current match rates, that is about 22% of wallets -- enough to meaningfully act on your analytics.
+This is exactly the problem that [walletlink.social](https://walletlink.social) solves. You take your Dune export, upload the wallet list, and get back Twitter handles, Farcaster accounts, and ENS names for every resolvable address. At current match rates, that is about 22% of wallets, enough to meaningfully act on your analytics.
 
-## A Concrete Example
+## A concrete example
 
-Let's walk through a real workflow. Say you run a DeFi protocol and want to contact holders who have been inactive in governance.
+Let’s walk through a real workflow. Say you run a DeFi protocol and want to contact holders who have been inactive in governance.
 
 **Step 1: Dune query.**
 
@@ -91,27 +91,27 @@ Now you have 463 real humans with social profiles (506 minus 43 agents) that you
 
 You just turned a Dune dashboard into a targeted outreach campaign.
 
-## Why This Matters More Than You Think
+## Why this matters more than you think
 
 The projects that close this loop have a structural advantage. Consider the compounding effects:
 
 **Better governance participation.** Quorum requirements exist for a reason. When you can directly notify large holders about proposals, participation rates climb. Some projects have reported 3-5x increases in governance engagement after implementing direct outreach.
 
-**Reduced sell pressure during volatility.** Holders who feel connected to a project are less likely to panic sell. A single DM from a team member during a dip -- "here's what's happening, here's our plan" -- can be the difference between a holder and a seller.
+**Reduced sell pressure during volatility.** Holders who feel connected to a project are less likely to panic sell. A single DM from a team member during a dip (“here’s what’s happening, here’s our plan”) can be the difference between a holder and a seller.
 
 **More effective airdrop targeting.** Instead of airdropping to all holders equally, you can identify which holders have social reach and prioritize them. A holder with 10K Farcaster followers who receives a generous airdrop becomes an organic marketing channel.
 
 **Community feedback loops.** When you can reach your holders, you can ask them questions. What features do they want? What would make them more active? This direct line to your community is valuable data that no dashboard can provide.
 
-## The Technical Reality
+## The technical reality
 
 The reason this workflow was not standard practice until recently is simple: wallet identity resolution at scale was unreliable. Match rates in the low single digits meant that resolving 2,300 wallets would give you maybe 50-60 identities. Not enough to justify the effort.
 
 At 22% match rates, the math changes. 2,300 wallets yield 500+ identities. That is a meaningful population. You can segment it, prioritize it, and build a real outreach operation around it.
 
-And match rates are climbing. More users verifying on Farcaster, more ENS text records being populated, more attestation infrastructure coming online. The gap between "what Dune shows you" and "who you can actually reach" is narrowing.
+And match rates are climbing. More users verifying on Farcaster, more ENS text records being populated, more attestation infrastructure coming online. The gap between “what Dune shows you” and “who you can actually reach” is narrowing.
 
-## Start Where You Are
+## Start where you are
 
 You do not need to build a sophisticated system on day one. Start with one Dune query, one export, one resolution batch, and one round of outreach. Measure what happens. Then iterate.
 

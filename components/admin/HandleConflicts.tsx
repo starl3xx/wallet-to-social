@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Eyebrow } from '@/components/ui/eyebrow';
 import { Badge } from '@/components/ui/badge';
+import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import {
   Table,
   TableBody,
@@ -15,6 +14,9 @@ import {
 } from '@/components/ui/table';
 import { Banner } from './Banner';
 import { shortWallet } from './format';
+import { StatTile } from './Stat';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 /**
  * The queue of wallets where two attested sources name different X accounts.
@@ -52,21 +54,62 @@ interface Counts {
   unchecked: number;
 }
 
-const FILTERS: Array<{ value: string; label: string; hint: string }> = [
-  { value: 'all', label: 'All', hint: 'Every unresolved disagreement' },
+/** The groups the API filters on. `all` is every unresolved disagreement. */
+type Filter = 'all' | 'ours-dead' | 'both-live' | 'unchecked';
+
+/**
+ * Four mutually exclusive groups, so a segmented control that shows them all.
+ * It was four buttons swapping between filled and outline, which painted the
+ * selection in place instead of moving it, and gave a keyboard no arrow keys.
+ *
+ * `content` is the short word that fits a segment; `label` is the full name a
+ * screen reader and the tooltip get. Segments are equal width, so the longest
+ * content sets the width of all four: "Ours unreachable" would have made the
+ * control wider than a phone.
+ *
+ * Module scope, not inline: `Segmented` keeps the thumb position in arithmetic
+ * over this array, and rebuilding it every render gives it a new identity for
+ * no reason.
+ */
+/**
+ * Two renderings of each segment: a short word below `sm` and the full one
+ * above. Four equal segments in a 375px row give each about 79px, and
+ * "Unreachable" needs 106, so on a phone the long labels overflowed their
+ * cells. The `label` (the accessible name) stays the full phrase at every
+ * width; only what is painted shortens.
+ */
+function short(narrow: string, wide: string) {
+  return (
+    <>
+      <span className="sm:hidden">{narrow}</span>
+      <span className="hidden sm:inline">{wide}</span>
+    </>
+  );
+}
+
+const FILTER_OPTIONS: Array<SegmentedOption<Filter> & { hint: string }> = [
+  {
+    value: 'all',
+    label: 'All',
+    content: 'All',
+    hint: 'Every unresolved disagreement',
+  },
   {
     value: 'ours-dead',
     label: 'Ours unreachable',
+    content: short('Dead', 'Unreachable'),
     hint: 'What we serve reaches nobody and the other side works. The clearest cases.',
   },
   {
     value: 'both-live',
     label: 'Both live',
+    content: short('Live', 'Both live'),
     hint: 'Both handles resolve. Ours may belong to somebody who took a freed name.',
   },
   {
     value: 'unchecked',
     label: 'Unchecked',
+    content: short('Pending', 'Unchecked'),
     hint: 'One side has not been resolved yet',
   },
 ];
@@ -89,7 +132,7 @@ function StatusChip({ status }: { status: string | null }) {
 export function HandleConflicts({ password }: { password: string }) {
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [counts, setCounts] = useState<Counts | null>(null);
-  const [filter, setFilter] = useState('ours-dead');
+  const [filter, setFilter] = useState<Filter>('ours-dead');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,61 +161,60 @@ export function HandleConflicts({ password }: { password: string }) {
     void load();
   }, [load]);
 
-  const active = FILTERS.find((f) => f.value === filter);
+  const active = FILTER_OPTIONS.find((f) => f.value === filter);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Eyebrow as="h2">Handle conflicts</Eyebrow>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Wallets where two owner-attested sources name different X accounts.
-          Recorded by every ingest and resolved by none of them, because a
-          disagreement between two attested sources is evidence rather than a
-          race to write last.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+            Handle conflicts
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Wallets where two owner-attested sources name different X accounts.
+            Recorded by every ingest and resolved by none of them, because a
+            disagreement between two attested sources is evidence rather than a
+            race to write last.
+          </p>
+        </div>
+        <RefreshButton onClick={() => void load()} loading={loading} />
       </div>
 
       {counts && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
             { label: 'Open', value: counts.total },
             { label: 'Ours unreachable', value: counts.ours_dead },
             { label: 'Both live', value: counts.both_live },
             { label: 'Unchecked', value: counts.unchecked },
           ].map((s) => (
-            <Card key={s.label} className="p-3">
-              <div className="text-xs text-muted-foreground">{s.label}</div>
-              <div className="text-xl font-semibold tabular-nums">
-                {s.value.toLocaleString()}
-              </div>
-            </Card>
+            <StatTile
+              key={s.label}
+              label={s.label}
+              value={s.value.toLocaleString()}
+            />
           ))}
         </div>
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.value}
-              size="sm"
-              variant={filter === f.value ? 'default' : 'outline'}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Conflict group"
+          value={filter}
+          onChange={setFilter}
+          options={FILTER_OPTIONS}
+          className="w-full sm:w-auto"
+        />
         {active && (
           <p className="text-xs text-muted-foreground">{active.hint}</p>
         )}
       </div>
 
       {error && <Banner tone="error">{error}</Banner>}
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {loading && <Loading />}
 
       {!loading && conflicts.length === 0 && (
-        <p className="text-sm text-muted-foreground">Nothing in this group.</p>
+        <Empty>Nothing in this group.</Empty>
       )}
 
       {/* The `Table` primitive inside a `Card`, as every other pane. This was

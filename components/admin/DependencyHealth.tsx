@@ -10,14 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import {
-  ArrowsClockwise,
-  CheckCircle,
-  WarningCircle,
-  XCircle,
-} from '@phosphor-icons/react';
+import { CheckCircle, WarningCircle, XCircle } from '@phosphor-icons/react';
 import { Banner } from './Banner';
+import { RefreshButton } from './RefreshButton';
+import { Loading } from './PaneState';
 
 /**
  * Whether the machinery behind our claims is actually configured and running.
@@ -91,9 +87,7 @@ export function DependencyHealth({ password }: { password: string }) {
     return <Banner tone="error">{error}</Banner>;
   }
   if (!data) {
-    return (
-      <p className="text-sm text-muted-foreground">Loading dependencies…</p>
-    );
+    return <Loading />;
   }
 
   const { summary } = data;
@@ -106,31 +100,26 @@ export function DependencyHealth({ password }: { password: string }) {
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
+          {/* The icon beside the title is a status, not decoration: green
+              when nothing is missing and every job has run, red otherwise.
+              At the UI size, `h-4 w-4`, like every other icon beside text. */}
           <CardTitle className="text-base flex items-center gap-2">
             {allWell ? (
               <CheckCircle
                 weight="fill"
-                className="h-5 w-5 text-attested"
+                className="h-4 w-4 text-attested"
                 aria-hidden
               />
             ) : (
               <WarningCircle
                 weight="fill"
-                className="h-5 w-5 text-destructive"
+                className="h-4 w-4 text-destructive"
                 aria-hidden
               />
             )}
             Dependencies and scheduled work
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            <ArrowsClockwise className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Refresh</span>
-          </Button>
+          <RefreshButton onClick={fetchData} loading={loading} />
         </CardHeader>
         <CardContent className="space-y-6">
           {data.summary.databaseReachable === false && (
@@ -166,7 +155,7 @@ export function DependencyHealth({ password }: { password: string }) {
                   </TableCell>
                   <TableCell>
                     {d.configured ? (
-                      <span className="inline-flex items-center gap-1.5 text-attested text-sm">
+                      <span className="inline-flex items-center gap-2 text-attested text-sm">
                         <CheckCircle
                           className="h-4 w-4"
                           weight="fill"
@@ -176,7 +165,7 @@ export function DependencyHealth({ password }: { password: string }) {
                       </span>
                     ) : (
                       <span
-                        className={`inline-flex items-center gap-1.5 text-sm ${
+                        className={`inline-flex items-center gap-2 text-sm ${
                           d.severity === 'critical'
                             ? 'text-destructive'
                             : 'text-muted-foreground'
@@ -249,8 +238,10 @@ export function DependencyHealth({ password }: { password: string }) {
             </TableBody>
           </Table>
 
+          {/* The one inset surface: `bg-muted` at full opacity, `p-4`. It
+              was a `/40` wash, which is a second surface by another name. */}
           {data.unscheduled.length > 0 && (
-            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+            <div className="rounded-lg border border-border bg-muted p-4 space-y-3">
               <h3 className="text-sm font-medium">
                 Real work that runs on no schedule
               </h3>

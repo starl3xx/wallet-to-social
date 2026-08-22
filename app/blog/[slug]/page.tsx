@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Button } from '@/components/ui/button';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
@@ -87,10 +88,18 @@ export default async function BlogPost({ params }: Props) {
             `text-lg` here makes the wrapper's ch match the prose root, so one
             68ch is the measure for everything below. The cost is that anything
             inside without its own size inherits 18px, so every child states its
-            size. */}
-        <div className="mx-auto max-w-[68ch] text-lg">
+            size.
+
+            Left-aligned inside the shell, not centred: the reading column is
+            on the left on every page (home, /check, the index), and a reader
+            moving between them should find the text on one horizontal
+            position. */}
+        <div className="max-w-[68ch] text-lg">
           <header>
-            <div className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {/* The meta row is the one uppercase label, through `Eyebrow`,
+                which carries the flex row. It hand-copied the label string
+                at `text-xs`, a 1px-taller second copy of the primitive. */}
+            <Eyebrow className="mb-6 flex items-center gap-3">
               <Link
                 href="/blog"
                 className="transition-control hover:text-accent-brand"
@@ -105,14 +114,16 @@ export default async function BlogPost({ params }: Props) {
                   day: 'numeric',
                 })}
               </span>
-            </div>
+            </Eyebrow>
 
-            {/* Display tier: weight 200 with the tight tracking, the one place besides
-                the marketing hero where Extraleicht is allowed to get large. */}
-            <h1 className="mb-4 text-4xl font-extralight leading-[1.05] tracking-[-0.04em] md:text-5xl">
+            {/* The one page opening: display tier, weight 200, the display
+                tracking token (it was the same value written raw), the
+                `sm:text-5xl` step every marketing page takes. A post title
+                is whatever the post says, so it carries no emphasis span. */}
+            <h1 className="mb-4 text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
               {post.title}
             </h1>
-            <p className="text-lg font-light text-muted-foreground">
+            <p className="text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground">
               {post.description}
             </p>
           </header>
@@ -124,12 +135,19 @@ export default async function BlogPost({ params }: Props) {
                 again, which is the step this column exists to remove.
 
                 The table cells get `tabular-nums` so the cost figures stack; the
-                scroll box around the table itself is rendered in lib/blog.ts. */}
+                scroll box around the table itself is rendered in lib/blog.ts.
+
+                Section h2 at 24px, weight 300, the title tracking token: the
+                same heading every /vs section carries. It was 20px at 600,
+                the h3 treatment on an h2. h3 keeps 600, the heading-h3 weight;
+                that weight is set per level rather than through
+                `prose-headings`, whose selector has the same specificity as
+                `prose-h2` and would leave the h2 weight to source order. */}
             <div
               className="prose prose-lg dark:prose-invert max-w-none
-                prose-headings:font-semibold
-                prose-h2:text-xl prose-h2:mt-12 prose-h2:mb-4
-                prose-h3:text-base prose-h3:mt-8 prose-h3:mb-3
+                prose-h2:text-2xl prose-h2:font-light prose-h2:tracking-[var(--tracking-title)] prose-h2:mt-12 prose-h2:mb-4
+                prose-h3:text-base prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-3
+                prose-h4:font-semibold
                 prose-p:text-foreground/80 prose-p:leading-relaxed prose-li:text-foreground/80 prose-li:leading-relaxed
                 prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
                 prose-strong:text-foreground
@@ -160,8 +178,10 @@ export default async function BlogPost({ params }: Props) {
                 the /vs pages use, instead of a hand-rolled foreground pill. The
                 label is the one every marketing CTA for "/" carries, so the
                 destination has one name wherever it is offered. */}
-            <div className="mt-8 p-6 bg-muted/50 rounded-lg text-center">
-              <h3 className="text-xl font-semibold mb-2">
+            {/* The one inset surface, `bg-muted` at full opacity: `/50` was
+                an unnamed wash. The title is a card title, 18px at 600. */}
+            <div className="mt-8 rounded-lg bg-muted p-6 text-center">
+              <h3 className="mb-2 text-lg font-semibold">
                 Ready to find your holders?
               </h3>
               <p className="text-base text-muted-foreground mb-4">

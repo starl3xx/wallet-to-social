@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
+import { InlineError } from '@/components/ui/inline-error';
+import { Progress } from '@/components/ui/progress';
 import {
   ArrowSquareOut,
   DownloadSimple as Download,
@@ -343,12 +345,7 @@ export function FarcasterDMModal({
                 </Button>
               </div>
 
-              {keyError && (
-                <p className="flex items-center gap-1 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  {keyError}
-                </p>
-              )}
+              {keyError && <InlineError>{keyError}</InlineError>}
 
               <div className="flex items-center gap-2">
                 <input
@@ -366,8 +363,10 @@ export function FarcasterDMModal({
                 </label>
               </div>
 
-              {/* Instructions */}
-              <div className="p-3 bg-muted rounded-lg text-sm space-y-2">
+              {/* Instructions. `bg-muted p-4`: the one inset surface at the
+                  one inset padding, which this dialog had at p-3 and p-4
+                  and at `/50` with a border. */}
+              <div className="space-y-2 rounded-lg bg-muted p-4 text-sm">
                 <p className="font-medium">How to get your API key:</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                   <li>
@@ -476,7 +475,7 @@ export function FarcasterDMModal({
         {step === 'preview' && (
           <div className="space-y-6">
             {/* Summary */}
-            <div className="p-4 bg-muted rounded-lg space-y-2">
+            <div className="space-y-2 rounded-lg bg-muted p-4">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Recipients</span>
                 <span className="font-medium">
@@ -496,7 +495,10 @@ export function FarcasterDMModal({
               <p className="text-sm font-medium">
                 Preview (for @{previewRecipient?.username}):
               </p>
-              <div className="p-3 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap border">
+              {/* The same inset as the summary above it, not a `/50` wash
+                  under a hairline: one surface, and the fill is what says
+                  "panel" so the border said it twice. */}
+              <div className="whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
                 {previewMessage || (
                   <span className="text-muted-foreground italic">
                     Empty message
@@ -517,8 +519,9 @@ export function FarcasterDMModal({
             </div>
 
             {/* Warning. A full-opacity tint and no border: it carried a
-                `/30` border, which the elevation rule bans. */}
-            <div className="rounded-lg bg-caution-tint p-3 text-sm text-caution">
+                `/30` border, which the elevation rule bans. `p-4`, the inset
+                padding every panel in the dialog shares. */}
+            <div className="rounded-lg bg-caution-tint p-4 text-sm text-caution">
               <p className="font-medium flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
                 Keep this tab open
@@ -558,32 +561,38 @@ export function FarcasterDMModal({
                   {progress.sent + progress.failed} / {progress.total}
                 </span>
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className="bg-accent-brand h-2 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${((progress.sent + progress.failed) / progress.total) * 100}%`,
-                  }}
-                />
-              </div>
+              {/* The Progress primitive, as the lookup progress card uses
+                  it: Radix supplies the `progressbar` role and value, and
+                  the fill moves by transform over `--d-base`. This was a
+                  hand-rolled bar animating `width` at `duration-300`, a
+                  layout property on a duration the table does not have,
+                  re-laid out on every send for the length of the run. */}
+              <Progress
+                value={
+                  progress.total > 0
+                    ? ((progress.sent + progress.failed) / progress.total) * 100
+                    : 0
+                }
+                aria-label="DMs sent"
+              />
             </div>
 
             {/* Stats. Sent is the outcome and is green: a DM that went is a
                 measured fact, and violet would have called it an affordance. */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg bg-muted p-3 text-center">
+              <div className="rounded-lg bg-muted p-4 text-center">
                 <div className={`${TILE_FIGURE} text-attested`}>
                   {progress.sent}
                 </div>
                 <div className="text-xs text-muted-foreground">Sent</div>
               </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
+              <div className="rounded-lg bg-muted p-4 text-center">
                 <div className={`${TILE_FIGURE} text-destructive`}>
                   {progress.failed}
                 </div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
+              <div className="rounded-lg bg-muted p-4 text-center">
                 <div className={TILE_FIGURE}>
                   {progress.total - progress.sent - progress.failed}
                 </div>

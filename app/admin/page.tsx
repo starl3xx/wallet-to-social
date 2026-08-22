@@ -17,6 +17,9 @@ import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { AdminNav, type AdminTab } from '@/components/admin/AdminNav';
 import { HandleConflicts } from '@/components/admin/HandleConflicts';
 import { Banner } from '@/components/admin/Banner';
+import { StatTile } from '@/components/admin/Stat';
+import { RefreshButton } from '@/components/admin/RefreshButton';
+import { Empty, Loading } from '@/components/admin/PaneState';
 import { shortId, shortWallet } from '@/components/admin/format';
 import {
   Table,
@@ -31,10 +34,6 @@ import {
   Plus,
   CircleNotch as Loader2,
   Lock,
-  Users,
-  Crown,
-  Lightning as Zap,
-  Sparkle as Sparkles,
   Eye,
   ArrowsClockwise as RefreshCw,
   XCircle,
@@ -542,8 +541,14 @@ export default function AdminPage() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-sm w-full">
           <CardHeader className="text-center">
+            {/* Display scale, `h-10 w-10`, duotone: the illustrative weight
+                for an illustrative moment. It was 48px, which is not a step. */}
             <div className="flex justify-center mb-4">
-              <Lock className="h-12 w-12 text-muted-foreground" />
+              <Lock
+                weight="duotone"
+                className="h-10 w-10 text-muted-foreground"
+                aria-hidden
+              />
             </div>
             <CardTitle>Admin access</CardTitle>
           </CardHeader>
@@ -571,7 +576,7 @@ export default function AdminPage() {
   if (authState === 'loading') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loading />
       </div>
     );
   }
@@ -584,62 +589,18 @@ export default function AdminPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {/* `free` is every account without a legacy tier, which includes
               every pack buyer. The paying base is the credit-holder count. */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  No legacy tier
-                </span>
-              </div>
-              <p className="text-2xl font-extralight tabular-nums">
-                {stats.free}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-accent-brand" />
-                <span className="text-sm text-muted-foreground">
-                  Credit holders
-                </span>
-              </div>
-              <p className="text-2xl font-extralight tabular-nums">
-                {stats.creditHolders ?? '-'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                accounts with a live pack
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Crown className="h-4 w-4 text-caution" />
-                <span className="text-sm text-muted-foreground">Legacy</span>
-              </div>
-              <p className="text-2xl font-extralight tabular-nums">
-                {stats.pro + stats.unlimited}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {stats.pro} pro, {stats.unlimited} unlimited, honoured forever
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent-brand" />
-                <span className="text-sm text-muted-foreground">
-                  Whitelisted
-                </span>
-              </div>
-              <p className="text-2xl font-extralight tabular-nums">
-                {stats.whitelisted}
-              </p>
-            </CardContent>
-          </Card>
+          <StatTile label="No legacy tier" value={stats.free} />
+          <StatTile
+            label="Credit holders"
+            value={stats.creditHolders ?? '-'}
+            note="accounts with a live pack"
+          />
+          <StatTile
+            label="Legacy"
+            value={stats.pro + stats.unlimited}
+            note={`${stats.pro} pro, ${stats.unlimited} unlimited, honoured forever`}
+          />
+          <StatTile label="Whitelisted" value={stats.whitelisted} />
         </div>
       )}
 
@@ -695,9 +656,7 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent>
           {entries.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No whitelist entries yet
-            </p>
+            <Empty>No whitelist entries yet</Empty>
           ) : (
             /* No wrapper: `Table` already renders its own overflow-x-auto
                container, and a second one outside it never scrolls. */
@@ -778,38 +737,22 @@ export default function AdminPage() {
               <option value="completed">Completed</option>
               <option value="failed">Failed</option>
             </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchJobs}
-              disabled={jobsLoading}
-            >
-              {jobsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <RefreshCw className="h-4 w-4" aria-hidden />
-              )}
-              <span className="sr-only">Refresh</span>
-            </Button>
+            <RefreshButton onClick={fetchJobs} loading={jobsLoading} />
           </div>
         </CardHeader>
         <CardContent>
           {jobsLoading && jobs.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <Loading />
           ) : jobs.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No jobs found
-            </p>
+            <Empty>No jobs found</Empty>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Wallets</TableHead>
-                  <TableHead>Progress</TableHead>
+                  <TableHead className="text-right">Wallets</TableHead>
+                  <TableHead className="text-right">Progress</TableHead>
                   <TableHead>Stage</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>User</TableHead>
@@ -829,8 +772,10 @@ export default function AdminPage() {
                         {job.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{job.walletCount.toLocaleString()}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {job.walletCount.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
                       {job.processedCount}/{job.walletCount}
                     </TableCell>
                     <TableCell>{job.currentStage || '-'}</TableCell>
@@ -996,13 +941,9 @@ export default function AdminPage() {
             </ModalDescription>
           </ModalHeader>
           {jobResultsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <Loading />
           ) : !jobResults || jobResults.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No results found
-            </p>
+            <Empty>No results found</Empty>
           ) : (
             <Table>
               <TableHeader className="sticky top-0 bg-background">
@@ -1011,7 +952,9 @@ export default function AdminPage() {
                   <TableHead>ENS</TableHead>
                   <TableHead>X handle</TableHead>
                   <TableHead>Farcaster</TableHead>
-                  <TableHead>Farcaster followers</TableHead>
+                  <TableHead className="text-right">
+                    Farcaster followers
+                  </TableHead>
                   <TableHead>Sources</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1078,7 +1021,7 @@ export default function AdminPage() {
                         '-'
                       )}
                     </TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {result.fc_followers?.toLocaleString() || '-'}
                     </TableCell>
                     {/* Pipeline stage markers, not provenance: `graph` and
@@ -1110,10 +1053,12 @@ export default function AdminPage() {
         {/* The same words as the nav button that opens it. */}
         <CardTitle>Saved lookups ({historyEntries.length})</CardTitle>
         <div className="flex items-center gap-2">
+          {/* `left-3`: the glyph sat at 10px, which is not a spacing step;
+              12px is the nearest. */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by User ID"
+              placeholder="Search by user ID"
               value={userIdFilter}
               onChange={(e) => setUserIdFilter(e.target.value)}
               onKeyDown={(e) => {
@@ -1124,33 +1069,20 @@ export default function AdminPage() {
               className="pl-8 w-48"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
+          <RefreshButton
             onClick={() => {
               setHistoryEntries([]);
               fetchHistory();
             }}
-            disabled={historyLoading}
-          >
-            {historyLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4" aria-hidden />
-            )}
-            <span className="sr-only">Refresh</span>
-          </Button>
+            loading={historyLoading}
+          />
         </div>
       </CardHeader>
       <CardContent>
         {historyLoading && historyEntries.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <Loading />
         ) : historyEntries.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">
-            No history found
-          </p>
+          <Empty>No history found</Empty>
         ) : (
           <Table>
             <TableHeader>
@@ -1158,9 +1090,9 @@ export default function AdminPage() {
                 <TableHead>ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Source</TableHead>
-                <TableHead>Wallets</TableHead>
-                <TableHead>X</TableHead>
-                <TableHead>Farcaster</TableHead>
+                <TableHead className="text-right">Wallets</TableHead>
+                <TableHead className="text-right">X</TableHead>
+                <TableHead className="text-right">Farcaster</TableHead>
                 <TableHead>User ID</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="w-16">Actions</TableHead>
@@ -1191,13 +1123,13 @@ export default function AdminPage() {
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className="text-right font-medium tabular-nums">
                     {entry.walletCount.toLocaleString()}
                   </TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className="text-right font-medium tabular-nums">
                     {entry.twitterFound}
                   </TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className="text-right font-medium tabular-nums">
                     {entry.farcasterFound}
                   </TableCell>
                   <TableCell className="font-mono text-xs">
@@ -1247,30 +1179,14 @@ export default function AdminPage() {
               setUsersList([]); // Clear to trigger refetch
             }}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchUsers}
-            disabled={usersLoading}
-          >
-            {usersLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4" aria-hidden />
-            )}
-            <span className="sr-only">Refresh</span>
-          </Button>
+          <RefreshButton onClick={fetchUsers} loading={usersLoading} />
         </div>
       </CardHeader>
       <CardContent>
         {usersLoading && usersList.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <Loading />
         ) : usersList.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">
-            No users found
-          </p>
+          <Empty>No users found</Empty>
         ) : (
           <Table>
             <TableHeader>
@@ -1385,11 +1301,18 @@ export default function AdminPage() {
        dashboards are dense tables with six or more numeric columns, and squeezing
        them would trade a real working constraint for a cosmetic one. */
     <PageShell wide>
-      <header className="mb-8">
-        <h1 className="mb-2 text-3xl font-semibold tracking-[var(--tracking-title)]">
-          Admin dashboard
+      {/* The one page opening: an h1 at the display tier with the emphasis
+          span (one 600-weight word inside a 200-weight line), then a
+          300-weight lede. No `sm:text-5xl`: that step is for marketing pages,
+          and this is a tool. */}
+      <header className="mb-12">
+        <h1 className="mb-4 text-4xl font-extralight tracking-[var(--tracking-display)]">
+          Admin{' '}
+          <em className="font-semibold not-italic text-accent-brand">
+            dashboard
+          </em>
         </h1>
-        <p className="text-muted-foreground">
+        <p className="max-w-[68ch] text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground">
           Analytics, monitoring, and operational tools
         </p>
       </header>
@@ -1441,7 +1364,9 @@ export default function AdminPage() {
             <div className="space-y-6">
               {/* One heading over both cards, in the words the nav button
                   uses. Each card keeps its own title beneath it. */}
-              <h2 className="text-lg font-semibold">Health</h2>
+              <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+                Health
+              </h2>
               {/* Above SystemHealth on purpose: "is it configured and running"
                 has to be answered before "how did it perform", or a panel of
                 zeroes reads as calm rather than as switched off. */}

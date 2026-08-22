@@ -68,10 +68,12 @@ export function PageShell({
           homepage used to draw its own inside the container instead, so the
           same hairline stopped at the container edge there and ran edge to
           edge everywhere else. Main's pt-8 is what keeps the lockup from
-          floating above a gap: the page's first line sits close beneath. */}
+          floating above a gap: the page's first line sits close beneath.
+          `py-4`: the row was `pt-5 pb-3` (20/12px), neither a spacing step,
+          and the lockup sat 4px low of centre in the same 80px band. */}
       <header className="border-b border-border">
         <div
-          className={`mx-auto flex w-full ${width} items-center gap-2 px-6 pt-5 pb-3 sm:gap-3`}
+          className={`mx-auto flex w-full ${width} items-center gap-2 px-6 py-4 sm:gap-3`}
         >
           <BrandLockup size="header" onClick={onBrandClick} priority />
           <div className="ml-auto">

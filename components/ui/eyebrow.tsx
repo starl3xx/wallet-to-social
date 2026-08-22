@@ -40,7 +40,7 @@ export function Eyebrow({
   return (
     <Tag
       className={cn(
-        'font-mono text-[11px] leading-4 uppercase tracking-[0.14em] text-muted-foreground',
+        'font-mono text-[11px] leading-4 uppercase tracking-[var(--tracking-label)] text-muted-foreground',
         className
       )}
     >

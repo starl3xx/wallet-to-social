@@ -1,19 +1,19 @@
 ---
-title: 'How to Reach Your Token Holders on Farcaster'
+title: 'How to reach your token holders on Farcaster'
 meta_description: 'A practical guide to finding your token holders on Farcaster and building a direct outreach rhythm that actually gets responses.'
 published: true
 publish_date: '2026-05-14'
 ---
 
-# How to Reach Your Token Holders on Farcaster
+# How to reach your token holders on Farcaster
 
-Farcaster is the best platform for reaching crypto-native users directly. Unlike Twitter, where DMs are buried and ignored, Farcaster's direct cast feature has high open rates and the user base skews heavily toward active onchain participants.
+Farcaster is the best platform for reaching crypto-native users directly. Unlike Twitter, where DMs are buried and ignored, Farcaster’s direct cast feature has high open rates and the user base skews heavily toward active onchain participants.
 
 If your project has token holders, there is a good chance a meaningful percentage of them are on Farcaster. The question is finding them and reaching out in a way that gets responses rather than blocks.
 
 This is a practical guide to doing exactly that.
 
-## Why Farcaster for Holder Outreach
+## Why Farcaster for holder outreach
 
 Before getting into the how, it is worth understanding why Farcaster is uniquely suited for this:
 
@@ -23,15 +23,15 @@ Before getting into the how, it is worth understanding why Farcaster is uniquely
 
 **DMs are not yet broken.** Twitter DMs are flooded with scam bots and spam. Most crypto users have DMs closed or ignore them entirely. Farcaster direct casts are still a relatively clean channel. Messages get read.
 
-**Open social graph.** Farcaster's protocol is open. You can see who follows whom, who engages with what, and build context before reaching out. This makes personalization practical.
+**Open social graph.** Farcaster’s protocol is open. You can see who follows whom, who engages with what, and build context before reaching out. This makes personalization practical.
 
-## Step 1: Build Your Holder-to-Farcaster Map
+## Step 1: build your holder-to-Farcaster map
 
 You need to connect your holder list to Farcaster accounts. There are two approaches.
 
 **The manual approach (small lists):**
 
-For fewer than 50 holders, you can check each wallet manually. Go to Warpcast's search, look up ENS names, or check the Farcaster directory. This is tedious but works for very targeted outreach to your top holders.
+For fewer than 50 holders, you can check each wallet manually. Go to Warpcast’s search, look up ENS names, or check the Farcaster directory. This is tedious but works for very targeted outreach to your top holders.
 
 **The batch approach (any size):**
 
@@ -41,7 +41,7 @@ At current resolution rates, roughly 22% of active Ethereum wallets map to a soc
 
 That is enough to build a real outreach operation.
 
-## Step 2: Segment Before You Message
+## Step 2: segment before you message
 
 Do not send the same message to every holder. Segmentation is the difference between outreach that gets 40% response rates and outreach that gets you muted.
 
@@ -49,7 +49,7 @@ Here is a practical segmentation framework:
 
 **By holding size:**
 
-| Segment         | Typical Definition | Outreach Style                          |
+| Segment         | Typical definition | Outreach style                          |
 | --------------- | ------------------ | --------------------------------------- |
 | Whales          | Top 1% by balance  | Personal 1:1 message from founder/lead  |
 | Core holders    | Top 10%            | Small group conversations, early access |
@@ -58,17 +58,17 @@ Here is a practical segmentation framework:
 **By behavior:**
 
 - **Active governance participants.** They already care. Treat them as insiders. Share drafts of proposals before they go public.
-- **Long-term holders, never voted.** They believe in the project but are not engaged. Lower-friction asks work best -- "what would make you vote?" rather than "please vote on proposal #47."
+- **Long-term holders, never voted.** They believe in the project but are not engaged. Lower-friction asks work best: “what would make you vote?” rather than “please vote on proposal #47.”
 - **Recent buyers.** They are in discovery mode. Welcome messages with context and resources have high engagement.
-- **Declining holders.** They have been selling gradually. A genuine check-in ("noticed you've been reducing -- anything we can improve?") sometimes yields the most valuable feedback.
+- **Declining holders.** They have been selling gradually. A genuine check-in (“noticed you’ve been reducing. Anything we can improve?”) sometimes yields the most valuable feedback.
 
-## Step 3: Craft the First Message
+## Step 3: craft the first message
 
 The first direct cast to a holder sets the tone for the entire relationship. Here is what works and what does not.
 
 **What works:**
 
-- Reference something specific. "I noticed you voted on our last three proposals" is better than "thanks for being a holder."
+- Reference something specific. “I noticed you voted on our last three proposals” is better than “thanks for being a holder.”
 - Be direct about who you are and why you are reaching out.
 - Ask a genuine question. Not a survey. A real question you want the answer to.
 - Keep it under 300 characters for the first message. Walls of text get ignored.
@@ -81,13 +81,13 @@ The first direct cast to a holder sets the tone for the entire relationship. Her
 
 **Example first message to a whale:**
 
-> Hey [name] -- I'm [your name] from [project]. You've been one of our larger holders for a while and I wanted to connect directly. We're working on [specific thing] and I'd value your perspective. Open to a quick chat this week?
+> Hey [name], I’m [your name] from [project]. You’ve been one of our larger holders for a while and I wanted to connect directly. We’re working on [specific thing] and I’d value your perspective. Open to a quick chat this week?
 
 **Example first message to a new holder:**
 
-> Welcome to [project], [name]. Saw you picked up tokens recently. If you have questions about what we're building or how governance works, happy to point you in the right direction.
+> Welcome to [project], [name]. Saw you picked up tokens recently. If you have questions about what we’re building or how governance works, happy to point you in the right direction.
 
-## Step 4: Build a Communication Rhythm
+## Step 4: build a communication rhythm
 
 One-off outreach is useful. Ongoing communication is powerful. Here is how to build a rhythm without becoming spam:
 
@@ -98,10 +98,10 @@ A public cast thread summarizing what happened in the last month. Tag the Farcas
 For your top 20-50 holders by balance or engagement, a personal message every quarter. Brief, genuine, asking for feedback or sharing something before it is public.
 
 **Event-driven outreach (all matched holders):**
-Before governance votes, major releases, or token events, reach out to your matched holders directly. Not every event -- only the ones that matter.
+Before governance votes, major releases, or token events, reach out to your matched holders directly. Not every event, only the ones that matter.
 
 **Reactive outreach (as needed):**
-When you see a holder doing something notable -- writing a thread about your project, building something with your protocol, or asking a question publicly -- respond and connect.
+When you see a holder doing something notable (writing a thread about your project, building something with your protocol, or asking a question publicly) respond and connect.
 
 A rough calendar:
 
@@ -112,7 +112,7 @@ Week 3:  Event-driven outreach if applicable
 Week 4:  Monitor and respond to organic holder activity
 ```
 
-## Step 5: Track What Works
+## Step 5: track what works
 
 Keep a simple spreadsheet or database tracking:
 
@@ -131,17 +131,17 @@ Track your aggregate metrics too:
 - Governance participation before and after outreach
 - Holder retention rate for contacted vs. uncontacted groups
 
-## Common Mistakes
+## Common mistakes
 
 **Going too hard, too fast.** Starting with mass outreach before you have refined your messaging burns the channel. Start with your top 20 holders, learn what works, then scale.
 
-**Ignoring negative responses.** If someone says they are not interested, note it and move on. Pushing past a "no" destroys trust for the whole community.
+**Ignoring negative responses.** If someone says they are not interested, note it and move on. Pushing past a “no” destroys trust for the whole community.
 
-**Only reaching out when you want something.** If every message is "please vote" or "please provide liquidity," people learn to ignore you. Mix in genuine check-ins and value-add content.
+**Only reaching out when you want something.** If every message is “please vote” or “please provide liquidity,” people learn to ignore you. Mix in genuine check-ins and value-add content.
 
 **Not updating your holder map.** Holder lists change. Run resolution again quarterly to catch new holders, remove sellers, and update social accounts.
 
-## The Long Game
+## The long game
 
 Farcaster outreach is not a growth hack. It is a community infrastructure investment. The projects that build direct relationships with their holders now are building moats that become increasingly valuable as the ecosystem grows.
 
@@ -149,4 +149,4 @@ Start with your holder list. Resolve the identities. Segment the results. Send t
 
 ---
 
-Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social) -- free for your first 100 matches every 30 days.
+Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social): free for your first 100 matches every 30 days.

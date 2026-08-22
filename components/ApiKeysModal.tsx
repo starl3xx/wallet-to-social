@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InlineError } from '@/components/ui/inline-error';
 import { XMark } from '@/components/ui/brand-marks';
 import {
   ArrowSquareOut,
@@ -237,7 +238,7 @@ export function ApiKeysModal({
 
         {!hasApiAccess ? (
           <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+            <div className="rounded-lg border border-border bg-muted p-4 text-sm">
               {/* The mark, not the 𝕏 character: Söhne has no U+1D54F, so the
                   character fell back to another face and sat visibly thinner
                   than the words around it. Sized and aligned as the home
@@ -268,7 +269,7 @@ export function ApiKeysModal({
             {/* Rate limits, read from lib/api-plans.ts so this can never drift
                 from what the rate limiter actually enforces. These bound the
                 burst; the match balance bounds the total. */}
-            <div className="rounded-lg border bg-muted/40 p-3 text-xs sm:text-sm">
+            <div className="rounded-lg border border-border bg-muted p-4 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">Rate limits</span>
                 <DocsLink className="text-xs sm:text-sm">Docs</DocsLink>
@@ -282,14 +283,8 @@ export function ApiKeysModal({
               </p>
             </div>
 
-            {/* Banners are a full-opacity tint with no border. Both carried a
-                faded border (`/20`, `/30`), which the elevation rule bans. */}
-            {error && (
-              <div className="flex items-start gap-2 rounded-lg bg-destructive-tint p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" />
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
-            )}
+            {/* The one inline error shape; see components/ui/inline-error.tsx. */}
+            {error && <InlineError>{error}</InlineError>}
 
             {/* Shown exactly once, immediately after creation. */}
             {revealedKey && (
