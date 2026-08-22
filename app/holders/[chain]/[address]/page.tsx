@@ -167,11 +167,12 @@ export default async function HolderPage({ params }: Props) {
               value={stats.xUnclaimed.toLocaleString()}
               label="names nobody holds"
             />
+            {/* No data is not a median of zero; n/a says which claim this is. */}
             <Figure
               value={
                 stats.medianFcFollowers !== null
                   ? stats.medianFcFollowers.toLocaleString()
-                  : '0'
+                  : 'n/a'
               }
               label="median Farcaster followers"
             />

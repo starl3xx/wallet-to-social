@@ -95,8 +95,15 @@ export async function getHolderStats(
   if (!db) return null;
   const result = (await db.execute(sql`
     WITH holders AS (
-      SELECT wallet FROM wallet_holdings
-      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+      -- Re-seeds upsert but never prune, so rows the latest seed did not
+      -- touch are ex-holders. last_seen_at is written during the run and
+      -- last_seeded_at after it, hence the one-hour skew allowance.
+      SELECT wh.wallet
+      FROM wallet_holdings wh
+      JOIN seeded_contracts sc
+        ON sc.address = wh.contract AND sc.chain = wh.chain
+      WHERE wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain}
+        AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
     )
     SELECT
       count(*)::int                                                      AS "holderCount",
@@ -135,8 +142,12 @@ export async function getHolderOverlap(
   if (!db) return [];
   const result = (await db.execute(sql`
     WITH holders AS (
-      SELECT wallet FROM wallet_holdings
-      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+      SELECT wh.wallet
+      FROM wallet_holdings wh
+      JOIN seeded_contracts sc
+        ON sc.address = wh.contract AND sc.chain = wh.chain
+      WHERE wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain}
+        AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
     )
     SELECT sc.address, sc.chain, sc.name, count(*)::int AS "sharedHolders"
     FROM wallet_holdings wh
@@ -145,6 +156,7 @@ export async function getHolderOverlap(
       ON sc.address = wh.contract AND sc.chain = wh.chain
      AND sc.holders_imported > 0 AND sc.name IS NOT NULL
     WHERE NOT (wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain})
+      AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
     GROUP BY sc.address, sc.chain, sc.name
     ORDER BY count(*) DESC
     LIMIT ${limit}
