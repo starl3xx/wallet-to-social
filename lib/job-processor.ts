@@ -6,7 +6,7 @@ import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup, type InputSource } from '@/lib/history';
-import { stampReachability } from '@/lib/handle-reachability';
+import { stampReachability, stampAlsoOnX } from '@/lib/handle-reachability';
 import {
   upsertSocialGraphWithRetry,
   upsertNegativeWallets,
@@ -796,6 +796,18 @@ async function finalizeJobWithResults(
    * the dead-handle warnings and the export filtering that the live view had.
    */
   await stampReachability(results);
+
+  /**
+   * The second X account, stamped here for the same reasons and in the same
+   * order.
+   *
+   * Here rather than in the graph read, because a result reaches this point by
+   * three paths (the graph, the cache, a fresh resolve) and the conflict hangs
+   * off the wallet whichever path produced the row. This is the one place all
+   * three have merged and nothing has been written yet, so one query covers
+   * the whole batch and `saveLookup` persists what the live view showed.
+   */
+  await stampAlsoOnX(results);
 
   // Save to history if requested
   if (options.saveToHistory) {

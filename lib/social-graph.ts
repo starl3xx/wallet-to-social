@@ -28,7 +28,13 @@ const BASE_RETRY_DELAY_MS = 1000; // 1 second
 
 // 'negative' means the wallet was checked recently and has no socials — trusted
 // like 'high', but the trusted answer is "nothing here".
-export type DataQuality = 'high' | 'medium' | 'low' | 'stale' | 'missing' | 'negative';
+export type DataQuality =
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'stale'
+  | 'missing'
+  | 'negative';
 
 export interface SocialGraphQualityResult {
   wallet: string;
@@ -90,7 +96,10 @@ export async function getSocialGraphWithQuality(
       // Fresh negatives never need refresh — expired ones classify as 'stale'.
       const needsRefresh =
         quality !== 'negative' &&
-        (quality === 'stale' || quality === 'low' || quality === 'missing' || isStale);
+        (quality === 'stale' ||
+          quality === 'low' ||
+          quality === 'missing' ||
+          isStale);
 
       results.set(record.wallet, {
         wallet: record.wallet,
@@ -122,7 +131,8 @@ function classifyQuality(record: SocialGraph, now: Date): DataQuality {
     const checkedAt = record.lastCheckedAt;
     if (
       checkedAt != null &&
-      now.getTime() - checkedAt.getTime() < NEGATIVE_RECHECK_DAYS * 24 * 60 * 60 * 1000
+      now.getTime() - checkedAt.getTime() <
+        NEGATIVE_RECHECK_DAYS * 24 * 60 * 60 * 1000
     ) {
       return 'negative';
     }
@@ -136,7 +146,11 @@ function classifyQuality(record: SocialGraph, now: Date): DataQuality {
   }
 
   // Medium quality: has verified flags OR frequently looked up
-  if (record.twitterVerified || record.farcasterVerified || (record.lookupCount && record.lookupCount > 3)) {
+  if (
+    record.twitterVerified ||
+    record.farcasterVerified ||
+    (record.lookupCount && record.lookupCount > 3)
+  ) {
     return isStale ? 'stale' : 'medium';
   }
 
@@ -304,8 +318,15 @@ async function upsertSocialGraphWithTransaction(
           target: socialGraph.wallet,
           set: {
             ensName: sql`COALESCE(EXCLUDED.ens_name, ${socialGraph.ensName})`,
-            twitterHandle: sql`COALESCE(EXCLUDED.twitter_handle, ${socialGraph.twitterHandle})`,
-            twitterUrl: sql`COALESCE(EXCLUDED.twitter_url, ${socialGraph.twitterUrl})`,
+            // The renamed_from guard again, at the SQL layer, because a row
+            // that was not in existingMap (read before a concurrent resolve)
+            // arrives here with the dead handle as EXCLUDED.
+            twitterHandle: sql`CASE
+              WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterHandle}
+              ELSE COALESCE(EXCLUDED.twitter_handle, ${socialGraph.twitterHandle}) END`,
+            twitterUrl: sql`CASE
+              WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterUrl}
+              ELSE COALESCE(EXCLUDED.twitter_url, ${socialGraph.twitterUrl}) END`,
             farcaster: sql`COALESCE(EXCLUDED.farcaster, ${socialGraph.farcaster})`,
             farcasterUrl: sql`COALESCE(EXCLUDED.farcaster_url, ${socialGraph.farcasterUrl})`,
             fcFollowers: sql`COALESCE(EXCLUDED.fc_followers, ${socialGraph.fcFollowers})`,
@@ -361,8 +382,20 @@ function prepareUpsertData(
     const walletLower = r.wallet.toLowerCase();
     const prev = existingMap.get(walletLower);
 
-    // Calculate merged values
-    const newTwitter = r.twitter_handle || prev?.twitterHandle || null;
+    // Calculate merged values.
+    //
+    // A handle equal to `twitterRenamedFrom` is the dead string a live source
+    // (Farcaster, through a fresh resolve) still carries for a wallet whose
+    // X account the conflict resolver has already moved. Taking it would put
+    // the unreachable handle back and reopen the conflict, so the stored one
+    // stays.
+    const incomingTwitter =
+      r.twitter_handle &&
+      prev?.twitterRenamedFrom &&
+      r.twitter_handle.toLowerCase() === prev.twitterRenamedFrom.toLowerCase()
+        ? null
+        : r.twitter_handle;
+    const newTwitter = incomingTwitter || prev?.twitterHandle || null;
     const newFarcaster = r.farcaster || prev?.farcaster || null;
     const newEnsName = r.ens_name || prev?.ensName || null;
     const newLens = r.lens || prev?.lens || null;
@@ -428,7 +461,10 @@ function prepareUpsertData(
     // Add audit records for actual changes
     const changeSource = r.source?.[0] ?? null;
     for (const change of changes) {
-      if (change.oldValue !== change.newValue && (change.oldValue || change.newValue)) {
+      if (
+        change.oldValue !== change.newValue &&
+        (change.oldValue || change.newValue)
+      ) {
         auditRecords.push({
           wallet: walletLower,
           fieldChanged: change.field,
@@ -443,7 +479,8 @@ function prepareUpsertData(
       wallet: walletLower,
       ensName: newEnsName,
       twitterHandle: newTwitter,
-      twitterUrl: r.twitter_url || prev?.twitterUrl || null,
+      twitterUrl:
+        (incomingTwitter && r.twitter_url) || prev?.twitterUrl || null,
       farcaster: newFarcaster,
       farcasterUrl: r.farcaster_url || prev?.farcasterUrl || null,
       fcFollowers: r.fc_followers ?? prev?.fcFollowers ?? null,
@@ -574,7 +611,9 @@ function isTwitterVerified(sources: string[]): boolean {
 function isFarcasterVerified(sources: string[]): boolean {
   // Farcaster is considered verified if it comes from Neynar (direct API),
   // the protocol-wide bulk sweep (same underlying data), or manual entry
-  return sources.some((s) => s === 'neynar' || s === 'farcaster_sweep' || s === 'manual');
+  return sources.some(
+    (s) => s === 'neynar' || s === 'farcaster_sweep' || s === 'manual'
+  );
 }
 
 /**
@@ -705,7 +744,9 @@ export function hasAnySocialSql() {
  * Never touches social columns on conflict, so a negative re-check can't
  * erase an existing positive row — it only refreshes last_checked_at.
  */
-export async function upsertNegativeWallets(wallets: string[]): Promise<number> {
+export async function upsertNegativeWallets(
+  wallets: string[]
+): Promise<number> {
   const db = getDb();
   if (!db || wallets.length === 0) return 0;
 
@@ -1042,9 +1083,7 @@ export async function getSocialGraphWallet(
 /**
  * Get recent manual edits from social_graph (for admin UI)
  */
-export async function getRecentManualEdits(
-  limit = 10
-): Promise<SocialGraph[]> {
+export async function getRecentManualEdits(limit = 10): Promise<SocialGraph[]> {
   const db = getDb();
   if (!db) return [];
 
@@ -1143,7 +1182,11 @@ export async function getSocialGraphStats(): Promise<{
  */
 export async function propagateManualCorrection(
   wallet: string,
-  fields: { twitter_handle?: string | null; farcaster?: string | null; ens_name?: string | null }
+  fields: {
+    twitter_handle?: string | null;
+    farcaster?: string | null;
+    ens_name?: string | null;
+  }
 ): Promise<number> {
   const db = getDb();
   if (!db) return 0;
@@ -1165,14 +1208,18 @@ export async function propagateManualCorrection(
    * superseded handle had already been stamped unreachable.
    */
   const nextTwitter =
-    'twitter_handle' in patch ? (patch.twitter_handle as string | null) : undefined;
+    'twitter_handle' in patch
+      ? (patch.twitter_handle as string | null)
+      : undefined;
   const nextFarcaster =
     'farcaster' in patch ? (patch.farcaster as string | null) : undefined;
   if (nextTwitter !== undefined) {
     patch.twitter_url = nextTwitter ? `https://x.com/${nextTwitter}` : null;
   }
   if (nextFarcaster !== undefined) {
-    patch.farcaster_url = nextFarcaster ? `https://warpcast.com/${nextFarcaster}` : null;
+    patch.farcaster_url = nextFarcaster
+      ? `https://warpcast.com/${nextFarcaster}`
+      : null;
   }
 
   const match = JSON.stringify([{ wallet: walletLower }]);
@@ -1200,13 +1247,21 @@ export async function propagateManualCorrection(
        * corrected handle is unchecked until the liveness sweep reaches it, and
        * unchecked renders neutral, which is the honest state.
        */
-      const oldHandle = typeof row.twitter_handle === 'string' ? row.twitter_handle : null;
+      const oldHandle =
+        typeof row.twitter_handle === 'string' ? row.twitter_handle : null;
       const changed =
         nextTwitter !== undefined &&
         (oldHandle ?? '').toLowerCase() !== (nextTwitter ?? '').toLowerCase();
       if (changed) {
         merged.twitter_reachability = null;
         merged.twitter_reachability_checked_at = null;
+        /**
+         * Same for the second attested handle. It is a fact about the pair
+         * (this handle and that one, both live), and a correction may well
+         * have just made the pair one handle. The next lookup re-stamps it
+         * from the conflicts table if it still applies.
+         */
+        merged.twitter_also = null;
       }
       return merged;
     });
@@ -1223,7 +1278,9 @@ export async function propagateManualCorrection(
     const jobs = (await db.execute(sql`
       SELECT id, partial_results AS rows FROM lookup_jobs
       WHERE partial_results IS NOT NULL AND partial_results @> ${match}::jsonb
-    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
+    `)) as unknown as {
+      rows: Array<{ id: string; rows: Array<Record<string, unknown>> }>;
+    };
 
     for (const job of jobs.rows) {
       const next = amend(job.rows);
@@ -1236,7 +1293,9 @@ export async function propagateManualCorrection(
     const history = (await db.execute(sql`
       SELECT id, results AS rows FROM lookup_history
       WHERE results IS NOT NULL AND results @> ${match}::jsonb
-    `)) as unknown as { rows: Array<{ id: string; rows: Array<Record<string, unknown>> }> };
+    `)) as unknown as {
+      rows: Array<{ id: string; rows: Array<Record<string, unknown>> }>;
+    };
 
     for (const h of history.rows) {
       const next = amend(h.rows);

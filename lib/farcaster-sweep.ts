@@ -76,7 +76,9 @@ export async function getMaxKnownFid(): Promise<number> {
   const db = getDb();
   if (!db) return 0;
   const [row] = await db
-    .select({ maxFid: sql<number>`COALESCE(MAX(${socialGraph.fcFid}), 0)::int` })
+    .select({
+      maxFid: sql<number>`COALESCE(MAX(${socialGraph.fcFid}), 0)::int`,
+    })
     .from(socialGraph);
   return row?.maxFid ?? 0;
 }
@@ -86,7 +88,10 @@ export async function getMaxKnownFid(): Promise<number> {
  * FIDs are assigned sequentially, so exponential probe + binary search on
  * "does this FID exist" converges in ~40 calls.
  */
-export async function getNetworkMaxFid(apiKey: string, hint: number): Promise<number> {
+export async function getNetworkMaxFid(
+  apiKey: string,
+  hint: number
+): Promise<number> {
   const exists = async (fid: number): Promise<boolean> => {
     const users = await fetchUserBatch([fid], apiKey);
     if (users === null) {
@@ -155,12 +160,14 @@ function usersToRows(users: NeynarUser[]): SweepRow[] {
     if (!user.username || !user.fid) continue;
     const addresses = new Set<string>();
     for (const addr of user.verified_addresses?.eth_addresses ?? []) {
-      if (addr?.startsWith('0x') && addr.length === 42) addresses.add(addr.toLowerCase());
+      if (addr?.startsWith('0x') && addr.length === 42)
+        addresses.add(addr.toLowerCase());
     }
     // Custody addresses appear in holder lists too (Farcaster-native users);
     // linking them to the profile is the same public protocol data
     const custody = user.custody_address;
-    if (custody?.startsWith('0x') && custody.length === 42) addresses.add(custody.toLowerCase());
+    if (custody?.startsWith('0x') && custody.length === 42)
+      addresses.add(custody.toLowerCase());
 
     // Same extraction as lib/neynar.ts — an X account listed in
     // verified_accounts was proven by signature, so it is the strongest
@@ -241,20 +248,28 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           //      rows where this sweep is the sole source — there the handle
           //      could only have come from us, so it is ours to retract. On a
           //      row that other sources also wrote, leave their value alone.
+          //   4. A handle we have already replaced (twitter_renamed_from) is
+          //      the dead string Farcaster still carries. Writing it back would
+          //      undo the conflict resolver's work on every monthly sweep and
+          //      reopen the conflict at the next attested ingest, so the
+          //      accepted handle wins.
           twitterHandle: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterHandle}
+            WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterHandle}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterHandle}
           END`,
           twitterUrl: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterUrl}
+            WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterUrl}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_url
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterUrl}
           END`,
           twitterVerified: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterVerified}
+            WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterVerified}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN true
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN false
             ELSE ${socialGraph.twitterVerified}
@@ -375,7 +390,10 @@ export async function cleanupRevokedWallets(
     )) as unknown as { rows: Array<{ n: number }> }
   ).rows;
   const seenCount = seenRow?.n ?? 0;
-  if (seenCount < MIN_PLAUSIBLE_SWEEP_WALLETS || seenCount < expectedSeenCount * 0.9) {
+  if (
+    seenCount < MIN_PLAUSIBLE_SWEEP_WALLETS ||
+    seenCount < expectedSeenCount * 0.9
+  ) {
     throw new Error(
       `Seen-table integrity check failed: ${seenCount} rows (expected >= ${MIN_PLAUSIBLE_SWEEP_WALLETS} and >= 90% of ${expectedSeenCount} upserted) — refusing to run revocation cleanup (table ${seenTable} kept)`
     );
@@ -473,7 +491,9 @@ export async function sweepFidRange(
       break;
     }
 
-    const results = await Promise.all(round.map((b) => fetchUserBatch(b, apiKey)));
+    const results = await Promise.all(
+      round.map((b) => fetchUserBatch(b, apiKey))
+    );
 
     const users: NeynarUser[] = [];
     for (let j = 0; j < round.length; j++) {
@@ -500,13 +520,19 @@ export async function sweepFidRange(
         // record, which Postgres can't cast to text[]
         await db.execute(sql`
           INSERT INTO ${sql.raw(opts.seenTable)} (wallet)
-          VALUES ${sql.join(wallets.map((w) => sql`(${w})`), sql`, `)}
+          VALUES ${sql.join(
+            wallets.map((w) => sql`(${w})`),
+            sql`, `
+          )}
           ON CONFLICT DO NOTHING
         `);
       }
     }
 
-    onProgress?.(stats, round[round.length - 1][round[round.length - 1].length - 1]);
+    onProgress?.(
+      stats,
+      round[round.length - 1][round[round.length - 1].length - 1]
+    );
 
     if (i + CONCURRENT_CALLS < batches.length) {
       await new Promise((r) => setTimeout(r, DELAY_BETWEEN_ROUNDS_MS));

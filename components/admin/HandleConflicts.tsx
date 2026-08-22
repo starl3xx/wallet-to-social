@@ -24,10 +24,12 @@ import { Empty, Loading } from './PaneState';
  * Every attested ingest records these and none of them resolves one, which is
  * the right design and left the rows unreadable. This is the reader.
  *
- * It deliberately offers no resolve button. The evidence usually points one way,
- * and pointing is not the same as acting: an X handle can come back, a
+ * It deliberately offers no resolve button. The one group with a single honest
+ * reading, ours unreachable and theirs live on a recent check, is closed by a
+ * daily cron (`lib/conflict-resolution.ts`), and the two resolved tiles show
+ * that work. The rest stay here to be read: an X handle can come back, a
  * suspension can be lifted, and a wallet can genuinely belong to somebody with
- * two accounts. Reading the queue is the thing that was missing.
+ * two accounts, and pointing at the evidence is not the same as acting on it.
  */
 
 type Verdict = 'ours-unreachable' | 'both-live' | 'unchecked';
@@ -52,6 +54,8 @@ interface Counts {
   ours_dead: number;
   both_live: number;
   unchecked: number;
+  resolved_total: number;
+  resolved_7d: number;
 }
 
 /** The groups the API filters on. `all` is every unresolved disagreement. */
@@ -98,7 +102,7 @@ const FILTER_OPTIONS: Array<SegmentedOption<Filter> & { hint: string }> = [
     value: 'ours-dead',
     label: 'Ours unreachable',
     content: short('Dead', 'Unreachable'),
-    hint: 'What we serve reaches nobody and the other side works. The clearest cases.',
+    hint: 'What we serve reaches nobody and the other side works. These resolve automatically each day once both checks are under a week old; anything still listed is waiting on that check, or carries an account id that does not match.',
   },
   {
     value: 'both-live',
@@ -172,26 +176,39 @@ export function HandleConflicts({ password }: { password: string }) {
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Wallets where two owner-attested sources name different X accounts.
-            Recorded by every ingest and resolved by none of them, because a
-            disagreement between two attested sources is evidence rather than a
-            race to write last.
+            Recorded by every ingest, because a disagreement between two
+            attested sources is evidence rather than a race to write last. The
+            cases where ours reaches nobody and theirs is live resolve
+            automatically each day; the rest are read here and never swapped.
           </p>
         </div>
         <RefreshButton onClick={() => void load()} loading={loading} />
       </div>
 
       {counts && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           {[
-            { label: 'Open', value: counts.total },
-            { label: 'Ours unreachable', value: counts.ours_dead },
-            { label: 'Both live', value: counts.both_live },
-            { label: 'Unchecked', value: counts.unchecked },
+            { label: 'Open', value: counts.total, attested: false },
+            {
+              label: 'Ours unreachable',
+              value: counts.ours_dead,
+              attested: false,
+            },
+            { label: 'Both live', value: counts.both_live, attested: false },
+            { label: 'Unchecked', value: counts.unchecked, attested: false },
+            // Green dot: a resolution is an outcome, not a reading.
+            { label: 'Resolved', value: counts.resolved_total, attested: true },
+            {
+              label: 'Resolved, 7 days',
+              value: counts.resolved_7d,
+              attested: true,
+            },
           ].map((s) => (
             <StatTile
               key={s.label}
               label={s.label}
               value={s.value.toLocaleString()}
+              attested={s.attested}
             />
           ))}
         </div>

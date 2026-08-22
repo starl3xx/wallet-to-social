@@ -87,6 +87,17 @@ export const socialGraph = pgTable(
      * disagreement goes to `handle_conflicts` instead.
      */
     twitterUserId: text('twitter_user_id'),
+    /**
+     * The handle this row served before the conflict resolver replaced it.
+     *
+     * Set only by `lib/conflict-resolution.ts`, when the stored handle reached
+     * nobody on a recent check and an attested source named a live account for
+     * the same wallet. It is the audit trail for that swap, and it is also the
+     * guard every writer that carries the old string needs: Farcaster still
+     * holds the dead handle and will keep offering it, so a writer that sees
+     * its incoming handle here knows it is looking at the past.
+     */
+    twitterRenamedFrom: text('twitter_renamed_from'),
     farcaster: text('farcaster'),
     farcasterUrl: text('farcaster_url'),
     fcFollowers: integer('fc_followers'),

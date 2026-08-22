@@ -31,6 +31,8 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
     <ResponseField name="ens_name" type="string">Primary ENS name.</ResponseField>
     <ResponseField name="twitter" type="object">
       `handle`, `url`, `verified`, and, once we have checked, `reachable`, `reachability` and `reachability_checked_at`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look, and [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
+
+      `also`, an object with `handle`, `url` and `source`, is present only where a second X account is attested for the same wallet and both accounts are live. See [a second X account](#a-second-x-account).
     </ResponseField>
     <ResponseField name="farcaster" type="object">
       `username`, `url`, `followers`, `fid`, and `verified`.
@@ -124,6 +126,36 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
 All three of these are HTTP **200**. A wallet with nothing attached is a
 successful lookup with a negative answer, not an error.
 </Note>
+
+## A second X account
+
+A wallet can have two X accounts attested for it: one through a Farcaster
+verification, say, and a different one through a signed attestation made later.
+When we have checked both and both still reach someone, there is no evidence
+for preferring either, so the record keeps its `handle` and carries the other
+as `twitter.also`.
+
+```json
+"twitter": {
+  "handle": "someone",
+  "url": "https://x.com/someone",
+  "verified": true,
+  "reachable": true,
+  "reachability": "live",
+  "reachability_checked_at": "2026-08-17T09:41:02.000Z",
+  "also": {
+    "handle": "someone_eth",
+    "url": "https://x.com/someone_eth",
+    "source": "attested-social"
+  }
+}
+```
+
+`source` is the [evidence class](/concepts/data-quality#evidence-classes) of
+the attestation behind the second handle. The field is absent, not null, on
+every other record. It never appears where the stored handle has stopped
+reaching anyone: that record is corrected instead, and `handle` becomes the
+account that still works.
 
 ## Staleness headers
 

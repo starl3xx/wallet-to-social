@@ -13,6 +13,7 @@ import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
+  alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
 
@@ -186,9 +187,17 @@ export async function POST(request: NextRequest) {
 
   // Build result map
   const resultMap = new Map<string, (typeof results)[0]>();
-  const reach = await reachabilityForWallets(
-    results.map((r) => ({ wallet: r.wallet, handle: r.twitterHandle }))
-  );
+  // One read each for the whole batch, together: neither depends on the other.
+  // `also` is a second live handle attested for the same wallet; see
+  // alsoOnXForWallets for what has to hold before a row gets one.
+  const handleRows = results.map((r) => ({
+    wallet: r.wallet,
+    handle: r.twitterHandle,
+  }));
+  const [reach, also] = await Promise.all([
+    reachabilityForWallets(handleRows),
+    alsoOnXForWallets(handleRows),
+  ]);
 
   for (const result of results) {
     resultMap.set(result.wallet, result);
@@ -231,6 +240,7 @@ export async function POST(request: NextRequest) {
         verified: result.twitterVerified,
         // Keyed by wallet, not handle: reassigned is a per-wallet fact.
         reachability: reach.get(result.wallet.toLowerCase()) ?? null,
+        also: also.get(result.wallet.toLowerCase()) ?? null,
       });
     }
     if (result.farcaster) {

@@ -13,6 +13,7 @@ import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
+  alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
 
@@ -155,14 +156,21 @@ export async function GET(
   if (result.twitterHandle) {
     // Wallet-aware: a handle can be live and still belong to somebody other
     // than the account attested alongside THIS wallet. See reachabilityForWallets.
-    const reach = await reachabilityForWallets([
-      { wallet: result.wallet, handle: result.twitterHandle },
+    // The second read is a second live handle attested for the same wallet,
+    // which rides along as `also` rather than replacing this one. Both are
+    // reads of the same two tables and neither needs the other, so they run
+    // together.
+    const row = { wallet: result.wallet, handle: result.twitterHandle };
+    const [reach, also] = await Promise.all([
+      reachabilityForWallets([row]),
+      alsoOnXForWallets([row]),
     ]);
     data.twitter = publicTwitterField({
       handle: result.twitterHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
       reachability: reach.get(result.wallet.toLowerCase()) ?? null,
+      also: also.get(result.wallet.toLowerCase()) ?? null,
     });
   }
   if (result.farcaster) {

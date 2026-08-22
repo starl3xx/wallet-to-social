@@ -79,6 +79,10 @@ export const ExportButton = memo(function ExportButton({
       // Blank where we have not checked. An empty cell is honest about not
       // knowing; writing "false" there would claim we looked and it failed.
       'twitter_reachable',
+      // A second live X account attested for the wallet, where one exists.
+      // Named like its siblings and like the API's `twitter.also`, so a file
+      // and a response describe the same fact under the same name.
+      'twitter_also',
       'farcaster',
       'farcaster_url',
       'fc_fid',
@@ -109,6 +113,10 @@ export const ExportButton = memo(function ExportButton({
           ? 'true'
           : 'false'
         : '',
+      // The handle alone. The URL is derivable and the evidence class is
+      // already the `source` column's vocabulary; a spreadsheet cell wants
+      // one value.
+      twitter_also: result.twitter_also?.handle ?? '',
       is_agent: result.is_agent ? 'true' : '',
       agent_name: result.agent_name || '',
       agent_framework: result.agent_framework || '',
@@ -144,18 +152,31 @@ export const ExportButton = memo(function ExportButton({
    * The button's count is derived from this same array rather than counted
    * separately. It used to be rows-with-handles minus rows-unreachable, which
    * after deduping would have promised more handles than the file delivers.
+   *
+   * A row's second attested handle (`twitter_also`) goes in too, after the
+   * primary so the priority order still holds. This list exists to reach
+   * people, and that handle is a second way of reaching the same one. It is
+   * only ever present where it was checked and found live, so it needs no
+   * reachability test here, and it goes in even when the primary is left out:
+   * a primary marked `reassigned` is live but now a stranger's, and the
+   * second handle is then the only one on the row that reaches the owner.
    */
   const reachableHandles = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
+    const add = (handle: string) => {
+      const key = handle.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(handle);
+    };
     for (const r of sortedResults) {
       const handle = r.twitter_handle;
       if (!handle) continue;
-      if (r.twitter_reachability && r.twitter_reachability !== 'live') continue;
-      const key = handle.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(handle);
+      const primaryReachable =
+        !r.twitter_reachability || r.twitter_reachability === 'live';
+      if (primaryReachable) add(handle);
+      if (r.twitter_also) add(r.twitter_also.handle);
     }
     return out;
   }, [sortedResults]);
