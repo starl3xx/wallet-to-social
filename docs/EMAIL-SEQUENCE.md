@@ -1,10 +1,10 @@
 # Lifecycle email: the relaunch campaign and the welcome sequence
 
-Status: **pipeline built (2026-08-22); nothing has been sent.** The
-unsubscribe endpoint, opt-out column, send ledger and lifecycle sender are
-in code. The relaunch campaign script is ready behind a dry-run default.
-The welcome sequence below remains **drafts with no cron**: it does not send
-until Jake approves the copy and the cron is wired.
+Status: **pipeline built (2026-08-22).** The unsubscribe endpoint, opt-out
+column, send ledger and lifecycle sender are in code. The relaunch campaign
+script is ready behind a dry-run default and **has not been sent**. The
+welcome sequence below is approved and live for new signups; its own status
+block follows.
 
 ## Email 0: the relaunch Trial grant (one-off campaign)
 
@@ -22,8 +22,16 @@ Run order before the first send: `scripts/migrate-email-lifecycle.ts`, then
 
 # Welcome sequence: signup to first pack
 
-Status: **drafts, not wired**. Nothing sends until the cron below
-is built and Jake approves the send. Figures in the copy come from
+Status: **live**. Jake approved the copy on 2026-08-22 (his edits are the
+canonical text, mirrored in `lib/welcome-sequence.ts`), and the daily cron
+runs at 15:00 UTC (`app/api/cron/welcome-sequence/route.ts`, watched by the
+health pane). **Enrollment starts at accounts created on or after
+2026-08-23**: the earlier ~100 signups are the relaunch campaign's audience
+and are deliberately excluded (`SEQUENCE_START`). A purchase or an opt-out
+exits the sequence; every send is at-most-once via `lifecycle_emails`.
+
+If the copy changes here, change `lib/welcome-sequence.ts` in the same PR:
+the code is the sent truth and this file is its record. Figures in the copy come from
 `lib/public-figures.ts` and must track it; if a draft ships to code, its
 figures join `scripts/check-published-figures.ts`.
 
@@ -69,7 +77,7 @@ List-Unsubscribe header.
 
 ### Email 1, day 0: Your first 100 matches are free
 
-Hey, thanks for signing up for walletlink.social. Here’s what you can do with it..
+Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.
 
 Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a 4.8 million wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.
 
@@ -134,13 +142,13 @@ and POST for RFC 8058 one-click), and `sendLifecycleEmail` in `lib/email.ts`
 `EMAIL_UNSUBSCRIBE_SECRET`). Transactional magic-link mail ignores the
 opt-out flag; lifecycle mail honors it.
 
-Still to build for the welcome sequence: the daily Vercel cron that walks
-the five-email schedule against `users.created_at`, `credit_lots`, and
-`lifecycle_emails` (keys `welcome-1` … `welcome-5`), and send logging into
-`analytics_events`. Conversion metric: a `credit_lots` row with a real
-payment within 30 days of email 5.
+Built 2026-08-22, all of it: the daily cron at 15:00 UTC walks the
+five-email schedule against `users.created_at`, `credit_lots`, and
+`lifecycle_emails` (keys `welcome-1` to `welcome-5`), heartbeats into
+`analytics_events` (`welcome_sequence`), and shows on the admin health pane.
+Conversion metric: a `credit_lots` row with a real payment within 30 days of
+email 5; watch it on the admin Growth tab's Lifecycle email card.
 
-Open decisions for Jake before wiring: approve the copy and cadence, confirm
-noreply@ as the from address for lifecycle mail, and whether existing ~100
-signups get the sequence retroactively (recommended: yes, entering at email
-2's spacing).
+Decided by Jake 2026-08-22: the copy above is approved; noreply@ stays the
+from address with reply-to help@; the existing ~100 signups do NOT enter the
+sequence retroactively, because they are the relaunch campaign's audience.
