@@ -8,7 +8,7 @@
  * nothing in the protocol notices when somebody renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. It has checked 428,059 distinct handles, with none now left
+ * 2026-08-18. It has checked 437,823 distinct handles, with none now left
  * unchecked in the table. Against the 446,329 distinct handles the index holds,
  * that is 95.9% coverage, and **rising**.
  *
@@ -21,10 +21,10 @@
  * The first pass, on 2026-08-17, did 417,872 in a single run. Not "all" of
  * them: the sweep leaves transport failures unrecorded so they retry, so its
  * result was never going to equal its target. The percentages below are shares
- * of the 428,059 that returned a state:
+ * of the 437,823 that returned a state:
  *
  *     live          298,087   69.6%
- *     suspended      88,440   20.7%
+ *     suspended      88,440   20.6%
  *     unclaimed      41,532    9.7%
  *
  * **Roughly a third of every attested X handle in the Farcaster protocol reaches

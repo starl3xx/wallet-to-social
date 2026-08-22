@@ -99,15 +99,19 @@ export function SiteFooter() {
             <FooterLink href="/blog">Blog</FooterLink>
           </FooterColumn>
 
-          {/* Five real pages that nothing linked to. They are also the highest-intent
-              organic entry points the product has: someone searching "addressable
-              alternative" is further down the funnel than anyone reading the blog. */}
+          {/* The comparison pages are the highest-intent organic entry points
+              the product has: someone searching "addressable alternative" is
+              further down the funnel than anyone reading the blog. Only the
+              live competitors are listed. /vs/blaze and /vs/airstack stay
+              published for the searches that still land on them, but neither
+              service takes customers any more (decided 2026-08-22), and a
+              footer that offers a comparison with a dead product tells a
+              visitor we have not looked lately. */}
           <FooterColumn title="Compare">
             <FooterLink href="/vs/addressable">vs Addressable</FooterLink>
-            <FooterLink href="/vs/blaze">vs Blaze</FooterLink>
             <FooterLink href="/vs/holder">vs Holder</FooterLink>
             <FooterLink href="/vs/cookie3">vs Cookie3</FooterLink>
-            <FooterLink href="/vs/airstack">vs Airstack</FooterLink>
+            <FooterLink href="/vs/formo">vs Formo</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Developers">

@@ -70,12 +70,12 @@ export const FARCASTER_WALLETS = '4.7 million';
  * This lived as a literal in five published surfaces plus two module headers,
  * and by 2026-08-20 it was three different numbers: 417,872 in the docs, the
  * README, the reachability panel and the AI prompt; 422,990 in
- * `lib/handle-reachability.ts`; and 428,059 in the database. Every one of them
+ * `lib/handle-reachability.ts`; and 437,823 in the database. Every one of them
  * passed the figures check, because the claim is a ceiling and understating is
  * safe. Safe is not the same as true, so the check now also fails when a
  * ceiling claim falls too far behind, and the literal lives here.
  */
-export const X_HANDLES_RESOLVED = '428,059';
+export const X_HANDLES_RESOLVED = '437,823';
 
 /**
  * Distinct X handles the index holds. The denominator for the figure above.

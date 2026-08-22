@@ -16,9 +16,10 @@ import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
-  title: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
+  title:
+    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
   description:
-    'Blaze has pivoted out of web3 and withblaze.app no longer resolves. If you used Blaze’s Wallet CRM to match wallets to X, here’s where to migrate.',
+    'Blaze is no longer available: withblaze.app stopped resolving (checked 2026-08-22). This page is kept for people comparing alternatives for wallet-to-X lookups.',
   keywords: [
     'Blaze alternative',
     'withblaze shut down',
@@ -27,9 +28,10 @@ export const metadata: Metadata = {
     'wallet lookup tool',
   ],
   openGraph: {
-    title: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
+    title:
+      'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
     description:
-      'Blaze has pivoted out of web3. Migrate your wallet-to-X workflow to walletlink.social: one-time pricing, X and Farcaster coverage.',
+      'Blaze is no longer available. This page is kept for people comparing alternatives: walletlink.social has one-time pricing and X and Farcaster coverage.',
     type: 'article',
     url: 'https://walletlink.social/vs/blaze',
     siteName: 'walletlink.social',
@@ -38,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Blaze alternative for wallet-to-X lookups',
     description:
-      'Blaze left web3. Here’s where to migrate your wallet-to-X lookups.',
+      'Blaze is no longer available. Here’s where to migrate your wallet-to-X lookups.',
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/blaze',
@@ -48,9 +50,10 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
+  headline:
+    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
   description:
-    'Blaze pivoted out of web3 and withblaze.app no longer resolves. A migration guide for former Blaze Wallet CRM users moving to walletlink.social.',
+    'Blaze is no longer available and withblaze.app no longer resolves (checked 2026-08-22). A page kept for former Blaze users comparing alternatives for wallet-to-X lookups.',
   author: {
     '@type': 'Organization',
     name: 'walletlink.social',
@@ -98,7 +101,7 @@ export default function BlazeComparison() {
                 `text-foreground/80` was an opacity wash standing in for the
                 token that already means "secondary text". */}
             <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-              Blaze wants to be where you manage the relationship. We just tell
+              Blaze wanted to be where you manage the relationship. We just tell
               you who the wallet belongs to, and hand it back.
             </p>
 
@@ -151,34 +154,36 @@ export default function BlazeComparison() {
             </dl>
           </header>
 
-          <div className="mb-16">
-            <ReachabilityClaim competitor="Blaze" />
-          </div>
-
-          {/* What happened */}
+          {/* Status first. The service is gone, so the reader learns that
+              before anything compares it with us. Every statement here is
+              what was observed on 2026-08-22 and nothing more: there is no
+              shutdown post to cite, so the page says what it checked and when,
+              not why. An earlier version said Blaze had "pivoted out of web3",
+              which nothing published supports. */}
           <section className="mb-12">
             <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-4">
               What happened to Blaze?
             </h2>
             <p className="text-muted-foreground mb-4">
-              Blaze was a Web3 CRM platform built around community management
-              and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
-              wallet addresses to X handles as one part of a broader
-              subscription suite that included:
+              Blaze described itself as community building tools for crypto:
+              audience growth, lead management, quests, scheduled content, and
+              social and onchain analytics. The last archived copy of
+              withblaze.app, from 20 January 2026, was still a live marketing
+              page with sign-up links.
             </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2 mb-4">
-              <li>Community management and engagement tools</li>
-              <li>Lead generation and nurturing workflows</li>
-              <li>X and Discord integrations</li>
-              <li>Campaign management</li>
-            </ul>
             <p className="text-muted-foreground">
-              The company has since pivoted out of web3 entirely, and its former
-              domain no longer resolves. The Wallet CRM, its wallet-to-X
-              matching, and its subscriptions went with it. If you relied on
-              Blaze for wallet-to-social data, that workflow needs a new home.
+              Checked on 22 August 2026: withblaze.app and its dashboard, API
+              and blog hosts no longer resolve, so nobody can sign in or sign
+              up. The last archived copy of any page on the site is from January
+              2026. We found no shutdown announcement, and the company’s X
+              account last posted in June 2025. If you relied on Blaze for
+              wallet-to-social data, that workflow needs a new home.
             </p>
           </section>
+
+          <div className="mb-16">
+            <ReachabilityClaim competitor="Blaze" retired />
+          </div>
 
           {/* Migration table. A Check in a capability cell is green, whichever
               column it sits in: "has this" is a measured fact, and green is the
@@ -222,7 +227,9 @@ export default function BlazeComparison() {
                       </span>{' '}
                       one-time
                     </td>
-                    <td className="py-4 pl-4">Was $79+/month ($948+/year)</td>
+                    <td className="py-4 pl-4">
+                      Was a subscription, monthly or annual
+                    </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">X</td>
@@ -450,12 +457,12 @@ export default function BlazeComparison() {
             <div className="p-6 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
-                Blaze started at $79/month, $948+ per year. walletlink.social is{' '}
+                every pack is a one-time payment, and every one includes API
+                access. walletlink.social is{' '}
                 <span className="font-semibold text-accent-brand">
                   ${PACKS.trial.priceCents / 100} to start
                 </span>
-                , less than two months of the old Blaze subscription, and it
-                never renews.
+                , and it never renews.
               </p>
             </div>
           </section>
@@ -507,6 +514,11 @@ export default function BlazeComparison() {
               <li>
                 <Button asChild variant="link" size="inline">
                   <Link href="/vs/airstack">vs Airstack</Link>
+                </Button>
+              </li>
+              <li>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/formo">vs Formo</Link>
                 </Button>
               </li>
             </ul>

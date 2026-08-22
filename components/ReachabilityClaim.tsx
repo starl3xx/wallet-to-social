@@ -26,7 +26,28 @@ import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
  * "the owner attested this, and it still works" is a stronger claim than either
  * half, and it is one only a source that actually looked can make.
  */
-export function ReachabilityClaim({ competitor }: { competitor: string }) {
+/**
+ * `retired` puts the competitor's half in the past tense. Blaze and Airstack
+ * no longer take customers, and "Blaze does not" on a page that opens by
+ * saying Blaze is gone reads as if nobody had looked.
+ *
+ * `undocumented` states the weaker claim that is all the evidence supports
+ * for a live competitor whose docs simply never mention a reachability
+ * check: "nothing in Formo's docs says it does" is true; "Formo does not"
+ * asserts knowledge of their pipeline that we do not have.
+ */
+export function ReachabilityClaim({
+  competitor,
+  retired = false,
+  undocumented = false,
+}: {
+  competitor: string;
+  retired?: boolean;
+  undocumented?: boolean;
+}) {
+  const theirs = undocumented
+    ? `Nothing in ${competitor}’s docs says it does.`
+    : `${competitor} ${retired ? 'did not' : 'does not'}.`;
   return (
     /* A Card, the one top-level panel. It was a hand-rolled box on a
        `bg-muted/40` wash, an unnamed tint the surface rule has no row for.
@@ -41,7 +62,7 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
         />
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">
-            We check whether the X account still exists. {competitor} does not.
+            We check whether the X account still exists. {theirs}
           </h2>
 
           <p className="text-sm text-muted-foreground">
@@ -63,7 +84,7 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
             </strong>
             ,{' '}
             <strong className="font-semibold text-foreground">
-              20.7% suspended
+              20.6% suspended
             </strong>
             , and{' '}
             <strong className="font-semibold text-foreground">

@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (vs Formo; Blaze and Airstack marked retired)
+
+- **New comparison: `/vs/formo`.** Formo is analytics and attribution for
+  DeFi apps, sold as a subscription (Growth $199 a month billed yearly, $249
+  monthly; Scale $399 billed yearly, $499 monthly; read from formo.so on
+  2026-08-22 and confirmed in a browser). The overlap is its wallet profiles
+  and the Import Wallets feature on Scale, plus a per-address profile over
+  x402 at 0.05 USDC. The page prices a 10,000-wallet list three ways with the
+  arithmetic shown, computed from `lib/packs.ts`, and says plainly when Formo
+  is the right tool. Every Formo figure is dated in the copy. The
+  reachability card on this page states the weaker claim the evidence
+  supports ("nothing in Formo’s docs says it does") through a new
+  `undocumented` prop.
+
+- **Blaze and Airstack are gone; their pages stay.** withblaze.app and its
+  dashboard, API and blog hosts no longer resolve (last archived copy January
+  2026, no shutdown post found). airstack.xyz redirects to senpi.ai; its app
+  and API hosts are down and it deprecated its Farcaster APIs on 2025-03-05.
+  Both pages open with a dated "What happened to" section, speak of the
+  service in the past tense (`ReachabilityClaim` gained a `retired` prop),
+  and drop to priority 0.7 in the sitemap. An unsourced Blaze price was
+  removed rather than kept.
+
+- **Footer and related links list live competitors only:** Addressable,
+  Holder, Cookie3, Formo. The retired pages link to each other and to the
+  live four.
+
 ### 2026-08-22 (design review, PR 3 of 3: openings, motion, spacing)
 
 - **Every page opens the same way.** Home now carries the signature the

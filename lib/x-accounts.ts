@@ -3,7 +3,7 @@
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
  * whenever they like without telling anyone. Measured across the whole index:
- * of 428,059 handles resolved, 30.4% reach nobody.
+ * of 437,823 handles resolved, 30.3% reach nobody.
  *
  * ## Why this is a table about handles, not a column on wallets
  *
