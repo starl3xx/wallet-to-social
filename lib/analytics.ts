@@ -2,6 +2,7 @@ import {
   getDb,
   analyticsEvents,
   apiMetrics,
+  creditLots,
   dailyStats,
   lookupJobs,
   users,
@@ -22,7 +23,7 @@ export type AnalyticsEventType =
   | 'checkout_started'
   // checkout_started fires on button click, before the API call, so on its own
   // it cannot distinguish "reached Stripe" from "checkout errored". These two
-  // close that gap — 41 checkout_started with 0 payments was unreadable without them.
+  // close that gap: 41 checkout_started with 0 payments was unreadable without them.
   | 'checkout_redirected'
   | 'checkout_failed'
   | 'payment_completed'
@@ -31,9 +32,9 @@ export type AnalyticsEventType =
   | 'contract_import_blocked'
   | 'contract_import_success'
   // Social graph tracking events (Phase 3)
-  | 'social_graph_hit'        // Served from high-quality graph data, skipped API
-  | 'social_graph_miss'       // Not in graph or low quality, needed API
-  | 'social_graph_stale'      // In graph but needed refresh
+  | 'social_graph_hit' // Served from high-quality graph data, skipped API
+  | 'social_graph_miss' // Not in graph or low quality, needed API
+  | 'social_graph_stale' // In graph but needed refresh
   | 'social_graph_write_success'
   | 'social_graph_write_failed'
   // Weekly hygiene pass. `blocked` is the one that matters: it fires when a
@@ -130,7 +131,10 @@ export async function getEventCounts(
 }
 
 // Get unique user count for a date range
-export async function getActiveUsers(startDate: Date, endDate: Date): Promise<number> {
+export async function getActiveUsers(
+  startDate: Date,
+  endDate: Date
+): Promise<number> {
   const db = getDb();
   if (!db) return 0;
 
@@ -255,9 +259,13 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
     const newUserStats = await db
       .select({ count: count() })
       .from(users)
-      .where(and(gte(users.createdAt, startOfDay), lte(users.createdAt, endOfDay)));
+      .where(
+        and(gte(users.createdAt, startOfDay), lte(users.createdAt, endOfDay))
+      );
 
-    // Count purchases
+    // Legacy tier purchases. Only the two legacy accounts ever set `tier` and
+    // `paidAt`; a pack never touches either column. Kept so the days those two
+    // sales landed on keep their revenue when the stats are recomputed.
     const purchaseStats = await db
       .select({
         proPurchases: sql<number>`SUM(CASE WHEN tier = 'pro' THEN 1 ELSE 0 END)`,
@@ -266,10 +274,31 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
       .from(users)
       .where(and(gte(users.paidAt, startOfDay), lte(users.paidAt, endOfDay)));
 
-    // Calculate revenue (Pro = $99 = 9900 cents, Unlimited = $249 = 24900 cents)
+    // Pack revenue: what was actually charged for each lot created that day.
+    // `amount_cents` is the record of what was paid, not derived from the
+    // pack, so a price change does not rewrite history. Hand-issued grants
+    // carry 0 and add nothing.
+    const packStats = await db
+      .select({
+        packRevenueCents: sql<number>`COALESCE(SUM(${creditLots.amountCents}), 0)`,
+      })
+      .from(creditLots)
+      .where(
+        and(
+          gte(creditLots.createdAt, startOfDay),
+          lte(creditLots.createdAt, endOfDay)
+        )
+      );
+
+    // Legacy list prices (Pro $99, Unlimited $249) apply only to the tier
+    // sales above; nothing sold today is priced this way.
     const proPurchases = Number(purchaseStats[0]?.proPurchases ?? 0);
-    const unlimitedPurchases = Number(purchaseStats[0]?.unlimitedPurchases ?? 0);
-    const revenueCents = proPurchases * 9900 + unlimitedPurchases * 24900;
+    const unlimitedPurchases = Number(
+      purchaseStats[0]?.unlimitedPurchases ?? 0
+    );
+    const packRevenueCents = Number(packStats[0]?.packRevenueCents ?? 0);
+    const revenueCents =
+      packRevenueCents + proPurchases * 9900 + unlimitedPurchases * 24900;
 
     // Get API error count
     const errorStats = await db
@@ -287,12 +316,18 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
     const latencyStats = await db
       .select({ avgLatency: avg(apiMetrics.latencyMs) })
       .from(apiMetrics)
-      .where(and(gte(apiMetrics.createdAt, startOfDay), lte(apiMetrics.createdAt, endOfDay)));
+      .where(
+        and(
+          gte(apiMetrics.createdAt, startOfDay),
+          lte(apiMetrics.createdAt, endOfDay)
+        )
+      );
 
     // Calculate cache hit rate
     const totalWallets = Number(lookupStats[0]?.totalWallets ?? 0);
     const cacheHits = Number(lookupStats[0]?.cacheHits ?? 0);
-    const cacheHitRate = totalWallets > 0 ? (cacheHits / totalWallets) * 100 : 0;
+    const cacheHitRate =
+      totalWallets > 0 ? (cacheHits / totalWallets) * 100 : 0;
 
     // Upsert daily stats
     await db
@@ -338,16 +373,18 @@ export async function aggregateDailyStats(date: Date): Promise<void> {
 export async function getDailyStatsRange(
   startDate: Date,
   endDate: Date
-): Promise<Array<{
-  date: string;
-  totalLookups: number;
-  totalWalletsProcessed: number;
-  uniqueUsers: number;
-  newUsers: number;
-  revenueCents: number;
-  avgMatchRate: number;
-  errorCount: number;
-}>> {
+): Promise<
+  Array<{
+    date: string;
+    totalLookups: number;
+    totalWalletsProcessed: number;
+    uniqueUsers: number;
+    newUsers: number;
+    revenueCents: number;
+    avgMatchRate: number;
+    errorCount: number;
+  }>
+> {
   const db = getDb();
   if (!db) return [];
 
@@ -414,7 +451,10 @@ export async function getUserFunnel(
       })
       .from(analyticsEvents)
       .where(
-        and(gte(analyticsEvents.createdAt, startDate), lte(analyticsEvents.createdAt, endDate))
+        and(
+          gte(analyticsEvents.createdAt, startDate),
+          lte(analyticsEvents.createdAt, endDate)
+        )
       )
       .groupBy(analyticsEvents.eventType);
 
@@ -497,14 +537,20 @@ export async function getUserCohorts(): Promise<
       }
     }
 
-    // Churned paid users (paid but no activity in 30 days)
+    // Churned paid users (paid but no activity in 30 days). "Paid" is a legacy
+    // tier or a bought lot; a pack never sets `tier`, so the tier test alone
+    // would miss every pack buyer.
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const churnedResult = await db
       .select({ count: count() })
       .from(users)
       .where(
         and(
-          sql`tier != 'free'`,
+          sql`(tier != 'free' OR EXISTS (
+            SELECT 1 FROM credit_lots
+            WHERE credit_lots.user_id = users.id
+            AND credit_lots.amount_cents > 0
+          ))`,
           sql`NOT EXISTS (
             SELECT 1 FROM analytics_events
             WHERE analytics_events.user_id = users.email
@@ -519,18 +565,20 @@ export async function getUserCohorts(): Promise<
         definition: '5+ lookups, exports regularly',
         count: powerUserCount,
         avgLookups: powerUserCount > 0 ? powerUserLookups / powerUserCount : 0,
-        conversionRate: powerUserCount > 0 ? (powerUserPaid / powerUserCount) * 100 : 0,
+        conversionRate:
+          powerUserCount > 0 ? (powerUserPaid / powerUserCount) * 100 : 0,
       },
       {
         name: 'Tire Kickers',
         definition: '1 lookup, no export',
         count: tireKickerCount,
         avgLookups: 1,
-        conversionRate: tireKickerCount > 0 ? (tireKickerPaid / tireKickerCount) * 100 : 0,
+        conversionRate:
+          tireKickerCount > 0 ? (tireKickerPaid / tireKickerCount) * 100 : 0,
       },
       {
         name: 'Almost Converted',
-        definition: "3+ lookups, hit limit, didn't pay",
+        definition: '3+ lookups, hit limit, didn’t pay',
         count: almostConvertedCount,
         avgLookups: 3,
         conversionRate: 0,
@@ -655,9 +703,7 @@ export async function getQueueDepth(): Promise<{
 }
 
 // Get recent errors for error log
-export async function getRecentErrors(
-  limit: number = 50
-): Promise<
+export async function getRecentErrors(limit: number = 50): Promise<
   Array<{
     id: string;
     provider: string;
@@ -743,7 +789,12 @@ export async function getExecutivePulse(): Promise<{
     const todayLookups = await db
       .select({ count: count() })
       .from(lookupJobs)
-      .where(and(eq(lookupJobs.status, 'completed'), gte(lookupJobs.completedAt, todayStart)));
+      .where(
+        and(
+          eq(lookupJobs.status, 'completed'),
+          gte(lookupJobs.completedAt, todayStart)
+        )
+      );
 
     // 7-day trend
     const weeklyStats = await getDailyStatsRange(sevenDaysAgo, now);
@@ -751,24 +802,40 @@ export async function getExecutivePulse(): Promise<{
 
     // Active users (7d)
     const activeUsers7d = await getActiveUsers(sevenDaysAgo, now);
-    const activeUsersPrev7d = await getActiveUsers(fourteenDaysAgo, sevenDaysAgo);
+    const activeUsersPrev7d = await getActiveUsers(
+      fourteenDaysAgo,
+      sevenDaysAgo
+    );
     const activeUsersTrend: 'up' | 'down' | 'flat' =
-      activeUsers7d > activeUsersPrev7d ? 'up' : activeUsers7d < activeUsersPrev7d ? 'down' : 'flat';
+      activeUsers7d > activeUsersPrev7d
+        ? 'up'
+        : activeUsers7d < activeUsersPrev7d
+          ? 'down'
+          : 'flat';
 
     // Conversion rate (this week)
     const funnel = await getUserFunnel(sevenDaysAgo, now);
     const conversionRate =
-      funnel.lookupsStarted > 0 ? (funnel.paymentCompleted / funnel.lookupsStarted) * 100 : 0;
+      funnel.lookupsStarted > 0
+        ? (funnel.paymentCompleted / funnel.lookupsStarted) * 100
+        : 0;
 
     // Revenue MTD
     const mtdStats = await getDailyStatsRange(monthStart, now);
-    const revenueMTD = mtdStats.reduce((sum, s) => sum + s.revenueCents, 0) / 100;
+    const revenueMTD =
+      mtdStats.reduce((sum, s) => sum + s.revenueCents, 0) / 100;
 
     // Revenue vs last month
-    const lastMonthStats = await getDailyStatsRange(lastMonthStart, lastMonthEnd);
-    const lastMonthRevenue = lastMonthStats.reduce((sum, s) => sum + s.revenueCents, 0) / 100;
+    const lastMonthStats = await getDailyStatsRange(
+      lastMonthStart,
+      lastMonthEnd
+    );
+    const lastMonthRevenue =
+      lastMonthStats.reduce((sum, s) => sum + s.revenueCents, 0) / 100;
     const revenueVsLastMonth =
-      lastMonthRevenue > 0 ? ((revenueMTD - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+      lastMonthRevenue > 0
+        ? ((revenueMTD - lastMonthRevenue) / lastMonthRevenue) * 100
+        : 0;
 
     // Error rate (24h)
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -780,7 +847,12 @@ export async function getExecutivePulse(): Promise<{
     const errorApiCalls = await db
       .select({ count: count() })
       .from(apiMetrics)
-      .where(and(gte(apiMetrics.createdAt, twentyFourHoursAgo), sql`error_message IS NOT NULL`));
+      .where(
+        and(
+          gte(apiMetrics.createdAt, twentyFourHoursAgo),
+          sql`error_message IS NOT NULL`
+        )
+      );
 
     const totalCalls = allApiCalls[0]?.count ?? 0;
     const errorCalls = errorApiCalls[0]?.count ?? 0;
@@ -846,15 +918,24 @@ export async function getFeatureAdoption(
     const events = await db
       .select()
       .from(analyticsEvents)
-      .where(and(gte(analyticsEvents.createdAt, startDate), lte(analyticsEvents.createdAt, endDate)));
+      .where(
+        and(
+          gte(analyticsEvents.createdAt, startDate),
+          lte(analyticsEvents.createdAt, endDate)
+        )
+      );
 
-    const totalLookups = events.filter((e) => e.eventType === 'lookup_completed').length;
+    const totalLookups = events.filter(
+      (e) => e.eventType === 'lookup_completed'
+    ).length;
     const ensLookups = events.filter(
       (e) =>
         e.eventType === 'lookup_completed' &&
         (e.metadata as Record<string, unknown>)?.includeENS === true
     ).length;
-    const historySaves = events.filter((e) => e.eventType === 'history_saved').length;
+    const historySaves = events.filter(
+      (e) => e.eventType === 'history_saved'
+    ).length;
     const exports = events.filter((e) => e.eventType === 'export_clicked');
     const csvExports = exports.filter(
       (e) => (e.metadata as Record<string, unknown>)?.format === 'csv'
@@ -864,7 +945,11 @@ export async function getFeatureAdoption(
     ).length;
 
     // Calculate average lookup sizes by tier
-    const lookupsByTier: Record<string, number[]> = { free: [], pro: [], unlimited: [] };
+    const lookupsByTier: Record<string, number[]> = {
+      free: [],
+      pro: [],
+      unlimited: [],
+    };
     for (const event of events) {
       if (event.eventType === 'lookup_started') {
         const metadata = event.metadata as Record<string, unknown>;
@@ -876,11 +961,13 @@ export async function getFeatureAdoption(
       }
     }
 
-    const avgSize = (arr: number[]) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+    const avgSize = (arr: number[]) =>
+      arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
     return {
       ensLookupRate: totalLookups > 0 ? (ensLookups / totalLookups) * 100 : 0,
-      historySaveRate: totalLookups > 0 ? (historySaves / totalLookups) * 100 : 0,
+      historySaveRate:
+        totalLookups > 0 ? (historySaves / totalLookups) * 100 : 0,
       exportRate: totalLookups > 0 ? (exports.length / totalLookups) * 100 : 0,
       exportFormats: { csv: csvExports, twitter: twitterExports },
       avgLookupSize: {

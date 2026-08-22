@@ -1,8 +1,8 @@
 ---
-title: "Community Retention: The Case for Direct Holder Outreach"
-meta_description: "Direct outreach to token holders sees 40% response rates vs 2% for broadcasts. How wallet identity turns retention from guesswork into a system."
+title: 'Community Retention: The Case for Direct Holder Outreach'
+meta_description: 'Direct outreach to token holders sees 40% response rates vs 2% for broadcasts. How wallet identity turns retention from guesswork into a system.'
 published: true
-publish_date: "2026-04-27"
+publish_date: '2026-04-27'
 ---
 
 # Community Retention: The Case for Direct Holder Outreach
@@ -30,12 +30,12 @@ This is not a crypto-specific insight. Email marketers figured this out years ag
 
 Here is what the numbers look like when projects switch from broadcast-only to direct holder outreach:
 
-| Metric | Broadcast Only | With Direct Outreach |
-|--------|---------------|---------------------|
-| Governance participation | 3-5% of holders | 15-25% of holders |
-| Response rate | ~2% | ~40% |
-| Holder churn (30-day) | 12-18% | 5-8% |
-| Event attendance | 1-3% of community | 10-20% of community |
+| Metric                   | Broadcast Only    | With Direct Outreach |
+| ------------------------ | ----------------- | -------------------- |
+| Governance participation | 3-5% of holders   | 15-25% of holders    |
+| Response rate            | ~2%               | ~40%                 |
+| Holder churn (30-day)    | 12-18%            | 5-8%                 |
+| Event attendance         | 1-3% of community | 10-20% of community  |
 
 These numbers come from projects that have actually done the work of identifying their holders, finding their social accounts, and reaching out directly. The pattern is consistent: when you talk to people individually, they respond.
 
@@ -45,7 +45,7 @@ The reason most projects default to broadcasts is simple: they do not know who t
 
 You can pull a holder snapshot from Etherscan or Dune in about thirty seconds. You will get a clean list of wallet addresses with balances. And then you are stuck, because you cannot DM `0x7a3B...`.
 
-This is the identity gap. Onchain data tells you *what* is happening. It does not tell you *who* is behind it. Closing that gap is the prerequisite for any direct outreach strategy.
+This is the identity gap. Onchain data tells you _what_ is happening. It does not tell you _who_ is behind it. Closing that gap is the prerequisite for any direct outreach strategy.
 
 Wallet identity resolution -- mapping addresses to social profiles on Twitter, Farcaster, and other platforms -- is what makes the shift from broadcast to direct outreach possible. Tools like [walletlink.social](https://walletlink.social) exist specifically to solve this mapping problem, turning anonymous holder lists into actionable contact lists.
 
@@ -97,4 +97,4 @@ Direct outreach works. The data is clear. The only barrier has been the tooling 
 
 ---
 
-Ready to turn your holder list into a contact list? [walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 1,000 wallets.
+Ready to turn your holder list into a contact list? [walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches every 30 days.

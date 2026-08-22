@@ -46,6 +46,14 @@ export interface JobOptions {
    */
   meteredUserId?: string;
   tier?: UserTier;
+  /**
+   * Whether this job gets the paid result fields (priority score, Farcaster
+   * follower counts). Set by `/api/jobs` from the credit entitlement or a
+   * legacy tier, because a pack buyer's `tier` stays `free` and a tier check
+   * here would strip from a paying customer exactly what the pack promised.
+   * Jobs created before this field existed fall back to the tier check.
+   */
+  paidData?: boolean;
   canUseNeynar?: boolean;
   canUseENS?: boolean;
   inputSource?: InputSource;
@@ -550,11 +558,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // Social graph enrichment is now done FIRST (see STEP 1 above)
     // This ensures we use high-quality cached data before calling external APIs
 
-    // Calculate priority scores (paid tiers only)
-    const isPaidTier = options.tier === 'pro' || options.tier === 'unlimited';
+    // Priority scores and follower counts are paid result fields: any pack, or
+    // a legacy tier. See JobOptions.paidData for why this is not a tier check.
+    const isPaidTier =
+      options.paidData ??
+      (options.tier === 'pro' || options.tier === 'unlimited');
     for (const [wallet, result] of results) {
       if (!isPaidTier) {
-        // Free tier doesn't get premium data
+        // Free accounts do not get the paid fields
         result.priority_score = undefined;
         result.fc_followers = undefined;
       } else {

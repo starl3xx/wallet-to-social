@@ -24,12 +24,12 @@ named here as an exception, with its reason. An unnamed second value is drift.
 
 Two hues carry meaning. Everything else is `muted`, `border` or `foreground`.
 
-| Token | Means |
-|---|---|
-| `accent-brand`, `accent-brand-tint` | **an affordance.** Anything you can act on: buttons, links, focus, selected, the logo |
-| `attested`, `attested-tint` | **a measured fact.** An identity the owner published, a system that is live, a real outcome |
-| `caution`, `caution-tint` | truncated results, stale records, approaching a limit |
-| `destructive` | revoking a key, deleting a lookup |
+| Token                               | Means                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| `accent-brand`, `accent-brand-tint` | **an affordance.** Anything you can act on: buttons, links, focus, selected, the logo       |
+| `attested`, `attested-tint`         | **a measured fact.** An identity the owner published, a system that is live, a real outcome |
+| `caution`, `caution-tint`           | truncated results, stale records, approaching a limit                                       |
+| `destructive`                       | revoking a key, deleting a lookup                                                           |
 
 **Green is a measured fact, violet is an affordance.** That single sentence covers
 the row gutter dot (the owner published this), the live pulse (the system is
@@ -54,7 +54,7 @@ clean over 18 live violations.
 
 **`primary` is not one of these tokens.** `--primary` is `oklch(0.205 0 0)`, a
 shadcn default that nothing here ever adapted: near-black in light mode,
-near-white in dark. It survived because its *name* reads like a brand token, and
+near-white in dark. It survived because its _name_ reads like a brand token, and
 because the palette guard is looking for raw families like `bg-gray-500` and this
 is not one. It had spread to both drop targets, so dragging a file onto the page
 lit the target **black** while the same component's resting state was violet; to
@@ -64,7 +64,7 @@ selection colour inside every input; and to the unused `Progress` primitive. The
 
 The general lesson is that **an unadapted library default is more dangerous than
 an obviously wrong value**, because it is plausible. A guard that only knows the
-library's *palette* cannot see the library's *semantics*.
+library's _palette_ cannot see the library's _semantics_.
 
 **Every token is `oklch()`. Never wrap one in `hsl()` or `rgb()`.**
 `hsl(var(--primary))` expands to `hsl(oklch(...))`, which is not a colour, so
@@ -83,13 +83,13 @@ Both themes clear WCAG AA, measured rather than asserted, and
 `scripts/check-contrast.mjs` reads the tokens straight out of `globals.css` so
 the numbers cannot drift from what ships.
 
-| | dark | light |
-|---|---|---|
-| body text | 18.97:1 | 19.80:1 |
-| muted text | 7.66:1 | 4.74:1 |
-| brand | 6.41:1 | 9.17:1 |
-| attested | 8.47:1 | 6.15:1 |
-| destructive | 5.01:1 | — |
+|             | dark    | light   |
+| ----------- | ------- | ------- |
+| body text   | 18.97:1 | 19.80:1 |
+| muted text  | 7.66:1  | 4.74:1  |
+| brand       | 6.41:1  | 9.17:1  |
+| attested    | 8.47:1  | 6.15:1  |
+| destructive | 5.01:1  | —       |
 
 **A control's edge is not decoration, and needs 3:1.** WCAG 1.4.11 asks for 3:1
 on anything required to identify a component. `--input`, which draws the
@@ -144,27 +144,27 @@ Söhne, self-hosted in `public/fonts`. Geist Mono via `next/font`, already wired
 
 ### Weight — five, each with one job
 
-| Weight | Cut | Used for |
-|---|---|---|
-| 200 | Extraleicht | display tier only: hero, page h1, share cards, hero figures |
-| 300 | Leicht | section headings, ledes, standfirsts |
-| 400 | Buch | body and UI |
-| 500 | Kräftig | labels, buttons, table figures |
-| 600 | Halbfett | headings h3, card titles, the emphasis span inside a display line |
+| Weight | Cut         | Used for                                                          |
+| ------ | ----------- | ----------------------------------------------------------------- |
+| 200    | Extraleicht | display tier only: hero, page h1, share cards, hero figures       |
+| 300    | Leicht      | section headings, ledes, standfirsts                              |
+| 400    | Buch        | body and UI                                                       |
+| 500    | Kräftig     | labels, buttons, table figures                                    |
+| 600    | Halbfett    | headings h3, card titles, the emphasis span inside a display line |
 
 **The emphasis span is the signature.** One 600-weight word inside a 200-weight
 line. It costs nothing: both cuts are already loaded.
 
 ### Tracking — bound to size, four steps
 
-| Token | Value | Applies at |
-|---|---|---|
-| `--t-display` | `-0.04em` | ≥32px |
-| `--t-title` | `-0.028em` | 20–31px |
-| `--t-lead` | `-0.012em` | 16–19px |
-| `--t-body` | `-0.006em` | body and UI |
+| Token         | Value      | Applies at  |
+| ------------- | ---------- | ----------- |
+| `--t-display` | `-0.04em`  | ≥32px       |
+| `--t-title`   | `-0.028em` | 20–31px     |
+| `--t-lead`    | `-0.012em` | 16–19px     |
+| `--t-body`    | `-0.006em` | body and UI |
 
-Checking that a value *is* a token is not the same as checking it is the *right*
+Checking that a value _is_ a token is not the same as checking it is the _right_
 token for its size. The wordmark passed every automated check while using
 `--t-lead` at 34px.
 
@@ -179,13 +179,13 @@ product.** Any `uppercase` not accompanied by `font-mono` is a violation.
 
 ### Radius — five values, all named
 
-| Token | Value | Applies to |
-|---|---|---|
-| `--r-container` | 14px | cards, panels, inputs, modals, dropzones |
-| `--r-mark` | 9px | the brand mark, the one square-ish object |
-| `--r-chip` | 6px | badges, inline code |
-| `--r-control` | pill | buttons, segmented controls |
-| — | 50% | dots and avatars only |
+| Token           | Value | Applies to                                |
+| --------------- | ----- | ----------------------------------------- |
+| `--r-container` | 14px  | cards, panels, inputs, modals, dropzones  |
+| `--r-mark`      | 9px   | the brand mark, the one square-ish object |
+| `--r-chip`      | 6px   | badges, inline code                       |
+| `--r-control`   | pill  | buttons, segmented controls               |
+| —               | 50%   | dots and avatars only                     |
 
 Banned: `rounded-md`, `rounded-xl`, `rounded-2xl`, bare `rounded`.
 
@@ -261,7 +261,7 @@ Reading columns constrain **measure**, not the shell: prose is `max-w-[68ch]`.
 A row of `flex-none`, `whitespace-nowrap` parts has one width, and it is the
 same width on a phone as on a desktop. The header measured **606px and never
 shrank**, so it overflowed every phone made: by 231px at 375, by 286px at 320.
-Nothing caught it, because nothing overflowed *its own* box; the row simply
+Nothing caught it, because nothing overflowed _its own_ box; the row simply
 pushed past the viewport.
 
 The 606px, measured with Söhne loaded: 48 padding, 36 mark, 162 wordmark, 30
@@ -271,16 +271,20 @@ is one object and the actions are four.
 What gives, below `sm`, and why each is defensible on its own and not only for
 space:
 
-| Part | Below `sm` | Why |
-|---|---|---|
-| `.social` | hidden | the address, not the name; 46px |
-| Theme toggle | moves to the footer | 132px, and the footer is on every page |
-| "Free · N left" chip | hidden | a visitor with no account does not need a badge saying so; 61px |
-| Mark and wordmark | 28px / 20px | steps down as one lockup, not a shrunken word beside a full-size mark |
+| Part                    | Below `sm`          | Why                                                                   |
+| ----------------------- | ------------------- | --------------------------------------------------------------------- |
+| `.social`               | hidden              | the address, not the name; 46px                                       |
+| Theme toggle            | moves to the footer | 132px, and the footer is on every page                                |
+| "Free · N matches" chip | hidden              | a visitor with no account does not need a badge saying so; 61px       |
+| Mark and wordmark       | 28px / 20px         | steps down as one lockup, not a shrunken word beside a full-size mark |
 
-Pro and Unlimited keep their chip at every width: there it is the only thing
-saying the account is paid, and those rows are shorter anyway, with no Upgrade
-button and an avatar instead of "Sign in".
+An account holding credits keeps its balance chip at every width, for the same
+reason the free chip goes: the chip is the only thing saying the account is
+paid, and the balance is the one number a buyer came back to check. The row can
+afford it because a signed-in row carries an avatar instead of "Sign in" and the
+Buy credits button collapses to "+" below `sm`; measure it anyway. Legacy Pro
+and Unlimited keep their chip too: those rows are shorter still, with no Buy
+credits button at all.
 
 That brings it to **316px**, which clears 320 by 4px and 375 by 59. Desktop is
 untouched at 606px.
@@ -293,7 +297,7 @@ has.
 
 Tailwind's own, plus **one**: `xs` at 360px.
 
-It exists because a two-across grid of *controls* fails earlier than a grid of
+It exists because a two-across grid of _controls_ fails earlier than a grid of
 tiles, and the difference is `whitespace-nowrap`. A tile's label wraps and the
 tile grows; a button's label cannot, so it spills out of the pill and over its
 neighbour. Measured with Söhne loaded: the admin nav's longest label needs
@@ -336,7 +340,7 @@ The result is a dialog that clips nothing and shows no scrollbar. Measured in
 headless Chrome at a 663px viewport: panel 631px, body **1298px**,
 `scrollHeight === clientHeight`, and the primary button painted **644px below
 the bottom edge of the panel**. The upgrade modal spilled its two buttons onto
-the page for a full release *after* the fix that was supposed to stop it, and
+the page for a full release _after_ the fix that was supposed to stop it, and
 all six dialogs had the same defect.
 
 `flex-1` is `flex: 1 1 0%`: basis zero, then grow into the space that exists.
@@ -356,9 +360,9 @@ when the container is merely capped by `max-height`.
 That is the whole difference, and it puts two nearly identical pieces of markup
 on opposite sides of the bug:
 
-| Grid | Height from | Auto row | Result |
-|---|---|---|---|
-| the dialog | `max-height` only | max-content | overflows, nothing clips |
+| Grid              | Height from                        | Auto row         | Result                      |
+| ----------------- | ---------------------------------- | ---------------- | --------------------------- |
+| the dialog        | `max-height` only                  | max-content      | overflows, nothing clips    |
 | the upgrade cards | `flex: 1 1 0%` on a bounded parent | stretched to fit | shrinks, inner list scrolls |
 
 A review of the second one will find the same implicit `auto` row as the first
@@ -382,14 +386,14 @@ already expressed, and its `overflow-hidden` branch would have clipped content
 outright on a viewport too short for even the pinned parts.
 
 The upgrade modal is the case that cannot use a single pinned footer, because
-each button belongs to its own plan card. There, the card is the flex column:
+each button belongs to its own pack card. There, the card is the flex column:
 its feature list scrolls and its button is pinned to its bottom edge, so both
 choices stay visible. Below `md` the cards stack and the body scrolls normally,
 because a bounded column of stacked cards on a phone is worse than a scroll.
 
 **`ModalFooter` was used by none of the six dialogs**, which was the tell. Like
 the `link` button variant, a slot nobody reaches for is usually a slot that does
-not do what its name promises: it sat *inside* the scrolling body, so it pinned
+not do what its name promises: it sat _inside_ the scrolling body, so it pinned
 nothing.
 
 It is now passed as `ModalContent`'s `footer` prop rather than as a child,
@@ -399,7 +403,7 @@ from content that has scrolled up behind it.
 
 Most dialogs should still pass nothing. A body that scrolls as one block is the
 better default, and a footer costs vertical space on the screens that have least
-of it. Pass one when the step is tall *and* its actions are the reason it
+of it. Pass one when the step is tall _and_ its actions are the reason it
 exists: the contract import preview carries a chain picker, a holder count, a
 truncation warning and a sample of addresses above two buttons, so the buttons
 are held below. Its other two steps are short and pass nothing.
@@ -437,12 +441,12 @@ number visibly wobble.
 **Actions and labels may never share a treatment.** They differ on four axes at
 once, so no single one has to carry it:
 
-| | Action | Label | Badge |
-|---|---|---|---|
-| Case | sentence | upper | upper |
-| Face | sans | mono | mono |
-| Icon | leading | none | none |
-| Shape | bordered/filled pill | none | tint, no border |
+|       | Action               | Label | Badge           |
+| ----- | -------------------- | ----- | --------------- |
+| Case  | sentence             | upper | upper           |
+| Face  | sans                 | mono  | mono            |
+| Icon  | leading              | none  | none            |
+| Shape | bordered/filled pill | none  | tint, no border |
 
 An icon **inside an enclosure** reads as a control. An icon **beside bare text**
 reads as identification, so a section heading may carry one and a badge may not.
@@ -467,7 +471,7 @@ Further:
   overflow menu. A row of buttons never wraps.
 - **A card you can click is a control, and must be reachable by keyboard.** The
   six tiles on the admin Pulse pane carried `onClick` on the card `div` and
-  nothing else: no role, no tab stop, no Enter or Space. They *looked* like
+  nothing else: no role, no tab stop, no Enter or Space. They _looked_ like
   controls, with `cursor-pointer` and a hover border, and no keyboard could
   reach any of them. Use `CardActivator`, which stretches a real `<button>` over
   the card. A real button rather than `role="button"` plus a `keydown` handler,
@@ -476,7 +480,7 @@ Further:
   are built from `div`s. **A hover state is not an affordance if only a mouse
   can find it.**
 - **A text link inside a table cell or a sentence is `Button variant="link"
-  size="inline"`.** The `link` variant existed and was used nowhere, because the
+size="inline"`.** The `link` variant existed and was used nowhere, because the
   default 34px control height would have opened up the row; two call sites had
   independently hand-copied its four classes to escape that. `size="inline"` is
   `h-auto p-0`, which names the escape once. Type comes from the cell: `cn` runs
@@ -497,7 +501,7 @@ Further:
   twelve buttons is `role="tablist"`, but two separately labelled groups
   pointing at one content region is navigation, and the role would promise
   arrow-key roving that the shape does not want. A landmark per group gives a
-  screen reader a way *past* twelve controls, which a tablist would not.
+  screen reader a way _past_ twelve controls, which a tablist would not.
   `aria-current="page"` states which destination you are on: the filled variant
   already says it, but only to people who can see the fill.
 
@@ -507,14 +511,14 @@ Further:
 
 Three durations, two curves.
 
-| Token | Value | For |
-|---|---|---|
-| `--d-press` | 80ms | the press itself |
-| `--d-fast` | 120ms | hover, colour, borders |
-| `--d-base` | 220ms | state changes |
-| `--d-stagger` | 40ms | one step, never past the fourth item |
-| `--e-out` | `cubic-bezier(.2,0,0,1)` | anything arriving |
-| `--e-inout` | `cubic-bezier(.4,0,.2,1)` | between two on-screen states |
+| Token         | Value                     | For                                  |
+| ------------- | ------------------------- | ------------------------------------ |
+| `--d-press`   | 80ms                      | the press itself                     |
+| `--d-fast`    | 120ms                     | hover, colour, borders               |
+| `--d-base`    | 220ms                     | state changes                        |
+| `--d-stagger` | 40ms                      | one step, never past the fourth item |
+| `--e-out`     | `cubic-bezier(.2,0,0,1)`  | anything arriving                    |
+| `--e-inout`   | `cubic-bezier(.4,0,.2,1)` | between two on-screen states         |
 
 - **Hover changes colour only.** Never size, never shadow: a control that grows
   shifts every neighbour, and this product is mostly dense rows.
@@ -545,7 +549,7 @@ Three durations, two curves.
   which is a correctness bug rather than a motion preference.
 
 Delight is budgeted to two places: figures counting up when results land, and a
-periodic sweep across the Upgrade button (9s cycle, ~24% travel, `rgba(255,255,255,.20)`).
+periodic sweep across the Buy credits button (9s cycle, ~24% travel, `rgba(255,255,255,.20)`).
 
 Under `prefers-reduced-motion` every animation and transform stops, including both
 of those. **Colour transitions stay** — they carry no movement, so removing them
@@ -571,11 +575,11 @@ display.
 
 ### Three entrypoints, by render context
 
-| Context | Import | Why |
-|---|---|---|
-| Client component | `@phosphor-icons/react` | the barrel; context is fine |
-| Server component | `@phosphor-icons/react/dist/ssr` | no `useContext`; RSC-safe |
-| Share images | prerendered data-URI SVG | Satori cannot render the component |
+| Context          | Import                           | Why                                |
+| ---------------- | -------------------------------- | ---------------------------------- |
+| Client component | `@phosphor-icons/react`          | the barrel; context is fine        |
+| Server component | `@phosphor-icons/react/dist/ssr` | no `useContext`; RSC-safe          |
+| Share images     | prerendered data-URI SVG         | Satori cannot render the component |
 
 The barrel resolves through `IconBase`, which calls `useContext`, so a Phosphor
 icon in a server component fails the build with `createContext is not a function`.
@@ -596,18 +600,18 @@ cards. Farcaster is the one mark Phosphor lacks; it stays a local SVG.
 Ten, and two can only receive this partially. Saying so is better than claiming
 coverage.
 
-| Surface | Receives | Notes |
-|---|---|---|
-| App UI | everything | the reference implementation |
-| Marketing `/vs` ×5 | everything | server components; SSR icon entrypoint |
-| Blog | everything | plus the prose scale and 68ch measure |
-| Admin | everything | 9 components, 2,595 lines |
-| Share images ×3 | type, colour, icons, numerals | icons as data URIs; no CSS, no fallback chain |
-| Sign-in email | colour, radius, copy | no webfonts, and SVG is unreliable, so no icons |
-| Favicon, app icon | the mark | static 512px PNGs |
-| Docs | colour, face, logo | **partial** — Mintlify: `docs.json` plus custom CSS |
-| AI chat bubble | colour, copy | **partial** — third-party shadow DOM via `adoptedStyleSheets` |
-| CSV export | nothing | listed so the count is honest |
+| Surface            | Receives                      | Notes                                                         |
+| ------------------ | ----------------------------- | ------------------------------------------------------------- |
+| App UI             | everything                    | the reference implementation                                  |
+| Marketing `/vs` ×5 | everything                    | server components; SSR icon entrypoint                        |
+| Blog               | everything                    | plus the prose scale and 68ch measure                         |
+| Admin              | everything                    | 9 components, 2,595 lines                                     |
+| Share images ×3    | type, colour, icons, numerals | icons as data URIs; no CSS, no fallback chain                 |
+| Sign-in email      | colour, radius, copy          | no webfonts, and SVG is unreliable, so no icons               |
+| Favicon, app icon  | the mark                      | static 512px PNGs                                             |
+| Docs               | colour, face, logo            | **partial** — Mintlify: `docs.json` plus custom CSS           |
+| AI chat bubble     | colour, copy                  | **partial** — third-party shadow DOM via `adoptedStyleSheets` |
+| CSV export         | nothing                       | listed so the count is honest                                 |
 
 ---
 
@@ -617,11 +621,11 @@ coverage.
 has just finished removing, so it is configured to generate as little wrong
 material as possible:
 
-| Field | Value | Why |
-|---|---|---|
+| Field         | Value      | Why                                             |
+| ------------- | ---------- | ----------------------------------------------- |
 | `iconLibrary` | `phosphor` | was `lucide`, which is not the icon system here |
-| `baseColor` | `neutral` | this is what produced `--primary` |
-| `style` | `new-york` | left alone; it only affects the initial paste |
+| `baseColor`   | `neutral`  | this is what produced `--primary`               |
+| `style`       | `new-york` | left alone; it only affects the initial paste   |
 
 **`lucide-react` is uninstalled.** It was a direct dependency, imported by
 nothing, sitting in the tree purely because the generator had been pointed at
@@ -668,12 +672,12 @@ and the second implementation would have hidden that.
 
 Two CI jobs and an ESLint rule guard what a grep can see:
 
-| Guard | Covers |
-|---|---|
-| `scripts/check-palette-guard.mjs` | raw palette classes, all 22 shaded families |
+| Guard                               | Covers                                                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                           |
 | `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token, the wrong icon library |
-| `scripts/check-contrast.mjs` | WCAG AA in both themes: 4.5:1 text, 3:1 control edges |
-| `eslint.config.mjs` | the palette rule, in the editor |
+| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                 |
+| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                       |
 
 Both scripts run their **own fixtures first**, so a guard that has stopped working
 fails before it can report a clean codebase. They must be tested against fixtures,

@@ -127,7 +127,7 @@ export function ReverseLookup({
         />
         <h2 className="text-base font-semibold">Reverse lookup</h2>
         {/* Named by what unlocks it, not by a tier nobody can buy. Any pack
-            does, and so does the free allowance, so "Credits" is the honest
+            does (the free allowance does not), so "Credits" is the honest
             one-word answer. */}
         {locked && (
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">

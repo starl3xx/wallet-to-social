@@ -2,6 +2,51 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the rest of the product catches up with the pricing)
+
+- **Every surface now describes credit packs.** An audit after the pricing
+  change found 168 places still describing the retired tiers: the app UI, the
+  API error messages, the admin, the five comparison pages, thirteen blog
+  posts, the public docs and the internal docs. All fixed in one branch, so a
+  customer, a search engine and the AI assistant get the same answer. Text
+  that exists only to serve the two legacy accounts keeps its tier names and
+  says so.
+
+- **Pack buyers were refused what the pack sold them, server-side.** The
+  client gates were fixed with the pricing change; the routes behind them
+  still read `tier`, which a pack never changes. Reverse lookup, contract
+  import, adding addresses to a saved lookup and "new since you looked" all
+  returned 403 naming Pro or Unlimited. Priority scores and follower counts
+  were stripped from every pack buyer's job. Contract import was capped at 500
+  holders for an Index buyer. `hasPaidAccess` in `lib/credits.ts` is the
+  server twin of the client's `entitled`, and every gate uses it.
+
+- **Two holes in the meter closed.** The free-window sum counted pack-paid
+  debits against the free allowance, so the month after a buyer's lots ran out
+  reported it exhausted. And `/api/lookup`, the original streaming path the
+  UI stopped using in January, ran up to 5,000 wallets per request for any
+  signed-in account with no balance check, no debit, and priority scores for
+  everyone. Nothing had called it since the move (no rate-limit bucket was
+  ever opened for it); it answers 410 with the replacement.
+
+- **API keys need a live pack, not the free allowance.** `available > 0` is
+  true for every signup inside its window, which would have let any free
+  account mint a key. The server now matches the modal that offers keys.
+
+- **The API says what was billed.** `/v1/batch` returns `meta.matched`, the
+  billed count; `found` still counts ENS, Lens and GitHub, so `found >=
+matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
+  returns the packs instead of three monthly plans nobody could buy, and
+  `POST /api/checkout` no longer accepts a tier.
+
+- **Admin sees packs.** Revenue is keyed on what was sold (`byProduct`), the
+  dependency check watches the four pack price variables, the overview counts
+  credit holders, and the per-user control can no longer grant a legacy tier:
+  goodwill credit is a lot, not a tier.
+
+- **Removed:** `upgradeUser` and `createCheckoutSession(email, tier)`, both
+  uncalled since the pricing change, and the `/api/lookup` rate-limit entry.
+
 ### 2026-08-20 (credits, and a rating nobody gave us)
 
 - **Pricing moves from one-time tiers to credit packs, metered in matches.** A

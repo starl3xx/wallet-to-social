@@ -1,21 +1,21 @@
 ---
-title: "Rate limits"
-description: "Three windows, the headers that report them, and how to back off correctly."
+title: 'Rate limits'
+description: 'Three windows, the headers that report them, and how to back off correctly.'
 ---
 
 Limits apply in three windows at once: per minute, per day, and per month. Exceeding any one of them returns `429`, even if the other two have room.
 
-See [plans](/api-reference/introduction#plans) for the numbers on your tier, and [credits](/api-reference/introduction#credits) for what each call costs. Limits are counted in credits, so a 50-wallet batch consumes 50 of your per-minute allowance, not one.
+See [plans](/api-reference/introduction#plans) for your request limits. Rate limits are counted in their own units, not in match credits: a 50-wallet batch consumes 50 of your per-minute allowance while billing only the wallets that resolved. [Credits](/api-reference/introduction#credits) shows both meters side by side.
 
 ## Headers
 
 Every response carries the current state:
 
-| Header | Meaning |
-| --- | --- |
-| `X-RateLimit-Limit` | Credits allowed in the current window. |
-| `X-RateLimit-Remaining` | Credits left in it. |
-| `X-RateLimit-Reset` | When the window resets, as a **Unix timestamp in seconds**. |
+| Header                  | Meaning                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| `X-RateLimit-Limit`     | Rate-limit units allowed in the current window.             |
+| `X-RateLimit-Remaining` | Units left in it.                                           |
+| `X-RateLimit-Reset`     | When the window resets, as a **Unix timestamp in seconds**. |
 
 `X-RateLimit-Reset` is seconds since the epoch, not seconds from now. Convert it rather than treating it as a duration.
 
@@ -31,9 +31,9 @@ Every response carries the current state:
 The response also carries the rate limit headers, so read `X-RateLimit-Reset` to know exactly when to retry.
 
 <Warning>
-Retry with exponential backoff and jitter. Retrying immediately on a shared
-minute boundary is how a fleet of workers turns one 429 into a synchronized
-stampede that keeps every one of them limited.
+  Retry with exponential backoff and jitter. Retrying immediately on a shared
+  minute boundary is how a fleet of workers turns one 429 into a synchronized
+  stampede that keeps every one of them limited.
 </Warning>
 
 A worked example of the whole loop:
@@ -63,10 +63,10 @@ async function lookup(wallets, key) {
 
 ## Staying under the limit
 
-Batch aggressively. One 50-wallet batch and 50 single lookups cost the same 50 credits, but the batch is one request against your per-minute request budget instead of fifty, and it is far faster.
+Batch aggressively. One 50-wallet batch and 50 single lookups consume the same 50 rate-limit units and bill the same matches, but the batch is one round trip instead of fifty, and it is far faster.
 
-Deduplicate before submitting. Batch charges on addresses submitted, not on unique addresses resolved.
+Deduplicate before submitting. Duplicates are not billed, because billing is on matches after deduplication, but they do consume your per-minute rate limit, so sending them costs you throughput rather than credits.
 
-Cache your own results. The underlying records change on the order of days, not seconds. Re-resolving the same wallet within a single campaign is spend with no new information attached.
+Cache your own results. The underlying records change on the order of days, not seconds. Re-resolving a wallet that already matched spends a match credit for information you already hold. Re-resolving one that missed costs nothing, but it still spends rate limit.
 
-Check [`/v1/usage`](/api-reference/usage) rather than guessing. It reports all three windows and costs nothing.
+Check [`/v1/usage`](/api-reference/usage) rather than guessing. It reports all three windows and your match balance, and costs nothing.

@@ -1,8 +1,8 @@
 ---
-title: "5 Ways to Use Wallet Identity for Token Holder Outreach"
-meta_description: "Practical guide to using wallet-to-social identity resolution for governance, airdrops, ambassador programs, retention, and product feedback."
+title: '5 Ways to Use Wallet Identity for Token Holder Outreach'
+meta_description: 'Practical guide to using wallet-to-social identity resolution for governance, airdrops, ambassador programs, retention, and product feedback.'
 published: true
-publish_date: "2026-03-12"
+publish_date: '2026-03-12'
 ---
 
 # 5 Ways to Use Wallet Identity for Token Holder Outreach
@@ -42,11 +42,11 @@ This approach works because it demonstrates you know who they are and that their
 2. Resolve all candidate wallets to social profiles.
 3. Create three tiers:
 
-| Tier | Definition | Airdrop Treatment |
-|------|-----------|-------------------|
-| Verified | Wallet resolves to a social profile with 100+ followers | Full allocation |
-| Partial | Wallet resolves but low/no followers | Standard allocation |
-| Unverified | No social identity found | Reduced allocation or excluded |
+| Tier       | Definition                                              | Airdrop Treatment              |
+| ---------- | ------------------------------------------------------- | ------------------------------ |
+| Verified   | Wallet resolves to a social profile with 100+ followers | Full allocation                |
+| Partial    | Wallet resolves but low/no followers                    | Standard allocation            |
+| Unverified | No social identity found                                | Reduced allocation or excluded |
 
 4. For unverified wallets, apply traditional Sybil checks (transaction clustering, funding patterns, etc.) before including them.
 
@@ -75,6 +75,7 @@ This approach works because it demonstrates you know who they are and that their
 Key elements: acknowledge their existing holding, reference their social presence, make the opportunity exclusive and specific.
 
 **What to offer ambassadors:**
+
 - Early access to product updates or governance proposals
 - Direct line to the core team
 - Bonus token allocations tied to community contributions
@@ -143,4 +144,4 @@ Start with the workflow that addresses your most urgent need. For most projects,
 
 **Get started with your holder list.**
 
-[walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 1,000 wallets -- enough to test any of these workflows on your top holders.
+[walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches every 30 days -- enough to test any of these workflows on your top holders.

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { PACKS } from '@/lib/packs';
+import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import {
@@ -210,7 +210,7 @@ export default function AirstackComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro+)
+                        (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -289,9 +289,9 @@ export default function AirstackComparison() {
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API
-              (included with Pro and Unlimited) covers the same core jobs:
-              wallet → socials, and reverse lookup from any Farcaster handle to
-              its wallets. If you only need a one-off enrichment, skip the API
+              (included with every pack) covers the same core jobs: wallet →
+              socials, and reverse lookup from any Farcaster handle to its
+              wallets. If you only need a one-off enrichment, skip the API
               entirely and upload a CSV.
             </p>
           </section>
@@ -342,10 +342,10 @@ export default function AirstackComparison() {
 
             <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
-                <span className="font-medium">No metered billing:</span> both
-                paid tiers are one-time payments with API access included, so
-                there are no usage-based invoices to forecast, and no
-                deprecation risk priced into a subscription.
+                <span className="font-medium">No usage invoices:</span> every
+                pack is a one-time payment with API access included, so there is
+                nothing usage-based to forecast, and no deprecation risk priced
+                into a subscription.
               </p>
             </div>
           </section>
@@ -356,7 +356,8 @@ export default function AirstackComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 500 wallets, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
+              every {FREE_WINDOW_DAYS} days, no credit card required.
             </p>
             <Link
               href="/"

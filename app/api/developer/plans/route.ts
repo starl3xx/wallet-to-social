@@ -1,67 +1,41 @@
 import { NextResponse } from 'next/server';
-import { getApiPlans } from '@/lib/api-keys';
+import { PACK_IDS, PACKS } from '@/lib/packs';
 
 export const runtime = 'nodejs';
 
 /**
  * GET /api/developer/plans
- * Get available API plans and pricing
+ *
+ * What an API caller can buy, which is the same thing an app user can buy: a
+ * credit pack. There is no separate API plan and there never was one for sale.
+ *
+ * This endpoint used to read `api_plans` and publish Developer, Startup and
+ * Enterprise at $49, $199 and $799 a month, with a feature ladder (batch 50,
+ * 200, 1,000; priority support; SLAs) that no purchase could reach, because
+ * every pack maps to the one `developer` row (lib/api-plans.ts
+ * `CREDIT_API_PLAN`). Those rows are rate-limit presets, seeded but never sold,
+ * and an unauthenticated endpoint was advertising them as a price list.
+ *
+ * The plan's request limits are still reported to the key holder, on
+ * `/v1/usage` under `plan_limits`, which is where a limit belongs: next to the
+ * key it applies to, not on a menu.
  */
 export async function GET() {
-  const plans = await getApiPlans();
+  const packs = PACK_IDS.map((id) => {
+    const pack = PACKS[id];
+    return {
+      id: pack.id,
+      name: pack.name,
+      price_cents: pack.priceCents,
+      price_formatted: `$${(pack.priceCents / 100).toFixed(0)}`,
+      matches: pack.matches,
+      fits: pack.fits,
+    };
+  });
 
-  if (plans.length === 0) {
-    return NextResponse.json(
-      { error: 'No plans available. Run plan seeding first.' },
-      { status: 503 }
-    );
-  }
-
-  const formattedPlans = plans.map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    price_monthly: plan.priceMonthly / 100, // Convert cents to dollars
-    price_monthly_formatted: `$${(plan.priceMonthly / 100).toFixed(0)}`,
-    limits: {
-      requests_per_minute: plan.requestsPerMinute,
-      requests_per_day: plan.requestsPerDay === -1 ? 'unlimited' : plan.requestsPerDay,
-      requests_per_month: plan.requestsPerMonth === -1 ? 'unlimited' : plan.requestsPerMonth,
-      max_batch_size: plan.maxBatchSize,
-    },
-    features: getFeatures(plan.id),
-  }));
-
-  return NextResponse.json({ plans: formattedPlans });
-}
-
-function getFeatures(planId: string): string[] {
-  switch (planId) {
-    case 'developer':
-      return [
-        'Single wallet lookups',
-        'Batch lookups (up to 50)',
-        'Reverse lookups',
-        'Usage analytics',
-        'Email support',
-      ];
-    case 'startup':
-      return [
-        'Everything in Developer',
-        'Batch lookups (up to 200)',
-        'Higher rate limits',
-        'Priority support',
-        'Webhook notifications',
-      ];
-    case 'enterprise':
-      return [
-        'Everything in Startup',
-        'Batch lookups (up to 1000)',
-        'Unlimited daily/monthly requests',
-        'Dedicated support',
-        'Custom integrations',
-        'SLA guarantee',
-      ];
-    default:
-      return [];
-  }
+  return NextResponse.json({
+    packs,
+    unit: 'match',
+    note: 'API calls draw on the same match credits as the app.',
+  });
 }

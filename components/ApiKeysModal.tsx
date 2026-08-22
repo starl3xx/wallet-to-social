@@ -196,7 +196,7 @@ export function ApiKeysModal({
           </ModalTitle>
           <ModalDescription>
             {hasApiAccess
-              ? 'Programmatic access to the wallet index. Keys carry your whole plan allowance, so treat them as server-side secrets.'
+              ? 'Programmatic access to the wallet index. Keys draw on your whole credit balance, so treat them as server-side secrets.'
               : 'API access comes with credits, and draws on the same balance. Buy a pack to get a key.'}
           </ModalDescription>
         </ModalHeader>
@@ -227,17 +227,18 @@ export function ApiKeysModal({
                   onUpgradeClick();
                 }}
               >
-                See plans
+                Buy credits
               </Button>
             )}
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Plan limits, read from lib/api-plans.ts so this can never drift
-                from what the rate limiter actually enforces. */}
+            {/* Rate limits, read from lib/api-plans.ts so this can never drift
+                from what the rate limiter actually enforces. These bound the
+                burst; the match balance bounds the total. */}
             <div className="rounded-lg border bg-muted/40 p-3 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{plan.name} plan</span>
+                <span className="font-medium">Rate limits</span>
                 <a
                   href={DOCS_URL}
                   target="_blank"

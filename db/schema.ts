@@ -193,7 +193,8 @@ export const lookupJobs = pgTable(
   ]
 );
 
-// Users table for tiered pricing
+// User accounts. `tier` is 'free' or one of the two closed legacy values;
+// a pack purchase never changes it (credits live in credit_lots).
 export const users = pgTable(
   'users',
   {
@@ -430,7 +431,8 @@ export const magicLinkTokens = pgTable(
 // Public API Infrastructure
 // ============================================================================
 
-// API subscription plans
+// API rate-limit presets ('developer', 'startup', 'enterprise'). Seeded,
+// never sold; price_monthly is historical. See lib/api-plans.ts.
 export const apiPlans = pgTable('api_plans', {
   id: text('id').primaryKey(), // 'developer', 'startup', 'enterprise'
   name: text('name').notNull(),

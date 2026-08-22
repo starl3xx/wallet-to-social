@@ -1,13 +1,13 @@
 ---
-title: "walletlink.social vs Blaze: Comparison Guide"
-meta_description: "Blaze left web3 in 2026. An archived comparison of walletlink.social and Blaze for wallet-to-social resolution, with guidance for migrating from Blaze."
+title: 'walletlink.social vs Blaze: Comparison Guide'
+meta_description: 'Blaze left web3 in 2026. An archived comparison of walletlink.social and Blaze for wallet-to-social resolution, with guidance for migrating from Blaze.'
 published: true
-publish_date: "2026-04-02"
+publish_date: '2026-04-02'
 ---
 
 # walletlink.social vs Blaze: Comparison Guide
 
-> **Update, August 2026:** Blaze has pivoted out of web3 and withblaze.app no longer resolves. This comparison is preserved for reference — if you’re migrating from Blaze, start with our [Blaze migration guide](https://walletlink.social/vs/blaze).
+> **Update, August 2026:** Blaze has pivoted out of web3 and withblaze.app no longer resolves. This comparison is preserved for reference; if you’re migrating from Blaze, start with our [Blaze migration guide](https://walletlink.social/vs/blaze).
 
 If you were looking to connect wallet addresses with social profiles, two names came up quickly: walletlink.social and Blaze. They solved overlapping problems but approached them from fundamentally different directions.
 
@@ -23,21 +23,21 @@ This distinction mattered more than any individual feature comparison.
 
 ## Feature Comparison
 
-| Feature | walletlink.social | Blaze (before its pivot) |
-|---|---|---|
-| Wallet-to-Twitter resolution | Yes | Yes |
-| Wallet-to-Farcaster resolution | Yes | Yes |
-| Batch CSV upload | Yes | Yes |
-| AI agent wallet detection | Yes (13,622+ detected) | No |
-| Priority Score (holdings x reach) | Yes | Custom segments |
-| CRM / contact management | No | Yes |
-| Campaign tools (email, DM) | No | Yes |
-| Community analytics dashboard | No | Yes |
-| Discord/Telegram integration | No | Yes |
-| Airdrop targeting tools | Export-based | Built-in |
-| Match rate (reported) | 22% | ~5-8% (varied) |
-| Pricing model | One-time payment | Monthly subscription |
-| Free tier | 500 wallets | Limited trial |
+| Feature                           | walletlink.social       | Blaze (before its pivot) |
+| --------------------------------- | ----------------------- | ------------------------ |
+| Wallet-to-Twitter resolution      | Yes                     | Yes                      |
+| Wallet-to-Farcaster resolution    | Yes                     | Yes                      |
+| Batch CSV upload                  | Yes                     | Yes                      |
+| AI agent wallet detection         | Yes (13,622+ detected)  | No                       |
+| Priority Score (holdings x reach) | Yes                     | Custom segments          |
+| CRM / contact management          | No                      | Yes                      |
+| Campaign tools (email, DM)        | No                      | Yes                      |
+| Community analytics dashboard     | No                      | Yes                      |
+| Discord/Telegram integration      | No                      | Yes                      |
+| Airdrop targeting tools           | Export-based            | Built-in                 |
+| Match rate (reported)             | 22%                     | ~5-8% (varied)           |
+| Pricing model                     | One-time payment        | Monthly subscription     |
+| Free tier                         | 100 matches per 30 days | Limited trial            |
 
 ## Match Rate: The Core Metric
 
@@ -55,20 +55,23 @@ The pricing models reflected the different product philosophies.
 
 **walletlink.social pricing (current):**
 
-| Tier | Wallets | Price |
-|---|---|---|
-| Free | 500 per lookup | $0 |
-| Pro | 5,000 per lookup | $99 one-time |
-| Unlimited | Unlimited | $249 one-time |
+| Pack     | Matches         | Price         |
+| -------- | --------------- | ------------- |
+| Free     | 100 per 30 days | $0            |
+| Trial    | 250             | $29 one-time  |
+| Campaign | 1,500           | $99 one-time  |
+| Scale    | 6,000           | $299 one-time |
+| Index    | 25,000          | $899 one-time |
 
-All tiers are one-time payments. No subscription. Both paid tiers include API access.
+A match is a wallet resolved to an X or Farcaster account; wallets that resolve to nothing cost nothing. Every pack is a one-time payment. No subscription. API access is included with all of them and draws the same credits. Credits last 12 months.
 
 **Blaze pricing:** Monthly subscription starting at several hundred dollars per month, scaling with features and usage. Enterprise tiers for larger teams. Exact pricing required a demo call. None of it is available anymore.
 
 The economic comparison depended on the use case:
+
 - **One-time or occasional lookups**: walletlink.social was dramatically cheaper. A single one-time payment vs. hundreds per month.
 - **Ongoing marketing operations**: Blaze's subscription made more sense if you were using the CRM, campaigns, and analytics daily.
-- **Budget-constrained teams**: walletlink.social's free tier (500 wallets) lets you validate the approach before spending anything.
+- **Budget-constrained teams**: walletlink.social's free tier (100 matches every 30 days) lets you validate the approach before spending anything.
 
 ## When walletlink.social Was (and Is) the Right Choice
 
@@ -109,16 +112,19 @@ That workflow still works today -- just with the CRM of your choice in Blaze's p
 While Blaze was live, the decision came down to three questions:
 
 **1. What's your primary need?**
+
 - Identity resolution specifically --> walletlink.social
 - Full marketing platform --> Blaze
 - Both --> walletlink.social for resolution, Blaze for campaigns
 
 **2. What's your budget model?**
+
 - One-time or project-based --> walletlink.social
 - Ongoing operational budget --> Blaze
 - Minimal budget --> walletlink.social free tier
 
 **3. How often do you need this?**
+
 - Quarterly or for specific events --> walletlink.social
 - Daily/weekly marketing operations --> Blaze
 
@@ -128,4 +134,4 @@ There was no universally correct answer -- it depended on whether you needed a s
 
 **Migrating from Blaze, or just want to test the match rate?**
 
-[walletlink.social](https://walletlink.social) offers a free tier for up to 500 wallets. Upload a sample of your holder list and see the 22% match rate firsthand -- no subscription required. If you're coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.
+[walletlink.social](https://walletlink.social) is free for your first 100 matches every 30 days. Upload a sample of your holder list and see the 22% match rate firsthand -- no subscription required. If you're coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { PACKS } from '@/lib/packs';
+import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import {
@@ -243,7 +243,7 @@ export default function AddressableComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro+)
+                        (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -255,7 +255,7 @@ export default function AddressableComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro+)
+                        (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -267,7 +267,7 @@ export default function AddressableComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro+)
+                        (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -279,19 +279,7 @@ export default function AddressableComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro and Unlimited, on all seven supported chains)
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
-                    <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (Unlimited)
+                        (every pack, on all seven supported chains)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -357,10 +345,7 @@ export default function AddressableComparison() {
               <li>Upload your CSV of wallet addresses</li>
               <li>We aggregate multiple data sources for accuracy</li>
               <li>Export Twitter handles and Farcaster profiles</li>
-              <li>
-                Save lookups (Pro+), and grow them with new addresses
-                (Unlimited)
-              </li>
+              <li>Save lookups, and grow them with new addresses</li>
             </ol>
             <p className="text-muted-foreground">
               Matches are deterministic and user-attested (Farcaster verified
@@ -466,10 +451,12 @@ export default function AddressableComparison() {
             <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">ROI Example:</span> If you pay $
-                {PACKS.index.priceCents / 100} once for walletlink.social
-                instead of $1,000/month for Addressable, you save{' '}
+                {PACKS.index.priceCents / 100} once for the walletlink.social{' '}
+                {PACKS.index.name} pack instead of $1,000/month for Addressable,
+                you save{' '}
                 <span className="font-semibold text-accent-brand">
-                  $11,751 in year one
+                  ${(12 * 1000 - PACKS.index.priceCents / 100).toLocaleString()}{' '}
+                  in year one
                 </span>{' '}
                 - assuming you only need wallet-to-social lookups.
               </p>
@@ -482,7 +469,8 @@ export default function AddressableComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 500 wallets, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
+              every {FREE_WINDOW_DAYS} days, no credit card required.
             </p>
             <Link
               href="/"

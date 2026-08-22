@@ -1,6 +1,6 @@
 ---
-title: "Coverage"
-description: "What fraction of a wallet list resolves, and what the number actually means."
+title: 'Coverage'
+description: 'What fraction of a wallet list resolves, and what the number actually means.'
 ---
 
 The single most common question is “what percentage of my list will match”. The honest answer needs two numbers, not one, and mixing them up will make you plan a campaign you cannot run.
@@ -25,12 +25,12 @@ There is no single match rate, and quoting one would hide the thing that matters
 most. We measured 26 collections across three chains on 2026-08-17, against our
 own index only, with no external API calls at measurement time.
 
-| Chain | Collections | Holders | On Farcaster | With an X handle | Either |
-| --- | --- | --- | --- | --- | --- |
-| Base | 8 | 35,294 | 44.4% | 32.1% | **46.2%** |
-| Ethereum | 9 | 17,462 | 12.2% | 12.6% | **16.6%** |
-| Robinhood Chain | 9 | 19,562 | 11.5% | 12.2% | **15.6%** |
-| **All three** | **26** | **72,318** | | | **30.8%** |
+| Chain           | Collections | Holders    | On Farcaster | With an X handle | Either    |
+| --------------- | ----------- | ---------- | ------------ | ---------------- | --------- |
+| Base            | 8           | 35,294     | 44.4%        | 32.1%            | **46.2%** |
+| Ethereum        | 9           | 17,462     | 12.2%        | 12.6%            | **16.6%** |
+| Robinhood Chain | 9           | 19,562     | 11.5%        | 12.2%            | **15.6%** |
+| **All three**   | **26**      | **72,318** |              |                  | **30.8%** |
 
 **Base is roughly three times Ethereum**, and that is not a quirk of the
 collections we picked. Base is where Farcaster lives, so a Base collection's
@@ -45,16 +45,17 @@ For context, the industry average for wallet-to-social matching sits near 2.5%.
 Even the lowest chain here is six times that.
 
 <Note>
-These are counts of accounts that exist. Roughly a third of attested X handles
-no longer reach anybody, which we check per record rather than folding into the
-figures above. See [reachability](/concepts/data-quality#we-check-and-we-tell-you).
+  These are counts of accounts that exist. Roughly a third of attested X handles
+  no longer reach anybody, which we check per record rather than folding into
+  the figures above. See
+  [reachability](/concepts/data-quality#we-check-and-we-tell-you).
 </Note>
 
 <Note>
-These figures come from measured samples across real collections, not from a
-marketing estimate. They still vary a lot by collection. A 2021 PFP project and
-a fresh airdrop farm will not behave the same way, and neither will match the
-average.
+  These figures come from measured samples across real collections, not from a
+  marketing estimate. They still vary a lot by collection. A 2021 PFP project
+  and a fresh airdrop farm will not behave the same way, and neither will match
+  the average.
 </Note>
 
 ## Coverage is not uniform across networks
@@ -94,7 +95,7 @@ true](/concepts/data-quality#when-a-handle-stops-being-true).
 
 **Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner's own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
 
-**The routes grow. The labelling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you *how it was established*, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
+**The routes grow. The labelling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you _how it was established_, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
 
 That guarantee is enforced rather than promised. Source classification is an allowlist, so a route nobody has classified yet returns no evidence class at all rather than defaulting into an existing one. A new pipeline cannot quietly widen what `onchain` or `farcaster` means. See [evidence classes](/concepts/data-quality#evidence-classes) for the full vocabulary.
 
@@ -129,6 +130,6 @@ See [data quality](/concepts/data-quality#we-check-and-we-tell-you).
 
 ## Checking coverage yourself
 
-Do not take these numbers on faith. [`GET /api/v1/stats`](/api-reference/stats) returns live totals for the whole index, and it costs no credits, so you can call it before you commit to anything.
+Do not take these numbers on faith. [`GET /api/v1/stats`](/api-reference/stats) returns live totals for the whole index and costs no credits. Every endpoint, this one included, needs a non-zero balance: if your free allowance is spent, it returns `402 NO_CREDITS`. The public reachability check at [walletlink.social/check](https://walletlink.social/check) needs no key at all.
 
-For a specific list, run a sample through [`POST /api/v1/batch`](/api-reference/batch) and measure directly. A few hundred addresses is enough to get a usable estimate for your own collection, which is more useful than any average we can publish.
+For a specific list, run a sample through [`POST /api/v1/batch`](/api-reference/batch) and measure directly. You pay only for the addresses that match, so a sample costs what it finds. A few hundred addresses is enough to get a usable estimate for your own collection, which is more useful than any average we can publish.

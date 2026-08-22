@@ -1,13 +1,14 @@
 /**
- * API plan limits — the single source of truth.
+ * API rate-limit presets: the single source of truth.
  *
- * These values are seeded into the `api_plans` table, used to decide which plan
- * each paid tier receives, and rendered in the upgrade modal. They were
- * previously written out separately in all three places, so a limit change
- * could silently leave the pricing copy advertising a number the API no longer
+ * These values are seeded into the `api_plans` table and shown in the API keys
+ * modal. They are presets, not products: nothing sells them, and every credit
+ * holder gets `CREDIT_API_PLAN`. The `priceMonthly` column is historical. They
+ * were previously written out separately in three places, so a limit change
+ * could silently leave the copy advertising a number the API no longer
  * enforced.
  *
- * This module deliberately has no imports. The upgrade modal is a client
+ * This module deliberately has no imports. The API keys modal is a client
  * component, and `lib/api-keys.ts` pulls in the database layer.
  */
 

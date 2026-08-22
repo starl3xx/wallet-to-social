@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { PACKS } from '@/lib/packs';
+import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import {
@@ -229,9 +229,9 @@ export default function HolderComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Holder messaging</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <X className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Farcaster DMs, Unlimited tier)
+                        (export an X list and reach them there)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -243,7 +243,7 @@ export default function HolderComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro and Unlimited, on all seven supported chains)
+                        (every pack, on all seven supported chains)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -255,7 +255,7 @@ export default function HolderComparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (Pro+)
+                        (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -292,10 +292,7 @@ export default function HolderComparison() {
               <li>Upload your CSV of wallet addresses</li>
               <li>We match them against our identity index</li>
               <li>Export Twitter handles and Farcaster profiles</li>
-              <li>
-                Save lookups (Pro+), and grow them with new addresses
-                (Unlimited)
-              </li>
+              <li>Save lookups, and grow them with new addresses</li>
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of {INDEXED_WALLETS} wallets with
@@ -328,15 +325,16 @@ export default function HolderComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
-                    Upload the CSV to walletlink.social: the free tier covers
-                    500 wallets with no credit card
+                    Upload the CSV to walletlink.social: your first{' '}
+                    {FREE_MATCHES_PER_WINDOW} matches are free every{' '}
+                    {FREE_WINDOW_DAYS} days, with no credit card
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
-                    Export enriched profiles into your own CRM, or reach
-                    Farcaster users directly with mass DMs (Unlimited)
+                    Export enriched profiles into your own CRM, or straight to
+                    an X list, and reach holders where they already read
                   </span>
                 </li>
               </ul>
@@ -354,7 +352,7 @@ export default function HolderComparison() {
             <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
-                both paid tiers are one-time payments, and both include API
+                every pack is a one-time payment, and every one includes API
                 access. Pay once, keep your holder data workflow forever.
               </p>
             </div>
@@ -366,7 +364,8 @@ export default function HolderComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 500 wallets, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
+              every {FREE_WINDOW_DAYS} days, no credit card required.
             </p>
             <Link
               href="/"

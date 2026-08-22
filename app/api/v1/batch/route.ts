@@ -33,7 +33,7 @@ interface BatchRequestBody {
   wallets: string[];
 }
 
-// Bound the actual bytes read from the stream — NOT Content-Length, which a
+// Bound the actual bytes read from the stream, NOT Content-Length, which a
 // caller can omit, understate, or evade with chunked transfer-encoding. Reads
 // until the cap, then aborts. The max batch is ~1000 addresses (~46 KB); 1 MB
 // is generous. Rate limiting needs the wallet count from the body, so we can't
@@ -110,11 +110,13 @@ export async function POST(request: NextRequest) {
 
   const { context } = authResult;
 
-  // Check batch size limit
+  // Check batch size limit. Nothing a caller can buy raises it: every pack
+  // maps to the same plan (lib/api-plans.ts CREDIT_API_PLAN), so the only
+  // honest advice is to split the list.
   const maxBatchSize = context.plan.maxBatchSize;
   if (body.wallets.length > maxBatchSize) {
     return apiError(
-      `Batch size exceeds plan limit. Maximum: ${maxBatchSize} wallets. Upgrade your plan for higher limits.`,
+      `Batch size exceeds the maximum of ${maxBatchSize} wallets per request. Split the list across requests.`,
       'BATCH_SIZE_EXCEEDED',
       400,
       { ...context.rateLimitHeaders, ...corsHeaders }
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
   for (const wallet of uniqueWallets) {
     const result = resultMap.get(wallet);
     // Persisted negatives (rows with no socials) are "not found" to API
-    // consumers — same null as a wallet we have never seen
+    // consumers: the same null as a wallet we have never seen
     const hasSocials = !!(
       result &&
       (result.twitterHandle ||
@@ -241,7 +243,7 @@ export async function POST(request: NextRequest) {
     }
     if (result.lens) item.lens = result.lens;
     if (result.github) item.github = result.github;
-    // Evidence classes, never the internal pipeline identifiers — see lib/api-sources.ts
+    // Evidence classes, never the internal pipeline identifiers; see lib/api-sources.ts
     const sources = publicSources(result.sources);
     if (sources) item.sources = sources;
 
@@ -289,6 +291,16 @@ export async function POST(request: NextRequest) {
         requested: uniqueWallets.length,
         found: foundCount,
         not_found: uniqueWallets.length - foundCount,
+        /**
+         * What this call was billed: the same `matches` the debit above uses.
+         *
+         * `found` is larger. It counts a row with only an ENS name, Lens or
+         * GitHub as found, and none of those cost anything. Without this
+         * field the response carried no number a caller could reconcile
+         * against their balance, on a product sold as "you only pay for
+         * matches".
+         */
+        matched: matches,
       },
     },
     { ...context.rateLimitHeaders, ...corsHeaders }

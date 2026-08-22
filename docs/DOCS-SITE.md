@@ -4,14 +4,14 @@ Content lives in **`docs-site/`**, not in this folder.
 
 ## Status
 
-| Piece | State |
-|---|---|
-| Mintlify project | exists (`walletlink`) |
-| `docs.walletlink.social` DNS | **done**, verified resolving |
-| Mintlify MCP servers | **done**, in `.mcp.json` |
-| Docs content | **first cut written**, in `docs-site/` |
-| Mintlify GitHub sync | **not connected** — points at nothing until set to `docs-site/` |
-| Freshness enforcement | **done** — PR template + `.github/workflows/docs-freshness.yml` |
+| Piece                        | State                                                           |
+| ---------------------------- | --------------------------------------------------------------- |
+| Mintlify project             | exists (`walletlink`)                                           |
+| `docs.walletlink.social` DNS | **done**, verified resolving                                    |
+| Mintlify MCP servers         | **done**, in `.mcp.json`                                        |
+| Docs content                 | **first cut written**, in `docs-site/`                          |
+| Mintlify GitHub sync         | **not connected** — points at nothing until set to `docs-site/` |
+| Freshness enforcement        | **done** — PR template + `.github/workflows/docs-freshness.yml` |
 
 ## `docs-site/` vs `docs/`
 
@@ -37,17 +37,25 @@ document belongs.
 reference covering all six `/v1` endpoints, plus rate limits and error codes.
 
 Response shapes were read off the route handlers rather than off README, which
-had drifted: it advertises the API plans as standalone monthly subscriptions
-($49/$199/$799), but `lib/api-plans.ts` marks those "seeded but not sold" and
-`TIER_API_PLAN` grants API access as a benefit of the Pro and Unlimited tiers.
-The docs describe the tier mapping, which is what the code enforces.
+had drifted: it advertised the API plans as standalone monthly subscriptions
+($49/$199/$799), which `lib/api-plans.ts` marks "seeded but not sold". Fixed
+2026-08-21: README now carries the pack model, and
+`/api/developer/plans` publishes the packs instead of the monthly plan prices.
+
+What the code enforces, and what the docs describe: `apiPlanForAccount()` grants
+the `developer` plan to any account holding credits (`CREDIT_API_PLAN`), and
+`TIER_API_PLAN` still grants `developer`/`startup` to the two legacy Pro and
+Unlimited accounts, whichever is higher. Every API call draws the same match
+credits as the app and returns `402 NO_CREDITS` on an empty balance. The docs
+describe the credit-holding case first and name the legacy tiers as legacy.
 
 ## Known gaps the docs work surfaced
 
-1. **No key-management UI.** `POST /api/developer/keys` works and is correctly
-   tier-gated, but nothing in the frontend calls it. Pro customers have no
-   self-serve way to get a key, so the quickstart tells them to email `help@`.
-   This is the main thing standing between the API and a real launch.
+1. **No key-management UI.** Resolved. `components/ApiKeysModal.tsx` is reachable
+   from the account menu, and `POST /api/developer/keys` is gated on a live
+   credit balance or a legacy paid tier (`lib/developer-auth.ts`). The quickstart
+   now says keys are self-serve and that API access comes with every pack. Kept
+   here so the gap list stays honest about what it once said.
 2. **`requests_by_endpoint` has unbounded cardinality.** `trackApiUsage` stores
    the concrete path, so `/v1/wallet/0xabc…` is its own key. A busy month
    produces a `/v1/usage` response with tens of thousands of entries. Fix is at
@@ -57,13 +65,11 @@ The docs describe the tier mapping, which is what the code enforces.
 
 ## DNS (added 2026-08-14, Cloudflare zone `walletlink.social`)
 
-## DNS (added 2026-08-14, Cloudflare zone `walletlink.social`)
-
-| Type | Name | Value |
-|---|---|---|
-| TXT | `_acme-challenge.docs` | `XXL5AStlV9K3tm2oItgE9A8RX23wRqrKDAXfPBdswzQ` |
-| TXT | `_cf-custom-hostname.docs` | `636e4cce-2074-4b9b-860d-edffdb2bca3e` |
-| CNAME | `docs` | `cname.mintlify.builders` |
+| Type  | Name                       | Value                                         |
+| ----- | -------------------------- | --------------------------------------------- |
+| TXT   | `_acme-challenge.docs`     | `XXL5AStlV9K3tm2oItgE9A8RX23wRqrKDAXfPBdswzQ` |
+| TXT   | `_cf-custom-hostname.docs` | `636e4cce-2074-4b9b-860d-edffdb2bca3e`        |
+| CNAME | `docs`                     | `cname.mintlify.builders`                     |
 
 The CNAME is deliberately **DNS-only, not proxied**. Proxying it would terminate
 TLS at Cloudflare and break Mintlify's certificate for the custom hostname.

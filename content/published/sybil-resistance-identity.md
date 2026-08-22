@@ -1,8 +1,8 @@
 ---
-title: "Sybil Resistance Through Identity: A Better Approach"
-meta_description: "Transaction-based Sybil detection has too many false positives. Identity-based detection asks a better question: does this wallet have a real person behind it?"
+title: 'Sybil Resistance Through Identity: A Better Approach'
+meta_description: 'Transaction-based Sybil detection has too many false positives. Identity-based detection asks a better question: does this wallet have a real person behind it?'
 published: true
-publish_date: "2026-05-11"
+publish_date: '2026-05-11'
 ---
 
 # Sybil Resistance Through Identity: A Better Approach
@@ -50,14 +50,14 @@ A Sybil attacker operating 500 wallets cannot create 500 believable social ident
 
 Here is how identity-based Sybil scoring works in practice:
 
-| Signal | Weight | Rationale |
-|--------|--------|-----------|
-| Farcaster account (verified wallet) | High | Requires phone verification, wallet signing |
-| Twitter account with 6+ months of history | Medium | Time-intensive to fake at scale |
-| ENS name with text records | Medium | Cost + effort barrier |
-| Onchain attestations (Coinbase, Gitcoin) | High | Requires KYC or multi-step verification |
-| Multiple social links from same wallet | Very High | Cross-platform presence hard to fabricate |
-| No resolvable identity | Flag for review | Not proof of Sybil, but a risk signal |
+| Signal                                    | Weight          | Rationale                                   |
+| ----------------------------------------- | --------------- | ------------------------------------------- |
+| Farcaster account (verified wallet)       | High            | Requires phone verification, wallet signing |
+| Twitter account with 6+ months of history | Medium          | Time-intensive to fake at scale             |
+| ENS name with text records                | Medium          | Cost + effort barrier                       |
+| Onchain attestations (Coinbase, Gitcoin)  | High            | Requires KYC or multi-step verification     |
+| Multiple social links from same wallet    | Very High       | Cross-platform presence hard to fabricate   |
+| No resolvable identity                    | Flag for review | Not proof of Sybil, but a risk signal       |
 
 A wallet that resolves to a Farcaster account with 200 followers, a Twitter account active since 2021, and an ENS name with populated text records is almost certainly a real person. That determination can be made in seconds, without any transaction analysis.
 
@@ -117,4 +117,4 @@ Transaction-based detection is not going away. But it is becoming the secondary 
 
 ---
 
-See which of your wallets resolve to real identities. Try [walletlink.social](https://walletlink.social) free for 1,000 wallets.
+See which of your wallets resolve to real identities. Try [walletlink.social](https://walletlink.social) free for your first 100 matches every 30 days.

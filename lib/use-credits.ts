@@ -34,6 +34,20 @@ export interface CreditsView {
   unmetered: boolean;
   /** Whether paid features are unlocked. See the note above about free. */
   entitled: boolean;
+  /**
+   * The most wallets one submission may hold right now: remaining matches
+   * times SUBMISSION_MULTIPLIER, as `/api/credits` reports it. Null while
+   * loading, for an unmetered account (no meter, so no ceiling from it), and
+   * when signed out. The page mirrors the server's per-lookup rule from this
+   * so a person hears about a too-large file before the upload, not after.
+   */
+  maxWallets: number | null;
+  /**
+   * True when the balance being reported is the free window rather than a
+   * purchase. The free allowance keeps the demo's per-lookup cap; a pack does
+   * not, and the two need telling apart to say which applies.
+   */
+  onFreeAllowance: boolean;
   loading: boolean;
 }
 
@@ -41,6 +55,8 @@ const INITIAL: CreditsView = {
   available: null,
   unmetered: false,
   entitled: false,
+  maxWallets: null,
+  onFreeAllowance: false,
   loading: true,
 };
 
@@ -55,7 +71,7 @@ export function useCredits(signedIn: boolean): CreditsView {
   useEffect(() => {
     // No synchronous setState for the signed-out case: React flags it as a
     // cascading render. The value is derived below instead, which is also
-    // truthful — there is nothing to load, so it is not loading.
+    // truthful: there is nothing to load, so it is not loading.
     if (!signedIn) return;
 
     let cancelled = false;
@@ -71,6 +87,11 @@ export function useCredits(signedIn: boolean): CreditsView {
           // a purchase, which is exactly the case that must not unlock.
           entitled:
             !!d.unmetered || (!d.onFreeAllowance && (d.available ?? 0) > 0),
+          maxWallets:
+            !d.unmetered && typeof d.maxWallets === 'number'
+              ? d.maxWallets
+              : null,
+          onFreeAllowance: !d.unmetered && !!d.onFreeAllowance,
           loading: false,
         });
       })

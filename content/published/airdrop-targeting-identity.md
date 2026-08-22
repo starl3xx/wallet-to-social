@@ -1,8 +1,8 @@
 ---
-title: "Airdrop Targeting: Why Identity Beats Transaction History"
-meta_description: "Transaction-based Sybil detection misses sophisticated farmers. Identity-based filtering using social proof catches what onchain analysis cannot."
+title: 'Airdrop Targeting: Why Identity Beats Transaction History'
+meta_description: 'Transaction-based Sybil detection misses sophisticated farmers. Identity-based filtering using social proof catches what onchain analysis cannot.'
 published: true
-publish_date: "2026-03-23"
+publish_date: '2026-03-23'
 ---
 
 # Airdrop Targeting: Why Identity Beats Transaction History
@@ -45,6 +45,7 @@ The logic:
 3. Cryptographic verification (Farcaster verified addresses, ENS ownership) creates a much higher bar than transaction mimicry.
 
 A Sybil farmer running 500 wallets would need 500 unique social identities, each with:
+
 - Realistic follower counts (not all zeros)
 - Posting history spanning months
 - Genuine engagement from other accounts
@@ -63,6 +64,7 @@ Use whatever criteria you normally would -- transaction activity, holding durati
 ### Step 2: Resolve Identities
 
 Run the candidate list through wallet-to-social resolution. For each wallet, you get:
+
 - Whether it resolves to any social profile
 - Which platforms (Twitter, Farcaster, both)
 - Follower count and account age
@@ -70,12 +72,12 @@ Run the candidate list through wallet-to-social resolution. For each wallet, you
 
 ### Step 3: Create Confidence Tiers
 
-| Tier | Criteria | Recommended Treatment |
-|------|----------|----------------------|
-| High confidence | Farcaster verified address + 500 followers | Full allocation |
-| Medium confidence | Any social resolution + 50 followers | Standard allocation |
-| Low confidence | Social resolution, minimal followers | Reduced allocation |
-| Unverified | No social identity found | Requires additional verification |
+| Tier              | Criteria                                   | Recommended Treatment            |
+| ----------------- | ------------------------------------------ | -------------------------------- |
+| High confidence   | Farcaster verified address + 500 followers | Full allocation                  |
+| Medium confidence | Any social resolution + 50 followers       | Standard allocation              |
+| Low confidence    | Social resolution, minimal followers       | Reduced allocation               |
+| Unverified        | No social identity found                   | Requires additional verification |
 
 ### Step 4: Apply Transaction Analysis to Unverified Wallets
 
@@ -90,6 +92,7 @@ Combine the identity-verified group with the transaction-verified subset of unve
 LayerZero's airdrop is instructive because they published extensive data about their Sybil detection process.
 
 They used a multi-phase approach:
+
 1. Self-reporting period where farmers could disclose and receive a reduced allocation
 2. Community-driven detection (bounty hunters analyzing onchain data)
 3. Internal detection using proprietary methods
@@ -99,6 +102,7 @@ The result: 803,093 flagged addresses, with approximately 100,000 coming from th
 What identity resolution would have added:
 
 We ran a sample of 10,000 addresses from the LayerZero eligible list through identity resolution:
+
 - **23% resolved to social profiles** (within the expected range for a DeFi-heavy population)
 - Of the addresses that were later flagged as Sybil, **only 1.8% had any social identity**
 - Of the addresses that received the airdrop, **31% had social identity**
@@ -109,13 +113,13 @@ The identity signal is stark: flagged Sybil addresses are 17x less likely to hav
 
 Running identity resolution at scale is cheap compared to the cost of airdrop waste:
 
-| Approach | Cost for 100K Addresses | Sybil Detection Rate | False Positive Rate |
-|----------|------------------------|---------------------|-------------------|
-| Transaction analysis only | $10,000-50,000 (data infra + analyst time) | 60-70% | 5-10% |
-| Identity resolution only | $420 (one-time) | N/A (verification, not detection) | ~0% |
-| Combined approach | $10,420-50,420 | 85-95% (estimated) | 2-5% |
+| Approach                  | Cost for 100K Addresses                     | Sybil Detection Rate              | False Positive Rate |
+| ------------------------- | ------------------------------------------- | --------------------------------- | ------------------- |
+| Transaction analysis only | $10,000-50,000 (data infra + analyst time)  | 60-70%                            | 5-10%               |
+| Identity resolution only  | $899 (one-time, Index pack: 25,000 matches) | N/A (verification, not detection) | ~0%                 |
+| Combined approach         | $10,899-50,899                              | 85-95% (estimated)                | 2-5%                |
 
-Identity resolution doesn't replace transaction analysis -- it complements it. But the cost difference is notable. At [walletlink.social](https://walletlink.social) pricing, resolving 100,000 wallets costs $420 as a one-time payment. That's less than the value of tokens wasted on 10 Sybil wallets in most airdrops.
+Identity resolution doesn't replace transaction analysis -- it complements it. But the cost difference is notable. At [walletlink.social](https://walletlink.social) pricing, a 100,000-address list produces roughly 23,700 matches at our measured rate, which the $899 Index pack (25,000 matches) covers as a one-time payment. Addresses that resolve to nothing cost nothing. That's less than the value of tokens wasted on 20 Sybil wallets in most airdrops.
 
 ## Why Social Identity Is Hard to Fake at Scale
 
@@ -145,4 +149,4 @@ The projects already using this methodology report 30-40% less airdrop waste com
 
 **Filter your airdrop list before you distribute.**
 
-[walletlink.social](https://walletlink.social) resolves wallet addresses to verified social profiles, letting you separate real community members from noise. One-time pricing starts at $49 for 10,000 wallets.
+[walletlink.social](https://walletlink.social) resolves wallet addresses to verified social profiles, letting you separate real community members from noise. One-time pricing starts at $29 for 250 matches, about 1,000 wallets at our measured rate. You only pay for the wallets we resolve.

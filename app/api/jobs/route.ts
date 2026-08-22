@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
-import { canSubmit } from '@/lib/credits';
+import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -56,7 +57,9 @@ export async function POST(request: NextRequest) {
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
-          error: 'Rate limit exceeded. Sign in for unlimited access.',
+          // Signing in is not unlimited: it is the free allowance, which is
+          // the number that earns the signup, so it is the number to say.
+          error: `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`,
           retryAfter: rateLimitResult.retryAfter,
         },
         {
@@ -101,7 +104,7 @@ export async function POST(request: NextRequest) {
     // Access tier is derived from the validated SESSION only. Previously email
     // and wallet came from the request body, so an anonymous caller could pass
     // a whitelisted wallet (public onchain) or a known paid user's email to
-    // getUserAccess and be handed Infinity walletLimit — bypassing the free
+    // getUserAccess and be handed Infinity walletLimit, bypassing the free
     // cap. Authenticated users keep their tier via the session; anonymous
     // callers get free tier regardless of what the body claims.
     // (A signed-wallet path could restore wallet-based whitelist access later.)
@@ -116,8 +119,9 @@ export async function POST(request: NextRequest) {
      *
      * Runs before the per-lookup limit below, because it is the real meter now
      * and its message is the useful one: "you have N matches left" tells a
-     * caller what to do, where "free tier limited to 500 wallets" tells them to
-     * split the file, which is exactly the behaviour the ledger exists to end.
+     * caller what to do, where a bare per-lookup cap ("500 wallets at a time")
+     * tells them to split the file, which is exactly the behaviour the ledger
+     * exists to end.
      *
      * Only for signed-in accounts. An anonymous caller has no identity to meter
      * against (`userId` is a localStorage value that a cleared cache resets), so
@@ -206,7 +210,25 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const errorMessage = `${access.tier.charAt(0).toUpperCase() + access.tier.slice(1)} tier limited to ${access.walletLimit.toLocaleString()} wallets`;
+      /**
+       * Three audiences, three sentences.
+       *
+       * The free cap is a per-lookup ceiling on an account that has not bought
+       * anything, so the way past it is a pack, and the message says so. It
+       * used to read "Free tier limited to 500 wallets", which names a tier
+       * nobody is sold and tells the caller nothing about what to do next.
+       *
+       * Legacy `pro` keeps the sentence it was sold with: 5,000 wallets per
+       * lookup is the product that account bought, and there is nothing to
+       * buy past it. `unlimited` has no finite limit and never reaches here.
+       */
+      const limit = access.walletLimit.toLocaleString();
+      const errorMessage =
+        access.tier === 'pro'
+          ? `Pro is limited to ${limit} wallets per lookup.`
+          : session.user
+            ? `A free account can look up ${limit} wallets at a time. Buy a pack to run larger lists.`
+            : `Without an account you can look up ${limit} wallets at a time. Sign in, then buy a pack to run larger lists.`;
 
       return NextResponse.json(
         {
@@ -242,6 +264,8 @@ export async function POST(request: NextRequest) {
       // Only a signed-in account can be debited; see JobOptions.meteredUserId.
       meteredUserId: session.user?.id,
       tier: access.tier,
+      // Priority score and follower counts: every pack, and the legacy tiers.
+      paidData: legacyTierIsUnmetered(access.tier) || creditsCoverThisLookup,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS || creditsCoverThisLookup,
       inputSource,

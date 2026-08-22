@@ -42,20 +42,20 @@ It also runs backwards: give it an X handle or a Farcaster username and it retur
 
 The number most tools quote is the one that flatters them. Two numbers matter here, and conflating them will make you plan a campaign you cannot run.
 
-| Question | Answer |
-|---|---|
-| Wallets resolving to **any** identity | 16-47% by chain |
+| Question                               | Answer          |
+| -------------------------------------- | --------------- |
+| Wallets resolving to **any** identity  | 16-47% by chain |
 | Wallets with an X or Farcaster account | 16-46% by chain |
-| Industry average for wallet-to-social | ~2.5% |
+| Industry average for wallet-to-social  | ~2.5%           |
 
 The chain decides this more than the collection does: measured across 26 collections and 72,318 holders, Base runs 46.2% and Ethereum 16.6%, because Base is where Farcaster lives. Use your chain's figure, not an average.
 
 Having an account and reaching it are different claims. Of 428,059 X handles resolved, 69.6% are live, 20.7% suspended and 9.7% are names nobody holds. Every match carries that answer.
 
-| Network | Nature of the match |
-|---|---|
-| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information. |
-| **X** | Attested first, labelled always. Over 99.9% of handles were published by the account owner, through a Farcaster verification or an onchain ENS record. The rest are correlated from identity indexes and carry that as their evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
+| Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information.                                                                                                                                                                                                    |
+| **X**         | Attested first, labelled always. Over 99.9% of handles were published by the account owner, through a Farcaster verification or an onchain ENS record. The rest are correlated from identity indexes and carry that as their evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
 
 Coverage would be higher if we guessed. Contacting the wrong person is worse than contacting fewer people.
 
@@ -63,15 +63,31 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 
 ## Features
 
-| | |
-|---|---|
-| **Three ways in** | CSV upload, contract import (holders fetched for you), or pasted addresses |
-| **Seven chains** | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain |
-| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together |
-| **Agent detection** | 13,000+ known AI agent wallets flagged |
-| **Reverse lookup** | X handle or Farcaster username back to wallets |
-| **Public API** | Included with Pro and Unlimited, self-serve keys |
-| **Exports** | Full CSV sorted by priority, or a plain handle list for an X list import |
+|                      |                                                                            |
+| -------------------- | -------------------------------------------------------------------------- |
+| **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses |
+| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain    |
+| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together      |
+| **Agent detection**  | 13,000+ known AI agent wallets flagged                                     |
+| **Reverse lookup**   | X handle or Farcaster username back to wallets                             |
+| **Public API**       | Included with every pack, drawing the same credits; self-serve keys        |
+| **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import   |
+
+---
+
+## Pricing
+
+Credit packs, bought once and metered in **matches**. A match is a wallet resolved to an X handle or a Farcaster account; a wallet that resolves to nothing costs nothing. Credits last 12 months from purchase. There are no subscriptions.
+
+| Pack     | Price | Matches                 | Fits                            |
+| -------- | ----- | ----------------------- | ------------------------------- |
+| Free     | $0    | 100 per rolling 30 days | Trying it on a real list        |
+| Trial    | $29   | 250                     | One list, once                  |
+| Campaign | $99   | 1,500                   | A launch or an airdrop          |
+| Scale    | $299  | 6,000                   | Several lists, or one large one |
+| Index    | $899  | 25,000                  | Agencies and repeat work        |
+
+Every pack includes the same features (contract import, reverse lookup, deep ENS resolution, follower counts, priority score, X list export, lookup history and API access on the same credits). Packs differ only in how many matches they hold. `lib/packs.ts` is the source of truth: the pricing modal, the checkout, the comparison pages and the schema.org offers all read from it.
 
 ---
 
@@ -82,7 +98,7 @@ CSV / contract / paste
         ↓
   lib/csv-parser.ts ──── detects wallet + holdings columns
         ↓
-  /api/lookup (SSE) ──── streams progress to the client
+  /api/jobs ──────────── creates a job; lib/job-processor.ts runs it in chunks, the client polls
         ↓
   ┌─ social_graph ─────── fresh rows and persisted negatives short-circuit
   ├─ wallet_cache ─────── 7-day TTL, negatives included
@@ -99,17 +115,17 @@ Negatives are persisted deliberately. "Checked, nothing there" is an answer wort
 
 ## Tech stack
 
-| Layer | Tech |
-|---|---|
-| Framework | Next.js 16, App Router |
-| Database | Neon PostgreSQL, Drizzle ORM |
-| Styling | Tailwind CSS v4 |
-| UI | Radix primitives |
-| Background jobs | Inngest |
-| Payments | Stripe |
-| Docs | Mintlify at [docs.walletlink.social](https://docs.walletlink.social) |
-| Assistant | Cloudflare AI Search, served from `help.walletlink.social` |
-| Hosting | Vercel |
+| Layer           | Tech                                                                 |
+| --------------- | -------------------------------------------------------------------- |
+| Framework       | Next.js 16, App Router                                               |
+| Database        | Neon PostgreSQL, Drizzle ORM                                         |
+| Styling         | Tailwind CSS v4                                                      |
+| UI              | Radix primitives                                                     |
+| Background jobs | Inngest                                                              |
+| Payments        | Stripe                                                               |
+| Docs            | Mintlify at [docs.walletlink.social](https://docs.walletlink.social) |
+| Assistant       | Cloudflare AI Search, served from `help.walletlink.social`           |
+| Hosting         | Vercel                                                               |
 
 ---
 
@@ -160,15 +176,16 @@ npm run db:studio    # Drizzle Studio
 
 ## Environment variables
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `DATABASE_URL` | for anything stateful | Neon connection string |
-| `STRIPE_SECRET_KEY` | for payments | checkout |
-| `STRIPE_WEBHOOK_SECRET` | for payments | webhook verification |
-| `ADMIN_PASSWORD` | for `/admin` | fails closed when unset |
-| `CRON_SECRET` | for cron | guards `/api/cron/*` |
-| `INNGEST_EVENT_KEY` | optional | faster batch processing |
-| `INNGEST_SIGNING_KEY` | optional | as above |
+| Variable                                                   | Required              | Purpose                                               |
+| ---------------------------------------------------------- | --------------------- | ----------------------------------------------------- |
+| `DATABASE_URL`                                             | for anything stateful | Neon connection string                                |
+| `STRIPE_SECRET_KEY`                                        | for payments          | checkout                                              |
+| `STRIPE_WEBHOOK_SECRET`                                    | for payments          | webhook verification                                  |
+| `STRIPE_PRICE_PACK_TRIAL`, `_CAMPAIGN`, `_SCALE`, `_INDEX` | for payments          | one Stripe Price id per pack, named in `lib/packs.ts` |
+| `ADMIN_PASSWORD`                                           | for `/admin`          | fails closed when unset                               |
+| `CRON_SECRET`                                              | for cron              | guards `/api/cron/*`                                  |
+| `INNGEST_EVENT_KEY`                                        | optional              | faster batch processing                               |
+| `INNGEST_SIGNING_KEY`                                      | optional              | as above                                              |
 
 Identity-source credentials are listed in `.env.example`.
 
@@ -176,28 +193,33 @@ Identity-source credentials are listed in `.env.example`.
 
 ## Public API
 
-Full reference at **[docs.walletlink.social](https://docs.walletlink.social/api-reference/introduction)**. Keys are self-serve from the account menu on Pro and Unlimited.
+Full reference at **[docs.walletlink.social](https://docs.walletlink.social/api-reference/introduction)**. Keys are self-serve from the account menu for any account holding credits. The two legacy Pro and Unlimited accounts keep their existing access unchanged.
 
 ```bash
 curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
   -H "Authorization: Bearer wts_live_YOUR_KEY"
 ```
 
-| Endpoint | Cost |
-|---|---|
-| `GET /v1/wallet/{address}` | 1 credit |
-| `POST /v1/batch` | 1 credit per wallet submitted |
-| `GET /v1/reverse/twitter/{handle}` | 2 credits |
-| `GET /v1/reverse/farcaster/{username}` | 2 credits |
-| `GET /v1/stats` | free |
-| `GET /v1/usage` | free |
+The API is measured twice. **Match credits** are the ones you bought, and a call draws them only for wallets that resolve. **Rate-limit units** are separate, are not bought, and bound how fast you may call.
 
-| Tier | API plan | Rate | Daily | Batch |
-|---|---|---|---|---|
-| Pro | Developer | 60/min | 5,000 | 50 |
-| Unlimited | Startup | 300/min | 50,000 | 200 |
+| Endpoint                               | Match credits                                    | Rate-limit units        |
+| -------------------------------------- | ------------------------------------------------ | ----------------------- |
+| `GET /v1/wallet/{address}`             | 1 if the address resolves, 0 if not              | 1                       |
+| `POST /v1/batch`                       | 1 per address that resolves, after deduplication | 1 per address submitted |
+| `GET /v1/reverse/twitter/{handle}`     | 1 per wallet returned, up to 100                 | 2                       |
+| `GET /v1/reverse/farcaster/{username}` | 1 per wallet returned, up to 100                 | 2                       |
+| `GET /v1/stats`                        | 0                                                | 0                       |
+| `GET /v1/usage`                        | 0                                                | 0                       |
 
-`lib/api-plans.ts` is the single source of truth for these numbers, and the rate limiter reads the same module.
+A call made with no match credits left returns `402` with code `NO_CREDITS`.
+
+| Account          | API plan  | Rate    | Daily  | Batch |
+| ---------------- | --------- | ------- | ------ | ----- |
+| Any pack         | Developer | 60/min  | 5,000  | 50    |
+| Legacy Pro       | Developer | 60/min  | 5,000  | 50    |
+| Legacy Unlimited | Startup   | 300/min | 50,000 | 200   |
+
+`lib/api-plans.ts` is the single source of truth for these numbers (`CREDIT_API_PLAN` for pack holders, `TIER_API_PLAN` for the two legacy accounts), and the rate limiter reads the same module.
 
 ---
 

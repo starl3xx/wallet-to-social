@@ -7,7 +7,6 @@ import { SignIn } from '@phosphor-icons/react';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 import type { WalletSocialResult } from '@/lib/types';
-import type { UserTier } from '@/lib/access';
 
 interface LookupSummary {
   id: string;
@@ -23,18 +22,34 @@ interface EnrichmentCounts {
 }
 
 interface LookupHistoryProps {
-  onLoadLookup: (results: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWallets?: string[]) => void;
-  userTier: UserTier;
+  onLoadLookup: (
+    results: WalletSocialResult[],
+    lookupId?: string,
+    lookupName?: string | null,
+    enrichedWallets?: string[]
+  ) => void;
+  /**
+   * Whether paid features are unlocked: a live pack or a legacy tier, from
+   * `useCredits` on the page. Not the tier, because a pack purchase leaves
+   * `users.tier` as 'free', and full history and growing a lookup are included
+   * in every pack. The free allowance does not unlock them.
+   */
+  entitled: boolean;
   onAddAddresses?: (lookupId: string, existingWallets: string[]) => void;
 }
 
-// Get the display limit based on user tier
-const getHistoryLimit = (tier: UserTier): number => {
-  if (tier === 'free') return 1;
-  return 10; // Initial load for pro/unlimited
+// How many entries to show. Free and signed in without a pack see the latest
+// one; credits show the full history, ten at a time.
+const getHistoryLimit = (entitled: boolean): number => {
+  if (!entitled) return 1;
+  return 10; // Initial page for an entitled account
 };
 
-export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTier, onAddAddresses }: LookupHistoryProps) {
+export const LookupHistory = memo(function LookupHistory({
+  onLoadLookup,
+  entitled,
+  onAddAddresses,
+}: LookupHistoryProps) {
   const { user } = useAuth();
   const [history, setHistory] = useState<LookupSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +60,9 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [enrichmentCounts, setEnrichmentCounts] = useState<EnrichmentCounts>({});
+  const [enrichmentCounts, setEnrichmentCounts] = useState<EnrichmentCounts>(
+    {}
+  );
 
   useEffect(() => {
     async function fetchHistory() {
@@ -57,9 +74,11 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
       }
 
       try {
-        const limit = getHistoryLimit(userTier);
+        const limit = getHistoryLimit(entitled);
         // Server uses session for userId, no need to pass it
-        const res = await fetch(`/api/history?limit=${limit}&summaryOnly=true&includeCount=true&includeEnrichment=true`);
+        const res = await fetch(
+          `/api/history?limit=${limit}&summaryOnly=true&includeCount=true&includeEnrichment=true`
+        );
         if (!res.ok) {
           if (res.status === 401) {
             setRequiresAuth(true);
@@ -86,44 +105,49 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
     }
 
     fetchHistory();
-  }, [userTier, user]);
+  }, [entitled, user]);
 
-  // Load more history (for pro/unlimited users)
+  // Load more history (entitled accounts only)
   const handleLoadMore = useCallback(async () => {
-    if (loadingMore || userTier === 'free') return;
+    if (loadingMore || !entitled) return;
 
     setLoadingMore(true);
     try {
       const limit = 10;
       const offset = history.length;
-      const res = await fetch(`/api/history?limit=${limit}&offset=${offset}&summaryOnly=true`);
+      const res = await fetch(
+        `/api/history?limit=${limit}&offset=${offset}&summaryOnly=true`
+      );
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setHistory(prev => [...prev, ...data.history]);
+      setHistory((prev) => [...prev, ...data.history]);
       setHasMore(history.length + data.history.length < totalCount);
     } catch (err) {
       console.error('Failed to load more:', err);
     } finally {
       setLoadingMore(false);
     }
-  }, [history.length, loadingMore, totalCount, userTier]);
+  }, [history.length, loadingMore, totalCount, entitled]);
 
   // Lazy load full results only when user clicks "Load"
-  const handleLoadLookup = useCallback(async (id: string, name: string | null) => {
-    setLoadingId(id);
-    try {
-      const res = await fetch(`/api/history/${id}`);
-      if (!res.ok) throw new Error('Failed to load');
-      const { results, enrichedWallets } = await res.json();
-      onLoadLookup(results, id, name, enrichedWallets || []);
-      // Clear the enrichment count for this lookup since user just viewed it
-      setEnrichmentCounts((prev) => ({ ...prev, [id]: 0 }));
-    } catch (err) {
-      console.error('Failed to load lookup:', err);
-    } finally {
-      setLoadingId(null);
-    }
-  }, [onLoadLookup]);
+  const handleLoadLookup = useCallback(
+    async (id: string, name: string | null) => {
+      setLoadingId(id);
+      try {
+        const res = await fetch(`/api/history/${id}`);
+        if (!res.ok) throw new Error('Failed to load');
+        const { results, enrichedWallets } = await res.json();
+        onLoadLookup(results, id, name, enrichedWallets || []);
+        // Clear the enrichment count for this lookup since user just viewed it
+        setEnrichmentCounts((prev) => ({ ...prev, [id]: 0 }));
+      } catch (err) {
+        console.error('Failed to load lookup:', err);
+      } finally {
+        setLoadingId(null);
+      }
+    },
+    [onLoadLookup]
+  );
 
   if (loading) {
     return (
@@ -196,20 +220,22 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
                   </p>
                   {enrichmentCount > 0 && (
                     <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-brand-tint text-accent-brand">
-                      {enrichmentCount} new match{enrichmentCount !== 1 ? 'es' : ''}
+                      {enrichmentCount} new match
+                      {enrichmentCount !== 1 ? 'es' : ''}
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(lookup.createdAt)} · {lookup.twitterFound} Twitter,{' '}
-                  {lookup.farcasterFound} Farcaster
+                  {formatDate(lookup.createdAt)} · {lookup.twitterFound}{' '}
+                  Twitter, {lookup.farcasterFound} Farcaster
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {/* Unlimited only. Growing a saved lookup is the top-tier
-                    feature, and the server enforces it on the write, so this
-                    is presentation rather than protection. */}
-                {onAddAddresses && userTier === 'unlimited' && (
+                {/* Needs credits. Growing a saved lookup is included in every
+                    pack, and the server charges the added wallets against the
+                    caller's match balance and refuses the write without one,
+                    so this is presentation rather than protection. */}
+                {onAddAddresses && entitled && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -233,15 +259,15 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
           );
         })}
 
-        {/* Free tier upgrade prompt */}
-        {userTier === 'free' && totalCount > 1 && (
+        {/* Prompt for accounts without credits */}
+        {!entitled && totalCount > 1 && (
           <p className="text-xs text-muted-foreground text-center pt-2">
-            Upgrade to see your full lookup history ({totalCount - 1} more)
+            Buy credits to see your full lookup history ({totalCount - 1} more)
           </p>
         )}
 
-        {/* Load more button for pro/unlimited */}
-        {userTier !== 'free' && hasMore && (
+        {/* Load more button for entitled accounts */}
+        {entitled && hasMore && (
           <Button
             variant="ghost"
             size="sm"
@@ -249,7 +275,9 @@ export const LookupHistory = memo(function LookupHistory({ onLoadLookup, userTie
             disabled={loadingMore}
             className="w-full"
           >
-            {loadingMore ? 'Loading...' : `Load more (${totalCount - history.length} remaining)`}
+            {loadingMore
+              ? 'Loading...'
+              : `Load more (${totalCount - history.length} remaining)`}
           </Button>
         )}
       </CardContent>

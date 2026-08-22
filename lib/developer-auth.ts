@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { apiPlanForTier, TIER_API_PLAN } from '@/lib/api-plans';
-import { getBalance } from '@/lib/credits';
+import { hasPaidAccess } from '@/lib/credits';
 
 // Re-exported so existing importers keep working.
 export { apiPlanForTier, TIER_API_PLAN };
@@ -21,7 +21,7 @@ export { apiPlanForTier, TIER_API_PLAN };
  *  1. a valid session must exist;
  *  2. the session's email must match the email being acted on, so nobody can
  *     read or mint keys belonging to someone else;
- *  3. the account must be on a tier that includes API access.
+ *  3. the account must hold live credits or be on a legacy tier.
  */
 
 /** Tiers that include API access. */
@@ -100,8 +100,13 @@ export async function requireDeveloperAccess(
    * Live credits, not lifetime: an account whose credits have run out or expired
    * is in the same position as one that never bought any, and an API key that
    * outlives the credits behind it is a key that 402s on every call.
+   *
+   * A live lot, not the free allowance. `getBalance().available` is up to 100
+   * for any free account inside its window, which would let every signup mint
+   * a key; the modal that offers keys is gated on the same `entitled` rule, so
+   * the server has to be, or the gate is a suggestion.
    */
-  const hasCredits = (await getBalance(session.user.id)).available > 0;
+  const hasCredits = await hasPaidAccess(session.user.id, access.tier);
 
   if (
     requireApiTier &&

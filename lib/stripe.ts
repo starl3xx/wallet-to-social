@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { getSiteUrl } from '@/lib/site-url';
-import { PACKS, type PackId } from '@/lib/packs';
+import { PACKS, isPackId, type PackId } from '@/lib/packs';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -14,120 +14,13 @@ interface CheckoutSessionResult {
 }
 
 /**
- * Create a Stripe checkout session for one-time payment
- */
-export async function createCheckoutSession(
-  email: string,
-  tier: CheckoutTier
-): Promise<CheckoutSessionResult> {
-  if (!stripe) {
-    throw new Error('Stripe not configured');
-  }
-
-  /**
-   * One casing for the whole checkout.
-   *
-   * `stripe.customers.list({ email })` matches case-sensitively, while
-   * `provisionPaidCheckout` and `getUserByEmail` both lowercase before they
-   * compare. The upgrade modal also asks the buyer to type their address again,
-   * so "Jake@Example.com" on the second purchase would miss the Customer created
-   * for "jake@example.com", make a second one, and orphan the first: exactly the
-   * duplicate this reuse logic exists to prevent.
-   *
-   * Normalising here fixes the account lookup too, because the webhook resolves
-   * entitlement from `customer_email` and `metadata.email`, which are both set
-   * below.
-   */
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const priceId =
-    tier === 'unlimited'
-      ? process.env.STRIPE_PRICE_UNLIMITED
-      : process.env.STRIPE_PRICE_PRO;
-
-  if (!priceId) {
-    throw new Error(`Price not configured for tier: ${tier}`);
-  }
-
-  // Resolved centrally. This line read `process.env.NEXT_PUBLIC_URL ||
-  // 'http://localhost:3000'`, and because that variable was never set in
-  // production, two live payments were redirected to a dead localhost port.
-  const baseUrl = getSiteUrl();
-
-  /**
-   * Reuse this buyer's Customer if Stripe already has one.
-   *
-   * Two things are being fixed here at once, and they pull in opposite
-   * directions.
-   *
-   * `customer_creation` defaults to `if_required`, and a one-time card payment
-   * never requires a Customer, so Stripe created none at all: the account held
-   * zero Customer objects despite real completed sales, every payment stored an
-   * empty `stripe_customer_id`, and the admin Users pane showed a dash next to
-   * every paying account. `customer_email` only prefills the field.
-   *
-   * But `customer_creation: 'always'` on its own creates a *new* Customer for
-   * every checkout. A buyer upgrading from Pro to Unlimited would get a second
-   * Customer, overwrite the stored id with it, and orphan the first, which is
-   * the opposite of the single identity this is meant to give.
-   *
-   * So: look the buyer up by email first. Attach the session to the existing
-   * Customer when there is one, and only ask Stripe to create a Customer when
-   * there is not. Stripe rejects a session that sets both `customer` and
-   * `customer_email`, hence the either/or.
-   *
-   * The lookup goes to Stripe rather than to our own `stripeCustomerId`, because
-   * Stripe is the authority and every account predating this change has no
-   * stored id to offer.
-   */
-  const found = await stripe.customers.list({
-    email: normalizedEmail,
-    limit: 1,
-  });
-  const existingCustomerId = found.data[0]?.id;
-
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    ...(existingCustomerId
-      ? { customer: existingCustomerId }
-      : {
-          customer_email: normalizedEmail,
-          customer_creation: 'always' as const,
-        }),
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: baseUrl,
-    metadata: {
-      tier,
-      email: normalizedEmail,
-    },
-    payment_intent_data: {
-      metadata: {
-        tier,
-        email: normalizedEmail,
-      },
-    },
-  });
-
-  if (!session.url) {
-    throw new Error('Failed to create checkout session URL');
-  }
-
-  return {
-    url: session.url,
-    sessionId: session.id,
-  };
-}
-
-/**
  * Create a checkout session for a credit pack.
  *
- * Deliberately a second function rather than a branch inside
- * `createCheckoutSession`. The two sell different things: a tier is a
- * permanent grant keyed on the account, a pack is a dated lot keyed on the
- * payment. They share the Customer-reuse logic and nothing else, and folding
- * them together would mean a `tier ?? pack` metadata shape that the webhook has
- * to disambiguate on every event.
+ * This replaced `createCheckoutSession(email, tier)`, which sold the legacy
+ * tiers and was deleted once nothing called it. The two sold different
+ * things: a tier was a permanent grant keyed on the account, a pack is a dated
+ * lot keyed on the payment, which is why the webhook reads `metadata.pack` for
+ * new payments and `metadata.tier` only off historical ones.
  *
  * Same `mode: 'payment'`. That is the point of packs: no subscription
  * lifecycle, no portal, no dunning, no proration, and no revocation path.
@@ -234,7 +127,7 @@ export function constructWebhookEvent(
  * passed when creating the session; `customer_details.email` is whatever the
  * buyer actually typed into Stripe Checkout, and the two diverge the moment a
  * buyer edits the prefilled address. If the two paths disagree, the upgrade
- * lands on one account while the poll asks about the other — the payment
+ * lands on one account while the poll asks about the other: the payment
  * succeeds and /success spins until it times out.
  *
  * `customer_details.email` is deliberately NOT consulted: the webhook grants
@@ -278,7 +171,16 @@ export async function getCheckoutSession(
 export interface PaymentRecord {
   id: string;
   email: string | null;
+  /** Set on the two legacy one-time purchases and nothing since. */
   tier: CheckoutTier | null;
+  /**
+   * The pack bought, from `metadata.pack`, or null for a tier payment.
+   *
+   * `createPackCheckoutSession` writes `pack` and never `tier`, so before this
+   * field existed every pack payment normalised to `tier: null` and the admin
+   * revenue breakdown could not see the only thing being sold.
+   */
+  pack: PackId | null;
   amountCents: number;
   refundedCents: number;
   netCents: number;
@@ -329,6 +231,12 @@ export async function listPayments(
           charge?.receipt_email ||
           null,
         tier: (pi.metadata?.tier as CheckoutTier | undefined) ?? null,
+        // Validated rather than cast: metadata is free text on Stripe's side,
+        // and a typo there should read as "no pack", not index PACKS.
+        pack:
+          pi.metadata?.pack && isPackId(pi.metadata.pack)
+            ? pi.metadata.pack
+            : null,
         amountCents,
         refundedCents,
         netCents: amountCents - refundedCents,

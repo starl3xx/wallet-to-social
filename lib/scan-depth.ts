@@ -41,9 +41,9 @@ export const SCAN_DEPTHS: Record<
 /**
  * The job flags a depth resolves to.
  *
- * Tier still applies on top: the server drops ENS for an account that has not
- * paid for it, so a free user asking for a deep scan gets every source they are
- * entitled to rather than an error.
+ * Entitlement still applies on top: the server drops ENS for an account with
+ * neither credits nor a legacy tier, so a free user asking for a deep scan gets
+ * every source they are entitled to rather than an error.
  */
 export function scanDepthOptions(depth: ScanDepth): {
   fastMode: boolean;

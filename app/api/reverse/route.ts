@@ -5,6 +5,7 @@ import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
+import { hasPaidAccess } from '@/lib/credits';
 import { publicSources } from '@/lib/api-sources';
 import { saveLookup } from '@/lib/history';
 import type { WalletSocialResult } from '@/lib/types';
@@ -40,19 +41,27 @@ export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) {
-    return NextResponse.json({ error: 'Sign in to use reverse lookup' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Sign in to use reverse lookup' },
+      { status: 401 }
+    );
   }
 
   const session = await validateSession(token);
   if (!session.user) {
-    return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Invalid or expired session' },
+      { status: 401 }
+    );
   }
 
+  // Reverse lookup is included in every pack. A pack buyer keeps tier 'free',
+  // so this cannot be a tier check: see hasPaidAccess.
   const access = await getUserAccess(session.user.email);
-  if (access.tier !== 'pro' && access.tier !== 'unlimited') {
+  if (!(await hasPaidAccess(session.user.id, access.tier))) {
     return NextResponse.json(
       {
-        error: 'Reverse lookup is available on Pro and Unlimited',
+        error: 'Reverse lookup needs credits. Buy a pack to unlock it.',
         upgradeRequired: true,
         tier: access.tier,
       },
@@ -69,12 +78,18 @@ export async function POST(request: NextRequest) {
 
   const platform = body.platform as Platform;
   if (platform !== 'twitter' && platform !== 'farcaster') {
-    return NextResponse.json({ error: 'platform must be twitter or farcaster' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'platform must be twitter or farcaster' },
+      { status: 400 }
+    );
   }
 
   const raw = (body.handle ?? '').trim();
   if (!raw) {
-    return NextResponse.json({ error: 'Enter a handle to look up' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Enter a handle to look up' },
+      { status: 400 }
+    );
   }
 
   const pattern = platform === 'twitter' ? VALID_TWITTER : VALID_FARCASTER;
@@ -94,10 +109,14 @@ export async function POST(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Service temporarily unavailable' },
+      { status: 503 }
+    );
   }
 
-  const column = platform === 'twitter' ? socialGraph.twitterHandle : socialGraph.farcaster;
+  const column =
+    platform === 'twitter' ? socialGraph.twitterHandle : socialGraph.farcaster;
 
   const [countRow] = await db
     .select({ count: sql<number>`COUNT(*)::int` })
@@ -175,7 +194,12 @@ export async function POST(request: NextRequest) {
   if (results.length > 0) {
     const label = `Wallets for ${platform === 'twitter' ? '@' : ''}${handle}`;
     try {
-      lookupId = await saveLookup(results, label, session.user.id, 'reverse_lookup');
+      lookupId = await saveLookup(
+        results,
+        label,
+        session.user.id,
+        'reverse_lookup'
+      );
     } catch (err) {
       // A history write must never cost the caller their results.
       console.error('Failed to save reverse lookup to history:', err);

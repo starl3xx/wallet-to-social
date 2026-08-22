@@ -5,7 +5,6 @@ import { NextRequest } from 'next/server';
 
 // Rate limits for unauthenticated UI endpoints (strict to prevent scraping)
 export const IP_RATE_LIMITS = {
-  '/api/lookup': { limit: 3, windowHours: 1 },
   '/api/jobs': { limit: 3, windowHours: 1 },
   /**
    * Far looser than a lookup, because it costs incomparably less: one indexed

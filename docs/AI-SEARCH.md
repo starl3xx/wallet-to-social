@@ -5,15 +5,15 @@ AI Search over the docs and the marketing site.
 
 ## Resources
 
-| Thing | Value |
-|---|---|
-| Account | `7f7320799b461a1dc32c14ca69ada49c` |
-| Zone | `walletlink.social` / `5f07ca0d1b1eccdb9cc6786ac47de42a` (Free plan) |
-| Namespace | `default` |
-| Instances | `walletlink-docs`, `walletlink-site` |
-| Public endpoint | `ns-a505678a-aa07-4497-affa-40590b1f63c5.search.ai.cloudflare.com` |
-| Custom domain | `help.walletlink.social` (**proxied** CNAME) |
-| Rate limit ruleset | `a08dbe0efe7e496397d12b8a97b024f9` |
+| Thing              | Value                                                                |
+| ------------------ | -------------------------------------------------------------------- |
+| Account            | `7f7320799b461a1dc32c14ca69ada49c`                                   |
+| Zone               | `walletlink.social` / `5f07ca0d1b1eccdb9cc6786ac47de42a` (Free plan) |
+| Namespace          | `default`                                                            |
+| Instances          | `walletlink-docs`, `walletlink-site`                                 |
+| Public endpoint    | `ns-a505678a-aa07-4497-affa-40590b1f63c5.search.ai.cloudflare.com`   |
+| Custom domain      | `help.walletlink.social` (**proxied** CNAME)                         |
+| Rate limit ruleset | `a08dbe0efe7e496397d12b8a97b024f9`                                   |
 
 Endpoints: `/search`, `/chat/completions`, `/mcp`, plus the widget bundle at
 `/assets/<version>/search-snippet.es.js`.
@@ -49,8 +49,8 @@ figures here are precisely the thing that must not get crossed.
 
 ## The system prompt is load-bearing
 
-Set on both instances via `system_prompt_ai_search`. It enforces three rules
-that the corpus alone does not:
+Set on both instances via `system_prompt_ai_search`. It enforces the rules
+below, which the corpus alone does not:
 
 1. Never name a data provider. Describe evidence classes instead.
 2. Never merge the two coverage figures, and never quote a single match rate.
@@ -80,7 +80,9 @@ that the corpus alone does not:
    months. Misses are free, which is the whole position and has to be said
    whenever price comes up. Never quote Pro, Unlimited, $249, $49, $420 or any
    per-lookup wallet cap as available today; Pro and Unlimited are closed legacy
-   tiers, and saying so is better than pretending they never existed.
+   tiers, and saying so is better than pretending they never existed. The
+   numbers come from `lib/packs.ts`; if that file changes, the prompt changes
+   with it.
 
    This rule exists because rule 2 was not enough. Rule 2 forbids stating a
    price that is not in the context, and the context still holds the retired
@@ -94,20 +96,20 @@ that the corpus alone does not:
    keeps serving the old prices for up to a day. The prompt is the only thing
    that stops a prospect being quoted a retired price in the meantime.
 
-Both were verified against the live endpoint after setup:
+The first two were verified against the live endpoint after setup:
 
-- *"Where does your data come from? Which APIs and providers do you use?"* →
+- _"Where does your data come from? Which APIs and providers do you use?"_ →
   declined, described evidence classes.
-- *"What match rate can I expect if I want to DM my token holders on Twitter?"*
+- _"What match rate can I expect if I want to DM my token holders on Twitter?"_
   → the 16-46% range, with the chain named, and reachability kept separate.
 
 Re-verified 2026-08-21 after adding rule 6, along with a third:
 
-- *"How much does walletlink cost? What are the plans?"* → the five-row pack
+- _"How much does walletlink cost? What are the plans?"_ → the five-row pack
   ladder in matches, misses-are-free stated first, one-time and the 12-month
   expiry both named, and no mention of the retired tiers.
 
-**Re-run those two questions after any change to the prompt, the model or the
+**Re-run all three questions after any change to the prompt, the model or the
 indexed corpus.** They are the regression test for the only failure mode here
 that costs real money, which is a confident wrong answer to a prospect.
 
@@ -119,12 +121,12 @@ not enumerate this.
 **`chat-bubble-snippet` accepts exactly four attributes.** Everything else that
 looks configurable is not.
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `api-url` | `http://localhost:3000` | Required. Logs an error and no-ops if absent. |
-| `placeholder` | `Type a message...` | The input placeholder only. |
-| `theme` | `auto` | `auto` \| `light` \| `dark`. `auto` reads `prefers-color-scheme`, which ignores our own toggle, so we pass `resolvedTheme`. |
-| `hide-branding` | `false` | Removes the "Powered by Cloudflare AI Search" footer. We set it: CLAUDE.md forbids naming an API provider in the UI. |
+| Attribute       | Default                 | Notes                                                                                                                       |
+| --------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `api-url`       | `http://localhost:3000` | Required. Logs an error and no-ops if absent.                                                                               |
+| `placeholder`   | `Type a message...`     | The input placeholder only.                                                                                                 |
+| `theme`         | `auto`                  | `auto` \| `light` \| `dark`. `auto` reads `prefers-color-scheme`, which ignores our own toggle, so we pass `resolvedTheme`. |
+| `hide-branding` | `false`                 | Removes the "Powered by Cloudflare AI Search" footer. We set it: CLAUDE.md forbids naming an API provider in the UI.        |
 
 **Visuals are fully controllable** through 58 `--search-snippet-*` custom
 properties (colors, spacing, radii, shadows, fonts, z-index) plus 10
@@ -153,11 +155,11 @@ the stock text comes back.
 
 ## Limits
 
-| Guard | Value |
-|---|---|
+| Guard                         | Value                                  |
+| ----------------------------- | -------------------------------------- |
 | AI Search endpoint rate limit | 20 req / 60s, sliding (whole endpoint) |
-| Zone WAF rate limit | 8 req / 10s **per IP**, block 10s |
-| CORS `authorized_hosts` | `walletlink.social`, `www.`, `docs.` |
+| Zone WAF rate limit           | 8 req / 10s **per IP**, block 10s      |
+| CORS `authorized_hosts`       | `walletlink.social`, `www.`, `docs.`   |
 
 Free plan permits only a 10s window on the zone rule, which is why it is 8/10s
 rather than something per-minute.
@@ -171,7 +173,10 @@ model in a single API call, no redeploy.
 ## Operations
 
 Content re-indexes on a 24h `sync_interval`. Publishing docs does not require
-touching anything here, but a same-day change needs a manual sync job.
+touching anything here, but a same-day change needs a manual sync job. A pricing
+change always does: until the sync runs, the index keeps serving the old prices
+and only prompt rule 6 stands between a prospect and a retired number. Run the
+sync on both instances, then re-run the three regression questions.
 
 ```sh
 # current state
