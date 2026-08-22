@@ -33,14 +33,22 @@ export function PackPricing() {
       <h3 className="mb-1 font-semibold">walletlink.social</h3>
       <p className="mb-4 text-sm text-muted-foreground">
         You are charged for matches, not for wallets. A match is a wallet we
-        resolve to an 𝕏 or Farcaster account; a wallet we cannot resolve costs
+        resolve to an X or Farcaster account; a wallet we cannot resolve costs
         nothing.
       </p>
 
+      {/* The prices take the hero figure treatment from `Figure`: weight 200 at
+          title tracking, tabular so the column of dollar signs lines up. They
+          were `font-bold`, which is 700 and not one of the five weights the
+          scale defines; the upgrade modal had already dropped it for the same
+          figure. Not the `Figure` component itself, because that puts the
+          caption under the figure and a price sheet names the pack above it. */}
       <div className="grid gap-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
         <div>
           <p className="text-muted-foreground">Free</p>
-          <p className="text-2xl font-bold tabular-nums">$0</p>
+          <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
+            $0
+          </p>
           <p className="text-muted-foreground">
             {FREE_MATCHES_PER_WINDOW} matches every {FREE_WINDOW_DAYS} days
           </p>
@@ -48,7 +56,7 @@ export function PackPricing() {
         {PACK_IDS.map((id) => (
           <div key={id}>
             <p className="text-muted-foreground">{PACKS[id].name}</p>
-            <p className="text-2xl font-bold tabular-nums">
+            <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
               ${PACKS[id].priceCents / 100}
             </p>
             <p className="text-muted-foreground">
@@ -60,7 +68,7 @@ export function PackPricing() {
 
       <p className="mt-4 text-sm text-muted-foreground">
         Every pack carries all seven chains, uncapped CSV export, API access on
-        the same credits, reverse lookup, Farcaster DMs, and 𝕏 reachability on
+        the same credits, reverse lookup, Farcaster DMs, and X reachability on
         every match. Credits last 12 months. No subscription.
       </p>
     </div>

@@ -119,22 +119,27 @@ export function ReverseLookup({
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Detective
-          className="h-[18px] w-[18px] text-accent-brand"
-          weight="duotone"
-          aria-hidden
-        />
-        <h2 className="text-base font-semibold">Reverse lookup</h2>
-        {/* Named by what unlocks it, not by a tier nobody can buy. Any pack
-            does (the free allowance does not), so "Credits" is the honest
-            one-word answer. A Badge, with no lock icon: it states a fact
-            beside a heading, and the old sentence-case pill with a leading
-            icon shared three of a button's four axes. */}
-        {locked && <Badge>Credits</Badge>}
-        <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
-          find the wallets behind any account
-        </span>
+      <div className="mb-3 space-y-1">
+        <div className="flex items-center gap-2">
+          {/* h-4 w-4 regular: an icon beside a 16px heading is UI scale, and
+              duotone is reserved for display moments (docs/DESIGN-LANGUAGE.md,
+              Icons). It was an 18px duotone, off the 4/5/10 scale. */}
+          <Detective className="h-4 w-4 text-accent-brand" aria-hidden />
+          <h2 className="text-base font-semibold">Reverse lookup</h2>
+          {/* Named by what unlocks it, not by a tier nobody can buy. Any pack
+              does (the free allowance does not), so "Credits" is the honest
+              one-word answer. A Badge, with no lock icon: it states a fact
+              beside a heading, and the old sentence-case pill with a leading
+              icon shared three of a button's four axes. */}
+          {locked && <Badge>Credits</Badge>}
+        </div>
+        {/* The panel's one-line description, under the title at every width,
+            the shape CardDescription gives a Card. It was a lowercase fragment
+            right-aligned in the title row and hidden below sm, so a phone got
+            the heading alone. */}
+        <p className="text-sm text-muted-foreground">
+          Find the wallets behind any account.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">

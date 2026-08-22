@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -17,9 +18,29 @@ import {
   CircleNotch as Loader2,
   FloppyDisk as Save,
   X,
-  ArrowSquareOut as ExternalLink,
+  ArrowSquareOut,
   PencilSimple as Pencil,
 } from '@phosphor-icons/react';
+import { Banner } from './Banner';
+import { shortWallet } from './format';
+
+/**
+ * A handle as a link to the account it names, in the one treatment a text
+ * link gets: the link variant at the inline size, mono because a handle in its
+ * own cell is machine data. `size-3` rather than `h-3 w-3` on the glyph:
+ * Button forces `size-4` on any svg whose class lacks "size-", so that
+ * spelling is the only one that renders at 12px inside a Button.
+ */
+function HandleLink({ href, handle }: { href: string; handle: string }) {
+  return (
+    <Button asChild variant="link" size="inline" className="font-mono text-xs">
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        @{handle}
+        <ArrowSquareOut className="size-3" aria-hidden />
+      </a>
+    </Button>
+  );
+}
 
 interface SocialGraphData {
   wallet: string;
@@ -195,10 +216,6 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
     }, 0);
   }, []);
 
-  const truncateWallet = (wallet: string) => {
-    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -222,7 +239,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
           {/* Search Input */}
           <div className="flex gap-2">
             <Input
-              placeholder="Enter wallet address (0x...)"
+              placeholder="Enter wallet address (0x…)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -245,46 +262,44 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
           {/* Message. A save that went through is a real outcome, so it is
               green; violet would say there is something here to click. */}
           {saveMessage && (
-            <div
-              className={`mt-4 p-3 rounded-lg text-sm ${
-                saveMessage.type === 'success'
-                  ? 'bg-attested-tint text-attested'
-                  : 'bg-destructive/10 text-destructive'
-              }`}
+            <Banner
+              tone={saveMessage.type === 'success' ? 'success' : 'error'}
+              className="mt-4"
             >
               {saveMessage.text}
-            </div>
+            </Banner>
           )}
 
           {/* Search Results */}
           {searched && (
             <div className="mt-6 space-y-4">
-              {/* Current Data Display */}
+              {/* Current Data Display. Each value sits in its own cell beside
+                  its label, so the machine data (ENS name, handles, the
+                  timestamp) is mono. */}
               {walletData ? (
                 <div className="p-4 border rounded-lg bg-muted/30">
                   <h4 className="font-medium mb-3">Current data</h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="text-muted-foreground">ENS:</span>{' '}
-                      {walletData.ensName || (
+                      {walletData.ensName ? (
+                        <span className="font-mono text-xs">
+                          {walletData.ensName}
+                        </span>
+                      ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Twitter:</span>{' '}
+                      <span className="text-muted-foreground">X:</span>{' '}
                       {walletData.twitterHandle ? (
-                        <a
+                        <HandleLink
                           href={
                             walletData.twitterUrl ||
                             `https://x.com/${walletData.twitterHandle}`
                           }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline inline-flex items-center gap-1"
-                        >
-                          @{walletData.twitterHandle}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                          handle={walletData.twitterHandle}
+                        />
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -292,44 +307,41 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                     <div>
                       <span className="text-muted-foreground">Farcaster:</span>{' '}
                       {walletData.farcaster ? (
-                        <a
+                        <HandleLink
                           href={
                             walletData.farcasterUrl ||
                             `https://warpcast.com/${walletData.farcaster}`
                           }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline inline-flex items-center gap-1"
-                        >
-                          @{walletData.farcaster}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                          handle={walletData.farcaster}
+                        />
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">
-                        FC Followers:
+                        Farcaster followers:
                       </span>{' '}
-                      {walletData.fcFollowers?.toLocaleString() || (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      <span className="tabular-nums">
+                        {walletData.fcFollowers?.toLocaleString() || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </span>
                     </div>
+                    {/* `manual` is ours, so it takes the brand tint; every
+                        pipeline source is muted, because `source` holds stage
+                        markers and says nothing about provenance. */}
                     <div>
                       <span className="text-muted-foreground">Sources:</span>{' '}
                       <div className="inline-flex gap-1 flex-wrap">
                         {walletData.sources?.map((s) => (
-                          <span
+                          <Badge
                             key={s}
-                            className={`px-1.5 py-0.5 text-xs rounded-sm ${
-                              s === 'manual'
-                                ? 'bg-accent-brand-tint text-accent-brand'
-                                : 'bg-muted'
-                            }`}
+                            tone={s === 'manual' ? 'brand' : 'muted'}
+                            title={s}
                           >
                             {s}
-                          </span>
+                          </Badge>
                         )) || <span className="text-muted-foreground">-</span>}
                       </div>
                     </div>
@@ -337,7 +349,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       <span className="text-muted-foreground">
                         Last updated:
                       </span>{' '}
-                      {formatDate(walletData.lastUpdatedAt)}
+                      <span className="font-mono text-xs tabular-nums">
+                        {formatDate(walletData.lastUpdatedAt)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -358,7 +372,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">
-                        Twitter
+                        X handle
                       </label>
                       <Input
                         placeholder="@handle"
@@ -397,7 +411,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                         setEditEns(walletData?.ensName || '');
                       }}
                     >
-                      <X className="h-4 w-4 mr-1" />
+                      <X className="h-4 w-4" aria-hidden />
                       Cancel
                     </Button>
                     <Button
@@ -411,9 +425,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       }
                     >
                       {saving ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (
-                        <Save className="h-4 w-4 mr-1" />
+                        <Save className="h-4 w-4" aria-hidden />
                       )}
                       Save as manual
                     </Button>
@@ -440,60 +454,71 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               No manual edits yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Wallet</TableHead>
-                    <TableHead>Twitter</TableHead>
-                    <TableHead>Farcaster</TableHead>
-                    <TableHead>ENS</TableHead>
-                    <TableHead>Last updated</TableHead>
-                    <TableHead className="w-16"></TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Wallet</TableHead>
+                  <TableHead>X handle</TableHead>
+                  <TableHead>Farcaster</TableHead>
+                  <TableHead>ENS</TableHead>
+                  <TableHead>Last updated</TableHead>
+                  <TableHead className="w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentEdits.map((edit) => (
+                  <TableRow key={edit.wallet}>
+                    <TableCell className="font-mono text-xs">
+                      {shortWallet(edit.wallet)}
+                    </TableCell>
+                    {/* The same links the Current data block shows. These
+                        were violet spans with no href: affordance colour on
+                        text nothing happened to when you clicked it. */}
+                    <TableCell>
+                      {edit.twitterHandle ? (
+                        <HandleLink
+                          href={
+                            edit.twitterUrl ||
+                            `https://x.com/${edit.twitterHandle}`
+                          }
+                          handle={edit.twitterHandle}
+                        />
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {edit.farcaster ? (
+                        <HandleLink
+                          href={
+                            edit.farcasterUrl ||
+                            `https://warpcast.com/${edit.farcaster}`
+                          }
+                          handle={edit.farcaster}
+                        />
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {edit.ensName || '-'}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {formatDate(edit.lastUpdatedAt)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewWallet(edit.wallet)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentEdits.map((edit) => (
-                    <TableRow key={edit.wallet}>
-                      <TableCell className="font-mono text-xs">
-                        {truncateWallet(edit.wallet)}
-                      </TableCell>
-                      <TableCell>
-                        {edit.twitterHandle ? (
-                          <span className="text-accent-brand">
-                            @{edit.twitterHandle}
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {edit.farcaster ? (
-                          <span className="text-accent-brand">
-                            @{edit.farcaster}
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>{edit.ensName || '-'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(edit.lastUpdatedAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewWallet(edit.wallet)}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

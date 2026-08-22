@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Check,
-  CircleNotch as Loader2,
+  CircleNotch,
   Crown,
-  Lightning as Zap,
+  Lightning,
+  Warning,
 } from '@phosphor-icons/react';
 import type { UserTier } from '@/lib/access';
 
@@ -124,7 +125,7 @@ function SuccessContent() {
     };
   }, [sessionId]);
 
-  const TierIcon = tier === 'unlimited' ? Crown : Zap;
+  const TierIcon = tier === 'unlimited' ? Crown : Lightning;
   const tierColor = tier === 'unlimited' ? 'text-caution' : 'text-accent-brand';
 
   return (
@@ -137,35 +138,62 @@ function SuccessContent() {
        same furniture. */
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
+        {/* One title size for the three states. Success was text-2xl while the
+            other two inherited 16px, so the card's heading changed size with its
+            mood. 20px takes the title tracking.
+
+            The three header icons sit at h-10, the display step, in duotone,
+            the display weight. A completed payment is a real outcome, which is
+            what green marks; it was violet, the colour of something you can act
+            on. Pending verification is a caution, with the Warning glyph the
+            reachability checker uses for the same state; it was a CircleNotch
+            that did not spin, a spinner with no motion reading as a broken
+            spinner. Both tints at full token opacity: `/10` on the solid hue
+            was a second, unnamed tint beside the `-tint` tokens that exist for
+            exactly this. */}
         <CardHeader className="text-center">
           {state === 'verifying' && (
             <>
               <div className="flex justify-center mb-4">
-                <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
+                <CircleNotch className="h-10 w-10 animate-spin text-muted-foreground" />
               </div>
-              <CardTitle>Verifying payment...</CardTitle>
+              <CardTitle className="text-xl tracking-[var(--tracking-title)]">
+                Verifying payment...
+              </CardTitle>
             </>
           )}
 
           {state === 'success' && (
             <>
               <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-accent-brand/10 p-3">
-                  <Check className="h-12 w-12 text-accent-brand" />
+                <div className="rounded-full bg-attested-tint p-3">
+                  <Check
+                    weight="duotone"
+                    className="h-10 w-10 text-attested"
+                    aria-hidden
+                  />
                 </div>
               </div>
-              <CardTitle className="text-2xl">Payment successful!</CardTitle>
+              <CardTitle className="text-xl tracking-[var(--tracking-title)]">
+                Payment successful!
+              </CardTitle>
             </>
           )}
 
           {state === 'error' && (
             <>
               <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-caution/10 p-3">
-                  <Loader2 className="h-12 w-12 text-caution" />
+                <div className="rounded-full bg-caution-tint p-3">
+                  <Warning
+                    weight="duotone"
+                    className="h-10 w-10 text-caution"
+                    aria-hidden
+                  />
                 </div>
               </div>
-              <CardTitle>Verification pending</CardTitle>
+              <CardTitle className="text-xl tracking-[var(--tracking-title)]">
+                Verification pending
+              </CardTitle>
             </>
           )}
         </CardHeader>
@@ -180,7 +208,7 @@ function SuccessContent() {
           {state === 'success' && pack && (
             <>
               <div className="flex items-center justify-center gap-2 rounded-lg bg-muted py-4">
-                <Zap className="h-6 w-6 text-accent-brand" />
+                <Lightning className="h-5 w-5 text-accent-brand" aria-hidden />
                 <span className="text-lg font-semibold">{pack.name} pack</span>
               </div>
 
@@ -238,7 +266,7 @@ function SuccessContent() {
               <Button asChild className="w-full">
                 <Link href="/">
                   {pack.signedInAsBuyer
-                    ? 'Start Using walletlink.social'
+                    ? 'Start using walletlink.social'
                     : 'Back to walletlink.social'}
                 </Link>
               </Button>
@@ -256,7 +284,7 @@ function SuccessContent() {
           {state === 'success' && tier && !pack && (
             <>
               <div className="flex items-center justify-center gap-2 py-4 bg-muted rounded-lg">
-                <TierIcon className={`h-6 w-6 ${tierColor}`} />
+                <TierIcon className={`h-5 w-5 ${tierColor}`} aria-hidden />
                 <span className="text-lg font-semibold capitalize">
                   {tier} account
                 </span>
@@ -274,7 +302,7 @@ function SuccessContent() {
               )}
 
               <Button asChild className="w-full">
-                <Link href="/">Start Using walletlink.social</Link>
+                <Link href="/">Start using walletlink.social</Link>
               </Button>
             </>
           )}
@@ -287,18 +315,22 @@ function SuccessContent() {
                   Check your email: <span className="font-medium">{email}</span>
                 </p>
               )}
-              <div className="flex gap-2">
-                <Button variant="outline" asChild className="flex-1">
-                  <Link href="/">Go to App</Link>
-                </Button>
+              {/* One primary action, with the alternate as an outline pill
+                  beneath it rather than a sibling of equal width. Retry is the
+                  action the state is asking for; leaving is the fallback. The
+                  label for "/" matches the one the success branch uses. */}
+              <div className="flex flex-col gap-2">
                 <Button
-                  className="flex-1"
+                  className="w-full"
                   onClick={() => {
                     setState('verifying');
                     window.location.reload();
                   }}
                 >
                   Retry
+                </Button>
+                <Button variant="outline" asChild className="w-full">
+                  <Link href="/">Back to walletlink.social</Link>
                 </Button>
               </div>
             </>
@@ -314,7 +346,7 @@ export default function SuccessPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-background flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <CircleNotch className="h-10 w-10 animate-spin text-muted-foreground" />
         </div>
       }
     >

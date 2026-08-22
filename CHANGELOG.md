@@ -2,6 +2,50 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (design review, PR 2 of 3: use the primitives)
+
+- **One figure, one weight.** `Figure` is the hero-figure weight (200) and
+  loses its `brand` prop; prices, DM counters, Recent wins and the results
+  hero count all render through it. `font-bold` is gone from the app: the
+  five-weight scale has no 700, and `strong` now lands on 600 by a base rule.
+
+- **Green is a fact.** The reachable count, the progress counters and pulse,
+  a sent DM, a valid key, a delivered sign-in link and a completed purchase
+  are `attested`; violet is back to meaning "you can act on this". The
+  second green pair kept for the upgrade checklist is deleted.
+
+- **The primitives own the patterns.** One focus ring (`FOCUS_RING`) shared
+  by Button, Input, Textarea and Segmented; press feedback on every Button
+  variant; the remaining shadcn semantics out of Button, Table and Progress;
+  Eyebrow and Badge at the specified 11px, which the design guard now allows
+  in exactly those two files. The account menu is `OverflowMenu`; admin
+  tables are `Table`, admin chips are `Badge`, admin banners are one error
+  and one success treatment.
+
+- **Results.** Locked columns carry one "Unlock" control in the header
+  instead of sixteen muted buttons; filters have constant labels and the
+  segmented selected treatment; column headers say X handle, Farcaster and
+  Farcaster followers; the wallet-cell chips are `Badge`; in-cell text
+  controls are the link variant. Export buttons carry one icon and `XMark`.
+  Progress stages use Phosphor glyphs, no growing dot or shadow, a green
+  pulse, and Cancel at the control height.
+
+- **One word.** "X" in running copy and `XMark` where a mark is wanted, on
+  every surface including the share buttons, the overflow menu and admin;
+  "Farcaster" in full. One CTA label ("Run a lookup") on the blog post and
+  the five comparison pages, through `Button`. The contract dialog's title
+  matches its trigger. Related comparisons name each page one way.
+
+- **Dialogs.** Titles on the primitive's one treatment (Buy credits keeps
+  its display title pending a decision); one action-row layout via
+  `ModalFooter`; radius and inset kept below `sm`; the revealed API key wraps
+  instead of scrolling sideways; one external-link glyph.
+
+- **Guard.** The arbitrary-size rule now catches `rem` as well as `px`, and
+  the border-opacity rule covers `caution` and `destructive`. The wordmark
+  moves from an arbitrary 32px to `text-3xl`, which also puts it on the
+  title tracking token.
+
 ### 2026-08-22 (design review, PR 1 of 3: defects and the shell)
 
 - **One header on every page.** `PageShell` now renders the account cluster

@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
+import { FOCUS_RING } from '@/components/ui/button';
 
 /**
  * The one text-field edge, shared by Input and Textarea.
@@ -10,13 +11,27 @@ import { cn } from '@/lib/utils';
  * needs 3:1 on its edge (docs/DESIGN-LANGUAGE.md, Contrast), and `--input` is
  * the token that clears it. Three raw textareas each drew the hairline because
  * there was nothing to reach for; this string is what they reach for now.
+ *
+ * The fill is the surface the field sits on. It rested on `bg-muted/30` in dark
+ * mode, a wash whose contrast changed with whatever was behind it, which is the
+ * same defect the control boundary was cured of. The edge was solved against
+ * the worst surface each theme puts a control on, so it carries the field alone.
+ *
+ * `transition-control`, not `transition-[color,box-shadow]`: the ring is drawn
+ * with box-shadow, and a ring that fades in is a ring that is not there yet.
  */
 const FIELD =
-  'placeholder:text-muted-foreground dark:bg-muted/30 border-input w-full min-w-0 rounded-lg border bg-transparent px-3 text-base transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm';
-const FIELD_FOCUS =
-  'focus-visible:border-accent-brand focus-visible:ring-2 focus-visible:ring-accent-brand/20';
-const FIELD_INVALID =
-  'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive';
+  'placeholder:text-muted-foreground border-input w-full min-w-0 rounded-lg border bg-transparent px-3 text-base transition-control disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm';
+/**
+ * Focus is the shared ring from Button, so a field and the button beside it
+ * light up the same way. The field used to turn its edge brand and add a 2px
+ * ring at 20%, a second treatment that only worked on a white field.
+ *
+ * Invalid is the edge only. It used to recolour the ring as well, so an
+ * invalid field in focus drew a red ring at 20% or 40% by theme: a third ring.
+ * The red edge says invalid; the one ring says focused; both can be true.
+ */
+const FIELD_INVALID = 'aria-invalid:border-destructive';
 
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   return (
@@ -26,7 +41,7 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
       className={cn(
         FIELD,
         'file:text-foreground h-control py-1 file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium',
-        FIELD_FOCUS,
+        FOCUS_RING,
         FIELD_INVALID,
         className
       )}
@@ -51,7 +66,7 @@ function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
       className={cn(
         FIELD,
         'resize-none py-2',
-        FIELD_FOCUS,
+        FOCUS_RING,
         FIELD_INVALID,
         className
       )}

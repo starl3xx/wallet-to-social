@@ -2,7 +2,8 @@
 
 import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Lock } from '@phosphor-icons/react';
+import { XMark } from '@/components/ui/brand-marks';
+import { DownloadSimple, Lock } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/csv-parser';
 import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
@@ -17,7 +18,7 @@ interface ExportButtonProps {
    *
    * Was `userTier`, and reading entitlement off a tier stopped working the day
    * packs shipped: a pack purchase leaves `users.tier` as `free`, so this
-   * component locked Twitter list export for someone who
+   * component locked the X list export for someone who
    * had just paid for it.
    */
   entitled?: boolean;
@@ -175,7 +176,7 @@ export const ExportButton = memo(function ExportButton({
     const twitterHandles = reachableHandles.map((h) => `@${h}`);
 
     if (twitterHandles.length === 0) {
-      alert('No reachable Twitter handles found to export');
+      alert('No reachable X handles to export');
       return;
     }
 
@@ -230,6 +231,11 @@ export const ExportButton = memo(function ExportButton({
 
   return (
     <div className="flex gap-2">
+      {/* The two states of the list button differ only in the leading icon and
+          the count. Both say "X": the platform is named one way everywhere in
+          the product, and the mark is `XMark`, never the U+1D54F character, which
+          Söhne does not carry. Icons carry no margin of their own; the Button's
+          `gap-2` owns the distance, as it does for every other button. */}
       {isPaidTier ? (
         <Button
           variant="outline"
@@ -238,57 +244,30 @@ export const ExportButton = memo(function ExportButton({
           title={
             unreachableCount > 0
               ? `Export ${reachableCount} reachable handles. ${unreachableCount} left out: the owner attested them and they no longer reach anyone.`
-              : `Export ${reachableCount} Twitter handles`
+              : `Export ${reachableCount} X handles`
           }
         >
-          <svg
-            className="w-4 h-4 mr-2"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-          </svg>
+          <XMark className="h-4 w-4" />
           {/* The reachable count, not the total: the button exports that many.
               A label counting handles it deliberately leaves out is a label
               that quietly disagrees with the file it produces. */}
-          Export Twitter list ({reachableCount})
+          Export X list ({reachableCount})
         </Button>
       ) : (
         <Button
           variant="outline"
           onClick={onUpgradeClick}
-          title="Buy credits to export the 𝕏 list"
+          title="Buy credits to export the X list"
         >
-          <Lock className="w-4 h-4 mr-2" />
-          <svg
-            className="w-4 h-4 mr-1"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-          </svg>
-          𝕏 list
+          <Lock className="h-4 w-4" aria-hidden />
+          Export X list
         </Button>
       )}
       <Button
         onClick={handleExportCSV}
         disabled={disabled || results.length === 0}
       >
-        <svg
-          className="w-4 h-4 mr-2"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-          />
-        </svg>
+        <DownloadSimple className="h-4 w-4" aria-hidden />
         Export CSV
       </Button>
     </div>

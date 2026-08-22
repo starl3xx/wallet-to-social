@@ -16,6 +16,8 @@ import {
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { AdminNav, type AdminTab } from '@/components/admin/AdminNav';
 import { HandleConflicts } from '@/components/admin/HandleConflicts';
+import { Banner } from '@/components/admin/Banner';
+import { shortId, shortWallet } from '@/components/admin/format';
 import {
   Table,
   TableBody,
@@ -38,7 +40,7 @@ import {
   XCircle,
   MagnifyingGlass as Search,
   ArrowCounterClockwise as RotateCcw,
-  ArrowSquareOut as ExternalLink,
+  ArrowSquareOut,
 } from '@phosphor-icons/react';
 import {
   ExecutivePulse,
@@ -509,50 +511,25 @@ export default function AdminPage() {
     }
   };
 
-  // Status badge helper. A completed job is a measured outcome, so it is
-  // green: violet is for things you can act on, and a finished job is not one
-  // of them. `Badge` has no destructive tone because a badge states a fact
-  // rather than threatening one, so a failed job overrides the tint inline.
-  const StatusBadge = ({ status }: { status: string }) => {
-    if (status === 'failed') {
-      return <Badge tone="destructive">{status}</Badge>;
-    }
-    const tones: Record<string, 'muted' | 'brand' | 'attested'> = {
-      pending: 'muted',
-      processing: 'brand',
-      completed: 'attested',
-    };
-    return <Badge tone={tones[status] || 'muted'}>{status}</Badge>;
-  };
+  // Job status, as a Badge tone. A completed job is a measured outcome, so it
+  // is green: violet is for things you can act on, and a finished job is not
+  // one of them. A failed job takes the one red tone a badge has.
+  const jobStatusTone = (
+    status: string
+  ): 'muted' | 'brand' | 'attested' | 'destructive' =>
+    status === 'failed'
+      ? 'destructive'
+      : status === 'processing'
+        ? 'brand'
+        : status === 'completed'
+          ? 'attested'
+          : 'muted';
 
-  // Tier badge helper
-  const TierBadge = ({
-    tier,
-    isWhitelisted,
-  }: {
-    tier: string;
-    isWhitelisted?: boolean;
-  }) => {
-    if (isWhitelisted) {
-      return (
-        <span className="px-2 py-1 rounded-full text-xs font-medium bg-accent-brand-tint text-accent-brand">
-          whitelisted
-        </span>
-      );
-    }
-    const colors: Record<string, string> = {
-      free: 'bg-muted text-muted-foreground',
-      pro: 'bg-accent-brand-tint text-accent-brand',
-      unlimited: 'bg-caution-tint text-caution',
-    };
-    return (
-      <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${colors[tier] || colors.free}`}
-      >
-        {tier}
-      </span>
-    );
-  };
+  // Legacy tier, as a Badge tone. Pro and Unlimited are ours rather than good
+  // or bad, so they share the brand tint; the whitelist is a measured grant of
+  // access, so it is green, the same as AccountDetail paints it.
+  const tierTone = (tier: string): 'muted' | 'brand' =>
+    tier === 'pro' || tier === 'unlimited' ? 'brand' : 'muted';
 
   // Get set of whitelisted emails for quick lookup
   const whitelistedEmails = new Set(
@@ -615,7 +592,9 @@ export default function AdminPage() {
                   No legacy tier
                 </span>
               </div>
-              <p className="text-2xl font-bold">{stats.free}</p>
+              <p className="text-2xl font-extralight tabular-nums">
+                {stats.free}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -626,7 +605,9 @@ export default function AdminPage() {
                   Credit holders
                 </span>
               </div>
-              <p className="text-2xl font-bold">{stats.creditHolders ?? '-'}</p>
+              <p className="text-2xl font-extralight tabular-nums">
+                {stats.creditHolders ?? '-'}
+              </p>
               <p className="text-xs text-muted-foreground">
                 accounts with a live pack
               </p>
@@ -638,7 +619,7 @@ export default function AdminPage() {
                 <Crown className="h-4 w-4 text-caution" />
                 <span className="text-sm text-muted-foreground">Legacy</span>
               </div>
-              <p className="text-2xl font-bold">
+              <p className="text-2xl font-extralight tabular-nums">
                 {stats.pro + stats.unlimited}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -654,7 +635,9 @@ export default function AdminPage() {
                   Whitelisted
                 </span>
               </div>
-              <p className="text-2xl font-bold">{stats.whitelisted}</p>
+              <p className="text-2xl font-extralight tabular-nums">
+                {stats.whitelisted}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -691,13 +674,13 @@ export default function AdminPage() {
             >
               {isAdding ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Adding...
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Adding…
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add to Whitelist
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add to whitelist
                 </>
               )}
             </Button>
@@ -716,56 +699,54 @@ export default function AdminPage() {
               No whitelist entries yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Wallet</TableHead>
-                    <TableHead>Note</TableHead>
-                    <TableHead>Added</TableHead>
-                    <TableHead className="w-16"></TableHead>
+            /* No wrapper: `Table` already renders its own overflow-x-auto
+               container, and a second one outside it never scrolls. */
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Wallet</TableHead>
+                  <TableHead>Note</TableHead>
+                  <TableHead>Added</TableHead>
+                  <TableHead className="w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell>{entry.email || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {entry.wallet ? shortWallet(entry.wallet) : '-'}
+                    </TableCell>
+                    <TableCell>{entry.note || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDelete(entry.id)}
+                        disabled={deletingId === entry.id}
+                        aria-label="Remove from whitelist"
+                      >
+                        {deletingId === entry.id ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden
+                          />
+                        ) : (
+                          <Trash2
+                            className="h-4 w-4 text-destructive"
+                            aria-hidden
+                          />
+                        )}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>{entry.email || '-'}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {entry.wallet
-                          ? `${entry.wallet.slice(0, 6)}...${entry.wallet.slice(-4)}`
-                          : '-'}
-                      </TableCell>
-                      <TableCell>{entry.note || '-'}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(entry.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleDelete(entry.id)}
-                          disabled={deletingId === entry.id}
-                          aria-label="Remove from whitelist"
-                        >
-                          {deletingId === entry.id ? (
-                            <Loader2
-                              className="h-4 w-4 animate-spin"
-                              aria-hidden
-                            />
-                          ) : (
-                            <Trash2
-                              className="h-4 w-4 text-destructive"
-                              aria-hidden
-                            />
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -822,176 +803,176 @@ export default function AdminPage() {
               No jobs found
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Wallets</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Error</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {jobs.map((job) => (
-                    <TableRow key={job.id}>
-                      <TableCell className="font-mono text-xs">
-                        {job.id.slice(0, 8)}...
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={job.status} />
-                      </TableCell>
-                      <TableCell>{job.walletCount.toLocaleString()}</TableCell>
-                      <TableCell>
-                        {job.processedCount}/{job.walletCount}
-                      </TableCell>
-                      <TableCell>{job.currentStage || '-'}</TableCell>
-                      {/* What was looked up, not just how many. A contract
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Wallets</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Error</TableHead>
+                  <TableHead className="w-32">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <TableRow key={job.id}>
+                    <TableCell className="font-mono text-xs">
+                      {shortId(job.id)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone={jobStatusTone(job.status)}>
+                        {job.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{job.walletCount.toLocaleString()}</TableCell>
+                    <TableCell>
+                      {job.processedCount}/{job.walletCount}
+                    </TableCell>
+                    <TableCell>{job.currentStage || '-'}</TableCell>
+                    {/* What was looked up, not just how many. A contract
                           import names the token; anything else names how the
                           wallets arrived. */}
-                      <TableCell className="text-sm">
-                        {job.source?.contractAddress ? (
-                          <span
-                            title={`${job.source.contractAddress} on ${job.source.chain ?? 'unknown chain'}`}
-                          >
-                            <span className="font-medium">
-                              {job.source.tokenSymbol ||
-                                job.source.tokenName ||
-                                'contract'}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {' '}
-                              {job.source.chain}
-                            </span>
-                            {job.source.truncated && (
-                              <span
-                                className="ml-1 text-caution"
-                                title="The holder list was cut off at the limit"
-                              >
-                                truncated
-                              </span>
-                            )}
+                    <TableCell className="text-sm">
+                      {job.source?.contractAddress ? (
+                        <span
+                          title={`${job.source.contractAddress} on ${job.source.chain ?? 'unknown chain'}`}
+                        >
+                          <span className="font-medium">
+                            {job.source.tokenSymbol ||
+                              job.source.tokenName ||
+                              'contract'}
                           </span>
-                        ) : (
                           <span className="text-muted-foreground">
-                            {(job.inputSource || '-').replace(/_/g, ' ')}
+                            {' '}
+                            {job.source.chain}
                           </span>
-                        )}
-                      </TableCell>
-                      {/* The email when the job was signed in. An anonymous job
+                          {job.source.truncated && (
+                            <span
+                              className="ml-1 text-caution"
+                              title="The holder list was cut off at the limit"
+                            >
+                              truncated
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {(job.inputSource || '-').replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </TableCell>
+                    {/* The email when the job was signed in. An anonymous job
                           stores a localStorage uuid that identifies nobody, so
                           say so rather than print eight meaningless characters. */}
-                      <TableCell className="text-sm">
-                        {job.userEmail ? (
-                          <span
-                            title={
-                              job.userTier ? `tier: ${job.userTier}` : undefined
+                    <TableCell className="text-sm">
+                      {job.userEmail ? (
+                        <span
+                          title={
+                            job.userTier ? `tier: ${job.userTier}` : undefined
+                          }
+                        >
+                          {job.userEmail}
+                        </span>
+                      ) : job.userId ? (
+                        <span
+                          className="text-muted-foreground"
+                          title={`anonymous visitor ${job.userId}`}
+                        >
+                          anonymous
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">system</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {new Date(job.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell
+                      className="text-xs text-destructive max-w-[200px] truncate"
+                      title={job.errorMessage || ''}
+                    >
+                      {job.errorMessage || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {/* View Results - for completed or partially processed jobs */}
+                        {job.processedCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => fetchJobResults(job.id)}
+                            disabled={
+                              viewingJobId === job.id && jobResultsLoading
                             }
+                            title="View results"
                           >
-                            {job.userEmail}
-                          </span>
-                        ) : job.userId ? (
-                          <span
-                            className="text-muted-foreground"
-                            title={`anonymous visitor ${job.userId}`}
-                          >
-                            anonymous
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">system</span>
+                            {viewingJobId === job.id && jobResultsLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-accent-brand" />
+                            )}
+                          </Button>
                         )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(job.createdAt).toLocaleString()}
-                      </TableCell>
-                      <TableCell
-                        className="text-xs text-destructive max-w-[200px] truncate"
-                        title={job.errorMessage || ''}
-                      >
-                        {job.errorMessage || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {/* View Results - for completed or partially processed jobs */}
-                          {job.processedCount > 0 && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => fetchJobResults(job.id)}
-                              disabled={
-                                viewingJobId === job.id && jobResultsLoading
-                              }
-                              title="View results"
-                            >
-                              {viewingJobId === job.id && jobResultsLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Eye className="h-4 w-4 text-accent-brand" />
-                              )}
-                            </Button>
-                          )}
-                          {/* Rerun - for completed jobs */}
-                          {job.status === 'completed' && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleJobAction(job.id, 'rerun')}
-                              disabled={actioningJobId === job.id}
-                              title="Rerun job"
-                            >
-                              {actioningJobId === job.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <RotateCcw className="h-4 w-4 text-accent-brand" />
-                              )}
-                            </Button>
-                          )}
-                          {/* Retry - for failed jobs */}
-                          {job.status === 'failed' && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleJobAction(job.id, 'retry')}
-                              disabled={actioningJobId === job.id}
-                              title="Retry"
-                            >
-                              {actioningJobId === job.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4 text-caution" />
-                              )}
-                            </Button>
-                          )}
-                          {/* Cancel - for pending or processing jobs */}
-                          {(job.status === 'pending' ||
-                            job.status === 'processing') && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleJobAction(job.id, 'cancel')}
-                              disabled={actioningJobId === job.id}
-                              title="Cancel"
-                            >
-                              {actioningJobId === job.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-destructive" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                        {/* Rerun - for completed jobs */}
+                        {job.status === 'completed' && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleJobAction(job.id, 'rerun')}
+                            disabled={actioningJobId === job.id}
+                            title="Rerun job"
+                          >
+                            {actioningJobId === job.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4 text-accent-brand" />
+                            )}
+                          </Button>
+                        )}
+                        {/* Retry - for failed jobs */}
+                        {job.status === 'failed' && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleJobAction(job.id, 'retry')}
+                            disabled={actioningJobId === job.id}
+                            title="Retry"
+                          >
+                            {actioningJobId === job.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 text-caution" />
+                            )}
+                          </Button>
+                        )}
+                        {/* Cancel - for pending or processing jobs */}
+                        {(job.status === 'pending' ||
+                          job.status === 'processing') && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleJobAction(job.id, 'cancel')}
+                            disabled={actioningJobId === job.id}
+                            title="Cancel"
+                          >
+                            {actioningJobId === job.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-destructive" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -1010,8 +991,8 @@ export default function AdminPage() {
           <ModalHeader>
             <ModalTitle>Job results</ModalTitle>
             <ModalDescription>
-              Job {viewingJobId?.slice(0, 8)}… · {jobResults?.length || 0}{' '}
-              results
+              Job {viewingJobId ? shortId(viewingJobId) : ''} ·{' '}
+              {jobResults?.length || 0} results
             </ModalDescription>
           </ModalHeader>
           {jobResultsLoading ? (
@@ -1028,7 +1009,7 @@ export default function AdminPage() {
                 <TableRow>
                   <TableHead>Wallet</TableHead>
                   <TableHead>ENS</TableHead>
-                  <TableHead>X</TableHead>
+                  <TableHead>X handle</TableHead>
                   <TableHead>Farcaster</TableHead>
                   <TableHead>Farcaster followers</TableHead>
                   <TableHead>Sources</TableHead>
@@ -1038,58 +1019,78 @@ export default function AdminPage() {
                 {jobResults.map((result, idx) => (
                   <TableRow key={idx}>
                     <TableCell className="font-mono text-xs">
-                      {result.wallet.slice(0, 6)}...
-                      {result.wallet.slice(-4)}
+                      {shortWallet(result.wallet)}
                     </TableCell>
-                    <TableCell>{result.ens_name || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {result.ens_name || '-'}
+                    </TableCell>
+                    {/* A handle in its own cell is mono (it is machine data)
+                        and a link is the link variant, at the inline size so
+                        the row keeps its height. `size-3` rather than
+                        `h-3 w-3` on the glyph: Button forces `size-4` on any
+                        svg whose class lacks "size-", so that spelling is the
+                        only one that renders at 12px inside a Button. */}
                     <TableCell>
                       {result.twitter_handle ? (
-                        <a
-                          href={
-                            result.twitter_url ||
-                            `https://x.com/${result.twitter_handle}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline flex items-center gap-1"
+                        <Button
+                          asChild
+                          variant="link"
+                          size="inline"
+                          className="font-mono text-xs"
                         >
-                          @{result.twitter_handle}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                          <a
+                            href={
+                              result.twitter_url ||
+                              `https://x.com/${result.twitter_handle}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            @{result.twitter_handle}
+                            <ArrowSquareOut className="size-3" aria-hidden />
+                          </a>
+                        </Button>
                       ) : (
                         '-'
                       )}
                     </TableCell>
                     <TableCell>
                       {result.farcaster ? (
-                        <a
-                          href={
-                            result.farcaster_url ||
-                            `https://warpcast.com/${result.farcaster}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline flex items-center gap-1"
+                        <Button
+                          asChild
+                          variant="link"
+                          size="inline"
+                          className="font-mono text-xs"
                         >
-                          @{result.farcaster}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                          <a
+                            href={
+                              result.farcaster_url ||
+                              `https://warpcast.com/${result.farcaster}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            @{result.farcaster}
+                            <ArrowSquareOut className="size-3" aria-hidden />
+                          </a>
+                        </Button>
                       ) : (
                         '-'
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="tabular-nums">
                       {result.fc_followers?.toLocaleString() || '-'}
                     </TableCell>
+                    {/* Pipeline stage markers, not provenance: `graph` and
+                        `cache` sit in here too, so every one is muted. */}
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
+                        {/* `title`: a marker such as farcaster_sweep is
+                            longer than the 12ch a badge shows. */}
                         {result.source?.map((s) => (
-                          <span
-                            key={s}
-                            className="px-1.5 py-0.5 text-xs rounded-sm bg-muted"
-                          >
+                          <Badge key={s} tone="muted" title={s}>
                             {s}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     </TableCell>
@@ -1106,7 +1107,8 @@ export default function AdminPage() {
   const renderHistoryTab = () => (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle>Lookup history ({historyEntries.length})</CardTitle>
+        {/* The same words as the nav button that opens it. */}
+        <CardTitle>Saved lookups ({historyEntries.length})</CardTitle>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1150,88 +1152,82 @@ export default function AdminPage() {
             No history found
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Wallets</TableHead>
-                  <TableHead>Twitter</TableHead>
-                  <TableHead>Farcaster</TableHead>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-16">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyEntries.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-mono text-xs">
-                      {entry.id.slice(0, 8)}...
-                    </TableCell>
-                    <TableCell>{entry.name || '-'}</TableCell>
-                    <TableCell>
-                      {entry.inputSource ? (
-                        <span
-                          className={`px-2 py-0.5 text-xs rounded-full ${
-                            entry.inputSource === 'file_upload'
-                              ? 'bg-accent-brand-tint text-accent-brand'
-                              : entry.inputSource === 'text_input'
-                                ? 'bg-accent-brand-tint text-accent-brand'
-                                : entry.inputSource === 'contract_import'
-                                  ? 'bg-accent-brand-tint text-accent-brand'
-                                  : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          {entry.inputSource === 'file_upload'
-                            ? 'File'
-                            : entry.inputSource === 'text_input'
-                              ? 'Paste'
-                              : entry.inputSource === 'contract_import'
-                                ? 'Contract'
-                                : entry.inputSource}
-                        </span>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Wallets</TableHead>
+                <TableHead>X</TableHead>
+                <TableHead>Farcaster</TableHead>
+                <TableHead>User ID</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="w-16">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {historyEntries.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell className="font-mono text-xs">
+                    {shortId(entry.id)}
+                  </TableCell>
+                  <TableCell>{entry.name || '-'}</TableCell>
+                  {/* How the wallets arrived. One tone for all three: the
+                      chip used to paint File, Paste and Contract the same
+                      violet, so the colour carried nothing. */}
+                  <TableCell>
+                    {entry.inputSource ? (
+                      <Badge tone="muted">
+                        {entry.inputSource === 'file_upload'
+                          ? 'File'
+                          : entry.inputSource === 'text_input'
+                            ? 'Paste'
+                            : entry.inputSource === 'contract_import'
+                              ? 'Contract'
+                              : entry.inputSource}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {entry.walletCount.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {entry.twitterFound}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {entry.farcasterFound}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {entry.userId ? shortId(entry.userId) : '-'}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDeleteHistory(entry.id)}
+                      disabled={deletingHistoryId === entry.id}
+                      aria-label="Delete lookup"
+                    >
+                      {deletingHistoryId === entry.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <Trash2
+                          className="h-4 w-4 text-destructive"
+                          aria-hidden
+                        />
                       )}
-                    </TableCell>
-                    <TableCell>{entry.walletCount.toLocaleString()}</TableCell>
-                    <TableCell>{entry.twitterFound}</TableCell>
-                    <TableCell>{entry.farcasterFound}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {entry.userId ? `${entry.userId.slice(0, 8)}...` : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(entry.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDeleteHistory(entry.id)}
-                        disabled={deletingHistoryId === entry.id}
-                        aria-label="Delete lookup"
-                      >
-                        {deletingHistoryId === entry.id ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden
-                          />
-                        ) : (
-                          <Trash2
-                            className="h-4 w-4 text-destructive"
-                            aria-hidden
-                          />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
@@ -1276,107 +1272,98 @@ export default function AdminPage() {
             No users found
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Tier</TableHead>
-                  <TableHead>Stripe ID</TableHead>
-                  <TableHead>Paid At</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-32">Change tier</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {usersList.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      {/* Opens the same drill-down the Usage pane does, so the
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead>Stripe ID</TableHead>
+                <TableHead>Paid at</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="w-32">Change tier</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {usersList.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    {/* Opens the same drill-down the Usage pane does, so the
                           panel has one account view rather than two. */}
-                      <Button
-                        variant="link"
-                        size="inline"
-                        onClick={() => setOpenAccount(user.email)}
-                      >
-                        {user.email}
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <TierBadge
-                        tier={user.tier}
-                        isWhitelisted={whitelistedEmails.has(
-                          user.email.toLowerCase()
-                        )}
-                      />
-                    </TableCell>
-                    {/* Customer id when one exists, otherwise the payment
+                    <Button
+                      variant="link"
+                      size="inline"
+                      onClick={() => setOpenAccount(user.email)}
+                    >
+                      {user.email}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    {whitelistedEmails.has(user.email.toLowerCase()) ? (
+                      <Badge tone="attested">whitelisted</Badge>
+                    ) : (
+                      <Badge tone={tierTone(user.tier)}>{user.tier}</Badge>
+                    )}
+                  </TableCell>
+                  {/* Customer id when one exists, otherwise the payment
                         intent. Every sale taken before `customer_creation:
                         'always'` has no Customer at all, so showing only the
                         customer id rendered a dash next to genuine paying
                         accounts. The payment intent identifies the sale in
                         Stripe just as well. */}
-                    <TableCell
-                      className="font-mono text-xs"
-                      title={
-                        user.stripeCustomerId ||
-                        user.stripePaymentId ||
-                        undefined
-                      }
-                    >
-                      {user.stripeCustomerId
-                        ? `${user.stripeCustomerId.slice(0, 14)}…`
-                        : user.stripePaymentId
-                          ? `${user.stripePaymentId.slice(0, 14)}…`
-                          : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {user.paidAt
-                        ? new Date(user.paidAt).toLocaleString()
+                  <TableCell
+                    className="font-mono text-xs"
+                    title={
+                      user.stripeCustomerId || user.stripePaymentId || undefined
+                    }
+                  >
+                    {user.stripeCustomerId
+                      ? `${user.stripeCustomerId.slice(0, 14)}…`
+                      : user.stripePaymentId
+                        ? `${user.stripePaymentId.slice(0, 14)}…`
                         : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(user.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {/* Pro and Unlimited are retired and permanently
+                  </TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {user.paidAt ? new Date(user.paidAt).toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {new Date(user.createdAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    {/* Pro and Unlimited are retired and permanently
                           unmetered, so they are not offered here: the only
                           thing this control can do now is move one of the two
                           legacy accounts back to free. Goodwill credit is a
                           lot (`grantCredits`), not a tier. */}
-                      {updatingUserId === user.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : user.tier === 'free' ? (
-                        <span className="text-xs text-muted-foreground">
-                          credits only
-                        </span>
-                      ) : (
-                        /* A control, so it takes the control height and the
+                    {updatingUserId === user.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : user.tier === 'free' ? (
+                      <span className="text-xs text-muted-foreground">
+                        credits only
+                      </span>
+                    ) : (
+                      /* A control, so it takes the control height and the
                            control edge rather than a chip radius and the
                            decorative hairline. At 34px inside a p-2 cell it
                            opens the two legacy rows to 50px; that is the
                            price of a select that can be seen and hit, and
                            there are only two such rows. */
-                        <select
-                          className="h-control rounded-lg border border-input bg-background px-3 text-sm"
-                          aria-label="Change tier"
-                          value={user.tier}
-                          onChange={(e) =>
-                            handleUpdateTier(user.id, e.target.value)
-                          }
-                        >
-                          <option value={user.tier}>
-                            {user.tier} (legacy)
-                          </option>
-                          <option value="free">Free</option>
-                        </select>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                      <select
+                        className="h-control rounded-lg border border-input bg-background px-3 text-sm"
+                        aria-label="Change tier"
+                        value={user.tier}
+                        onChange={(e) =>
+                          handleUpdateTier(user.id, e.target.value)
+                        }
+                      >
+                        <option value={user.tier}>{user.tier} (legacy)</option>
+                        <option value="free">Free</option>
+                      </select>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
@@ -1407,10 +1394,10 @@ export default function AdminPage() {
         </p>
       </header>
 
-      {/* Error display */}
+      {/* Error display: the one error banner every pane uses. */}
       {error && (
-        <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <p className="text-sm text-destructive">{error}</p>
+        <Banner tone="error" className="mb-4">
+          <p>{error}</p>
           <Button
             variant="ghost"
             size="sm"
@@ -1419,7 +1406,7 @@ export default function AdminPage() {
           >
             Dismiss
           </Button>
-        </div>
+        </Banner>
       )}
 
       <AdminNav active={activeTab} onSelect={selectTab} />
@@ -1450,6 +1437,9 @@ export default function AdminPage() {
           {activeTab === 'revenue' && <RevenueDashboard password={password} />}
           {activeTab === 'health' && (
             <div className="space-y-6">
+              {/* One heading over both cards, in the words the nav button
+                  uses. Each card keeps its own title beneath it. */}
+              <h2 className="text-lg font-semibold">Health</h2>
               {/* Above SystemHealth on purpose: "is it configured and running"
                 has to be answered before "how did it perform", or a panel of
                 zeroes reads as calm rather than as switched off. */}

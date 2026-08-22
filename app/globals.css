@@ -112,8 +112,6 @@
   --color-caution-foreground: var(--caution-foreground);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-surface-raised: var(--surface-raised);
-  --color-success-light: var(--success-light);
-  --color-success-foreground: var(--success-foreground);
   /* An intentionally inverse surface. The product has three of them already: the
      dark share card, code blocks, and the blog post hero. Naming it is better than
      letting each one reach for a raw neutral. It does NOT flip in dark mode. */
@@ -227,11 +225,6 @@
   --destructive-foreground: oklch(1 0 0);
   --attested-foreground: oklch(1 0 0);
 
-  /* Kept for the checkmarks in the upgrade modal, now on the attested hue so
-     there is only one green in the product. */
-  --success-light: oklch(0.96 0.03 162);
-  --success-foreground: oklch(0.42 0.1 162);
-
   /* Platform marks. The one named exception to violet being the only interactive
      hue: these identify a platform rather than an affordance, and a wrong-coloured
      brand mark is a worse error than an inconsistent one. Both themes define them,
@@ -304,9 +297,6 @@
   --caution-foreground: oklch(0.2 0.03 70);
   --destructive-foreground: oklch(0.18 0.03 27);
   --attested-foreground: oklch(0.18 0.03 162);
-
-  --success-light: oklch(0.28 0.05 162);
-  --success-foreground: oklch(0.75 0.13 162);
 
   /* X inverts on a dark ground: a near-black pill on a near-black page is
      invisible, and the mark matters more than the exact swatch. */
@@ -469,8 +459,8 @@
 @media (prefers-reduced-motion: reduce) {
   /* Everything that moves, stops.
      This block previously neutralised two transition helpers while every keyframe
-     animation kept running, including animate-ping on the live dot and
-     animate-shimmer on the progress bar, both infinite. A person who has asked
+     animation kept running, including animate-ping on the live dot and a
+     shimmer on the progress bar (since removed), both infinite. A person who has asked
      the operating system for less motion was still getting two things looping
      forever, which is the case the setting exists for.
      Colour transitions survive on purpose: they carry no movement, so removing
@@ -508,6 +498,13 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Emphasis lands on Halbfett. The browser's `bolder` resolves to the 700
+     cut, which the five-weight scale does not include; every <strong> in the
+     product, the blog's prose-strong included, was the one place it showed. */
+  strong,
+  b {
+    font-weight: 600;
   }
   body {
     @apply bg-background text-foreground;
@@ -555,16 +552,6 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-/* Shimmer animation for progress bars */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(200%);
   }
 }
 

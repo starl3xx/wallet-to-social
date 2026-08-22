@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
 } from '@phosphor-icons/react';
@@ -117,7 +125,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -155,7 +163,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                 New users/week
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold">
+                <span className="text-2xl font-extralight tabular-nums">
                   {weeks.length > 0 ? weeks[weeks.length - 1][1].newUsers : 0}
                 </span>
                 <Sparkline
@@ -170,14 +178,16 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
               <div className="text-xs text-muted-foreground mb-1">
                 Total users (30d)
               </div>
-              <div className="text-2xl font-bold">{cumulativeUsers}</div>
+              <div className="text-2xl font-extralight tabular-nums">
+                {cumulativeUsers}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground mb-1">
                 Lookups/week
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold">
+                <span className="text-2xl font-extralight tabular-nums">
                   {weeks.length > 0 ? weeks[weeks.length - 1][1].lookups : 0}
                 </span>
                 <Sparkline
@@ -190,31 +200,38 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
             </div>
           </div>
 
+          {/* The `Table` primitive, as every other pane. This was a raw
+              `<table>` with `py-2` cells and `border-t` rows: a third row
+              height and a second header treatment for the same object. */}
           {weeks.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="text-left py-2">Week</th>
-                    <th className="text-right py-2">New users</th>
-                    <th className="text-right py-2">Lookups</th>
-                    <th className="text-right py-2">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeks.slice(-8).map(([week, data]) => (
-                    <tr key={week} className="border-t">
-                      <td className="py-2">{week}</td>
-                      <td className="text-right">{data.newUsers}</td>
-                      <td className="text-right">{data.lookups}</td>
-                      <td className="text-right">
-                        ${(data.revenue / 100).toFixed(0)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Week</TableHead>
+                  <TableHead className="text-right">New users</TableHead>
+                  <TableHead className="text-right">Lookups</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {weeks.slice(-8).map(([week, data]) => (
+                  <TableRow key={week}>
+                    <TableCell className="font-mono text-xs tabular-nums">
+                      {week}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {data.newUsers}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {data.lookups}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      ${(data.revenue / 100).toFixed(0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -230,64 +247,61 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
               Not enough data for retention analysis yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="text-left py-2">Cohort</th>
-                    {Array.from({
-                      length: Math.max(
-                        ...retention.map((r) => r.retention.length)
-                      ),
-                    }).map((_, i) => (
-                      <th key={i} className="text-center py-2 px-2">
-                        W{i}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {retention.map((cohort) => (
-                    <tr key={cohort.cohortWeek} className="border-t">
-                      <td className="py-2 font-mono text-xs">
-                        {cohort.cohortWeek}
-                      </td>
-                      {cohort.retention.map((rate, i) => (
-                        <td
-                          key={i}
-                          className="text-center py-2 px-2"
-                          /* Retention is a measured fact about a cohort, so
-                             the heat is `attested`; a violet cell reads as
-                             something to click. */
-                          style={{
-                            backgroundColor:
-                              rate > 0
-                                ? `color-mix(in oklch, var(--attested) ${Math.min(rate / 100, 1) * 50}%, transparent)`
-                                : 'transparent',
-                          }}
-                        >
-                          {rate}%
-                        </td>
-                      ))}
-                      {/* Fill empty cells */}
-                      {Array.from({
-                        length:
-                          Math.max(
-                            ...retention.map((r) => r.retention.length)
-                          ) - cohort.retention.length,
-                      }).map((_, i) => (
-                        <td
-                          key={`empty-${i}`}
-                          className="text-center py-2 px-2 text-muted-foreground"
-                        >
-                          -
-                        </td>
-                      ))}
-                    </tr>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cohort</TableHead>
+                  {Array.from({
+                    length: Math.max(
+                      ...retention.map((r) => r.retention.length)
+                    ),
+                  }).map((_, i) => (
+                    <TableHead key={i} className="text-center">
+                      W{i}
+                    </TableHead>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {retention.map((cohort) => (
+                  <TableRow key={cohort.cohortWeek}>
+                    <TableCell className="font-mono text-xs tabular-nums">
+                      {cohort.cohortWeek}
+                    </TableCell>
+                    {cohort.retention.map((rate, i) => (
+                      <TableCell
+                        key={i}
+                        className="text-center tabular-nums"
+                        /* Retention is a measured fact about a cohort, so
+                           the heat is `attested`; a violet cell reads as
+                           something to click. */
+                        style={{
+                          backgroundColor:
+                            rate > 0
+                              ? `color-mix(in oklch, var(--attested) ${Math.min(rate / 100, 1) * 50}%, transparent)`
+                              : 'transparent',
+                        }}
+                      >
+                        {rate}%
+                      </TableCell>
+                    ))}
+                    {/* Fill empty cells */}
+                    {Array.from({
+                      length:
+                        Math.max(...retention.map((r) => r.retention.length)) -
+                        cohort.retention.length,
+                    }).map((_, i) => (
+                      <TableCell
+                        key={`empty-${i}`}
+                        className="text-center text-muted-foreground"
+                      >
+                        -
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
           <p className="text-xs text-muted-foreground mt-4">
             Each row shows what % of users from that cohort week returned in

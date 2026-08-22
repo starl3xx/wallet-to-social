@@ -157,7 +157,9 @@ export default async function BlogPost({ params }: Props) {
             {/* CTA. The paragraph and the button both state a size, because the
                 column above is text-lg. The button is the Button primitive on a
                 Link, which gives it the control height and the violet affordance
-                the /vs pages use, instead of a hand-rolled foreground pill. */}
+                the /vs pages use, instead of a hand-rolled foreground pill. The
+                label is the one every marketing CTA for "/" carries, so the
+                destination has one name wherever it is offered. */}
             <div className="mt-8 p-6 bg-muted/50 rounded-lg text-center">
               <h3 className="text-xl font-semibold mb-2">
                 Ready to find your holders?
@@ -168,7 +170,7 @@ export default async function BlogPost({ params }: Props) {
                 days.
               </p>
               <Button asChild>
-                <Link href="/">Try walletlink.social</Link>
+                <Link href="/">Run a lookup</Link>
               </Button>
             </div>
           </article>

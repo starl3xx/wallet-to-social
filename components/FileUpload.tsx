@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { CloudArrowUp } from '@phosphor-icons/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -10,7 +11,11 @@ interface FileUploadProps {
   compact?: boolean;
 }
 
-export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps) {
+export function FileUpload({
+  onFileLoaded,
+  disabled,
+  compact,
+}: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,20 +84,15 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
           onDragLeave={handleDragLeave}
           className="flex flex-col items-center justify-center text-center"
         >
+          {/* Phosphor at display scale, duotone for the illustrative moment.
+              This was a hand-drawn Heroicons path at a 1.5 stroke and 48px,
+              sitting beside Phosphor regular on the same panel. */}
           {!compact && (
-            <svg
-              className="w-12 h-12 text-muted-foreground mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
+            <CloudArrowUp
+              className="mb-4 h-10 w-10 text-muted-foreground"
+              weight="duotone"
+              aria-hidden
+            />
           )}
 
           {fileName ? (
@@ -111,8 +111,12 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
             </div>
           ) : (
             <>
-              <p className={`${compact ? 'text-sm' : 'text-lg'} font-medium mb-2`}>
-                {compact ? 'Drop file or click to upload' : 'Drop your file with Ethereum addresses here'}
+              <p
+                className={`${compact ? 'text-sm' : 'text-lg'} font-medium mb-2`}
+              >
+                {compact
+                  ? 'Drop file or click to upload'
+                  : 'Drop your file with Ethereum addresses here'}
               </p>
               {!compact && (
                 <div className="text-sm text-muted-foreground mb-4">
@@ -128,7 +132,11 @@ export function FileUpload({ onFileLoaded, disabled, compact }: FileUploadProps)
                   className="hidden"
                   disabled={disabled}
                 />
-                <Button variant="outline" size={compact ? 'sm' : 'default'} asChild>
+                <Button
+                  variant="outline"
+                  size={compact ? 'sm' : 'default'}
+                  asChild
+                >
                   <span>Upload file</span>
                 </Button>
               </label>

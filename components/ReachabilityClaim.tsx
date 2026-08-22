@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SealCheck } from '@phosphor-icons/react/dist/ssr';
+import { Button } from '@/components/ui/button';
 import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
 
 /**
@@ -39,40 +40,49 @@ export function ReachabilityClaim({ competitor }: { competitor: string }) {
           </h2>
 
           <p className="text-sm text-muted-foreground">
-            Farcaster stores a verified X account as a name, written once, with no
-            account number and no later check. So when somebody renames or gets
-            suspended, nothing in the protocol notices. Every tool built on those
-            verifications carries the same dead handles, and none of them can tell
-            you which.
+            Farcaster stores a verified X account as a name, written once, with
+            no account number and no later check. So when somebody renames or
+            gets suspended, nothing in the protocol notices. Every tool built on
+            those verifications carries the same dead handles, and none of them
+            can tell you which.
           </p>
 
           <p className="text-sm text-muted-foreground">
             We resolved every X handle in the index against X itself. Of{' '}
             {X_HANDLES_RESOLVED} checked:{' '}
-            <strong className="text-foreground">69.6% live</strong>,{' '}
-            <strong className="text-foreground">20.7% suspended</strong>, and{' '}
-            <strong className="text-foreground">
+            {/* `font-semibold` on each, because the browser's own stylesheet
+                makes <strong> `bolder`, which resolves to 700 on a 400 parent,
+                and the 700 cut is loaded. The emphasis weight is 600. */}
+            <strong className="font-semibold text-foreground">
+              69.6% live
+            </strong>
+            ,{' '}
+            <strong className="font-semibold text-foreground">
+              20.7% suspended
+            </strong>
+            , and{' '}
+            <strong className="font-semibold text-foreground">
               9.7% names nobody holds any more
             </strong>
             . Roughly a third reach no person at all.
           </p>
 
           <p className="text-sm text-muted-foreground">
-            Every match now carries that answer. The handle export leaves out the
-            ones we checked and found dead, so a campaign is not sending into
-            accounts that cannot receive it. A freed name matters most: somebody
-            else may hold it now, and a message would reach a stranger.
+            Every match now carries that answer. The handle export leaves out
+            the ones we checked and found dead, so a campaign is not sending
+            into accounts that cannot receive it. A freed name matters most:
+            somebody else may hold it now, and a message would reach a stranger.
           </p>
 
           {/* The claim above is large and about other people's data. Handing over
-              the means to test it is the only honest way to make it. */}
+              the means to test it is the only honest way to make it. The link is
+              the `link` variant at `inline` size, the one treatment for a text
+              link inside a sentence; it was violet and always underlined, a
+              second look for the same meaning. */}
           <p className="text-sm">
-            <Link
-              href="/check"
-              className="text-accent-brand underline underline-offset-4"
-            >
-              Check any handle yourself
-            </Link>
+            <Button asChild variant="link" size="inline">
+              <Link href="/check">Check any handle yourself</Link>
+            </Button>
             <span className="text-muted-foreground">
               , free and without an account.
             </span>

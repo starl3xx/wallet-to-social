@@ -7,20 +7,22 @@ import {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalFooter,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { XMark } from '@/components/ui/brand-marks';
 import {
-  Key as KeyRound,
+  ArrowSquareOut,
   Copy,
   Check,
   CircleNotch as Loader2,
   Warning as AlertTriangle,
   Trash as Trash2,
-  ArrowSquareOut as ExternalLink,
 } from '@phosphor-icons/react';
 import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
 import type { UserTier } from '@/lib/access';
+import { cn } from '@/lib/utils';
 
 interface ApiKeysModalProps {
   open: boolean;
@@ -43,6 +45,41 @@ interface ApiKey {
 }
 
 const DOCS_URL = 'https://docs.walletlink.social/api-reference/introduction';
+
+/**
+ * The one treatment for a text link that leaves the site: the `link` Button
+ * at `inline` size, so it is violet with an underline on hover like every
+ * other link in a sentence, and `ArrowSquareOut` at 12px, the one leave-site
+ * glyph (site-footer carries the same). Two links here had two treatments
+ * between them, one in foreground and one in muted, both underlined at rest.
+ *
+ * `size-3`, which is `h-3 w-3`, because Button sizes any SVG child without a
+ * `size-` class to 16px and that rule outranks the icon's own classes.
+ * `gap-1`, because the 8px a button puts between an icon and its label is
+ * too wide for an arrow trailing a word.
+ */
+function DocsLink({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  /** Type comes from the surrounding text; `cn` lets it beat the base. */
+  className?: string;
+}) {
+  return (
+    <Button
+      asChild
+      variant="link"
+      size="inline"
+      className={cn('gap-1', className)}
+    >
+      <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+        {children}
+        <ArrowSquareOut className="size-3" aria-hidden />
+      </a>
+    </Button>
+  );
+}
 
 function formatDate(iso?: string) {
   if (!iso) return null;
@@ -190,10 +227,7 @@ export function ApiKeysModal({
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent className="max-w-lg">
         <ModalHeader>
-          <ModalTitle className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5" />
-            API keys
-          </ModalTitle>
+          <ModalTitle>API keys</ModalTitle>
           <ModalDescription>
             {hasApiAccess
               ? 'Programmatic access to the wallet index. Keys draw on your whole credit balance, so treat them as server-side secrets.'
@@ -204,31 +238,29 @@ export function ApiKeysModal({
         {!hasApiAccess ? (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+              {/* The mark, not the 𝕏 character: Söhne has no U+1D54F, so the
+                  character fell back to another face and sat visibly thinner
+                  than the words around it. Sized and aligned as the home
+                  page sets it in copy. */}
               <p className="mb-3">
                 The API resolves wallets to social identities in both
-                directions, including reverse lookups from an 𝕏 handle or
-                Farcaster username back to wallets.
+                directions, including reverse lookups from an{' '}
+                <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />{' '}
+                handle or Farcaster username back to wallets.
               </p>
-              <a
-                href={DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 underline hover:text-foreground"
-              >
-                Read the API reference
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              <DocsLink>Read the API reference</DocsLink>
             </div>
             {onUpgradeClick && (
-              <Button
-                className="w-full"
-                onClick={() => {
-                  handleClose();
-                  onUpgradeClick();
-                }}
-              >
-                Buy credits
-              </Button>
+              <ModalFooter>
+                <Button
+                  onClick={() => {
+                    handleClose();
+                    onUpgradeClick();
+                  }}
+                >
+                  Buy credits
+                </Button>
+              </ModalFooter>
             )}
           </div>
         ) : (
@@ -239,15 +271,7 @@ export function ApiKeysModal({
             <div className="rounded-lg border bg-muted/40 p-3 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">Rate limits</span>
-                <a
-                  href={DOCS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-muted-foreground underline hover:text-foreground"
-                >
-                  Docs
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                <DocsLink className="text-xs sm:text-sm">Docs</DocsLink>
               </div>
               <p className="mt-1 text-muted-foreground">
                 {plan.requestsPerMinute}/min ·{' '}
@@ -258,25 +282,33 @@ export function ApiKeysModal({
               </p>
             </div>
 
+            {/* Banners are a full-opacity tint with no border. Both carried a
+                faded border (`/20`, `/30`), which the elevation rule bans. */}
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+              <div className="flex items-start gap-2 rounded-lg bg-destructive-tint p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" />
                 <p className="text-sm text-destructive">{error}</p>
               </div>
             )}
 
             {/* Shown exactly once, immediately after creation. */}
             {revealedKey && (
-              <div className="rounded-lg border border-caution/30 bg-caution-tint p-3">
+              <div className="rounded-lg bg-caution-tint p-3">
                 <div className="mb-2 flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-caution" />
                   <p className="text-xs text-caution">
                     Copy this now. It is shown once and only a hash is stored,
                     so it cannot be recovered later, only replaced.
                   </p>
                 </div>
+                {/* `break-all`, not `overflow-x-auto`: a sideways scroll hides
+                    part of the key behind a gesture on the one screen where
+                    the person must see all of it, and a key has no word
+                    boundaries to wrap at. `select-all` so one tap takes the
+                    whole value when the clipboard is blocked. The Copy button
+                    stays the primary way out. */}
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 overflow-x-auto rounded-sm border bg-background px-2 py-1.5 font-mono text-xs">
+                  <code className="min-w-0 flex-1 select-all break-all rounded-sm border bg-background px-2 py-1.5 font-mono text-xs">
                     {revealedKey}
                   </code>
                   <Button

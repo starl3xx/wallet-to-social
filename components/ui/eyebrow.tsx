@@ -13,6 +13,14 @@ import { cn } from '@/lib/utils';
  * `uppercase` without `font-mono` is a violation the CI guard catches, so this
  * component is the way to satisfy it rather than a suggestion.
  *
+ * 11px, as the doc specifies, and the one arbitrary size in the product. The
+ * scale has no step between 12px and nothing, so `text-[11px]` is written here
+ * and in Badge, the two primitives that render the uppercase label, and nowhere
+ * else: a third site is a copy of a primitive, not a label. `leading-4` pins
+ * the line box to the 16px that `text-xs` gave, since an arbitrary size sets
+ * no line height and a label that inherits one from its parent changes height
+ * with every surface it lands on.
+ *
  * No `use client`: it renders text, and server components need it too.
  */
 export function Eyebrow({
@@ -32,7 +40,7 @@ export function Eyebrow({
   return (
     <Tag
       className={cn(
-        'font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground',
+        'font-mono text-[11px] leading-4 uppercase tracking-[0.14em] text-muted-foreground',
         className
       )}
     >

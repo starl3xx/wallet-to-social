@@ -887,7 +887,9 @@ export default function Home() {
             const permissionStatus = getPermissionStatus();
             if (permissionStatus === 'granted') {
               sendNotification('Lookup complete', {
-                body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
+                // "X", never "Twitter", in anything a person reads; a
+                // notification and a tab title are copy too.
+                body: `Found ${data.stats.twitterFound} X and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
               });
             } else {
               console.log(
@@ -898,7 +900,7 @@ export default function Home() {
 
             // Also update page title as a reliable fallback (works when tab is backgrounded)
             const originalTitle = document.title;
-            document.title = `✓ Lookup complete - ${data.stats.twitterFound} Twitter, ${data.stats.farcasterFound} Farcaster`;
+            document.title = `✓ Lookup complete: ${data.stats.twitterFound} X, ${data.stats.farcasterFound} Farcaster`;
             // Reset title when user focuses the window
             const resetTitle = () => {
               document.title = originalTitle;
@@ -1375,14 +1377,7 @@ export default function Home() {
           .
         </h1>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            {/* The pulse goes on the figure that actually moves. Coverage is a
-                fixed 100%; this is the count that grows as lookups feed the
-                graph, which is what "and counting" claims. */}
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-attested motion-safe:animate-pulse"
-              aria-hidden
-            />
+          <span>
             <span className="font-medium tabular-nums text-foreground">
               {indexedWallets ?? INDEXED_WALLETS}
             </span>{' '}
@@ -1391,7 +1386,18 @@ export default function Home() {
           <span aria-hidden="true" className="opacity-40">
             ·
           </span>
-          <span>
+          <span className="inline-flex items-center gap-1.5">
+            {/* The green mark sits on the measured claim, as it does on the
+                /vs proof strip (`Figure attested` on the same 100%). It used
+                to pulse beside the growing count instead, so the same four
+                facts carried the dot on a different one per page. Coverage
+                is the figure the product is sold on; the count is context.
+                One dot, no pulse: a pulse says the system is running, and
+                Recent wins already carries that one below. */}
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-attested"
+              aria-hidden
+            />
             <span className="font-medium tabular-nums text-foreground">
               100%
             </span>{' '}
@@ -1556,7 +1562,7 @@ export default function Home() {
                   It used to print "the free plan allows a maximum of 500",
                   which named a ladder that no longer exists. */}
             {overWalletLimit && walletLimit !== null && (
-              <div className="p-4 bg-caution-tint border border-caution/30 rounded-lg flex items-center justify-between gap-4">
+              <div className="p-4 bg-caution-tint border border-caution rounded-lg flex items-center justify-between gap-4">
                 <p className="text-sm text-caution">
                   Your file has{' '}
                   <span className="font-semibold">
@@ -1639,7 +1645,9 @@ export default function Home() {
             <div className="p-4 bg-muted rounded-lg space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="font-medium">
+                  {/* 600, the card-title weight: this is the preflight
+                      panel's title, and it sat at 500 beside 600 card titles. */}
+                  <p className="font-semibold">
                     {wallets.length.toLocaleString()} wallet addresses loaded
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -1790,9 +1798,11 @@ export default function Home() {
           />
         )}
 
-        {/* Error State */}
+        {/* Error State. The tint token and a full-opacity edge, the same
+            recipe as the caution panels: the red was hand-mixed from
+            `destructive/10` and `destructive/20` here and in two dialogs. */}
         {state === 'error' && (
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <div className="p-4 bg-destructive-tint border border-destructive rounded-lg">
             <p className="text-destructive font-medium mb-2">Error</p>
             <p className="text-sm text-muted-foreground mb-4">
               {error || 'An unknown error occurred'}
@@ -1943,7 +1953,7 @@ export default function Home() {
                           {results
                             .filter((r) => r.fc_fid)
                             .length.toLocaleString()}{' '}
-                          FC users
+                          on Farcaster
                         </MenuItem>
                       </div>
                     )}
@@ -1985,7 +1995,7 @@ export default function Home() {
                   the rest is genuinely unreachable rather than one click away,
                   and implying otherwise would be worse than saying nothing. */}
             {reverseMeta?.truncated && (
-              <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3">
+              <div className="flex items-start gap-2 rounded-lg border border-caution bg-caution-tint p-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
                 <p className="text-xs text-caution">
                   Showing {reverseMeta.returnedCount} of{' '}

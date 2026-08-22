@@ -13,11 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CircleNotch as Loader2,
-  ArrowLeft,
-  Warning as AlertTriangle,
-} from '@phosphor-icons/react';
+import { CircleNotch as Loader2, ArrowLeft } from '@phosphor-icons/react';
+import { Banner } from './Banner';
 
 interface AccountData {
   account: {
@@ -131,13 +128,7 @@ export function AccountDetail({
     return (
       <div className="space-y-4">
         {back}
-        <div className="flex items-start gap-3 rounded-lg border border-destructive bg-destructive/10 p-4">
-          <AlertTriangle
-            className="mt-0.5 h-4 w-4 flex-none text-destructive"
-            aria-hidden
-          />
-          <p className="text-sm text-destructive">{error ?? 'No data'}</p>
-        </div>
+        <Banner tone="error">{error ?? 'No data'}</Banner>
       </div>
     );
   }
@@ -157,7 +148,7 @@ export function AccountDetail({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         {back}
-        <h2 className="font-mono text-sm">{account.email}</h2>
+        <h2 className="text-sm">{account.email}</h2>
         {/* `tier` is a legacy entitlement. Every pack buyer is 'free' here, so
             the word is labelled, or a paying customer reads as a comp. */}
         <Badge tone={account.tier === 'free' ? 'muted' : 'brand'}>
@@ -212,7 +203,7 @@ export function AccountDetail({
           <CardHeader>
             <CardTitle className="text-base">Credit lots</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -228,7 +219,7 @@ export function AccountDetail({
                     <TableCell className="text-right font-medium tabular-nums">
                       {n(l.remaining)}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                       {l.expiresAt.slice(0, 10)}
                     </TableCell>
                   </TableRow>
@@ -244,7 +235,7 @@ export function AccountDetail({
           <CardHeader>
             <CardTitle className="text-base">Payments</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -257,7 +248,7 @@ export function AccountDetail({
               <TableBody>
                 {data.payments.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="text-sm">
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                       {p.created.slice(0, 10)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
@@ -308,7 +299,7 @@ export function AccountDetail({
         <CardHeader>
           <CardTitle className="text-base">Recent lookups</CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -332,7 +323,7 @@ export function AccountDetail({
               )}
               {data.recentJobs.map((j, i) => (
                 <TableRow key={`${j.created_at}-${i}`}>
-                  <TableCell className="whitespace-nowrap text-sm">
+                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                     {j.created_at}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">

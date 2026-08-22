@@ -16,9 +16,9 @@ import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
-  title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  title: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
   description:
-    'Blaze has pivoted out of web3 and withblaze.app no longer resolves. If you used Blaze’s Wallet CRM to match wallets to Twitter, here’s where to migrate.',
+    'Blaze has pivoted out of web3 and withblaze.app no longer resolves. If you used Blaze’s Wallet CRM to match wallets to X, here’s where to migrate.',
   keywords: [
     'Blaze alternative',
     'withblaze shut down',
@@ -27,18 +27,18 @@ export const metadata: Metadata = {
     'wallet lookup tool',
   ],
   openGraph: {
-    title: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+    title: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
     description:
-      'Blaze has pivoted out of web3. Migrate your wallet-to-Twitter workflow to walletlink.social: one-time pricing, Twitter and Farcaster coverage.',
+      'Blaze has pivoted out of web3. Migrate your wallet-to-X workflow to walletlink.social: one-time pricing, X and Farcaster coverage.',
     type: 'article',
     url: 'https://walletlink.social/vs/blaze',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Blaze alternative for wallet-to-Twitter lookups',
+    title: 'Blaze alternative for wallet-to-X lookups',
     description:
-      'Blaze left web3. Here’s where to migrate your wallet-to-Twitter lookups.',
+      'Blaze left web3. Here’s where to migrate your wallet-to-X lookups.',
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/blaze',
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'Blaze alternative for wallet-to-Twitter lookups (Blaze left web3)',
+  headline: 'Blaze alternative for wallet-to-X lookups (Blaze left web3)',
   description:
     'Blaze pivoted out of web3 and withblaze.app no longer resolves. A migration guide for former Blaze Wallet CRM users moving to walletlink.social.',
   author: {
@@ -115,17 +115,21 @@ export default function BlazeComparison() {
             </div>
 
             {/* The proof row closes the hero. Four figures, each appearing once,
-                with the contactable one in brand because it is the number to act on.
-                It is a range, not an average: Base measures 46.2% and Ethereum
-                16.6%, and an average would hide the thing that decides a campaign
-                and coverage carrying a green mark because it is the measured one. */}
+                and the two measured ones carry the green mark: coverage, because
+                it is the claim we can prove, and the reachable rate, because it
+                is a range, not an average (Base measures 46.2% and Ethereum
+                16.6%, and an average would hide the thing that decides a
+                campaign). The rate used to sit in brand as "the number to act
+                on", but a rate is nothing the reader can act on, and violet is
+                the colour of an affordance. Green is the colour of a measured
+                fact, and the hit rate is named as one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
                 label="have an X or Farcaster account"
-                brand
+                attested
               />
               <Figure
                 value={`$${PACKS.trial.priceCents / 100}`}
@@ -146,24 +150,31 @@ export default function BlazeComparison() {
             <p className="text-muted-foreground mb-4">
               Blaze was a Web3 CRM platform built around community management
               and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
-              wallet addresses to Twitter handles as one part of a broader
+              wallet addresses to X handles as one part of a broader
               subscription suite that included:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
               <li>Community management and engagement tools</li>
               <li>Lead generation and nurturing workflows</li>
-              <li>Twitter and Discord integrations</li>
+              <li>X and Discord integrations</li>
               <li>Campaign management</li>
             </ul>
             <p className="text-muted-foreground">
               The company has since pivoted out of web3 entirely, and its former
-              domain no longer resolves. The Wallet CRM, its wallet-to-Twitter
+              domain no longer resolves. The Wallet CRM, its wallet-to-X
               matching, and its subscriptions went with it. If you relied on
               Blaze for wallet-to-social data, that workflow needs a new home.
             </p>
           </section>
 
-          {/* Migration table */}
+          {/* Migration table. A Check in a capability cell is green, whichever
+              column it sits in: "has this" is a measured fact, and green is the
+              colour of one. A cross is muted. Captioned cells put the glyph and
+              its caption in one flex row; Tailwind's preflight makes svg
+              `display: block`, so an icon followed by a span stacked on two
+              lines with the caption indented 4px under the glyph. The cards further
+              down are lists, not capability claims, and their check marks take
+              the card's own text colour. */}
           <section className="mb-16">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
               What Blaze offered vs what walletlink.social offers
@@ -183,7 +194,7 @@ export default function BlazeComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Focus</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      Wallet → Social only
+                      Wallet → social only
                     </td>
                     <td className="py-4 pl-4">
                       Full Web3 CRM platform (discontinued)
@@ -201,16 +212,18 @@ export default function BlazeComparison() {
                     <td className="py-4 pl-4">Was $79+/month ($948+/year)</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Twitter/X</td>
+                    <td className="py-4 pr-4 font-medium">X</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (user-attested matches)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (user-attested matches)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -220,14 +233,16 @@ export default function BlazeComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (complete protocol coverage)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (complete protocol coverage)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -241,14 +256,14 @@ export default function BlazeComparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">
-                      Farcaster Followers
+                      Farcaster followers
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check
                         alt="Yes"
                         role="img"
                         aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
+                        className="h-4 w-4 text-attested"
                       />
                     </td>
                     <td className="py-4 pl-4">
@@ -261,16 +276,18 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Priority Score</td>
+                    <td className="py-4 pr-4 font-medium">Priority score</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (every pack)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (every pack)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -283,16 +300,18 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Lookup History</td>
+                    <td className="py-4 pr-4 font-medium">Lookup history</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (every pack)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (every pack)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -300,16 +319,18 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Contract Import</td>
+                    <td className="py-4 pr-4 font-medium">Contract import</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (every pack, on all seven supported chains)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (every pack, on all seven supported chains)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -322,7 +343,7 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Community Tools</td>
+                    <td className="py-4 pr-4 font-medium">Community tools</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <X
                         alt="No"
@@ -352,16 +373,16 @@ export default function BlazeComparison() {
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>Upload your CSV of wallet addresses</li>
               <li>We match them against our identity index</li>
-              <li>Export Twitter handles and Farcaster profiles</li>
+              <li>Export X handles and Farcaster profiles</li>
               <li>Save lookups, and grow them with new addresses</li>
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of {INDEXED_WALLETS} wallets with
               complete Farcaster protocol coverage, refreshed daily. Over 99.9%
-              of Twitter matches are user-attested (links the wallet owner
-              created themselves, such as a verified Farcaster account or an
-              onchain ENS record), and every match carries the evidence behind
-              it, so there is no guesswork in your outreach list.
+              of X matches are user-attested (links the wallet owner created
+              themselves, such as a verified Farcaster account or an onchain ENS
+              record), and every match carries the evidence behind it, so there
+              is no guesswork in your outreach list.
             </p>
           </section>
 
@@ -372,7 +393,7 @@ export default function BlazeComparison() {
             </h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
               <h3 className="font-semibold mb-4 text-accent-brand">
-                Three steps to rebuild your wallet-to-Twitter workflow:
+                Three steps to rebuild your wallet-to-X workflow:
               </h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
@@ -394,8 +415,8 @@ export default function BlazeComparison() {
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
-                    Export Twitter handles and Farcaster profiles, including
-                    follower counts Blaze never had
+                    Export X handles and Farcaster profiles, including follower
+                    counts Blaze never had
                   </span>
                 </li>
               </ul>
@@ -426,7 +447,11 @@ export default function BlazeComparison() {
             </div>
           </section>
 
-          {/* CTA */}
+          {/* Closing CTA. The Button primitive on a Link, the same as the hero:
+              this used to paste Button's class string onto the Link, which drifted
+              the moment Button changed (it had already lost the focus ring). The
+              label is the one the product uses for this action everywhere, so the
+              hero and the close name the same destination the same way. */}
           <section className="text-center py-12 border-t">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
@@ -435,50 +460,41 @@ export default function BlazeComparison() {
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
               every {FREE_WINDOW_DAYS} days, no credit card required.
             </p>
-            <Link
-              href="/"
-              className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
-            >
-              Start your first lookup
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            <Button asChild>
+              <Link href="/">
+                Run a lookup
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
           </section>
 
-          {/* Related Comparisons */}
+          {/* Related comparisons. Each link is the `link` variant at `inline`
+              size, the one treatment for a text link in a list or a sentence;
+              these were grey and underlined at rest, a third look for the same
+              meaning. The names match the footer's Compare column, so one
+              destination has one name wherever it is linked. */}
           <nav className="py-8 border-t" aria-label="Related comparisons">
             <h2 className="text-lg font-semibold mb-4">Related comparisons</h2>
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
-                <Link
-                  href="/vs/addressable"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Addressable
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/addressable">vs Addressable</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/cookie3"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Cookie3
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/cookie3">vs Cookie3</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/holder"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Holder alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/holder">vs Holder</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/airstack"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Airstack alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/airstack">vs Airstack</Link>
+                </Button>
               </li>
             </ul>
           </nav>

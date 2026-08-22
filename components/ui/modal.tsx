@@ -53,7 +53,14 @@ const ModalContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 flex w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col border bg-background shadow-lg duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 sm:rounded-lg max-h-[calc(100dvh-2rem)]',
+        // `rounded-lg` at every width and a 1rem inset on every side. shadcn's
+        // default was `w-full sm:rounded-lg`, so below `sm` the panel went
+        // edge to edge with square corners while keeping its 1rem vertical
+        // inset from the max-height, and read as a half-finished sheet. The
+        // panel is `--r-container` like every other container, and
+        // `calc(100%-2rem)` gives the horizontal inset the vertical one
+        // already had; 32px is on the spacing scale.
+        'fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col rounded-lg border bg-background shadow-lg duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 max-h-[calc(100dvh-2rem)]',
         className
       )}
       {...props}
@@ -91,7 +98,9 @@ const ModalContent = React.forwardRef<
           a top hairline so the row reads as separate from content that has
           scrolled up behind it rather than as the next thing in the list. */}
       {footer && (
-        <div className="flex-none border-t border-border px-6 py-4">{footer}</div>
+        <div className="flex-none border-t border-border px-6 py-4">
+          {footer}
+        </div>
       )}
       <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-sm bg-background p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />
@@ -102,29 +111,49 @@ const ModalContent = React.forwardRef<
 ));
 ModalContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * Left-aligned at every width. shadcn ships `text-center sm:text-left`, which
+ * nothing here chose: it centred "Sign in" on a phone and left-aligned it on a
+ * desktop, two treatments for one title. A dialog that wants a centred moment
+ * says so on its own header.
+ */
 const ModalHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn(
-      'flex flex-col space-y-1.5 text-center sm:text-left',
-      className
-    )}
+    className={cn('flex flex-col space-y-1.5 text-left', className)}
     {...props}
   />
 );
 ModalHeader.displayName = 'ModalHeader';
 
+/**
+ * The one layout for a dialog's action row, wherever the row sits.
+ *
+ * Natural-width buttons, one filled primary at the right, outline alternates
+ * to its left, stacking full-width below `sm` with the primary on top. Put the
+ * primary last in the DOM: `flex-col-reverse` is what lifts it to the top of
+ * the stack on a phone, and `justify-end` is what puts it at the right on a
+ * desktop, so one source order serves both.
+ *
+ * Six dialogs had four layouts for this row: equal-width siblings, a
+ * `justify-between` pair, a centred cluster, and a full-width stack. Every
+ * action row now renders this, inline in the body for a short step and
+ * through `ModalContent`'s `footer` prop for a tall step whose actions are the
+ * reason it exists (the contract import preview). The slot decides whether
+ * the row pins; this decides what it looks like.
+ *
+ * `gap`, not `space-x`. `space-x` is margin on every child but the first, so
+ * it stacks with any gap the caller adds and disappears entirely when the row
+ * reverses. One mechanism owns the spacing.
+ */
 const ModalFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      // `gap`, not `space-x`. `space-x` is margin on every child but the first,
-      // so it stacks with any gap the caller adds and disappears entirely when
-      // the row reverses. One mechanism owns the spacing.
       'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
       className
     )}

@@ -2,10 +2,11 @@
 
 import { useEffect, useState, memo } from 'react';
 import { Eyebrow } from '@/components/ui/eyebrow';
+import { XMark, FarcasterMark } from '@/components/ui/brand-marks';
 import { cn } from '@/lib/utils';
 
 /**
- * Exactly one row, at every width.
+ * Exactly one row, at every width, and no empty column in it.
  *
  * The grid was `repeat(auto-fill, minmax(11rem, 1fr))` against a fixed request
  * for six. At the full 1152px shell that packs five columns, so the sixth card
@@ -18,15 +19,33 @@ import { cn } from '@/lib/utils';
  * 177px inside `p-4`. Two columns therefore do not fit until roughly 414px, so
  * the first step is `sm` rather than the 360px `xs`: below that it is one card,
  * which is honest, rather than two clipped ones.
+ *
+ * Each step is also capped at the number of wins in hand, indexed by count. A
+ * fixed `lg:grid-cols-5` over four wins reserved a fifth column and left about
+ * 220px of the shell blank at the right, which read as a tile that failed to
+ * load. The strings stay literal so Tailwind can see them.
  */
-const COLUMNS = 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5';
+const COLUMNS_BY_COUNT = [
+  '',
+  'grid-cols-1',
+  'grid-cols-1 sm:grid-cols-2',
+  'grid-cols-1 sm:grid-cols-2 md:grid-cols-3',
+  'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+  'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
+];
 
 /**
- * The breakpoint each card appears at, by index, matching COLUMNS exactly. A
- * card past the column count is not rendered small, it is not rendered at all,
- * because a half-row is the thing being removed.
+ * The breakpoint each card appears at, by index, matching the widest COLUMNS
+ * entry exactly. A card past the column count is not rendered small, it is not
+ * rendered at all, because a half-row is the thing being removed.
  */
-const APPEARS_AT = ['', 'hidden sm:block', 'hidden md:block', 'hidden lg:block', 'hidden lg:block'];
+const APPEARS_AT = [
+  '',
+  'hidden sm:block',
+  'hidden md:block',
+  'hidden lg:block',
+  'hidden lg:block',
+];
 
 interface RecentWin {
   id: string;
@@ -37,32 +56,6 @@ interface RecentWin {
   socialRate: number;
   completedAt: string;
 }
-
-// X/Twitter icon SVG
-const XIcon = ({ className }: { className?: string }) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-  >
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-
-// Farcaster logo SVG
-const FarcasterIcon = ({ className }: { className?: string }) => (
-  <svg
-    width="14"
-    height="12"
-    viewBox="0 0 200 175"
-    fill="currentColor"
-    className={className}
-  >
-    <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
-  </svg>
-);
 
 // Pulsing dot indicator
 /* A steady opacity pulse. animate-ping expands a halo outward, which reads as a
@@ -135,22 +128,32 @@ export const RecentWins = memo(function RecentWins() {
         <Eyebrow as="h3">Recent wins</Eyebrow>
       </div>
 
-      <div className={cn('grid gap-3 pt-1 pb-2 -mx-1 px-1 -mt-1', COLUMNS)}>
+      <div
+        className={cn(
+          'grid gap-3 pt-1 pb-2 -mx-1 px-1 -mt-1',
+          COLUMNS_BY_COUNT[Math.min(wins.length, APPEARS_AT.length)]
+        )}
+      >
         {wins.map((win, index) => {
           const totalFound = win.anySocialFound;
           return (
             <div
               key={win.id}
-              className={cn('min-w-0 rounded-lg border border-border p-4', APPEARS_AT[index])}
+              className={cn(
+                'min-w-0 rounded-lg border border-border p-4',
+                APPEARS_AT[index]
+              )}
               style={{
                 // The token step, capped at four. An uncapped 80ms stagger meant
                 // the sixth tile landed 400ms after the first had been read.
-                animation: 'slideUp var(--duration-base) var(--ease-out-soft) forwards',
+                animation:
+                  'slideUp var(--duration-base) var(--ease-out-soft) forwards',
                 animationDelay: `calc(var(--duration-stagger) * ${Math.min(index, 3)})`,
                 opacity: 0,
               }}
             >
-              {/* Header: Total found (hero number) + time */}
+              {/* Header: Total found (hero number) + time. The figure is 200,
+                  the one weight for a figure standing alone at 24px and up. */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
                   <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)] text-foreground">
@@ -163,20 +166,42 @@ export const RecentWins = memo(function RecentWins() {
                     wallets reached
                   </p>
                 </div>
-                <span className="whitespace-nowrap font-mono text-[0.5625rem] uppercase tracking-[var(--tracking-label)] text-muted-foreground">
+                {/* The one label style. This was a 9px arbitrary size under
+                    the 12px eyebrow above it: the same label at two sizes in
+                    one block. */}
+                <Eyebrow as="span" className="whitespace-nowrap">
                   {formatTime(win.completedAt)}
-                </span>
+                </Eyebrow>
               </div>
 
-              {/* Breakdown row */}
+              {/* Breakdown row. The marks come from brand-marks, not a local
+                  copy: this file once carried its own X and Farcaster SVGs
+                  beside the shared ones. Named, because the mark is the only
+                  thing saying which platform the count belongs to. */}
               <div className="flex items-center gap-3 text-sm mb-3">
-                <div className="flex items-center gap-1.5" title="Twitter/X found">
-                  <XIcon className="text-muted-foreground" />
-                  <span className="font-medium tabular-nums text-muted-foreground">{win.twitterFound.toLocaleString()}</span>
+                <div
+                  className="flex items-center gap-1.5"
+                  title="X accounts found"
+                >
+                  <XMark
+                    className="h-3.5 w-3.5 text-muted-foreground"
+                    label="X"
+                  />
+                  <span className="font-medium tabular-nums text-muted-foreground">
+                    {win.twitterFound.toLocaleString()}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1.5" title="Farcaster found">
-                  <FarcasterIcon className="text-muted-foreground" />
-                  <span className="font-medium tabular-nums text-muted-foreground">{win.farcasterFound.toLocaleString()}</span>
+                <div
+                  className="flex items-center gap-1.5"
+                  title="Farcaster accounts found"
+                >
+                  <FarcasterMark className="h-3.5 w-3.5 text-muted-foreground" />
+                  {/* FarcasterMark is always decorative, so the name goes in
+                      text a screen reader gets and a sighted reader does not. */}
+                  <span className="sr-only">Farcaster</span>
+                  <span className="font-medium tabular-nums text-muted-foreground">
+                    {win.farcasterFound.toLocaleString()}
+                  </span>
                 </div>
               </div>
 

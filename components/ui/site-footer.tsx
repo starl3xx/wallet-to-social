@@ -1,8 +1,12 @@
 import Link from 'next/link';
-import { XMark, GithubMark, ExternalMark, BrandLockup } from './brand-marks';
+import { ArrowSquareOut, GithubLogo } from '@phosphor-icons/react/dist/ssr';
+import { XMark, BrandLockup } from './brand-marks';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
+
+const SOCIAL =
+  'transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:text-accent-brand';
 
 /**
  * One footer for every page.
@@ -19,6 +23,12 @@ const REPO = 'https://github.com/starl3xx/wallet-to-social';
  * the site, so Documentation, API reference, GitHub and Changelog are marked and
  * Blog is not. That is the only rule needed to stop a footer becoming a field of
  * glyphs.
+ *
+ * The arrow and the GitHub mark are Phosphor, through the SSR entrypoint because
+ * this renders in server components. They were local SVGs in brand-marks.tsx,
+ * which left "this link leaves the site" with two drawings: a Lucide-shaped
+ * box-and-arrow here and `ArrowSquareOut` in the API keys dialog and admin.
+ * Farcaster is the one mark Phosphor lacks (docs/DESIGN-LANGUAGE.md, Icons).
  */
 export function SiteFooter() {
   return (
@@ -43,24 +53,30 @@ export function SiteFooter() {
             <div className="mt-5 sm:hidden">
               <ThemeToggle />
             </div>
+            {/* The round 34px icon control, the same object as the overflow
+                trigger and the header avatar: `size-control`, and `border-input`
+                because a control's edge needs 3:1 and `--border` is the quiet
+                decorative hairline (docs/DESIGN-LANGUAGE.md, Contrast). These
+                were 32px with the decorative edge, so in dark mode the ring was
+                barely there and the two glyphs read as loose marks. */}
             <div className="mt-4 flex gap-2">
               <a
                 href="https://x.com/walletlinkETH"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="walletlink.social on X"
-                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand"
+                className={SOCIAL}
               >
-                <XMark className="h-3.5 w-3.5" />
+                <XMark className="h-4 w-4" />
               </a>
               <a
                 href={REPO}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="walletlink.social on GitHub"
-                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand"
+                className={SOCIAL}
               >
-                <GithubMark className="h-3.5 w-3.5" />
+                <GithubLogo className="h-4 w-4" weight="fill" aria-hidden />
               </a>
             </div>
           </div>
@@ -165,7 +181,10 @@ function FooterLink({
         className={className}
       >
         {children}
-        <ExternalMark className="h-2.5 w-2.5 text-muted-foreground" />
+        {/* The one external-link glyph, at the one size it takes everywhere
+            (h-3 w-3, beside running text). At h-2.5 the old local drawing was
+            a 10px speck after "Documentation". */}
+        <ArrowSquareOut className="h-3 w-3 text-muted-foreground" aria-hidden />
       </a>
     );
   }

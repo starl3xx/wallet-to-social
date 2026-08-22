@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
 import { useCredits } from '@/lib/use-credits';
@@ -60,7 +61,6 @@ interface AccessBannerProps {
 export function AccessBanner({ trailing }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
   const { user, isLoading, signOut } = useAuth();
   const upgradeModal = useUpgradeModal();
   const tier: UserTier = user?.tier ?? 'free';
@@ -79,11 +79,6 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
   // their own wrapper.
   const handleUpgradeClick = () => upgradeModal.open();
 
-  const handleSignOut = async () => {
-    setShowDropdown(false);
-    await signOut();
-  };
-
   // Authenticated user UI (displayed alongside the status chip). A render
   // helper called as a function, not a component declared inside render: a
   // component created here would be a new type on every render and reset its
@@ -95,56 +90,51 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
 
     if (user) {
       return (
-        <div className="relative">
-          {/* An avatar, not the address. A full email spends header width on
-              something the person already knows, and truncating it to
-              "jakebo..." spends the width and tells them nothing. The address
-              still opens with the menu, where it identifies which account is
-              signed in at the moment that actually matters. */}
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            aria-label={`Account: ${user.email}`}
-            title={user.email ?? undefined}
-            className="transition-control flex h-control w-control items-center justify-center rounded-full bg-accent-brand-tint text-accent-brand hover:bg-accent-brand hover:text-accent-brand-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        /* The account menu is an OverflowMenu opened from the avatar, not a
+           second dropdown. The hand-rolled one had no role="menu", no
+           aria-expanded, no Escape, and a `fixed inset-0` click-catcher, which
+           is the thing the Dialogs section says never to build a popover out
+           of. One menu implementation, one set of keyboard and ARIA behaviour;
+           the menu closes itself after any item is chosen. */
+        <OverflowMenu
+          trigger={
+            /* An avatar, not the address. A full email spends header width on
+               something the person already knows, and truncating it to
+               "jakebo..." spends the width and tells them nothing. The address
+               still opens with the menu, where it identifies which account is
+               signed in at the moment that actually matters. */
+            <button
+              type="button"
+              aria-label={`Account: ${user.email}`}
+              title={user.email ?? undefined}
+              className="transition-control flex size-control items-center justify-center rounded-full bg-accent-brand-tint text-accent-brand hover:bg-accent-brand hover:text-accent-brand-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <User className="h-4 w-4" aria-hidden />
+            </button>
+          }
+        >
+          {/* Which account is signed in. Not an item: it is read, never
+              chosen, so it carries no menuitem role and sits above a hairline
+              in the mono the product uses for an address in its own cell. */}
+          <div
+            role="presentation"
+            className="mb-1 truncate border-b border-border px-2.5 pb-2 pt-1 font-mono text-xs text-muted-foreground"
           >
-            <User className="h-4 w-4" aria-hidden />
-          </button>
-
-          {showDropdown && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowDropdown(false)}
-              />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[160px]">
-                <div className="truncate border-b border-border px-3 pb-2 pt-1 font-mono text-xs text-muted-foreground">
-                  {user.email}
-                </div>
-                {/* Shown to every signed-in account, not only the ones with
-                    credits. Without them the modal explains what the API does
-                    and routes to the packs, which is a better answer than
-                    hiding the entrance entirely. */}
-                <button
-                  onClick={() => {
-                    setShowDropdown(false);
-                    setApiKeysOpen(true);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-                >
-                  <KeyRound className="h-4 w-4" />
-                  API keys
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign out
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+            {user.email}
+          </div>
+          {/* Shown to every signed-in account, not only the ones with
+              credits. Without them the modal explains what the API does
+              and routes to the packs, which is a better answer than
+              hiding the entrance entirely. */}
+          <MenuItem onClick={() => setApiKeysOpen(true)}>
+            <KeyRound className="h-4 w-4" aria-hidden />
+            API keys
+          </MenuItem>
+          <MenuItem onClick={() => void signOut()}>
+            <LogOut className="h-4 w-4" aria-hidden />
+            Sign out
+          </MenuItem>
+        </OverflowMenu>
       );
     }
 

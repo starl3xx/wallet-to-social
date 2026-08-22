@@ -3,6 +3,7 @@
 import { memo, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import type { LookupProgress } from '@/lib/types';
 import type { ScanDepth } from '@/lib/scan-depth';
 
@@ -45,13 +46,19 @@ function parseStage(message?: string): string | null {
  * The last stage was labelled with its vendor's name, which the UI never does.
  * It is now named for what it does. ENS and Farcaster are protocols rather than
  * vendors, and both are sold as features under those names, so they keep them.
+ *
+ * No per-stage glyph. Each stage carried a Unicode geometric shape (◈ ◇ ◆ ◎ ◉)
+ * rendered as text, and Söhne has none of them, so every dot showed a
+ * fallback-font character at an unrelated weight. A stage is a status, and the
+ * product already has a status-dot vocabulary in the results gutter: filled
+ * means done, hollow means not. The dots use that.
  */
 const STAGES = [
-  { id: 'graph', label: 'Index', icon: '◈', live: false },
-  { id: 'cache', label: 'Cache', icon: '◇', live: false },
-  { id: 'ens', label: 'ENS', icon: '◆', live: true },
-  { id: 'neynar', label: 'Farcaster', icon: '◎', live: true },
-  { id: 'web3bio', label: 'Profiles', icon: '◉', live: true },
+  { id: 'graph', label: 'Index', live: false },
+  { id: 'cache', label: 'Cache', live: false },
+  { id: 'ens', label: 'ENS', live: true },
+  { id: 'neynar', label: 'Farcaster', live: true },
+  { id: 'web3bio', label: 'Profiles', live: true },
 ] as const;
 
 export const ProgressBar = memo(function ProgressBar({
@@ -80,6 +87,11 @@ export const ProgressBar = memo(function ProgressBar({
 
   const currentStage = parseStage(progress.message);
   const isProcessing = progress.status === 'processing';
+  // Looked up in the full list, not the filtered one: a job can report a stage
+  // this account's list omits, and the honest thing is still to name it.
+  const activeLabel = currentStage
+    ? (STAGES.find((s) => s.id === currentStage)?.label ?? null)
+    : null;
 
   // Calculate which stage index we're on
   const currentStageIndex = useMemo(() => {
@@ -97,15 +109,20 @@ export const ProgressBar = memo(function ProgressBar({
           <div className="flex items-start justify-between gap-4 mb-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-3">
-                {/* Animated processing indicator */}
+                {/* The live pulse. Green, because "the system is running" is
+                    a measured fact, and the header's "wallets indexed" dot
+                    on the same screen is already green. This was violet, so
+                    one screen said "live" in two colours. The spinner's faded
+                    track is the one exemption to the border-opacity rule: it
+                    is an arc, not separation. */}
                 {isProcessing && (
                   <div className="relative flex items-center justify-center w-5 h-5">
                     {/* Outer pulse ring */}
-                    <span className="absolute inset-0 rounded-full bg-accent-brand/30 animate-ping" />
+                    <span className="absolute inset-0 rounded-full bg-attested/30 animate-ping" />
                     {/* Inner spinning ring */}
-                    <span className="absolute inset-0.5 rounded-full border-2 border-accent-brand/50 border-t-accent-brand animate-spin" />
+                    <span className="absolute inset-0.5 rounded-full border-2 border-attested/50 border-t-attested animate-spin" />
                     {/* Center dot */}
-                    <span className="relative w-1.5 h-1.5 rounded-full bg-accent-brand" />
+                    <span className="relative w-1.5 h-1.5 rounded-full bg-attested" />
                   </div>
                 )}
                 <h3 className="text-base font-semibold tracking-[var(--tracking-lead)]">
@@ -122,13 +139,11 @@ export const ProgressBar = memo(function ProgressBar({
               </p>
             </div>
 
+            {/* The primitive as it comes: `sm` is already `h-control`, and the
+                outline edge is `border-input` so it clears 3:1. No destructive
+                hover: cancelling a job is not revoking or deleting anything. */}
             {isProcessing && onCancel && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onCancel}
-                className="text-xs h-8 px-3 border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
-              >
+              <Button variant="outline" size="sm" onClick={onCancel}>
                 Cancel
               </Button>
             )}
@@ -137,72 +152,58 @@ export const ProgressBar = memo(function ProgressBar({
           {/* Stats row */}
           <div className="flex gap-6 mb-6">
             <StatBadge
-              label="Twitter"
+              label="X"
               value={progress.twitterFound}
-              colorClass="text-accent-brand"
               isAnimating={isProcessing && progress.twitterFound > 0}
             />
             <StatBadge
               label="Farcaster"
               value={progress.farcasterFound}
-              colorClass="text-accent-brand"
               isAnimating={isProcessing && progress.farcasterFound > 0}
             />
           </div>
 
-          {/* Pipeline visualization */}
+          {/* Pipeline stages.
+
+              The row says which stage the job is in; the bar beneath says how
+              far through it is. It used to do both: a second fill ran behind
+              the dots to the same percentage as the bar, floored at 5% while
+              processing, so at "0% complete" a violet stub already covered the
+              first dot. One percentage, one fill. The dots sit on a hairline,
+              and what they say is complete versus pending, not progress. */}
           <div className="relative mb-5">
-            {/* Background track */}
-            <div className="absolute inset-0 h-1 top-[11px] bg-border/30 rounded-full" />
+            {/* The hairline, ending at the centres of the first and last dots. */}
+            <div className="absolute inset-x-1 top-1 h-px bg-border" />
 
-            {/* Active progress line */}
-            <div
-              className="absolute h-1 top-[11px] left-0 bg-gradient-to-r from-accent-brand via-accent-brand to-accent-brand/50 rounded-full transition-all duration-500 ease-out"
-              style={{
-                width: `${Math.max(percentage, isProcessing ? 5 : 0)}%`,
-              }}
-            >
-              {/* Animated shimmer on progress line */}
-              {isProcessing && (
-                <div className="absolute inset-0 overflow-hidden rounded-full">
-                  <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                </div>
-              )}
-            </div>
-
-            {/* Pipeline stages */}
             <div className="relative flex justify-between">
               {stages.map((stage, idx) => {
-                const isActive = currentStage === stage.id;
+                /* Gated on `isProcessing`: `currentStageIndex` falls back to 0
+                   when the message names no stage, which is the case before
+                   the first "Processing:" message and again once the job is
+                   complete or waiting. The first is the one that should name
+                   a stage (the phone shows only the active label, and showed
+                   none); the other two should not light anything. */
+                const isActive = isProcessing && idx === currentStageIndex;
                 const isComplete =
                   idx < currentStageIndex || percentage === 100;
-                const isPending = idx > currentStageIndex && percentage < 100;
 
                 return (
                   <div
                     key={stage.id}
                     className="flex flex-col items-center gap-2"
                   >
-                    {/* Stage dot */}
-                    <div
-                      className={`
-                        relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
-                        transition-all duration-300
-                        ${
-                          isActive
-                            ? 'bg-accent-brand text-accent-brand-foreground scale-110 shadow-lg shadow-accent-brand/40'
-                            : isComplete
-                              ? 'bg-accent-brand/80 text-accent-brand-foreground'
-                              : 'bg-muted text-muted-foreground'
-                        }
-                      `}
-                    >
-                      {/* Pulse ring for active stage */}
-                      {isActive && isProcessing && (
-                        <span className="absolute inset-0 rounded-full bg-accent-brand/40 animate-ping" />
-                      )}
-                      <span className="relative">{stage.icon}</span>
-                    </div>
+                    {/* The gutter's status dot: filled for a stage that has
+                        run or is running, hollow for one still to come. No
+                        growth, no shadow, no ping: press is the only transform,
+                        shadows belong to the floating layer, and the spinner
+                        beside the title already says "running". */}
+                    <span
+                      className={`h-2 w-2 rounded-full transition-control ${
+                        isActive || isComplete
+                          ? 'bg-accent-brand'
+                          : 'bg-card ring-1 ring-inset ring-border'
+                      }`}
+                    />
 
                     {/* Stage label. Five of these do not fit across a phone,
                         and the row grew from four when the graph read was
@@ -216,7 +217,7 @@ export const ProgressBar = memo(function ProgressBar({
                         versus pending. */}
                     <span
                       className={`
-                        whitespace-nowrap font-mono text-xs uppercase tracking-[0.14em] transition-colors
+                        whitespace-nowrap font-mono text-xs uppercase tracking-[0.14em] transition-control
                         ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground' : 'text-muted-foreground'}
                         ${isActive ? '' : 'hidden sm:inline'}
                       `}
@@ -231,27 +232,19 @@ export const ProgressBar = memo(function ProgressBar({
 
           {/* Progress bar with percentage */}
           <div className="space-y-2">
-            <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden">
-              {/* Main progress fill */}
-              <div
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent-brand/90 to-accent-brand rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${percentage}%` }}
-              />
-
-              {/* Animated activity indicator when at low percentage */}
+            {/* The one fill, and it is the Progress primitive: Radix gives it
+                the `progressbar` role and its value attributes, the primitive
+                moves its fill by transform on the tokens. No gradient, no
+                shimmer, no floor: a fill is a measurement, the delight budget
+                names two places of which this is neither, and at 0% nothing
+                is painted. Activity before the first result is the sweep,
+                laid over the track rather than inside it because the
+                primitive owns its own children. */}
+            <div className="relative">
+              <Progress value={percentage} aria-label="Wallets processed" />
               {isProcessing && percentage < 5 && (
-                <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute inset-0 overflow-hidden rounded-full">
                   <div className="absolute h-full w-32 -left-32 animate-slide bg-gradient-to-r from-transparent via-accent-brand/40 to-transparent" />
-                </div>
-              )}
-
-              {/* Shimmer effect */}
-              {isProcessing && percentage > 0 && (
-                <div
-                  className="absolute inset-y-0 left-0 overflow-hidden rounded-full"
-                  style={{ width: `${percentage}%` }}
-                >
-                  <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                 </div>
               )}
             </div>
@@ -266,41 +259,30 @@ export const ProgressBar = memo(function ProgressBar({
                 {timeRemaining && <span> · {timeRemaining}</span>}
               </span>
 
-              {/* Current activity indicator */}
-              {isProcessing && currentStage && (
+              {/* Current activity indicator. The pulse is green like every
+                  other live pulse on the card. The text is the stage's label,
+                  not its id: the id is a pipeline marker that names a vendor
+                  for two of the stages, and the UI never does that. */}
+              {isProcessing && activeLabel && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-brand opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent-brand" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-attested opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-attested" />
                   </span>
-                  <span className="capitalize">{currentStage}</span>
+                  <span>{activeLabel}</span>
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 bg-muted/30 border-t border-border">
-          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
-            <span className="inline-flex items-center gap-1">
-              <svg
-                className="w-3 h-3 opacity-50"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 12h14M12 5l7 7-7 7"
-                />
-              </svg>
-              Processing in background
-            </span>
-            <span>·</span>
-            <span>you can close this tab and check History later</span>
+        {/* Footer. One sentence, no icon: the arrow was a hand-drawn svg where
+            icons are Phosphor, and the three-part flex row split into two
+            ragged columns at 375px. The band is `bg-muted` at full opacity. */}
+        <div className="px-6 py-3 bg-muted border-t border-border">
+          <p className="text-xs text-muted-foreground text-center">
+            Runs in the background. You can close this tab and find it in My
+            lookups later.
           </p>
         </div>
       </CardContent>
@@ -308,30 +290,33 @@ export const ProgressBar = memo(function ProgressBar({
   );
 });
 
-// Stat badge component with optional animation
+/**
+ * A running count beside a live dot.
+ *
+ * The dot is green: "the system is running" is a measured fact, and the header
+ * says the same thing in the same colour. The figure is foreground at weight
+ * 500, the table-figure cut, not violet: a count is never an affordance. There
+ * is one correct colour for each, so neither is a prop.
+ */
 function StatBadge({
   label,
   value,
-  colorClass,
   isAnimating,
 }: {
   label: string;
   value: number;
-  colorClass: string;
   isAnimating?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
-      <div
-        className={`relative flex items-center justify-center w-2 h-2 ${colorClass}`}
-      >
+      <div className="relative flex items-center justify-center w-2 h-2 text-attested">
         {isAnimating && (
           <span className="absolute inset-0 rounded-full bg-current animate-ping opacity-40" />
         )}
         <span className="relative w-2 h-2 rounded-full bg-current" />
       </div>
       <span className="text-xs text-muted-foreground">
-        <span className={`font-semibold tabular-nums ${colorClass}`}>
+        <span className="font-medium tabular-nums text-foreground">
           {value.toLocaleString()}
         </span>{' '}
         {label}

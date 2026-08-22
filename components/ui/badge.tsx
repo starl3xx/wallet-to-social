@@ -16,6 +16,13 @@ import { cn } from '@/lib/utils';
  *
  * `rounded-sm`, not `rounded-full`: the pill is reserved for controls, and a
  * pill-shaped badge is the single most direct way to make a fact look clickable.
+ *
+ * 11px, the uppercase label size the doc specifies, and with Eyebrow the only
+ * place `text-[11px]` is written: the scale has no step below 12px, so the two
+ * primitives that render the label carry the size and nothing else does.
+ * `leading-4` keeps the 16px line box `text-xs` had, so the badge stays 20px
+ * tall and visibly shorter than a 34px control, which the height token's note
+ * requires. Without it an arbitrary size inherits the parent's line height.
  */
 const TONES = {
   /** A measured fact: attested, live, or a real outcome. */
@@ -46,7 +53,7 @@ export function Badge({
       title={title}
       className={cn(
         'inline-flex max-w-[12ch] items-center overflow-hidden rounded-sm px-1.5 py-0.5',
-        'font-mono text-xs uppercase tracking-[0.14em]',
+        'font-mono text-[11px] leading-4 uppercase tracking-[0.14em]',
         TONES[tone],
         className
       )}

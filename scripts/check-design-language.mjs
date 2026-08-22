@@ -40,8 +40,13 @@ const RULES = [
   },
   {
     name: 'arbitrary-type',
-    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*text-\[\d+px\]/,
-    msg: 'Arbitrary sizes sit between the scale steps by definition. Use the scale.',
+    // px or rem: `text-[0.5625rem]` walked past the px-only form and rendered a
+    // 9px label for a release.
+    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*text-\[[\d.]+(?:px|rem)\]/,
+    // The one 11px in the product is the uppercase label, and it lives in
+    // exactly two primitives. Anywhere else, use <Eyebrow> or <Badge>.
+    files: /components\/ui\/(?:eyebrow|badge)\.tsx$/,
+    msg: 'Arbitrary sizes sit between the scale steps by definition. Use the scale, or <Eyebrow> / <Badge> for the 11px label.',
   },
   {
     name: 'shadcn-primary',
@@ -61,7 +66,7 @@ const RULES = [
     // drift that reads as "nearly a divider" and never matches the next one.
     // `border-t-`/`border-l-` and friends are excluded: a two-tone spinner arc
     // uses a faded track on purpose, and that is not separation.
-    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*border(?:-[brltxy])?-(?:border|foreground|muted-foreground|input|primary|accent-brand)\/\d+(?=[\s"'`]|$)/,
+    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*border(?:-[brltxy])?-(?:border|foreground|muted-foreground|input|primary|accent-brand|attested|caution|destructive)\/\d+(?=[\s"'`]|$)/,
     // A rotating element's border is an arc, not a separator: the spinner draws
     // its track at half opacity and one edge at full, which is the whole trick.
     // Exempting the line beats dropping `accent-brand` from the rule, which
@@ -94,58 +99,119 @@ const RULES = [
 ];
 
 /** A rule fires when its pattern matches and its exemption does not. */
-const fires = (rule, s) => rule.re.test(s) && !(rule.skip && rule.skip.test(s));
+const fires = (rule, s, file = '') =>
+  rule.re.test(s) &&
+  !(rule.skip && rule.skip.test(s)) &&
+  !(rule.files && rule.files.test(file));
 
 /** Whole-line rule: uppercase text must be mono, since there is one label style. */
 function uppercaseWithoutMono(line) {
-  if (!/(^|[\s"'`])(?:[a-z0-9-]+:)*uppercase(?=[\s"'`]|$)/.test(line)) return false;
+  if (!/(^|[\s"'`])(?:[a-z0-9-]+:)*uppercase(?=[\s"'`]|$)/.test(line))
+    return false;
   return !line.includes('font-mono');
 }
 
 const FIXTURES = {
-  radius: { bad: ['rounded-md', 'hover:rounded-xl', 'sm:rounded-2xl', 'p-4 rounded-md border'],
-            good: ['rounded-sm', 'rounded-lg', 'rounded-full', 'rounded-mark', 'rounded-[50%]'] },
-  'bare-radius': { bad: ['border rounded p-2', 'className="rounded"'],
-                   good: ['rounded-sm', 'rounded-lg', 'rounded-full'] },
-  elevation: { bad: ['shadow-sm', 'hover:shadow-md', 'shadow-xs'],
-               good: ['shadow-lg', 'shadow-none', 'text-shadow-lg'] },
-  'arbitrary-type': { bad: ['text-[10px]', 'sm:text-[13px]'],
-                      good: ['text-xs', 'text-sm', 'max-w-[68ch]', 'tracking-[0.14em]'] },
+  radius: {
+    bad: [
+      'rounded-md',
+      'hover:rounded-xl',
+      'sm:rounded-2xl',
+      'p-4 rounded-md border',
+    ],
+    good: [
+      'rounded-sm',
+      'rounded-lg',
+      'rounded-full',
+      'rounded-mark',
+      'rounded-[50%]',
+    ],
+  },
+  'bare-radius': {
+    bad: ['border rounded p-2', 'className="rounded"'],
+    good: ['rounded-sm', 'rounded-lg', 'rounded-full'],
+  },
+  elevation: {
+    bad: ['shadow-sm', 'hover:shadow-md', 'shadow-xs'],
+    good: ['shadow-lg', 'shadow-none', 'text-shadow-lg'],
+  },
+  'arbitrary-type': {
+    bad: ['text-[10px]', 'sm:text-[13px]', 'text-[0.5625rem]'],
+    good: ['text-xs', 'text-sm', 'max-w-[68ch]', 'tracking-[0.14em]'],
+  },
   'shadcn-primary': {
-    bad: ['bg-primary text-primary-foreground', 'hover:border-primary/50', 'text-primary',
-          'className="h-full bg-primary rounded-full"', 'selection:bg-primary'],
+    bad: [
+      'bg-primary text-primary-foreground',
+      'hover:border-primary/50',
+      'text-primary',
+      'className="h-full bg-primary rounded-full"',
+      'selection:bg-primary',
+    ],
     // accent-brand and accent-brand-foreground must survive: they are the real
     // token and their names both end in the string this rule looks for.
-    good: ['bg-accent-brand text-accent-brand-foreground', 'bg-accent-brand-tint',
-           'text-muted-foreground', 'bg-secondary text-secondary-foreground',
-           'hover:border-accent-brand'],
+    good: [
+      'bg-accent-brand text-accent-brand-foreground',
+      'bg-accent-brand-tint',
+      'text-muted-foreground',
+      'bg-secondary text-secondary-foreground',
+      'hover:border-accent-brand',
+    ],
   },
   'icon-library': {
-    bad: ["import { Check } from 'lucide-react'", 'import { X } from "lucide-react";'],
-    good: ["import { Check } from '@phosphor-icons/react'",
-           "import { Check } from '@phosphor-icons/react/dist/ssr'",
-           "import { cn } from '@/lib/utils'"],
+    bad: [
+      "import { Check } from 'lucide-react'",
+      'import { X } from "lucide-react";',
+    ],
+    good: [
+      "import { Check } from '@phosphor-icons/react'",
+      "import { Check } from '@phosphor-icons/react/dist/ssr'",
+      "import { cn } from '@/lib/utils'",
+    ],
   },
   'colour-function-wrapper': {
-    bad: ['color="hsl(var(--primary))"', 'stroke="rgb(var(--border))"',
-          'fill="hsla( var(--accent-brand) )"'],
-    good: ['color="var(--accent-brand)"', 'oklch(0.42 0.19 280)',
-           'hsl(210 40% 96%)', 'rgb(0 0 0 / 0.04)'],
+    bad: [
+      'color="hsl(var(--primary))"',
+      'stroke="rgb(var(--border))"',
+      'fill="hsla( var(--accent-brand) )"',
+    ],
+    good: [
+      'color="var(--accent-brand)"',
+      'oklch(0.42 0.19 280)',
+      'hsl(210 40% 96%)',
+      'rgb(0 0 0 / 0.04)',
+    ],
   },
   'border-opacity': {
-    bad: ['border-border/50', 'hover:border-foreground/20', 'border-muted-foreground/25',
-          'border-b border-border/50 transition-colors'],
-    good: ['border-border', 'border-b border-border', 'bg-muted/30', 'ring-accent-brand/50',
-           'bg-accent-brand-tint/30 hover:bg-accent-brand-tint',
-           'border-2 border-accent-brand/50 border-t-accent-brand animate-spin'],
+    bad: [
+      'border-border/50',
+      'hover:border-foreground/20',
+      'border-muted-foreground/25',
+      'border-b border-border/50 transition-colors',
+    ],
+    good: [
+      'border-border',
+      'border-b border-border',
+      'bg-muted/30',
+      'ring-accent-brand/50',
+      'bg-accent-brand-tint/30 hover:bg-accent-brand-tint',
+      'border-2 border-accent-brand/50 border-t-accent-brand animate-spin',
+    ],
   },
 };
 
 let failed = 0;
 for (const rule of RULES) {
   const f = FIXTURES[rule.name];
-  for (const s of f.bad) if (!fires(rule, s)) { console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`); failed++; }
-  for (const s of f.good) if (fires(rule, s)) { console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`); failed++; }
+  for (const s of f.bad)
+    if (!fires(rule, s)) {
+      console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`);
+      failed++;
+    }
+  for (const s of f.good)
+    if (fires(rule, s)) {
+      console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`);
+      failed++;
+    }
 }
 // The comment strip must not eat a class that follows a URL on the same line.
 {
@@ -161,41 +227,70 @@ for (const rule of RULES) {
 }
 
 for (const s of ['uppercase tracking-wider', 'text-xs uppercase'])
-  if (!uppercaseWithoutMono(s)) { console.error(`FIXTURE FAIL  uppercase missed: ${s}`); failed++; }
-for (const s of ['font-mono text-xs uppercase tracking-[0.14em]', 'text-sm font-medium'])
-  if (uppercaseWithoutMono(s)) { console.error(`FIXTURE FAIL  uppercase false alarm: ${s}`); failed++; }
+  if (!uppercaseWithoutMono(s)) {
+    console.error(`FIXTURE FAIL  uppercase missed: ${s}`);
+    failed++;
+  }
+for (const s of [
+  'font-mono text-xs uppercase tracking-[0.14em]',
+  'text-sm font-medium',
+])
+  if (uppercaseWithoutMono(s)) {
+    console.error(`FIXTURE FAIL  uppercase false alarm: ${s}`);
+    failed++;
+  }
 
 if (failed) {
-  console.error(`\n${failed} fixture(s) failed. The guard does not do what it claims.`);
+  console.error(
+    `\n${failed} fixture(s) failed. The guard does not do what it claims.`
+  );
   process.exit(1);
 }
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) { if (e !== 'node_modules' && e !== '.next') walk(p, out); }
-    else if (p.endsWith('.tsx') || p.endsWith('.ts')) out.push(p);
+    if (statSync(p).isDirectory()) {
+      if (e !== 'node_modules' && e !== '.next') walk(p, out);
+    } else if (p.endsWith('.tsx') || p.endsWith('.ts')) out.push(p);
   }
   return out;
 }
 
 const hits = [];
 for (const file of [...walk('app'), ...walk('components')]) {
-  readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
-    // Comments explain the rules and quote the very classes they ban. Three
-    // separate checks in this project have been fooled by their own prose.
-    // `[^:]` before `//` is load-bearing: without it the `//` in `https://`
-    // reads as a comment start and everything after it on the line is dropped,
-    // so a banned class beside a URL is invisible. That is the precise failure
-    // this script exists to prevent, and it shipped in the first draft of it.
-    const code = line
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-      .replace(/(^|[^:])\/\/.*$/, '$1');
-    if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
-    for (const rule of RULES) if (fires(rule, code)) hits.push({ file, line: i + 1, rule: rule.name, msg: rule.msg, code: code.trim().slice(0, 90) });
-    if (uppercaseWithoutMono(code)) hits.push({ file, line: i + 1, rule: 'uppercase', msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.', code: code.trim().slice(0, 90) });
-  });
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      // Comments explain the rules and quote the very classes they ban. Three
+      // separate checks in this project have been fooled by their own prose.
+      // `[^:]` before `//` is load-bearing: without it the `//` in `https://`
+      // reads as a comment start and everything after it on the line is dropped,
+      // so a banned class beside a URL is invisible. That is the precise failure
+      // this script exists to prevent, and it shipped in the first draft of it.
+      const code = line
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/(^|[^:])\/\/.*$/, '$1');
+      if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
+      for (const rule of RULES)
+        if (fires(rule, code, file))
+          hits.push({
+            file,
+            line: i + 1,
+            rule: rule.name,
+            msg: rule.msg,
+            code: code.trim().slice(0, 90),
+          });
+      if (uppercaseWithoutMono(code))
+        hits.push({
+          file,
+          line: i + 1,
+          rule: 'uppercase',
+          msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.',
+          code: code.trim().slice(0, 90),
+        });
+    });
 }
 
 if (!hits.length) {
@@ -204,6 +299,7 @@ if (!hits.length) {
   );
   process.exit(0);
 }
-for (const h of hits) console.error(`${h.file}:${h.line}  [${h.rule}]  ${h.code}\n    ${h.msg}`);
+for (const h of hits)
+  console.error(`${h.file}:${h.line}  [${h.rule}]  ${h.code}\n    ${h.msg}`);
 console.error(`\n${hits.length} violation(s). See docs/DESIGN-LANGUAGE.md.`);
 process.exit(1);

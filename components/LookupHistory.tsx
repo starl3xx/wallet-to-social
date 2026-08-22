@@ -4,7 +4,8 @@ import { useEffect, useState, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SignIn } from '@phosphor-icons/react';
+import { XMark, FarcasterMark } from '@/components/ui/brand-marks';
+import { SignIn, Plus } from '@phosphor-icons/react';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
 import type { WalletSocialResult } from '@/lib/types';
@@ -150,11 +151,13 @@ export const LookupHistory = memo(function LookupHistory({
     [onLoadLookup]
   );
 
+  // CardTitle at its default, 16px/600: the one card-title size. A `text-lg`
+  // override here put "My lookups" at 18px beside a 16px "Reverse lookup".
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">My lookups</CardTitle>
+          <CardTitle>My lookups</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -169,13 +172,21 @@ export const LookupHistory = memo(function LookupHistory({
       <>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">My lookups</CardTitle>
+            <CardTitle>My lookups</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
               Sign in to save and view your lookup history.
             </p>
-            <Button size="sm" onClick={() => setShowAuthModal(true)}>
+            {/* Outline, not the filled primary. The header already carries the
+                page's one filled Buy credits and a Sign in of its own, and this
+                card repeated that action at primary weight, which made three
+                filled violet buttons in one view. */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAuthModal(true)}
+            >
               <SignIn className="h-4 w-4" aria-hidden />
               Sign in
             </Button>
@@ -203,7 +214,7 @@ export const LookupHistory = memo(function LookupHistory({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">My lookups</CardTitle>
+        <CardTitle>My lookups</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {history.map((lookup) => {
@@ -232,9 +243,23 @@ export const LookupHistory = memo(function LookupHistory({
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(lookup.createdAt)} · {lookup.twitterFound}{' '}
-                  Twitter, {lookup.farcasterFound} Farcaster
+                {/* The platform marks, as the Recent wins breakdown writes
+                    them. This said "Twitter" while the hero, the reverse
+                    lookup segment and the footer all showed the X mark. The
+                    marks are named, because here they stand in for the word. */}
+                <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                  <span>{formatDate(lookup.createdAt)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <XMark className="h-3 w-3" label="X" />
+                    {lookup.twitterFound.toLocaleString()}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <FarcasterMark className="h-3 w-3" />
+                    <span className="sr-only">Farcaster</span>
+                    {lookup.farcasterFound.toLocaleString()}
+                  </span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -243,14 +268,17 @@ export const LookupHistory = memo(function LookupHistory({
                     caller's match balance and refuses the write without one,
                     so this is presentation rather than protection. */}
                 {onAddAddresses && entitled && (
+                  /* A real icon control with a name, not a typed "+" with a
+                     tooltip and an ad-hoc width. The Plus is the same glyph
+                     the collapsed Buy credits and the results overflow use. */
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={() => onAddAddresses(lookup.id, [])}
+                    aria-label="Add addresses"
                     title="Add more addresses to this lookup"
-                    className="px-2"
                   >
-                    +
+                    <Plus className="h-4 w-4" aria-hidden />
                   </Button>
                 )}
                 <Button
