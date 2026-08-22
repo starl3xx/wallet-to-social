@@ -80,6 +80,12 @@ export function useCredits(signedIn: boolean): CreditsView {
 
     return () => {
       cancelled = true;
+      // Forget this account on the way out. Without this, the next account to
+      // sign in on the same tab inherits the previous one's `entitled` and
+      // `available` until its own fetch lands, and paid features flicker open
+      // or shut for the wrong person. Resetting to INITIAL also restores
+      // `loading: true`, so gates that wait for the fetch wait properly.
+      setView(INITIAL);
     };
   }, [signedIn]);
 

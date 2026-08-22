@@ -355,14 +355,23 @@ export default function Home() {
    * silently open an importer the person had moved on from.
    */
   useEffect(() => {
-    if (!deepLinkContract || authLoading || deepLinkActed.current) return;
+    // Wait for credits as well as auth. `entitled` is false while the balance
+    // is still loading, and this effect acts exactly once, so acting early
+    // would send a paying customer to the upgrade modal and never correct it.
+    if (
+      !deepLinkContract ||
+      authLoading ||
+      credits.loading ||
+      deepLinkActed.current
+    )
+      return;
     deepLinkActed.current = true;
     if (entitled) {
       setShowContractImportModal(true);
     } else {
       setShowUpgradeModal(true);
     }
-  }, [deepLinkContract, authLoading, entitled]);
+  }, [deepLinkContract, authLoading, credits.loading, entitled]);
 
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
