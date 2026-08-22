@@ -60,8 +60,8 @@ export function PackPricing() {
 
       <p className="mt-4 text-sm text-muted-foreground">
         Every pack carries all seven chains, uncapped CSV export, API access on
-        the same credits, reverse lookup, and 𝕏 reachability on every match.
-        Credits last 12 months. No subscription.
+        the same credits, reverse lookup, Farcaster DMs, and 𝕏 reachability on
+        every match. Credits last 12 months. No subscription.
       </p>
     </div>
   );

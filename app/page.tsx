@@ -218,10 +218,10 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
-  // Farcaster DM modal. Still shown only to the legacy unlimited account: it
-  // is not in the list of what every pack includes, and the route behind it
-  // has no entitlement check of its own, so widening it is a product decision
-  // rather than a gate fix.
+  // Farcaster DM modal. Any pack, or a legacy tier, the same as every other
+  // paid feature (decided 2026-08-22; it had stayed legacy-only after the
+  // pricing change because it was not on the pack feature list). The route
+  // behind it checks the same entitlement.
   const [showFarcasterDMModal, setShowFarcasterDMModal] = useState(false);
   const [enrichingFids, setEnrichingFids] = useState(false);
 
@@ -1418,8 +1418,8 @@ export default function Home() {
         initialChain={deepLinkContract?.chain}
       />
 
-      {/* Farcaster DM Modal. See the state declaration for why its button is
-          still keyed to the legacy unlimited tier. */}
+      {/* Farcaster DM Modal. Offered to any entitled account; see the state
+          declaration. */}
       <FarcasterDMModal
         open={showFarcasterDMModal}
         onOpenChange={setShowFarcasterDMModal}
@@ -1869,9 +1869,8 @@ export default function Home() {
                       shorter rather than reflow: ExportButton alone is two
                       controls, and the name sits beside all of it.
 
-                      Legacy unlimited only, on purpose: see the DM modal
-                      state for why this one is not on `entitled`. */}
-                {userTier === 'unlimited' &&
+                      Entitled accounts: any pack or a legacy tier. */}
+                {entitled &&
                   (results.some((r) => r.fc_fid) || enrichingFids) && (
                     <Button
                       variant="outline"
@@ -1896,7 +1895,7 @@ export default function Home() {
                 />
 
                 <OverflowMenu>
-                  {userTier === 'unlimited' &&
+                  {entitled &&
                     (results.some((r) => r.fc_fid) || enrichingFids) && (
                       <div className="sm:hidden">
                         <MenuItem onClick={() => setShowFarcasterDMModal(true)}>
