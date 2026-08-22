@@ -52,6 +52,8 @@
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
+import { publicSources } from '@/lib/api-sources';
+import type { TwitterAlso } from '@/lib/types';
 
 /** What the public API and the UI speak. */
 export type Reachability = 'live' | 'suspended' | 'unclaimed' | 'reassigned';
@@ -225,6 +227,120 @@ export async function reachabilityForWallets(
 }
 
 /**
+ * A second live X account per wallet, from the unresolved handle conflicts.
+ *
+ * ## What a conflict is, and which ones this reads
+ *
+ * `handle_conflicts` records every wallet where a source attested an X handle
+ * that differs from the one the graph holds. They fall into three buckets by
+ * what `x_accounts` says about each side. Where ours is dead and theirs is
+ * live, the graph is simply wrong and a daily job swaps the handle and marks
+ * the conflict resolved. Where one side has never been checked, nothing can be
+ * said yet. This function reads the third bucket only: **both live**.
+ *
+ * ## Why both-live is surfaced and never swapped
+ *
+ * Two live accounts attested for one wallet is not an error to correct. The
+ * owner verified one account on Farcaster and proved another to an identity
+ * platform, and both still reach them. Preferring either would be a guess
+ * dressed as a fix, so the stored handle stays primary and the other rides
+ * alongside it. The list export exists to reach people, and this is a second
+ * way of reaching this one.
+ *
+ * ## What is checked before a row qualifies
+ *
+ * - The conflict is unresolved and on the twitter platform.
+ * - Both handles resolve to `live` in `x_accounts`. An unchecked side is
+ *   absent from the join and so drops out, on the same absent-is-not-false
+ *   rule every other field here follows.
+ * - Where the source supplied the numeric account id, it must equal the id
+ *   the handle resolves to now. A mismatch means the name has moved to a
+ *   stranger since the attestation, which is precisely the `reassigned` case
+ *   above, and a stranger's live account is not a second way to reach the
+ *   owner.
+ * - The conflict's `ours` must be the handle the caller is about to show.
+ *   `ours` is refreshed by every sweep, but the graph can move between
+ *   sweeps, and "both reach someone" is a claim about the two handles on the
+ *   screen, not about a pair the sweep saw last week.
+ * - The source must map to a public evidence class. An unmapped source is
+ *   dropped rather than named, which is the allowlist rule from
+ *   `lib/api-sources.ts` applied one more time.
+ *
+ * A wallet can carry one conflict per attesting source. One is returned per
+ * wallet: the one with an account id first, because that one passed the
+ * stronger test, then the most recently seen.
+ *
+ * Keyed by lowercased wallet, like `reachabilityForWallets`.
+ */
+export async function alsoOnXForWallets(
+  rows: Array<{ wallet: string; handle?: string | null }>
+): Promise<Map<string, TwitterAlso>> {
+  const out = new Map<string, TwitterAlso>();
+  const db = getDb();
+  if (!db) return out;
+
+  const primaryByWallet = new Map<string, string>();
+  for (const r of rows) {
+    if (
+      typeof r.wallet !== 'string' ||
+      typeof r.handle !== 'string' ||
+      r.handle.length === 0
+    )
+      continue;
+    primaryByWallet.set(
+      r.wallet.toLowerCase(),
+      r.handle.toLowerCase().replace(/^@/, '')
+    );
+  }
+  const wallets = [...primaryByWallet.keys()];
+  if (wallets.length === 0) return out;
+
+  // Chunked like every other wallet-keyed read here. `handle_conflicts.wallet`
+  // is written from `social_graph.wallet`, which is stored lowercased, so the
+  // equality below can use the primary key directly.
+  for (let i = 0; i < wallets.length; i += 2000) {
+    const chunk = wallets.slice(i, i + 2000);
+    const result = (await db.execute(sql`
+      SELECT DISTINCT ON (c.wallet)
+             c.wallet, c.ours, c.theirs, c.their_source
+      FROM handle_conflicts c
+      JOIN x_accounts o ON o.handle = lower(c.ours)
+      JOIN x_accounts t ON t.handle = lower(c.theirs)
+      WHERE c.wallet = ANY(${sql.param(chunk)}::text[])
+        AND c.platform = 'twitter'
+        AND c.resolved_at IS NULL
+        AND o.status = 'live'
+        AND t.status = 'live'
+        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)
+      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC
+    `)) as unknown as {
+      rows: Array<{
+        wallet: string;
+        ours: string;
+        theirs: string;
+        their_source: string;
+      }>;
+    };
+
+    for (const row of result.rows) {
+      const wallet = row.wallet.toLowerCase();
+      const primary = primaryByWallet.get(wallet);
+      if (!primary || row.ours.toLowerCase() !== primary) continue;
+      // Identical modulo case is not a second account, whatever the table says.
+      if (row.theirs.toLowerCase() === primary) continue;
+      const source = publicSources([row.their_source])?.[0];
+      if (!source) continue;
+      out.set(wallet, {
+        handle: row.theirs,
+        url: `https://x.com/${row.theirs}`,
+        source,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * The `twitter` object every public route returns.
  *
  * One builder so the four routes cannot drift into describing the same fact
@@ -235,6 +351,7 @@ export function publicTwitterField(input: {
   url?: string | null;
   verified?: boolean | null;
   reachability?: HandleReachability | null;
+  also?: TwitterAlso | null;
 }): Record<string, unknown> {
   const field: Record<string, unknown> = {
     handle: input.handle,
@@ -247,6 +364,15 @@ export function publicTwitterField(input: {
     field.reachable = input.reachability.status === 'live';
     field.reachability = input.reachability.status;
     field.reachability_checked_at = input.reachability.checkedAt;
+  }
+  // Omitted for the same reason. Present only where a second attested handle
+  // is live alongside this one; see `alsoOnXForWallets` for the test.
+  if (input.also) {
+    field.also = {
+      handle: input.also.handle,
+      url: input.also.url,
+      source: input.also.source,
+    };
   }
   return field;
 }
@@ -311,5 +437,40 @@ export async function stampReachability(
     }
   } catch (error) {
     console.error('Reachability stamp failed, continuing without it:', error);
+  }
+}
+
+/**
+ * Stamp `twitter_also` onto a result set in place. Same shape and same
+ * failure policy as `stampReachability`, and called from the same place, so
+ * a row saved to history carries it and a reopened lookup shows it.
+ *
+ * One query per batch, not one per row: the helper chunks by wallet. Only rows
+ * with a handle are sent, since a conflict is a disagreement about a handle
+ * and a row without one has nothing to disagree with.
+ */
+export async function stampAlsoOnX(
+  results: Array<{
+    wallet?: string;
+    twitter_handle?: string;
+    twitter_also?: TwitterAlso;
+  }>
+): Promise<void> {
+  try {
+    const withHandle = results.filter(
+      (r): r is typeof r & { wallet: string; twitter_handle: string } =>
+        Boolean(r.wallet) && Boolean(r.twitter_handle)
+    );
+    if (withHandle.length === 0) return;
+
+    const byWallet = await alsoOnXForWallets(
+      withHandle.map((r) => ({ wallet: r.wallet, handle: r.twitter_handle }))
+    );
+    for (const r of withHandle) {
+      const hit = byWallet.get(r.wallet.toLowerCase());
+      if (hit) r.twitter_also = hit;
+    }
+  } catch (error) {
+    console.error('Also-on-X stamp failed, continuing without it:', error);
   }
 }

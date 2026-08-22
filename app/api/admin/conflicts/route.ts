@@ -23,7 +23,10 @@ export const runtime = 'nodejs';
  * rather than making a person work it out per row.
  *
  * **It still does not decide.** The verdict column is a reading of the evidence,
- * not an action. Nothing here writes to `social_graph`.
+ * not an action. Nothing here writes to `social_graph`. The one group that has
+ * a single honest reading, ours unreachable and theirs live, is closed by
+ * `lib/conflict-resolution.ts` on a daily cron, and the resolved counts below
+ * are how that work is seen from here.
  */
 export async function GET(request: NextRequest) {
   const authError = requireAdmin(request);
@@ -71,15 +74,21 @@ export async function GET(request: NextRequest) {
     const [counts] = (
       (await db.execute(sql`
         SELECT
-          count(*)::int AS total,
-          count(*) FILTER (WHERE ox.status IS NOT NULL AND ox.status <> 'live'
+          count(*) FILTER (WHERE c.resolved_at IS NULL)::int AS total,
+          count(*) FILTER (WHERE c.resolved_at IS NULL
+                             AND ox.status IS NOT NULL AND ox.status <> 'live'
                              AND tx.status = 'live')::int AS ours_dead,
-          count(*) FILTER (WHERE ox.status = 'live' AND tx.status = 'live')::int AS both_live,
-          count(*) FILTER (WHERE ox.status IS NULL OR tx.status IS NULL)::int AS unchecked
+          count(*) FILTER (WHERE c.resolved_at IS NULL
+                             AND ox.status = 'live' AND tx.status = 'live')::int AS both_live,
+          count(*) FILTER (WHERE c.resolved_at IS NULL
+                             AND (ox.status IS NULL OR tx.status IS NULL))::int AS unchecked,
+          -- Closed by the resolver. A resolved row is one the ingest has not
+          -- reopened since, so this is the count still standing, not ever made.
+          count(*) FILTER (WHERE c.resolved_at IS NOT NULL)::int AS resolved_total,
+          count(*) FILTER (WHERE c.resolved_at >= now() - interval '7 days')::int AS resolved_7d
         FROM handle_conflicts c
         LEFT JOIN x_accounts ox ON ox.handle = lower(c.ours)
         LEFT JOIN x_accounts tx ON tx.handle = lower(c.theirs)
-        WHERE c.resolved_at IS NULL
       `)) as unknown as { rows: Array<Record<string, number>> }
     ).rows;
 

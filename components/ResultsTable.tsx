@@ -59,6 +59,12 @@ function attestationOf(r: WalletSocialResult): Attestation {
  * An unreachable handle is not a link. A suspended account goes to a suspension
  * notice, and a freed handle may now belong to somebody else entirely, so the
  * one thing a click must not do is present a stranger as the wallet's owner.
+ *
+ * A row can carry a second attested handle beneath the first, where both
+ * reach someone (`twitter_also`). It is a fact about the wallet, not a
+ * control: muted mono, no badge, no link, and the title says what it means.
+ * The stored handle stays primary because nothing in the data prefers one
+ * over the other, and a second link in the cell would suggest that it does.
  */
 const TwitterCell = memo(function TwitterCell({
   result,
@@ -67,9 +73,10 @@ const TwitterCell = memo(function TwitterCell({
 }) {
   const handle = result.twitter_handle!;
   const reach = result.twitter_reachability;
+  const also = result.twitter_also;
 
-  if (reach && reach !== 'live') {
-    return (
+  const primary =
+    reach && reach !== 'live' ? (
       <span
         className="inline-flex items-center gap-1.5 text-caution"
         title={REACHABILITY_DETAIL[reach]}
@@ -78,23 +85,42 @@ const TwitterCell = memo(function TwitterCell({
         <span className="line-through decoration-caution/50">@{handle}</span>
         <span className="sr-only">{REACHABILITY_LABEL[reach]}</span>
       </span>
-    );
-  }
-
-  /* The link variant at inline size: the one treatment for a text link in a
-     cell. The face comes from the cell, since `cn` lets `font-mono text-xs`
-     beat the variant's base. */
-  return (
-    <Button asChild variant="link" size="inline" className="font-mono text-xs">
-      <a
-        href={result.twitter_url || `https://x.com/${handle}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
+    ) : (
+      /* The link variant at inline size: the one treatment for a text link in
+         a cell. The face comes from the cell, since `cn` lets `font-mono
+         text-xs` beat the variant's base. */
+      <Button
+        asChild
+        variant="link"
+        size="inline"
+        className="font-mono text-xs"
       >
-        @{handle}
-      </a>
-    </Button>
+        <a
+          href={result.twitter_url || `https://x.com/${handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
+        >
+          @{handle}
+        </a>
+      </Button>
+    );
+
+  if (!also) return primary;
+
+  /* Two 12px lines at their own 16px leading is 32px, inside the 44px row.
+     The second line truncates and carries its full text in the title, since a
+     handle is third-party data and the row's height is fixed. */
+  return (
+    <span className="flex min-w-0 flex-col items-start">
+      {primary}
+      <span
+        className="truncate text-muted-foreground"
+        title="A second X account attested by the wallet owner; both reach someone"
+      >
+        also @{also.handle}
+      </span>
+    </span>
   );
 });
 
@@ -372,6 +398,7 @@ export const ResultsTable = memo(function ResultsTable({
           r.wallet.toLowerCase().includes(searchLower) ||
           r.ens_name?.toLowerCase().includes(searchLower) ||
           r.twitter_handle?.toLowerCase().includes(searchLower) ||
+          r.twitter_also?.handle.toLowerCase().includes(searchLower) ||
           r.farcaster?.toLowerCase().includes(searchLower)
       );
     }
@@ -946,8 +973,13 @@ export const ResultsTable = memo(function ResultsTable({
                       </div>
                     ))}
 
-                    {/* X handle */}
-                    <div role="cell" className="px-4 py-2 font-mono text-xs">
+                    {/* X handle. `py-1` where every other cell has `py-2`:
+                        the row centres its cells, so vertical padding on a
+                        one-line cell changes nothing you can see, and this is
+                        the one cell that can hold two lines. Two lines at
+                        16px plus `py-2` is 48px inside a 44px row, and the
+                        second line would cross the row's border. */}
+                    <div role="cell" className="px-4 py-1 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
                       ) : (

@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/x-reachability",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/resolve-conflicts",
+      "schedule": "40 8 * * *"
     }
   ],
   "headers": [

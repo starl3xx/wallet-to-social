@@ -34,7 +34,9 @@ curl -X POST https://walletlink.social/api/v1/batch \
 <ResponseField name="data" type="array">
   One entry per **unique** address, in submission order. Entries are the same
   object as [single lookup](/api-reference/wallet), or `null` where nothing was
-  found.
+  found. That includes `twitter.also`, [a second X
+  account](/api-reference/wallet#a-second-x-account) attested for the same
+  wallet, on the few records that have one.
 </ResponseField>
 
 <ResponseField name="meta" type="object">
@@ -88,8 +90,12 @@ Batch returns a deliberately lighter record. Three things present on
 [`/v1/wallet/{address}`](/api-reference/wallet) are absent here:
 
 - No `quality` object.
-- No `verified` flag inside `twitter` or `farcaster`.
+- No `verified` flag inside `farcaster`. (`twitter.verified` is present, on the
+  same terms as single lookup.)
 - No `stale` or `last_updated` in `meta`, and no staleness headers.
+
+The reachability fields and `twitter.also` are present here on the same terms
+as on single lookup.
 
 If you are filtering on confidence, resolve in bulk with batch and then re-fetch
 the shortlist through single lookup. It is usually a small number of addresses

@@ -2,6 +2,90 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (handle conflicts: the unreachable bucket resolves itself)
+
+- **Bucket 1 of the conflict queue resolves automatically.** Measured on
+  2026-08-22, 1,602 of the 2,914 open `handle_conflicts` had our stored X
+  handle reaching nobody (`not_found` 1,363, `unavailable` 239) while the
+  handle an attested source named was live, and in 1,598 of those the source
+  also supplied the numeric id of the account, which matched. A customer who
+  sends to our handle there reaches nobody, so there is nothing to protect by
+  keeping it. `lib/conflict-resolution.ts` accepts theirs when the conflict is
+  unresolved, the graph still serves the handle the conflict calls ours, the
+  row is not admin-curated, ours is `not_found` or `unavailable` on a check no
+  older than 7 days, theirs is live with an id on a check no older than 7
+  days, and any id the source supplied equals the live one. A source with no
+  id (the onchain attestation sweep) qualifies on liveness. Stale or missing
+  checks are re-run first through `sweepHandles`, within a credit cap, one
+  lookup to a row before two, rows whose our side is already known dead first.
+
+- **What accepting writes.** `social_graph.twitter_renamed_from` = the old
+  handle (new nullable column; `scripts/migrate-handle-renames.ts`, hand-written
+  SQL, idempotent, no grant needed), `twitter_handle` = theirs, `twitter_url`,
+  `twitter_user_id` = the source's id or the live one, `twitter_verified` =
+  true, the source appended to `sources` without duplicates, `last_updated_at`
+  = now(); `handle_conflicts.resolved_at` = now() with `resolution`
+  `accepted-theirs: ours unreachable`; the wallet's `wallet_cache` row is
+  deleted so the old handle is not served from cache for up to 7 days.
+  **Apply the migration before this deploys**: `db/schema.ts` declares the
+  column, and every `db.select().from(socialGraph)` in `lib/social-graph.ts`
+  selects it, so a build that reaches production before
+  `scripts/migrate-handle-renames.ts` has run fails every graph read with
+  `column twitter_renamed_from does not exist`. One
+  statement per batch of 500, with data-modifying CTEs, so a batch is atomic on
+  the `neon-http` driver, which has no transactions. Every condition is
+  re-tested inside the statement. Where two sources both qualify for one
+  wallet, the one with an id is taken, every qualifying row naming the same
+  handle closes with it, and a row naming a different handle stays open. A
+  second run writes nothing.
+
+- **Daily cron `/api/cron/resolve-conflicts` at 08:40 UTC**, after the
+  reachability sweep at 08:00, same bearer auth and shape as the other crons,
+  `maxDuration` 300, a `handle_conflicts_resolve` event. The recheck spend is a
+  fixed `CONFLICT_RECHECK_CREDITS` (default 300, about fourteen lookups) rather
+  than a share of the balance, and is refused when the balance cannot be read
+  or sits at the reserve; acceptance still runs, since it costs nothing.
+  `npx tsx --env-file=.env.local scripts/resolve-handle-conflicts.ts
+  [--dry-run] [--limit N] [--credit-cap N] [--recheck-days N]` is the manual
+  entry. The dry run prints counts, the blocked reasons, what it would re-check
+  and a sample of 20, and writes nothing, rechecks included.
+
+- **The first run is the one that matters.** Every check behind the 1,602 was
+  made on 2026-08-17, so a run before 2026-08-24 accepts them without spending
+  a credit. After that, each row costs two lookups to re-qualify, and the
+  default cap clears about seven rows a day.
+
+- **Bucket 2 is surfaced, never swapped.** Where an unresolved conflict has
+  both handles live, and any id the source supplied matches the account theirs
+  resolves to, the result carries the second handle as `twitter_also`
+  (`alsoOnXForWallets` in `lib/handle-reachability.ts`: one query per batch,
+  keyed by wallet, `source` mapped through `publicSources`, so a customer sees
+  the evidence class and never the provider). Ours stays primary. It appears
+  under the X handle in the results row as a muted mono "also @handle" with a
+  title saying both accounts reach someone; in the CSV as a `twitter_also`
+  column, named like its siblings; in the X list export, which exists to reach
+  people, so both handles go in; and in the public API as `twitter.also`
+  (`{ handle, url, source }`) on `/v1/wallet` and `/v1/batch`, built in
+  `publicTwitterField` and absent, not null, everywhere else. Documented in
+  `docs-site/api-reference/wallet.mdx` and `batch.mdx`, which also stop
+  claiming that batch omits `twitter.verified`; it has returned it since the
+  four routes moved onto one builder. Stamped in `finalizeJobWithResults`
+  after reachability, so a saved lookup carries it and a manual correction
+  clears it along with the reachability verdict.
+
+- **Admin.** The conflicts pane shows two more tiles, Resolved and Resolved in
+  7 days, with the green dot, and the Unreachable hint says the group resolves
+  automatically each day. The reader still offers no resolve button.
+
+- **Not closed by this change.** The old handle is still the string Farcaster
+  holds for the account, and two writers carry it back over an accepted swap:
+  the monthly full Farcaster sweep (`lib/farcaster-sweep.ts`, which treats an
+  incoming attested handle as authoritative) and a live lookup that reaches the
+  Farcaster API (`lib/social-graph.ts`, which prefers the incoming handle).
+  `twitter_renamed_from` is the column those writers need to refuse an
+  incoming handle equal to it. Until they do, a swap lasts until the next
+  writer carrying the dead string, and the next ingest reopens the conflict.
+
 ### 2026-08-22 (vs Formo; Blaze and Airstack marked retired)
 
 - **New comparison: `/vs/formo`.** Formo is analytics and attribution for
