@@ -112,7 +112,9 @@ export async function GET(
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
-    endpoint: `/v1/reverse/farcaster/${normalizedUsername}`,
+    // The route template, never the concrete path: a per-username key makes
+    // requests_by_endpoint unbounded and persists what the caller looked up.
+    endpoint: '/v1/reverse/farcaster/{username}',
     method: 'GET',
     walletCount: results.length,
     responseStatus: 200,

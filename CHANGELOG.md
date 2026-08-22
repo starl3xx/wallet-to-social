@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (api_usage stores route templates, not concrete paths)
+
+- **`api_usage.endpoint` now holds the route template.** The three
+  parameterized `/v1` routes pass `/v1/wallet/{address}`,
+  `/v1/reverse/twitter/{handle}` and `/v1/reverse/farcaster/{username}` as
+  literals, and the dormant `withApiAuth` wrapper derives the template with
+  the new `routeTemplate()` in `lib/api-usage.ts`. This bounds
+  `requests_by_endpoint` in `/v1/usage` at one key per route, and it stops
+  persisting the addresses and handles a customer looked up in an analytics
+  table that echoed them back.
+- **`scripts/migrate-endpoint-templates.ts`** rewrites the already-written
+  rows to the templates. Hand-written idempotent SQL, per the migration
+  pattern; it verifies that no concrete path remains under the three routes.
+- `docs-site/api-reference/usage.mdx` documents the new keying and drops the
+  unbounded-cardinality warning.
+
 ### 2026-08-22 (the renamed-from guard covers the fill-if-empty ingests)
 
 - **`lib/ens-harvest.ts` and `lib/attested-links.ts` refuse a fill equal to
