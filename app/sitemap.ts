@@ -1,8 +1,17 @@
 import type { MetadataRoute } from 'next';
 import { getAllSlugs } from '@/lib/blog';
+import { listHolderCollections } from '@/lib/holder-pages';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://walletlink.social';
+
+  const holderCollections = await listHolderCollections();
+  const holderEntries: MetadataRoute.Sitemap = holderCollections.map((c) => ({
+    url: `${baseUrl}/holders/${c.chain}/${c.address}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly',
+    priority: 0.7,
+  }));
 
   const blogSlugs = getAllSlugs();
   const blogEntries: MetadataRoute.Sitemap = blogSlugs.map((slug) => ({
@@ -82,5 +91,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     ...blogEntries,
+    {
+      // The hub over the per-collection reports; the reports themselves
+      // follow at 0.7.
+      url: `${baseUrl}/holders`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    ...holderEntries,
   ];
 }
