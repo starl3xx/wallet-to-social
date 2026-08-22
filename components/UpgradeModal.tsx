@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { InlineError } from '@/components/ui/inline-error';
 import { XMark } from '@/components/ui/brand-marks';
 import {
   Check,
@@ -226,7 +227,7 @@ export function UpgradeModal({
                 if (error) setError(null);
               }}
             />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <InlineError>{error}</InlineError>}
           </div>
 
           {/* Four packs. One column on a phone, two from `sm`, four from `lg`,
@@ -340,8 +341,12 @@ export function UpgradeModal({
               It wore `success-light` and `success-foreground`, a pair kept in
               globals.css for this list alone and tuned a step away from
               `attested`, so the product shipped two greens and said it had
-              one. */}
-          <div className="flex-none rounded-lg bg-muted/40 p-4">
+              one.
+
+              The panel is `bg-muted` whole, the one inset surface, at `p-4`,
+              the one inset padding. It was `bg-muted/40`, a 4% lift in dark
+              mode that read as a smudge rather than a surface. */}
+          <div className="flex-none rounded-lg bg-muted p-4">
             <p className="mb-2 text-sm font-medium">Every pack includes</p>
             <ul className="grid gap-x-6 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-2">
               {INCLUDED.map((item) => (

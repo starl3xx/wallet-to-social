@@ -220,9 +220,11 @@ export const LookupHistory = memo(function LookupHistory({
         {history.map((lookup) => {
           const enrichmentCount = enrichmentCounts[lookup.id] || 0;
           return (
+            // The one inset surface, `bg-muted` whole at `p-4`: this was a
+            // `/50` wash at p-3, a second value for each.
             <div
               key={lookup.id}
-              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+              className="flex items-center justify-between rounded-lg bg-muted p-4"
             >
               <div>
                 <div className="flex items-center gap-2">

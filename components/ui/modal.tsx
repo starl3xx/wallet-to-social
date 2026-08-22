@@ -3,6 +3,7 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const Modal = DialogPrimitive.Root;
@@ -20,7 +21,10 @@ const ModalOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      // The same clock as the panel: 220ms in on the arriving curve, 120ms
+      // out. Without a duration, tw-animate falls back to 150ms, which is not
+      // one of the three.
+      'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm ease-[var(--ease-out-soft)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-[var(--duration-base)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-[var(--duration-fast)]',
       className
     )}
     {...props}
@@ -60,7 +64,16 @@ const ModalContent = React.forwardRef<
         // panel is `--r-container` like every other container, and
         // `calc(100%-2rem)` gives the horizontal inset the vertical one
         // already had; 32px is on the spacing scale.
-        'fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col rounded-lg border bg-background shadow-lg duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 max-h-[calc(100dvh-2rem)]',
+        //
+        // Motion off the paste too. shadcn ran open and close at `duration-150`,
+        // a value the three durations do not include, on the browser's `ease`.
+        // A dialog arriving is a state change, so it enters over `--d-base`
+        // (220ms) on the arriving curve and fades plus scales from 0.97, the
+        // one scale the product uses; it leaves over `--d-fast` (120ms),
+        // because exits run shorter than entrances. `duration-*` sets the
+        // `--tw-duration` that tw-animate reads, and the reduced-motion block
+        // in globals.css collapses the animation to nothing.
+        'fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col rounded-lg border bg-background shadow-lg ease-[var(--ease-out-soft)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-97 data-[state=open]:duration-[var(--duration-base)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-97 data-[state=closed]:duration-[var(--duration-fast)] max-h-[calc(100dvh-2rem)]',
         className
       )}
       {...props}
@@ -102,10 +115,28 @@ const ModalContent = React.forwardRef<
           {footer}
         </div>
       )}
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-sm bg-background p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+      {/* The close is a ghost icon Button, so it is the 34px control every
+          other icon control resolves to, with the one focus ring, the press
+          and `transition-control`. shadcn's paste was a 24px `rounded-sm`
+          target that hovered by opacity, drew its own `focus:` ring and
+          painted `bg-accent` while open: four treatments no other control
+          shares, and a hit target below the control height.
+
+          `right-4 top-4`, against the body's `p-6`: the 16px glyph sits 9px
+          inside a 34px box, so its ink starts 25px from the panel edge, one
+          pixel inside the text column and level with the title's 18px line,
+          while the hit area extends past both. Named by `aria-label`: an
+          icon-only control has no text for assistive tech to read. */}
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className="absolute right-4 top-4 z-10 text-muted-foreground"
+      >
+        <DialogPrimitive.Close aria-label="Close">
+          <X className="h-4 w-4" />
+        </DialogPrimitive.Close>
+      </Button>
     </DialogPrimitive.Content>
   </ModalPortal>
 ));
@@ -116,13 +147,18 @@ ModalContent.displayName = DialogPrimitive.Content.displayName;
  * nothing here chose: it centred "Sign in" on a phone and left-aligned it on a
  * desktop, two treatments for one title. A dialog that wants a centred moment
  * says so on its own header.
+ *
+ * `pr-8` keeps the title and description clear of the close control, which
+ * is absolutely placed over the body's top-right corner: the 34px box spans
+ * 16px to 50px from the panel's edge, and the text column would otherwise
+ * run to 24px, so a long description wrapped under the X.
  */
 const ModalHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col space-y-1.5 text-left', className)}
+    className={cn('flex flex-col space-y-1.5 pr-8 text-left', className)}
     {...props}
   />
 );

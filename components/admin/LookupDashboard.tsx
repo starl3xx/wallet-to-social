@@ -14,18 +14,14 @@ import {
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { Sparkline } from './Sparkline';
 import { shortId } from './format';
+import { Stat, StatTile } from './Stat';
+import { Meter } from './Meter';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 import {
-  CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
-  MagnifyingGlass as Search,
-  Wallet,
-  Percent,
-  Clock,
   CaretDown as ChevronDown,
   CaretUp as ChevronUp,
-  Stack as Layers,
-  CheckCircle,
-  XCircle,
 } from '@phosphor-icons/react';
 
 type TimePeriod = 'today' | 'week' | 'month';
@@ -164,11 +160,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
   };
 
   if (loading && !data) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -191,7 +183,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
     <div className="space-y-6">
       {/* Header with period toggle */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Lookup metrics</h2>
+        <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+          Lookup metrics
+        </h2>
         <div className="flex items-center gap-2">
           <Segmented
             ariaLabel="Time period"
@@ -199,99 +193,58 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             onChange={setPeriod}
             options={PERIODS}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchDashboard}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4" aria-hidden />
-            )}
-            <span className="sr-only">Refresh</span>
-          </Button>
+          <RefreshButton onClick={fetchDashboard} loading={loading} />
         </div>
       </div>
 
-      {/* Usage metrics cards */}
+      {/* Usage metrics cards. The delta against the previous period sits at
+          the figure's baseline; green when it moved the right way, caution
+          when it did not, and for processing time the right way is down. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Search className="h-3 w-3" />
-              <span>Lookups</span>
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {usage.totalLookups}
-              </span>
-              <span
-                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-attested' : 'text-caution'}`}
-              >
-                {formatChange(usage.lookupsChange)} vs prev
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Wallet className="h-3 w-3" />
-              <span>Wallets</span>
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {usage.totalWallets.toLocaleString()}
-              </span>
-              <span
-                className={`text-xs ${usage.walletsChange >= 0 ? 'text-attested' : 'text-caution'}`}
-              >
-                {formatChange(usage.walletsChange)} vs prev
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Percent className="h-3 w-3" />
-              <span>Match rate</span>
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {usage.avgMatchRate.toFixed(1)}%
-              </span>
-              <span
-                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-attested' : 'text-caution'}`}
-              >
-                {formatChange(usage.matchRateChange)} vs prev
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Clock className="h-3 w-3" />
-              <span>Avg time</span>
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {formatTime(usage.avgProcessingTime)}
-              </span>
-              <span
-                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-attested' : 'text-caution'}`}
-              >
-                {formatChange(usage.processingTimeChange, true)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <StatTile
+          label="Lookups"
+          value={usage.totalLookups}
+          aside={
+            <span
+              className={`text-xs tabular-nums ${usage.lookupsChange >= 0 ? 'text-attested' : 'text-caution'}`}
+            >
+              {formatChange(usage.lookupsChange)} vs prev
+            </span>
+          }
+        />
+        <StatTile
+          label="Wallets"
+          value={usage.totalWallets.toLocaleString()}
+          aside={
+            <span
+              className={`text-xs tabular-nums ${usage.walletsChange >= 0 ? 'text-attested' : 'text-caution'}`}
+            >
+              {formatChange(usage.walletsChange)} vs prev
+            </span>
+          }
+        />
+        <StatTile
+          label="Match rate"
+          value={`${usage.avgMatchRate.toFixed(1)}%`}
+          aside={
+            <span
+              className={`text-xs tabular-nums ${usage.matchRateChange >= 0 ? 'text-attested' : 'text-caution'}`}
+            >
+              {formatChange(usage.matchRateChange)} vs prev
+            </span>
+          }
+        />
+        <StatTile
+          label="Avg time"
+          value={formatTime(usage.avgProcessingTime)}
+          aside={
+            <span
+              className={`text-xs tabular-nums ${usage.processingTimeChange <= 0 ? 'text-attested' : 'text-caution'}`}
+            >
+              {formatChange(usage.processingTimeChange, true)}
+            </span>
+          }
+        />
       </div>
 
       {/* Match analytics section */}
@@ -301,50 +254,30 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Platform rates */}
+            {/* Platform rates, as figures. They were fill bars, and a 12%
+                rate drawn as a bar reads as 88% unfinished; a rate is a
+                number with a label, and each is a measured fact, so it
+                carries the attested dot. */}
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">
                 Platform rates
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">X</span>
-                  <span className="text-sm font-medium">
-                    {match.twitterRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-accent-brand rounded-full transition-all"
-                    style={{ width: `${Math.min(match.twitterRate, 100)}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-sm">Farcaster</span>
-                  <span className="text-sm font-medium">
-                    {match.farcasterRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-accent-brand rounded-full transition-all"
-                    style={{ width: `${Math.min(match.farcasterRate, 100)}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-sm">Any social</span>
-                  <span className="text-sm font-medium">
-                    {match.anyRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-accent-brand rounded-full transition-all"
-                    style={{ width: `${Math.min(match.anyRate, 100)}%` }}
-                  />
-                </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Stat
+                  label="X"
+                  value={`${match.twitterRate.toFixed(1)}%`}
+                  attested
+                />
+                <Stat
+                  label="Farcaster"
+                  value={`${match.farcasterRate.toFixed(1)}%`}
+                  attested
+                />
+                <Stat
+                  label="Any social"
+                  value={`${match.anyRate.toFixed(1)}%`}
+                  attested
+                />
               </div>
             </div>
 
@@ -396,9 +329,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
-                  Not enough data for trend
-                </div>
+                <Empty>Not enough data for trend</Empty>
               )}
             </div>
           </div>
@@ -415,58 +346,32 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             {/* Queue status */}
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">Queue</div>
-              <div className="flex items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-caution" />
-                    <span className="text-sm">Pending</span>
-                  </div>
-                  <span className="text-2xl font-extralight tabular-nums">
-                    {performance.pendingJobs}
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 text-accent-brand animate-spin" />
-                    <span className="text-sm">Running</span>
-                  </div>
-                  <span className="text-2xl font-extralight tabular-nums">
-                    {performance.runningJobs}
-                  </span>
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Stat label="Pending" value={performance.pendingJobs} />
+                <Stat label="Running" value={performance.runningJobs} />
               </div>
             </div>
 
-            {/* Success rate */}
+            {/* Success rate. A success rate is a measured outcome, so the
+                figure carries the attested dot; the failed count beside it
+                is a plain figure, not a destructive one, because destructive
+                is for revoking and deleting. */}
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">
                 Success rate ({periodLabels[period]})
               </div>
-              <div className="flex items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {/* Green, not violet: a success rate is a measured outcome,
-                        and the failed figure beside it is already painted as one. */}
-                    <CheckCircle className="h-4 w-4 text-attested" />
-                    <span className="text-sm">Success</span>
-                  </div>
-                  <span className="text-2xl font-extralight tabular-nums">
-                    {performance.successRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-destructive" />
-                    <span className="text-sm">Failed</span>
-                  </div>
-                  <span className="text-2xl font-extralight tabular-nums">
-                    {performance.failedCount}
-                  </span>
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Stat
+                  label="Success"
+                  value={`${performance.successRate.toFixed(1)}%`}
+                  attested
+                />
+                <Stat label="Failed" value={performance.failedCount} />
               </div>
             </div>
 
-            {/* Stage distribution */}
+            {/* Stage distribution: a share of the whole, so a bar is the
+                right shape here. */}
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">
                 Stage distribution
@@ -478,24 +383,18 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                       <span className="text-xs w-16 truncate">
                         {stage.stage}
                       </span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-accent-brand rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(stage.percentage, 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted-foreground w-10 text-right">
+                      <Meter
+                        className="flex-1"
+                        value={stage.percentage / 100}
+                      />
+                      <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
                         {stage.percentage.toFixed(0)}%
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-muted-foreground">
-                  No stage data
-                </div>
+                <Empty>No stage data</Empty>
               )}
             </div>
           </div>
@@ -524,18 +423,16 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
         {showRecentActivity && (
           <CardContent className="pt-0">
             {recentActivity.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No recent activity
-              </p>
+              <Empty>No recent activity</Empty>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>Wallets</TableHead>
-                    <TableHead>X</TableHead>
-                    <TableHead>Farcaster</TableHead>
-                    <TableHead>Match rate</TableHead>
+                    <TableHead className="text-right">Wallets</TableHead>
+                    <TableHead className="text-right">X</TableHead>
+                    <TableHead className="text-right">Farcaster</TableHead>
+                    <TableHead className="text-right">Match rate</TableHead>
                     <TableHead>Time</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -545,12 +442,18 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                       <TableCell className="font-mono text-xs">
                         {shortId(activity.id)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
                         {activity.walletCount.toLocaleString()}
                       </TableCell>
-                      <TableCell>{activity.twitterFound}</TableCell>
-                      <TableCell>{activity.farcasterFound}</TableCell>
-                      <TableCell>{activity.matchRate.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {activity.twitterFound}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {activity.farcasterFound}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {activity.matchRate.toFixed(1)}%
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatTimeAgo(activity.completedAt)}
                       </TableCell>

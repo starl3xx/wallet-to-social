@@ -1,6 +1,11 @@
 import Link from 'next/link';
-import { ArrowSquareOut, GithubLogo } from '@phosphor-icons/react/dist/ssr';
+import {
+  ArrowSquareOut,
+  GithubLogo,
+  Heart,
+} from '@phosphor-icons/react/dist/ssr';
 import { XMark, BrandLockup } from './brand-marks';
+import { Eyebrow } from './eyebrow';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
@@ -34,7 +39,12 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_1fr_1.1fr_1.2fr]">
+        {/* Every gap here is a spacing step. The grid was gap-10 (40px), the
+            phone theme toggle mt-5 (20px), the bottom row mt-10 pt-5
+            (40/20px) and the column links gap-2.5 (10px): five values the
+            nine-step scale does not have, each replaced with its nearest
+            step (48, 16, 48/16, 12). */}
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_1fr_1.1fr_1.2fr]">
           <div>
             {/* The same object as the header's, at the phone-header size. It
                 was a third hand-written lockup (30px mark, 20px wordmark),
@@ -50,7 +60,7 @@ export function SiteFooter() {
                 two are mutually exclusive: there is never a second one on
                 screen, which is the whole reason this carries `sm:hidden`
                 rather than simply existing. */}
-            <div className="mt-5 sm:hidden">
+            <div className="mt-4 sm:hidden">
               <ThemeToggle />
             </div>
             {/* The round 34px icon control, the same object as the overflow
@@ -125,17 +135,24 @@ export function SiteFooter() {
           </FooterColumn>
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-xs text-muted-foreground">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
           {/* The site is the product; the copyright is the company that owns it. */}
           <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
+          {/* The credit's glyph is Phosphor, at the UI size, like every other
+              icon. It was a colour emoji, the only one on the site: a bitmap
+              from the platform's emoji font in a row of Söhne, drawn
+              differently on every OS. The word goes to screen readers only,
+              so the sentence still reads as one. */}
           <a
             href="https://starl3xx.fun"
             target="_blank"
             rel="noopener noreferrer"
-            className="transition-control hover:text-foreground"
+            className="transition-control inline-flex items-center gap-1 hover:text-foreground"
           >
-            made with 🌠 by{' '}
-            <span className="font-medium text-foreground">@starl3xx</span>
+            made with
+            <Heart className="h-4 w-4" aria-hidden />
+            <span className="sr-only">love</span>
+            by <span className="font-medium text-foreground">@starl3xx</span>
           </a>
         </div>
       </div>
@@ -151,11 +168,11 @@ function FooterColumn({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2.5">
-      {/* The one label style: mono, uppercase, 0.14em. */}
-      <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-        {title}
-      </h2>
+    <div className="flex flex-col gap-3">
+      {/* The one label style, through the primitive that owns the string. It
+          re-typed the classes by hand, which is how a value stops being
+          single. */}
+      <Eyebrow as="h2">{title}</Eyebrow>
       {children}
     </div>
   );

@@ -11,11 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CircleNotch as Loader2,
-  ArrowsClockwise as RefreshCw,
-  CaretRight as ChevronRight,
-} from '@phosphor-icons/react';
+import { ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
+import { Stat } from './Stat';
+import { FunnelStep } from './FunnelStep';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 interface FunnelData {
   pageViews: number;
@@ -97,46 +97,8 @@ export function UserBehavior({ password }: UserBehaviorProps) {
     fetchData();
   }, [fetchData]);
 
-  const FunnelStep = ({
-    label,
-    count,
-    rate,
-    isLast,
-  }: {
-    label: string;
-    count: number;
-    /** null when there is no denominator to divide by. Rendered as an em space. */
-    rate: number | null;
-    isLast?: boolean;
-  }) => (
-    <div className="flex items-center">
-      <div className="flex-1 text-center">
-        <div className="text-xs text-muted-foreground mb-1">{label}</div>
-        <div className="text-lg font-semibold tabular-nums">
-          {count.toLocaleString()}
-        </div>
-        <div className="text-xs text-muted-foreground tabular-nums">
-          {rate === null ? (
-            <span title="No page views recorded in this window, so a rate cannot be computed">
-              n/a
-            </span>
-          ) : (
-            `${rate.toFixed(0)}%`
-          )}
-        </div>
-      </div>
-      {!isLast && (
-        <ChevronRight className="h-4 w-4 text-muted-foreground mx-1 flex-shrink-0" />
-      )}
-    </div>
-  );
-
   if (loading && !funnel) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -172,20 +134,10 @@ export function UserBehavior({ password }: UserBehaviorProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">User behavior analytics</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          <span className="sr-only">Refresh</span>
-        </Button>
+        <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+          User behavior analytics
+        </h2>
+        <RefreshButton onClick={fetchData} loading={loading} />
       </div>
 
       {/* User Journey Funnel */}
@@ -197,7 +149,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
         </CardHeader>
         <CardContent>
           {funnel && (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="grid grid-cols-3 gap-4 md:grid-cols-6">
               <FunnelStep
                 label="Page views"
                 count={funnel.pageViews}
@@ -227,7 +179,6 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 label="Paid"
                 count={funnel.paymentCompleted}
                 rate={rateOf(funnel.paymentCompleted)}
-                isLast
               />
             </div>
           )}
@@ -241,9 +192,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
         </CardHeader>
         <CardContent>
           {cohorts.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">
-              No cohort data available yet
-            </p>
+            <Empty>No cohort data available yet</Empty>
           ) : (
             <Table>
               <TableHeader>
@@ -262,11 +211,13 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                     <TableCell className="text-muted-foreground text-sm">
                       {cohort.definition}
                     </TableCell>
-                    <TableCell className="text-right">{cohort.count}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {cohort.count}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
                       {cohort.avgLookups.toFixed(1)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {/* Three tiers, two colours. A high rate is a measured
                             good outcome, so green; a low one is worth a look,
                             so caution; the middle is just a number. Not
@@ -303,66 +254,48 @@ export function UserBehavior({ password }: UserBehaviorProps) {
         <CardContent>
           {features && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">
-                  ENS lookup rate
-                </div>
-                <div className="text-xl font-semibold tabular-nums">
-                  {features.ensLookupRate.toFixed(0)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">
-                  History save rate
-                </div>
-                <div className="text-xl font-semibold tabular-nums">
-                  {features.historySaveRate.toFixed(0)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">
-                  Export rate
-                </div>
-                <div className="text-xl font-semibold tabular-nums">
-                  {features.exportRate.toFixed(0)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">
-                  Export formats
-                </div>
-                <div className="text-sm">
-                  CSV {features.exportFormats.csv} · X list{' '}
-                  {features.exportFormats.twitter}
-                </div>
-              </div>
+              <Stat
+                label="ENS lookup rate"
+                value={`${features.ensLookupRate.toFixed(0)}%`}
+              />
+              <Stat
+                label="History save rate"
+                value={`${features.historySaveRate.toFixed(0)}%`}
+              />
+              <Stat
+                label="Export rate"
+                value={`${features.exportRate.toFixed(0)}%`}
+              />
+              <Stat
+                label="Export formats"
+                value={
+                  <span className="text-sm font-normal tracking-[var(--tracking-body)]">
+                    CSV {features.exportFormats.csv} · X list{' '}
+                    {features.exportFormats.twitter}
+                  </span>
+                }
+              />
             </div>
           )}
 
           {features && (
             <div className="mt-4 pt-4 border-t">
-              <div className="text-xs text-muted-foreground mb-2">
+              <div className="mb-2 text-xs text-muted-foreground">
                 Average lookup size by tier
               </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="text-sm text-muted-foreground">Free</div>
-                  <div className="text-lg font-semibold tabular-nums">
-                    {features.avgLookupSize.free.toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Pro</div>
-                  <div className="text-lg font-semibold tabular-nums">
-                    {features.avgLookupSize.pro.toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Unlimited</div>
-                  <div className="text-lg font-semibold tabular-nums">
-                    {features.avgLookupSize.unlimited.toLocaleString()}
-                  </div>
-                </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Stat
+                  label="Free"
+                  value={features.avgLookupSize.free.toLocaleString()}
+                />
+                <Stat
+                  label="Pro"
+                  value={features.avgLookupSize.pro.toLocaleString()}
+                />
+                <Stat
+                  label="Unlimited"
+                  value={features.avgLookupSize.unlimited.toLocaleString()}
+                />
               </div>
             </div>
           )}

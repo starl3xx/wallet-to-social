@@ -12,11 +12,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
   Warning as AlertTriangle,
 } from '@phosphor-icons/react';
 import { shortId } from './format';
+import { Stat } from './Stat';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 interface ApiStat {
   provider: string;
@@ -126,11 +128,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
   };
 
   if (loading && apiStats.length === 0) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -147,21 +145,11 @@ export function SystemHealth({ password }: SystemHealthProps) {
 
   return (
     <div className="space-y-6">
+      {/* An h3: the Health tab's h2 sits above this in page.tsx, over both
+          this and DependencyHealth, so this is a subsection of it. */}
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold">System health</h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          <span className="sr-only">Refresh</span>
-        </Button>
+        <RefreshButton onClick={fetchData} loading={loading} />
       </div>
 
       {/* API Performance */}
@@ -171,9 +159,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
         </CardHeader>
         <CardContent>
           {apiStats.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">
-              No API metrics available yet
-            </p>
+            <Empty>No API metrics available yet</Empty>
           ) : (
             <Table>
               <TableHeader>
@@ -192,13 +178,13 @@ export function SystemHealth({ password }: SystemHealthProps) {
                     <TableCell className="font-medium capitalize">
                       {stat.provider}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {stat.avgLatency}ms
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {stat.p99Latency}ms
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
                       <span
                         className={
                           stat.errorRate < 1
@@ -211,7 +197,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
                         {stat.errorRate.toFixed(1)}%
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {stat.totalCalls.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-center">
@@ -238,34 +224,32 @@ export function SystemHealth({ password }: SystemHealthProps) {
               DependencyHealth reports a job it could not check, rather than
               printing a zero an admin would read as measured. */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Queue depth
-              </div>
-              {queue ? (
-                <div className="text-2xl font-extralight tabular-nums">
-                  {queue.depth}
-                </div>
-              ) : (
-                <div
-                  className="text-sm text-muted-foreground"
-                  title="The pulse response did not include a queue depth, so this says nothing about the queue"
+            {queue ? (
+              <Stat label="Queue depth" value={queue.depth} />
+            ) : (
+              <Stat
+                label="Queue depth"
+                value={
+                  <span
+                    className="text-sm font-normal tracking-[var(--tracking-body)] text-muted-foreground"
+                    title="The pulse response did not include a queue depth, so this says nothing about the queue"
+                  >
+                    could not check
+                  </span>
+                }
+              />
+            )}
+            <Stat
+              label="Processing"
+              value={
+                <span
+                  className="text-sm font-normal tracking-[var(--tracking-body)] text-muted-foreground"
+                  title="The pulse endpoint reports pending and processing as one sum, so how many are running right now is not known here"
                 >
                   could not check
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Processing
-              </div>
-              <div
-                className="text-sm text-muted-foreground"
-                title="The pulse endpoint reports pending and processing as one sum, so how many are running right now is not known here"
-              >
-                could not check
-              </div>
-            </div>
+                </span>
+              }
+            />
           </div>
           <p className="text-xs text-muted-foreground mt-4">
             Queue depth is pending plus processing. Under 10 is normal.
@@ -283,9 +267,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
         </CardHeader>
         <CardContent>
           {errors.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">
-              No recent errors: all systems operational
-            </p>
+            <Empty>No recent errors: all systems operational</Empty>
           ) : (
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {/* A record of an error, not an error banner: each row is a

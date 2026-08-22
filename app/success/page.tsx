@@ -252,6 +252,8 @@ function SuccessContent() {
                   way into. Saying so is the point: the alternative was a button
                   back to a signed-out app with no explanation. */}
               {!pack.signedInAsBuyer && (
+                // `p-4` is the inset step: this callout sits inside the Card,
+                // which already carries the p-6 card padding.
                 <div className="rounded-lg border border-accent-brand bg-accent-brand-tint p-4">
                   <p className="text-sm">
                     <span className="font-medium">
@@ -263,10 +265,17 @@ function SuccessContent() {
                 </div>
               )}
 
+              {/* One label for one action. A signed-in buyer's next step is
+                  the lookup, and "Run a lookup" is what that action is called
+                  on /vs, /check and the blog; this said "Start using
+                  walletlink.social" here, "Start your first lookup" on /vs
+                  and "Go to App" in the error branch, six names for one
+                  destination. A signed-out buyer is leaving, not starting,
+                  so that branch keeps "Back to walletlink.social". */}
               <Button asChild className="w-full">
                 <Link href="/">
                   {pack.signedInAsBuyer
-                    ? 'Start using walletlink.social'
+                    ? 'Run a lookup'
                     : 'Back to walletlink.social'}
                 </Link>
               </Button>
@@ -302,7 +311,7 @@ function SuccessContent() {
               )}
 
               <Button asChild className="w-full">
-                <Link href="/">Start using walletlink.social</Link>
+                <Link href="/">Run a lookup</Link>
               </Button>
             </>
           )}
@@ -318,7 +327,8 @@ function SuccessContent() {
               {/* One primary action, with the alternate as an outline pill
                   beneath it rather than a sibling of equal width. Retry is the
                   action the state is asking for; leaving is the fallback. The
-                  label for "/" matches the one the success branch uses. */}
+                  label for "/" is the signed-out one from the success branch,
+                  because an unverified buyer is in the same position. */}
               <div className="flex flex-col gap-2">
                 <Button
                   className="w-full"

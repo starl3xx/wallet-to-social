@@ -12,13 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CircleNotch as Loader2,
-  ArrowsClockwise as RefreshCw,
-  CurrencyDollar as DollarSign,
-  CaretRight as ChevronRight,
-} from '@phosphor-icons/react';
+import { ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
 import { PACKS, isPackId } from '@/lib/packs';
+import { StatTile } from './Stat';
+import { FunnelStep } from './FunnelStep';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 interface FunnelData {
   pageViews: number;
@@ -191,11 +190,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
     );
 
   if (loading && !funnel) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -216,20 +211,10 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Revenue dashboard</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          <span className="sr-only">Refresh</span>
-        </Button>
+        <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+          Revenue dashboard
+        </h2>
+        <RefreshButton onClick={fetchData} loading={loading} />
       </div>
 
       {revenue && !revenue.configured && (
@@ -241,67 +226,44 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
 
       {/* Every figure here is net of refunds and read from Stripe. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <DollarSign className="h-3 w-3" />
-              <span>Net revenue, all time</span>
-            </div>
-            <div className="text-2xl font-extralight tabular-nums">
-              {money(allTime?.netCents ?? 0)}
-            </div>
-            {!!allTime?.refundedCents && (
-              <div className="text-xs text-muted-foreground tabular-nums">
+        <StatTile
+          label="Net revenue, all time"
+          value={money(allTime?.netCents ?? 0)}
+          note={
+            !!allTime?.refundedCents && (
+              <span className="tabular-nums">
                 {money(allTime.grossCents)} gross,{' '}
                 {money(allTime.refundedCents)} refunded
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">
-              Net this month
-            </div>
-            <div className="text-2xl font-extralight tabular-nums">
-              {money(thisMonth?.netCents ?? 0)}
-            </div>
-            {!!thisMonth?.refundedCents && (
-              <div className="text-xs text-muted-foreground tabular-nums">
+              </span>
+            )
+          }
+        />
+        <StatTile
+          label="Net this month"
+          value={money(thisMonth?.netCents ?? 0)}
+          note={
+            !!thisMonth?.refundedCents && (
+              <span className="tabular-nums">
                 {money(thisMonth.refundedCents)} refunded
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">
-              Paid conversions
-            </div>
-            <div className="text-2xl font-extralight tabular-nums">
-              {allTime?.count ?? 0}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {byProduct.join(' · ') || 'none yet'}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">
-              Complimentary
-            </div>
-            <div className="text-2xl font-extralight tabular-nums">
-              {compedUsers.length}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              access beyond what was paid for
-            </div>
-          </CardContent>
-        </Card>
+              </span>
+            )
+          }
+        />
+        <StatTile
+          label="Paid conversions"
+          value={allTime?.count ?? 0}
+          note={byProduct.join(' · ') || 'none yet'}
+        />
+        <StatTile
+          label="Complimentary"
+          value={compedUsers.length}
+          note="access beyond what was paid for"
+        />
       </div>
 
-      {/* Conversion Funnel */}
+      {/* Conversion funnel. A grid that wraps to two across on a phone; it
+          was one flex row of four steps and three carets that could only
+          squeeze. */}
       {funnel && (
         <Card>
           <CardHeader>
@@ -310,42 +272,27 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between gap-2 text-center">
-              <div className="flex-1">
-                <div className="text-xs text-muted-foreground">Lookups</div>
-                <div className="text-lg font-semibold tabular-nums">
-                  {funnel.lookupsStarted}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-xs text-muted-foreground">Saw pricing</div>
-                <div className="text-lg font-semibold tabular-nums">
-                  {funnel.upgradeModalViewed}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-xs text-muted-foreground">
-                  Started checkout
-                </div>
-                <div className="text-lg font-semibold tabular-nums">
-                  {funnel.checkoutStarted}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-xs text-muted-foreground">Completed</div>
-                {/* A completed payment is a real outcome, so it is green. */}
-                <div className="text-lg font-semibold tabular-nums text-attested">
-                  {funnel.paymentCompleted}
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FunnelStep label="Lookups" count={funnel.lookupsStarted} />
+              <FunnelStep
+                label="Saw pricing"
+                count={funnel.upgradeModalViewed}
+              />
+              <FunnelStep
+                label="Started checkout"
+                count={funnel.checkoutStarted}
+              />
+              {/* A completed payment is a real outcome, so it is green. */}
+              <FunnelStep
+                label="Completed"
+                count={funnel.paymentCompleted}
+                valueClassName="text-attested"
+              />
             </div>
             <div className="mt-4 pt-4 border-t text-center">
               <span className="text-sm text-muted-foreground">
                 Saw pricing to completed:{' '}
-                <span className="font-semibold text-foreground tabular-nums">
+                <span className="font-medium text-foreground tabular-nums">
                   {conversionRate.toFixed(1)}%
                 </span>
               </span>
@@ -361,9 +308,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
         </CardHeader>
         <CardContent>
           {!revenue?.payments.length ? (
-            <p className="text-center text-muted-foreground py-4">
-              No payments yet
-            </p>
+            <Empty>No payments yet</Empty>
           ) : (
             <>
               <Table>
@@ -371,7 +316,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>Product</TableHead>
-                    <TableHead>Net</TableHead>
+                    <TableHead className="text-right">Net</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Date</TableHead>
                   </TableRow>
@@ -386,7 +331,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                       <TableCell>
                         <Badge tone="brand">{productName(p)}</Badge>
                       </TableCell>
-                      <TableCell className="tabular-nums">
+                      <TableCell className="text-right font-medium tabular-nums">
                         {p.fullyRefunded ? (
                           <span className="text-muted-foreground line-through">
                             {money(p.amountCents)}

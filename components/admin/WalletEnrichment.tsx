@@ -19,10 +19,10 @@ import {
   FloppyDisk as Save,
   X,
   ArrowSquareOut,
-  PencilSimple as Pencil,
 } from '@phosphor-icons/react';
 import { Banner } from './Banner';
 import { shortWallet } from './format';
+import { Empty, Loading } from './PaneState';
 
 /**
  * A handle as a link to the account it names, in the one treatment a text
@@ -227,13 +227,17 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
 
   return (
     <div className="space-y-6">
+      {/* The pane heading, at the pane tier like every other pane. The card
+          title beneath it names what the card does rather than repeating the
+          pane's name with an icon in front of it. */}
+      <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+        Wallet enrichment
+      </h2>
+
       {/* Search Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Pencil className="h-4 w-4" />
-            Wallet enrichment
-          </CardTitle>
+          <CardTitle className="text-base">Look up a wallet</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Search Input */}
@@ -276,8 +280,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               {/* Current Data Display. Each value sits in its own cell beside
                   its label, so the machine data (ENS name, handles, the
                   timestamp) is mono. */}
+              {/* The one inset surface: `bg-muted` at full opacity, `p-4`.
+                  These two were `/30` washes. */}
               {walletData ? (
-                <div className="p-4 border rounded-lg bg-muted/30">
+                <div className="rounded-lg border border-border bg-muted p-4">
                   <h4 className="font-medium mb-3">Current data</h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -356,7 +362,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                   </div>
                 </div>
               ) : (
-                <div className="p-4 border rounded-lg bg-muted/30">
+                <div className="rounded-lg border border-border bg-muted p-4">
                   <p className="text-sm text-muted-foreground">
                     No existing data for this wallet. Add social data below.
                   </p>
@@ -364,7 +370,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               )}
 
               {/* Edit Form */}
-              <div className="p-4 border rounded-lg">
+              <div className="rounded-lg border border-border p-4">
                 <h4 className="font-medium mb-3">
                   {walletData ? 'Edit social data' : 'Add social data'}
                 </h4>
@@ -446,13 +452,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
         </CardHeader>
         <CardContent>
           {loadingRecent ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <Loading />
           ) : recentEdits.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No manual edits yet
-            </p>
+            <Empty>No manual edits yet</Empty>
           ) : (
             <Table>
               <TableHeader>

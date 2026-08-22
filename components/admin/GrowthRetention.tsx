@@ -11,11 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CircleNotch as Loader2,
-  ArrowsClockwise as RefreshCw,
-} from '@phosphor-icons/react';
+import { ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
 import { Sparkline } from './Sparkline';
+import { Stat } from './Stat';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 interface DailyStat {
   date: string;
@@ -113,11 +113,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
   );
 
   if (loading && dailyStats.length === 0) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -135,20 +131,10 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Growth & retention</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          <span className="sr-only">Refresh</span>
-        </Button>
+        <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+          Growth & retention
+        </h2>
+        <RefreshButton onClick={fetchData} loading={loading} />
       </div>
 
       {/* User Growth */}
@@ -158,46 +144,31 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                New users/week
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-extralight tabular-nums">
-                  {weeks.length > 0 ? weeks[weeks.length - 1][1].newUsers : 0}
-                </span>
+            <Stat
+              label="New users/week"
+              value={weeks.length > 0 ? weeks[weeks.length - 1][1].newUsers : 0}
+              aside={
                 <Sparkline
                   data={weeks.map((w) => w[1].newUsers)}
                   width={80}
                   height={24}
                   color="var(--accent-brand)"
                 />
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Total users (30d)
-              </div>
-              <div className="text-2xl font-extralight tabular-nums">
-                {cumulativeUsers}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Lookups/week
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-extralight tabular-nums">
-                  {weeks.length > 0 ? weeks[weeks.length - 1][1].lookups : 0}
-                </span>
+              }
+            />
+            <Stat label="Total users (30d)" value={cumulativeUsers} />
+            <Stat
+              label="Lookups/week"
+              value={weeks.length > 0 ? weeks[weeks.length - 1][1].lookups : 0}
+              aside={
                 <Sparkline
                   data={weeks.map((w) => w[1].lookups)}
                   width={80}
                   height={24}
                   color="var(--accent-brand)"
                 />
-              </div>
-            </div>
+              }
+            />
           </div>
 
           {/* The `Table` primitive, as every other pane. This was a raw
@@ -219,13 +190,13 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                     <TableCell className="font-mono text-xs tabular-nums">
                       {week}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {data.newUsers}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums">
                       {data.lookups}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right font-medium tabular-nums">
                       ${(data.revenue / 100).toFixed(0)}
                     </TableCell>
                   </TableRow>
@@ -243,9 +214,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
         </CardHeader>
         <CardContent>
           {retention.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">
-              Not enough data for retention analysis yet
-            </p>
+            <Empty>Not enough data for retention analysis yet</Empty>
           ) : (
             <Table>
               <TableHeader>

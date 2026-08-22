@@ -26,10 +26,19 @@ import {
  * the date they were read, because a competitor's price sheet goes stale
  * without anything failing and the date has to sit beside the number it
  * qualifies.
+ *
+ * ## The surface
+ *
+ * One inset panel: `bg-muted` at full token opacity behind the one hairline.
+ * This sat on `bg-muted/30` with no border while the claim beside it used
+ * `bg-muted/40` with one and the blog CTA used `bg-muted/50`, four fills for
+ * one meaning. The token is already theme-aware, and a wash whose contrast
+ * depends on what is behind it is the same mistake the control boundary
+ * made. The competitor tier block on each page takes this same string.
  */
 export function PackPricing() {
   return (
-    <div className="rounded-lg bg-muted/30 p-6">
+    <div className="rounded-lg border border-border bg-muted p-6">
       <h3 className="mb-1 font-semibold">walletlink.social</h3>
       <p className="mb-4 text-sm text-muted-foreground">
         You are charged for matches, not for wallets. A match is a wallet we
@@ -42,8 +51,15 @@ export function PackPricing() {
           were `font-bold`, which is 700 and not one of the five weights the
           scale defines; the upgrade modal had already dropped it for the same
           figure. Not the `Figure` component itself, because that puts the
-          caption under the figure and a price sheet names the pack above it. */}
-      <div className="grid gap-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
+          caption under the figure and a price sheet names the pack above it.
+
+          Five tiles step two, three, five across. Below `sm` this stacked the
+          five packs one per row, about 600px of scroll on a phone for a strip
+          that reads in one glance two-across. A tile's label wraps and the
+          tile grows, so the grid of text can step at `xs` (360px) where a
+          grid of controls could not; `sm` brings the fifth column in at the
+          width the reading column already gives it. */}
+      <div className="grid grid-cols-2 gap-4 text-sm xs:grid-cols-3 sm:grid-cols-5">
         <div>
           <p className="text-muted-foreground">Free</p>
           <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">

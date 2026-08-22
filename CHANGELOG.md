@@ -2,6 +2,45 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (design review, PR 3 of 3: openings, motion, spacing)
+
+- **Every page opens the same way.** Home now carries the signature the
+  comparison pages had alone: a 200-weight display line with one 600-weight
+  word, a 300 lede, then a `Figure` row for the three index figures. The
+  headline "Wallets in. People out." is a placeholder marked in the code for
+  Jake to confirm. `/check`, the blog index, the blog post and admin open on
+  the same shape; section h2s are 300/24px everywhere, card titles 600/18px,
+  and the reading column is left-aligned on every page.
+
+- **Motion on the scale.** Progress fills, meter bars and the DM progress bar
+  animate `transform: scaleX()` at the tokened duration, never `width`;
+  `transition-colors` is gone in favour of `transition-control` on every
+  surface including `Card` and table rows; the dialog panel arrives by fade
+  and `scale(0.97)` over `--d-base` and leaves faster; the close is a ghost
+  icon button. `--tracking-body` is applied on `body`.
+
+- **One surface, nine steps.** Every `bg-muted/30`, `/40`, `/50` and
+  `bg-card/80` wash is `bg-muted` at full opacity; cards are `p-6`, insets
+  `p-4`; the 6, 10, 14, 20 and 40px spacings in the shell, footer, Recent
+  wins, dropzone and `/vs` proof strips moved to the nearest step. The
+  drag-over scrim is the dialog scrim. One `InlineError` for every error
+  beside a control, replacing four shapes.
+
+- **Blog copy.** Titles and table row labels in sentence case; 182 typed
+  double hyphens and em dashes replaced with the mark each sentence wanted;
+  one list marker. Figures unchanged and re-verified.
+
+- **Admin.** Figures at 200 with tabular numerals, one stat-tile anatomy,
+  pane headings and the h1 on the tier, one refresh control, one loading and
+  one empty treatment, the conflicts filter as `Segmented` with short labels
+  below `sm`, match rates as figures rather than progress bars.
+
+- **Three new guard rules** so none of this comes back: `transition-colors`
+  and `transition-all`, a `/NN` wash on a surface token, and a tracking
+  literal (`tracking-tight`, `tracking-[-0.028em]`) all fail CI. Recorded in
+  `docs/DESIGN-LANGUAGE.md` with the opening shape, the dialog anatomy and
+  the left-aligned reading column.
+
 ### 2026-08-22 (design review, PR 2 of 3: use the primitives)
 
 - **One figure, one weight.** `Figure` is the hero-figure weight (200) and

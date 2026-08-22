@@ -1,25 +1,25 @@
 ---
-title: 'walletlink.social vs Addressable: A Practical Comparison'
+title: 'walletlink.social vs Addressable: a practical comparison'
 meta_description: "Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here's when each makes sense."
 published: true
 publish_date: '2026-03-05'
 ---
 
-# walletlink.social vs Addressable: A Practical Comparison
+# walletlink.social vs Addressable: a practical comparison
 
-If you're evaluating wallet identity tools, you've probably come across Addressable. They're the most established player in the space, backed by serious funding, and used by enterprise teams across the industry.
+If you’re evaluating wallet identity tools, you’ve probably come across Addressable. They’re the most established player in the space, backed by serious funding, and used by enterprise teams across the industry.
 
-We get asked about the comparison constantly, so here's an honest breakdown. Both tools resolve wallets to social identities. They take different approaches and serve different needs.
+We get asked about the comparison constantly, so here’s an honest breakdown. Both tools resolve wallets to social identities. They take different approaches and serve different needs.
 
-## What Each Tool Does
+## What each tool does
 
-**Addressable** is a full-stack Web3 marketing platform. Wallet-to-social resolution is one feature inside a broader CRM, audience builder, and campaign management suite. Think of it as HubSpot for Web3 -- identity resolution is the data layer underneath a marketing automation platform.
+**Addressable** is a full-stack Web3 marketing platform. Wallet-to-social resolution is one feature inside a broader CRM, audience builder, and campaign management suite. Think of it as HubSpot for Web3: identity resolution is the data layer underneath a marketing automation platform.
 
 **walletlink.social** is a focused resolution tool. Upload wallet addresses, get back social profiles. No CRM, no campaign management, no audience segmentation dashboards. Just the identity data.
 
 This difference in scope drives most of the other differences.
 
-## Pricing Model
+## Pricing model
 
 |               | walletlink.social                               | Addressable                  |
 | ------------- | ----------------------------------------------- | ---------------------------- |
@@ -30,37 +30,37 @@ This difference in scope drives most of the other differences.
 | Sales process | Self-serve                                      | Demo call required           |
 | Commitment    | None                                            | Annual contracts typical     |
 
-Addressable doesn't publish pricing, so the monthly figures are estimates based on industry reports and what customers have shared publicly. If you have more accurate numbers, we're happy to be corrected.
+Addressable doesn’t publish pricing, so the monthly figures are estimates based on industry reports and what customers have shared publicly. If you have more accurate numbers, we’re happy to be corrected.
 
-The fundamental difference: walletlink.social charges per match, with no recurring cost. You buy a pack of matches, spend them as wallets resolve, and pay nothing for the wallets that resolve to nothing. Download your results and you're done. Addressable charges monthly for ongoing platform access.
+The fundamental difference: walletlink.social charges per match, with no recurring cost. You buy a pack of matches, spend them as wallets resolve, and pay nothing for the wallets that resolve to nothing. Download your results and you’re done. Addressable charges monthly for ongoing platform access.
 
 Which model is better depends entirely on your use case.
 
-## When Addressable Makes More Sense
+## When Addressable makes more sense
 
-**You need a full marketing stack.** If you're running ongoing campaigns, need audience segmentation, want to build lookalike audiences, or need to integrate wallet identity into a broader marketing workflow -- Addressable built that. We didn't.
+**You need a full marketing stack.** If you’re running ongoing campaigns, need audience segmentation, want to build lookalike audiences, or need to integrate wallet identity into a broader marketing workflow: Addressable built that. We didn’t.
 
-**You have dedicated marketing headcount.** Addressable's platform is powerful but requires someone to operate it. If you have a marketing team that will use it daily, the subscription cost is justified by the workflow automation.
+**You have dedicated marketing headcount.** Addressable’s platform is powerful but requires someone to operate it. If you have a marketing team that will use it daily, the subscription cost is justified by the workflow automation.
 
 **You need ongoing monitoring.** Addressable can continuously track your holder base and alert you to changes. If you need to know when a whale sells or a new large holder appears, their real-time capabilities matter.
 
-**You're spending $10K+/month on Web3 marketing.** At that budget level, the Addressable subscription is a rounding error and the additional features pay for themselves.
+**You’re spending $10K+/month on Web3 marketing.** At that budget level, the Addressable subscription is a rounding error and the additional features pay for themselves.
 
-## When walletlink.social Makes More Sense
+## When walletlink.social makes more sense
 
-**You need identity data, not a platform.** Many teams don't need audience segmentation or campaign management. They need a CSV of wallets matched to Twitter and Farcaster handles. That's exactly what we provide.
+**You need identity data, not a platform.** Many teams don’t need audience segmentation or campaign management. They need a CSV of wallets matched to Twitter and Farcaster handles. That’s exactly what we provide.
 
-**You're running a one-time or periodic analysis.** Governance outreach before a big vote. Airdrop planning. Quarterly holder analysis. For periodic use cases, a one-time payment beats a recurring subscription.
+**You’re running a one-time or periodic analysis.** Governance outreach before a big vote. Airdrop planning. Quarterly holder analysis. For periodic use cases, a one-time payment beats a recurring subscription.
 
-**You don't want a sales call.** Some teams want to evaluate the tool before talking to anyone. Our free tier (100 matches every 30 days) lets you test match rates on your actual data in under two minutes.
+**You don’t want a sales call.** Some teams want to evaluate the tool before talking to anyone. Our free tier (100 matches every 30 days) lets you test match rates on your actual data in under two minutes.
 
 **Budget is a constraint.** A $29 one-time payment for 250 matches (roughly 1,000 wallets at our measured rate) is accessible to early-stage projects, small DAOs, and individual researchers. Not everyone has enterprise marketing budgets.
 
 **You want to own the data outright.** You get a CSV download with all matched profiles. No platform lock-in, no need to maintain a subscription to access your results.
 
-## Match Rate Comparison
+## Match rate comparison
 
-This is where we have less data to share, because Addressable doesn't publish their match rates in a way that allows direct comparison.
+This is where we have less data to share, because Addressable doesn’t publish their match rates in a way that allows direct comparison.
 
 What we can say:
 
@@ -68,9 +68,9 @@ What we can say:
 - Industry average for wallet-to-social resolution (across all tools) sits around **2.5%**.
 - Addressable uses proprietary data sources and machine learning to match wallets, which likely gives them strong performance on certain wallet populations.
 
-We haven't run a controlled head-to-head comparison, and we'd be skeptical of anyone who claims to have done so objectively. If you need to compare match rates on your specific holder base, the easiest approach is to run your wallets through our free tier and compare against whatever Addressable provides during their demo.
+We haven’t run a controlled head-to-head comparison, and we’d be skeptical of anyone who claims to have done so objectively. If you need to compare match rates on your specific holder base, the easiest approach is to run your wallets through our free tier and compare against whatever Addressable provides during their demo.
 
-## Data Sources
+## Data sources
 
 **walletlink.social** resolves against four classes of evidence, and labels every match with the one behind it:
 
@@ -86,9 +86,9 @@ We haven't run a controlled head-to-head comparison, and we'd be skeptical of an
 - Third-party data partnerships
 - Onchain analytics
 
-The approaches are fundamentally different. Over 99.9% of our matches are deterministic -- cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records) -- and the remainder is correlated from identity indexes and labelled as such, so every match tells you how it was established. Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
+The approaches are fundamentally different. Over 99.9% of our matches are deterministic: cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records), and the remainder is correlated from identity indexes and labelled as such, so every match tells you how it was established. Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
 
-## Feature Comparison
+## Feature comparison
 
 | Feature                             | walletlink.social             | Addressable              |
 | ----------------------------------- | ----------------------------- | ------------------------ |
@@ -105,16 +105,16 @@ The approaches are fundamentally different. Over 99.9% of our matches are determ
 | Real-time monitoring                | No                            | Yes                      |
 | Self-serve onboarding               | Yes                           | No (sales required)      |
 
-## The Honest Take
+## The honest take
 
 These are different tools for different situations.
 
-If you're an enterprise marketing team with budget and headcount, Addressable gives you more. If you're a DAO contributor who needs to identify holders before a governance push, or a project founder doing airdrop planning, or a researcher analyzing wallet populations -- walletlink.social gets you the core data faster and cheaper.
+If you’re an enterprise marketing team with budget and headcount, Addressable gives you more. If you’re a DAO contributor who needs to identify holders before a governance push, or a project founder doing airdrop planning, or a researcher analyzing wallet populations, walletlink.social gets you the core data faster and cheaper.
 
-We don't think of Addressable as a competitor so much as a different product category. They built a platform. We built a tool. The market needs both.
+We don’t think of Addressable as a competitor so much as a different product category. They built a platform. We built a tool. The market needs both.
 
 ---
 
 **Try it on your own data.**
 
-[walletlink.social](https://walletlink.social) is free for your first 100 matches every 30 days -- no sales call. Upload your holder list and see your match rate in under two minutes.
+[walletlink.social](https://walletlink.social) is free for your first 100 matches every 30 days, no sales call. Upload your holder list and see your match rate in under two minutes.

@@ -11,6 +11,7 @@ import {
 } from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Segmented } from '@/components/ui/segmented';
 import type { WalletSocialResult } from '@/lib/types';
 
@@ -118,8 +119,14 @@ export function ReverseLookup({
   ]);
 
   return (
-    <div className="rounded-lg border bg-muted/30 p-4">
-      <div className="mb-3 space-y-1">
+    /* A Card, the one top-level panel, at the card padding. It was a
+       `bg-muted/30` wash at p-4: an unnamed tint that in dark mode read as the
+       page with a line round it, beside a preflight panel that was a
+       borderless grey block and a "My lookups" panel that was a Card. The
+       Card's own gap owns the vertical rhythm (card stack, 16px); the children
+       carry no margins, because flex gap and child margin silently add. */
+    <Card className="gap-4 p-6">
+      <div className="space-y-1">
         <div className="flex items-center gap-2">
           {/* h-4 w-4 regular: an icon beside a 16px heading is UI scale, and
               duotone is reserved for display moments (docs/DESIGN-LANGUAGE.md,
@@ -202,14 +209,14 @@ export function ReverseLookup({
       </div>
 
       {error && (
-        <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
+        <div className="flex items-start gap-2 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <p>{error}</p>
         </div>
       )}
 
       {empty && (
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           No wallets found for{' '}
           <span className="font-medium text-foreground">
             {empty.platform === 'twitter' ? '@' : ''}
@@ -227,6 +234,6 @@ export function ReverseLookup({
           )}
         </p>
       )}
-    </div>
+    </Card>
   );
 }

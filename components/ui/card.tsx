@@ -2,12 +2,18 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * `transition-control`, not shadcn's `transition-colors`: the tokens carry the
+ * 120ms colour duration, where the paste brought Tailwind's 150ms. A card that
+ * hovers (the admin tiles) now changes colour on the same clock as every
+ * control beside it.
+ */
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="card"
       className={cn(
-        'bg-card text-card-foreground flex flex-col gap-6 rounded-lg border border-border py-6 transition-colors',
+        'bg-card text-card-foreground flex flex-col gap-6 rounded-lg border border-border py-6 transition-control',
         className
       )}
       {...props}

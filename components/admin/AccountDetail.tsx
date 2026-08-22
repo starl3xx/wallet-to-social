@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eyebrow } from '@/components/ui/eyebrow';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -13,8 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CircleNotch as Loader2, ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft } from '@phosphor-icons/react';
 import { Banner } from './Banner';
+import { Stat } from './Stat';
+import { Meter } from './Meter';
+import { Empty, Loading } from './PaneState';
 
 interface AccountData {
   account: {
@@ -117,9 +119,7 @@ export function AccountDetail({
     return (
       <div className="space-y-4">
         {back}
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
+        <Loading />
       </div>
     );
   }
@@ -137,18 +137,18 @@ export function AccountDetail({
   const maxDay = Math.max(1, ...volume.daily.map((d) => d.wallets));
 
   const stat = (label: string, value: string, note?: string) => (
-    <div className="space-y-1">
-      <Eyebrow>{label}</Eyebrow>
-      <p className="text-xl font-semibold tabular-nums">{value}</p>
-      {note && <p className="text-xs text-muted-foreground">{note}</p>}
-    </div>
+    <Stat label={label} value={value} note={note} />
   );
 
   return (
     <div className="space-y-6">
+      {/* The email is the pane heading, at the pane tier. `break-all`, so a
+          long address wraps inside the shell instead of pushing past it. */}
       <div className="flex flex-wrap items-center gap-3">
         {back}
-        <h2 className="text-sm">{account.email}</h2>
+        <h2 className="min-w-0 break-all text-2xl font-light tracking-[var(--tracking-title)]">
+          {account.email}
+        </h2>
         {/* `tier` is a legacy entitlement. Every pack buyer is 'free' here, so
             the word is labelled, or a paying customer reads as a comp. */}
         <Badge tone={account.tier === 'free' ? 'muted' : 'brand'}>
@@ -162,8 +162,10 @@ export function AccountDetail({
         {data.gifted && <Badge tone="caution">gifted, not paid</Badge>}
       </div>
 
+      {/* `Card` is `py-6` and `CardContent` `px-6`: that is the `p-6` card
+          padding, and adding `p-6` here on top doubled it vertically. */}
       <Card>
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-5">
+        <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           {stat(
             'Net paid',
             money(data.netCents),
@@ -272,21 +274,16 @@ export function AccountDetail({
         <CardHeader>
           <CardTitle className="text-base">Wallets per day</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5">
-          {volume.daily.length === 0 && (
-            <p className="text-sm text-muted-foreground">No lookups yet.</p>
-          )}
+        {/* `space-y-2`: the rows were 6px apart, which is not one of the nine
+            spacing steps; 8px is the nearest. */}
+        <CardContent className="space-y-2">
+          {volume.daily.length === 0 && <Empty>No lookups yet.</Empty>}
           {volume.daily.map((d) => (
             <div key={d.day} className="flex items-center gap-3">
               <span className="w-24 flex-none font-mono text-xs text-muted-foreground">
                 {d.day}
               </span>
-              <div className="h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted">
-                <div
-                  className="h-full rounded-sm bg-accent-brand"
-                  style={{ width: `${(d.wallets / maxDay) * 100}%` }}
-                />
-              </div>
+              <Meter bar className="flex-1" value={d.wallets / maxDay} />
               <span className="w-20 flex-none text-right text-sm font-medium tabular-nums">
                 {n(d.wallets)}
               </span>
@@ -300,50 +297,44 @@ export function AccountDetail({
           <CardTitle className="text-base">Recent lookups</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead className="text-right">Wallets</TableHead>
-                <TableHead>How</TableHead>
-                <TableHead>Depth</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.recentJobs.length === 0 && (
+          {data.recentJobs.length === 0 ? (
+            <Empty>No lookups yet.</Empty>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-sm text-muted-foreground"
-                  >
-                    No lookups yet.
-                  </TableCell>
+                  <TableHead>When</TableHead>
+                  <TableHead className="text-right">Wallets</TableHead>
+                  <TableHead>How</TableHead>
+                  <TableHead>Depth</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              )}
-              {data.recentJobs.map((j, i) => (
-                <TableRow key={`${j.created_at}-${i}`}>
-                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
-                    {j.created_at}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {n(j.wallets)}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {j.source === 'contract_import'
-                      ? `contract${j.chain ? ` · ${j.chain}` : ''}${j.contract_name ? ` · ${j.contract_name}` : ''}`
-                      : (j.source ?? 'unknown')}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {j.scan_depth}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {j.status}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.recentJobs.map((j, i) => (
+                  <TableRow key={`${j.created_at}-${i}`}>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {j.created_at}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {n(j.wallets)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {j.source === 'contract_import'
+                        ? `contract${j.chain ? ` · ${j.chain}` : ''}${j.contract_name ? ` · ${j.contract_name}` : ''}`
+                        : (j.source ?? 'unknown')}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {j.scan_depth}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {j.status}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -155,6 +155,15 @@ Söhne, self-hosted in `public/fonts`. Geist Mono via `next/font`, already wired
 **The emphasis span is the signature.** One 600-weight word inside a 200-weight
 line. It costs nothing: both cuts are already loaded.
 
+**Every page opens the same way.** An h1 at the display tier
+(`text-4xl font-extralight tracking-[var(--tracking-display)]`, `sm:text-5xl`
+on the marketing pages only) carrying one emphasis span, then a 300 lede
+(`text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground`),
+then a `Figure` row where figures exist. Section h2 is
+`text-2xl font-light tracking-[var(--tracking-title)]`; a card title is
+`text-lg font-semibold`. Home, /check, the blog and admin were each opening
+differently; now only the words differ.
+
 ### Tracking — bound to size, four steps
 
 | Token         | Value      | Applies at  |
@@ -259,7 +268,8 @@ beneath. **One exception, named:** admin passes `wide` for `max-w-7xl`, because
 dense tables genuinely need more than 1152px.
 
 Reading columns constrain **measure**, not the shell: prose sits in a
-`max-w-[68ch]` column. On a blog post the column is a `text-lg` wrapper around
+`max-w-[68ch]` column, left-aligned inside the shell on every page. (/vs and
+the blog post centred it while /check and the blog index did not; one rule.) On a blog post the column is a `text-lg` wrapper around
 the header, the prose, the back link and the CTA, so all four share one left
 edge; `ch` is computed from the wrapper's size, not the prose's.
 
@@ -333,6 +343,16 @@ hand-roll a dialog out of `fixed inset-0`.
 
 **A dialog is a flex column, never a grid.** It is bounded by
 `max-h-[calc(100dvh-2rem)]`, and its body is `flex-1 min-h-0 overflow-y-auto`.
+
+**Six dialogs, one anatomy.** Title at 18px/600 with no leading icon (Buy
+credits keeps a display-size title as the one named exception, pending a
+decision); actions in `ModalFooter`, which has one layout; inset panels on
+`bg-muted` at `p-4`; an error beside a control is `InlineError`
+(`components/ui/inline-error.tsx`): a 14px destructive line with the 16px
+warning glyph, announced as an alert, never a box. The panel arrives by fade
+and `scale(0.97)` over `--d-base` and leaves over `--d-fast`; the close is a
+ghost icon button named "Close". Below `sm` the panel keeps its radius and
+inset.
 
 This is worth stating as a rule because the obvious repair does not work and
 looks like it should. The dialog was a grid whose body had `min-h-0`, which is
@@ -683,7 +703,7 @@ Two CI jobs and an ESLint rule guard what a grep can see:
 | Guard                               | Covers                                                                                                                                |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                           |
-| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes, the uppercase label, hairline opacity, the unadapted `primary` token, the wrong icon library |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px label may be written only inside `Eyebrow` and `Badge`), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
 | `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                 |
 | `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                       |
 

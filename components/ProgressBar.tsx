@@ -101,7 +101,7 @@ export const ProgressBar = memo(function ProgressBar({
   }, [currentStage, stages]);
 
   return (
-    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm">
+    <Card className="overflow-hidden">
       <CardContent className="p-0">
         {/* Main content area */}
         <div className="p-6 pb-4">
@@ -170,8 +170,10 @@ export const ProgressBar = memo(function ProgressBar({
               the dots to the same percentage as the bar, floored at 5% while
               processing, so at "0% complete" a violet stub already covered the
               first dot. One percentage, one fill. The dots sit on a hairline,
-              and what they say is complete versus pending, not progress. */}
-          <div className="relative mb-5">
+              and what they say is complete versus pending, not progress.
+              `mb-6`, the same 24px as the two gaps above it: this was
+              `mb-5`, 20px, which the nine-step scale does not have. */}
+          <div className="relative mb-6">
             {/* The hairline, ending at the centres of the first and last dots. */}
             <div className="absolute inset-x-1 top-1 h-px bg-border" />
 
@@ -217,7 +219,7 @@ export const ProgressBar = memo(function ProgressBar({
                         versus pending. */}
                     <span
                       className={`
-                        whitespace-nowrap font-mono text-xs uppercase tracking-[0.14em] transition-control
+                        whitespace-nowrap font-mono text-xs uppercase tracking-[var(--tracking-label)] transition-control
                         ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground' : 'text-muted-foreground'}
                         ${isActive ? '' : 'hidden sm:inline'}
                       `}

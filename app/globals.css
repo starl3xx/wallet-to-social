@@ -506,8 +506,15 @@
   b {
     font-weight: 600;
   }
+  /* The body step of the tracking scale. The token was declared and applied
+     nowhere, so every paragraph, button label and table cell ran at Söhne's
+     default tracking and the four-step scale had three steps on screen.
+     Letter-spacing inherits, which is the point: body and UI take it once,
+     and the display, title and lead tiers override it with their own token.
+     Badge and Eyebrow carry the label tracking themselves. */
   body {
     @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-body);
   }
 
   /* Selected text was the operating system's blue everywhere except inside an

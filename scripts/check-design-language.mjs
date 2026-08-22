@@ -75,6 +75,30 @@ const RULES = [
     msg: 'Separation is one hairline at full token opacity. Drop the /NN.',
   },
   {
+    name: 'transition-shorthand',
+    // `transition-control` carries the tokened durations and curves. The
+    // Tailwind shorthands carry the library's 150ms and, in the case of
+    // `transition-all`, animate width and height, which the motion rule bans.
+    // Backtick is deliberately not in the lead-in set: comments quote the
+    // classes they explain in backticks, and the guard must not read prose.
+    re: /(^|[\s"'])(?:[a-z0-9-]+:)*transition-(?:colors|all)(?=[\s"']|$)/,
+    msg: 'transition-control carries the tokened durations. Not transition-colors or transition-all.',
+  },
+  {
+    name: 'surface-wash',
+    // One inset surface: bg-muted at full token opacity. A `/NN` on a surface
+    // token is an unnamed tint whose value changes with whatever is behind it.
+    re: /(^|[\s"'])(?:[a-z0-9-]+:)*bg-(?:muted|card|background)\/\d+(?=[\s"']|$)/,
+    msg: 'One inset surface: bg-muted at full opacity. Drop the /NN.',
+  },
+  {
+    name: 'tracking-literal',
+    // Tracking is bound to size through four tokens. A literal em or a
+    // Tailwind step (`tracking-tight`, `tracking-wide`) is a fifth value.
+    re: /(^|[\s"'])(?:[a-z0-9-]+:)*tracking-(?:tighter|tight|wide|wider|widest|\[-?\d*\.\d+em\])(?=[\s"']|$)/,
+    msg: 'Tracking is a token: tracking-[var(--tracking-display|title|lead|body|label)].',
+  },
+  {
     name: 'icon-library',
     // `components.json` now generates Phosphor, so a lucide import can only mean
     // a component arrived from somewhere that did not read the config, and was
@@ -179,6 +203,47 @@ const FIXTURES = {
       'oklch(0.42 0.19 280)',
       'hsl(210 40% 96%)',
       'rgb(0 0 0 / 0.04)',
+    ],
+  },
+  'transition-shorthand': {
+    bad: [
+      'transition-colors',
+      'hover:transition-all',
+      'className="transition-all duration-300"',
+    ],
+    good: [
+      'transition-control',
+      'transition-transform',
+      'transition-[background-color]',
+      '`transition-colors` in a comment',
+    ],
+  },
+  'surface-wash': {
+    bad: [
+      'bg-muted/30',
+      'dark:bg-muted/50',
+      'bg-card/80 backdrop-blur-sm',
+      'bg-background/95',
+    ],
+    good: [
+      'bg-muted',
+      'bg-accent-brand-tint/30',
+      'bg-destructive-tint',
+      'a `bg-muted/30` wash in prose',
+    ],
+  },
+  'tracking-literal': {
+    bad: [
+      'tracking-tight',
+      'tracking-[-0.028em]',
+      'sm:tracking-[0.14em]',
+      'tracking-wider',
+    ],
+    good: [
+      'tracking-[var(--tracking-title)]',
+      'tracking-[var(--tracking-label)]',
+      'tracking-normal',
+      '`tracking-wide` in prose',
     ],
   },
   'border-opacity': {

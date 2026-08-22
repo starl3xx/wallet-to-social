@@ -137,10 +137,13 @@ export function InputMethodPicker({
    * three things people do in very different proportions, and buried the most
    * welcoming fact about the product: the whole page is a drop target. The primary
    * says so with a dashed edge rather than mentioning it in a caption.
+   *
+   * `p-4`: 20px is not a spacing step, and the 44px disc already sets the
+   * height, so the step down from p-5 costs the target nothing.
    */
   const dropBase =
     'group flex w-full items-center gap-4 rounded-lg border border-dashed border-accent-brand ' +
-    'bg-accent-brand-tint p-5 text-left transition-control ' +
+    'bg-accent-brand-tint p-4 text-left transition-control ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
     (disabled
       ? 'opacity-50 pointer-events-none '
@@ -160,8 +163,11 @@ export function InputMethodPicker({
 
   return (
     <div>
+      {/* The drag overlay takes the same scrim the dialogs use
+          (components/ui/modal.tsx), so a drag over the page and an open dialog
+          dim it identically. It was a `bg-background/80` wash, a second scrim. */}
       {isDragging && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="rounded-lg border-2 border-dashed border-accent-brand bg-background px-8 py-6 text-center">
             <Upload
               className="mx-auto h-10 w-10 text-accent-brand"

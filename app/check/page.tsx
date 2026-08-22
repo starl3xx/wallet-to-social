@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { ReachabilityChecker } from '@/components/ReachabilityChecker';
 import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
 import { WALLETS_WITH_X } from '@/lib/public-figures';
@@ -52,12 +53,28 @@ export const metadata: Metadata = {
 export default function CheckPage() {
   return (
     <PageShell>
-      <div className="flex flex-col gap-10">
+      {/* The one reading column, 68ch and left-aligned inside the shell,
+          owning the form and the cards as well as the prose. Each paragraph
+          used to cap itself at 68ch while the input and the two cards ran the
+          full 1152px shell: a thousand-pixel field for one handle, and a card
+          whose text filled its left half. A div rather than an article,
+          because the page carries a form. gap-12 between the parts: 40px was
+          not a spacing step. */}
+      <div className="flex max-w-[68ch] flex-col gap-12">
         <header className="flex flex-col gap-4">
-          <h1 className="text-3xl font-medium tracking-tight">
-            Does this X handle still reach anyone?
+          {/* The same opening as the /vs pages and the blog: display tier,
+              weight 200, the display tracking token, with the one emphasis
+              span. It was 30px at 500 with `tracking-tight`, which is not one
+              of the four steps, and 500 is the weight for labels and buttons.
+              The two paragraphs are the 300-weight lede. */}
+          <h1 className="max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
+            Does this X handle{' '}
+            <em className="font-semibold not-italic text-accent-brand">
+              still
+            </em>{' '}
+            reach anyone?
           </h1>
-          <p className="max-w-[68ch] text-muted-foreground">
+          <p className="text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground">
             Farcaster records a verified X account as a{' '}
             <strong className="font-semibold">name</strong>, captured once, with
             no account number and no later check. Nothing in the protocol
@@ -65,7 +82,7 @@ export default function CheckPage() {
             verifications carries the same dead handles and none of them can
             tell you which.
           </p>
-          <p className="max-w-[68ch] text-muted-foreground">
+          <p className="text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground">
             We resolved ours against X itself. Check any handle below. No
             account, no key, nothing to install.
           </p>
@@ -73,9 +90,13 @@ export default function CheckPage() {
 
         <ReachabilityChecker />
 
+        {/* Section h2: 24px at 300 with the title tracking, the same heading
+            every /vs section carries. It was 18px at 500. */}
         <section className="flex flex-col gap-3 border-t border-border pt-8">
-          <h2 className="text-lg font-medium">What this does not tell you</h2>
-          <p className="max-w-[68ch] text-sm text-muted-foreground">
+          <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+            What this does not tell you
+          </h2>
+          <p className="text-sm text-muted-foreground">
             It reports how many wallets in our index carry the handle, never
             which ones. Going from a handle to its wallets is the reverse
             lookup, and that is a paid feature. The count is here because it is
@@ -83,18 +104,21 @@ export default function CheckPage() {
             a curiosity, and the same handle on two hundred is a campaign
             sending into nothing.
           </p>
-          <p className="max-w-[68ch] text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             A handle we have not resolved yet says so. It is never assumed live,
             which is the whole point: guessing here is the thing this page
             exists to disprove.
           </p>
         </section>
 
-        <section className="flex flex-col items-start gap-4 rounded-lg border border-border bg-muted/40 p-6">
-          <h2 className="text-lg font-medium">
+        {/* A Card, the one top-level panel, with the card-title weight on its
+            heading. It was a hand-rolled box on a `bg-muted/40` wash with an
+            18px title at 500. */}
+        <Card className="items-start gap-4 p-6">
+          <h2 className="text-lg font-semibold">
             Checking one is a demonstration. Checking your list is the product.
           </h2>
-          <p className="max-w-[68ch] text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Upload a holder list and every match comes back with the same answer
             attached, across {WALLETS_WITH_X} wallets carrying an X handle. The
             handle export leaves out the ones we checked and found dead, so a
@@ -109,7 +133,7 @@ export default function CheckPage() {
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </Button>
-        </section>
+        </Card>
       </div>
     </PageShell>
   );

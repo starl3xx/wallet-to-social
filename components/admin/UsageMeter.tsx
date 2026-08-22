@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eyebrow } from '@/components/ui/eyebrow';
 import {
   Table,
   TableBody,
@@ -12,11 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CircleNotch as Loader2,
-  ArrowsClockwise as RefreshCw,
-} from '@phosphor-icons/react';
 import { Banner } from './Banner';
+import { Stat } from './Stat';
+import { Meter } from './Meter';
+import { RefreshButton } from './RefreshButton';
+import { Empty, Loading } from './PaneState';
 
 interface DailyRow {
   day: string;
@@ -91,11 +90,7 @@ export function UsageMeter({
   }, [fetchData]);
 
   if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -106,32 +101,37 @@ export function UsageMeter({
 
   const maxWallets = Math.max(1, ...data.daily.map((d) => d.wallets));
 
+  // Spend against the plan limit. The figure goes red once the limit is
+  // passed; the bar turns caution at three quarters, before it is.
   const provider = (p: ProviderRow) => {
-    const pct = p.limit > 0 ? (p.spent / p.limit) * 100 : 0;
+    const pct = p.limit > 0 ? p.spent / p.limit : 0;
     const over = p.spent > p.limit;
     return (
-      <div className="space-y-1.5">
-        <Eyebrow>{p.label}</Eyebrow>
-        <p
-          className={`text-2xl font-extralight tabular-nums ${over ? 'text-destructive' : ''}`}
-        >
-          {n(p.spent)}
-          <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-            of {n(p.limit)}
-          </span>
-        </p>
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <div
-            className={`h-full rounded-full ${over ? 'bg-destructive' : pct > 75 ? 'bg-caution' : 'bg-accent-brand'}`}
-            style={{ width: `${Math.min(100, pct)}%` }}
-          />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {over
-            ? `Over the plan limit. Background work stopped at ${n(p.backgroundCeiling)}.`
-            : `Background work stops at ${n(p.backgroundCeiling)}; the rest is held for customers.`}
-        </p>
-      </div>
+      <Stat
+        label={p.label}
+        value={
+          <>
+            {n(p.spent)}
+            <span className="ml-2 text-sm font-normal tracking-[var(--tracking-body)] text-muted-foreground">
+              of {n(p.limit)}
+            </span>
+          </>
+        }
+        valueClassName={over ? 'text-destructive' : undefined}
+        note={
+          <div className="space-y-2">
+            <Meter
+              value={pct}
+              tone={over ? 'destructive' : pct > 0.75 ? 'caution' : 'brand'}
+            />
+            <p>
+              {over
+                ? `Over the plan limit. Background work stopped at ${n(p.backgroundCeiling)}.`
+                : `Background work stops at ${n(p.backgroundCeiling)}; the rest is held for customers.`}
+            </p>
+          </div>
+        }
+      />
     );
   };
 
@@ -139,29 +139,21 @@ export function UsageMeter({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold">Usage</h2>
+          <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+            Usage
+          </h2>
           <p className="text-sm text-muted-foreground">
             Measuring only. No plan carries a daily allowance, and nothing here
             creates one.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          Refresh
-        </Button>
+        <RefreshButton onClick={fetchData} loading={loading} />
       </div>
 
+      {/* `Card` is `py-6` and `CardContent` `px-6`: that is the `p-6` card
+          padding, and adding `p-6` here on top doubled it vertically. */}
       <Card>
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-2">
+        <CardContent className="grid gap-6 sm:grid-cols-2">
           {provider(data.providers.social)}
           {provider(data.providers.holderIndex)}
         </CardContent>
@@ -184,61 +176,57 @@ export function UsageMeter({
             </span>{' '}
             wallets, on {data.allTimePeak.peak_day ?? 'an unknown day'}.
           </p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Account</TableHead>
-                <TableHead>Tier</TableHead>
-                <TableHead className="text-right">Peak day</TableHead>
-                <TableHead>On</TableHead>
-                <TableHead className="text-right">Lifetime</TableHead>
-                <TableHead className="text-right">Active days</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.peaks.length === 0 && (
+          {data.peaks.length === 0 ? (
+            <Empty>No signed-in lookups yet.</Empty>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-sm text-muted-foreground"
-                  >
-                    No signed-in lookups yet.
-                  </TableCell>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Tier</TableHead>
+                  <TableHead className="text-right">Peak day</TableHead>
+                  <TableHead>On</TableHead>
+                  <TableHead className="text-right">Lifetime</TableHead>
+                  <TableHead className="text-right">Active days</TableHead>
                 </TableRow>
-              )}
-              {data.peaks.map((p, i) => (
-                <TableRow key={`${p.email ?? 'anon'}-${i}`}>
-                  <TableCell className="max-w-[18rem] truncate">
-                    {p.email && onAccountClick ? (
-                      <Button
-                        variant="link"
-                        size="inline"
-                        className="max-w-full truncate"
-                        onClick={() => onAccountClick(p.email!)}
-                      >
-                        {p.email}
-                      </Button>
-                    ) : (
-                      (p.email ?? 'anonymous')
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">{p.tier ?? 'free'}</TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {n(p.peak_wallets)}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
-                    {p.busiest_day}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {n(p.total_wallets)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {p.active_days}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.peaks.map((p, i) => (
+                  <TableRow key={`${p.email ?? 'anon'}-${i}`}>
+                    <TableCell className="max-w-[18rem] truncate">
+                      {p.email && onAccountClick ? (
+                        <Button
+                          variant="link"
+                          size="inline"
+                          className="max-w-full truncate"
+                          onClick={() => onAccountClick(p.email!)}
+                        >
+                          {p.email}
+                        </Button>
+                      ) : (
+                        (p.email ?? 'anonymous')
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {p.tier ?? 'free'}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {n(p.peak_wallets)}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {p.busiest_day}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {n(p.total_wallets)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {p.active_days}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -248,23 +236,18 @@ export function UsageMeter({
             Wallets per day, last 30 days
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5">
+        {/* `space-y-2`: the rows were 6px apart, which is not one of the nine
+            spacing steps; 8px is the nearest. */}
+        <CardContent className="space-y-2">
           {data.daily.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No lookups in the last 30 days.
-            </p>
+            <Empty>No lookups in the last 30 days.</Empty>
           )}
           {data.daily.map((d) => (
             <div key={d.day} className="flex items-center gap-3">
               <span className="w-24 flex-none font-mono text-xs text-muted-foreground">
                 {d.day}
               </span>
-              <div className="h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted">
-                <div
-                  className="h-full rounded-sm bg-accent-brand"
-                  style={{ width: `${(d.wallets / maxWallets) * 100}%` }}
-                />
-              </div>
+              <Meter bar className="flex-1" value={d.wallets / maxWallets} />
               <span className="w-20 flex-none text-right text-sm font-medium tabular-nums">
                 {n(d.wallets)}
               </span>

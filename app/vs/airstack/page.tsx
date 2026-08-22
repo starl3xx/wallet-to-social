@@ -79,7 +79,11 @@ export default function AirstackComparison() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <PageShell>
-        <article className="mx-auto max-w-[68ch]">
+        {/* The reading column constrains measure, not position: 68ch, on the
+            shell's left edge like /check and the blog index. It was centred
+            with `mx-auto`, which put the text on a different horizontal line
+            from the pages a reader visits before and after it. */}
+        <article className="max-w-[68ch]">
           <header className="mb-12">
             {/* The emphasis span is the type system's one device: a 600-weight
                 word inside a 200-weight line. Both cuts are already loaded. */}
@@ -90,12 +94,15 @@ export default function AirstackComparison() {
               </em>
               .
             </h1>
-            <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
+            {/* The lede: 300 at 18px with the lead tracking, in the muted token.
+                `text-foreground/80` was an opacity wash standing in for the
+                token that already means "secondary text". */}
+            <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
               Airstack gives you a query language. We give you the one join it
               is usually built to perform, as a CSV or an endpoint.
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-2.5">
+            <div className="mt-6 flex flex-wrap gap-3">
               <Button asChild>
                 <Link href="/">
                   <MagnifyingGlass className="h-4 w-4" aria-hidden />
@@ -123,7 +130,13 @@ export default function AirstackComparison() {
                 on", but a rate is nothing the reader can act on, and violet is
                 the colour of an affordance. Green is the colour of a measured
                 fact, and the hit rate is named as one. */}
-            <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
+            {/* Two-by-two on a phone, four across from `sm`. As a wrapping flex
+                row the four figures broke 2/1/1 at 375px, and its 40/20/20px
+                gaps were off the nine-step scale; these are 32, 24 and 24.
+                `items-start` because Figure is a `flex-col-reverse` column:
+                in a stretched grid cell it packs to the bottom, so a figure
+                whose caption wraps sat a line above its neighbours. */}
+            <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
@@ -144,7 +157,7 @@ export default function AirstackComparison() {
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-4">
               What happened to Airstack?
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -153,7 +166,7 @@ export default function AirstackComparison() {
               resolve wallets to identities, and pull onchain data through a
               single GraphQL interface:
             </p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
+            <ul className="list-disc pl-6 text-muted-foreground space-y-2 mb-4">
               <li>Farcaster social graph and profile queries</li>
               <li>Wallet-to-identity resolution across protocols</li>
               <li>Token balance and onchain activity data</li>
@@ -176,7 +189,7 @@ export default function AirstackComparison() {
               down are lists, not capability claims, and their check marks take
               the card's own text colour. */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-6">
               What Airstack offered vs what walletlink.social offers
             </h2>
             <div className="overflow-x-auto">
@@ -319,7 +332,7 @@ export default function AirstackComparison() {
 
           {/* What is walletlink.social */}
           <section className="mb-12">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-4">
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -342,7 +355,7 @@ export default function AirstackComparison() {
 
           {/* Migrating from Airstack */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-6">
               Migrating from Airstack
             </h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
@@ -381,13 +394,13 @@ export default function AirstackComparison() {
               of its own and the callouts carry no mt. Gap and margin must not both
               own the same space. */}
           <section className="mb-16 space-y-6">
-            <h2 className="text-2xl font-light tracking-[-0.028em]">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
               Pricing after Airstack
             </h2>
 
             <PackPricing />
 
-            <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
+            <div className="p-6 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">No usage invoices:</span> every
                 pack is a one-time payment with API access included, so there is
@@ -403,7 +416,7 @@ export default function AirstackComparison() {
               label is the one the product uses for this action everywhere, so the
               hero and the close name the same destination the same way. */}
           <section className="text-center py-12 border-t">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
+            <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-4">
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">

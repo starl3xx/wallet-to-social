@@ -14,6 +14,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { shortId } from './format';
+import { Empty } from './PaneState';
 
 interface SearchResult {
   type: 'user' | 'job' | 'lookup';
@@ -197,15 +198,16 @@ export function UniversalSearch({
         {searched && (
           <div className="mt-4">
             {results.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No results found for &ldquo;{query}&rdquo;
-              </p>
+              <Empty>No results found for &ldquo;{query}&rdquo;</Empty>
             ) : (
               <div className="space-y-2">
+                {/* `hover:bg-muted`, the fill every outline and ghost control
+                    hovers to. `accent` is the unadapted shadcn token, a grey
+                    under a name that reads like a brand one. */}
                 {results.map((result) => (
                   <button
                     key={`${result.type}-${result.id}`}
-                    className="w-full text-left p-3 rounded-lg border border-input hover:bg-accent transition-control"
+                    className="w-full text-left p-3 rounded-lg border border-input hover:bg-muted transition-control"
                     onClick={() => onResultClick?.(result)}
                   >
                     <div className="flex items-start gap-3">

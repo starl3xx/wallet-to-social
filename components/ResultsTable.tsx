@@ -243,7 +243,7 @@ function SortHeader({
         type="button"
         onClick={() => onSort(field)}
         title={title}
-        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[0.14em] outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
+        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[var(--tracking-label)] outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
       >
         {label}
         {isSorted && <Arrow className="h-3 w-3" aria-hidden />}
@@ -663,7 +663,7 @@ export const ResultsTable = memo(function ResultsTable({
           <div
             role="row"
             aria-rowindex={1}
-            className="sticky top-0 z-20 grid border-b border-border bg-background font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground"
+            className="sticky top-0 z-20 grid border-b border-border bg-background font-mono text-xs uppercase tracking-[var(--tracking-label)] text-muted-foreground"
             style={{
               gridTemplateColumns: gridTemplate,
               height: HEADER_HEIGHT,

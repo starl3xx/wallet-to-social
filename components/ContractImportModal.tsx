@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { InlineError } from '@/components/ui/inline-error';
 import {
   CircleNotch as Loader2,
   Warning as AlertTriangle,
@@ -225,15 +226,12 @@ export function ContractImportModal({
         {/* Input Step */}
         {step === 'input' && (
           <div className="space-y-4">
-            {/* The one error banner treatment: a full-opacity tint and no
-                border. It was `bg-destructive/10` under a `/20` border, and a
-                faded border is the thing the elevation rule bans. */}
-            {error && (
-              <div className="flex items-start gap-2 rounded-lg bg-destructive-tint p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" />
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
-            )}
+            {/* The one inline error, shared with the address check below:
+                a request that failed and a field that does not validate are
+                the same statement at the same scale. This was a tinted box
+                (before that, `bg-destructive/10` under a `/20` border) while
+                the check under the field was bare 12px text. */}
+            {error && <InlineError>{error}</InlineError>}
 
             {/* Contract address input */}
             <div className="space-y-2">
@@ -249,9 +247,7 @@ export function ContractImportModal({
                 autoFocus
               />
               {contractAddress && !isValidAddress && (
-                <p className="text-xs text-destructive">
-                  Please enter a valid Ethereum address
-                </p>
+                <InlineError>Please enter a valid Ethereum address</InlineError>
               )}
             </div>
 
@@ -286,11 +282,22 @@ export function ContractImportModal({
                       onChange={() => setChain(c)}
                       className="peer sr-only"
                     />
-                    {/* `border-input`, because a tile you can select is a
-                        control and its edge has to clear 3:1; `border-border`
-                        is the decorative hairline. `transition-control`
-                        carries the product's durations. */}
-                    <span className="block rounded-lg border border-input px-3 py-2 text-center text-sm transition-control hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                    {/* A tile you can select is a control: `h-control`, so
+                        it resolves to the 34px every control in a row shares
+                        (`py-2` on 14px text made it 36 beside 34px buttons),
+                        `border-input` so its edge clears 3:1, and
+                        `transition-control` for the product's durations.
+
+                        The selected tile is violet: selection is an
+                        affordance, and this was the one control in the
+                        product whose selection was foreground-on-muted,
+                        which the segmented-control notes name as the defect
+                        class. Hover changes colour only, to the one rested
+                        grey at full opacity. The `peer-checked:hover` rule
+                        exists because Tailwind sorts `hover:` after
+                        `peer-checked:`, so without it hovering the selected
+                        tile painted it grey. */}
+                    <span className="flex h-control items-center justify-center rounded-lg border border-input px-3 text-sm transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
                       {CHAIN_LABELS[c]}
                     </span>
                   </label>

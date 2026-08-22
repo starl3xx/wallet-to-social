@@ -1,21 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardActivator, CardContent } from '@/components/ui/card';
+import { CardActivator } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkline } from './Sparkline';
+import { StatTile } from './Stat';
+import { RefreshButton } from './RefreshButton';
+import { Loading } from './PaneState';
 import {
-  CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
   TrendUp as TrendingUp,
   TrendDown as TrendingDown,
   Minus,
-  MagnifyingGlass as Search,
-  CurrencyDollar as DollarSign,
-  WarningCircle as AlertCircle,
-  Stack as Layers,
-  Users,
-  ChartBar as BarChart3,
 } from '@phosphor-icons/react';
 
 interface PulseData {
@@ -97,19 +93,18 @@ export function ExecutivePulse({
       yellow: 'bg-caution',
       red: 'bg-destructive',
     };
+    // No margin of its own: the figure it sits in is a flex row with a gap,
+    // and a gap plus a child margin silently add.
     return (
       <span
-        className={`inline-block w-2 h-2 rounded-full ${colors[status]} mr-1`}
+        className={`inline-block w-2 h-2 rounded-full ${colors[status]}`}
+        aria-hidden
       />
     );
   };
 
   if (loading && !data) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
@@ -126,184 +121,138 @@ export function ExecutivePulse({
 
   if (!data) return null;
 
+  // The tile label carries no icon: the affordance table gives a label none,
+  // and the six glyphs that sat here repeated what the words already said.
+  const tile = 'hover:border-accent-brand transition-control';
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Executive pulse</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchPulse}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          <span className="sr-only">Refresh</span>
-        </Button>
+        <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
+          Executive pulse
+        </h2>
+        <RefreshButton onClick={fetchPulse} loading={loading} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* Lookups Today */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Lookups today"
+          value={data.lookupsToday}
+          aside={
+            <Sparkline
+              data={data.lookupsTrend}
+              width={60}
+              height={20}
+              color="var(--accent-brand)"
+            />
+          }
+        >
           {onMetricClick && (
             <CardActivator
               label="Lookups today: open the jobs tab"
               onClick={() => onMetricClick('jobs')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Search className="h-3 w-3" />
-              <span>Lookups today</span>
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {data.lookupsToday}
-              </span>
-              <Sparkline
-                data={data.lookupsTrend}
-                width={60}
-                height={20}
-                color="var(--accent-brand)"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
 
-        {/* Active Users */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Active users (7d)"
+          value={data.activeUsers7d}
+          aside={<TrendIcon trend={data.activeUsersTrend} />}
+        >
           {onMetricClick && (
             <CardActivator
               label="Active users: open the behaviour tab"
               onClick={() => onMetricClick('behavior')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Users className="h-3 w-3" />
-              <span>Active users (7d)</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {data.activeUsers7d}
-              </span>
-              <TrendIcon trend={data.activeUsersTrend} />
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
 
-        {/* Conversion Rate */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Conversion rate"
+          value={`${data.conversionRate.toFixed(1)}%`}
+        >
           {onMetricClick && (
             <CardActivator
               label="Conversion rate: open the revenue tab"
               onClick={() => onMetricClick('revenue')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <BarChart3 className="h-3 w-3" />
-              <span>Conversion rate</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {data.conversionRate.toFixed(1)}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
 
-        {/* Revenue MTD */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Revenue (MTD)"
+          value={`$${data.revenueMTD.toLocaleString()}`}
+          aside={
+            <span
+              className={`text-xs tabular-nums ${
+                data.revenueVsLastMonth >= 0 ? 'text-attested' : 'text-caution'
+              }`}
+            >
+              {data.revenueVsLastMonth >= 0 ? '+' : ''}
+              {data.revenueVsLastMonth}%
+            </span>
+          }
+        >
           {onMetricClick && (
             <CardActivator
               label="Revenue this month: open the revenue tab"
               onClick={() => onMetricClick('revenue')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <DollarSign className="h-3 w-3" />
-              <span>Revenue (MTD)</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                ${data.revenueMTD.toLocaleString()}
-              </span>
-              <span
-                className={`text-xs ${
-                  data.revenueVsLastMonth >= 0
-                    ? 'text-attested'
-                    : 'text-caution'
-                }`}
-              >
-                {data.revenueVsLastMonth >= 0 ? '+' : ''}
-                {data.revenueVsLastMonth}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
 
-        {/* Error Rate */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Error rate (24h)"
+          value={
+            <>
+              <StatusIndicator status={data.errorStatus} />
+              {data.errorRate.toFixed(1)}%
+            </>
+          }
+        >
           {onMetricClick && (
             <CardActivator
               label="Error rate: open the health tab"
               onClick={() => onMetricClick('health')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <AlertCircle className="h-3 w-3" />
-              <span>Error rate (24h)</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                <StatusIndicator status={data.errorStatus} />
-                {data.errorRate.toFixed(1)}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
 
-        {/* Queue Depth */}
-        <Card className="relative hover:border-accent-brand transition-control">
+        <StatTile
+          className={tile}
+          label="Queue depth"
+          value={data.queueDepth}
+          /* Two tiers, matching the two labels that differ. There was a
+             destructive tier at > 50, tested after > 10 and so never
+             reached; it is gone rather than reordered, because a backlog
+             is a metric and destructive is for revoking and deleting. */
+          aside={
+            <span
+              className={`text-xs ${
+                data.queueDepth > 10 ? 'text-caution' : 'text-attested'
+              }`}
+            >
+              {data.queueDepth === 0
+                ? 'idle'
+                : data.queueDepth <= 10
+                  ? 'normal'
+                  : 'busy'}
+            </span>
+          }
+        >
           {onMetricClick && (
             <CardActivator
               label="Queue depth: open the jobs tab"
               onClick={() => onMetricClick('jobs')}
             />
           )}
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Layers className="h-3 w-3" />
-              <span>Queue depth</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-extralight tabular-nums">
-                {data.queueDepth}
-              </span>
-              {/* Two tiers, matching the two labels that differ. There was a
-                  destructive tier at > 50, tested after > 10 and so never
-                  reached; it is gone rather than reordered, because a backlog
-                  is a metric and destructive is for revoking and deleting. */}
-              <span
-                className={`text-xs ${
-                  data.queueDepth > 10 ? 'text-caution' : 'text-attested'
-                }`}
-              >
-                {data.queueDepth === 0
-                  ? 'idle'
-                  : data.queueDepth <= 10
-                    ? 'normal'
-                    : 'busy'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        </StatTile>
       </div>
     </div>
   );

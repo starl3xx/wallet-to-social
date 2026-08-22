@@ -3,8 +3,16 @@
 import { useCallback, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { XMark } from '@/components/ui/brand-marks';
-import { CircleNotch, MagnifyingGlass, SealCheck, Question, Warning } from '@phosphor-icons/react';
+import {
+  CircleNotch,
+  MagnifyingGlass,
+  SealCheck,
+  Question,
+  Warning,
+} from '@phosphor-icons/react';
 
 /**
  * Check one X handle against what we resolved, with no account and no key.
@@ -35,11 +43,18 @@ interface Answer {
  * One row per state, so the treatment is a lookup rather than a chain of
  * ternaries that can disagree with itself as states are added.
  */
-const TREATMENT: Record<State, { tone: string; tint: string; Icon: typeof SealCheck }> = {
+const TREATMENT: Record<
+  State,
+  { tone: string; tint: string; Icon: typeof SealCheck }
+> = {
   live: { tone: 'text-attested', tint: 'bg-attested-tint', Icon: SealCheck },
   suspended: { tone: 'text-caution', tint: 'bg-caution-tint', Icon: Warning },
   unclaimed: { tone: 'text-caution', tint: 'bg-caution-tint', Icon: Warning },
-  unchecked: { tone: 'text-muted-foreground', tint: 'bg-muted', Icon: Question },
+  unchecked: {
+    tone: 'text-muted-foreground',
+    tint: 'bg-muted',
+    Icon: Question,
+  },
   unknown: { tone: 'text-muted-foreground', tint: 'bg-muted', Icon: Question },
 };
 
@@ -58,7 +73,9 @@ export function ReachabilityChecker() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reachability?handle=${encodeURIComponent(handle)}`);
+      const res = await fetch(
+        `/api/reachability?handle=${encodeURIComponent(handle)}`
+      );
       const body = await res.json();
       if (mine !== seq.current) return;
       if (!res.ok) {
@@ -80,7 +97,7 @@ export function ReachabilityChecker() {
     }
   }, [value, loading]);
 
-  const shown = answer ? TREATMENT[answer.state] ?? TREATMENT.unknown : null;
+  const shown = answer ? (TREATMENT[answer.state] ?? TREATMENT.unknown) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +124,11 @@ export function ReachabilityChecker() {
             className="pl-9 font-mono"
           />
         </div>
-        <Button type="submit" disabled={loading || !value.trim()} className="sm:w-auto">
+        <Button
+          type="submit"
+          disabled={loading || !value.trim()}
+          className="sm:w-auto"
+        >
           {loading ? (
             <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -124,44 +145,63 @@ export function ReachabilityChecker() {
       )}
 
       {answer && shown && (
-        <div role="status" className="rounded-lg border border-border p-5">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-3">
-              <span
-                className={`flex h-9 w-9 flex-none items-center justify-center rounded-full ${shown.tint}`}
-              >
-                <shown.Icon className={`h-5 w-5 ${shown.tone}`} weight="fill" aria-hidden />
-              </span>
-              <div className="flex flex-col gap-1">
-                <p className="font-mono text-sm text-muted-foreground">@{answer.handle}</p>
-                <p className={`text-lg font-medium ${shown.tone}`}>{answer.label}</p>
-              </div>
+        /* A Card at the card padding, with the card stack (16px) as its own
+           gap. It was a hand-rolled `rounded-lg border p-5` box, and 20px is
+           not a spacing step. */
+        <Card role="status" className="gap-4 p-6">
+          <div className="flex items-start gap-3">
+            <span
+              className={`flex h-9 w-9 flex-none items-center justify-center rounded-full ${shown.tint}`}
+            >
+              <shown.Icon
+                className={`h-5 w-5 ${shown.tone}`}
+                weight="fill"
+                aria-hidden
+              />
+            </span>
+            <div className="flex flex-col gap-1">
+              <p className="font-mono text-sm text-muted-foreground">
+                @{answer.handle}
+              </p>
+              <p className={`text-lg font-medium ${shown.tone}`}>
+                {answer.label}
+              </p>
             </div>
-
-            <p className="max-w-[68ch] text-sm text-muted-foreground">{answer.detail}</p>
-
-            {answer.state !== 'unknown' && (
-              <dl className="flex flex-wrap gap-x-10 gap-y-3 border-t border-border pt-4">
-                <div className="flex flex-col gap-0.5">
-                  <dt className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                    Wallets carrying it
-                  </dt>
-                  <dd className="text-sm tabular-nums">{answer.wallets.toLocaleString()}</dd>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <dt className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                    Last checked
-                  </dt>
-                  <dd className="text-sm tabular-nums">
-                    {answer.checkedAt
-                      ? new Date(answer.checkedAt).toISOString().slice(0, 10)
-                      : 'never'}
-                  </dd>
-                </div>
-              </dl>
-            )}
           </div>
-        </div>
+
+          <p className="max-w-[68ch] text-sm text-muted-foreground">
+            {answer.detail}
+          </p>
+
+          {/* The labels are the one label style, through `Eyebrow`. They
+                were hand-typed at `tracking-wide` (0.025em), the only two
+                capitalised labels in the product not at 0.14em. `Eyebrow`
+                has no `dt` in its `as` union, so it renders as a span inside
+                the term, which keeps the list a list. gap-x-12: 40px is not
+                a spacing step. */}
+          {answer.state !== 'unknown' && (
+            <dl className="flex flex-wrap gap-x-12 gap-y-3 border-t border-border pt-4">
+              <div className="flex flex-col gap-1">
+                <dt>
+                  <Eyebrow as="span">Wallets carrying it</Eyebrow>
+                </dt>
+                <dd className="text-sm tabular-nums">
+                  {answer.wallets.toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt>
+                  <Eyebrow as="span">Last checked</Eyebrow>
+                </dt>
+                <dd className="text-sm tabular-nums">
+                  {answer.checkedAt
+                    ? new Date(answer.checkedAt).toISOString().slice(0, 10)
+                    : 'never'}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </Card>
       )}
     </div>
   );
