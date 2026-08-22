@@ -4,6 +4,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 
 // Revalidate every hour so scheduled posts appear on time
 export const revalidate = 3600;
@@ -79,9 +80,20 @@ export default async function BlogPost({ params }: Props) {
       <PageShell>
         <header className="mx-auto max-w-[68ch]">
           <div className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-            <Link href="/blog" className="transition-control hover:text-accent-brand">Blog</Link>
+            <Link
+              href="/blog"
+              className="transition-control hover:text-accent-brand"
+            >
+              Blog
+            </Link>
             <span aria-hidden="true">·</span>
-            <span>{new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span>
+              {new Date(post.publishedAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </span>
           </div>
 
           {/* Display tier: weight 200 with the tight tracking, the one place besides
@@ -135,8 +147,9 @@ export default async function BlogPost({ params }: Props) {
               Ready to find your holders?
             </h3>
             <p className="text-muted-foreground mb-4">
-              Upload your wallet list and see who you can reach. 500 wallets
-              free.
+              Upload your wallet list and see who you can reach.{' '}
+              {FREE_MATCHES_PER_WINDOW} matches free every {FREE_WINDOW_DAYS}{' '}
+              days.
             </p>
             <Link
               href="/"

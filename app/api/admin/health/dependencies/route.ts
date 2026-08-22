@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
+import { PACKS, PACK_IDS } from '@/lib/packs';
 
 export const runtime = 'nodejs';
 
@@ -98,13 +99,55 @@ const JOBS: Array<{
    */
   reportsOutcome: boolean;
 }> = [
-  { name: 'Farcaster sweep', schedule: '05:30 daily', subtype: 'farcaster_sweep_incremental', maxAgeHours: 48, reportsOutcome: false },
-  { name: 'ENS harvest', schedule: '05:00 daily', subtype: 'ens_harvest_incremental', maxAgeHours: 48, reportsOutcome: false },
-  { name: 'Attestation sweep', schedule: '06:00 daily', subtype: 'ethos_sweep', maxAgeHours: 48, reportsOutcome: true },
-  { name: 'Onchain attestation sweep', schedule: '06:20 daily', subtype: 'eas_sweep', maxAgeHours: 48, reportsOutcome: true },
-  { name: 'Token deploy scan', schedule: '06:40 daily', subtype: 'clanker_sweep', maxAgeHours: 48, reportsOutcome: true },
-  { name: 'Collection seeding', schedule: '07:00 daily', subtype: 'seed_contract', maxAgeHours: 48, reportsOutcome: false },
-  { name: 'X handle liveness', schedule: '08:00 daily', subtype: 'x_reachability_sweep', maxAgeHours: 48, reportsOutcome: true },
+  {
+    name: 'Farcaster sweep',
+    schedule: '05:30 daily',
+    subtype: 'farcaster_sweep_incremental',
+    maxAgeHours: 48,
+    reportsOutcome: false,
+  },
+  {
+    name: 'ENS harvest',
+    schedule: '05:00 daily',
+    subtype: 'ens_harvest_incremental',
+    maxAgeHours: 48,
+    reportsOutcome: false,
+  },
+  {
+    name: 'Attestation sweep',
+    schedule: '06:00 daily',
+    subtype: 'ethos_sweep',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
+  {
+    name: 'Onchain attestation sweep',
+    schedule: '06:20 daily',
+    subtype: 'eas_sweep',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
+  {
+    name: 'Token deploy scan',
+    schedule: '06:40 daily',
+    subtype: 'clanker_sweep',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
+  {
+    name: 'Collection seeding',
+    schedule: '07:00 daily',
+    subtype: 'seed_contract',
+    maxAgeHours: 48,
+    reportsOutcome: false,
+  },
+  {
+    name: 'X handle liveness',
+    schedule: '08:00 daily',
+    subtype: 'x_reachability_sweep',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
 ];
 
 /**
@@ -133,30 +176,71 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   const dependencies: Dependency[] = [
-    dependency('Database', ['DATABASE_URL'], 'Everything. Lookups, history, the index.', 'critical'),
+    dependency(
+      'Database',
+      ['DATABASE_URL'],
+      'Everything. Lookups, history, the index.',
+      'critical'
+    ),
     dependency(
       'X account resolver',
       ['X_RESOLVER_API_BASE', 'X_RESOLVER_API_KEY'],
       'Handle liveness cannot be swept, and token deploys resolve no account ids.',
       'degrades'
     ),
-    dependency('Farcaster index', ['NEYNAR_API_KEY'], 'Farcaster lookups and the daily sweep stop.', 'critical'),
-    dependency('NFT ownership', ['ALCHEMY_KEY'], 'NFT contract import stops on every chain.', 'critical'),
+    dependency(
+      'Farcaster index',
+      ['NEYNAR_API_KEY'],
+      'Farcaster lookups and the daily sweep stop.',
+      'critical'
+    ),
+    dependency(
+      'NFT ownership',
+      ['ALCHEMY_KEY'],
+      'NFT contract import stops on every chain.',
+      'critical'
+    ),
     dependency(
       'ERC-20 holder index',
       ['MORALIS_API_KEY'],
       'Token import falls back to public explorers on five of six chains; BNB Chain stops.',
       'degrades'
     ),
-    dependency('Collection metadata', ['OPENSEA_API_KEY'], 'Seed discovery loses a candidate source.', 'degrades'),
-    dependency('Email delivery', ['RESEND_API_KEY'], 'Sign-in links and receipts are not sent.', 'critical'),
     dependency(
-      'Payments',
-      ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_PRO', 'STRIPE_PRICE_UNLIMITED'],
-      'Nobody can buy, or a purchase completes without granting the tier.',
+      'Collection metadata',
+      ['OPENSEA_API_KEY'],
+      'Seed discovery loses a candidate source.',
+      'degrades'
+    ),
+    // One message exists, the magic link, and the post-purchase mail reuses
+    // it. There is no receipt email to lose.
+    dependency(
+      'Email delivery',
+      ['RESEND_API_KEY'],
+      'Sign-in links, including the one after a purchase, are not sent.',
       'critical'
     ),
-    dependency('Cron authentication', ['CRON_SECRET'], 'Scheduled routes are callable by anyone.', 'critical'),
+    // The four pack prices are read from `lib/packs.ts` rather than listed
+    // here, so a pack added there cannot be forgotten here. The retired
+    // STRIPE_PRICE_PRO and STRIPE_PRICE_UNLIMITED variables are deliberately
+    // not checked: nothing can be bought against them, and `isStripeConfigured`
+    // in lib/stripe.ts records why a check on them took pack checkout down.
+    dependency(
+      'Payments',
+      [
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        ...PACK_IDS.map((p) => PACKS[p].priceEnvVar),
+      ],
+      'Nobody can buy, or a purchase completes without granting credits.',
+      'critical'
+    ),
+    dependency(
+      'Cron authentication',
+      ['CRON_SECRET'],
+      'Scheduled routes are callable by anyone.',
+      'critical'
+    ),
   ];
 
   const db = getDb();
@@ -241,14 +325,26 @@ export async function GET(request: NextRequest) {
         const successMs = msOf(row?.last_success ?? null);
 
         if (runMs === null) {
-          return { ...base, lastRun: null, lastSuccess: null, hoursAgo: null, status: 'never' as const };
+          return {
+            ...base,
+            lastRun: null,
+            lastSuccess: null,
+            hoursAgo: null,
+            status: 'never' as const,
+          };
         }
 
         const lastRun = new Date(runMs).toISOString();
 
         // It ran, and every run it recorded said it failed.
         if (successMs === null) {
-          return { ...base, lastRun, lastSuccess: null, hoursAgo: null, status: 'failing' as const };
+          return {
+            ...base,
+            lastRun,
+            lastSuccess: null,
+            hoursAgo: null,
+            status: 'failing' as const,
+          };
         }
 
         const hoursAgo = (Date.now() - successMs) / 3_600_000;
@@ -273,8 +369,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const missingCritical = dependencies.filter((d) => !d.configured && d.severity === 'critical').length;
-  const missingDegraded = dependencies.filter((d) => !d.configured && d.severity === 'degrades').length;
+  const missingCritical = dependencies.filter(
+    (d) => !d.configured && d.severity === 'critical'
+  ).length;
+  const missingDegraded = dependencies.filter(
+    (d) => !d.configured && d.severity === 'degrades'
+  ).length;
   // `unknown` is deliberately not counted as a problem: it is a statement about
   // this endpoint, reported by `databaseReachable`, not about the jobs.
   const jobsUnhealthy = jobs.filter(
@@ -285,6 +385,11 @@ export async function GET(request: NextRequest) {
     dependencies,
     jobs,
     unscheduled: UNSCHEDULED,
-    summary: { missingCritical, missingDegraded, jobsUnhealthy, databaseReachable },
+    summary: {
+      missingCritical,
+      missingDegraded,
+      jobsUnhealthy,
+      databaseReachable,
+    },
   });
 }

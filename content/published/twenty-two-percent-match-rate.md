@@ -1,13 +1,13 @@
 ---
-title: "The 22% Match Rate: How We Got 9x Better Than Average"
-meta_description: "Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, against a 2.5% industry average."
+title: 'The 22% Match Rate: How We Got 9x Better Than Average'
+meta_description: 'Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, against a 2.5% industry average.'
 published: true
-publish_date: "2026-03-26"
+publish_date: '2026-03-26'
 ---
 
 # The 22% Match Rate: How We Got 9x Better Than Average
 
-> **Update, August 2026:** Farcaster matching is now backed by our own index of the complete Farcaster protocol — every FID’s verified and custody addresses, 4.7M wallets, refreshed daily — so Farcaster matches are deterministic rather than best-effort API lookups. The pipeline and per-source contribution figures below describe the original architecture and predate the full index; treat them as historical context.
+> **Update, August 2026:** Farcaster matching is now backed by our own index of the complete Farcaster protocol (every FID’s verified and custody addresses, 4.7M wallets, refreshed daily), so Farcaster matches are deterministic rather than best-effort API lookups. The pipeline and per-source contribution figures below describe the original architecture and predate the full index; treat them as historical context.
 >
 > **The 22% figure was re-measured on 2026-08-13 and holds.** See the verification below.
 
@@ -15,27 +15,27 @@ publish_date: "2026-03-26"
 
 The original 22% predates the full Farcaster index, so it was re-measured from scratch. Both benchmarks are reproducible from this repo.
 
-**Full pipeline** (`scripts/benchmark-pipeline-sample.ts`) — a seeded random sample of 600 holders drawn from 26,619 unique holders across 18 NFT collections on two chains (9 Ethereum, 9 Robinhood Chain), run through the live pipeline:
+**Full pipeline** (`scripts/benchmark-pipeline-sample.ts`): a seeded random sample of 600 holders drawn from 26,619 unique holders across 18 NFT collections on two chains (9 Ethereum, 9 Robinhood Chain), run through the live pipeline:
 
-| Metric | Result | 95% CI |
-|---|---|---|
+| Metric                                             | Result    | 95% CI        |
+| -------------------------------------------------- | --------- | ------------- |
 | **Any identity** (X, Farcaster, ENS, Lens, GitHub) | **23.7%** | 20.3% – 27.1% |
-| X or Farcaster | 12.8% | 10.1% – 15.5% |
-| Farcaster | 11.3% | 8.8% – 13.8% |
-| Twitter/X | 9.3% | 7.0% – 11.6% |
+| X or Farcaster                                     | 12.8%     | 10.1% – 15.5% |
+| Farcaster                                          | 11.3%     | 8.8% – 13.8%  |
+| Twitter/X                                          | 9.3%      | 7.0% – 11.6%  |
 
 22% sits inside the confidence interval and is the conservative end of it.
 
-**Read the two rows carefully, because they answer different questions.** "Any identity" is the 22-24% headline: we return *something* — a handle, an ENS name, a Lens profile — for roughly one wallet in four. "X or Farcaster" is the subset you can actually send a message to, and that is ~13%. An ENS name is an identity, not a contact channel. Campaign planning should use the second number; the first is a resolution rate, not a reach estimate.
+**Read the two rows carefully, because they answer different questions.** "Any identity" is the 22-24% headline: we return _something_ (a handle, an ENS name, a Lens profile) for roughly one wallet in four. "X or Farcaster" is the subset you can actually send a message to, and that is ~13%. An ENS name is an identity, not a contact channel. Campaign planning should use the second number; the first is a resolution rate, not a reach estimate.
 
-**Index-only** (`scripts/benchmark-match-rate.ts`) — the same collections resolved against our own database with **zero external API calls**:
+**Index-only** (`scripts/benchmark-match-rate.ts`): the same collections resolved against our own database with **zero external API calls**:
 
-| Chain | Holders | Farcaster | X-or-Farcaster | Any identity |
-|---|---|---|---|---|
-| Ethereum (9 collections) | 15,314 | 13.4% | 14.5% | 15.2% |
-| Robinhood Chain (9 collections) | 17,304 | 11.3% | 12.0% | 12.6% |
+| Chain                           | Holders | Farcaster | X-or-Farcaster | Any identity |
+| ------------------------------- | ------- | --------- | -------------- | ------------ |
+| Ethereum (9 collections)        | 15,314  | 13.4%     | 14.5%          | 15.2%        |
+| Robinhood Chain (9 collections) | 17,304  | 11.3%     | 12.0%          | 12.6%        |
 
-The index-only Farcaster rate (11-13%) now equals what the live pipeline returns (11.3%). Every Farcaster match the product makes is already served from our own data — the external Farcaster call has become a redundancy check rather than the source of truth.
+The index-only Farcaster rate (11-13%) now equals what the live pipeline returns (11.3%). Every Farcaster match the product makes is already served from our own data; the external Farcaster call has become a redundancy check rather than the source of truth.
 
 Where the index is still thin is ENS: index-only "any identity" is 13-15% against the live pipeline's 23.7%, and nearly all of that gap is ENS names not yet harvested onchain. That gap is the roadmap, not a limitation of the method.
 
@@ -151,6 +151,7 @@ If sources conflict (ENS says `@handle_a`, Farcaster says `@handle_b`), we keep 
 ### Deduplication
 
 A single person might appear through multiple sources with slight variations:
+
 - ENS: `@alice_crypto`
 - Farcaster: `alice` (with connected Twitter `@alice_crypto`)
 - Identity index: `@Alice_Crypto` (case variation)
@@ -161,13 +162,13 @@ The deduplication step normalizes handles, matches across platforms, and produce
 
 Across a representative sample of 500,000 wallets:
 
-| Source | Wallets Matched | % of Total Matches | Unique Contribution |
-|--------|----------------|-------------------|-------------------|
-| Farcaster | 75,000 | 68.2% | 42,000 (38.2%) |
-| ENS | 35,500 | 32.3% | 14,000 (12.7%) |
-| Identity indexes | 18,000 | 16.4% | 3,300 (3.0%) |
-| Social Graph | 11,500 | 10.5% | 2,200 (2.0%) |
-| **Combined (deduplicated)** | **110,000** | **100%** | **22% match rate** |
+| Source                      | Wallets Matched | % of Total Matches | Unique Contribution |
+| --------------------------- | --------------- | ------------------ | ------------------- |
+| Farcaster                   | 75,000          | 68.2%              | 42,000 (38.2%)      |
+| ENS                         | 35,500          | 32.3%              | 14,000 (12.7%)      |
+| Identity indexes            | 18,000          | 16.4%              | 3,300 (3.0%)        |
+| Social Graph                | 11,500          | 10.5%              | 2,200 (2.0%)        |
+| **Combined (deduplicated)** | **110,000**     | **100%**           | **22% match rate**  |
 
 Note that the percentages in the "% of Total Matches" column sum to more than 100% because many wallets are matched by multiple sources. The "Unique Contribution" column shows wallets found by that source and no other.
 
@@ -207,4 +208,4 @@ The architecture is straightforward. The insight is simply that no single identi
 
 **See the 22% difference on your data.**
 
-[walletlink.social](https://walletlink.social) runs the full pipeline on your wallet list. Free tier covers 500 wallets. Upload a CSV and see how many holders you can identify.
+[walletlink.social](https://walletlink.social) runs the full pipeline on your wallet list. Free tier covers 100 matches every 30 days. Upload a CSV and see how many holders you can identify.

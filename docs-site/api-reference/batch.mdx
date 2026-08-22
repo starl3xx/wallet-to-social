@@ -1,17 +1,18 @@
 ---
-title: "Batch lookup"
-description: "POST /v1/batch"
-api: "POST https://walletlink.social/api/v1/batch"
+title: 'Batch lookup'
+description: 'POST /v1/batch'
+api: 'POST https://walletlink.social/api/v1/batch'
 ---
 
-Resolves many addresses in one request. Costs **1 match credit per address that resolves**, after duplicates are removed. Addresses that match nothing cost nothing.
+Resolves many addresses in one request. Costs **1 match credit per address that resolves** to an X handle or a Farcaster account, after duplicates are removed. Addresses that match nothing cost nothing.
 
 This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same match credits, but the batch is one request instead of fifty and returns in a fraction of the time.
 
 ## Body
 
 <ParamField body="wallets" type="string[]" required>
-  Addresses to resolve. Up to 50, or 200 on a legacy Unlimited account. The whole body is capped at 1 MB.
+  Addresses to resolve. Up to 50, or 200 on a legacy Unlimited account. The
+  whole body is capped at 1 MB.
 </ParamField>
 
 ## Request
@@ -38,9 +39,20 @@ curl -X POST https://walletlink.social/api/v1/batch \
 
 <ResponseField name="meta" type="object">
   <Expandable title="properties">
-    <ResponseField name="requested" type="number">Unique addresses after deduplication.</ResponseField>
-    <ResponseField name="found" type="number">How many resolved to at least one identity.</ResponseField>
-    <ResponseField name="not_found" type="number">The remainder.</ResponseField>
+    <ResponseField name="requested" type="number">
+      Unique addresses after deduplication.
+    </ResponseField>
+    <ResponseField name="found" type="number">
+      How many resolved to at least one identity, including ENS, Lens and
+      GitHub.
+    </ResponseField>
+    <ResponseField name="matched" type="number">
+      How many resolved to an X handle or a Farcaster account. This is the
+      number billed, and it is never more than `found`.
+    </ResponseField>
+    <ResponseField name="not_found" type="number">
+      Unique addresses with no identity at all: `requested` minus `found`.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -60,14 +72,14 @@ curl -X POST https://walletlink.social/api/v1/batch \
     },
     null
   ],
-  "meta": { "requested": 2, "found": 1, "not_found": 1 }
+  "meta": { "requested": 2, "found": 1, "matched": 1, "not_found": 1 }
 }
 ```
 
 <Warning>
-Positions map to the **deduplicated** list, not to the array you sent. Submit
-`[A, B, A]` and you get two entries back, not three. Deduplicate before you
-send, then index by the `wallet` field rather than by position.
+  Positions map to the **deduplicated** list, not to the array you sent. Submit
+  `[A, B, A]` and you get two entries back, not three. Deduplicate before you
+  send, then index by the `wallet` field rather than by position.
 </Warning>
 
 ## Differences from single lookup
@@ -85,12 +97,15 @@ and it is the only way to see the quality metadata.
 
 ## Cost
 
-Match credits are charged on the addresses that **resolve**, after
-deduplication. Submitting `[A, B, A]` where A resolves and B does not costs 1
-credit and returns 2 records. Deduplicating still helps, because duplicates
-count against your rate limit even though they are billed once.
+Match credits are charged on the addresses that **resolve to an X handle or a
+Farcaster account**, after deduplication. `meta.matched` is exactly that count.
+An address that carries only an ENS name, a Lens profile or a GitHub account is
+returned and counted in `found`, but not billed. Submitting `[A, B, A]` where A
+matches and B does not costs 1 credit and returns 2 records. Deduplicating
+still helps, because duplicates count against your rate limit even though they
+are billed once.
 
-A batch that exceeds your plan limit is rejected whole with
+A batch that exceeds your batch limit is rejected whole with
 `BATCH_SIZE_EXCEEDED`. Nothing is charged and nothing is partially processed, so
 split oversized batches client-side and send the pieces.
 

@@ -1,6 +1,6 @@
 ---
-title: "Introduction"
-description: "Base URL, authentication, plans, and the conventions every endpoint follows."
+title: 'Introduction'
+description: 'Base URL, authentication, plans, and the conventions every endpoint follows.'
 ---
 
 ## Base URL
@@ -21,9 +21,9 @@ Authorization: wts_live_xxxxxxxx
 ```
 
 <Warning>
-Call the API from your server, never from client-side code. CORS is open so a
-browser request will succeed, which makes this an easy mistake to make. Any key
-shipped to a browser is public, and it carries your entire plan allowance.
+  Call the API from your server, never from client-side code. CORS is open so a
+  browser request will succeed, which makes this an easy mistake to make. Any
+  key shipped to a browser is public, and it carries your entire credit balance.
 </Warning>
 
 Keys are prefixed `wts_live_` and are stored only as hashes. A lost key is replaced, not recovered.
@@ -33,22 +33,23 @@ Keys are prefixed `wts_live_` and are stored only as hashes. A lost key is repla
 API access is included with every credit pack rather than sold separately, and
 it draws on the same balance the app does. There is no API-only plan.
 
-| | **Any pack** | **Unlimited** (legacy) |
-| --- | --- | --- |
-| Plan name in API responses | `Developer` | `Startup` |
-| Requests per minute | 60 | 300 |
-| Requests per day | 5,000 | 50,000 |
-| Requests per month | 50,000 | 500,000 |
-| Max batch size | 50 | 200 |
+|                            | **Any pack** | **Unlimited** (legacy) |
+| -------------------------- | ------------ | ---------------------- |
+| Plan name in API responses | `Developer`  | `Startup`              |
+| Requests per minute        | 60           | 300                    |
+| Requests per day           | 5,000        | 50,000                 |
+| Requests per month         | 50,000       | 500,000                |
+| Max batch size             | 50           | 200                    |
 
 These are rate limits: they bound how fast you can call, not how much you can
 resolve in total. What you can resolve is bounded by your credit balance, and a
 call made with no credits left returns `402` with code `NO_CREDITS`.
 
 <Note>
-Responses from [`/v1/usage`](/api-reference/usage) report the plan name
-(`Developer`, `Startup`), which does not match the tier name you purchased
-(Pro, Unlimited). The mapping above is the whole of it.
+  Responses from [`/v1/usage`](/api-reference/usage) report the plan name
+  (`Developer`, `Startup`), which does not match the pack you purchased. Every
+  pack reports `Developer`. `Startup` appears only on legacy Unlimited accounts.
+  The mapping above is the whole of it.
 </Note>
 
 Higher limits are available. Email [help@walletlink.social](mailto:help@walletlink.social).
@@ -65,28 +66,31 @@ handle or a Farcaster account. A wallet that resolves to nothing costs nothing,
 which is the whole pricing position and applies to the API exactly as it does in
 the app.
 
-| Endpoint | Match credits |
-| --- | --- |
-| `GET /v1/wallet/{address}` | 1 if the address resolves, 0 if it does not |
-| `POST /v1/batch` | 1 per address that resolves, after duplicates are removed |
-| `GET /v1/reverse/twitter/{handle}` | 1 per wallet returned, up to 100 |
-| `GET /v1/reverse/farcaster/{username}` | 1 per wallet returned, up to 100 |
-| `GET /v1/stats` | 0 |
-| `GET /v1/usage` | 0 |
+| Endpoint                               | Match credits                                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET /v1/wallet/{address}`             | 1 if the address resolves to an X handle or a Farcaster account, 0 if it does not               |
+| `POST /v1/batch`                       | 1 per address that resolves to an X handle or a Farcaster account, after duplicates are removed |
+| `GET /v1/reverse/twitter/{handle}`     | 1 per wallet returned, up to 100                                                                |
+| `GET /v1/reverse/farcaster/{username}` | 1 per wallet returned, up to 100                                                                |
+| `GET /v1/stats`                        | 0                                                                                               |
+| `GET /v1/usage`                        | 0                                                                                               |
+
+A record that carries only an ENS name, a Lens profile or a GitHub account is
+returned but not billed: a match means X or Farcaster.
 
 A call made with no match credits left returns `402` with code `NO_CREDITS`.
 
 **Rate-limit units** are separate, are not bought, and reset on their own
 schedule. They bound how fast you may call, never how much you may resolve.
 
-| Endpoint | Rate-limit units |
-| --- | --- |
-| `GET /v1/wallet/{address}` | 1 |
-| `POST /v1/batch` | 1 per address submitted |
-| `GET /v1/reverse/twitter/{handle}` | 2 |
-| `GET /v1/reverse/farcaster/{username}` | 2 |
-| `GET /v1/stats` | 0 |
-| `GET /v1/usage` | 0 |
+| Endpoint                               | Rate-limit units        |
+| -------------------------------------- | ----------------------- |
+| `GET /v1/wallet/{address}`             | 1                       |
+| `POST /v1/batch`                       | 1 per address submitted |
+| `GET /v1/reverse/twitter/{handle}`     | 2                       |
+| `GET /v1/reverse/farcaster/{username}` | 2                       |
+| `GET /v1/stats`                        | 0                       |
+| `GET /v1/usage`                        | 0                       |
 
 Reverse lookups weigh double here because they scan the index by identity rather
 than by key.

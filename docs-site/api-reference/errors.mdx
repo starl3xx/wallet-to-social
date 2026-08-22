@@ -1,6 +1,6 @@
 ---
-title: "Errors"
-description: "Error shape and every code the API returns."
+title: 'Errors'
+description: 'Error shape and every code the API returns.'
 ---
 
 Errors return a JSON body with a human-readable `error` and a stable machine-readable `code`.
@@ -16,20 +16,41 @@ Branch on `code`. The `error` string is written for humans and may be reworded.
 
 ## Codes
 
-| Code | Status | Cause |
-| --- | --- | --- |
-| `MISSING_API_KEY` | 401 | No `Authorization` header. |
-| `INVALID_API_KEY` | 401 | Key is unrecognized, revoked, or expired. |
-| `RATE_LIMIT_EXCEEDED` | 429 | A per-minute, per-day or per-month limit was hit. See [rate limits](/api-reference/rate-limits). |
-| `INVALID_ADDRESS` | 400 | An address is not `0x` plus 40 hex characters. |
-| `INVALID_HANDLE` | 400 | X handle is not 1 to 15 characters of letters, numbers or underscores. |
-| `INVALID_USERNAME` | 400 | Farcaster username is not 1 to 20 characters of lowercase letters, numbers or underscores. |
-| `INVALID_PARAMETER` | 400 | A query parameter is out of range, such as an unrecognized `period`. |
-| `INVALID_REQUEST` | 400 | Body is missing, not valid JSON, or `wallets` is absent or empty. |
-| `INVALID_REQUEST` | 413 | Request body exceeded 1 MB. |
-| `BATCH_SIZE_EXCEEDED` | 400 | More wallets than your plan’s batch limit. |
-| `SERVICE_UNAVAILABLE` | 503 | Datastore is temporarily unreachable. Retry with backoff. |
-| `INTERNAL_ERROR` | 500 | Unexpected failure on our side. |
+| Code                  | Status | Cause                                                                                               |
+| --------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| `MISSING_API_KEY`     | 401    | No `Authorization` header.                                                                          |
+| `INVALID_API_KEY`     | 401    | Key is unrecognized, revoked, or expired.                                                           |
+| `RATE_LIMIT_EXCEEDED` | 429    | A per-minute, per-day or per-month limit was hit. See [rate limits](/api-reference/rate-limits).    |
+| `INVALID_ADDRESS`     | 400    | An address is not `0x` plus 40 hex characters.                                                      |
+| `INVALID_HANDLE`      | 400    | X handle is not 1 to 15 characters of letters, numbers or underscores.                              |
+| `INVALID_USERNAME`    | 400    | Farcaster username is not 1 to 20 characters of lowercase letters, numbers or underscores.          |
+| `INVALID_PARAMETER`   | 400    | A query parameter is out of range, such as an unrecognized `period`.                                |
+| `INVALID_REQUEST`     | 400    | Body is missing, not valid JSON, or `wallets` is absent or empty.                                   |
+| `INVALID_REQUEST`     | 413    | Request body exceeded 1 MB.                                                                         |
+| `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit: 50, or 200 on a legacy Unlimited account.                       |
+| `NO_CREDITS`          | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack to continue. |
+| `SERVICE_UNAVAILABLE` | 503    | Datastore is temporarily unreachable. Retry with backoff.                                           |
+| `INTERNAL_ERROR`      | 500    | Unexpected failure on our side.                                                                     |
+
+## Running out of credits
+
+Every endpoint checks your match balance before it runs, including the ones that cost no credits. When nothing is left the call returns `402` with one of two `error` strings, depending on whether you are spending the free allowance or a pack:
+
+```json
+{
+  "error": "Free allowance used up for this 30-day window. Buy a pack to continue.",
+  "code": "NO_CREDITS"
+}
+```
+
+```json
+{
+  "error": "No credits left. Buy a pack to continue.",
+  "code": "NO_CREDITS"
+}
+```
+
+The free allowance is 100 matches per rolling 30 days. A pack adds a balance that lasts 12 months, and the API draws on it exactly as the app does.
 
 ## Things that are not errors
 
@@ -42,6 +63,8 @@ Two cases return HTTP 200 and are easy to mistake for failures.
 ## Retrying
 
 `SERVICE_UNAVAILABLE` and `INTERNAL_ERROR` are worth retrying with exponential backoff. `RATE_LIMIT_EXCEEDED` is worth retrying once the window resets.
+
+`NO_CREDITS` is not worth retrying. It clears when you buy a pack, or when the free window rolls forward.
 
 Nothing in the `400` family is worth retrying. The request is malformed and will fail identically until you change it. `BATCH_SIZE_EXCEEDED` is the exception in spirit: split the batch and retry the pieces.
 

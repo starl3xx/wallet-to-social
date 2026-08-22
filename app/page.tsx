@@ -20,7 +20,7 @@ import { AccessBanner } from '@/components/AccessBanner';
 import { useAuth } from '@/components/AuthProvider';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 
-// Lazy-load modals — not needed until user interaction
+// Lazy-load modals: not needed until user interaction
 const UpgradeModal = dynamic(() =>
   import('@/components/UpgradeModal').then((m) => ({ default: m.UpgradeModal }))
 );
@@ -46,6 +46,7 @@ const FarcasterDMModal = dynamic(() =>
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
 import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
   SUPPORTED_CHAINS,
   CHAIN_LABELS,
@@ -118,7 +119,7 @@ export default function Home() {
   });
   const [jobId, setJobIdState] = useState<string | null>(null);
 
-  // Live index size for the header stat strip — falls back to the static
+  // Live index size for the header stat strip.
   // The constant is the fallback when the live stats fetch fails. It is the
   // same figure, kept in lib/public-figures.ts so static copy agrees with it.
   const [indexedWallets, setIndexedWallets] = useState<string | null>(null);
@@ -161,6 +162,35 @@ export default function Home() {
   const userEmail = user?.email || null;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  /**
+   * The per-lookup ceiling the server will apply, mirrored here so the person
+   * hears about a too-large file before the upload rather than from a 403
+   * after it. The rule is the one in app/api/jobs/route.ts, in the same order:
+   *
+   * - A legacy tier keeps the cap it was sold (TIER_LIMITS), and the whitelist
+   *   has none. Neither is metered, so credits say nothing about them.
+   * - A pack holder has no per-lookup cap; a submission may be at most ten
+   *   times the remaining matches, which is an anti-enumeration guard rather
+   *   than a quota. `/api/credits` reports that number as `maxWallets`.
+   * - The free allowance keeps the demo's 500-wallet cap, and cannot submit
+   *   more than its remaining matches cover either.
+   * - An anonymous caller has no ledger, so the demo cap alone applies.
+   *
+   * Null means "do not block here". The balance is still loading for a
+   * signed-in account, and a wrong block is worse than a late one, because the
+   * server checks the same rule on submit anyway.
+   */
+  const walletLimit: number | null = (() => {
+    if (!user) return TIER_LIMITS.free;
+    if (credits.loading) return null;
+    if (credits.unmetered) {
+      return isWhitelisted ? Number.POSITIVE_INFINITY : TIER_LIMITS[userTier];
+    }
+    if (!credits.onFreeAllowance) return credits.maxWallets;
+    return Math.min(TIER_LIMITS.free, credits.maxWallets ?? TIER_LIMITS.free);
+  })();
+  const overWalletLimit = walletLimit !== null && wallets.length > walletLimit;
+
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -176,7 +206,7 @@ export default function Home() {
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
 
-  // Contract import modal state (Pro and Unlimited)
+  // Contract import modal state (needs credits: included in every pack)
   const [showContractImportModal, setShowContractImportModal] = useState(false);
   const [addAddressesLookupId, setAddAddressesLookupId] = useState<
     string | null
@@ -188,7 +218,10 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
-  // Farcaster DM modal (Unlimited tier only)
+  // Farcaster DM modal. Still shown only to the legacy unlimited account: it
+  // is not in the list of what every pack includes, and the route behind it
+  // has no entitlement check of its own, so widening it is a product decision
+  // rather than a gate fix.
   const [showFarcasterDMModal, setShowFarcasterDMModal] = useState(false);
   const [enrichingFids, setEnrichingFids] = useState(false);
 
@@ -303,9 +336,9 @@ export default function Home() {
 
   const handlePasteToggle = useCallback(() => setShowPasteInput((v) => !v), []);
 
-  // The contract card is shown to everyone. Free accounts get the upgrade
-  // modal instead of the importer, so the feature is discoverable before it
-  // is bought rather than invisible until after.
+  // The contract card is shown to everyone. Accounts without credits get the
+  // buy-credits modal instead of the importer, so the feature is discoverable
+  // before it is bought rather than invisible until after.
   const handleContractCardClick = useCallback(() => {
     if (entitled) {
       setShowContractImportModal(true);
@@ -350,14 +383,14 @@ export default function Home() {
    * Act on it only once the session has resolved.
    *
    * `userTier` falls back to 'free' while `useAuth` is still loading, so acting
-   * on mount would show a paying customer the upgrade modal for a feature they
-   * already have. The ref makes it fire once: without it, upgrading later would
-   * silently open an importer the person had moved on from.
+   * on mount would show a paying customer the buy-credits modal for a feature
+   * they already have. The ref makes it fire once: without it, buying credits
+   * later would silently open an importer the person had moved on from.
    */
   useEffect(() => {
     // Wait for credits as well as auth. `entitled` is false while the balance
     // is still loading, and this effect acts exactly once, so acting early
-    // would send a paying customer to the upgrade modal and never correct it.
+    // would send a paying customer to the buy-credits modal and never correct it.
     if (
       !deepLinkContract ||
       authLoading ||
@@ -384,7 +417,7 @@ export default function Home() {
    * ~4.5s with typical cache hits, since they run in parallel), plus ~8s per
    * 1,000 for onchain ENS: reverse resolution runs 50 at a time, and only the
    * wallets that resolve go on to read text records. 18s per 1,000 is the
-   * conservative sum, and it is deliberately conservative — an estimate that
+   * conservative sum, and it is deliberately conservative: an estimate that
    * runs under is a pleasant surprise, one that runs over is a support ticket.
    *
    * Fast: two indexed queries against our own tables. Wall clock is the round
@@ -502,13 +535,20 @@ export default function Home() {
   }, []);
 
   const startLookup = useCallback(async () => {
-    // Check tier limit before starting
-    const walletLimit = TIER_LIMITS[userTier];
-    if (wallets.length > walletLimit) {
+    // The same per-lookup rule the server applies, checked before the upload.
+    // The caution banner above the button already says why and what to do;
+    // this only opens the matching way forward.
+    if (overWalletLimit && walletLimit !== null) {
       // limitHit existed in client-analytics but was never called, so we had no
-      // idea how often the free ceiling was actually the blocker.
+      // idea how often the ceiling was actually the blocker.
       Analytics.limitHit(userTier, walletLimit, wallets.length);
-      setShowUpgradeModal(true);
+      if (!user) {
+        setShowAuthModal(true);
+      } else if (!credits.unmetered) {
+        setShowUpgradeModal(true);
+      }
+      // A legacy account over its cap has nothing to buy: the banner tells it
+      // to split the file, and that is the whole answer.
       return;
     }
 
@@ -549,7 +589,8 @@ export default function Home() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // Handle upgrade required response
+        // Credits needed. `upgradeRequired` is the field name the server still
+        // uses; what it opens is the buy-credits modal.
         if (errorData.upgradeRequired) {
           setShowUpgradeModal(true);
           setState('ready');
@@ -559,7 +600,7 @@ export default function Home() {
         if (response.status === 429) {
           setRateLimitMessage(
             errorData.error ||
-              'Rate limit exceeded. Sign in for unlimited access.'
+              `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`
           );
           setShowAuthModal(true);
           setState('ready');
@@ -592,6 +633,10 @@ export default function Home() {
     lookupName,
     scanDepth,
     userTier,
+    user,
+    credits.unmetered,
+    walletLimit,
+    overWalletLimit,
     userEmail,
     inputSource,
     sourceContract,
@@ -642,7 +687,7 @@ export default function Home() {
           throw new Error(`HTTP error: ${response.status}`);
         }
 
-        // Successful response — reset error counter
+        // Successful response: reset error counter
         consecutiveErrorsRef.current = 0;
 
         const data = await response.json();
@@ -1130,7 +1175,7 @@ export default function Home() {
           if (response.status === 429) {
             setRateLimitMessage(
               errorData.error ||
-                'Rate limit exceeded. Sign in for unlimited access.'
+                `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`
             );
             setShowAuthModal(true);
             setState('ready');
@@ -1358,7 +1403,8 @@ export default function Home() {
         }}
       />
 
-      {/* Contract Import Modal (Pro and Unlimited) */}
+      {/* Contract Import Modal (needs credits: included in every pack, gated
+          on `entitled` where the card is clicked) */}
       <ContractImportModal
         open={showContractImportModal}
         // Closing drops the deep link, so a later manual open starts blank
@@ -1372,7 +1418,8 @@ export default function Home() {
         initialChain={deepLinkContract?.chain}
       />
 
-      {/* Farcaster DM Modal (Unlimited tier only) */}
+      {/* Farcaster DM Modal. See the state declaration for why its button is
+          still keyed to the legacy unlimited tier. */}
       <FarcasterDMModal
         open={showFarcasterDMModal}
         onOpenChange={setShowFarcasterDMModal}
@@ -1384,8 +1431,9 @@ export default function Home() {
         {state === 'upload' && (
           <div className="space-y-6">
             {/* The three input methods as peers. Contract import shows locked
-                  rather than hidden on free accounts, so the layout is stable
-                  and the feature is discoverable before it is bought. */}
+                  rather than hidden on accounts without credits, so the layout
+                  is stable and the feature is discoverable before it is
+                  bought. */}
             <InputMethodPicker
               onFileLoaded={handleFileLoaded}
               onPasteClick={handlePasteToggle}
@@ -1455,9 +1503,12 @@ export default function Home() {
             </p>
 
             <RecentWins />
+            {/* `entitled`, not the tier: a pack buyer's tier stays 'free', and
+                  history depth and growing a lookup are included in every
+                  pack. The server applies the same rule on the write. */}
             <LookupHistory
               onLoadLookup={handleLoadHistory}
-              userTier={userTier}
+              entitled={entitled}
               onAddAddresses={handleOpenAddAddresses}
             />
           </div>
@@ -1466,27 +1517,84 @@ export default function Home() {
         {/* Ready State */}
         {state === 'ready' && (
           <div className="space-y-4">
-            {/* Wallet limit warning */}
-            {wallets.length > TIER_LIMITS[userTier] && (
+            {/* The file is larger than this account may submit at once. One
+                  sentence per situation, each stating the rule that actually
+                  applies (see `walletLimit`), and the control that moves it:
+                  sign in, buy a pack, or for a legacy cap, split the file.
+                  It used to print "the free plan allows a maximum of 500",
+                  which named a ladder that no longer exists. */}
+            {overWalletLimit && walletLimit !== null && (
               <div className="p-4 bg-caution-tint border border-caution/30 rounded-lg flex items-center justify-between gap-4">
                 <p className="text-sm text-caution">
                   Your file has{' '}
                   <span className="font-semibold">
                     {wallets.length.toLocaleString()}
                   </span>{' '}
-                  wallets but the {userTier} plan allows a maximum of{' '}
-                  <span className="font-semibold">
-                    {TIER_LIMITS[userTier].toLocaleString()}
-                  </span>
-                  . Upgrade to process all wallets.
+                  wallets.{' '}
+                  {!user ? (
+                    <>
+                      Sign in to look up more than{' '}
+                      {TIER_LIMITS.free.toLocaleString()} wallets at once. A
+                      free account gets {FREE_MATCHES_PER_WINDOW} matches every{' '}
+                      {FREE_WINDOW_DAYS} days.
+                    </>
+                  ) : credits.unmetered ? (
+                    <>
+                      This account can look up {walletLimit.toLocaleString()}{' '}
+                      wallets at a time. Split the file into smaller lists to
+                      run it all.
+                    </>
+                  ) : credits.onFreeAllowance ? (
+                    walletLimit === 0 ? (
+                      <>
+                        The free allowance of {FREE_MATCHES_PER_WINDOW} matches
+                        is used up for this {FREE_WINDOW_DAYS}-day window. Buy a
+                        pack to keep going.
+                      </>
+                    ) : walletLimit < TIER_LIMITS.free ? (
+                      // The remaining free matches, not the demo cap, are what
+                      // binds here, so the sentence names them.
+                      <>
+                        You have {(credits.available ?? 0).toLocaleString()}{' '}
+                        free matches left this window, which covers up to{' '}
+                        {walletLimit.toLocaleString()} wallets at once. Buy a
+                        pack to run larger lists.
+                      </>
+                    ) : (
+                      <>
+                        A free account can look up{' '}
+                        {TIER_LIMITS.free.toLocaleString()} wallets at a time.
+                        Buy a pack to run larger lists.
+                      </>
+                    )
+                  ) : (
+                    <>
+                      You have {(credits.available ?? 0).toLocaleString()}{' '}
+                      matches left, which covers up to{' '}
+                      {walletLimit.toLocaleString()} wallets at once. Buy a pack
+                      for more.
+                    </>
+                  )}
                 </p>
-                <Button
-                  size="sm"
-                  onClick={() => setShowUpgradeModal(true)}
-                  className="shrink-0"
-                >
-                  Upgrade
-                </Button>
+                {!user ? (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowAuthModal(true)}
+                    className="shrink-0"
+                  >
+                    Sign in
+                  </Button>
+                ) : (
+                  !credits.unmetered && (
+                    <Button
+                      size="sm"
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="shrink-0"
+                    >
+                      Buy credits
+                    </Button>
+                  )
+                )}
               </div>
             )}
 
@@ -1726,20 +1834,22 @@ export default function Home() {
                       <h2 className="text-xl font-semibold tracking-[-0.02em]">
                         {currentLookupName || 'Results'}
                       </h2>
-                      {currentLookupId &&
-                        (userTier === 'pro' || userTier === 'unlimited') && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditNameValue(currentLookupName || '');
-                              setIsEditingName(true);
-                            }}
-                            className="transition-control inline-flex items-center gap-1.5 rounded-full border border-accent-brand px-2.5 py-1 text-xs font-medium text-accent-brand hover:bg-accent-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                          >
-                            <Pencil className="h-3 w-3" aria-hidden />
-                            Rename
-                          </button>
-                        )}
+                      {/* Any signed-in owner may rename. The server allows it
+                            for whoever owns the lookup, and a history you cannot
+                            label is a worse product for no reason. */}
+                      {currentLookupId && user && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditNameValue(currentLookupName || '');
+                            setIsEditingName(true);
+                          }}
+                          className="transition-control inline-flex items-center gap-1.5 rounded-full border border-accent-brand px-2.5 py-1 text-xs font-medium text-accent-brand hover:bg-accent-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden />
+                          Rename
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1757,7 +1867,10 @@ export default function Home() {
                 {/* Hidden below sm and offered in the menu instead. A row of
                       buttons never wraps, so on a phone the row has to get
                       shorter rather than reflow: ExportButton alone is two
-                      controls, and the name sits beside all of it. */}
+                      controls, and the name sits beside all of it.
+
+                      Legacy unlimited only, on purpose: see the DM modal
+                      state for why this one is not on `entitled`. */}
                 {userTier === 'unlimited' &&
                   (results.some((r) => r.fc_fid) || enrichingFids) && (
                     <Button
@@ -1796,7 +1909,10 @@ export default function Home() {
                         </MenuItem>
                       </div>
                     )}
-                  {currentLookupId && userTier === 'unlimited' && (
+                  {/* Growing a saved lookup is included in every pack, and the
+                        server charges the added wallets against the same
+                        balance. */}
+                  {currentLookupId && entitled && (
                     <MenuItem onClick={handleAddAddressesFromResults}>
                       <Plus className="h-4 w-4" aria-hidden />
                       Add addresses

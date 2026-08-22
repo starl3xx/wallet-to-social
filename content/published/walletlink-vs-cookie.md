@@ -1,8 +1,8 @@
 ---
-title: "walletlink.social vs Cookie.fun: Which Tool Fits Your Workflow?"
+title: 'walletlink.social vs Cookie.fun: Which Tool Fits Your Workflow?'
 meta_description: "Cookie.fun and walletlink.social solve different problems. Here's when to use each and how they complement each other in a Web3 workflow."
 published: true
-publish_date: "2026-04-30"
+publish_date: '2026-04-30'
 ---
 
 # walletlink.social vs Cookie.fun: Which Tool Fits Your Workflow?
@@ -27,7 +27,7 @@ Cookie is valuable when you are trying to understand the AI agent landscape -- w
 walletlink.social solves a narrower but different problem: given a list of wallet addresses, who are the humans (or agents) behind them?
 
 - **Wallet-to-social resolution.** Upload a CSV of Ethereum addresses, get back Twitter handles, Farcaster profiles, ENS names, and other linked identities.
-- **Batch processing.** Handle up to 10,000 wallets per lookup with streaming results.
+- **Batch processing.** Upload lists of any size with streaming results; the only bound is your remaining match credits.
 - **AI agent detection.** Flag which wallets in your list belong to known AI agents (currently tracking 13,622+ agent wallets).
 - **Priority scoring.** Rank resolved wallets by a combination of token holdings and social reach.
 
@@ -35,16 +35,16 @@ walletlink is valuable when you have a specific set of addresses and need to kno
 
 ## Side-by-Side Comparison
 
-| Feature | Cookie.fun | walletlink.social |
-|---------|-----------|-------------------|
-| Primary function | AI agent analytics | Wallet-to-social resolution |
-| Input | Browse/search | Upload wallet list |
-| Output | Agent metrics, mindshare data | Social profiles, identity matches |
-| AI agent coverage | Broad discovery | Detection within your holder list |
-| Social data | Sentiment analysis | Profile resolution (handles, bios) |
-| Batch wallet processing | No | Yes (up to 10K) |
-| Pricing model | Freemium + token | Free tier + one-time payment |
-| Best for | Market research, agent tracking | Holder outreach, community building |
+| Feature                 | Cookie.fun                      | walletlink.social                   |
+| ----------------------- | ------------------------------- | ----------------------------------- |
+| Primary function        | AI agent analytics              | Wallet-to-social resolution         |
+| Input                   | Browse/search                   | Upload wallet list                  |
+| Output                  | Agent metrics, mindshare data   | Social profiles, identity matches   |
+| AI agent coverage       | Broad discovery                 | Detection within your holder list   |
+| Social data             | Sentiment analysis              | Profile resolution (handles, bios)  |
+| Batch wallet processing | No                              | Yes, no fixed cap                   |
+| Pricing model           | Freemium + token                | Free tier + one-time payment        |
+| Best for                | Market research, agent tracking | Holder outreach, community building |
 
 ## When to Use Cookie
 
@@ -73,7 +73,7 @@ Any workflow that starts with "we have addresses" and ends with "we need to reac
 The one area of genuine overlap is AI agent identification. Both tools help you understand AI agent activity, but from different angles:
 
 - **Cookie** shows you the AI agent landscape broadly -- which agents exist, how they perform, what attention they attract.
-- **walletlink** tells you which specific wallets in *your* holder list are AI agents, so you can segment them out of human outreach.
+- **walletlink** tells you which specific wallets in _your_ holder list are AI agents, so you can segment them out of human outreach.
 
 If you are a token project that wants to understand how AI agents interact with your specific contract, you might use both. Cookie for the macro view of agent behavior trends. walletlink for the micro view of which of your actual holders are agents.
 
@@ -92,7 +92,7 @@ Cookie fits best in step 1. walletlink fits best in step 3. They are not competi
 
 Cookie operates on a freemium model with a utility token ($COOKIE) for premium features. Pricing scales with usage and access level.
 
-walletlink uses a one-time payment model. The free tier covers 1,000 wallets. Paid tiers range from $49 to $420, and you own the credits permanently -- no subscriptions.
+walletlink uses a one-time payment model. The free tier covers 100 matches every 30 days. Packs range from $29 to $899, priced in matches rather than wallets, and credits last 12 months from purchase -- no subscriptions.
 
 Both approaches have merits. Cookie's model fits ongoing research workflows. walletlink's model fits project teams that need resolution in bursts (pre-airdrop, pre-governance vote, quarterly community analysis).
 
@@ -104,4 +104,4 @@ Use Cookie when you need to understand the AI agent ecosystem. Use walletlink wh
 
 ---
 
-Need to resolve your holder list to social profiles? Try [walletlink.social](https://walletlink.social) -- free for your first 1,000 wallets.
+Need to resolve your holder list to social profiles? Try [walletlink.social](https://walletlink.social) -- free for your first 100 matches every 30 days.

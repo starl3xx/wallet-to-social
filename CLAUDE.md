@@ -35,9 +35,11 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 
 ### Database Schema (Drizzle + Neon PostgreSQL)
 
-- `wallet_cache` - 24-hour TTL cache for API results
+- `wallet_cache` - 7-day TTL cache for API results (`CACHE_TTL_HOURS` in `lib/cache.ts`)
 - `lookup_history` - Saved lookup sessions with full results (JSONB)
 - `social_graph` - Permanent storage of all wallets with discovered social accounts, indexed for querying
+- `credit_lots` - Purchased packs, spent FIFO by expiry (`granted`, `consumed`, `expires_at`)
+- `credit_ledger` - Every match debited, one row per job; also the rolling 30-day free window
 
 **A new table needs a grant before CI can read it.** Scheduled workflows connect
 as the `sweep_runner` role, not the owner, and a table created after the role
@@ -60,6 +62,15 @@ credentials live where is in the private ops repo, deliberately.
 
 Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both token holdings and social reach.
 
+### Pricing and entitlement
+
+`lib/packs.ts` is the only place a price lives. The product is credit packs, bought once and metered in **matches** (a wallet resolved to an X handle or a Farcaster account; misses cost nothing). Free is 100 matches per rolling 30 days, cumulative and account-wide. Credits last 12 months. There are no subscriptions.
+
+- A pack purchase does **not** change `users.tier`. Never gate a feature on `tier`: that refused the people who had just paid.
+- Server gates use `hasPaidAccess(userId, tier)` and `canSubmit()` from `lib/credits.ts`; API calls draw the same balance through `trackApiUsage`.
+- Client gates use `useCredits(signedIn).entitled` from `lib/use-credits.ts`. The free allowance feeds `available` but never `entitled`.
+- `pro` and `unlimited` are closed legacy tiers held by two accounts. They stay unmetered (`legacyTierIsUnmetered`) and must keep working; do not delete the tier values or `TIER_LIMITS`. Never show them as something for sale.
+
 ## Documentation Updates
 
 **Always update documentation when making commits:**
@@ -70,7 +81,7 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
    - Database schema
    - API endpoints
    - Environment variables
-   - Tier/pricing structure
+   - Pack/pricing structure (`lib/packs.ts` is the source of truth)
    - Key files or their responsibilities
 
 Keep both files in sync so LLMs have accurate context about the codebase.
@@ -87,6 +98,7 @@ surface fails CI unless it also touches `docs-site/`, or carries the
 `no-docs-needed` label.
 
 Update the docs whenever a change moves any of:
+
 - A response shape or field name on `/api/v1/*`
 - A rate limit, credit cost, batch size or plan mapping
 - An error code or status
@@ -94,8 +106,8 @@ Update the docs whenever a change moves any of:
 - A published statistic or coverage claim
 
 **Never name a data provider in `docs-site/`.** The same rule as the UI, and it
-matters more here: the docs are indexed and permanent. Describe *capability*
-("Farcaster coverage is complete") and *evidence class* ("attested onchain"),
+matters more here: the docs are indexed and permanent. Describe _capability_
+("Farcaster coverage is complete") and _evidence class_ ("attested onchain"),
 never provenance. The public `sources` field is mapped through
 `lib/api-sources.ts` for exactly this reason, on an allowlist so an unmapped
 internal source is dropped rather than leaked.
@@ -161,13 +173,13 @@ palette class** (`text-green-500`, `bg-blue-50`, `bg-gray-500`). An ESLint rule 
 families **including the neutrals** — the guard originally listed only the 17
 chromatic ones and reported clean over 18 live violations.
 
-| Token | Means |
-|---|---|
-| `accent-brand`, `accent-brand-tint` | **an affordance.** Anything you can act on: buttons, links, focus, selected, the logo |
-| `attested`, `attested-tint` | **a measured fact.** An identity the owner published, a system that is live, a real outcome |
-| `caution`, `caution-tint` | truncated results, stale records, approaching a limit |
-| `destructive` | revoking a key, deleting a lookup |
-| `muted`, `muted-foreground`, `border` | everything else, which is most of the screen |
+| Token                                 | Means                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `accent-brand`, `accent-brand-tint`   | **an affordance.** Anything you can act on: buttons, links, focus, selected, the logo       |
+| `attested`, `attested-tint`           | **a measured fact.** An identity the owner published, a system that is live, a real outcome |
+| `caution`, `caution-tint`             | truncated results, stale records, approaching a limit                                       |
+| `destructive`                         | revoking a key, deleting a lookup                                                           |
+| `muted`, `muted-foreground`, `border` | everything else, which is most of the screen                                                |
 
 The tokens are theme-aware, so `bg-accent-brand-tint` already handles dark. A
 `dark:` variant restating the same token is redundant.
@@ -180,8 +192,9 @@ provenance, and there it must be driven by `twitter_verified` /
 The wider rule is **green marks a measured fact, violet marks an affordance**. That
 covers the row gutter dot, the live pulse, the hit rate and the whitelist chip
 without a second green. What green must never mark is **an inference presented as
-confirmation**, which is the distinction the product is sold on. Four pricing tiers
-in four hues taught users nothing; this teaches them the one thing that matters.
+confirmation**, which is the distinction the product is sold on. A palette that
+coloured each pricing tier differently taught users nothing; this teaches them the
+one thing that matters.
 
 One named exception: a selected platform in a segmented control takes that
 platform's own colours (𝕏 white on `#0F1419`, Farcaster white on `#8A63D2`). Those
@@ -210,32 +223,38 @@ the other way. If you change that prompt, keep the rule (see
 This app handles large datasets (10K+ wallets). Key patterns used:
 
 ### Component Memoization
+
 - Wrap child components with `React.memo()` to prevent re-renders when parent state changes
 - Use `useMemo` for expensive calculations (filtering, sorting, stats)
 - Use `useCallback` for event handlers passed as props
 - Avoid inline arrow functions in JSX props (defeats memoization)
 
 ### Table Virtualization
+
 - `ResultsTable` uses `@tanstack/react-virtual` for large lists
 - Only renders ~35 visible rows instead of 13K+ DOM elements
 - CSS Grid layout (required for virtualization, can't virtualize `<tbody>`)
 - 10-row overscan for smooth scrolling
 
 ### Polling Optimization
+
 - Compare values before calling setState to avoid unnecessary re-renders
 - Return same reference from functional setState when values unchanged
 
 ### Lazy Loading
+
 - History API supports `summaryOnly=true` to fetch metadata without full JSONB results
 - Full results fetched on-demand via `/api/history/[id]`
 
 ### Animation Performance
+
 - Modal uses 2 animations (fade + scale) instead of 5
 - Duration reduced to 150ms for snappier feel
 
 ## Environment Variables
 
 Copy `.env.example` to `.env.local`:
+
 - `DATABASE_URL` - Neon PostgreSQL connection string (enables caching/history)
 - `NEYNAR_API_KEY` - Enables Farcaster lookups with follower counts
 - `WEB3BIO_API_KEY` - Higher rate limits for Web3.bio

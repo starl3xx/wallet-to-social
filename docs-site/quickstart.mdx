@@ -1,16 +1,17 @@
 ---
-title: "Quickstart"
-description: "From nothing to your first resolved wallet."
+title: 'Quickstart'
+description: 'From nothing to your first resolved wallet.'
 ---
 
 ## Without writing code
 
-Open [walletlink.social](https://walletlink.social), give it addresses one of three ways, and export the results.
+Open [walletlink.social](https://walletlink.social), give it addresses one of three ways, and export the results. Your first 100 matches are free, every 30 days. A match is a wallet resolved to an X handle or a Farcaster account; a miss costs nothing.
 
 <Steps>
   <Step title="Add addresses">
-    Upload a CSV, import a contract’s holders, or paste addresses directly.
-    A CSV with a balance or value column gets priority scoring for free.
+    Upload a CSV, import a contract’s holders, or paste addresses directly. A
+    CSV with a balance or value column gets priority scoring, included with
+    every pack.
   </Step>
   <Step title="Choose how hard to look">
     **Deep scan** is the default and finds the most. **Fast** answers from the
@@ -20,12 +21,12 @@ Open [walletlink.social](https://walletlink.social), give it addresses one of th
     Progress streams as it goes. Large lists keep working while you watch.
   </Step>
   <Step title="Export">
-    Full CSV sorted by priority score, or a plain handle list ready for an
-    X list import.
+    Full CSV sorted by priority score, or a plain handle list ready for an X
+    list import.
   </Step>
 </Steps>
 
-Reverse lookup works in the app too, on any paid plan. Enter an X handle or a Farcaster username and you get the wallets attached to that person, in the same table with the same export. Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).
+Reverse lookup works in the app too, and is included with every credit pack. Enter an X handle or a Farcaster username and you get the wallets attached to that person, in the same table with the same export. Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).
 
 ## With the API
 
@@ -38,9 +39,10 @@ Sign in at [walletlink.social](https://walletlink.social), open the account menu
 Keys look like `wts_live_` followed by 32 characters. You can hold up to 10 active keys at a time.
 
 <Warning>
-The key is shown once, at creation, and only its hash is stored. If you lose it
-we cannot recover it, only replace it. Treat it as a server-side secret: it
-carries your whole plan allowance and there is no per-key spend cap.
+  The key is shown once, at creation, and only its hash is stored. If you lose
+  it we cannot recover it, only replace it. Treat it as a server-side secret: it
+  carries your whole credit balance and there is no per-key spend cap. A leaked
+  key can spend every match you have bought.
 </Warning>
 
 ### Make a call
@@ -81,8 +83,8 @@ The `Bearer` prefix is optional. A bare key in the `Authorization` header works 
 Every response is `{ data, meta }`. Fields with no value are omitted rather than returned as `null`, so check for presence rather than assuming a fixed shape.
 
 <Note>
-A wallet with no identities returns HTTP **200** with `data: null`, not a 404.
-Only genuine failures use error status codes.
+  A wallet with no identities returns HTTP **200** with `data: null`, not a 404.
+  Only genuine failures use error status codes.
 </Note>
 
 ### Go bigger

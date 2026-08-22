@@ -1,29 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createCheckoutSession,
-  createPackCheckoutSession,
-  isStripeConfigured,
-  type CheckoutTier,
-} from '@/lib/stripe';
-import { isPackId } from '@/lib/packs';
+import { createPackCheckoutSession, isStripeConfigured } from '@/lib/stripe';
+import { isPackId, PACK_IDS } from '@/lib/packs';
 
 export const runtime = 'nodejs';
 
 interface CheckoutRequest {
   email: string;
-  /** A credit pack. The current product. */
+  /** A credit pack. The only thing this endpoint sells. */
   pack?: string;
-  /**
-   * A legacy one-time tier.
-   *
-   * Kept working rather than removed. The upgrade modal is cached in browsers,
-   * the two paying accounts were provisioned through this shape, and a checkout
-   * that 400s because the caller is a version behind is a lost sale for no
-   * reason. New callers send `pack`.
-   */
-  tier?: CheckoutTier;
 }
 
+/**
+ * The legacy `tier` field is gone from the request shape.
+ *
+ * It was kept for a while so a browser holding a cached upgrade modal could
+ * still complete a purchase. Nothing in the codebase posts a tier any more,
+ * `components/UpgradeModal.tsx` sends `pack`, and a request that does arrive
+ * with a tier is asking for a product that is not for sale. It now gets the
+ * same 400 as any other request without a pack, and the error names what is.
+ *
+ * The two legacy accounts are unaffected: their entitlement lives in
+ * `users.tier` and the webhook still reads `metadata.tier` on their historical
+ * payments. Only the path that *creates* a tier checkout is closed.
+ */
 export async function POST(request: NextRequest) {
   try {
     if (!isStripeConfigured()) {
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CheckoutRequest = await request.json();
-    const { email, pack, tier } = body;
+    const { email, pack } = body;
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -43,27 +42,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (pack) {
-      if (!isPackId(pack)) {
-        return NextResponse.json({ error: 'Unknown pack' }, { status: 400 });
-      }
-      const packSession = await createPackCheckoutSession(email, pack);
-      return NextResponse.json(packSession);
-    }
-
-    if (tier !== 'pro' && tier !== 'unlimited') {
+    if (!pack || !isPackId(pack)) {
       return NextResponse.json(
-        { error: 'Invalid tier. Must be "pro" or "unlimited"' },
+        {
+          error: `Missing or unknown pack. Must be one of: ${PACK_IDS.join(', ')}.`,
+        },
         { status: 400 }
       );
     }
 
-    const { url, sessionId } = await createCheckoutSession(email, tier);
-
-    return NextResponse.json({
-      url,
-      sessionId,
-    });
+    const packSession = await createPackCheckoutSession(email, pack);
+    return NextResponse.json(packSession);
   } catch (error) {
     console.error('Checkout error:', error);
     return NextResponse.json(

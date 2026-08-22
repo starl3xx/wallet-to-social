@@ -1,8 +1,8 @@
 ---
-title: "How to Reach Your Token Holders on Farcaster"
-meta_description: "A practical guide to finding your token holders on Farcaster and building a direct outreach rhythm that actually gets responses."
+title: 'How to Reach Your Token Holders on Farcaster'
+meta_description: 'A practical guide to finding your token holders on Farcaster and building a direct outreach rhythm that actually gets responses.'
 published: true
-publish_date: "2026-05-14"
+publish_date: '2026-05-14'
 ---
 
 # How to Reach Your Token Holders on Farcaster
@@ -49,11 +49,11 @@ Here is a practical segmentation framework:
 
 **By holding size:**
 
-| Segment | Typical Definition | Outreach Style |
-|---------|-------------------|----------------|
-| Whales | Top 1% by balance | Personal 1:1 message from founder/lead |
-| Core holders | Top 10% | Small group conversations, early access |
-| General holders | Everyone else | Channel-based, informational |
+| Segment         | Typical Definition | Outreach Style                          |
+| --------------- | ------------------ | --------------------------------------- |
+| Whales          | Top 1% by balance  | Personal 1:1 message from founder/lead  |
+| Core holders    | Top 10%            | Small group conversations, early access |
+| General holders | Everyone else      | Channel-based, informational            |
 
 **By behavior:**
 
@@ -149,4 +149,4 @@ Start with your holder list. Resolve the identities. Segment the results. Send t
 
 ---
 
-Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social) -- free for your first 1,000 wallets.
+Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social) -- free for your first 100 matches every 30 days.

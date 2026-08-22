@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { listPayments, isStripeConfigured } from '@/lib/stripe';
+import { getBalance } from '@/lib/credits';
 
 export const runtime = 'nodejs';
 
@@ -15,8 +16,13 @@ export const runtime = 'nodejs';
  *
  * Money comes from Stripe rather than from the tier, for the reason the revenue
  * endpoint documents at length: a tier is an entitlement, not a receipt. An
- * account holding Unlimited with no matching payment is a comp, and saying so
- * is the difference between knowing a customer and guessing at one.
+ * account holding a legacy tier with no matching payment is a comp, and saying
+ * so is the difference between knowing a customer and guessing at one.
+ *
+ * Credits come from the lot table. `tier` is only ever 'free' for anyone who
+ * bought a pack, so without the balance a $899 Index buyer resolves here as a
+ * free account with some payments beside it, and "how many matches do they
+ * have left" has no answer on the one screen support opens.
  *
  * Lookup up by email, since that is what a person has when they ask about an
  * account: it is what arrives in a support message, and it is what the tables
@@ -33,7 +39,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 503 }
+    );
   }
 
   const rows = async <T>(q: ReturnType<typeof sql>): Promise<T[]> => {
@@ -59,7 +68,10 @@ export async function GET(request: NextRequest) {
   `);
 
   if (!account) {
-    return NextResponse.json({ error: 'No account with that address' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'No account with that address' },
+      { status: 404 }
+    );
   }
 
   const [whitelisted] = await rows<{ n: number }>(
@@ -154,14 +166,23 @@ export async function GET(request: NextRequest) {
       const all = await listPayments();
       payments = all.payments
         .filter((p) => p.email?.toLowerCase() === email)
-        .map(({ id, amountCents, refundedCents, netCents, created, fullyRefunded }) => ({
-          id,
-          amountCents,
-          refundedCents,
-          netCents,
-          created,
-          fullyRefunded,
-        }));
+        .map(
+          ({
+            id,
+            amountCents,
+            refundedCents,
+            netCents,
+            created,
+            fullyRefunded,
+          }) => ({
+            id,
+            amountCents,
+            refundedCents,
+            netCents,
+            created,
+            fullyRefunded,
+          })
+        );
     } catch (error) {
       console.error('Account payments lookup failed:', error);
     }
@@ -169,16 +190,39 @@ export async function GET(request: NextRequest) {
 
   const netCents = payments.reduce((s, p) => s + p.netCents, 0);
 
+  /**
+   * What they can spend right now: live lots, soonest expiry first, and the
+   * free allowance when there are none. Same function the product itself
+   * meters against, so this screen cannot disagree with what the customer
+   * sees on theirs.
+   */
+  const balance = await getBalance(account.id);
+  const credits = {
+    available: balance.available,
+    onFreeAllowance: balance.onFreeAllowance,
+    freeUsedThisWindow: balance.freeUsedThisWindow,
+    freeWindowResetsAt: balance.freeWindowResetsAt?.toISOString() ?? null,
+    lots: balance.lots.map((l) => ({
+      pack: l.pack,
+      remaining: l.remaining,
+      expiresAt: l.expiresAt.toISOString(),
+    })),
+  };
+
   return NextResponse.json({
     account: {
       ...account,
       isWhitelisted: (whitelisted?.n ?? 0) > 0,
     },
-    // A paid tier with no settled payment behind it is a comp. Saying so keeps
-    // the panel from reading an entitlement as revenue.
-    gifted: account.tier !== 'free' && netCents === 0,
+    // Entitlement with no settled payment behind it is a comp: a legacy tier,
+    // or live credits that were all issued by hand. Saying so keeps the panel
+    // from reading an entitlement as revenue.
+    gifted:
+      netCents === 0 &&
+      (account.tier !== 'free' || balance.lots.some((l) => l.pack === 'grant')),
     netCents,
     payments,
+    credits,
     volume: {
       lifetimeWallets: account.wallets_used,
       peakDayWallets: lifetime?.peak ?? 0,

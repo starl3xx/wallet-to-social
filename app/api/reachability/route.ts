@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { cleanTwitterHandle } from '@/lib/twitter-cleaner';
-import { REACHABILITY_DETAIL, REACHABILITY_LABEL, type Reachability } from '@/lib/handle-reachability';
-import { checkIpRateLimit, formatRateLimitHeaders, getClientIp } from '@/lib/ip-rate-limiter';
+import {
+  REACHABILITY_DETAIL,
+  REACHABILITY_LABEL,
+  type Reachability,
+} from '@/lib/handle-reachability';
+import {
+  checkIpRateLimit,
+  formatRateLimitHeaders,
+  getClientIp,
+} from '@/lib/ip-rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -25,8 +33,8 @@ export const runtime = 'nodejs';
  *
  * The **count** of wallets carrying the handle, never the addresses. Handle to
  * wallets is the reverse lookup, which is a paid feature behind `/api/reverse`
- * and `/v1/reverse`. A free endpoint returning addresses would give away the
- * thing Pro is sold on, for any handle anyone can type.
+ * and `/v1/reverse`. A free endpoint returning addresses would give away a
+ * feature every pack is sold on, for any handle anyone can type.
  *
  * The count is the part that makes the answer meaningful ("this dead handle is
  * on 240 wallets") without being the product.
@@ -95,7 +103,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const limit = await checkIpRateLimit(getClientIp(request), '/api/reachability');
+  const limit = await checkIpRateLimit(
+    getClientIp(request),
+    '/api/reachability'
+  );
   if (!limit.allowed) {
     return NextResponse.json(
       { error: 'Too many checks from this address. Try again shortly.' },
@@ -105,7 +116,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Service temporarily unavailable' },
+      { status: 503 }
+    );
   }
 
   try {
@@ -135,14 +149,21 @@ export async function GET(request: NextRequest) {
       FROM (SELECT 1) AS one
       LEFT JOIN x_accounts x ON x.handle = ${handle}
     `)) as unknown as {
-      rows: Array<{ wallets: number; status: string | null; checked_at: string | null }>;
+      rows: Array<{
+        wallets: number;
+        status: string | null;
+        checked_at: string | null;
+      }>;
     };
 
     const row = result.rows[0];
     const wallets = row?.wallets ?? 0;
 
     if (wallets === 0 && !row?.status) {
-      return NextResponse.json({ handle, ...NOT_IN_INDEX }, { headers: formatRateLimitHeaders(limit) });
+      return NextResponse.json(
+        { handle, ...NOT_IN_INDEX },
+        { headers: formatRateLimitHeaders(limit) }
+      );
     }
 
     // Internal vocabulary in, public vocabulary out. See lib/handle-reachability.
@@ -158,12 +179,18 @@ export async function GET(request: NextRequest) {
     const answer: Answer = {
       handle,
       state,
-      label: state === 'unchecked' ? 'Not checked yet' : REACHABILITY_LABEL[state],
-      detail: state === 'unchecked' ? UNCHECKED_DETAIL : REACHABILITY_DETAIL[state],
+      label:
+        state === 'unchecked' ? 'Not checked yet' : REACHABILITY_LABEL[state],
+      detail:
+        state === 'unchecked' ? UNCHECKED_DETAIL : REACHABILITY_DETAIL[state],
       wallets,
-      checkedAt: row?.checked_at ? new Date(row.checked_at).toISOString() : null,
+      checkedAt: row?.checked_at
+        ? new Date(row.checked_at).toISOString()
+        : null,
     };
-    return NextResponse.json(answer, { headers: formatRateLimitHeaders(limit) });
+    return NextResponse.json(answer, {
+      headers: formatRateLimitHeaders(limit),
+    });
   } catch (error) {
     console.error('Reachability check error:', error);
     return NextResponse.json({ error: 'Check failed' }, { status: 500 });

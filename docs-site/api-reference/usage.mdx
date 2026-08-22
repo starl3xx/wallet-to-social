@@ -1,17 +1,20 @@
 ---
-title: "Usage"
-description: "GET /v1/usage"
-api: "GET https://walletlink.social/api/v1/usage"
+title: 'Usage'
+description: 'GET /v1/usage'
+api: 'GET https://walletlink.social/api/v1/usage'
 ---
 
-Reports your key’s plan, current rate limit state, and consumption history. **Free**.
+Reports your key’s plan, current rate limit state, consumption history, and your remaining match credits. Costs no credits.
 
-Because it costs nothing and reports all three rate limit windows at once, this is the right endpoint to poll from a dashboard or to check before starting a large job.
+Because it costs nothing and reports all three rate limit windows and your match balance at once, this is the right endpoint to poll from a dashboard or to check before starting a large job.
+
+It does need a non-zero balance, like every endpoint: a key with nothing left gets `402 NO_CREDITS` here too, which is itself the answer.
 
 ## Query parameters
 
 <ParamField query="period" type="string" default="month">
-  Window for the usage figures. One of `day`, `week`, `month`. Anything else returns `INVALID_PARAMETER`.
+  Window for the usage figures. One of `day`, `week`, `month`. Anything else
+  returns `INVALID_PARAMETER`.
 </ParamField>
 
 ## Request
@@ -26,16 +29,33 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
 <ResponseField name="data" type="object">
   <Expandable title="properties">
     <ResponseField name="key" type="object">
-      `id`, `name`, `prefix`, `plan`, `created_at`, `last_used_at`. Only the prefix is shown, never the key.
+      `id`, `name`, `prefix`, `plan`, `created_at`, `last_used_at`. Only the
+      prefix is shown, never the key.
     </ResponseField>
     <ResponseField name="plan_limits" type="object">
-      `requests_per_minute`, `requests_per_day`, `requests_per_month`, `max_batch_size`. Unlimited values are the string `"unlimited"`, not a number.
+      `requests_per_minute`, `requests_per_day`, `requests_per_month`,
+      `max_batch_size`. A window with no ceiling is the string `"unlimited"`
+      rather than a number; no pack has one today.
     </ResponseField>
     <ResponseField name="rate_limits" type="object">
-      Current state of the `minute`, `day` and `month` windows, each with `limit`, `remaining` and `reset_at`. A window can be `null` if it has not been exercised yet.
+      Current state of the `minute`, `day` and `month` windows, each with
+      `limit`, `remaining` and `reset_at`. A window can be `null` if it has not
+      been exercised yet.
+    </ResponseField>
+    <ResponseField name="credits" type="object">
+      Your match credit balance, the same one the app spends. `available` is the
+      number of matches left, or `null` when the account is not metered.
+      `unmetered` is `true` on accounts that are never debited.
+      `on_free_allowance` is `true` when you hold no live pack and are spending
+      the free 100 matches per rolling 30 days. `free_window_resets_at` is when
+      the next free match comes back, as an ISO 8601 timestamp, or `null` when
+      it does not apply.
     </ResponseField>
     <ResponseField name="usage" type="object">
-      `period`, `total_requests`, `total_credits`, `total_wallets`, `avg_latency_ms`, `error_rate` as a percentage, plus `requests_by_endpoint` and `requests_by_day` breakdowns.
+      `period`, `total_requests`, `total_credits`, `total_wallets`,
+      `avg_latency_ms`, `error_rate` as a percentage, plus
+      `requests_by_endpoint` and `requests_by_day` breakdowns. `total_credits`
+      counts rate-limit units, not match credits.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -58,9 +78,27 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
       "max_batch_size": 50
     },
     "rate_limits": {
-      "minute": { "limit": 60, "remaining": 58, "reset_at": "2026-08-14T12:01:00.000Z" },
-      "day": { "limit": 5000, "remaining": 4310, "reset_at": "2026-08-15T00:00:00.000Z" },
-      "month": { "limit": 50000, "remaining": 46120, "reset_at": "2026-09-01T00:00:00.000Z" }
+      "minute": {
+        "limit": 60,
+        "remaining": 58,
+        "reset_at": "2026-08-14T12:01:00.000Z"
+      },
+      "day": {
+        "limit": 5000,
+        "remaining": 4310,
+        "reset_at": "2026-08-15T00:00:00.000Z"
+      },
+      "month": {
+        "limit": 50000,
+        "remaining": 46120,
+        "reset_at": "2026-09-01T00:00:00.000Z"
+      }
+    },
+    "credits": {
+      "available": 1180,
+      "unmetered": false,
+      "on_free_allowance": false,
+      "free_window_resets_at": null
     },
     "usage": {
       "period": "week",
@@ -82,13 +120,13 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
 
 ## Notes
 
-`plan` reports the internal plan name (`Developer`, `Startup`), not the tier you bought. See [plans](/api-reference/introduction#plans).
+`plan` reports the internal plan name (`Developer`, `Startup`), not the pack you bought. Every pack reports `Developer`. See [plans](/api-reference/introduction#plans).
 
-`total_credits` exceeding `total_requests` is expected, not a billing error. A 50-wallet batch is one request and 50 credits.
+`total_credits` counts rate-limit units, not match credits, and it is not your bill: a 50-wallet batch is one request and 50 rate-limit units, while what it costs you is one match credit per wallet that resolved. `total_credits` exceeding `total_requests` is expected. For what you have left to spend, read `credits.available`.
 
 `error_rate` is already a percentage. `0.24` means 0.24%, not 24%.
 
-Unlimited plans report the string `"unlimited"` in `plan_limits` where a number would otherwise be, so parse defensively.
+`plan_limits` can carry the string `"unlimited"` instead of a number on custom plans with no ceiling in a given window. No pack and no legacy tier does today, but parse defensively.
 
 <Warning>
 `requests_by_endpoint` is keyed by the concrete request path, not by route
@@ -99,6 +137,7 @@ fixed path and stays as one entry.
 
 If you only need totals, read `total_requests` and `total_credits` and ignore
 this field. Use `period=day` to keep the response small.
+
 </Warning>
 
 ## Errors

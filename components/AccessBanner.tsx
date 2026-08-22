@@ -73,8 +73,11 @@ export function AccessBanner({
     await signOut();
   };
 
-  // Authenticated user UI (displayed alongside tier badge)
-  const AuthSection = () => {
+  // Authenticated user UI (displayed alongside the status chip). A render
+  // helper called as a function, not a component declared inside render: a
+  // component created here would be a new type on every render and reset its
+  // subtree's state each time.
+  const renderAuthSection = () => {
     if (isLoading) {
       return null;
     }
@@ -106,9 +109,9 @@ export function AccessBanner({
                 <div className="truncate border-b border-border px-3 pb-2 pt-1 font-mono text-xs text-muted-foreground">
                   {user.email}
                 </div>
-                {/* Shown to every signed-in account, not just the tiers that
-                    have API access. For Free the modal explains what the API
-                    does and routes to plans, which is a better answer than
+                {/* Shown to every signed-in account, not only the ones with
+                    credits. Without them the modal explains what the API does
+                    and routes to the packs, which is a better answer than
                     hiding the entrance entirely. */}
                 <button
                   onClick={() => {
@@ -154,11 +157,12 @@ export function AccessBanner({
     );
   };
 
-  // Tier badge content
-  const TierBadge = () => {
+  // Status chip content. Same shape as renderAuthSection, for the same reason.
+  const renderTierBadge = () => {
     /**
-     * The tiers are a ladder, so they read as one hue at increasing weight rather
-     * than four unrelated colours.
+     * One hue family rather than four unrelated colours. The two legacy chips
+     * take the brand fill; they are not for sale, so the chip is the only
+     * place those names still appear to the account that holds them.
      *
      * Whitelisted is green. It was amber, and I argued for that on the grounds
      * that it is a state rather than a rung, which put good news in the hue
@@ -177,10 +181,17 @@ export function AccessBanner({
       );
     }
 
+    /**
+     * The two legacy chips. Each is true only for the account that holds it:
+     * never metered, no expiry. The `title` says so, because the product now
+     * meters matches and a bare tier name or wallet cap would read as a rung
+     * on a ladder that no longer exists.
+     */
     if (tier === 'unlimited') {
       return (
         <div
           className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+          title="Legacy Unlimited account: never metered, no expiry"
         >
           <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">
@@ -194,30 +205,35 @@ export function AccessBanner({
       return (
         <div
           className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+          title={`Legacy Pro account: up to ${TIER_LIMITS.pro.toLocaleString()} wallets per lookup, never metered`}
         >
           <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
           <span className="font-medium text-accent-brand-foreground">Pro</span>
+          {/* The unit is spelt out. "5,000 wallets" alone read as a balance
+              next to a product that counts matches; this is the per-lookup cap
+              that account was sold, and it never goes down. */}
           <span className="text-accent-brand-foreground/75 hidden sm:inline">
-            {TIER_LIMITS.pro.toLocaleString()} wallets
+            {TIER_LIMITS.pro.toLocaleString()} wallets per lookup
           </span>
         </div>
       );
     }
 
-    // Free tier - show upgrade CTA
-    // Deliberately NOT wrapped in CHIP. This is the only tier state containing an
+    // No legacy tier: the balance, and the way to add to it. This is everyone
+    // who is not one of the two legacy accounts, pack holders included.
+    // Deliberately NOT wrapped in CHIP. This is the only state containing an
     // action, and CHIP is a label treatment: its font-mono, tracking and muted
     // colour inherit straight into the Button and turn the one revenue CTA in the
-    // header into muted label type. A quota readout and its CTA are a label and an
-    // action, and those never share a treatment.
+    // header into muted label type. A balance readout and its CTA are a label and
+    // an action, and those never share a treatment.
     return (
       <div className="flex items-center gap-2">
-        {/* Desktop only, and not purely for room. This is the one tier whose
+        {/* Desktop only, and not purely for room. This is the one state whose
             chip tells a visitor nothing they want: someone with no account does
-            not need a badge saying so, they need the way in. Pro and Unlimited
-            keep theirs at every width, because there the chip is the only thing
+            not need a badge saying so, they need the way in. The legacy chips
+            stay at every width, because there the chip is the only thing
             saying the account is paid, and those rows are shorter anyway: no
-            Upgrade button, and an avatar instead of "Sign in".
+            Buy credits button, and an avatar instead of "Sign in".
 
             It is also 61px of a header that measured 401px against a 375px
             screen, which is what made the choice worth making rather than
@@ -250,14 +266,14 @@ export function AccessBanner({
 
   return (
     <div className="flex flex-shrink-0 items-center gap-2">
-      <TierBadge />
+      {renderTierBadge()}
       {/* The theme control sits between status and account: an avatar is the
           conventional end of a header row, and burying it mid-row makes the
           whole cluster read as three unrelated chips. */}
       {trailing}
-      <AuthSection />
-      {/* Rendered outside AuthSection: that component returns early while the
-          session is loading, which would unmount an open modal mid-use. */}
+      {renderAuthSection()}
+      {/* Rendered outside renderAuthSection: that helper returns early while
+          the session is loading, which would unmount an open modal mid-use. */}
       {/* Credits unlock a key, not a tier. `entitled` excludes the free
           allowance deliberately: those features were never part of free. */}
       <ApiKeysModal

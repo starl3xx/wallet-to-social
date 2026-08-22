@@ -1,10 +1,10 @@
 ---
-title: "Index stats"
-description: "GET /v1/stats"
-api: "GET https://walletlink.social/api/v1/stats"
+title: 'Index stats'
+description: 'GET /v1/stats'
+api: 'GET https://walletlink.social/api/v1/stats'
 ---
 
-Live totals for the whole index. **Free**, but still requires a valid key.
+Live totals for the whole index. Costs no credits, but it still needs a valid key **and a non-zero balance**: an exhausted account gets `402 NO_CREDITS` on every endpoint, including this one.
 
 Use it to check coverage claims for yourself rather than trusting a number on a marketing page, and to monitor whether the index is growing in the dimension you care about.
 
@@ -26,7 +26,8 @@ curl https://walletlink.social/api/v1/stats \
       Every wallet we have examined, including those we found nothing for.
     </ResponseField>
     <ResponseField name="coverage" type="object">
-      Counts per network: `twitter`, `farcaster`, `ens`, `lens`, `github`. These overlap, since one wallet can carry several.
+      Counts per network: `twitter`, `farcaster`, `ens`, `lens`, `github`. These
+      overlap, since one wallet can carry several.
     </ResponseField>
     <ResponseField name="farcaster_stats" type="object">
       `avg_followers` and `max_followers` across indexed Farcaster accounts.
@@ -53,7 +54,7 @@ curl https://walletlink.social/api/v1/stats \
 ```
 
 <Warning>
-Figures above are illustrative. Call the endpoint for real ones.
+  Figures above are illustrative. Call the endpoint for real ones.
 </Warning>
 
 ## Reading the two totals
@@ -62,7 +63,7 @@ Figures above are illustrative. Call the endpoint for real ones.
 
 `wallets_checked` includes wallets we examined and found nothing for. Those are deliberately excluded from `total_wallets`, so that dividing one by the other gives a real hit rate rather than one inflated by counting empty records as coverage.
 
-Do not compute a match rate for *your* list from these numbers. The index skews toward wallets somebody has already looked up, which is not a random sample of the chain. For your own list, sample it through [batch](/api-reference/batch) and measure directly. See [coverage](/concepts/coverage).
+Do not compute a match rate for _your_ list from these numbers. The index skews toward wallets somebody has already looked up, which is not a random sample of the chain. For your own list, sample it through [batch](/api-reference/batch) and measure directly. See [coverage](/concepts/coverage).
 
 ## Errors
 

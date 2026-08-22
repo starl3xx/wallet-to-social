@@ -11,7 +11,7 @@ import {
   Crown,
   Lightning as Zap,
 } from '@phosphor-icons/react';
-import { TIER_LIMITS, type UserTier } from '@/lib/access';
+import type { UserTier } from '@/lib/access';
 
 type VerificationState = 'verifying' | 'success' | 'error';
 
@@ -245,44 +245,27 @@ function SuccessContent() {
             </>
           )}
 
+          {/* A tier without a pack. Nothing sold today produces one: the
+              checkout route only accepts a pack id. It still arrives on the
+              legacy path (a session carrying tier metadata) and whenever
+              checkout-status falls through to `getUserAccess`, which reports a
+              legacy or whitelisted account as its tier. What is true of every
+              one of those accounts is that no meter runs, so that is all this
+              says: no "Plan", and no wallet cap, because neither is the
+              product any more. */}
           {state === 'success' && tier && !pack && (
             <>
               <div className="flex items-center justify-center gap-2 py-4 bg-muted rounded-lg">
                 <TierIcon className={`h-6 w-6 ${tierColor}`} />
                 <span className="text-lg font-semibold capitalize">
-                  {tier} Plan
+                  {tier} account
                 </span>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <p className="text-center text-muted-foreground">
-                  You now have access to:
-                </p>
-                <ul className="space-y-1">
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-accent-brand" />
-                    {tier === 'unlimited'
-                      ? 'Unlimited wallets'
-                      : `Up to ${TIER_LIMITS[tier].toLocaleString()} wallets`}
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-accent-brand" />
-                    All data sources
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-accent-brand" />
-                    FC follower counts & priority scoring
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-accent-brand" />
-                    Deep scan with onchain ENS
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-accent-brand" />
-                    Twitter list export
-                  </li>
-                </ul>
-              </div>
+              <p className="text-center text-sm text-muted-foreground">
+                This account is not metered. There are no credits to count and
+                nothing expires.
+              </p>
 
               {email && (
                 <p className="text-center text-sm text-muted-foreground">

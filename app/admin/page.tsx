@@ -15,7 +15,23 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Trash as Trash2, Plus, CircleNotch as Loader2, Lock, Users, Crown, Lightning as Zap, Sparkle as Sparkles, Eye, ArrowsClockwise as RefreshCw, XCircle, MagnifyingGlass as Search, ArrowCounterClockwise as RotateCcw, X, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
+import {
+  Trash as Trash2,
+  Plus,
+  CircleNotch as Loader2,
+  Lock,
+  Users,
+  Crown,
+  Lightning as Zap,
+  Sparkle as Sparkles,
+  Eye,
+  ArrowsClockwise as RefreshCw,
+  XCircle,
+  MagnifyingGlass as Search,
+  ArrowCounterClockwise as RotateCcw,
+  X,
+  ArrowSquareOut as ExternalLink,
+} from '@phosphor-icons/react';
 import {
   ExecutivePulse,
   UserBehavior,
@@ -94,9 +110,12 @@ interface UserEntry {
 
 interface Stats {
   free: number;
+  /** The two legacy accounts. Frozen: nothing sets these tiers any more. */
   pro: number;
   unlimited: number;
   whitelisted: number;
+  /** Accounts with a live credit lot. Absent until `getAccessStats` returns it. */
+  creditHolders?: number;
 }
 
 interface WalletResult {
@@ -150,7 +169,6 @@ export default function AdminPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-
   // Jobs state
   const [jobs, setJobs] = useState<JobEntry[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -164,7 +182,9 @@ export default function AdminPage() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [userIdFilter, setUserIdFilter] = useState('');
-  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(
+    null
+  );
 
   // Users state
   const [usersList, setUsersList] = useState<UserEntry[]>([]);
@@ -371,7 +391,10 @@ export default function AdminPage() {
   };
 
   // Jobs handlers
-  const handleJobAction = async (id: string, action: 'retry' | 'cancel' | 'rerun') => {
+  const handleJobAction = async (
+    id: string,
+    action: 'retry' | 'cancel' | 'rerun'
+  ) => {
     setActioningJobId(id);
     try {
       const response = await fetch('/api/admin/jobs', {
@@ -479,7 +502,13 @@ export default function AdminPage() {
   };
 
   // Tier badge helper
-  const TierBadge = ({ tier, isWhitelisted }: { tier: string; isWhitelisted?: boolean }) => {
+  const TierBadge = ({
+    tier,
+    isWhitelisted,
+  }: {
+    tier: string;
+    isWhitelisted?: boolean;
+  }) => {
     if (isWhitelisted) {
       return (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-accent-brand-tint text-accent-brand">
@@ -503,7 +532,7 @@ export default function AdminPage() {
 
   // Get set of whitelisted emails for quick lookup
   const whitelistedEmails = new Set(
-    entries.filter(e => e.email).map(e => e.email!.toLowerCase())
+    entries.filter((e) => e.email).map((e) => e.email!.toLowerCase())
   );
 
   // Password screen
@@ -552,11 +581,15 @@ export default function AdminPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* `free` is every account without a legacy tier, which includes
+              every pack buyer. The paying base is the credit-holder count. */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Free</span>
+                <span className="text-sm text-muted-foreground">
+                  No legacy tier
+                </span>
               </div>
               <p className="text-2xl font-bold">{stats.free}</p>
             </CardContent>
@@ -565,25 +598,37 @@ export default function AdminPage() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-accent-brand" />
-                <span className="text-sm text-muted-foreground">Pro</span>
+                <span className="text-sm text-muted-foreground">
+                  Credit holders
+                </span>
               </div>
-              <p className="text-2xl font-bold">{stats.pro}</p>
+              <p className="text-2xl font-bold">{stats.creditHolders ?? '-'}</p>
+              <p className="text-xs text-muted-foreground">
+                accounts with a live pack
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Crown className="h-4 w-4 text-caution" />
-                <span className="text-sm text-muted-foreground">Unlimited</span>
+                <span className="text-sm text-muted-foreground">Legacy</span>
               </div>
-              <p className="text-2xl font-bold">{stats.unlimited}</p>
+              <p className="text-2xl font-bold">
+                {stats.pro + stats.unlimited}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.pro} pro, {stats.unlimited} unlimited, honoured forever
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent-brand" />
-                <span className="text-sm text-muted-foreground">Whitelisted</span>
+                <span className="text-sm text-muted-foreground">
+                  Whitelisted
+                </span>
               </div>
               <p className="text-2xl font-bold">{stats.whitelisted}</p>
             </CardContent>
@@ -616,7 +661,10 @@ export default function AdminPage() {
                 onChange={(e) => setNewNote(e.target.value)}
               />
             </div>
-            <Button type="submit" disabled={isAdding || (!newEmail && !newWallet)}>
+            <Button
+              type="submit"
+              disabled={isAdding || (!newEmail && !newWallet)}
+            >
               {isAdding ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -713,7 +761,12 @@ export default function AdminPage() {
               <option value="completed">Completed</option>
               <option value="failed">Failed</option>
             </select>
-            <Button variant="outline" size="sm" onClick={fetchJobs} disabled={jobsLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchJobs}
+              disabled={jobsLoading}
+            >
               {jobsLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -728,7 +781,9 @@ export default function AdminPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : jobs.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No jobs found</p>
+            <p className="text-center text-muted-foreground py-8">
+              No jobs found
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -769,14 +824,19 @@ export default function AdminPage() {
                             title={`${job.source.contractAddress} on ${job.source.chain ?? 'unknown chain'}`}
                           >
                             <span className="font-medium">
-                              {job.source.tokenSymbol || job.source.tokenName || 'contract'}
+                              {job.source.tokenSymbol ||
+                                job.source.tokenName ||
+                                'contract'}
                             </span>
                             <span className="text-muted-foreground">
                               {' '}
                               {job.source.chain}
                             </span>
                             {job.source.truncated && (
-                              <span className="ml-1 text-caution" title="The holder list was cut off at the limit">
+                              <span
+                                className="ml-1 text-caution"
+                                title="The holder list was cut off at the limit"
+                              >
                                 truncated
                               </span>
                             )}
@@ -792,7 +852,11 @@ export default function AdminPage() {
                           say so rather than print eight meaningless characters. */}
                       <TableCell className="text-sm">
                         {job.userEmail ? (
-                          <span title={job.userTier ? `tier: ${job.userTier}` : undefined}>
+                          <span
+                            title={
+                              job.userTier ? `tier: ${job.userTier}` : undefined
+                            }
+                          >
                             {job.userEmail}
                           </span>
                         ) : job.userId ? (
@@ -823,7 +887,9 @@ export default function AdminPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => fetchJobResults(job.id)}
-                              disabled={viewingJobId === job.id && jobResultsLoading}
+                              disabled={
+                                viewingJobId === job.id && jobResultsLoading
+                              }
                               title="View results"
                             >
                               {viewingJobId === job.id && jobResultsLoading ? (
@@ -866,7 +932,8 @@ export default function AdminPage() {
                             </Button>
                           )}
                           {/* Cancel - for pending or processing jobs */}
-                          {(job.status === 'pending' || job.status === 'processing') && (
+                          {(job.status === 'pending' ||
+                            job.status === 'processing') && (
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -900,7 +967,8 @@ export default function AdminPage() {
               <div>
                 <CardTitle>Job results</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Job ID: {viewingJobId.slice(0, 8)}... • {jobResults?.length || 0} results
+                  Job ID: {viewingJobId.slice(0, 8)}... •{' '}
+                  {jobResults?.length || 0} results
                 </p>
               </div>
               <Button variant="ghost" size="icon-sm" onClick={closeJobResults}>
@@ -913,7 +981,9 @@ export default function AdminPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : !jobResults || jobResults.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No results found</p>
+                <p className="text-center text-muted-foreground py-8">
+                  No results found
+                </p>
               ) : (
                 <Table>
                   <TableHeader className="sticky top-0 bg-background">
@@ -930,13 +1000,17 @@ export default function AdminPage() {
                     {jobResults.map((result, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono text-xs">
-                          {result.wallet.slice(0, 6)}...{result.wallet.slice(-4)}
+                          {result.wallet.slice(0, 6)}...
+                          {result.wallet.slice(-4)}
                         </TableCell>
                         <TableCell>{result.ens_name || '-'}</TableCell>
                         <TableCell>
                           {result.twitter_handle ? (
                             <a
-                              href={result.twitter_url || `https://x.com/${result.twitter_handle}`}
+                              href={
+                                result.twitter_url ||
+                                `https://x.com/${result.twitter_handle}`
+                              }
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-accent-brand hover:underline flex items-center gap-1"
@@ -951,7 +1025,10 @@ export default function AdminPage() {
                         <TableCell>
                           {result.farcaster ? (
                             <a
-                              href={result.farcaster_url || `https://warpcast.com/${result.farcaster}`}
+                              href={
+                                result.farcaster_url ||
+                                `https://warpcast.com/${result.farcaster}`
+                              }
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-accent-brand hover:underline flex items-center gap-1"
@@ -1032,7 +1109,9 @@ export default function AdminPage() {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : historyEntries.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No history found</p>
+          <p className="text-center text-muted-foreground py-8">
+            No history found
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -1058,16 +1137,24 @@ export default function AdminPage() {
                     <TableCell>{entry.name || '-'}</TableCell>
                     <TableCell>
                       {entry.inputSource ? (
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          entry.inputSource === 'file_upload'
-                            ? 'bg-accent-brand-tint text-accent-brand'
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-full ${
+                            entry.inputSource === 'file_upload'
+                              ? 'bg-accent-brand-tint text-accent-brand'
+                              : entry.inputSource === 'text_input'
+                                ? 'bg-accent-brand-tint text-accent-brand'
+                                : entry.inputSource === 'contract_import'
+                                  ? 'bg-accent-brand-tint text-accent-brand'
+                                  : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {entry.inputSource === 'file_upload'
+                            ? 'File'
                             : entry.inputSource === 'text_input'
-                            ? 'bg-accent-brand-tint text-accent-brand'
-                            : entry.inputSource === 'contract_import'
-                            ? 'bg-accent-brand-tint text-accent-brand'
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {entry.inputSource === 'file_upload' ? 'File' : entry.inputSource === 'text_input' ? 'Paste' : entry.inputSource === 'contract_import' ? 'Contract' : entry.inputSource}
+                              ? 'Paste'
+                              : entry.inputSource === 'contract_import'
+                                ? 'Contract'
+                                : entry.inputSource}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -1124,7 +1211,12 @@ export default function AdminPage() {
             <option value="pro">Pro</option>
             <option value="unlimited">Unlimited</option>
           </select>
-          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={usersLoading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchUsers}
+            disabled={usersLoading}
+          >
             {usersLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -1139,7 +1231,9 @@ export default function AdminPage() {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : usersList.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No users found</p>
+          <p className="text-center text-muted-foreground py-8">
+            No users found
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -1150,7 +1244,7 @@ export default function AdminPage() {
                   <TableHead>Stripe ID</TableHead>
                   <TableHead>Paid At</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-32">Change Tier</TableHead>
+                  <TableHead className="w-32">Change tier</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1168,7 +1262,12 @@ export default function AdminPage() {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <TierBadge tier={user.tier} isWhitelisted={whitelistedEmails.has(user.email.toLowerCase())} />
+                      <TierBadge
+                        tier={user.tier}
+                        isWhitelisted={whitelistedEmails.has(
+                          user.email.toLowerCase()
+                        )}
+                      />
                     </TableCell>
                     {/* Customer id when one exists, otherwise the payment
                         intent. Every sale taken before `customer_creation:
@@ -1176,31 +1275,52 @@ export default function AdminPage() {
                         customer id rendered a dash next to genuine paying
                         accounts. The payment intent identifies the sale in
                         Stripe just as well. */}
-                    <TableCell className="font-mono text-xs" title={user.stripeCustomerId || user.stripePaymentId || undefined}>
+                    <TableCell
+                      className="font-mono text-xs"
+                      title={
+                        user.stripeCustomerId ||
+                        user.stripePaymentId ||
+                        undefined
+                      }
+                    >
                       {user.stripeCustomerId
                         ? `${user.stripeCustomerId.slice(0, 14)}…`
                         : user.stripePaymentId
                           ? `${user.stripePaymentId.slice(0, 14)}…`
-                          : '—'}
+                          : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {user.paidAt ? new Date(user.paidAt).toLocaleString() : '-'}
+                      {user.paidAt
+                        ? new Date(user.paidAt).toLocaleString()
+                        : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(user.createdAt).toLocaleString()}
                     </TableCell>
                     <TableCell>
+                      {/* Pro and Unlimited are retired and permanently
+                          unmetered, so they are not offered here: the only
+                          thing this control can do now is move one of the two
+                          legacy accounts back to free. Goodwill credit is a
+                          lot (`grantCredits`), not a tier. */}
                       {updatingUserId === user.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : user.tier === 'free' ? (
+                        <span className="text-xs text-muted-foreground">
+                          credits only
+                        </span>
                       ) : (
                         <select
                           className="px-2 py-1 text-xs border rounded-sm bg-background"
                           value={user.tier}
-                          onChange={(e) => handleUpdateTier(user.id, e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateTier(user.id, e.target.value)
+                          }
                         >
+                          <option value={user.tier}>
+                            {user.tier} (legacy)
+                          </option>
                           <option value="free">Free</option>
-                          <option value="pro">Pro</option>
-                          <option value="unlimited">Unlimited</option>
                         </select>
                       )}
                     </TableCell>
@@ -1230,74 +1350,81 @@ export default function AdminPage() {
        dashboards are dense tables with six or more numeric columns, and squeezing
        them would trade a real working constraint for a cosmetic one. */
     <PageShell wide>
-        <header className="mb-8">
-          <h1 className="mb-2 text-3xl font-semibold tracking-[var(--tracking-title)]">Admin dashboard</h1>
-          <p className="text-muted-foreground">
-            Analytics, monitoring, and operational tools
-          </p>
-        </header>
+      <header className="mb-8">
+        <h1 className="mb-2 text-3xl font-semibold tracking-[var(--tracking-title)]">
+          Admin dashboard
+        </h1>
+        <p className="text-muted-foreground">
+          Analytics, monitoring, and operational tools
+        </p>
+      </header>
 
-        {/* Error display */}
-        {error && (
-          <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <p className="text-sm text-destructive">{error}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2"
-              onClick={() => setError(null)}
-            >
-              Dismiss
-            </Button>
-          </div>
-        )}
+      {/* Error display */}
+      {error && (
+        <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
 
-        <AdminNav active={activeTab} onSelect={selectTab} />
+      <AdminNav active={activeTab} onSelect={selectTab} />
 
-        {/* An open account replaces the tab content entirely. Rendering it
+      {/* An open account replaces the tab content entirely. Rendering it
             above a tab would leave two subjects on screen at once, and the
             reader would have to work out which numbers belonged to which. */}
-        {openAccount ? (
-          <AccountDetail
-            email={openAccount}
-            password={password}
-            onBack={() => setOpenAccount(null)}
-          />
-        ) : (
+      {openAccount ? (
+        <AccountDetail
+          email={openAccount}
+          password={password}
+          onBack={() => setOpenAccount(null)}
+        />
+      ) : (
         <>
-        {/* Tab content - Analytics */}
-        {activeTab === 'pulse' && (
-          <div className="space-y-6">
-            <ExecutivePulse password={password} onMetricClick={handleMetricClick} />
-            <UniversalSearch password={password} />
-          </div>
-        )}
-        {activeTab === 'behavior' && <UserBehavior password={password} />}
-        {activeTab === 'growth' && <GrowthRetention password={password} />}
-        {activeTab === 'revenue' && <RevenueDashboard password={password} />}
-        {activeTab === 'health' && (
-          <div className="space-y-6">
-            {/* Above SystemHealth on purpose: "is it configured and running"
+          {/* Tab content - Analytics */}
+          {activeTab === 'pulse' && (
+            <div className="space-y-6">
+              <ExecutivePulse
+                password={password}
+                onMetricClick={handleMetricClick}
+              />
+              <UniversalSearch password={password} />
+            </div>
+          )}
+          {activeTab === 'behavior' && <UserBehavior password={password} />}
+          {activeTab === 'growth' && <GrowthRetention password={password} />}
+          {activeTab === 'revenue' && <RevenueDashboard password={password} />}
+          {activeTab === 'health' && (
+            <div className="space-y-6">
+              {/* Above SystemHealth on purpose: "is it configured and running"
                 has to be answered before "how did it perform", or a panel of
                 zeroes reads as calm rather than as switched off. */}
-            <DependencyHealth password={password} />
-            <SystemHealth password={password} />
-          </div>
-        )}
+              <DependencyHealth password={password} />
+              <SystemHealth password={password} />
+            </div>
+          )}
 
-        {/* Tab content - Operations */}
-        {activeTab === 'whitelist' && renderWhitelistTab()}
-        {activeTab === 'dashboard' && <LookupDashboard password={password} />}
-        {activeTab === 'conflicts' && <HandleConflicts password={password} />}
-        {activeTab === 'jobs' && renderJobsTab()}
-        {activeTab === 'history' && renderHistoryTab()}
-        {activeTab === 'users' && renderUsersTab()}
-        {activeTab === 'usage' && (
-          <UsageMeter password={password} onAccountClick={setOpenAccount} />
-        )}
-        {activeTab === 'enrichment' && <WalletEnrichment password={password} />}
+          {/* Tab content - Operations */}
+          {activeTab === 'whitelist' && renderWhitelistTab()}
+          {activeTab === 'dashboard' && <LookupDashboard password={password} />}
+          {activeTab === 'conflicts' && <HandleConflicts password={password} />}
+          {activeTab === 'jobs' && renderJobsTab()}
+          {activeTab === 'history' && renderHistoryTab()}
+          {activeTab === 'users' && renderUsersTab()}
+          {activeTab === 'usage' && (
+            <UsageMeter password={password} onAccountClick={setOpenAccount} />
+          )}
+          {activeTab === 'enrichment' && (
+            <WalletEnrichment password={password} />
+          )}
         </>
-        )}
+      )}
     </PageShell>
   );
 }

@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { getSiteUrl } from '@/lib/site-url';
-import { PACKS, type PackId } from '@/lib/packs';
+import { PACKS, isPackId, type PackId } from '@/lib/packs';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -234,7 +234,7 @@ export function constructWebhookEvent(
  * passed when creating the session; `customer_details.email` is whatever the
  * buyer actually typed into Stripe Checkout, and the two diverge the moment a
  * buyer edits the prefilled address. If the two paths disagree, the upgrade
- * lands on one account while the poll asks about the other — the payment
+ * lands on one account while the poll asks about the other: the payment
  * succeeds and /success spins until it times out.
  *
  * `customer_details.email` is deliberately NOT consulted: the webhook grants
@@ -278,7 +278,16 @@ export async function getCheckoutSession(
 export interface PaymentRecord {
   id: string;
   email: string | null;
+  /** Set on the two legacy one-time purchases and nothing since. */
   tier: CheckoutTier | null;
+  /**
+   * The pack bought, from `metadata.pack`, or null for a tier payment.
+   *
+   * `createPackCheckoutSession` writes `pack` and never `tier`, so before this
+   * field existed every pack payment normalised to `tier: null` and the admin
+   * revenue breakdown could not see the only thing being sold.
+   */
+  pack: PackId | null;
   amountCents: number;
   refundedCents: number;
   netCents: number;
@@ -329,6 +338,12 @@ export async function listPayments(
           charge?.receipt_email ||
           null,
         tier: (pi.metadata?.tier as CheckoutTier | undefined) ?? null,
+        // Validated rather than cast: metadata is free text on Stripe's side,
+        // and a typo there should read as "no pack", not index PACKS.
+        pack:
+          pi.metadata?.pack && isPackId(pi.metadata.pack)
+            ? pi.metadata.pack
+            : null,
         amountCents,
         refundedCents,
         netCents: amountCents - refundedCents,

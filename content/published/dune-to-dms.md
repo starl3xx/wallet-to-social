@@ -1,8 +1,8 @@
 ---
-title: "From Dune Dashboard to DMs: Turning Analytics into Action"
+title: 'From Dune Dashboard to DMs: Turning Analytics into Action'
 meta_description: "Dune shows who holds your token. But you can't DM a wallet address. Here's how to bridge the gap between onchain analytics and real outreach."
 published: true
-publish_date: "2026-05-07"
+publish_date: '2026-05-07'
 ---
 
 # From Dune Dashboard to DMs: Turning Analytics into Action
@@ -64,7 +64,7 @@ Let's walk through a real workflow. Say you run a DeFi protocol and want to cont
 
 **Step 1: Dune query.**
 
-You write a query that returns all token holders who have *not* voted in the last three governance proposals but hold more than 10,000 tokens. The query returns 2,300 wallet addresses.
+You write a query that returns all token holders who have _not_ voted in the last three governance proposals but hold more than 10,000 tokens. The query returns 2,300 wallet addresses.
 
 **Step 2: Export.**
 
@@ -83,11 +83,11 @@ Upload the CSV to a wallet identity resolution tool. You get back results:
 
 Now you have 463 real humans with social profiles (506 minus 43 agents) that you can contact directly. You segment them:
 
-| Segment | Count | Message |
-|---------|-------|---------|
-| Whales (>100K tokens) | 28 | Personal DM from a core team member about upcoming proposal |
-| Mid-holders (10K-100K) | 187 | Farcaster cast tagging them in a governance summary thread |
-| Smaller holders | 248 | Batch outreach with a link to a governance guide |
+| Segment                | Count | Message                                                     |
+| ---------------------- | ----- | ----------------------------------------------------------- |
+| Whales (>100K tokens)  | 28    | Personal DM from a core team member about upcoming proposal |
+| Mid-holders (10K-100K) | 187   | Farcaster cast tagging them in a governance summary thread  |
+| Smaller holders        | 248   | Batch outreach with a link to a governance guide            |
 
 You just turned a Dune dashboard into a targeted outreach campaign.
 
@@ -119,4 +119,4 @@ The analytics are already there. Your Dune dashboards already surface the insigh
 
 ---
 
-Bridge the gap. Upload your Dune export to [walletlink.social](https://walletlink.social) and turn your analytics into outreach. Free for 1,000 wallets.
+Bridge the gap. Upload your Dune export to [walletlink.social](https://walletlink.social) and turn your analytics into outreach. Free for your first 100 matches every 30 days.

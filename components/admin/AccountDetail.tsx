@@ -33,6 +33,13 @@ interface AccountData {
   };
   gifted: boolean;
   netCents: number;
+  credits: {
+    available: number;
+    onFreeAllowance: boolean;
+    freeUsedThisWindow: number;
+    freeWindowResetsAt: string | null;
+    lots: Array<{ pack: string; remaining: number; expiresAt: string }>;
+  };
   payments: Array<{
     id: string;
     amountCents: number;
@@ -81,11 +88,15 @@ export function AccountDetail({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/account?email=${encodeURIComponent(email)}`, {
-        headers: { 'x-admin-password': password },
-      });
+      const res = await fetch(
+        `/api/admin/account?email=${encodeURIComponent(email)}`,
+        {
+          headers: { 'x-admin-password': password },
+        }
+      );
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || `Request failed: ${res.status}`);
+      if (!res.ok)
+        throw new Error(body?.error || `Request failed: ${res.status}`);
       setData(body);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load account');
@@ -121,7 +132,10 @@ export function AccountDetail({
       <div className="space-y-4">
         {back}
         <div className="flex items-start gap-3 rounded-lg border border-destructive bg-destructive/10 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" aria-hidden />
+          <AlertTriangle
+            className="mt-0.5 h-4 w-4 flex-none text-destructive"
+            aria-hidden
+          />
           <p className="text-sm text-destructive">{error ?? 'No data'}</p>
         </div>
       </div>
@@ -144,7 +158,13 @@ export function AccountDetail({
       <div className="flex flex-wrap items-center gap-3">
         {back}
         <h2 className="font-mono text-sm">{account.email}</h2>
-        <Badge tone={account.tier === 'free' ? 'muted' : 'brand'}>{account.tier}</Badge>
+        {/* `tier` is a legacy entitlement. Every pack buyer is 'free' here, so
+            the word is labelled, or a paying customer reads as a comp. */}
+        <Badge tone={account.tier === 'free' ? 'muted' : 'brand'}>
+          {account.tier === 'free'
+            ? 'no legacy tier'
+            : `legacy ${account.tier}`}
+        </Badge>
         {account.isWhitelisted && <Badge tone="attested">whitelisted</Badge>}
         {/* Named plainly. An entitlement with no payment behind it reads as
             revenue everywhere it is not called what it is. */}
@@ -152,17 +172,72 @@ export function AccountDetail({
       </div>
 
       <Card>
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-          {stat('Net paid', money(data.netCents), `${data.payments.length} settled payment(s)`)}
+        <CardContent className="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-5">
+          {stat(
+            'Net paid',
+            money(data.netCents),
+            `${data.payments.length} settled payment(s)`
+          )}
+          {/* A legacy tier and the whitelist are never metered, so a balance
+              of zero there is not a fact about the account. */}
+          {account.tier !== 'free' || account.isWhitelisted
+            ? stat(
+                'Matches left',
+                'unmetered',
+                account.isWhitelisted ? 'whitelisted' : 'legacy tier'
+              )
+            : stat(
+                'Matches left',
+                n(data.credits.available),
+                data.credits.onFreeAllowance
+                  ? `free allowance, ${n(data.credits.freeUsedThisWindow)} used this window`
+                  : `${data.credits.lots.length} live lot(s)`
+              )}
           {stat('Lifetime wallets', n(volume.lifetimeWallets))}
           {stat(
             'Busiest day',
             n(volume.peakDayWallets),
             'a daily ceiling would have to clear this'
           )}
-          {stat('Active days', n(volume.activeDays), `${n(data.savedLookups.n)} saved lookups`)}
+          {stat(
+            'Active days',
+            n(volume.activeDays),
+            `${n(data.savedLookups.n)} saved lookups`
+          )}
         </CardContent>
       </Card>
+
+      {data.credits.lots.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Credit lots</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pack</TableHead>
+                  <TableHead className="text-right">Matches left</TableHead>
+                  <TableHead>Expires</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.credits.lots.map((l, i) => (
+                  <TableRow key={`${l.expiresAt}-${i}`}>
+                    <TableCell className="text-sm">{l.pack}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {n(l.remaining)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {l.expiresAt.slice(0, 10)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {data.payments.length > 0 && (
         <Card>
@@ -182,12 +257,14 @@ export function AccountDetail({
               <TableBody>
                 {data.payments.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="text-sm">{p.created.slice(0, 10)}</TableCell>
+                    <TableCell className="text-sm">
+                      {p.created.slice(0, 10)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {money(p.amountCents)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {p.refundedCents > 0 ? money(p.refundedCents) : '—'}
+                      {p.refundedCents > 0 ? money(p.refundedCents) : '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
                       {money(p.netCents)}
@@ -245,14 +322,19 @@ export function AccountDetail({
             <TableBody>
               {data.recentJobs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={5}
+                    className="text-sm text-muted-foreground"
+                  >
                     No lookups yet.
                   </TableCell>
                 </TableRow>
               )}
               {data.recentJobs.map((j, i) => (
                 <TableRow key={`${j.created_at}-${i}`}>
-                  <TableCell className="whitespace-nowrap text-sm">{j.created_at}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {j.created_at}
+                  </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
                     {n(j.wallets)}
                   </TableCell>
@@ -261,8 +343,12 @@ export function AccountDetail({
                       ? `contract${j.chain ? ` · ${j.chain}` : ''}${j.contract_name ? ` · ${j.contract_name}` : ''}`
                       : (j.source ?? 'unknown')}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{j.scan_depth}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{j.status}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {j.scan_depth}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {j.status}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

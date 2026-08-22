@@ -16,6 +16,7 @@ import {
   calculatePriorityScore,
 } from '@/lib/csv-parser';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
   checkIpRateLimit,
   getClientIp,
@@ -30,8 +31,8 @@ export const maxDuration = 300; // 5 minutes max
 // Hard per-request wallet caps. Without these, an unauthenticated caller could
 // post an arbitrarily large list and force unbounded social_graph reads plus
 // external-API enrichment in one request (the IP limiter bounds request COUNT,
-// not size). Signed-in callers get a higher ceiling; true tier enforcement
-// lives in the /api/jobs path.
+// not size). Signed-in callers get a higher ceiling; the real gates (the credit
+// balance and the legacy per-lookup limits) live in the /api/jobs path.
 const MAX_WALLETS_ANONYMOUS = 500;
 const MAX_WALLETS_AUTHENTICATED = 5000;
 
@@ -47,7 +48,9 @@ export async function POST(request: NextRequest) {
   // Check for authenticated session - authenticated users bypass IP rate limits
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+  const session = sessionToken
+    ? await validateSession(sessionToken)
+    : { user: null };
 
   // Apply IP rate limiting only for unauthenticated requests
   if (!session.user) {
@@ -57,7 +60,9 @@ export async function POST(request: NextRequest) {
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
-          error: 'Rate limit exceeded. Sign in for unlimited access.',
+          // Same sentence as /api/jobs: signing in is the free allowance,
+          // not unlimited access.
+          error: `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`,
           retryAfter: rateLimitResult.retryAfter,
         },
         {
@@ -93,7 +98,9 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        const walletCap = session.user ? MAX_WALLETS_AUTHENTICATED : MAX_WALLETS_ANONYMOUS;
+        const walletCap = session.user
+          ? MAX_WALLETS_AUTHENTICATED
+          : MAX_WALLETS_ANONYMOUS;
         if (wallets.length > walletCap) {
           sendEvent('error', {
             message: session.user
@@ -391,10 +398,16 @@ export async function POST(request: NextRequest) {
                   // gap-filling branch meant a handle that arrived from cache or
                   // the API kept no verification at all, which is the usual case
                   // and left the gutter blank on the busiest path.
-                  if (result.twitter_handle && result.twitter_handle === storedData.twitter_handle) {
+                  if (
+                    result.twitter_handle &&
+                    result.twitter_handle === storedData.twitter_handle
+                  ) {
                     result.twitter_verified = storedData.twitter_verified;
                   }
-                  if (result.farcaster && result.farcaster === storedData.farcaster) {
+                  if (
+                    result.farcaster &&
+                    result.farcaster === storedData.farcaster
+                  ) {
                     result.farcaster_verified = storedData.farcaster_verified;
                   }
                   if (!result.lens && storedData.lens) {

@@ -2,10 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { PACKS } from '@/lib/packs';
+import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
-import { TIER_LIMITS } from '@/lib/access';
 import {
   ArrowRight,
   BookOpenText,
@@ -62,7 +61,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'walletlink.social vs Cookie3 Comparison',
     description:
-      'Wallet-to-social lookups, uncapped and priced once, against a subscription analytics suite.',
+      'Wallet-to-social lookups priced once, by the match, against a subscription analytics suite.',
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/cookie3',
@@ -204,7 +203,7 @@ export default function Cookie3Comparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        (no account cap)
+                        (capped only by the matches you buy)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -231,7 +230,7 @@ export default function Cookie3Comparison() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">
-                      Cheapest tier with X matching
+                      Cheapest option with X matching
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
@@ -257,7 +256,7 @@ export default function Cookie3Comparison() {
                       Enriched wallet export
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      Every match, every tier
+                      Every match, every pack
                     </td>
                     <td className="py-4 pl-4">
                       5K on Website and Basic, 100K on Growth
@@ -268,7 +267,8 @@ export default function Cookie3Comparison() {
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                       <span className="text-xs text-muted-foreground ml-1">
-                        ({TIER_LIMITS.free} wallets free, no card)
+                        ({FREE_MATCHES_PER_WINDOW} matches free every{' '}
+                        {FREE_WINDOW_DAYS} days, no card)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -372,8 +372,8 @@ export default function Cookie3Comparison() {
               What is walletlink.social?
             </h2>
             <p className="text-muted-foreground mb-4">
-              One job, done without a ceiling. Upload a holder list, or paste a
-              contract address, and get back:
+              One job, with no ceiling that money cannot lift. Upload a holder
+              list, or paste a contract address, and get back:
             </p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mb-4">
               <li>
@@ -388,7 +388,7 @@ export default function Cookie3Comparison() {
                 Agent detection across 13,000+ known agents (Virtuals, ERC-8004,
                 ElizaOS, Olas)
               </li>
-              <li>A CSV of the whole thing, at every tier</li>
+              <li>A CSV of the whole thing, on every pack</li>
             </ol>
             <p className="text-muted-foreground">
               Nothing is inferred or guessed, which means coverage is lower than
@@ -555,11 +555,12 @@ export default function Cookie3Comparison() {
               <p className="text-sm">
                 <span className="font-medium">What the money buys:</span> a year
                 on Cookie3 Growth is $8,988, or $7,188 paid annually, for a
-                suite whose matching stops at 10,000 accounts. Our top tier is{' '}
-                {`$${PACKS.index.priceCents / 100}`} once, for the matching
-                alone, with no ceiling and nothing to renew. They are not the
-                same purchase, and if you need the analytics suite the
-                arithmetic does not favour us.
+                suite whose matching stops at 10,000 accounts. Our largest pack
+                is {`$${PACKS.index.priceCents / 100}`} once, for{' '}
+                {PACKS.index.matches.toLocaleString()} matches, the matching
+                alone, and nothing to renew; a bigger list is another pack, not
+                an Enterprise quote. They are not the same purchase, and if you
+                need the analytics suite the arithmetic does not favour us.
               </p>
             </div>
           </section>
@@ -595,8 +596,8 @@ export default function Cookie3Comparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {TIER_LIMITS.free} wallets, no card,
-              no call.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
+              every {FREE_WINDOW_DAYS} days, no card, no call.
             </p>
             <Link
               href="/"

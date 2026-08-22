@@ -1,6 +1,6 @@
 ---
-title: "walletlink.social"
-description: "Resolve wallet addresses to the people behind them, in both directions."
+title: 'walletlink.social'
+description: 'Resolve wallet addresses to the people behind them, in both directions.'
 ---
 
 walletlink turns wallet addresses into social identities: Farcaster usernames, X handles, ENS names, and the follower counts that tell you which of them carry reach.
@@ -16,10 +16,10 @@ Everything here rests on one thing, and the docs refer to it constantly, so it i
 That is what makes a lookup fast: for most addresses the answer already exists before you ask. It is also what a match rate is measured against, what a fast scan reads, what a deep scan adds to, and what [`GET /api/v1/stats`](/api-reference/stats) reports on. Wherever these pages say “the index”, this is what they mean.
 
 <Note>
-Every API call answers from the index. That is why responses come back in
-milliseconds rather than in the seconds a live resolution would take, and why
-the API's coverage is the index's coverage. See
-[scan depth](/concepts/scan-depth) for the one place that distinction matters.
+  Every API call answers from the index. That is why responses come back in
+  milliseconds rather than in the seconds a live resolution would take, and why
+  the API's coverage is the index's coverage. See [scan
+  depth](/concepts/scan-depth) for the one place that distinction matters.
 </Note>
 
 <CardGroup cols={2}>
@@ -39,13 +39,13 @@ the API's coverage is the index's coverage. See
 
 There are three ways to hand us a set of addresses, and they are equivalent once the lookup starts.
 
-| Method | Good for |
-| --- | --- |
-| **CSV upload** | Holder snapshots and exports. Balance columns are detected automatically and used for priority scoring. |
-| **Contract import** | You have a contract address but not a holder list. We pull the holders for you. |
-| **Paste addresses** | Quick one-off checks. |
+| Method              | Good for                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| **CSV upload**      | Holder snapshots and exports. Balance columns are detected automatically and used for priority scoring. |
+| **Contract import** | You have a contract address but not a holder list. We pull the holders for you.                         |
+| **Paste addresses** | Quick one-off checks.                                                                                   |
 
-[Running a lookup](/app/lookups) covers all three in full, along with the supported networks, the per-plan address limits, and what comes back out.
+[Running a lookup](/app/lookups) covers all three in full, along with the supported networks, what a lookup costs in matches, and what comes back out.
 
 ## Before you build
 
@@ -57,8 +57,8 @@ Two pages are worth reading before you wire anything up, because they set expect
     and “is reachable” are different numbers.
   </Card>
   <Card title="Data quality" icon="shield-check" href="/concepts/data-quality">
-    How matches are attested, what the quality score means, and when a record
-    is considered stale.
+    How matches are attested, what the quality score means, and when a record is
+    considered stale.
   </Card>
   <Card title="Scan depth" icon="bolt" href="/concepts/scan-depth">
     Fast reads the index, deep asks every live source. Which one you want, and

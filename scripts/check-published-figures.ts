@@ -317,7 +317,9 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
     ],
-    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live \| ([0-9]{2}\.[0-9])% \||([0-9]{2}\.[0-9])% live/,
+    // Table cells match padded or single-space, because prettier pads mdx
+    // tables and a reformat must not read as a vanished figure.
+    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live\s+\| ([0-9]{2}\.[0-9])%\s+\||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
@@ -345,7 +347,7 @@ const CLAIMS: Claim[] = [
       'README.md',
       'docs/AI-SEARCH.md',
     ],
-    pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended \| ([0-9]{2}\.[0-9])% \|/,
+    pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -367,7 +369,7 @@ const CLAIMS: Claim[] = [
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
     // keyword is more durable than trying to enumerate the prose.
-    pattern: /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use \| ([0-9]\.[0-9])% \|/,
+    pattern: /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'not_found'`

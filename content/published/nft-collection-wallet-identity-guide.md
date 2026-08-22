@@ -1,8 +1,8 @@
 ---
-title: "Wallet Identity for NFT Collections: A Step-by-Step Guide"
-meta_description: "A step-by-step tutorial for NFT collection teams to export holders, resolve wallet identities, and build a targeted outreach plan."
+title: 'Wallet Identity for NFT Collections: A Step-by-Step Guide'
+meta_description: 'A step-by-step tutorial for NFT collection teams to export holders, resolve wallet identities, and build a targeted outreach plan.'
 published: true
-publish_date: "2026-05-18"
+publish_date: '2026-05-18'
 ---
 
 # Wallet Identity for NFT Collections: A Step-by-Step Guide
@@ -50,7 +50,7 @@ HAVING COUNT(*) > 0
 ORDER BY nft_count DESC
 ```
 
-Note: This simplified query counts transfers *to* each address. For accurate current balances, you need to subtract transfers *from* each address as well, or use a pre-built Dune dashboard that tracks net holdings.
+Note: This simplified query counts transfers _to_ each address. For accurate current balances, you need to subtract transfers _from_ each address as well, or use a pre-built Dune dashboard that tracks net holdings.
 
 Export the results as CSV.
 
@@ -85,11 +85,11 @@ Once resolution is complete, export the results and start analyzing. Here are th
 
 What percentage of your holders resolved to a social identity? The answer tells you how "reachable" your community is:
 
-| Resolution Rate | Interpretation |
-|----------------|----------------|
-| Below 15% | Your holder base skews anonymous or bot-heavy |
-| 15-25% | Typical for most collections |
-| Above 25% | Your holders are unusually active on social platforms |
+| Resolution Rate | Interpretation                                        |
+| --------------- | ----------------------------------------------------- |
+| Below 15%       | Your holder base skews anonymous or bot-heavy         |
+| 15-25%          | Typical for most collections                          |
+| Above 25%       | Your holders are unusually active on social platforms |
 
 ### Platform Distribution
 
@@ -128,21 +128,25 @@ This tells you whether your most invested community members are reachable or hid
 With your analyzed data, build segments for outreach. Here is a framework designed for NFT collections:
 
 **Tier 1: High-value, resolved holders (personal outreach)**
+
 - Hold 3+ NFTs AND have a social profile
 - These are your core community. Know them by name.
 - Estimated size: 5-10% of resolved holders
 
 **Tier 2: Active social presence, any holding size (community builders)**
+
 - Resolved to Farcaster or Twitter with meaningful follower counts (500+)
 - These holders amplify your project. Treat them as partners.
 - Estimated size: 10-15% of resolved holders
 
 **Tier 3: Resolved holders, standard (general outreach)**
+
 - Have a social profile but do not fall into Tier 1 or 2
 - Contact through scalable channels (group messages, tagged posts)
 - Estimated size: 70-80% of resolved holders
 
 **Tier 4: Unresolved holders (indirect outreach)**
+
 - No social profile found
 - Reachable only through onchain means (token-gated announcements, POAP-based notifications) or general public channels
 - Estimated size: ~78% of total holders
@@ -199,4 +203,4 @@ The collections that thrive long-term are the ones that treat their holder list 
 
 ---
 
-Start with your holder list. Upload it at [walletlink.social](https://walletlink.social) and see who your community really is. Free for your first 1,000 wallets.
+Start with your holder list. Upload it at [walletlink.social](https://walletlink.social) and see who your community really is. Free for your first 100 matches every 30 days.

@@ -1,6 +1,6 @@
 ---
-title: "Running a lookup"
-description: "Getting addresses in, choosing how hard to look, and getting results back out."
+title: 'Running a lookup'
+description: 'Getting addresses in, choosing how hard to look, and getting results back out.'
 ---
 
 Everything here happens at [walletlink.social](https://walletlink.social) with no code. The [API](/api-reference/introduction) covers the same ground programmatically, with one difference noted under [scan depth](/concepts/scan-depth).
@@ -17,7 +17,7 @@ Three routes, equivalent once the lookup starts.
     Any text holding addresses. They are picked out of whatever surrounds them.
   </Card>
   <Card title="Import a contract" icon="cube">
-    Give a contract address, get its holders. Any paid plan.
+    Give a contract address, get its holders. Included with every credit pack.
   </Card>
 </CardGroup>
 
@@ -34,10 +34,10 @@ Addresses are extracted by pattern, so a block of text with addresses scattered 
 Both NFT collections and token contracts are supported, on every network we cover: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain.**
 
 <Note>
-A holder list can be truncated. Token holder lists in particular come from an
-index with its own ceiling, and when a result fills that ceiling exactly we say
-so rather than implying the list is complete. Treat a truncation warning as
-real: the collection has more holders than you are looking at.
+  A holder list can be truncated. Token holder lists in particular come from an
+  index with its own ceiling, and when a result fills that ceiling exactly we
+  say so rather than implying the list is complete. Treat a truncation warning
+  as real: the collection has more holders than you are looking at.
 </Note>
 
 Token holder lists have a second index behind the first. If the primary one is
@@ -60,26 +60,44 @@ wallet we resolve to an X handle or a Farcaster account. A wallet we cannot
 resolve costs nothing, so a list with a low match rate costs you less rather
 than the same.
 
-| Plan | Matches | Price |
-| --- | --- | --- |
-| Free | 100 every 30 days | $0 |
-| Trial | 250 | $29 |
-| Campaign | 1,500 | $99 |
-| Scale | 6,000 | $299 |
-| Index | 25,000 | $899 |
+| Pack                  | Matches                 | Price |
+| --------------------- | ----------------------- | ----- |
+| None (free allowance) | 100 per rolling 30 days | $0    |
+| Trial                 | 250                     | $29   |
+| Campaign              | 1,500                   | $99   |
+| Scale                 | 6,000                   | $299  |
+| Index                 | 25,000                  | $899  |
 
 Credits are cumulative and account-wide, not per lookup: twenty runs of 500
 addresses draw exactly what one run of 10,000 draws. They last 12 months from
-purchase.
+purchase, and every pack is a one-time payment, not a subscription.
 
-One limit is on addresses rather than matches. A submission may be at most ten
-times your remaining matches, which is a guard against submitting a million junk
-addresses to burn our upstream credits for free. At a typical match rate a real
+The free allowance rolls rather than resetting: each match frees up again 30
+days after it was spent, so credits return a few at a time rather than the whole
+allowance coming back on a fixed date. It is there to try the product. Contract
+import, reverse lookup, deep scan with onchain ENS, priority score, follower
+counts, the X list export, growing a saved lookup and the API need a pack. The
+packs differ only in how many matches they hold; nothing is gated by pack size.
+
+### Limits on addresses
+
+A few limits are on addresses rather than matches, and which one applies
+depends on how you are signed in.
+
+- **Not signed in:** 500 addresses per lookup, plus a rate limit per IP
+  address. There is no account-wide quota, because there is no account.
+- **Signed in, on the free allowance:** 500 addresses per lookup, or ten times
+  your remaining free matches, whichever is lower.
+- **Holding a pack:** no per-lookup cap. A submission may be at most ten times
+  your remaining matches.
+
+The ten-times rule is a guard against submitting a million junk addresses to
+burn our upstream credits for free, not a quota. At a typical match rate a real
 list needs about four times, so it will not affect you.
 
 <Note>
-Accounts that bought **Pro** or **Unlimited** before credits existed are not
-metered and keep exactly what they bought.
+  Accounts that bought **Pro** or **Unlimited** before credits existed are not
+  metered and keep exactly what they bought.
 </Note>
 
 ## Choosing how hard to look
@@ -96,35 +114,38 @@ Turn saving off for a one-off, and export before you leave the page: nothing is 
 
 ### Growing a saved lookup
 
-On **Unlimited**, a saved lookup is a living list rather than a snapshot.
+With a pack, a saved lookup is a living list rather than a snapshot. Every
+pack includes this.
 
 - **Add addresses** to it later. They are resolved and merged into the existing result rather than starting a separate one, so a holder list that grows stays in one place.
 - **See what is new since you last opened it.** The index gains identities every day, so a wallet that resolved to nothing in March may resolve now. Rows that gained an identity since your last visit are marked `NEW` when you reopen the lookup, which means a list you ran once keeps paying out without you re-running anything.
 
-On other plans a saved lookup is a fixed record: you can open it, rename it, and export it, but its contents do not change.
+Added addresses are billed like any others: a match each, and nothing for a miss.
+
+On the free allowance a saved lookup is a fixed record: you can open it, rename it, and export it, but its contents do not change.
 
 ## Getting results out
 
 <CardGroup cols={2}>
   <Card title="CSV" icon="table">
-    Every column, every row, sorted by priority score. Your original columns
-    are preserved alongside the resolved identities.
+    Every column, every row, sorted by priority score. Your original columns are
+    preserved alongside the resolved identities.
   </Card>
   <Card title="Handle list" icon="list">
     Just the handles, in the shape an X list import expects.
   </Card>
 </CardGroup>
 
-Priority score ranks by holdings weighted by Farcaster reach, so the top of a CSV export is the part of your list worth contacting first. It is calculated on the paid plans.
+Priority score ranks by holdings weighted by Farcaster reach, so the top of a CSV export is the part of your list worth contacting first. It is included with every pack, along with the follower counts it draws on.
 
 ## Reaching people directly
 
-Unlimited accounts can send Farcaster direct messages to the resolved list from inside the app, without exporting first. This needs a Farcaster API key of your own, which the app stores only if you ask it to.
+Sending Farcaster direct messages to the resolved list from inside the app, without exporting first, is available on legacy Unlimited accounts only. No credit pack includes it. It needs a Farcaster API key of your own, which the app stores only if you ask it to.
 
 X has no equivalent: there is no API route for messaging an arbitrary handle, so the handle list export is the path there.
 
 ## Going the other way
 
-Reverse lookup takes an X handle or a Farcaster username and returns the wallets attached to that person. It is on the front page for any paid account, and it answers the question that comes up most often before a campaign: does this person already hold our token.
+Reverse lookup takes an X handle or a Farcaster username and returns the wallets attached to that person. It is included with every credit pack and sits on the front page, and it answers the question that comes up most often before a campaign: does this person already hold our token.
 
 Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).

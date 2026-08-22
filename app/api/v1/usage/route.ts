@@ -3,6 +3,8 @@ import { authenticateApiRequest, apiSuccess, apiError } from '@/lib/api-auth';
 import { getKeyUsageStats } from '@/lib/api-usage';
 import { getRateLimitStatus } from '@/lib/rate-limiter';
 import { trackApiUsage } from '@/lib/api-usage';
+import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
+import { effectiveTierForUserId } from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -51,6 +53,33 @@ export async function GET(request: NextRequest) {
   // Get rate limit status
   const rateLimitStatus = await getRateLimitStatus(context.key, context.plan);
 
+  /**
+   * The match balance, which is the meter that actually stops a caller.
+   *
+   * `plan_limits` and `rate_limits` describe the request meter: how hard the
+   * key may hit the service. The 402 NO_CREDITS that ends a session comes from
+   * a different meter entirely, the same match credits the app spends, and
+   * until this block the endpoint an integrator calls to ask "what do I have"
+   * never mentioned it.
+   *
+   * Whitelist-aware through `effectiveTierForUserId`, for the same reason the
+   * gate in `authenticateApiRequest` is: a whitelisted account keeps `free` in
+   * the tier column and must not be told it is about to run out.
+   *
+   * `available` is null for an unmetered legacy account, because there is no
+   * number: reporting Infinity would serialise to null anyway and reporting a
+   * large integer would be a lie with a decimal point.
+   */
+  const tier = await effectiveTierForUserId(context.key.userId);
+  const unmetered = legacyTierIsUnmetered(tier);
+  const balance = unmetered ? null : await getBalance(context.key.userId);
+  const credits = {
+    available: balance ? balance.available : null,
+    unmetered,
+    on_free_allowance: balance ? balance.onFreeAllowance : false,
+    free_window_resets_at: balance?.freeWindowResetsAt?.toISOString() ?? null,
+  };
+
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
@@ -75,6 +104,9 @@ export async function GET(request: NextRequest) {
           created_at: context.key.createdAt.toISOString(),
           last_used_at: context.key.lastUsedAt?.toISOString(),
         },
+        credits,
+        // The request meter. Kept under this name because integrators read it;
+        // it is not what is sold, and `credits` above is.
         plan_limits: {
           requests_per_minute: context.plan.requestsPerMinute,
           requests_per_day:
@@ -113,6 +145,9 @@ export async function GET(request: NextRequest) {
         usage: {
           period,
           total_requests: usageStats.totalRequests,
+          // Rate-limit units (`api_usage.credits_used`: one per wallet
+          // requested), not matches. Kept under its historical name; the match
+          // balance is `credits` above.
           total_credits: usageStats.totalCredits,
           total_wallets: usageStats.totalWallets,
           avg_latency_ms: usageStats.avgLatencyMs,

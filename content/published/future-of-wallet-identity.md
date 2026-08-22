@@ -1,8 +1,8 @@
 ---
-title: "The Future of Wallet Identity: What Comes After 22%"
+title: 'The Future of Wallet Identity: What Comes After 22%'
 meta_description: "Wallet-to-social match rates run 16-46% depending on the chain. Here's why that number is climbing and what new identity standards mean for the onchain ecosystem."
 published: true
-publish_date: "2026-05-04"
+publish_date: '2026-05-04'
 ---
 
 # The Future of Wallet Identity: What Comes After 22%
@@ -58,7 +58,7 @@ Each of these creates a potential resolution signal. As the application ecosyste
 
 ### 5. Privacy-Preserving Identity Standards
 
-This one is counterintuitive. Better privacy tools will actually *increase* resolvable match rates, not decrease them.
+This one is counterintuitive. Better privacy tools will actually _increase_ resolvable match rates, not decrease them.
 
 Right now, many users avoid linking their wallet to social accounts because the link is all-or-nothing. Either your wallet is fully public and tied to your name, or it is fully anonymous. There is no middle ground.
 
@@ -80,12 +80,12 @@ The jump from 22% to 40% or 50% is not just a quantitative improvement. It cross
 
 Predicting exact numbers is a fool's errand, but directional trends are clear:
 
-| Timeframe | Estimated Match Rate | Primary Driver |
-|-----------|---------------------|----------------|
-| Today | ~22% | ENS + Farcaster + public signals |
-| 12 months | ~30-35% | Farcaster growth + ENS text records |
-| 24 months | ~40-50% | Attestation infrastructure + app-level binding |
-| 36+ months | ~50-65% | Privacy-preserving identity + standard convergence |
+| Timeframe  | Estimated Match Rate | Primary Driver                                     |
+| ---------- | -------------------- | -------------------------------------------------- |
+| Today      | ~22%                 | ENS + Farcaster + public signals                   |
+| 12 months  | ~30-35%              | Farcaster growth + ENS text records                |
+| 24 months  | ~40-50%              | Attestation infrastructure + app-level binding     |
+| 36+ months | ~50-65%              | Privacy-preserving identity + standard convergence |
 
 These estimates assume continued ecosystem growth and no major regulatory disruptions that either force or prevent identity linking.
 
@@ -105,4 +105,4 @@ We are closer to that threshold than most people realize. The 22% of today is no
 
 ---
 
-Start resolving your holders today and build your identity dataset as coverage grows. Try [walletlink.social](https://walletlink.social) free for 1,000 wallets.
+Start resolving your holders today and build your identity dataset as coverage grows. Try [walletlink.social](https://walletlink.social) free for your first 100 matches every 30 days.
