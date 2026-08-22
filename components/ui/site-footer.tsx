@@ -96,6 +96,7 @@ export function SiteFooter() {
                 handle-to-wallet flow *on* that page, not a separate destination, and
                 naming the link after it hands people the wrong model of the product. */}
             <FooterLink href="/">Wallet lookup</FooterLink>
+            <FooterLink href="/pricing">Pricing</FooterLink>
             <FooterLink href="/blog">Blog</FooterLink>
           </FooterColumn>
 

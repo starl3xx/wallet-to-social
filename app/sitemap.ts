@@ -28,6 +28,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      // The buying-intent page: "walletlink pricing" searches and the AI
+      // agents shortlisting tools both land here.
+      url: `${baseUrl}/pricing`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
+    {
       url: `${baseUrl}/vs/addressable`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
