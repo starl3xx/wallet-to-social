@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
 import {
   PACKS,
+  PACK_IDS,
   MEASURED_MATCH_RATE,
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
@@ -31,13 +32,11 @@ import {
  */
 export const metadata: Metadata = {
   title: 'Pricing',
-  description:
-    'Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is 100 matches every 30 days.',
+  description: `Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days.`,
   alternates: { canonical: 'https://walletlink.social/pricing' },
   openGraph: {
     title: 'walletlink.social pricing',
-    description:
-      'Packs from $29, bought once. You are charged for matches, not for wallets, and misses cost nothing.',
+    description: `Packs from $${PACKS[PACK_IDS[0]].priceCents / 100}, bought once. You are charged for matches, not for wallets, and misses cost nothing.`,
     type: 'website',
   },
 };
@@ -45,6 +44,9 @@ export const metadata: Metadata = {
 /** The worked example, computed so a pack or rate change moves this page. */
 const EXAMPLE_WALLETS = 10_000;
 const EXAMPLE_MATCHES = Math.round(EXAMPLE_WALLETS * MEASURED_MATCH_RATE);
+const COVERING_PACK =
+  PACK_IDS.map((id) => PACKS[id]).find((p) => p.matches >= EXAMPLE_MATCHES) ??
+  PACKS.index;
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
   {
@@ -102,7 +104,7 @@ export default function PricingPage() {
             {Math.round(MEASURED_MATCH_RATE * 1000) / 10}% match rate resolves
             about {EXAMPLE_MATCHES.toLocaleString()} wallets. You are charged
             those {EXAMPLE_MATCHES.toLocaleString()} matches, the{' '}
-            {PACKS.scale.name} pack covers them, and the other{' '}
+            {COVERING_PACK.name} pack covers them, and the other{' '}
             {(EXAMPLE_WALLETS - EXAMPLE_MATCHES).toLocaleString()} wallets cost
             nothing. The rate is an estimate from a measured sample; your
             chain decides your number, which is why the free allowance exists.
