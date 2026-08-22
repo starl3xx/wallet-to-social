@@ -380,8 +380,20 @@ async function upsertHarvestedRecords(records: ResolvedRecord[]): Promise<number
           twitterVerified: sql`CASE WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
             AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
             THEN true ELSE social_graph.twitter_verified END`,
-          sources: sql`CASE WHEN 'ens_onchain' = ANY(social_graph.sources) THEN social_graph.sources ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ens_onchain') END`,
-          dataQualityScore: sql`GREATEST(COALESCE(social_graph.data_quality_score, 0), 50)`,
+          // A refused rename must not stamp the row either: no source label
+          // and no quality bump, unless the same record also fills github,
+          // which is a real write that earns both.
+          sources: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.sources
+            WHEN 'ens_onchain' = ANY(social_graph.sources) THEN social_graph.sources
+            ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ens_onchain') END`,
+          dataQualityScore: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.data_quality_score
+            ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), 50) END`,
           lastUpdatedAt: sql`CASE WHEN (social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
               AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from))
             OR (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL) THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at END`,
