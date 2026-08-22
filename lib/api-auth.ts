@@ -3,7 +3,7 @@ import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 import { validateApiKey } from './api-keys';
 import { checkRateLimit, type RateLimitHeaders } from './rate-limiter';
-import { trackApiUsage } from './api-usage';
+import { trackApiUsage, routeTemplate } from './api-usage';
 import type { ApiKey, ApiPlan } from '@/db/schema';
 
 export interface AuthenticatedContext {
@@ -193,7 +193,7 @@ export function withApiAuth<T>(
       // Track usage (fire and forget)
       trackApiUsage({
         apiKeyId: context.key.id,
-        endpoint: new URL(request.url).pathname,
+        endpoint: routeTemplate(new URL(request.url).pathname),
         method: request.method,
         responseStatus: response.status,
         latencyMs: Date.now() - startTime,
@@ -218,7 +218,7 @@ export function withApiAuth<T>(
       // Track error usage
       trackApiUsage({
         apiKeyId: context.key.id,
-        endpoint: new URL(request.url).pathname,
+        endpoint: routeTemplate(new URL(request.url).pathname),
         method: request.method,
         responseStatus: 500,
         latencyMs: Date.now() - startTime,

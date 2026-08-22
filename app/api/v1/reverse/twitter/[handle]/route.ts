@@ -112,7 +112,9 @@ export async function GET(
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
-    endpoint: `/v1/reverse/twitter/${normalizedHandle}`,
+    // The route template, never the concrete path: a per-handle key makes
+    // requests_by_endpoint unbounded and persists what the caller looked up.
+    endpoint: '/v1/reverse/twitter/{handle}',
     method: 'GET',
     walletCount: results.length,
     responseStatus: 200,

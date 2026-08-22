@@ -109,7 +109,7 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
       "error_rate": 0.24,
       "requests_by_endpoint": {
         "/v1/batch": 380,
-        "/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045": 1
+        "/v1/wallet/{address}": 31
       },
       "requests_by_day": { "2026-08-13": 210, "2026-08-14": 202 }
     }
@@ -128,17 +128,17 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
 
 `plan_limits` can carry the string `"unlimited"` instead of a number on custom plans with no ceiling in a given window. No pack and no legacy tier does today, but parse defensively.
 
-<Warning>
-`requests_by_endpoint` is keyed by the concrete request path, not by route
-template. Single-wallet and reverse lookups therefore appear as one entry per
-address or handle, so this object grows with the number of distinct things you
-looked up and can get very large over a busy month. `POST /v1/batch` is a single
-fixed path and stays as one entry.
+`requests_by_endpoint` is keyed by route template, so single-wallet and reverse
+lookups each stay one entry (`/v1/wallet/{address}`,
+`/v1/reverse/twitter/{handle}`, `/v1/reverse/farcaster/{username}`). The object
+holds at most one key per route, whatever the volume. The addresses and handles
+you looked up are not stored and never appear here.
 
-If you only need totals, read `total_requests` and `total_credits` and ignore
-this field. Use `period=day` to keep the response small.
-
-</Warning>
+<Note>
+Requests made before 2026-08-22 were keyed by the concrete request path. That
+history has been rewritten to the templates, so a period that spans the change
+still aggregates correctly.
+</Note>
 
 ## Errors
 

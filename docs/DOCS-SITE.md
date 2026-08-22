@@ -56,10 +56,12 @@ describe the credit-holding case first and name the legacy tiers as legacy.
    credit balance or a legacy paid tier (`lib/developer-auth.ts`). The quickstart
    now says keys are self-serve and that API access comes with every pack. Kept
    here so the gap list stays honest about what it once said.
-2. **`requests_by_endpoint` has unbounded cardinality.** `trackApiUsage` stores
-   the concrete path, so `/v1/wallet/0xabc…` is its own key. A busy month
-   produces a `/v1/usage` response with tens of thousands of entries. Fix is at
-   the write site: store the route template. Documented as-is for now.
+2. **`requests_by_endpoint` has unbounded cardinality.** Resolved. The write
+   sites store the route template (`/v1/wallet/{address}` and the two reverse
+   twins), the `withApiAuth` wrapper derives it with `routeTemplate()` in
+   `lib/api-usage.ts`, and `scripts/migrate-endpoint-templates.ts` rewrote the
+   history, which also removed customer query targets from the analytics
+   table. Kept here so the gap list stays honest about what it once said.
 3. **No pagination on reverse lookups.** Capped at 100 with no cursor, so
    `truncated: true` is a dead end for the caller.
 

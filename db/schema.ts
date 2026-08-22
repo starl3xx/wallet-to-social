@@ -497,7 +497,7 @@ export const apiUsage = pgTable(
     apiKeyId: uuid('api_key_id')
       .notNull()
       .references(() => apiKeys.id, { onDelete: 'cascade' }),
-    endpoint: text('endpoint').notNull(), // e.g., '/v1/wallet/0x...'
+    endpoint: text('endpoint').notNull(), // route template, e.g. '/v1/wallet/{address}', never a concrete path
     method: text('method').notNull(), // GET, POST
     walletCount: integer('wallet_count').default(1).notNull(), // For batch endpoints
     responseStatus: integer('response_status').notNull(),

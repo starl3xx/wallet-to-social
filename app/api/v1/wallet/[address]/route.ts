@@ -122,7 +122,9 @@ export async function GET(
   // Track usage
   trackApiUsage({
     apiKeyId: context.key.id,
-    endpoint: `/v1/wallet/${normalizedAddress}`,
+    // The route template, never the concrete path: a per-address key makes
+    // requests_by_endpoint unbounded and persists what the caller looked up.
+    endpoint: '/v1/wallet/{address}',
     method: 'GET',
     walletCount: 1,
     responseStatus: hasSocials ? 200 : 404,

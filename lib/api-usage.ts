@@ -5,6 +5,25 @@ import { chargeForApiCall } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 
 /**
+ * The route template for a concrete request path.
+ *
+ * `api_usage.endpoint` stores templates, never concrete paths: a per-address
+ * or per-handle key makes `requests_by_endpoint` unbounded, and it persists
+ * what the caller looked up, which is customer data in an analytics table.
+ * Route handlers pass their template as a literal; this exists for the
+ * `withApiAuth` wrapper, which only has the request URL. A path that matches
+ * no known parameterized route is returned as it came in, since a fixed path
+ * is already its own template.
+ */
+export function routeTemplate(pathname: string): string {
+  const p = pathname.replace(/^\/api(?=\/)/, '');
+  return p
+    .replace(/^(\/v1\/wallet\/)[^/]+$/, '$1{address}')
+    .replace(/^(\/v1\/reverse\/twitter\/)[^/]+$/, '$1{handle}')
+    .replace(/^(\/v1\/reverse\/farcaster\/)[^/]+$/, '$1{username}');
+}
+
+/**
  * Tracks an API request for billing and analytics
  * Fire-and-forget - doesn't block the response
  */
