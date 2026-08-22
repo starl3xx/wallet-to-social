@@ -206,6 +206,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -222,6 +223,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -232,6 +234,7 @@ export default function BlazeComparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -244,6 +247,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                     </td>
@@ -251,6 +255,7 @@ export default function BlazeComparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -261,6 +266,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -271,6 +277,7 @@ export default function BlazeComparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -281,6 +288,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -297,6 +305,7 @@ export default function BlazeComparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -307,6 +316,7 @@ export default function BlazeComparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -317,6 +327,7 @@ export default function BlazeComparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>

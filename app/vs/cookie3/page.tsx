@@ -204,6 +204,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -214,6 +215,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-muted-foreground"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -228,6 +230,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -280,6 +283,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -291,6 +295,7 @@ export default function Cookie3Comparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -306,6 +311,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -316,6 +322,7 @@ export default function Cookie3Comparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -326,6 +333,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                       <span className="text-xs text-muted-foreground ml-1">
@@ -336,6 +344,7 @@ export default function Cookie3Comparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -348,6 +357,7 @@ export default function Cookie3Comparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -355,6 +365,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                     </td>
@@ -367,6 +378,7 @@ export default function Cookie3Comparison() {
                       <X
                         alt="No"
                         role="img"
+                        aria-label="No"
                         className="h-4 w-4 text-muted-foreground"
                       />
                     </td>
@@ -374,6 +386,7 @@ export default function Cookie3Comparison() {
                       <Check
                         alt="Yes"
                         role="img"
+                        aria-label="Yes"
                         className="h-4 w-4 text-accent-brand"
                       />
                     </td>
