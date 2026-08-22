@@ -26,6 +26,10 @@ interface FunnelData {
   lookupsCompleted: number;
   upgradeModalViewed: number;
   checkoutStarted: number;
+  /** Reached Stripe. Tracked since 2026-08-15; older windows undercount. */
+  checkoutRedirected: number;
+  checkoutFailed: number;
+  checkoutFailureReasons: Array<{ reason: string; count: number }>;
   paymentCompleted: number;
 }
 
@@ -272,7 +276,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
               <FunnelStep label="Lookups" count={funnel.lookupsStarted} />
               <FunnelStep
                 label="Saw pricing"
@@ -281,6 +285,14 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               <FunnelStep
                 label="Started checkout"
                 count={funnel.checkoutStarted}
+              />
+              {/* checkout_redirected exists to split "reached Stripe" from
+                  "errored before Stripe"; it has been write-only since it
+                  shipped, which defeated its purpose. Tracked since
+                  2026-08-15, so older windows undercount this step. */}
+              <FunnelStep
+                label="Reached Stripe"
+                count={funnel.checkoutRedirected}
               />
               {/* A completed payment is a real outcome, so it is green. */}
               <FunnelStep
@@ -297,6 +309,15 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                 </span>
               </span>
             </div>
+            {funnel.checkoutFailed > 0 && (
+              <p className="mt-2 text-center text-sm text-caution">
+                {funnel.checkoutFailed} checkout
+                {funnel.checkoutFailed === 1 ? ' failure' : ' failures'}:{' '}
+                {funnel.checkoutFailureReasons
+                  .map((r) => `${r.reason} (${r.count})`)
+                  .join(', ')}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

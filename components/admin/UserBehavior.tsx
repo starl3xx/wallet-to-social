@@ -45,6 +45,11 @@ interface FeatureData {
   avgLookupSize: { free: number; pro: number; unlimited: number };
 }
 
+interface PaywallTrigger {
+  trigger: string;
+  count: number;
+}
+
 interface UserBehaviorProps {
   password: string;
 }
@@ -53,6 +58,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
   const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [cohorts, setCohorts] = useState<CohortData[]>([]);
   const [features, setFeatures] = useState<FeatureData | null>(null);
+  const [triggers, setTriggers] = useState<PaywallTrigger[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,31 +67,38 @@ export function UserBehavior({ password }: UserBehaviorProps) {
     setError(null);
 
     try {
-      const [funnelRes, cohortsRes, featuresRes] = await Promise.all([
-        fetch('/api/admin/analytics/funnel?days=7', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/analytics/cohorts', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/analytics/features?days=30', {
-          headers: { 'x-admin-password': password },
-        }),
-      ]);
+      const [funnelRes, cohortsRes, featuresRes, paywallRes] =
+        await Promise.all([
+          fetch('/api/admin/analytics/funnel?days=7', {
+            headers: { 'x-admin-password': password },
+          }),
+          fetch('/api/admin/analytics/cohorts', {
+            headers: { 'x-admin-password': password },
+          }),
+          fetch('/api/admin/analytics/features?days=30', {
+            headers: { 'x-admin-password': password },
+          }),
+          fetch('/api/admin/analytics/paywall?days=30', {
+            headers: { 'x-admin-password': password },
+          }),
+        ]);
 
-      if (!funnelRes.ok || !cohortsRes.ok || !featuresRes.ok) {
+      if (!funnelRes.ok || !cohortsRes.ok || !featuresRes.ok || !paywallRes.ok) {
         throw new Error('Failed to fetch behavior data');
       }
 
-      const [funnelData, cohortsData, featuresData] = await Promise.all([
-        funnelRes.json(),
-        cohortsRes.json(),
-        featuresRes.json(),
-      ]);
+      const [funnelData, cohortsData, featuresData, paywallData] =
+        await Promise.all([
+          funnelRes.json(),
+          cohortsRes.json(),
+          featuresRes.json(),
+          paywallRes.json(),
+        ]);
 
       setFunnel(funnelData);
       setCohorts(cohortsData);
       setFeatures(featuresData);
+      setTriggers(paywallData.triggers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -181,6 +194,40 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 rate={rateOf(funnel.paymentCompleted)}
               />
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Paywall triggers. The per-gate names shipped 2026-08-22; rows named
+          'limit' and 'feature' are the legacy labels from before that. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Paywall triggers (30 days)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {triggers.length === 0 ? (
+            <Empty>No buy-credits modal opens in the window</Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Gate</TableHead>
+                  <TableHead className="text-right">Opens</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {triggers.map((t) => (
+                  <TableRow key={t.trigger}>
+                    <TableCell className="font-medium">{t.trigger}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {t.count}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
