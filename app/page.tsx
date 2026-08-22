@@ -340,10 +340,14 @@ export default function Home() {
   // The buy-credits modal is owned by the layout (see UpgradeModalProvider),
   // so the header can open it on every page. This wrapper is what every call
   // site on this page goes through: it passes the loaded list, which the
-  // modal uses to mark the smallest pack whose headroom covers the file.
-  const handleOpenUpgradeModal = useCallback(() => {
-    upgradeModal.open(wallets.length > 0 ? wallets.length : undefined);
-  }, [upgradeModal, wallets.length]);
+  // modal uses to mark the smallest pack whose headroom covers the file, and
+  // forwards the gate name so the analytics can say which gate converts.
+  const handleOpenUpgradeModal = useCallback(
+    (source?: string) => {
+      upgradeModal.open(wallets.length > 0 ? wallets.length : undefined, source);
+    },
+    [upgradeModal, wallets.length]
+  );
 
   const handlePasteToggle = useCallback(() => setShowPasteInput((v) => !v), []);
 
@@ -354,7 +358,7 @@ export default function Home() {
     if (entitled) {
       setShowContractImportModal(true);
     } else {
-      handleOpenUpgradeModal();
+      handleOpenUpgradeModal('contract-import');
     }
   }, [entitled, handleOpenUpgradeModal]);
 
@@ -413,7 +417,7 @@ export default function Home() {
     if (entitled) {
       setShowContractImportModal(true);
     } else {
-      handleOpenUpgradeModal();
+      handleOpenUpgradeModal('contract-import-link');
     }
   }, [
     deepLinkContract,
@@ -564,7 +568,7 @@ export default function Home() {
       if (!user) {
         setShowAuthModal(true);
       } else if (!credits.unmetered) {
-        handleOpenUpgradeModal();
+        handleOpenUpgradeModal('limit');
       }
       // A legacy account over its cap has nothing to buy: the banner tells it
       // to split the file, and that is the whole answer.
@@ -636,7 +640,7 @@ export default function Home() {
         // Credits needed. `upgradeRequired` is the field name the server still
         // uses; what it opens is the buy-credits modal.
         if (errorData.upgradeRequired) {
-          handleOpenUpgradeModal();
+          handleOpenUpgradeModal('submit-blocked');
           setState('ready');
           return;
         }
@@ -1222,7 +1226,7 @@ export default function Home() {
         if (!response.ok) {
           const errorData = await response.json();
           if (errorData.upgradeRequired) {
-            handleOpenUpgradeModal();
+            handleOpenUpgradeModal('deep-scan');
             setState('ready');
             return;
           }
@@ -1613,7 +1617,7 @@ export default function Home() {
                   !credits.unmetered && (
                     <Button
                       size="sm"
-                      onClick={handleOpenUpgradeModal}
+                      onClick={() => handleOpenUpgradeModal('limit-banner')}
                       className="shrink-0"
                     >
                       Buy credits

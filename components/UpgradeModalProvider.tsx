@@ -22,9 +22,12 @@ interface UpgradeModalContextValue {
    * Open the buy-credits modal. `walletCount` is the list the person is
    * holding, when there is one: the modal uses it to mark the smallest pack
    * whose headroom covers the file, and to log the open as a limit hit rather
-   * than a feature gate.
+   * than a feature gate. `trigger` names the gate that opened the modal
+   * ('export-x', 'column-priority', 'reverse', 'header', ...) so the
+   * analytics can say which gate converts; without it the open logs as the
+   * generic 'limit' or 'feature'.
    */
-  open: (walletCount?: number) => void;
+  open: (walletCount?: number, trigger?: string) => void;
   close: () => void;
 }
 
@@ -48,12 +51,14 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [walletCount, setWalletCount] = useState<number | undefined>();
+  const [trigger, setTrigger] = useState<string | undefined>();
   // The chunk is not fetched until the first open. Once it has been, the
   // modal stays mounted so Radix can run its exit animation on close.
   const [everOpened, setEverOpened] = useState(false);
 
-  const open = useCallback((count?: number) => {
+  const open = useCallback((count?: number, source?: string) => {
     setWalletCount(count);
+    setTrigger(source);
     setEverOpened(true);
     setIsOpen(true);
   }, []);
@@ -70,6 +75,7 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
           onOpenChange={setIsOpen}
           currentTier={user?.tier ?? 'free'}
           walletCount={walletCount}
+          trigger={trigger}
         />
       )}
     </UpgradeModalContext.Provider>

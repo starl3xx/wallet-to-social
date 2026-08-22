@@ -77,7 +77,7 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
   // No list is in hand here, so no wallet count: the modal marks its default
   // pack. The in-flow buttons on the homepage pass the loaded list through
   // their own wrapper.
-  const handleUpgradeClick = () => upgradeModal.open();
+  const handleUpgradeClick = () => upgradeModal.open(undefined, 'header');
 
   // Authenticated user UI (displayed alongside the status chip). A render
   // helper called as a function, not a component declared inside render: a

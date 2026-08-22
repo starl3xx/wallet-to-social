@@ -22,7 +22,7 @@ interface ExportButtonProps {
    * had just paid for it.
    */
   entitled?: boolean;
-  onUpgradeClick?: () => void;
+  onUpgradeClick?: (source?: string) => void;
   lookupName?: string | null;
 }
 
@@ -277,7 +277,7 @@ export const ExportButton = memo(function ExportButton({
       ) : (
         <Button
           variant="outline"
-          onClick={onUpgradeClick}
+          onClick={() => onUpgradeClick?.('export-x')}
           title="Buy credits to export the X list"
         >
           <Lock className="h-4 w-4" aria-hidden />

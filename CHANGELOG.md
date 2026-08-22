@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (free-to-paid: gate analytics, checkout prefill, email sequence drafts)
+
+- **The buy-credits modal logs which gate opened it.** `useUpgradeModal().open`
+  takes an optional trigger name, and every gate passes its own:
+  `export-x`, `column-followers`, `column-priority`, `reverse`,
+  `contract-import`, `contract-import-link`, `deep-scan`, `submit-blocked`,
+  `limit`, `limit-banner`, `header`. Before this every open logged as the
+  generic `limit` or `feature`, so nothing could say which gate converts.
+- **Signed-in buyers no longer retype their email at checkout.** The modal
+  seeds an empty email field from the session on open; a deliberately typed
+  different address survives.
+- **`docs/EMAIL-SEQUENCE.md`: a five-email welcome sequence, drafted and
+  stress-tested, not wired.** Copy passed a 7-critical-readers pass (one
+  critical, six high findings fixed). The file carries the implementation
+  plan: opt-out column, unsubscribe endpoint, state table, daily cron.
+  Nothing sends without Jake's approval.
+
 ### 2026-08-22 (product marketing context document)
 
 - **`.agents/product-marketing.md` is the positioning source of truth for

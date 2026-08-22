@@ -29,6 +29,7 @@ import {
   type PackId,
 } from '@/lib/packs';
 import { Analytics } from '@/lib/client-analytics';
+import { useAuth } from '@/components/AuthProvider';
 import { cn } from '@/lib/utils';
 
 interface UpgradeModalProps {
@@ -36,6 +37,8 @@ interface UpgradeModalProps {
   onOpenChange: (open: boolean) => void;
   currentTier?: string;
   walletCount?: number;
+  /** The gate that opened the modal, for the analytics; see UpgradeModalProvider. */
+  trigger?: string;
 }
 
 /**
@@ -119,17 +122,30 @@ export function UpgradeModal({
   onOpenChange,
   currentTier = 'free',
   walletCount,
+  trigger,
 }: UpgradeModalProps) {
+  const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState<PackId | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      const trigger = walletCount ? 'limit' : 'feature';
-      Analytics.upgradeModalViewed(trigger, currentTier);
+      Analytics.upgradeModalViewed(
+        trigger ?? (walletCount ? 'limit' : 'feature'),
+        currentTier
+      );
     }
-  }, [open, walletCount, currentTier]);
+  }, [open, walletCount, currentTier, trigger]);
+
+  // A signed-in buyer should not retype the address their credits go to.
+  // Seed only an empty field, so a deliberately typed different address
+  // survives, and re-seed on each open rather than each keystroke.
+  useEffect(() => {
+    if (open && user?.email) {
+      setEmail((current) => current || user.email);
+    }
+  }, [open, user?.email]);
 
   const handleBuy = async (pack: PackId) => {
     if (!email || !email.includes('@')) {
