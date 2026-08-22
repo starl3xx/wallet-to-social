@@ -2,6 +2,15 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (product marketing context document)
+
+- **`.agents/product-marketing.md` is the positioning source of truth for
+  marketing work.** Auto-drafted from README, `lib/public-figures.ts`,
+  `lib/packs.ts` and the /vs pages; every figure in it is verified, and it
+  bans quoting numbers that are not in `lib/public-figures.ts`. Marketing
+  skills read it automatically, so positioning is defined once. Known gaps
+  flagged inside: verbatim customer language and testimonials.
+
 ### 2026-08-22 (two open copy decisions closed)
 
 - **The homepage headline is confirmed.** "Wallets in. People out." stays; the
