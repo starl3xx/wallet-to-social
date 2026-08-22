@@ -25,6 +25,7 @@ const READ_ONLY_TABLES = [
   'clanker_unresolved_ids',
   'credit_lots',
   'credit_ledger',
+  'lifecycle_emails',
 ];
 const ROLE = 'sweep_runner';
 

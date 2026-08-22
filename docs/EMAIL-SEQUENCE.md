@@ -1,6 +1,28 @@
+# Lifecycle email: the relaunch campaign and the welcome sequence
+
+Status: **pipeline built (2026-08-22); nothing has been sent.** The
+unsubscribe endpoint, opt-out column, send ledger and lifecycle sender are
+in code. The relaunch campaign script is ready behind a dry-run default.
+The welcome sequence below remains **drafts with no cron**: it does not send
+until Jake approves the copy and the cron is wired.
+
+## Email 0: the relaunch Trial grant (one-off campaign)
+
+`scripts/relaunch-trial-grant.ts` grants the Trial pack (250 matches, $0)
+to every account that never bought, then tells them by email. Dry run by
+default; `--to <email>` sends one preview with no grant; `--send` executes.
+Idempotent at both steps (synthetic payment id on the grant, the
+`lifecycle_emails` unique on the send). The copy lives in the script and
+passed its own 7-critical-readers pass. Eligibility excludes legacy tiers,
+opt-outs, and anyone already holding any credit lot.
+
+Run order before the first send: `scripts/migrate-email-lifecycle.ts`, then
+`scripts/migrate-grant-readonly.ts`, set `EMAIL_UNSUBSCRIBE_SECRET` in both
+.env.local and Vercel, then `--to` a test address, then `--send`.
+
 # Welcome sequence: signup to first pack
 
-Status: **drafts, not wired**. Nothing sends until the implementation section
+Status: **drafts, not wired**. Nothing sends until the cron below
 is built and Jake approves the send. Figures in the copy come from
 `lib/public-figures.ts` and must track it; if a draft ships to code, its
 figures join `scripts/check-published-figures.ts`.
@@ -123,23 +145,22 @@ of your list, and it is why we charge for matches instead of promises.
 
 You will not get another sales email from us after this one.
 
-## Implementation plan (build before any send)
+## Implementation state
 
-1. **Consent and exit.** New column `users.email_opt_out boolean default
-   false` (hand-written idempotent migration, `scripts/migrate-*` pattern),
-   an unsubscribe endpoint that sets it from a signed token link, and the
-   List-Unsubscribe header on every lifecycle email. Transactional magic-link
-   mail ignores the flag; lifecycle mail honors it.
-2. **State.** A `lifecycle_emails` table (user_id, email_number, sent_at)
-   so each email sends at most once; the daily cron selects users by
-   `created_at` age, absence of a `credit_lots` row, `email_opt_out = false`,
-   and absence of the email_number row.
-3. **Sending.** Reuse `lib/email.ts` (Resend): a token-free layout variant of
-   `sendLinkEmail`, plus `replyTo: help@walletlink.social`.
-4. **Cron.** A daily Vercel cron (the repo already runs several) that walks
-   the schedule. Idempotent by the state table; a missed day catches up.
-5. **Measurement.** Log sends to `analytics_events`; conversion is a
-   `credit_lots` row within 30 days of email 5.
+Built (2026-08-22): `users.email_opt_out` and the `lifecycle_emails` table
+(`scripts/migrate-email-lifecycle.ts`, run before deploy; then
+`scripts/migrate-grant-readonly.ts` for the CI role), the stateless-HMAC
+unsubscribe endpoint (`app/api/email/unsubscribe/route.ts`, GET for humans
+and POST for RFC 8058 one-click), and `sendLifecycleEmail` in `lib/email.ts`
+(List-Unsubscribe headers, reply-to help@, refuses to send without
+`EMAIL_UNSUBSCRIBE_SECRET`). Transactional magic-link mail ignores the
+opt-out flag; lifecycle mail honors it.
+
+Still to build for the welcome sequence: the daily Vercel cron that walks
+the five-email schedule against `users.created_at`, `credit_lots`, and
+`lifecycle_emails` (keys `welcome-1` … `welcome-5`), and send logging into
+`analytics_events`. Conversion metric: a `credit_lots` row with a real
+payment within 30 days of email 5.
 
 Open decisions for Jake before wiring: approve the copy and cadence, confirm
 noreply@ as the from address for lifecycle mail, and whether existing ~100
