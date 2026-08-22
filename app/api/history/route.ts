@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getLookupHistory, getHistorySummaries, getHistoryCount, getEnrichmentCounts } from '@/lib/history';
+import {
+  getLookupHistory,
+  getHistorySummaries,
+  getHistoryCount,
+  getEnrichmentCounts,
+} from '@/lib/history';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
+import { hasPaidAccess } from '@/lib/credits';
 
 export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) {
@@ -52,14 +58,14 @@ export async function GET(request: NextRequest) {
 
     /**
      * Enrichment counts are the "N new matches" pills on the history list, and
-     * they are the same Unlimited feature as the NEW row markers inside a
+     * they are the same paid feature as the NEW row markers inside a
      * lookup. Gating one and not the other was worse than gating neither: the
      * list advertised new matches, opening the lookup showed none, and the act
      * of opening it advanced `lastViewedAt` and destroyed the window those
      * matches were counted against.
      */
     const access = await getUserAccess(session.user.email ?? undefined);
-    const canSeeEnrichment = access.tier === 'unlimited';
+    const canSeeEnrichment = await hasPaidAccess(userId, access.tier);
 
     let enrichmentCounts: Record<string, number> | undefined;
     if (includeEnrichment && canSeeEnrichment && history.length > 0) {

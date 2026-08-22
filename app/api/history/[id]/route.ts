@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getLookupById, updateLookup, updateLookupName, markLookupViewed, getLookupLastViewedAt } from '@/lib/history';
+import {
+  getLookupById,
+  updateLookup,
+  updateLookupName,
+  markLookupViewed,
+  getLookupLastViewedAt,
+} from '@/lib/history';
 import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
+import { hasPaidAccess } from '@/lib/credits';
 import type { WalletSocialResult } from '@/lib/types';
 
 /**
@@ -15,6 +22,7 @@ async function validateSessionAndOwnership(lookupId: string): Promise<
       success: true;
       lookup: Awaited<ReturnType<typeof getLookupById>>;
       email: string | null;
+      userId: string;
     }
   | { success: false; response: NextResponse }
 > {
@@ -25,10 +33,7 @@ async function validateSessionAndOwnership(lookupId: string): Promise<
   if (!sessionToken) {
     return {
       success: false,
-      response: NextResponse.json(
-        { error: 'Login required' },
-        { status: 401 }
-      ),
+      response: NextResponse.json({ error: 'Login required' }, { status: 401 }),
     };
   }
 
@@ -57,7 +62,12 @@ async function validateSessionAndOwnership(lookupId: string): Promise<
     };
   }
 
-  return { success: true, lookup, email: session.user.email ?? null };
+  return {
+    success: true,
+    lookup,
+    email: session.user.email ?? null,
+    userId: session.user.id,
+  };
 }
 
 export async function GET(
@@ -83,8 +93,10 @@ export async function GET(
     const lookup = validation.lookup!;
 
     /**
-     * "What is new since you last looked" is the other half of the Unlimited
+     * "What is new since you last looked" is the other half of the paid
      * saved-lookup feature, alongside adding addresses, so it is gated with it.
+     * Paid means any pack or a legacy tier: the packs differ only in how many
+     * matches they hold, not in which features they unlock.
      *
      * Gating it here also skips the query rather than hiding its result: the
      * enrichment scan reads every wallet in the lookup against the graph, which
@@ -92,14 +104,19 @@ export async function GET(
      * pay for an answer nobody is entitled to see.
      */
     const access = await getUserAccess(validation.email ?? undefined);
-    const canSeeEnrichment = access.tier === 'unlimited';
+    const canSeeEnrichment = await hasPaidAccess(
+      validation.userId,
+      access.tier
+    );
 
     // Get the lastViewedAt BEFORE we update it (to find enrichments since last view)
     let enrichedWallets: string[] = [];
     if (canSeeEnrichment) {
       const lastViewedAt = await getLookupLastViewedAt(id);
       if (lastViewedAt) {
-        const wallets = (lookup.results as WalletSocialResult[]).map((r) => r.wallet);
+        const wallets = (lookup.results as WalletSocialResult[]).map(
+          (r) => r.wallet
+        );
         enrichedWallets = await getEnrichedWalletsSince(wallets, lastViewedAt);
       }
     }
@@ -165,7 +182,7 @@ export async function PATCH(
     }
 
     /**
-     * Growing a saved lookup is an Unlimited feature.
+     * Growing a saved lookup is a paid feature, included in every pack.
      *
      * The gate is here rather than only on the button, because the button is
      * not a gate: this endpoint is what actually writes the merged result, and
@@ -173,14 +190,15 @@ export async function PATCH(
      * in the browser is a suggestion.
      *
      * It guards the results branch alone. Renaming a lookup stays available to
-     * anyone who owns it, since Pro is sold with full lookup history and a
-     * history you cannot label is a worse product for no reason.
+     * anyone who owns it, since a history you cannot label is a worse product
+     * for no reason.
      */
     const access = await getUserAccess(validation.email ?? undefined);
-    if (access.tier !== 'unlimited') {
+    if (!(await hasPaidAccess(validation.userId, access.tier))) {
       return NextResponse.json(
         {
-          error: 'Adding addresses to a saved lookup is available on Unlimited.',
+          error:
+            'Adding addresses to a saved lookup needs credits. Buy a pack to unlock it.',
           upgradeRequired: true,
           tier: access.tier,
         },

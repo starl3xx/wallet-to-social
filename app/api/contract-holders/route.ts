@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
+import { hasPaidAccess } from '@/lib/credits';
 import {
   getContractHolders,
   hasPublicHolderFallback,
@@ -75,10 +76,11 @@ export async function POST(request: NextRequest) {
 
     // Contract import is the strongest feature in the product and used to sit
     // behind the top tier, where almost nobody reached it (3 successful imports
-    // ever). It is now the headline reason to buy Pro.
+    // ever). It is now included in every pack, which is why this is a credit
+    // check and not a tier check: a pack buyer keeps tier 'free'.
     const access = await getUserAccess(session.user.email);
 
-    if (access.tier !== 'pro' && access.tier !== 'unlimited') {
+    if (!(await hasPaidAccess(session.user.id, access.tier))) {
       trackEvent('contract_import_blocked', {
         userId: session.user.email,
         metadata: {
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: 'Contract import is available on Pro and Unlimited',
+          error: 'Contract import needs credits. Buy a pack to unlock it.',
           upgradeRequired: true,
           tier: access.tier,
         },
@@ -156,7 +158,8 @@ export async function POST(request: NextRequest) {
     console.error('Contract holders error:', error);
 
     // Map error codes to user-friendly messages
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     const chainLabel = chain ? (CHAIN_LABELS[chain] ?? chain) : 'this chain';
 
     const errorMap: Record<string, { message: string; status: number }> = {
@@ -193,9 +196,10 @@ export async function POST(request: NextRequest) {
          *
          * No provider named either way, per the UI rule.
          */
-        message: chain && hasPublicHolderFallback(chain)
-          ? `Token (ERC-20) holder import on ${chainLabel} is temporarily unavailable. It is worth trying again in a few minutes. NFT collections are unaffected, and an upload or a pasted list works now.`
-          : 'Token (ERC-20) holder import has reached its daily limit and will be available again tomorrow. NFT collections are unaffected, and an upload or a pasted list works now.',
+        message:
+          chain && hasPublicHolderFallback(chain)
+            ? `Token (ERC-20) holder import on ${chainLabel} is temporarily unavailable. It is worth trying again in a few minutes. NFT collections are unaffected, and an upload or a pasted list works now.`
+            : 'Token (ERC-20) holder import has reached its daily limit and will be available again tomorrow. NFT collections are unaffected, and an upload or a pasted list works now.',
         status: 503,
       },
       MORALIS_NOT_CONFIGURED: {
@@ -234,7 +238,10 @@ export async function POST(request: NextRequest) {
     if (errorMessage.includes('Moralis API error')) {
       console.error('Moralis API failed:', errorMessage);
       return NextResponse.json(
-        { error: 'Token holder service temporarily unavailable. Please try again.' },
+        {
+          error:
+            'Token holder service temporarily unavailable. Please try again.',
+        },
         { status: 503 }
       );
     }
@@ -242,7 +249,10 @@ export async function POST(request: NextRequest) {
     if (errorMessage.includes('Alchemy API error')) {
       console.error('Alchemy API failed:', errorMessage);
       return NextResponse.json(
-        { error: 'NFT holder service temporarily unavailable. Please try again.' },
+        {
+          error:
+            'NFT holder service temporarily unavailable. Please try again.',
+        },
         { status: 503 }
       );
     }
@@ -254,10 +264,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (errorMessage.includes('403 Forbidden') || errorMessage.includes('not enabled')) {
+    if (
+      errorMessage.includes('403 Forbidden') ||
+      errorMessage.includes('not enabled')
+    ) {
       console.error('Network not enabled in API provider:', errorMessage);
       return NextResponse.json(
-        { error: 'This network is not currently supported. Please try Ethereum.' },
+        {
+          error:
+            'This network is not currently supported. Please try Ethereum.',
+        },
         { status: 503 }
       );
     }

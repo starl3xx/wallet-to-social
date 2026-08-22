@@ -51,6 +51,30 @@ export function legacyTierIsUnmetered(tier: UserTier): boolean {
   return tier === 'pro' || tier === 'unlimited';
 }
 
+/**
+ * Whether paid features are unlocked for this account, server-side.
+ *
+ * The twin of `entitled` in lib/use-credits.ts, and it exists for the same
+ * reason: every feature gate used to read `tier`, and a pack purchase never
+ * changes `tier`, so the gates refused the people who had just paid. The
+ * client gates were fixed first; these are the gates behind them, which are
+ * the ones that matter, because a gate enforced only in the browser is a
+ * suggestion.
+ *
+ * Paid means a legacy tier, the whitelist (which `getUserAccess` reports as
+ * `unlimited`), or a live credit lot. The free allowance deliberately does not
+ * count, for the reason given in use-credits.ts: those features were never
+ * part of free, and adding them quietly would be a pricing change.
+ */
+export async function hasPaidAccess(
+  userId: string,
+  tier: UserTier
+): Promise<boolean> {
+  if (legacyTierIsUnmetered(tier)) return true;
+  const balance = await getBalance(userId);
+  return !balance.onFreeAllowance;
+}
+
 export interface CreditBalance {
   /** Matches available right now. Floors at zero. */
   available: number;
@@ -118,6 +142,10 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
   const windowStart = new Date(
     now.getTime() - FREE_WINDOW_DAYS * 24 * 60 * 60 * 1000
   );
+  // Only debits that came out of the free allowance count against it. A pack
+  // buyer's debits sit in the same table with `paidFrom: 'lots'`, and without
+  // this filter the month after their lots ran out would count the paid spend
+  // against the free window and report it exhausted. Paid use is not free use.
   const [used] = await db
     .select({
       total: sql<number>`coalesce(sum(${creditLedger.matches}), 0)::int`,
@@ -126,6 +154,7 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
     .where(
       and(
         eq(creditLedger.userId, userId),
+        eq(creditLedger.paidFrom, 'free'),
         gt(creditLedger.createdAt, windowStart)
       )
     );
@@ -151,6 +180,7 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
     .where(
       and(
         eq(creditLedger.userId, userId),
+        eq(creditLedger.paidFrom, 'free'),
         gt(creditLedger.createdAt, windowStart)
       )
     )
