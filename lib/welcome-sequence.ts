@@ -1,6 +1,17 @@
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { sendLifecycleEmail, type LifecycleEmailContent } from '@/lib/email';
+import {
+  INDEXED_WALLETS_LONG,
+  X_HANDLES_RESOLVED,
+  CHAIN_COUNT_WORD,
+} from '@/lib/public-figures';
+import {
+  PACKS,
+  FREE_MATCHES_PER_WINDOW,
+  FREE_WINDOW_DAYS,
+  CREDIT_LIFETIME_MONTHS,
+} from '@/lib/packs';
 
 /**
  * The welcome sequence: five lifecycle emails from signup to the Trial ask.
@@ -47,11 +58,11 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
     key: 'welcome-1',
     day: 0,
     content: {
-      subject: 'Your first 100 matches are free',
+      subject: `Your first ${FREE_MATCHES_PER_WINDOW} matches are free`,
       paragraphs: [
         'Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.',
-        'Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a 4.8 million wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.',
-        'You have 100 free matches every 30 days. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.',
+        `Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+        `You have ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.`,
       ],
       button: { label: 'Run a lookup', url: SITE },
       footnote: 'If anything is unclear, just reply to this email!',
@@ -78,7 +89,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
     content: {
       subject: 'A handle that reaches nobody is not a match',
       paragraphs: [
-        'Of 437,823 X handles we resolved, 69.6% are live. 20.6% are suspended, and 9.7% are names nobody holds any more.',
+        `Of ${X_HANDLES_RESOLVED} X handles we resolved, 69.6% are live. 20.6% are suspended, and 9.7% are names nobody holds any more.`,
         'A single coverage number counts all three groups. We label every match with its **reachability**, because a campaign sent to dead handles is obviously worse than a smaller campaign sent to real ones.',
         'The same rule applies to how a match is made. Over 99.9% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record. Nothing is guessed from display names or bios.',
       ],
@@ -96,7 +107,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
         'Two things people miss on the first lookup.',
         '**Reverse lookup**. Give it an X handle or a Farcaster username and it returns the wallets attached to that person. Useful before a partnership, an allowlist, or an airdrop: does this person already hold your token?',
         '**Priority**. Every result is ranked by holdings times follower reach, so the whale with an audience sits at the top of your list, not row 4,000.',
-        'Both come with any credit pack, on all seven chains.',
+        `Both come with any credit pack, on all ${CHAIN_COUNT_WORD} chains.`,
       ],
       button: { label: 'Run a free lookup', url: SITE },
       footnote:
@@ -107,10 +118,10 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
     key: 'welcome-5',
     day: 14,
     content: {
-      subject: '250 matches, once: $29',
+      subject: `${PACKS.trial.matches} matches, once: $${PACKS.trial.priceCents / 100}`,
       paragraphs: [
         'If walletlink.social showed you real matches, here’s the price:',
-        'The Trial pack is $29, once. It covers 250 matches, and misses are still free. No subscription; credits last 12 months. Every pack includes the full CSV export, the X list export, reverse lookup, priority ranking, deep scan with onchain ENS, and API access on the same credits.',
+        `The ${PACKS.trial.name} pack is $${PACKS.trial.priceCents / 100}, once. It covers ${PACKS.trial.matches} matches, and misses are still free. No subscription; credits last ${CREDIT_LIFETIME_MONTHS} months. Every pack includes the full CSV export, the X list export, reverse lookup, priority ranking, deep scan with onchain ENS, and API access on the same credits.`,
         'If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.',
       ],
       button: { label: 'Buy the Trial pack', url: `${SITE}/pricing` },

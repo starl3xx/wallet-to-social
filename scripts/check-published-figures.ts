@@ -317,6 +317,7 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
       'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
@@ -348,8 +349,11 @@ const CLAIMS: Claim[] = [
       'README.md',
       'docs/AI-SEARCH.md',
       'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
     ],
-    pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
+    // "are suspended" joined the phrasings with the welcome sequence, whose
+    // approved copy writes the split as a sentence.
+    pattern: /([0-9]{2}\.[0-9])%\s+(?:are\s+)?suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -368,6 +372,7 @@ const CLAIMS: Claim[] = [
       'README.md',
       'docs/AI-SEARCH.md',
       'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
     ],
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
@@ -388,6 +393,7 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/coverage.mdx',
       'app/layout.tsx',
       'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
     ],
     pattern: /over ([0-9]{2}\.[0-9])% of/i,
     actual: async () => {
