@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
-import { hasPaidAccess } from '@/lib/credits';
+import { canSubmit, hasPaidAccess, legacyTierIsUnmetered } from '@/lib/credits';
 import {
   getContractHolders,
   hasPublicHolderFallback,
@@ -115,14 +115,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch contract holders
-    // Cap the import at what this account can actually look up, so the feature
-    // cannot hand a Pro user a list that trips the upgrade wall on Start Lookup.
-    const result = await getContractHolders(
-      contractAddress,
-      chain,
-      Number.isFinite(access.walletLimit) ? access.walletLimit : undefined
-    );
+    // Cap the import at what this account can actually submit, so the feature
+    // cannot hand someone a list that Start Lookup then refuses. For a legacy
+    // tier that is the per-lookup limit; for a pack holder it is the credit
+    // ceiling (remaining matches x SUBMISSION_MULTIPLIER). `access.walletLimit`
+    // alone would cap an Index buyer at 500, because their tier stays 'free'.
+    let importCap: number | undefined;
+    if (legacyTierIsUnmetered(access.tier)) {
+      importCap = Number.isFinite(access.walletLimit)
+        ? access.walletLimit
+        : undefined;
+    } else {
+      importCap = (await canSubmit(session.user.id, 0, access.tier)).maxWallets;
+    }
+
+    const result = await getContractHolders(contractAddress, chain, importCap);
 
     // Track successful import
     trackEvent('contract_import_success', {

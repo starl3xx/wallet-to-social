@@ -98,7 +98,7 @@ CSV / contract / paste
         ↓
   lib/csv-parser.ts ──── detects wallet + holdings columns
         ↓
-  /api/lookup (SSE) ──── streams progress to the client
+  /api/jobs ──────────── creates a job; lib/job-processor.ts runs it in chunks, the client polls
         ↓
   ┌─ social_graph ─────── fresh rows and persisted negatives short-circuit
   ├─ wallet_cache ─────── 7-day TTL, negatives included

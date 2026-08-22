@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
 import { inngest } from '@/inngest/client';
-import { canSubmit } from '@/lib/credits';
+import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
@@ -264,6 +264,8 @@ export async function POST(request: NextRequest) {
       // Only a signed-in account can be debited; see JobOptions.meteredUserId.
       meteredUserId: session.user?.id,
       tier: access.tier,
+      // Priority score and follower counts: every pack, and the legacy tiers.
+      paidData: legacyTierIsUnmetered(access.tier) || creditsCoverThisLookup,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS || creditsCoverThisLookup,
       inputSource,

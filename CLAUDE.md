@@ -21,7 +21,7 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 ### Data Flow
 
 1. User uploads CSV with wallet addresses → `lib/csv-parser.ts` extracts wallets and detects holdings columns
-2. Frontend (`app/page.tsx`) calls `/api/lookup` with wallets and options
+2. Frontend (`app/page.tsx`) creates a job with `POST /api/jobs` (wallets and options) and polls it; the old streaming `/api/lookup` route is retired (410)
 3. API route streams SSE progress events back to client while processing:
    - Check `social_graph` first — high-quality fresh rows AND persisted
      negatives ("checked, no socials", trusted 30 days) skip all API calls
