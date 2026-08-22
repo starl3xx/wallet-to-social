@@ -26,8 +26,10 @@ import {
   PACK_IDS,
   MEASURED_MATCH_RATE,
   SUBMISSION_MULTIPLIER,
+  CREDIT_LIFETIME_MONTHS,
   type PackId,
 } from '@/lib/packs';
+import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { Analytics } from '@/lib/client-analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { cn } from '@/lib/utils';
@@ -101,7 +103,7 @@ const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
  * item carries the platform mark and so is not a string.
  */
 const INCLUDED: { key: string; label: React.ReactNode }[] = [
-  { key: 'chains', label: 'All seven chains' },
+  { key: 'chains', label: `All ${CHAIN_COUNT_WORD} chains` },
   { key: 'csv', label: 'Full CSV export, never capped' },
   { key: 'api', label: 'API access, drawing the same credits' },
   { key: 'reverse', label: 'Reverse lookup: handle → wallets' },
@@ -109,7 +111,7 @@ const INCLUDED: { key: string; label: React.ReactNode }[] = [
   { key: 'x', label: <>{X_IN_COPY} reachability on every match</> },
   { key: 'contract', label: 'Import from a contract address' },
   { key: 'dms', label: 'Farcaster DMs to matched holders' },
-  { key: 'expiry', label: 'Credits last 12 months' },
+  { key: 'expiry', label: `Credits last ${CREDIT_LIFETIME_MONTHS} months` },
 ];
 
 /** Dollars, without a trailing `.00` on the whole numbers every pack uses. */

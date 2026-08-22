@@ -3,7 +3,9 @@ import {
   PACK_IDS,
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
+  CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
+import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 
 /**
  * Our price list, on the comparison pages.
@@ -83,9 +85,10 @@ export function PackPricing() {
       </div>
 
       <p className="mt-4 text-sm text-muted-foreground">
-        Every pack carries all seven chains, uncapped CSV export, API access on
-        the same credits, reverse lookup, Farcaster DMs, and X reachability on
-        every match. Credits last 12 months. No subscription.
+        Every pack carries all {CHAIN_COUNT_WORD} chains, uncapped CSV export,
+        API access on the same credits, reverse lookup, Farcaster DMs, and X
+        reachability on every match. Credits last {CREDIT_LIFETIME_MONTHS}{' '}
+        months. No subscription.
       </p>
     </div>
   );

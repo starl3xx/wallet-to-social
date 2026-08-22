@@ -118,6 +118,12 @@ export function isPackId(value: string): value is PackId {
 export const CREDIT_LIFETIME_DAYS = 365;
 
 /**
+ * The lifetime as copy displays it. Derived, so no surface can say a number
+ * of months that stopped matching the constant that actually expires lots.
+ */
+export const CREDIT_LIFETIME_MONTHS = Math.round(CREDIT_LIFETIME_DAYS / 30.44);
+
+/**
  * The free allowance: matches per rolling 30 days, cumulative and account-wide.
  *
  * **Cumulative is the point.** Free was 500 wallets per lookup with unlimited

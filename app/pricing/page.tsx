@@ -11,6 +11,7 @@ import {
   MEASURED_MATCH_RATE,
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
+  CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
 
 /**
@@ -55,15 +56,19 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: 'What does a wallet you cannot resolve cost?',
-    a: 'Nothing. A low-match list spends almost none of a pack, so the honest read of your list is also the cheap one.',
+    a: 'Nothing. A list that matches poorly spends almost none of a pack, so there is no penalty for finding out.',
   },
   {
     q: 'Is there a subscription?',
-    a: 'No. A pack is a one-time payment, and credits last 12 months. When they run out, buy another pack or run on the free allowance.',
+    a: `No. A pack is a one-time payment, and credits last ${CREDIT_LIFETIME_MONTHS} months. When they run out, buy another pack or run on the free allowance.`,
+  },
+  {
+    q: 'Is there a refund?',
+    a: 'No. Check first instead: the free allowance shows your list’s real match rate before you spend anything, and misses cost nothing either way.',
   },
   {
     q: 'What is free?',
-    a: `${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days, on any account. The free allowance covers the small lists, and it is the honest way to check your list's match rate before you pay.`,
+    a: `${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days, on every account. Small lists never need a pack.`,
   },
   {
     q: 'How do I buy?',
@@ -76,11 +81,12 @@ export default function PricingPage() {
     <PageShell>
       <div className="mx-auto max-w-3xl">
         <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
-          Pay for matches, not promises.
+          Pay per match. Misses cost nothing.
         </h1>
         <p className="mb-10 max-w-[52ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
           Credit packs, bought once. A match is a wallet we resolve to an X or
-          Farcaster account, and a wallet we cannot resolve costs nothing.
+          Farcaster account, and each match carries its evidence. The free
+          allowance shows your match rate before you pay.
         </p>
 
         <PackPricing />
