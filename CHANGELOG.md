@@ -2,6 +2,18 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (/pricing exists)
+
+- **`/pricing` is a page.** Until now the packs rendered only inside the
+  buy-credits modal and on the /vs pages, so "walletlink pricing" searches
+  and AI agents shortlisting tools found nothing at a URL. The page reuses
+  `PackPricing` (every number a constant), computes its worked example from
+  `MEASURED_MATCH_RATE`, answers the five pre-purchase questions in visible
+  prose, and opens the buy-credits modal with the `pricing-page` trigger.
+  Added to the sitemap at 0.9 and to the footer Product column. The
+  site-wide FAQPage JSON-LD already carries the pricing answer, so the page
+  adds no second structured-data block.
+
 ### 2026-08-22 (lifecycle email pipeline and the relaunch Trial-grant campaign)
 
 - **Lifecycle mail exists as a category, separate from transactional.**
