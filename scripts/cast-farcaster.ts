@@ -30,21 +30,36 @@ import {
 const API = 'https://api.neynar.com';
 
 async function main() {
+  // One pass, so a value that belongs to --channel or --embed can never be
+  // mistaken for the cast text however the flags are ordered.
   const args = process.argv.slice(2);
-  const text = args.find((a) => !a.startsWith('--'));
-  const send = args.includes('--send');
-  const force = args.includes('--force');
-  const channelIdx = args.indexOf('--channel');
-  const channel = channelIdx >= 0 ? args[channelIdx + 1] : null;
-  const embedIdx = args.indexOf('--embed');
-  const embed = embedIdx >= 0 ? args[embedIdx + 1] : null;
+  let text: string | null = null;
+  let send = false;
+  let force = false;
+  let channel: string | null = null;
+  let embed: string | null = null;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--send') send = true;
+    else if (a === '--force') force = true;
+    else if (a === '--channel') channel = args[++i] ?? null;
+    else if (a === '--embed') embed = args[++i] ?? null;
+    else if (!a.startsWith('--') && text === null) text = a;
+    else {
+      console.error(`unknown argument: ${a}`);
+      process.exit(1);
+    }
+  }
 
   if (!text) {
     console.error('usage: cast-farcaster.ts "text" [--send] [--channel id] [--embed url] [--force]');
     process.exit(1);
   }
-  if (text.length > 1024) {
-    console.error(`cast is ${text.length} bytes; the limit is 1024`);
+  // Farcaster's limit is UTF-8 bytes; string length counts UTF-16 code
+  // units, which undercounts emoji and would pass casts the API rejects.
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > 1024) {
+    console.error(`cast is ${bytes} bytes; the limit is 1024`);
     process.exit(1);
   }
   const signerUuid = process.env.NEYNAR_SIGNER_UUID;
