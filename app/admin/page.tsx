@@ -1398,10 +1398,12 @@ export default function AdminPage() {
       {error && (
         <Banner tone="error" className="mb-4">
           <p>{error}</p>
+          {/* Dismiss is a neutral control, not a destructive one: it states
+              its own colour so it does not inherit the banner's red. */}
           <Button
             variant="ghost"
             size="sm"
-            className="mt-2"
+            className="mt-2 text-foreground"
             onClick={() => setError(null)}
           >
             Dismiss
