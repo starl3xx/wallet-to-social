@@ -84,7 +84,7 @@ export function ReachabilityClaim({
             </strong>
             ,{' '}
             <strong className="font-semibold text-foreground">
-              20.7% suspended
+              20.6% suspended
             </strong>
             , and{' '}
             <strong className="font-semibold text-foreground">

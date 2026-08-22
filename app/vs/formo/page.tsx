@@ -286,13 +286,13 @@ export default function FormoComparison() {
                     <td className="py-4 pl-4">
                       <span className="flex items-start gap-2">
                         <X
-                          alt="No"
+                          alt="Not documented"
                           role="img"
-                          aria-label="No"
+                          aria-label="Not documented"
                           className="mt-0.5 h-4 w-4 flex-none text-muted-foreground"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (nothing in the docs says so)
+                          (nothing in Formo’s docs says so)
                         </span>
                       </span>
                     </td>
