@@ -614,7 +614,11 @@ export default function AddressableComparison() {
               size, the one treatment for a text link in a list or a sentence;
               these were grey and underlined at rest, a third look for the same
               meaning. The names match the footer's Compare column, so one
-              destination has one name wherever it is linked. */}
+              destination has one name wherever it is linked. Only live
+              competitors are listed here, as in the footer: /vs/blaze and
+              /vs/airstack stay published for the searches that land on them,
+              but neither service takes customers any more (2026-08-22), and
+              a live page should send readers to live comparisons. */}
           <nav className="py-8 border-t" aria-label="Related comparisons">
             <h2 className="text-lg font-semibold mb-4">Related comparisons</h2>
             <ul className="flex flex-wrap gap-4 text-sm">
@@ -625,17 +629,12 @@ export default function AddressableComparison() {
               </li>
               <li>
                 <Button asChild variant="link" size="inline">
-                  <Link href="/vs/blaze">vs Blaze</Link>
-                </Button>
-              </li>
-              <li>
-                <Button asChild variant="link" size="inline">
                   <Link href="/vs/holder">vs Holder</Link>
                 </Button>
               </li>
               <li>
                 <Button asChild variant="link" size="inline">
-                  <Link href="/vs/airstack">vs Airstack</Link>
+                  <Link href="/vs/formo">vs Formo</Link>
                 </Button>
               </li>
             </ul>

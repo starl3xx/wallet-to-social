@@ -16,9 +16,10 @@ import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
-  title: 'Airstack alternative for Farcaster lookups (API deprecated)',
+  title:
+    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
   description:
-    'Airstack deprecated its API and pivoted to Senpi. If you built wallet or Farcaster identity lookups on Airstack, here’s where to migrate.',
+    'Airstack is no longer available: its Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai. This page is kept for people comparing alternatives.',
   keywords: [
     'airstack alternative',
     'airstack api deprecated',
@@ -27,9 +28,10 @@ export const metadata: Metadata = {
     'reverse farcaster lookup',
   ],
   openGraph: {
-    title: 'Airstack alternative for Farcaster lookups (API deprecated)',
+    title:
+      'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
     description:
-      'Airstack deprecated its API. walletlink.social’s API covers the complete Farcaster protocol, including reverse handle-to-wallet lookups.',
+      'Airstack is no longer available. This page is kept for people comparing alternatives: walletlink.social’s API covers the complete Farcaster protocol, including reverse handle-to-wallet lookups.',
     type: 'article',
     url: 'https://walletlink.social/vs/airstack',
     siteName: 'walletlink.social',
@@ -38,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Airstack alternative for Farcaster lookups',
     description:
-      'Airstack deprecated its API. Here’s where to migrate your Farcaster identity lookups.',
+      'Airstack is no longer available. Here’s where to migrate your Farcaster identity lookups.',
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/airstack',
@@ -48,9 +50,10 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'Airstack alternative for Farcaster lookups (API deprecated)',
+  headline:
+    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
   description:
-    'Airstack deprecated its API and pivoted to Senpi. A migration guide for teams moving their wallet and Farcaster identity lookups to walletlink.social.',
+    'Airstack is no longer available: its Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai (checked 2026-08-22). A page kept for teams comparing alternatives for wallet and Farcaster identity lookups.',
   author: {
     '@type': 'Organization',
     name: 'walletlink.social',
@@ -98,8 +101,8 @@ export default function AirstackComparison() {
                 `text-foreground/80` was an opacity wash standing in for the
                 token that already means "secondary text". */}
             <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-              Airstack gives you a query language. We give you the one join it
-              is usually built to perform, as a CSV or an endpoint.
+              Airstack gave you a query language. We give you the one join it
+              was usually built to perform, as a CSV or an endpoint.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -151,34 +154,38 @@ export default function AirstackComparison() {
             </dl>
           </header>
 
-          <div className="mb-16">
-            <ReachabilityClaim competitor="Airstack" />
-          </div>
-
-          {/* What happened */}
+          {/* Status first. The service is gone, so the reader learns that
+              before anything compares it with us. Every statement here is
+              what was observed on 2026-08-22 and nothing more. An earlier
+              version said Airstack "pivoted to Senpi"; the published record
+              says Senpi was spun out of Airstack, which is a different thing,
+              and the page now says that. The deprecation notice named the
+              provider it pointed developers to; this page does not, because
+              no page on this site names a data provider. */}
           <section className="mb-12">
             <h2 className="text-2xl font-light tracking-[var(--tracking-title)] mb-4">
               What happened to Airstack?
             </h2>
             <p className="text-muted-foreground mb-4">
-              Airstack was a web3 data platform best known for its Farcaster
-              APIs. Developers used it to query the Farcaster social graph,
-              resolve wallets to identities, and pull onchain data through a
-              single GraphQL interface:
+              Airstack was a web3 development platform best known for its
+              Farcaster APIs. On 5 March 2025 it deprecated every
+              Farcaster-related API, so developers could no longer fetch
+              Farcaster data from it, and its docs pointed them to another
+              provider.
             </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2 mb-4">
-              <li>Farcaster social graph and profile queries</li>
-              <li>Wallet-to-identity resolution across protocols</li>
-              <li>Token balance and onchain activity data</li>
-              <li>Composable GraphQL APIs and SDKs</li>
-            </ul>
             <p className="text-muted-foreground">
-              The company deprecated those APIs and pivoted to Senpi, an AI
-              agent product. Apps and scripts built on the old endpoints stopped
-              working; if your product depended on Airstack for Farcaster
-              identity data, that dependency needs a new home.
+              Checked on 22 August 2026: airstack.xyz now redirects to senpi.ai,
+              an AI trading product that its founders describe as spun out of
+              Airstack, and the Airstack app and API hosts are down. Nothing on
+              the old endpoints accepts a request or a sign-up. If your product
+              depended on Airstack for Farcaster identity data, that dependency
+              needs a new home.
             </p>
           </section>
+
+          <div className="mb-16">
+            <ReachabilityClaim competitor="Airstack" retired />
+          </div>
 
           {/* Migration table. A Check in a capability cell is green, whichever
               column it sits in: "has this" is a measured fact, and green is the
@@ -212,7 +219,7 @@ export default function AirstackComparison() {
                       Live, refreshed daily
                     </td>
                     <td className="py-4 pl-4">
-                      API deprecated (pivoted to Senpi)
+                      Deprecated 5 March 2025; site redirects to senpi.ai
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -457,6 +464,11 @@ export default function AirstackComparison() {
               <li>
                 <Button asChild variant="link" size="inline">
                   <Link href="/vs/holder">vs Holder</Link>
+                </Button>
+              </li>
+              <li>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/formo">vs Formo</Link>
                 </Button>
               </li>
             </ul>

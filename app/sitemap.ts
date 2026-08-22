@@ -34,10 +34,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      // Kept for the searches that still land on it, but the service is gone
+      // (checked 2026-08-22), so it ranks one step below the live comparisons.
       url: `${baseUrl}/vs/blaze`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
-      priority: 0.8,
+      priority: 0.7,
     },
     {
       url: `${baseUrl}/vs/cookie3`,
@@ -52,10 +54,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/vs/airstack`,
+      url: `${baseUrl}/vs/formo`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
+    },
+    {
+      // Kept for the searches that still land on it, but the service is gone
+      // (checked 2026-08-22), so it ranks one step below the live comparisons.
+      url: `${baseUrl}/vs/airstack`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
     },
     {
       url: `${baseUrl}/blog`,
