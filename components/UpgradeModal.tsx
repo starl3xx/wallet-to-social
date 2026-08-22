@@ -299,6 +299,7 @@ export function UpgradeModal({
                 'Deep scan with onchain ENS',
                 '𝕏 reachability on every match',
                 'Import from a contract address',
+                'Farcaster DMs to matched holders',
                 'Credits last 12 months',
               ].map((item) => (
                 <li key={item} className="flex items-center gap-2">

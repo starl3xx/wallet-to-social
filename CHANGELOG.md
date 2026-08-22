@@ -2,6 +2,15 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (Farcaster DMs for every pack)
+
+- **Farcaster DMs open to pack holders.** The in-app DM sender had stayed on
+  the legacy Unlimited account after the pricing change, because it was not on
+  the pack feature list. It is now, and the button, the docs and the two
+  pack feature lists say so. The route behind it had no auth at all (it
+  proxies Warpcast with the caller's own key); it now requires a session and
+  the same entitlement as the button.
+
 ### 2026-08-22 (the rest of the product catches up with the pricing)
 
 - **Every surface now describes credit packs.** An audit after the pricing

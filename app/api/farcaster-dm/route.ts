@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getUserAccess } from '@/lib/access';
+import { hasPaidAccess } from '@/lib/credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -10,10 +14,33 @@ export const maxDuration = 30;
  * Actions:
  * - test: Test if API key is valid
  * - send: Send a DM to a user
+ *
+ * The caller supplies their own Warpcast key, so this spends nothing of ours.
+ * It is still gated on entitlement (any pack, or a legacy tier), because the
+ * button that offers it is, and a gate enforced only in the browser is a
+ * suggestion. Before this the route had no auth at all.
  */
 export async function POST(request: Request) {
   try {
-    const { action, apiKey, recipientFid, message, idempotencyKey } = await request.json();
+    const cookieStore = await cookies();
+    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const session = token ? await validateSession(token) : { user: null };
+    if (!session.user) {
+      return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+    }
+    const access = await getUserAccess(session.user.email);
+    if (!(await hasPaidAccess(session.user.id, access.tier))) {
+      return NextResponse.json(
+        {
+          error: 'Farcaster DMs need credits. Buy a pack to unlock them.',
+          upgradeRequired: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    const { action, apiKey, recipientFid, message, idempotencyKey } =
+      await request.json();
 
     if (!apiKey) {
       return NextResponse.json({ error: 'API key required' }, { status: 400 });
@@ -31,7 +58,7 @@ export async function POST(request: Request) {
         const data = await response.json();
         return NextResponse.json({
           valid: true,
-          username: data.result?.user?.username
+          username: data.result?.user?.username,
         });
       }
 
@@ -41,7 +68,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         valid: false,
-        error: `Warpcast API error: ${response.status}`
+        error: `Warpcast API error: ${response.status}`,
       });
     }
 
@@ -53,18 +80,21 @@ export async function POST(request: Request) {
         );
       }
 
-      const response = await fetch('https://api.warpcast.com/v2/ext-send-direct-cast', {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recipientFid,
-          message,
-          idempotencyKey: idempotencyKey || crypto.randomUUID(),
-        }),
-      });
+      const response = await fetch(
+        'https://api.warpcast.com/v2/ext-send-direct-cast',
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recipientFid,
+            message,
+            idempotencyKey: idempotencyKey || crypto.randomUUID(),
+          }),
+        }
+      );
 
       if (response.ok) {
         return NextResponse.json({ success: true });
@@ -89,9 +119,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Farcaster DM proxy error:', error);
-    return NextResponse.json(
-      { error: 'Request failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Request failed' }, { status: 500 });
   }
 }
