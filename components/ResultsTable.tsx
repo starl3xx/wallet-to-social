@@ -154,7 +154,7 @@ interface ResultsTableProps {
    * had just paid for it.
    */
   entitled?: boolean;
-  onUpgradeClick?: () => void;
+  onUpgradeClick?: (source?: string) => void;
   enrichedWallets?: Set<string>; // Wallets that have been enriched since last view
   /**
    * Header for the holdings column.
@@ -298,12 +298,15 @@ function SortHeader({
 function LockedHeader({
   label,
   feature,
+  gate,
   onUpgradeClick,
 }: {
   label: string;
   /** Finishes the sentence "Buy credits to see …" in the control's title. */
   feature: string;
-  onUpgradeClick?: () => void;
+  /** Analytics name for this gate; see UpgradeModalProvider. */
+  gate: string;
+  onUpgradeClick?: (source?: string) => void;
 }) {
   return (
     <div role="columnheader" className="flex items-center gap-3 px-4">
@@ -311,7 +314,7 @@ function LockedHeader({
       <Button
         variant="link"
         size="inline"
-        onClick={onUpgradeClick}
+        onClick={() => onUpgradeClick?.(gate)}
         title={`Buy credits to see ${feature}`}
         className="font-sans text-xs normal-case tracking-[var(--tracking-body)]"
       >
@@ -769,6 +772,7 @@ export const ResultsTable = memo(function ResultsTable({
               <LockedHeader
                 label="Farcaster followers"
                 feature="Farcaster followers"
+                gate="column-followers"
                 onUpgradeClick={onUpgradeClick}
               />
             )}
@@ -785,6 +789,7 @@ export const ResultsTable = memo(function ResultsTable({
               <LockedHeader
                 label="Priority"
                 feature="the priority score"
+                gate="column-priority"
                 onUpgradeClick={onUpgradeClick}
               />
             )}

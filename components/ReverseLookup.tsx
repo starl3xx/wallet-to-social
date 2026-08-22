@@ -19,7 +19,7 @@ type Platform = 'twitter' | 'farcaster';
 
 interface ReverseLookupProps {
   locked: boolean;
-  onUpgradeClick?: () => void;
+  onUpgradeClick?: (source?: string) => void;
   onResults: (
     results: WalletSocialResult[],
     label: string,
@@ -63,7 +63,7 @@ export function ReverseLookup({
     // the thing they typed still on screen, converts better than hiding the
     // feature and is the same pattern as the locked contract-import card.
     if (locked) {
-      onUpgradeClick?.();
+      onUpgradeClick?.('reverse');
       return;
     }
 
@@ -83,7 +83,7 @@ export function ReverseLookup({
         return;
       }
       if (res.status === 403 && data.upgradeRequired) {
-        onUpgradeClick?.();
+        onUpgradeClick?.('reverse');
         return;
       }
       if (!res.ok) throw new Error(data.error || 'Lookup failed');
