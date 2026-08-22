@@ -230,7 +230,7 @@ function getLifecycleEmailHtml(
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
     <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 9px; margin-bottom: 16px;">
-    <h1 style="font-size: 24px; font-weight: 600; margin: 0;">walletlink.social</h1>
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #737373;">.social</span></h1>
   </div>
 
 ${paragraphs}
@@ -292,7 +292,7 @@ function getMagicLinkEmailHtml(magicLink: string, copy: MagicLinkCopy): string {
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
     <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 9px; margin-bottom: 16px;">
-    <h1 style="font-size: 24px; font-weight: 600; margin: 0;">walletlink.social</h1>
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #737373;">.social</span></h1>
   </div>
 
   <p style="font-size: 16px; margin-bottom: 24px;">
