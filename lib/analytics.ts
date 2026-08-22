@@ -102,34 +102,6 @@ export async function trackApiCall(
   }
 }
 
-// Get event counts for a specific event type within a date range
-export async function getEventCounts(
-  eventType: AnalyticsEventType,
-  startDate: Date,
-  endDate: Date
-): Promise<number> {
-  const db = getDb();
-  if (!db) return 0;
-
-  try {
-    const result = await db
-      .select({ count: count() })
-      .from(analyticsEvents)
-      .where(
-        and(
-          eq(analyticsEvents.eventType, eventType),
-          gte(analyticsEvents.createdAt, startDate),
-          lte(analyticsEvents.createdAt, endDate)
-        )
-      );
-
-    return result[0]?.count ?? 0;
-  } catch (error) {
-    console.error('Event count error:', error);
-    return 0;
-  }
-}
-
 // Get unique user count for a date range
 export async function getActiveUsers(
   startDate: Date,
@@ -427,21 +399,29 @@ export async function getUserFunnel(
   historySaved: number;
   upgradeModalViewed: number;
   checkoutStarted: number;
+  /** Reached Stripe: the redirect fired. Tracked since 2026-08-15. */
+  checkoutRedirected: number;
+  checkoutFailed: number;
+  /** Top checkout failure reasons in the window, most frequent first. */
+  checkoutFailureReasons: Array<{ reason: string; count: number }>;
   paymentCompleted: number;
 }> {
+  const empty = {
+    pageViews: 0,
+    csvUploads: 0,
+    lookupsStarted: 0,
+    lookupsCompleted: 0,
+    exportsClicked: 0,
+    historySaved: 0,
+    upgradeModalViewed: 0,
+    checkoutStarted: 0,
+    checkoutRedirected: 0,
+    checkoutFailed: 0,
+    checkoutFailureReasons: [],
+    paymentCompleted: 0,
+  };
   const db = getDb();
-  if (!db)
-    return {
-      pageViews: 0,
-      csvUploads: 0,
-      lookupsStarted: 0,
-      lookupsCompleted: 0,
-      exportsClicked: 0,
-      historySaved: 0,
-      upgradeModalViewed: 0,
-      checkoutStarted: 0,
-      paymentCompleted: 0,
-    };
+  if (!db) return empty;
 
   try {
     const result = await db
@@ -460,6 +440,25 @@ export async function getUserFunnel(
 
     const counts = new Map(result.map((r) => [r.eventType, r.count]));
 
+    // checkout_failed carries its reason; the whole point of the event is to
+    // explain the started-to-completed gap, so the reasons ride along.
+    const reasons = (await db
+      .select({
+        reason: sql<string>`coalesce(${analyticsEvents.metadata}->>'reason', '(none)')`,
+        count: count(),
+      })
+      .from(analyticsEvents)
+      .where(
+        and(
+          eq(analyticsEvents.eventType, 'checkout_failed'),
+          gte(analyticsEvents.createdAt, startDate),
+          lte(analyticsEvents.createdAt, endDate)
+        )
+      )
+      .groupBy(sql`1`)
+      .orderBy(desc(count()))
+      .limit(5)) as Array<{ reason: string; count: number }>;
+
     return {
       pageViews: counts.get('page_view') ?? 0,
       csvUploads: counts.get('csv_upload') ?? 0,
@@ -469,21 +468,82 @@ export async function getUserFunnel(
       historySaved: counts.get('history_saved') ?? 0,
       upgradeModalViewed: counts.get('upgrade_modal_viewed') ?? 0,
       checkoutStarted: counts.get('checkout_started') ?? 0,
+      checkoutRedirected: counts.get('checkout_redirected') ?? 0,
+      checkoutFailed: counts.get('checkout_failed') ?? 0,
+      checkoutFailureReasons: reasons,
       paymentCompleted: counts.get('payment_completed') ?? 0,
     };
   } catch (error) {
     console.error('User funnel error:', error);
-    return {
-      pageViews: 0,
-      csvUploads: 0,
-      lookupsStarted: 0,
-      lookupsCompleted: 0,
-      exportsClicked: 0,
-      historySaved: 0,
-      upgradeModalViewed: 0,
-      checkoutStarted: 0,
-      paymentCompleted: 0,
+    return empty;
+  }
+}
+
+/**
+ * Buy-credits modal opens by the gate that opened them.
+ *
+ * The trigger name has been written since the modal existed ('limit' and
+ * 'feature' before 2026-08-22, per-gate names after), but nothing read it:
+ * the one question the paywall work needs answered, which gate converts, had
+ * the data and no query. Bare counts here; join against checkouts by hand
+ * once volume justifies it.
+ */
+export async function getPaywallTriggers(
+  startDate: Date,
+  endDate: Date
+): Promise<Array<{ trigger: string; count: number }>> {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    return (await db
+      .select({
+        trigger: sql<string>`coalesce(${analyticsEvents.metadata}->>'trigger', '(none)')`,
+        count: count(),
+      })
+      .from(analyticsEvents)
+      .where(
+        and(
+          eq(analyticsEvents.eventType, 'upgrade_modal_viewed'),
+          gte(analyticsEvents.createdAt, startDate),
+          lte(analyticsEvents.createdAt, endDate)
+        )
+      )
+      .groupBy(sql`1`)
+      .orderBy(desc(count()))) as Array<{ trigger: string; count: number }>;
+  } catch (error) {
+    console.error('Paywall triggers error:', error);
+    return [];
+  }
+}
+
+/**
+ * Lifecycle email state: sends by email key, and the opt-out count.
+ *
+ * lifecycle_emails and users.email_opt_out were written by the campaign
+ * plumbing and readable only through ad-hoc SQL; the admin surface is where
+ * "did the send go out, and who opted out" belongs.
+ */
+export async function getEmailStatus(): Promise<{
+  sends: Array<{ emailKey: string; count: number; lastSentAt: Date | null }>;
+  optOuts: number;
+}> {
+  const db = getDb();
+  if (!db) return { sends: [], optOuts: 0 };
+  try {
+    const sends = (await db.execute(sql`
+      SELECT email_key AS "emailKey", count(*)::int AS count,
+             max(sent_at) AS "lastSentAt"
+      FROM lifecycle_emails GROUP BY 1 ORDER BY max(sent_at) DESC
+    `)) as unknown as {
+      rows: Array<{ emailKey: string; count: number; lastSentAt: Date | null }>;
     };
+    const optOuts = (await db.execute(
+      sql`SELECT count(*)::int AS n FROM users WHERE email_opt_out = true`
+    )) as unknown as { rows: Array<{ n: number }> };
+    return { sends: sends.rows, optOuts: optOuts.rows[0]?.n ?? 0 };
+  } catch (error) {
+    console.error('Email status error:', error);
+    return { sends: [], optOuts: 0 };
   }
 }
 

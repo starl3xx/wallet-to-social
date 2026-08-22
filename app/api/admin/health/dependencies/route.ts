@@ -148,6 +148,13 @@ const JOBS: Array<{
     maxAgeHours: 48,
     reportsOutcome: true,
   },
+  {
+    name: 'Handle conflict resolver',
+    schedule: '08:40 daily',
+    subtype: 'handle_conflicts_resolve',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
 ];
 
 /**

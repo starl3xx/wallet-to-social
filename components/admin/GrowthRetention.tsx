@@ -33,6 +33,11 @@ interface RetentionCohort {
   retention: number[];
 }
 
+interface EmailStatus {
+  sends: Array<{ emailKey: string; count: number; lastSentAt: string | null }>;
+  optOuts: number;
+}
+
 interface GrowthRetentionProps {
   password: string;
 }
@@ -40,6 +45,7 @@ interface GrowthRetentionProps {
 export function GrowthRetention({ password }: GrowthRetentionProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [retention, setRetention] = useState<RetentionCohort[]>([]);
+  const [email, setEmail] = useState<EmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,26 +54,31 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
     setError(null);
 
     try {
-      const [statsRes, retentionRes] = await Promise.all([
+      const [statsRes, retentionRes, emailRes] = await Promise.all([
         fetch('/api/admin/analytics/aggregate?days=30', {
           headers: { 'x-admin-password': password },
         }),
         fetch('/api/admin/analytics/retention?weeks=6', {
           headers: { 'x-admin-password': password },
         }),
+        fetch('/api/admin/email', {
+          headers: { 'x-admin-password': password },
+        }),
       ]);
 
-      if (!statsRes.ok || !retentionRes.ok) {
+      if (!statsRes.ok || !retentionRes.ok || !emailRes.ok) {
         throw new Error('Failed to fetch growth data');
       }
 
-      const [statsData, retentionData] = await Promise.all([
+      const [statsData, retentionData, emailData] = await Promise.all([
         statsRes.json(),
         retentionRes.json(),
+        emailRes.json(),
       ]);
 
       setDailyStats(statsData);
       setRetention(retentionData);
+      setEmail(emailData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -276,6 +287,59 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
             Each row shows what % of users from that cohort week returned in
             subsequent weeks.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Lifecycle email. Sends come from the lifecycle_emails ledger, which
+          the campaign script writes at-most-once per account; opt-outs come
+          from the unsubscribe endpoint. Both were readable only through
+          ad-hoc SQL before this card. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Lifecycle email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!email || email.sends.length === 0 ? (
+            <Empty>
+              No lifecycle email has been sent
+              {email && email.optOuts > 0
+                ? `; ${email.optOuts} opted out`
+                : ''}
+            </Empty>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-right">Sent</TableHead>
+                    <TableHead className="text-right">Last send</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {email.sends.map((s) => (
+                    <TableRow key={s.emailKey}>
+                      <TableCell className="font-medium">
+                        {s.emailKey}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {s.count}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {s.lastSentAt
+                          ? new Date(s.lastSentAt).toLocaleDateString()
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p className="text-xs text-muted-foreground mt-4">
+                {email.optOuts} account{email.optOuts === 1 ? ' has' : 's have'}{' '}
+                opted out of lifecycle mail.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

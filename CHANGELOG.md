@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the admin panel reads what the instrumentation writes)
+
+- **The checkout funnel shows the step it was blind to.** The Revenue tab
+  gains "Reached Stripe" (checkout_redirected) between started and completed,
+  plus a caution line with checkout_failed counts and their reasons. Both
+  events existed to explain the started-to-completed gap and were write-only
+  since they shipped.
+- **Paywall triggers surface on the Behavior tab.** New
+  `getPaywallTriggers` + `/api/admin/analytics/paywall`: buy-credits modal
+  opens grouped by the gate that opened them. The per-gate names shipped
+  earlier today; rows named `limit` and `feature` are the legacy labels.
+- **Lifecycle email lands on the Growth tab.** New `getEmailStatus` +
+  `/api/admin/email`: sends by email key from the `lifecycle_emails` ledger,
+  plus the opt-out count. Both were readable only through ad-hoc SQL.
+- The health pane now watches the 08:40 handle-conflict resolver cron (its
+  heartbeat existed; the JOBS list did not know it), and the dead
+  `getEventCounts` helper is gone.
+
 ### 2026-08-22 (/pricing through the critical readers, and two figures stop being typed)
 
 - **The pricing copy survived a 7-critical-readers pass.** Headline is now
