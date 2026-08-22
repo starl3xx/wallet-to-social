@@ -2,6 +2,18 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (/llms.txt: the marketing site becomes citable)
+
+- **`/llms.txt` exists** (`app/llms.txt/route.ts`). The docs site already
+  auto-serves its own; this is the marketing half, so an answer engine asked
+  "how do I find the X handle for a wallet address" has a plain-text,
+  citable statement of the product, the coverage facts, and the pricing
+  model. Every figure interpolates the shared constants where one exists;
+  the reachability and owner-attested sentences are phrased to match their
+  declared patterns, and the route joined those claims' watch lists in
+  `scripts/check-published-figures.ts` (40 figures checked, up from 36).
+  No provider names, no refund ambiguity (the no-refund policy is stated).
+
 ### 2026-08-22 (the admin panel reads what the instrumentation writes)
 
 - **The checkout funnel shows the step it was blind to.** The Revenue tab

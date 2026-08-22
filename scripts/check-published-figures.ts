@@ -316,6 +316,7 @@ const CLAIMS: Claim[] = [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
       'components/ReachabilityClaim.tsx',
+      'app/llms.txt/route.ts',
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
@@ -346,6 +347,7 @@ const CLAIMS: Claim[] = [
       'components/ReachabilityClaim.tsx',
       'README.md',
       'docs/AI-SEARCH.md',
+      'app/llms.txt/route.ts',
     ],
     pattern: /([0-9]{2}\.[0-9])%\s+suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
     actual: async () => {
@@ -365,6 +367,7 @@ const CLAIMS: Claim[] = [
       'components/ReachabilityClaim.tsx',
       'README.md',
       'docs/AI-SEARCH.md',
+      'app/llms.txt/route.ts',
     ],
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
@@ -381,7 +384,11 @@ const CLAIMS: Claim[] = [
   },
   {
     what: 'share of X matches that are owner-attested',
-    files: ['docs-site/concepts/coverage.mdx', 'app/layout.tsx'],
+    files: [
+      'docs-site/concepts/coverage.mdx',
+      'app/layout.tsx',
+      'app/llms.txt/route.ts',
+    ],
     pattern: /over ([0-9]{2}\.[0-9])% of/i,
     actual: async () => {
       const attested = await one(sql`
