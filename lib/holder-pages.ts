@@ -94,16 +94,20 @@ export async function getHolderStats(
   const db = getDb();
   if (!db) return null;
   const result = (await db.execute(sql`
-    WITH holders AS (
-      -- Re-seeds upsert but never prune, so rows the latest seed did not
-      -- touch are ex-holders. last_seen_at is written during the run and
-      -- last_seeded_at after it, hence the one-hour skew allowance.
+    WITH latest AS (
+      -- Re-seeds upsert but never prune, so rows the newest batch did not
+      -- touch are ex-holders. Anchoring on the holdings' own newest
+      -- last_seen_at (not seeded_contracts.last_seeded_at, which recordSeed
+      -- commits in a separate earlier statement) keeps the filter correct
+      -- even when a re-seed dies between the two writes.
+      SELECT max(last_seen_at) AS at FROM wallet_holdings
+      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+    ),
+    holders AS (
       SELECT wh.wallet
-      FROM wallet_holdings wh
-      JOIN seeded_contracts sc
-        ON sc.address = wh.contract AND sc.chain = wh.chain
+      FROM wallet_holdings wh, latest
       WHERE wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain}
-        AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
+        AND wh.last_seen_at >= latest.at - interval '1 hour'
     )
     SELECT
       count(*)::int                                                      AS "holderCount",
@@ -141,22 +145,30 @@ export async function getHolderOverlap(
   const db = getDb();
   if (!db) return [];
   const result = (await db.execute(sql`
-    WITH holders AS (
+    WITH latest AS (
+      SELECT max(last_seen_at) AS at FROM wallet_holdings
+      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+    ),
+    holders AS (
       SELECT wh.wallet
-      FROM wallet_holdings wh
-      JOIN seeded_contracts sc
-        ON sc.address = wh.contract AND sc.chain = wh.chain
+      FROM wallet_holdings wh, latest
       WHERE wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain}
-        AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
+        AND wh.last_seen_at >= latest.at - interval '1 hour'
+    ),
+    -- The same current-batch rule per counterparty contract, computed once.
+    other_latest AS (
+      SELECT contract, chain, max(last_seen_at) AS at FROM wallet_holdings
+      GROUP BY contract, chain
     )
     SELECT sc.address, sc.chain, sc.name, count(*)::int AS "sharedHolders"
     FROM wallet_holdings wh
     JOIN holders h ON h.wallet = wh.wallet
+    JOIN other_latest ol ON ol.contract = wh.contract AND ol.chain = wh.chain
     JOIN seeded_contracts sc
       ON sc.address = wh.contract AND sc.chain = wh.chain
      AND sc.holders_imported > 0 AND sc.name IS NOT NULL
     WHERE NOT (wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain})
-      AND wh.last_seen_at >= sc.last_seeded_at - interval '1 hour'
+      AND wh.last_seen_at >= ol.at - interval '1 hour'
     GROUP BY sc.address, sc.chain, sc.name
     ORDER BY count(*) DESC
     LIMIT ${limit}
