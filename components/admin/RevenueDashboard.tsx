@@ -56,6 +56,8 @@ interface RevenueData {
   thisMonth: Totals;
   /** Legacy tier conversions only. Packs carry no tier, so they are not in here. */
   byTier: Record<string, number>;
+  /** Conversions keyed on pack id or legacy tier, refunds excluded. */
+  byProduct?: Record<string, number>;
   /** Lowercased email → highest tier actually purchased, across all payments. */
   paidTierByEmail: Record<string, string>;
   payments: Payment[];
@@ -172,26 +174,20 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
       : 0;
 
   /**
-   * Conversions by product. `byTier` only knows the two legacy tiers, so on
-   * its own the subtitle read "none yet" under a count that included every
-   * pack sale. Packs are the remainder: every conversion that carried no tier.
+   * Conversions by product, named. `byProduct` is keyed on the pack id (or a
+   * legacy tier), so each pack can be counted rather than inferred as the
+   * remainder after the legacy tiers, which was the previous approach and could
+   * not say which pack sold.
    */
-  const legacyConversions = Object.values(revenue?.byTier ?? {}).reduce(
-    (a, b) => a + b,
-    0
-  );
-  const packConversions = Math.max(
-    0,
-    (revenue?.allTime.count ?? 0) - legacyConversions
-  );
-  const byProduct = [
-    ...(packConversions > 0
-      ? [`${packConversions} pack${packConversions === 1 ? '' : 's'}`]
-      : []),
-    ...Object.entries(revenue?.byTier ?? {}).map(
-      ([tier, n]) => `${n} legacy ${tier}`
-    ),
-  ];
+  const byProduct = Object.entries(revenue?.byProduct ?? {})
+    .sort(([, a], [, b]) => b - a)
+    .map(([product, n]) =>
+      isPackId(product)
+        ? `${n} ${PACKS[product].name}`
+        : product === 'pro' || product === 'unlimited'
+          ? `${n} legacy ${product}`
+          : `${n} ${product}`
+    );
 
   if (loading && !funnel) {
     return (

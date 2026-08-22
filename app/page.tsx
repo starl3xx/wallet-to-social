@@ -1533,10 +1533,10 @@ export default function Home() {
                   wallets.{' '}
                   {!user ? (
                     <>
-                      Sign in to look up more than{' '}
-                      {TIER_LIMITS.free.toLocaleString()} wallets at once. A
-                      free account gets {FREE_MATCHES_PER_WINDOW} matches every{' '}
-                      {FREE_WINDOW_DAYS} days.
+                      Lookups are capped at {TIER_LIMITS.free.toLocaleString()}{' '}
+                      wallets until you buy a pack. Sign in for{' '}
+                      {FREE_MATCHES_PER_WINDOW} free matches every{' '}
+                      {FREE_WINDOW_DAYS} days, or split the file.
                     </>
                   ) : credits.unmetered ? (
                     <>

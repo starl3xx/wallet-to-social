@@ -245,7 +245,11 @@ export function AccessBanner({
         <span
           className={cn(
             CHIP,
-            'hidden bg-muted text-muted-foreground sm:inline-flex'
+            'bg-muted text-muted-foreground',
+            // A paid balance stays at every width (docs/DESIGN-LANGUAGE.md):
+            // it is the one number a buyer came back to check. The free chip
+            // goes below sm, because a visitor does not need a badge saying so.
+            credits.entitled ? 'inline-flex' : 'hidden sm:inline-flex'
           )}
         >
           {credits.available === null

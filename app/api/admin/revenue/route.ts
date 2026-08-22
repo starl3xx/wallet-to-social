@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       allTime: { grossCents: 0, refundedCents: 0, netCents: 0, count: 0 },
       thisMonth: { grossCents: 0, refundedCents: 0, netCents: 0, count: 0 },
       byTier: {},
+      byProduct: {},
       payments: [],
       truncated: false,
     });
@@ -65,11 +66,21 @@ export async function GET(request: NextRequest) {
       (p) => new Date(p.created).getTime() >= monthStart
     );
 
-    // Paid conversions by tier, refunds excluded.
+    // Paid conversions by tier, refunds excluded. Legacy only: a pack payment
+    // carries `pack`, not `tier`, so it lands in `byProduct` below.
     const byTier: Record<string, number> = {};
     for (const p of payments) {
       if (p.fullyRefunded || !p.tier) continue;
       byTier[p.tier] = (byTier[p.tier] ?? 0) + 1;
+    }
+
+    // Conversions by what was actually sold: a pack id, or a legacy tier for
+    // the two historical purchases. This is the breakdown the dashboard names.
+    const byProduct: Record<string, number> = {};
+    for (const p of payments) {
+      if (p.fullyRefunded) continue;
+      const product = p.pack ?? p.tier ?? 'unknown';
+      byProduct[product] = (byProduct[product] ?? 0) + 1;
     }
 
     // Highest tier each address actually paid for, computed over EVERY payment.
@@ -82,6 +93,8 @@ export async function GET(request: NextRequest) {
     // wearing the opposite sign.
     const paidTierByEmail: Record<string, string> = {};
     for (const p of payments) {
+      // Tier only. A pack is a balance, not a tier, and indexing a pack id
+      // into TIER_RANK would compare undefined.
       if (p.fullyRefunded || !p.email || !p.tier) continue;
       const key = p.email.toLowerCase();
       const held = paidTierByEmail[key];
@@ -95,6 +108,7 @@ export async function GET(request: NextRequest) {
       allTime: sum(payments),
       thisMonth: sum(thisMonthRows),
       byTier,
+      byProduct,
       paidTierByEmail,
       payments: payments.slice(0, 25),
       truncated,
@@ -102,7 +116,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Revenue API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to load revenue' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to load revenue',
+      },
       { status: 500 }
     );
   }

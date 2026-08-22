@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -48,7 +51,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users: userList });
   } catch (error) {
     console.error('Users fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch users' },
+      { status: 500 }
+    );
   }
 }
 
@@ -59,7 +65,10 @@ export async function PATCH(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -67,10 +76,16 @@ export async function PATCH(request: NextRequest) {
     const { id, tier } = body;
 
     if (!id || !tier) {
-      return NextResponse.json({ error: 'ID and tier required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'ID and tier required' },
+        { status: 400 }
+      );
     }
 
-    const validTiers = ['free', 'pro', 'unlimited'];
+    // Only 'free' can be set. The legacy tiers are closed: granting one would
+    // create a third permanently unmetered account, and goodwill credit is a
+    // lot (grantCredits in lib/credits.ts), not a tier.
+    const validTiers = ['free'];
     if (!validTiers.includes(tier)) {
       return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
     }
@@ -88,6 +103,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, user: updated });
   } catch (error) {
     console.error('User update error:', error);
-    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update user' },
+      { status: 500 }
+    );
   }
 }

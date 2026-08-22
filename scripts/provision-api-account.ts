@@ -16,6 +16,10 @@
  *
  * ## Why a real tier and not an unmetered internal path
  *
+ * This is the one sanctioned way to set a legacy tier on an account, and it is
+ * for first-party service accounts only (the admin API refuses to grant one).
+ * A customer gets credits, never a tier.
+ *
  * The rate limiter is the only thing standing between a first-party consumer
  * and the live lookup path a paying customer is on. An internal bypass would
  * hide that load until it cost somebody real. `pro` maps to the Developer plan
@@ -61,14 +65,18 @@ async function main() {
   const revokeExisting = process.argv.includes('--revoke-existing');
 
   if (!email || !name || !out) {
-    console.error('Usage: --email <addr> --name <label> --out <path> [--tier pro|unlimited]');
+    console.error(
+      'Usage: --email <addr> --name <label> --out <path> [--tier pro|unlimited]'
+    );
     process.exit(1);
   }
 
   // Validates the REQUESTED tier early; the plan actually issued is derived
   // from the tier the account ends up holding, below.
   if (!apiPlanForTier(tier)) {
-    console.error(`Tier "${tier}" carries no API access. Use pro or unlimited.`);
+    console.error(
+      `Tier "${tier}" carries no API access. Use pro or unlimited.`
+    );
     process.exit(1);
   }
 
@@ -97,8 +105,12 @@ async function main() {
   `) as unknown as Array<{ id: string; email: string; tier: string }>;
 
   if (user.tier !== tier) {
-    console.log(`note    : account already holds "${user.tier}"; kept it rather than`);
-    console.log(`          applying "${tier}". Pass --tier ${user.tier} to silence this.`);
+    console.log(
+      `note    : account already holds "${user.tier}"; kept it rather than`
+    );
+    console.log(
+      `          applying "${tier}". Pass --tier ${user.tier} to silence this.`
+    );
   }
 
   /**
@@ -126,7 +138,12 @@ async function main() {
     SELECT id, key_prefix, name, created_at FROM api_keys
     WHERE user_id = ${user.id} AND is_active = true AND revoked_at IS NULL
     ORDER BY created_at
-  `) as unknown as Array<{ id: string; key_prefix: string; name: string; created_at: string }>;
+  `) as unknown as Array<{
+    id: string;
+    key_prefix: string;
+    name: string;
+    created_at: string;
+  }>;
 
   if (existing.length > 0) {
     console.log(`\nexisting active keys (${existing.length}):`);
@@ -135,7 +152,9 @@ async function main() {
       for (const k of existing) await revokeApiKey(k.id, user.id);
       console.log(`revoked : ${existing.length} key(s)`);
     } else {
-      console.log('  STILL VALID. Pass --revoke-existing to revoke them as part of a rotation.');
+      console.log(
+        '  STILL VALID. Pass --revoke-existing to revoke them as part of a rotation.'
+      );
     }
     console.log('');
   }
@@ -151,7 +170,9 @@ async function main() {
 
   console.log(`key     : ${created.key.keyPrefix}… (${name})`);
   console.log(`written : ${out} (0600)`);
-  console.log('\nPut the value in the consumer\'s deploy target, then delete the file.');
+  console.log(
+    "\nPut the value in the consumer's deploy target, then delete the file."
+  );
 }
 
 main().catch((e) => {

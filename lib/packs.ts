@@ -150,10 +150,10 @@ export const SUBMISSION_MULTIPLIER = 10;
 /**
  * The enumeration ceiling on legacy Unlimited accounts.
  *
- * One account bought "$249 one-time for unlimited wallets forever", and that
- * phrase is published in `app/layout.tsx` inside schema.org structured data and
- * repeated on five comparison pages. It is honoured: no metering, no expiry, no
- * migration, and the API stays.
+ * One account bought "$249 one-time for unlimited wallets forever", a phrase
+ * that was published in `app/layout.tsx` schema.org structured data and on
+ * five comparison pages until packs replaced it in August 2026. It is
+ * honoured: no metering, no expiry, no migration, and the API stays.
  *
  * This is the one condition, and it is deliberately set where it can only ever
  * catch enumeration of the index rather than use of the product. The index

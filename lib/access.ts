@@ -1,11 +1,14 @@
 import { getDb } from '@/db';
-import { users, whitelist } from '@/db/schema';
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { users, whitelist, creditLots } from '@/db/schema';
+import { and, eq, inArray, isNull, ne, or, sql, gt } from 'drizzle-orm';
 import { trackEvent } from '@/lib/analytics';
 
 export type UserTier = 'free' | 'pro' | 'unlimited';
 
-/** Paid tiers, i.e. the ones that can be bought. */
+/**
+ * The two closed legacy tiers. Nothing sells them: the checkout rejects a
+ * tier, and the webhook only reads one off historical payments.
+ */
 export type PaidTier = Exclude<UserTier, 'free'>;
 
 export interface UserAccess {
@@ -57,16 +60,16 @@ export const TIER_LIMITS: Record<UserTier, number> = {
 };
 
 /**
- * No tier carries a cumulative quota.
+ * The legacy list prices, kept for the admin revenue views and nothing else.
  *
- * Starter was the only one that ever did (10,000 wallets total), and it was
- * retired on 2026-08-12 having never been purchased by anyone. The quota
- * machinery it required, `TIER_QUOTA` / `walletQuota` / `walletsRemaining`,
- * went with it: every tier now has a per-lookup limit and nothing else, which
- * is the model the product actually sells.
+ * The product sells credit packs metered in matches (lib/packs.ts). These two
+ * numbers are what the two legacy accounts paid, one-time, and no code path
+ * can charge them again.
  *
- * `walletsUsed` is still accumulated. It no longer gates anything, but it is
- * the only record of how much work an account has actually run.
+ * Starter (10,000 wallets total) was retired on 2026-08-12 having never been
+ * purchased; its quota machinery went with it. `walletsUsed` is still
+ * accumulated: it gates nothing, but it is the only record of how much work an
+ * account has actually run.
  */
 export const TIER_PRICES: Record<PaidTier, number> = {
   pro: 99,
@@ -227,50 +230,6 @@ export async function getOrCreateUser(email: string) {
     .returning();
 
   return newUser;
-}
-
-/**
- * Upgrade a user to a paid tier
- */
-export async function upgradeUser(
-  email: string,
-  tier: PaidTier,
-  stripeCustomerId: string,
-  stripePaymentId: string
-): Promise<void> {
-  const db = getDb();
-  if (!db) throw new Error('Database not configured');
-
-  const normalizedEmail = email.toLowerCase();
-  // '' is not an id. Callers derive this from `session.customer`, which is null
-  // for any checkout that did not create a Customer, and an empty string stored
-  // in an id column reads as "we have one and it is blank" rather than "there
-  // isn't one".
-  const customerId = stripeCustomerId || null;
-
-  await db
-    .insert(users)
-    .values({
-      email: normalizedEmail,
-      tier,
-      stripeCustomerId: customerId,
-      stripePaymentId,
-      paidAt: new Date(),
-      walletsUsed: 0,
-    })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: {
-        tier,
-        stripeCustomerId: customerId,
-        stripePaymentId,
-        paidAt: new Date(),
-        // walletsUsed is deliberately left alone. It used to be reset for
-        // Starter, whose cumulative quota made the counter meaningful; with no
-        // tier carrying a quota it is a lifetime usage record, and resetting it
-        // on upgrade would only destroy history.
-      },
-    });
 }
 
 /**
@@ -507,7 +466,14 @@ export async function incrementWalletsUsed(
  */
 export async function getAccessStats() {
   const db = getDb();
-  if (!db) return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+  const empty = {
+    free: 0,
+    pro: 0,
+    unlimited: 0,
+    whitelisted: 0,
+    creditHolders: 0,
+  };
+  if (!db) return empty;
 
   try {
     const userStats = await db
@@ -522,17 +488,33 @@ export async function getAccessStats() {
       .select({ count: sql<number>`count(*)::int` })
       .from(whitelist);
 
-    const stats = { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    // Accounts holding a live lot with something left in it. The tier counts
+    // cannot show this, because a pack never changes the tier column, which is
+    // how the overview came to report every paying customer as free.
+    const [creditHolders] = await db
+      .select({
+        count: sql<number>`count(distinct ${creditLots.userId})::int`,
+      })
+      .from(creditLots)
+      .where(
+        and(
+          gt(creditLots.expiresAt, new Date()),
+          sql`${creditLots.granted} > ${creditLots.consumed}`
+        )
+      );
+
+    const stats = { ...empty };
     for (const row of userStats) {
       if (row.tier in stats) {
         stats[row.tier as keyof typeof stats] = row.count;
       }
     }
     stats.whitelisted = whitelistCount?.count || 0;
+    stats.creditHolders = creditHolders?.count || 0;
 
     return stats;
   } catch (error) {
     console.error('Stats error:', error);
-    return { free: 0, pro: 0, unlimited: 0, whitelisted: 0 };
+    return empty;
   }
 }
