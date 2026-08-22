@@ -47,13 +47,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - **Removed:** `upgradeUser` and `createCheckoutSession(email, tier)`, both
   uncalled since the pricing change, and the `/api/lookup` rate-limit entry.
 
-  _successful_ run, and a section for work that runs on no schedule, which is
-overflow-y-auto`. A measurement in Chrome shows the difference at a screen of
-- `docs-site/` is the _only_ publishable folder. `docs/` stays internal, since
---backfill | --incremental`. Interrupt-safe.
---full | --incremental | --range A B`. Idempotent, safe to interrupt.
-point at it _before_ this ships, or the site advertises $99 and charges $149.
-
 ### 2026-08-20 (credits, and a rating nobody gave us)
 
 - **Pricing moves from one-time tiers to credit packs, metered in matches.** A
