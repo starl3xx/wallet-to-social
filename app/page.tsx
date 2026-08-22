@@ -11,19 +11,18 @@ import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import { RecentWins } from '@/components/RecentWins';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { XMark } from '@/components/ui/brand-marks';
-import { AccessBanner } from '@/components/AccessBanner';
 import { useAuth } from '@/components/AuthProvider';
+import { useUpgradeModal } from '@/components/UpgradeModalProvider';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 
-// Lazy-load modals: not needed until user interaction
-const UpgradeModal = dynamic(() =>
-  import('@/components/UpgradeModal').then((m) => ({ default: m.UpgradeModal }))
-);
+// Lazy-load modals: not needed until user interaction. The buy-credits modal
+// is not here: it is mounted once in the layout, because the header opens it
+// from every page.
 const AddAddressesModal = dynamic(() =>
   import('@/components/AddAddressesModal').then((m) => ({
     default: m.AddAddressesModal,
@@ -54,7 +53,7 @@ import {
 } from '@/lib/chains';
 import { parseContractDeepLink } from '@/lib/contract-deep-link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, Textarea } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import {
   SCAN_DEPTHS,
@@ -160,7 +159,7 @@ export default function Home() {
   const entitled = credits.entitled;
   const isWhitelisted = user?.isWhitelisted || false;
   const userEmail = user?.email || null;
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const upgradeModal = useUpgradeModal();
 
   /**
    * The per-lookup ceiling the server will apply, mirrored here so the person
@@ -202,6 +201,10 @@ export default function Home() {
   const [sourceContract, setSourceContract] = useState<ImportedContract | null>(
     null
   );
+  // The uploaded file's name without its extension, for the lookup name.
+  // A default is never a generic noun where a real one can be derived
+  // (docs/DESIGN-LANGUAGE.md), and the file name is the one the person chose.
+  const [sourceFileName, setSourceFileName] = useState<string | null>(null);
 
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
@@ -230,6 +233,9 @@ export default function Home() {
   const [currentLookupName, setCurrentLookupName] = useState<string | null>(
     null
   );
+  // The name decided when the job was submitted, read back when it completes.
+  // A ref, because the polling effect must not re-subscribe on a rename.
+  const submittedNameRef = useRef<string | null>(null);
   // Set only for reverse lookups. Drives the truncation notice, which matters
   // because the endpoint caps at 100 with no pagination, so a popular handle
   // silently returns a partial answer unless we say so.
@@ -329,10 +335,13 @@ export default function Home() {
     }
   }, []);
 
-  // Memoized callback for opening upgrade modal - avoids creating new function on each render
+  // The buy-credits modal is owned by the layout (see UpgradeModalProvider),
+  // so the header can open it on every page. This wrapper is what every call
+  // site on this page goes through: it passes the loaded list, which the
+  // modal uses to mark the smallest pack whose headroom covers the file.
   const handleOpenUpgradeModal = useCallback(() => {
-    setShowUpgradeModal(true);
-  }, []);
+    upgradeModal.open(wallets.length > 0 ? wallets.length : undefined);
+  }, [upgradeModal, wallets.length]);
 
   const handlePasteToggle = useCallback(() => setShowPasteInput((v) => !v), []);
 
@@ -343,9 +352,9 @@ export default function Home() {
     if (entitled) {
       setShowContractImportModal(true);
     } else {
-      setShowUpgradeModal(true);
+      handleOpenUpgradeModal();
     }
-  }, [entitled]);
+  }, [entitled, handleOpenUpgradeModal]);
 
   /**
    * `/?contract=0x…&chain=base` opens the importer with the contract filled in.
@@ -402,9 +411,15 @@ export default function Home() {
     if (entitled) {
       setShowContractImportModal(true);
     } else {
-      setShowUpgradeModal(true);
+      handleOpenUpgradeModal();
     }
-  }, [deepLinkContract, authLoading, credits.loading, entitled]);
+  }, [
+    deepLinkContract,
+    authLoading,
+    credits.loading,
+    entitled,
+    handleOpenUpgradeModal,
+  ]);
 
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -465,6 +480,7 @@ export default function Home() {
     setExtraColumns([]);
     setInputSource('text_input');
     setSourceContract(null);
+    setSourceFileName(null);
     setState('ready');
     setShowPasteInput(false);
   }, [pasteText]);
@@ -527,6 +543,7 @@ export default function Home() {
       setExtraColumns(cols);
       setInputSource('file_upload');
       setSourceContract(null);
+      setSourceFileName(file.name.replace(/\.[^.]+$/, '') || null);
       setState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file');
@@ -545,12 +562,37 @@ export default function Home() {
       if (!user) {
         setShowAuthModal(true);
       } else if (!credits.unmetered) {
-        setShowUpgradeModal(true);
+        handleOpenUpgradeModal();
       }
       // A legacy account over its cap has nothing to buy: the banner tells it
       // to split the file, and that is the whole answer.
       return;
     }
+
+    /**
+     * The lookup's name, decided here from what is known at submit time.
+     *
+     * The person's own name wins. Otherwise the CSV's file name, or the count
+     * of pasted wallets, or the token a contract import named: the same
+     * derivation the reverse path already does with `Wallets for ${label}`.
+     * It used to fall through to "Results", which DESIGN-LANGUAGE names as
+     * the violation: a fallback doing duty as the feature's self-explanation.
+     * The derived name is also what history saves, so a saved lookup is never
+     * nameless either.
+     */
+    const typedName = lookupName.trim();
+    const derivedName =
+      inputSource === 'file_upload' && sourceFileName
+        ? sourceFileName
+        : inputSource === 'contract_import' && sourceContract
+          ? `Holders of ${
+              sourceContract.tokenName ||
+              sourceContract.tokenSymbol ||
+              sourceContract.contractAddress
+            }`
+          : `${wallets.length.toLocaleString()} pasted wallets`;
+    const submittedName = typedName || derivedName;
+    submittedNameRef.current = submittedName;
 
     setState('processing');
     setResults([]);
@@ -577,7 +619,7 @@ export default function Home() {
           wallets,
           originalData,
           saveToHistory,
-          historyName: lookupName || undefined,
+          historyName: submittedName,
           ...scanDepthOptions(scanDepth),
           userId: getUserId(),
           email: userEmail || undefined,
@@ -592,7 +634,7 @@ export default function Home() {
         // Credits needed. `upgradeRequired` is the field name the server still
         // uses; what it opens is the buy-credits modal.
         if (errorData.upgradeRequired) {
-          setShowUpgradeModal(true);
+          handleOpenUpgradeModal();
           setState('ready');
           return;
         }
@@ -631,6 +673,7 @@ export default function Home() {
     originalData,
     saveToHistory,
     lookupName,
+    sourceFileName,
     scanDepth,
     userTier,
     user,
@@ -638,6 +681,7 @@ export default function Home() {
     walletLimit,
     overWalletLimit,
     userEmail,
+    handleOpenUpgradeModal,
     inputSource,
     sourceContract,
   ]);
@@ -830,9 +874,11 @@ export default function Home() {
             status: 'complete',
             processed: data.progress.total,
           }));
-          // Set lookup name for exports (but no ID means no edit/add addresses until loaded from history)
-          if (saveToHistory && lookupName) {
-            setCurrentLookupName(lookupName);
+          // The name decided at submit (but no ID means no edit/add
+          // addresses until loaded from history). A merge keeps the name of
+          // the lookup it merged into.
+          if (!pendingMergeLookupId) {
+            setCurrentLookupName(submittedNameRef.current);
           }
           setState('complete');
 
@@ -912,7 +958,7 @@ export default function Home() {
         pollingRef.current = null;
       }
     };
-  }, [jobId, state, notifyOnComplete, saveToHistory, lookupName]);
+  }, [jobId, state, notifyOnComplete]);
 
   // Animate progress counter smoothly toward real value
   useEffect(() => {
@@ -986,6 +1032,7 @@ export default function Home() {
     setError(null);
     setCacheHits(0);
     setLookupName('');
+    setSourceFileName(null);
     setReverseMeta(null);
     setMergeWarning(null);
     setScanDepth('deep');
@@ -1018,7 +1065,11 @@ export default function Home() {
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
-      setCurrentLookupName(lookupName || null);
+      // A saved lookup with no name is named by its size, as the history card
+      // names it, so the two agree and neither falls back to a generic noun.
+      setCurrentLookupName(
+        lookupName || `${loadedResults.length.toLocaleString()} wallets`
+      );
       setEnrichedWallets(
         new Set(enrichedWalletsArray?.map((w) => w.toLowerCase()) || [])
       );
@@ -1167,7 +1218,7 @@ export default function Home() {
         if (!response.ok) {
           const errorData = await response.json();
           if (errorData.upgradeRequired) {
-            setShowUpgradeModal(true);
+            handleOpenUpgradeModal();
             setState('ready');
             return;
           }
@@ -1201,7 +1252,7 @@ export default function Home() {
         setState('error');
       }
     },
-    [scanDepth, userEmail]
+    [scanDepth, userEmail, handleOpenUpgradeModal]
   );
 
   // Handle creating new lookup from modal
@@ -1215,6 +1266,7 @@ export default function Home() {
     // admin Source column then names the wrong token.
     setInputSource('text_input');
     setSourceContract(null);
+    setSourceFileName(null);
     setState('ready');
   }, []);
 
@@ -1261,6 +1313,7 @@ export default function Home() {
       setExtraColumns([]);
       setInputSource('contract_import');
       setSourceContract(source);
+      setSourceFileName(null);
       setState('ready');
     },
     []
@@ -1298,36 +1351,18 @@ export default function Home() {
   }, [currentLookupId, results]);
 
   return (
-    <PageShell
-      continuesHeader
-      onBrandClick={handleReset}
-      actions={
-        <>
-          <AccessBanner
-            tier={userTier}
-            isWhitelisted={isWhitelisted}
-            onUpgradeClick={handleOpenUpgradeModal}
-            /* The theme control is a three-option segmented at 132px, which is
-               40% of the header's action cluster and more than a phone can give
-               it. Below `sm` it renders in the footer instead, which is on every
-               page and has room. Exactly one is ever on screen. */
-            trailing={
-              <div className="hidden sm:block">
-                <ThemeToggle />
-              </div>
-            }
-          />
-        </>
-      }
-    >
+    <PageShell onBrandClick={handleReset}>
       {/* Owns its own bottom spacing. It used to sit in the header, where the
           separation came from main's py-12 below it; as a sibling inside main
-          there is nothing between it and the upload UI. */}
-      <div className="mb-8 border-b border-border pb-3.5">
+          there is nothing between it and the upload UI. It no longer draws a
+          rule of its own: that rule stopped at the container edge while the
+          shell's ran edge to edge on every other page, and the shell's is the
+          one that stays. */}
+      <div className="mb-8">
         {/* One line, not three sentences that then repeat themselves in the
             strip below. The old copy stated a hardcoded figure and complete Farcaster
             coverage in the paragraph and again in the stats line. */}
-        <h1 className="max-w-[60ch] pt-2 text-sm text-muted-foreground sm:text-base">
+        <h1 className="max-w-[60ch] text-sm text-muted-foreground sm:text-base">
           Turn a wallet list into the{' '}
           <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and
           Farcaster accounts behind it.{' '}
@@ -1373,14 +1408,6 @@ export default function Home() {
           </span>
         </div>
       </div>
-
-      {/* Upgrade Modal */}
-      <UpgradeModal
-        open={showUpgradeModal}
-        onOpenChange={setShowUpgradeModal}
-        currentTier={userTier}
-        walletCount={wallets.length > 0 ? wallets.length : undefined}
-      />
 
       {/* Add Addresses Modal */}
       {addAddressesLookupId && (
@@ -1450,19 +1477,24 @@ export default function Home() {
             <div className="text-center">
               {showPasteInput && (
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
-                  <textarea
+                  <Textarea
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
+                    aria-label="Wallet addresses"
                     placeholder={
                       'Paste wallet addresses in any format\n0x1234..., 0xabcd...\nor one per line\nor mixed with other text'
                     }
-                    className="w-full h-40 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
+                    rows={7}
+                    className="font-mono text-sm"
                   />
-                  <div className="flex items-center justify-between">
+                  {/* Stacks on a phone, the same shape as the ready panel
+                      below: at 375px the count broke into three lines beside
+                      the buttons. */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-sm text-muted-foreground">
                       {countValidAddresses(pasteText)} valid addresses detected
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 self-end sm:self-auto">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1588,7 +1620,7 @@ export default function Home() {
                   !credits.unmetered && (
                     <Button
                       size="sm"
-                      onClick={() => setShowUpgradeModal(true)}
+                      onClick={handleOpenUpgradeModal}
                       className="shrink-0"
                     >
                       Buy credits
@@ -1831,8 +1863,11 @@ export default function Home() {
                           hover to reveal it. */}
                     <Eyebrow className="mb-1">Lookup name</Eyebrow>
                     <div className="flex items-center gap-2.5">
+                      {/* Every path that reaches here sets a name; the
+                          size is the last resort, never a generic noun. */}
                       <h2 className="text-xl font-semibold tracking-[-0.02em]">
-                        {currentLookupName || 'Results'}
+                        {currentLookupName ||
+                          `${results.length.toLocaleString()} wallets`}
                       </h2>
                       {/* Any signed-in owner may rename. The server allows it
                             for whoever owns the lookup, and a history you cannot
@@ -1853,9 +1888,13 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                {/* The window comes from the constant the cache reads, so the
+                    copy cannot say 24h while the TTL says a week. */}
                 {cacheHits > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    {cacheHits.toLocaleString()} results from cache (24h)
+                    {cacheHits.toLocaleString()}{' '}
+                    {cacheHits === 1 ? 'result' : 'results'} from cache (
+                    {CACHE_TTL_DAYS} days)
                   </p>
                 )}
               </div>

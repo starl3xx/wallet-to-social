@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
+import { Button } from '@/components/ui/button';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
@@ -78,89 +79,100 @@ export default async function BlogPost({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <PageShell>
-        <header className="mx-auto max-w-[68ch]">
-          <div className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-            <Link
-              href="/blog"
-              className="transition-control hover:text-accent-brand"
-            >
-              Blog
-            </Link>
-            <span aria-hidden="true">·</span>
-            <span>
-              {new Date(post.publishedAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </span>
-          </div>
+        {/* One column for the whole document. The header was `max-w-[68ch]` at
+            the 16px root (about 580px) while the prose div was `prose-lg
+            max-w-[68ch]`, whose ch is computed at 18px (about 650px), so the
+            title sat 43px to the right of the first paragraph; the back link and
+            the CTA then escaped the column altogether and ran the full shell.
+            `text-lg` here makes the wrapper's ch match the prose root, so one
+            68ch is the measure for everything below. The cost is that anything
+            inside without its own size inherits 18px, so every child states its
+            size. */}
+        <div className="mx-auto max-w-[68ch] text-lg">
+          <header>
+            <div className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              <Link
+                href="/blog"
+                className="transition-control hover:text-accent-brand"
+              >
+                Blog
+              </Link>
+              <span aria-hidden="true">·</span>
+              <span>
+                {new Date(post.publishedAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
 
-          {/* Display tier: weight 200 with the tight tracking, the one place besides
-              the marketing hero where Extraleicht is allowed to get large. */}
-          <h1 className="mb-4 text-4xl font-extralight leading-[1.05] tracking-[-0.04em] md:text-5xl">
-            {post.title}
-          </h1>
-          <p className="text-lg font-light text-muted-foreground">
-            {post.description}
-          </p>
-        </header>
-
-        <article className="py-12">
-          {/* max-w-[68ch], not max-w-none. max-w-none deleted the typography
-              plugin's own 65ch default inside an 896px article, running body copy
-              to roughly 95 characters per line at the prose-lg root. The measure is
-              the point of a reading column. */}
-          <div
-            className="prose prose-lg dark:prose-invert mx-auto max-w-[68ch]
-              prose-headings:font-semibold
-              prose-h2:text-xl prose-h2:mt-12 prose-h2:mb-4
-              prose-h3:text-base prose-h3:mt-8 prose-h3:mb-3
-              prose-p:text-foreground/80 prose-p:leading-relaxed prose-li:text-foreground/80 prose-li:leading-relaxed
-              prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
-              prose-strong:text-foreground
-              prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-mono
-              prose-pre:bg-muted prose-pre:border prose-pre:font-mono
-              prose-table:text-sm
-              prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
-              prose-td:py-3 prose-td:px-4 prose-td:border-b
-              prose-blockquote:border-l-accent-brand prose-blockquote:text-muted-foreground
-              
-              prose-hr:border-border"
-            dangerouslySetInnerHTML={{ __html: post.html }}
-          />
-
-          {/* Back link */}
-          <div className="mt-16 pt-8 border-t">
-            <Link
-              href="/blog"
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              All posts
-            </Link>
-          </div>
-
-          {/* CTA */}
-          <div className="mt-8 p-8 bg-muted/50 rounded-lg text-center">
-            <h3 className="text-xl font-semibold mb-2">
-              Ready to find your holders?
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              Upload your wallet list and see who you can reach.{' '}
-              {FREE_MATCHES_PER_WINDOW} matches free every {FREE_WINDOW_DAYS}{' '}
-              days.
+            {/* Display tier: weight 200 with the tight tracking, the one place besides
+                the marketing hero where Extraleicht is allowed to get large. */}
+            <h1 className="mb-4 text-4xl font-extralight leading-[1.05] tracking-[-0.04em] md:text-5xl">
+              {post.title}
+            </h1>
+            <p className="text-lg font-light text-muted-foreground">
+              {post.description}
             </p>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
-            >
-              Try walletlink.social
-            </Link>
-          </div>
+          </header>
 
-          {/* Footer */}
-        </article>
+          <article className="py-12">
+            {/* max-w-none because the column above owns the measure. The
+                typography plugin's own 65ch default would otherwise sit narrower
+                than the 68ch wrapper and the header would overhang the prose
+                again, which is the step this column exists to remove.
+
+                The table cells get `tabular-nums` so the cost figures stack; the
+                scroll box around the table itself is rendered in lib/blog.ts. */}
+            <div
+              className="prose prose-lg dark:prose-invert max-w-none
+                prose-headings:font-semibold
+                prose-h2:text-xl prose-h2:mt-12 prose-h2:mb-4
+                prose-h3:text-base prose-h3:mt-8 prose-h3:mb-3
+                prose-p:text-foreground/80 prose-p:leading-relaxed prose-li:text-foreground/80 prose-li:leading-relaxed
+                prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
+                prose-strong:text-foreground
+                prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-mono
+                prose-pre:bg-muted prose-pre:border prose-pre:font-mono
+                prose-table:text-sm
+                prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
+                prose-td:py-3 prose-td:px-4 prose-td:border-b prose-td:tabular-nums
+                prose-blockquote:border-l-accent-brand prose-blockquote:text-muted-foreground
+                prose-hr:border-border"
+              dangerouslySetInnerHTML={{ __html: post.html }}
+            />
+
+            {/* Back link */}
+            <div className="mt-16 pt-8 border-t">
+              <Link
+                href="/blog"
+                className="transition-control inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                All posts
+              </Link>
+            </div>
+
+            {/* CTA. The paragraph and the button both state a size, because the
+                column above is text-lg. The button is the Button primitive on a
+                Link, which gives it the control height and the violet affordance
+                the /vs pages use, instead of a hand-rolled foreground pill. */}
+            <div className="mt-8 p-6 bg-muted/50 rounded-lg text-center">
+              <h3 className="text-xl font-semibold mb-2">
+                Ready to find your holders?
+              </h3>
+              <p className="text-base text-muted-foreground mb-4">
+                Upload your wallet list and see who you can reach.{' '}
+                {FREE_MATCHES_PER_WINDOW} matches free every {FREE_WINDOW_DAYS}{' '}
+                days.
+              </p>
+              <Button asChild>
+                <Link href="/">Try walletlink.social</Link>
+              </Button>
+            </div>
+          </article>
+        </div>
       </PageShell>
     </>
   );

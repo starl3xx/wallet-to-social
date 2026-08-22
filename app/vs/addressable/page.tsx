@@ -214,16 +214,28 @@ export default function AddressableComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Twitter Export</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">Limited</td>
                   </tr>
@@ -232,76 +244,132 @@ export default function AddressableComparison() {
                       Farcaster Followers
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Lookup History</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Add to Lookups</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack, on all seven supported chains)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Ad Attribution</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">CRM Integration</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -427,9 +495,12 @@ export default function AddressableComparison() {
             </div>
           </section>
 
-          {/* Pricing Comparison */}
-          <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+          {/* Pricing comparison. The section owns the rhythm: space-y-6 separates
+              the heading, the pack grid and the callouts, so the h2 carries no
+              margin of its own and the callouts carry no mt. Gap and margin must
+              not both own the same space. */}
+          <section className="mb-16 space-y-6">
+            <h2 className="text-2xl font-light tracking-[-0.028em]">
               Pricing breakdown
             </h2>
 
@@ -448,7 +519,7 @@ export default function AddressableComparison() {
               </ul>
             </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
+            <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">ROI Example:</span> If you pay $
                 {PACKS.index.priceCents / 100} once for the walletlink.social{' '}
@@ -477,7 +548,7 @@ export default function AddressableComparison() {
               className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
             >
               Start your first lookup
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </section>
 

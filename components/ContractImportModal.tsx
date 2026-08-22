@@ -11,7 +11,11 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CircleNotch as Loader2, FileCode, Warning as AlertTriangle } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  FileCode,
+  Warning as AlertTriangle,
+} from '@phosphor-icons/react';
 import type { ContractType } from '@/lib/contract-holders';
 // Imported from lib/chains (not lib/contract-holders) so ethers stays out of the
 // client bundle — contract-holders imports ethers at module scope.
@@ -212,9 +216,11 @@ export function ContractImportModal({
             Import from contract
           </ModalTitle>
           <ModalDescription>
-            {step === 'input' && 'Enter an ERC-20 token or NFT contract address to import all holders.'}
+            {step === 'input' &&
+              'Enter an ERC-20 token or NFT contract address to import all holders.'}
             {step === 'loading' && 'Fetching token holders...'}
-            {step === 'preview' && result &&
+            {step === 'preview' &&
+              result &&
               (result.totalHolders > 0
                 ? `Found ${result.totalHolders.toLocaleString()} holders for ${result.tokenName}`
                 : `Imported ${result.wallets.length.toLocaleString()} holders for ${result.tokenName}`)}
@@ -233,8 +239,11 @@ export function ContractImportModal({
 
             {/* Contract address input */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Contract address</label>
+              <label htmlFor="contract-address" className="text-sm font-medium">
+                Contract address
+              </label>
               <Input
+                id="contract-address"
                 value={contractAddress}
                 onChange={(e) => setContractAddress(e.target.value.trim())}
                 placeholder="0x..."
@@ -279,9 +288,7 @@ export function ContractImportModal({
                       onChange={() => setChain(c)}
                       className="peer sr-only"
                     />
-                    <span
-                      className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
-                    >
+                    <span className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
                       {CHAIN_LABELS[c]}
                     </span>
                   </label>
@@ -322,9 +329,13 @@ export function ContractImportModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{result.tokenName}</span>
-                  <span className="text-muted-foreground text-sm">({result.tokenSymbol})</span>
+                  <span className="text-muted-foreground text-sm">
+                    ({result.tokenSymbol})
+                  </span>
                 </div>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getTypeBadgeColor(result.contractType)}`}>
+                <span
+                  className={`px-2 py-0.5 text-xs font-medium rounded-full ${getTypeBadgeColor(result.contractType)}`}
+                >
                   {result.contractType}
                 </span>
               </div>
@@ -366,16 +377,15 @@ export function ContractImportModal({
                       </>
                     ) : (
                       <>
-                        Imported {result.wallets.length.toLocaleString()} holders, the
-                        maximum for this import. The source did not report a total, so
-                        this token probably has more.
+                        Imported {result.wallets.length.toLocaleString()}{' '}
+                        holders, the maximum for this import. The source did not
+                        report a total, so this token probably has more.
                       </>
                     )}
                   </p>
                 </div>
               )}
             </div>
-
           </div>
         )}
       </ModalContent>

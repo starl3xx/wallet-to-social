@@ -4,7 +4,15 @@ import { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MagnifyingGlass as Search, CircleNotch as Loader2, User, Briefcase, Wallet, Envelope as Mail, X } from '@phosphor-icons/react';
+import {
+  MagnifyingGlass as Search,
+  CircleNotch as Loader2,
+  User,
+  Briefcase,
+  Wallet,
+  Envelope as Mail,
+  X,
+} from '@phosphor-icons/react';
 
 interface SearchResult {
   type: 'user' | 'job' | 'lookup';
@@ -19,7 +27,10 @@ interface UniversalSearchProps {
   onResultClick?: (result: SearchResult) => void;
 }
 
-export function UniversalSearch({ password, onResultClick }: UniversalSearchProps) {
+export function UniversalSearch({
+  password,
+  onResultClick,
+}: UniversalSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,16 +51,19 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
         });
         if (usersRes.ok) {
           const usersData = await usersRes.json();
-          const matchedUsers = usersData.users.filter((u: { email: string; tier: string; id: string }) =>
-            u.email.toLowerCase().includes(query.toLowerCase())
+          const matchedUsers = usersData.users.filter(
+            (u: { email: string; tier: string; id: string }) =>
+              u.email.toLowerCase().includes(query.toLowerCase())
           );
           searchResults.push(
-            ...matchedUsers.map((u: { email: string; tier: string; id: string }) => ({
-              type: 'user' as const,
-              id: u.id,
-              title: u.email,
-              subtitle: `Tier: ${u.tier}`,
-            }))
+            ...matchedUsers.map(
+              (u: { email: string; tier: string; id: string }) => ({
+                type: 'user' as const,
+                id: u.id,
+                title: u.email,
+                subtitle: `Tier: ${u.tier}`,
+              })
+            )
           );
         }
       }
@@ -61,16 +75,19 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
         });
         if (jobsRes.ok) {
           const jobsData = await jobsRes.json();
-          const matchedJobs = jobsData.jobs.filter((j: { id: string; status: string; walletCount: number }) =>
-            j.id.toLowerCase().includes(query.toLowerCase())
+          const matchedJobs = jobsData.jobs.filter(
+            (j: { id: string; status: string; walletCount: number }) =>
+              j.id.toLowerCase().includes(query.toLowerCase())
           );
           searchResults.push(
-            ...matchedJobs.map((j: { id: string; status: string; walletCount: number }) => ({
-              type: 'job' as const,
-              id: j.id,
-              title: `Job ${j.id.slice(0, 8)}...`,
-              subtitle: `Status: ${j.status} | ${j.walletCount} wallets`,
-            }))
+            ...matchedJobs.map(
+              (j: { id: string; status: string; walletCount: number }) => ({
+                type: 'job' as const,
+                id: j.id,
+                title: `Job ${j.id.slice(0, 8)}...`,
+                subtitle: `Status: ${j.status} | ${j.walletCount} wallets`,
+              })
+            )
           );
         }
       }
@@ -83,12 +100,21 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         searchResults.push(
-          ...historyData.entries.slice(0, 5).map((h: { id: string; name: string; walletCount: number; userId: string }) => ({
-            type: 'lookup' as const,
-            id: h.id,
-            title: h.name || `Lookup ${h.id.slice(0, 8)}...`,
-            subtitle: `${h.walletCount} wallets | User: ${h.userId?.slice(0, 8) || 'unknown'}...`,
-          }))
+          ...historyData.entries
+            .slice(0, 5)
+            .map(
+              (h: {
+                id: string;
+                name: string;
+                walletCount: number;
+                userId: string;
+              }) => ({
+                type: 'lookup' as const,
+                id: h.id,
+                title: h.name || `Lookup ${h.id.slice(0, 8)}...`,
+                subtitle: `${h.walletCount} wallets | User: ${h.userId?.slice(0, 8) || 'unknown'}...`,
+              })
+            )
         );
       }
 
@@ -145,15 +171,25 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
             />
             {query && (
               <button
+                type="button"
+                aria-label="Clear search"
                 onClick={clearSearch}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             )}
           </div>
-          <Button onClick={search} disabled={loading || !query.trim()}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          <Button
+            onClick={search}
+            disabled={loading || !query.trim()}
+            aria-label="Search"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Search className="h-4 w-4" aria-hidden />
+            )}
           </Button>
         </div>
 
@@ -177,12 +213,16 @@ export function UniversalSearch({ password, onResultClick }: UniversalSearchProp
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{result.title}</span>
+                          <span className="font-medium truncate">
+                            {result.title}
+                          </span>
                           <span className="text-xs px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground capitalize">
                             {result.type}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">{result.subtitle}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {result.subtitle}
+                        </p>
                       </div>
                     </div>
                   </button>

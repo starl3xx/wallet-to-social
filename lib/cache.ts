@@ -2,7 +2,11 @@ import { getDb, walletCache, type NewWalletCache } from '@/db';
 import { inArray, lt, sql } from 'drizzle-orm';
 import type { WalletSocialResult } from './types';
 
-const CACHE_TTL_HOURS = 168; // 7 days — wallet-to-social mappings rarely change
+import { CACHE_TTL_HOURS } from './cache-constants';
+
+// Re-exported so the server side keeps one import path; the constant lives in
+// a DB-free module because the client reads it too.
+export { CACHE_TTL_HOURS };
 
 export async function getCachedWallets(
   wallets: string[]

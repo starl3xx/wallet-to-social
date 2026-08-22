@@ -203,7 +203,11 @@ export default function BlazeComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Twitter/X</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (user-attested matches)
                       </span>
@@ -215,13 +219,21 @@ export default function BlazeComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (complete protocol coverage)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -229,28 +241,48 @@ export default function BlazeComparison() {
                       Farcaster Followers
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Lookup History</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack)
                       </span>
@@ -262,19 +294,31 @@ export default function BlazeComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Contract Import</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (every pack, on all seven supported chains)
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Community Tools</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Offered, no longer available
@@ -347,9 +391,12 @@ export default function BlazeComparison() {
             </div>
           </section>
 
-          {/* Pricing */}
-          <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+          {/* Pricing. The section owns the rhythm: space-y-6 separates the
+              heading, the pack grid and the callouts, so the h2 carries no margin
+              of its own and the callouts carry no mt. Gap and margin must not both
+              own the same space. */}
+          <section className="mb-16 space-y-6">
+            <h2 className="text-2xl font-light tracking-[-0.028em]">
               Pricing after Blaze
             </h2>
 
@@ -382,7 +429,7 @@ export default function BlazeComparison() {
               className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
             >
               Start your first lookup
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </section>
 

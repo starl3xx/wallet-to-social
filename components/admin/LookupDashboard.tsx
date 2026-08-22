@@ -13,7 +13,19 @@ import {
 } from '@/components/ui/table';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { Sparkline } from './Sparkline';
-import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, MagnifyingGlass as Search, Wallet, Percent, Clock, CaretDown as ChevronDown, CaretUp as ChevronUp, Stack as Layers, CheckCircle, XCircle } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  ArrowsClockwise as RefreshCw,
+  MagnifyingGlass as Search,
+  Wallet,
+  Percent,
+  Clock,
+  CaretDown as ChevronDown,
+  CaretUp as ChevronUp,
+  Stack as Layers,
+  CheckCircle,
+  XCircle,
+} from '@phosphor-icons/react';
 
 type TimePeriod = 'today' | 'week' | 'month';
 
@@ -186,12 +198,18 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             onChange={setPeriod}
             options={PERIODS}
           />
-          <Button variant="ghost" size="sm" onClick={fetchDashboard} disabled={loading}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchDashboard}
+            disabled={loading}
+          >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" aria-hidden />
             )}
+            <span className="sr-only">Refresh</span>
           </Button>
         </div>
       </div>
@@ -207,7 +225,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold">{usage.totalLookups}</span>
               <span
-                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
+                className={`text-xs ${usage.lookupsChange >= 0 ? 'text-attested' : 'text-caution'}`}
               >
                 {formatChange(usage.lookupsChange)} vs prev
               </span>
@@ -222,9 +240,11 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Wallets</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">{usage.totalWallets.toLocaleString()}</span>
+              <span className="text-2xl font-bold">
+                {usage.totalWallets.toLocaleString()}
+              </span>
               <span
-                className={`text-xs ${usage.walletsChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
+                className={`text-xs ${usage.walletsChange >= 0 ? 'text-attested' : 'text-caution'}`}
               >
                 {formatChange(usage.walletsChange)} vs prev
               </span>
@@ -239,9 +259,11 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Match rate</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">{usage.avgMatchRate.toFixed(1)}%</span>
+              <span className="text-2xl font-bold">
+                {usage.avgMatchRate.toFixed(1)}%
+              </span>
               <span
-                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-accent-brand' : 'text-destructive'}`}
+                className={`text-xs ${usage.matchRateChange >= 0 ? 'text-attested' : 'text-caution'}`}
               >
                 {formatChange(usage.matchRateChange)} vs prev
               </span>
@@ -256,9 +278,11 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Avg time</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">{formatTime(usage.avgProcessingTime)}</span>
+              <span className="text-2xl font-bold">
+                {formatTime(usage.avgProcessingTime)}
+              </span>
               <span
-                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-accent-brand' : 'text-destructive'}`}
+                className={`text-xs ${usage.processingTimeChange <= 0 ? 'text-attested' : 'text-caution'}`}
               >
                 {formatChange(usage.processingTimeChange, true)}
               </span>
@@ -276,11 +300,15 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
           <div className="grid md:grid-cols-2 gap-6">
             {/* Platform rates */}
             <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">Platform rates</div>
+              <div className="text-sm text-muted-foreground">
+                Platform rates
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Twitter/X</span>
-                  <span className="text-sm font-medium">{match.twitterRate.toFixed(1)}%</span>
+                  <span className="text-sm font-medium">
+                    {match.twitterRate.toFixed(1)}%
+                  </span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
@@ -291,7 +319,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
 
                 <div className="flex items-center justify-between mt-3">
                   <span className="text-sm">Farcaster</span>
-                  <span className="text-sm font-medium">{match.farcasterRate.toFixed(1)}%</span>
+                  <span className="text-sm font-medium">
+                    {match.farcasterRate.toFixed(1)}%
+                  </span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
@@ -302,7 +332,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
 
                 <div className="flex items-center justify-between mt-3">
                   <span className="text-sm">Any social</span>
-                  <span className="text-sm font-medium">{match.anyRate.toFixed(1)}%</span>
+                  <span className="text-sm font-medium">
+                    {match.anyRate.toFixed(1)}%
+                  </span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
@@ -328,11 +360,15 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-0.5 rounded-sm bg-accent-brand" />
-                      <span className="text-xs text-muted-foreground">Twitter</span>
+                      <span className="text-xs text-muted-foreground">
+                        Twitter
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-0.5 rounded-sm bg-accent-brand/40" />
-                      <span className="text-xs text-muted-foreground">Farcaster</span>
+                      <span className="text-xs text-muted-foreground">
+                        Farcaster
+                      </span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -384,51 +420,69 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                     <Layers className="h-4 w-4 text-caution" />
                     <span className="text-sm">Pending</span>
                   </div>
-                  <span className="text-2xl font-bold">{performance.pendingJobs}</span>
+                  <span className="text-2xl font-bold">
+                    {performance.pendingJobs}
+                  </span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 text-accent-brand animate-spin" />
                     <span className="text-sm">Running</span>
                   </div>
-                  <span className="text-2xl font-bold">{performance.runningJobs}</span>
+                  <span className="text-2xl font-bold">
+                    {performance.runningJobs}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Success rate */}
             <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">Success rate ({periodLabels[period]})</div>
+              <div className="text-sm text-muted-foreground">
+                Success rate ({periodLabels[period]})
+              </div>
               <div className="flex items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-accent-brand" />
+                    {/* Green, not violet: a success rate is a measured outcome,
+                        and the failed figure beside it is already painted as one. */}
+                    <CheckCircle className="h-4 w-4 text-attested" />
                     <span className="text-sm">Success</span>
                   </div>
-                  <span className="text-2xl font-bold">{performance.successRate.toFixed(1)}%</span>
+                  <span className="text-2xl font-bold">
+                    {performance.successRate.toFixed(1)}%
+                  </span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <XCircle className="h-4 w-4 text-destructive" />
                     <span className="text-sm">Failed</span>
                   </div>
-                  <span className="text-2xl font-bold">{performance.failedCount}</span>
+                  <span className="text-2xl font-bold">
+                    {performance.failedCount}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Stage distribution */}
             <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">Stage distribution</div>
+              <div className="text-sm text-muted-foreground">
+                Stage distribution
+              </div>
               {performance.stageDistribution.length > 0 ? (
                 <div className="space-y-2">
                   {performance.stageDistribution.slice(0, 4).map((stage) => (
                     <div key={stage.stage} className="flex items-center gap-2">
-                      <span className="text-xs w-16 truncate">{stage.stage}</span>
+                      <span className="text-xs w-16 truncate">
+                        {stage.stage}
+                      </span>
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-accent-brand rounded-full transition-all"
-                          style={{ width: `${Math.min(stage.percentage, 100)}%` }}
+                          style={{
+                            width: `${Math.min(stage.percentage, 100)}%`,
+                          }}
                         />
                       </div>
                       <span className="text-xs text-muted-foreground w-10 text-right">
@@ -438,7 +492,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-muted-foreground">No stage data</div>
+                <div className="text-sm text-muted-foreground">
+                  No stage data
+                </div>
               )}
             </div>
           </div>
@@ -449,10 +505,14 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
       <Card>
         <CardHeader className="pb-2">
           <button
+            type="button"
+            aria-expanded={showRecentActivity}
             onClick={() => setShowRecentActivity(!showRecentActivity)}
             className="flex items-center justify-between w-full text-left"
           >
-            <CardTitle className="text-base">Recent activity ({recentActivity.length})</CardTitle>
+            <CardTitle className="text-base">
+              Recent activity ({recentActivity.length})
+            </CardTitle>
             {showRecentActivity ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -463,7 +523,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
         {showRecentActivity && (
           <CardContent className="pt-0">
             {recentActivity.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">No recent activity</p>
+              <p className="text-center text-muted-foreground py-4">
+                No recent activity
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -483,7 +545,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                         <TableCell className="font-mono text-xs">
                           {activity.id.slice(0, 8)}...
                         </TableCell>
-                        <TableCell>{activity.walletCount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {activity.walletCount.toLocaleString()}
+                        </TableCell>
                         <TableCell>{activity.twitterFound}</TableCell>
                         <TableCell>{activity.farcasterFound}</TableCell>
                         <TableCell>{activity.matchRate.toFixed(1)}%</TableCell>

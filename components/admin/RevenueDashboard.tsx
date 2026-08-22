@@ -223,10 +223,11 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
           disabled={loading}
         >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           )}
+          <span className="sr-only">Refresh</span>
         </Button>
       </div>
 
@@ -334,7 +335,8 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Completed</div>
-                <div className="text-lg font-bold tabular-nums text-accent-brand">
+                {/* A completed payment is a real outcome, so it is green. */}
+                <div className="text-lg font-bold tabular-nums text-attested">
                   {funnel.paymentCompleted}
                 </div>
               </div>

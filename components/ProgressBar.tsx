@@ -109,11 +109,16 @@ export const ProgressBar = memo(function ProgressBar({
                   </div>
                 )}
                 <h3 className="text-base font-semibold tracking-[var(--tracking-lead)]">
-                  {isProcessing ? 'Processing' : progress.status === 'complete' ? 'Complete' : 'Waiting'}
+                  {isProcessing
+                    ? 'Processing'
+                    : progress.status === 'complete'
+                      ? 'Complete'
+                      : 'Waiting'}
                 </h3>
               </div>
               <p className="text-sm text-muted-foreground font-medium tabular-nums">
-                {processed.toLocaleString()} of {progress.total.toLocaleString()} wallets
+                {processed.toLocaleString()} of{' '}
+                {progress.total.toLocaleString()} wallets
               </p>
             </div>
 
@@ -169,7 +174,8 @@ export const ProgressBar = memo(function ProgressBar({
             <div className="relative flex justify-between">
               {stages.map((stage, idx) => {
                 const isActive = currentStage === stage.id;
-                const isComplete = idx < currentStageIndex || percentage === 100;
+                const isComplete =
+                  idx < currentStageIndex || percentage === 100;
                 const isPending = idx > currentStageIndex && percentage < 100;
 
                 return (
@@ -182,11 +188,12 @@ export const ProgressBar = memo(function ProgressBar({
                       className={`
                         relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
                         transition-all duration-300
-                        ${isActive
-                          ? 'bg-accent-brand text-accent-brand-foreground scale-110 shadow-lg shadow-accent-brand/40'
-                          : isComplete
-                            ? 'bg-accent-brand/80 text-accent-brand-foreground'
-                            : 'bg-muted text-muted-foreground'
+                        ${
+                          isActive
+                            ? 'bg-accent-brand text-accent-brand-foreground scale-110 shadow-lg shadow-accent-brand/40'
+                            : isComplete
+                              ? 'bg-accent-brand/80 text-accent-brand-foreground'
+                              : 'bg-muted text-muted-foreground'
                         }
                       `}
                     >
@@ -200,11 +207,17 @@ export const ProgressBar = memo(function ProgressBar({
                     {/* Stage label. Five of these do not fit across a phone,
                         and the row grew from four when the graph read was
                         added, so on a narrow screen only the stage you are on
-                        is named. The dots still show the whole pipeline. */}
+                        is named. The dots still show the whole pipeline.
+
+                        Full-opacity tokens only. Muted is 4.74:1 in light mode,
+                        so `/50` on it cannot clear AA, and the pending labels
+                        were ghosts. The active label keeps the accent because
+                        it is the one thing moving; the dot carries complete
+                        versus pending. */}
                     <span
                       className={`
                         whitespace-nowrap font-mono text-xs uppercase tracking-[0.14em] transition-colors
-                        ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground/70' : 'text-muted-foreground/50'}
+                        ${isActive ? 'text-accent-brand' : isComplete ? 'text-foreground' : 'text-muted-foreground'}
                         ${isActive ? '' : 'hidden sm:inline'}
                       `}
                     >
@@ -246,11 +259,11 @@ export const ProgressBar = memo(function ProgressBar({
             {/* Bottom stats row */}
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground tabular-nums">
-                <span className="text-foreground font-semibold">{percentage}%</span>
+                <span className="text-foreground font-semibold">
+                  {percentage}%
+                </span>
                 {' complete'}
-                {timeRemaining && (
-                  <span className="text-muted-foreground/70"> · {timeRemaining}</span>
-                )}
+                {timeRemaining && <span> · {timeRemaining}</span>}
               </span>
 
               {/* Current activity indicator */}
@@ -271,12 +284,22 @@ export const ProgressBar = memo(function ProgressBar({
         <div className="px-6 py-3 bg-muted/30 border-t border-border">
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1">
-              <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+              <svg
+                className="w-3 h-3 opacity-50"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 12h14M12 5l7 7-7 7"
+                />
               </svg>
               Processing in background
             </span>
-            <span className="text-muted-foreground/50">–</span>
+            <span>·</span>
             <span>you can close this tab and check History later</span>
           </p>
         </div>
@@ -299,7 +322,9 @@ function StatBadge({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <div className={`relative flex items-center justify-center w-2 h-2 ${colorClass}`}>
+      <div
+        className={`relative flex items-center justify-center w-2 h-2 ${colorClass}`}
+      >
         {isAnimating && (
           <span className="absolute inset-0 rounded-full bg-current animate-ping opacity-40" />
         )}

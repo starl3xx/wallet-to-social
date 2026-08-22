@@ -77,7 +77,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Sohne', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-sans:
+    'Sohne', system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -103,6 +105,7 @@
      published themselves. Never a brand colour, never a generic success. */
   --color-attested: var(--attested);
   --color-attested-tint: var(--attested-tint);
+  --color-destructive-tint: var(--destructive-tint);
   --color-attested-foreground: var(--attested-foreground);
   --color-caution: var(--caution);
   --color-caution-tint: var(--caution-tint);
@@ -124,9 +127,9 @@
      longer exists, so the class silently resolves to nothing — the same failure as
      a *-foreground class with no token behind it. `initial` stops the utility
      generating at all, so any remaining use is a build-visible error. */
-  --radius-sm: 0.375rem;    /* 6px  — badges, chips, inline code */
+  --radius-sm: 0.375rem; /* 6px  — badges, chips, inline code */
   --radius-mark: 0.5625rem; /* 9px  — the brand mark, the one square-ish object */
-  --radius-lg: 0.875rem;    /* 14px — cards, panels, inputs, modals, dropzones */
+  --radius-lg: 0.875rem; /* 14px — cards, panels, inputs, modals, dropzones */
   --radius-md: initial;
   --radius-xl: initial;
   --radius-2xl: initial;
@@ -142,11 +145,11 @@
 
   /* Tracking, bound to size. Four steps, nothing between. `tracking-tight`
      (-0.025em) is not one of them. */
-  --tracking-display: -0.04em;  /* >=32px */
-  --tracking-title: -0.028em;   /* 20-31px */
-  --tracking-lead: -0.012em;    /* 16-19px */
-  --tracking-body: -0.006em;    /* body and UI */
-  --tracking-label: 0.14em;     /* the one uppercase label */
+  --tracking-display: -0.04em; /* >=32px */
+  --tracking-title: -0.028em; /* 20-31px */
+  --tracking-lead: -0.012em; /* 16-19px */
+  --tracking-body: -0.006em; /* body and UI */
+  --tracking-label: 0.14em; /* the one uppercase label */
 
   /* One breakpoint below Tailwind's `sm`, at the width where a two-across grid
      of controls stops fitting a control-length label.
@@ -196,7 +199,7 @@
 
      Solved rather than picked, against the worst surface each theme puts a
      control on. Light clears 3.08:1 on `--muted` and 3.36:1 on white. */
-  --input: oklch(0.640 0 0);
+  --input: oklch(0.64 0 0);
   --ring: oklch(0.42 0.19 280);
 
   /* Brand. One stop deeper than the violet this replaced, so it survives small
@@ -210,6 +213,9 @@
      2.54:1 on white and could not legally carry text or a button. */
   --attested: oklch(0.48 0.11 162);
   --attested-tint: oklch(0.96 0.03 162);
+  /* The badge background for a failed job. Was hand-mixed as bg-destructive/10
+     at four call sites; one token, like the other three tints. */
+  --destructive-tint: oklch(0.96 0.03 27);
 
   --caution: oklch(0.52 0.11 70);
   --caution-tint: oklch(0.96 0.04 70);
@@ -224,15 +230,15 @@
   /* Kept for the checkmarks in the upgrade modal, now on the attested hue so
      there is only one green in the product. */
   --success-light: oklch(0.96 0.03 162);
-  --success-foreground: oklch(0.42 0.10 162);
+  --success-foreground: oklch(0.42 0.1 162);
 
   /* Platform marks. The one named exception to violet being the only interactive
      hue: these identify a platform rather than an affordance, and a wrong-coloured
      brand mark is a worse error than an inconsistent one. Both themes define them,
      because a var() with no definition resolves to nothing and the pill loses its
      fill entirely: silent, and worst in the theme most people see first. */
-  --x-bg: #0F1419;
-  --x-fg: #FFFFFF;
+  --x-bg: #0f1419;
+  --x-fg: #ffffff;
 
   /* A thumb sitting on a muted track has to be lighter than it. --background is
      lighter than --muted in light mode and DARKER in dark mode, so painting the
@@ -269,7 +275,7 @@
      border changes with whatever is behind it, so it met the ratio on the page
      and missed it on a card. This clears 4.06:1 on the page, 3.67:1 on a card
      and 3.10:1 on a muted panel. */
-  --input: oklch(0.550 0 0);
+  --input: oklch(0.55 0 0);
   --ring: oklch(0.68 0.19 280);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
@@ -289,12 +295,13 @@
 
   --attested: oklch(0.72 0.14 162);
   --attested-tint: oklch(0.28 0.05 162);
+  --destructive-tint: oklch(0.28 0.05 27);
 
   --caution: oklch(0.78 0.13 70);
   --caution-tint: oklch(0.28 0.05 70);
 
   /* Dark inverts these: the fills are light here, so their text must be dark. */
-  --caution-foreground: oklch(0.20 0.03 70);
+  --caution-foreground: oklch(0.2 0.03 70);
   --destructive-foreground: oklch(0.18 0.03 27);
   --attested-foreground: oklch(0.18 0.03 162);
 
@@ -303,8 +310,8 @@
 
   /* X inverts on a dark ground: a near-black pill on a near-black page is
      invisible, and the mark matters more than the exact swatch. */
-  --x-bg: #FFFFFF;
-  --x-fg: #0F1419;
+  --x-bg: #ffffff;
+  --x-fg: #0f1419;
 
   /* Lifts above --muted (0.269), where --background (0.145) sinks below it. */
   --surface-raised: oklch(0.37 0 0);
@@ -319,9 +326,16 @@
   /* Utilities for the control-height token. Tailwind generates spacing utilities
      from --spacing-*, not from an arbitrary token, so these are written once here
      rather than repeated as h-[2.125rem] at forty call sites. */
-  .h-control { height: var(--height-control); }
-  .w-control { width: var(--height-control); }
-  .size-control { height: var(--height-control); width: var(--height-control); }
+  .h-control {
+    height: var(--height-control);
+  }
+  .w-control {
+    width: var(--height-control);
+  }
+  .size-control {
+    height: var(--height-control);
+    width: var(--height-control);
+  }
 
   /* One transition for every control. Colour and press want different durations,
      which no single Tailwind transition-* class can express, and `transition-all`
@@ -401,14 +415,23 @@
 /* A periodic sweep across the one revenue action. 9s cycle with ~24% travel, so
    it reads as an occasional glint rather than a loading shimmer, and it is the
    only decorative motion in the product. */
-.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
 .btn-shine::after {
   content: '';
   position: absolute;
   inset-block: -60%;
   left: -80%;
   width: 46%;
-  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.2), transparent);
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgb(255 255 255 / 0.2),
+    transparent
+  );
   pointer-events: none;
   /* translateX, not `left`. Animating `left` forces layout on every frame, which
      docs/DESIGN-LANGUAGE.md bans outright, and the two sibling keyframes in this
@@ -416,9 +439,15 @@
   animation: btn-sweep 9s ease-in-out infinite;
 }
 @keyframes btn-sweep {
-  0% { transform: translateX(0) skewX(-22deg); }
-  24% { transform: translateX(500%) skewX(-22deg); }
-  100% { transform: translateX(500%) skewX(-22deg); }
+  0% {
+    transform: translateX(0) skewX(-22deg);
+  }
+  24% {
+    transform: translateX(500%) skewX(-22deg);
+  }
+  100% {
+    transform: translateX(500%) skewX(-22deg);
+  }
 }
 
 .segmented-option {

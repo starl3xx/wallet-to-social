@@ -11,7 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, Warning as AlertTriangle } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  ArrowsClockwise as RefreshCw,
+  Warning as AlertTriangle,
+} from '@phosphor-icons/react';
 
 interface ApiStat {
   provider: string;
@@ -29,9 +33,13 @@ interface ApiError {
   createdAt: string;
 }
 
+/**
+ * What the pulse endpoint reports about the queue: one number, pending and
+ * processing added together (`lib/analytics.ts`, `getExecutivePulse`). It does
+ * not split them, so the split is not shown here as if it did.
+ */
 interface QueueStats {
-  pending: number;
-  processing: number;
+  depth: number;
 }
 
 interface SystemHealthProps {
@@ -41,7 +49,9 @@ interface SystemHealthProps {
 export function SystemHealth({ password }: SystemHealthProps) {
   const [apiStats, setApiStats] = useState<ApiStat[]>([]);
   const [errors, setErrors] = useState<ApiError[]>([]);
-  const [queue, setQueue] = useState<QueueStats>({ pending: 0, processing: 0 });
+  // Null until the pulse has answered. A zero here would read as a measured
+  // empty queue, which is the thing this card used to do.
+  const [queue, setQueue] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +84,13 @@ export function SystemHealth({ password }: SystemHealthProps) {
 
       setApiStats(statsData);
       setErrors(errorsData);
-      setQueue({ pending: 0, processing: 0 }); // Will be enhanced with queue endpoint
+      // The same payload the Pulse tile reads. It was fetched here and then
+      // discarded in favour of hard-coded zeros.
+      setQueue(
+        typeof pulseData?.queueDepth === 'number'
+          ? { depth: pulseData.queueDepth }
+          : null
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -86,9 +102,16 @@ export function SystemHealth({ password }: SystemHealthProps) {
     fetchData();
   }, [fetchData]);
 
-  const StatusIndicator = ({ status }: { status: 'green' | 'yellow' | 'red' }) => {
+  // `green` is `attested`: a low error rate is a measured fact about the
+  // provider, not something the reader can act on. DependencyHealth, directly
+  // above this on the same tab, already paints the same meaning green.
+  const StatusIndicator = ({
+    status,
+  }: {
+    status: 'green' | 'yellow' | 'red';
+  }) => {
     const icons = {
-      green: <span className="w-2 h-2 rounded-full bg-accent-brand" />,
+      green: <span className="w-2 h-2 rounded-full bg-attested" />,
       yellow: <span className="w-2 h-2 rounded-full bg-caution" />,
       red: <span className="w-2 h-2 rounded-full bg-destructive" />,
     };
@@ -125,12 +148,18 @@ export function SystemHealth({ password }: SystemHealthProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">System health</h2>
-        <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchData}
+          disabled={loading}
+        >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           )}
+          <span className="sr-only">Refresh</span>
         </Button>
       </div>
 
@@ -173,7 +202,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
                         <span
                           className={
                             stat.errorRate < 1
-                              ? 'text-accent-brand'
+                              ? 'text-attested'
                               : stat.errorRate < 5
                                 ? 'text-caution'
                                 : 'text-destructive'
@@ -205,18 +234,42 @@ export function SystemHealth({ password }: SystemHealthProps) {
           <CardTitle className="text-base">Queue health</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* The figure is the sum the endpoint gives, labelled as the sum.
+              The half it does not give says so in muted, the way
+              DependencyHealth reports a job it could not check, rather than
+              printing a zero an admin would read as measured. */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Pending jobs</div>
-              <div className="text-2xl font-bold">{queue.pending}</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                Queue depth
+              </div>
+              {queue ? (
+                <div className="text-2xl font-semibold tabular-nums">
+                  {queue.depth}
+                </div>
+              ) : (
+                <div
+                  className="text-sm text-muted-foreground"
+                  title="The pulse response did not include a queue depth, so this says nothing about the queue"
+                >
+                  could not check
+                </div>
+              )}
             </div>
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Processing</div>
-              <div className="text-2xl font-bold">{queue.processing}</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                Processing
+              </div>
+              <div
+                className="text-sm text-muted-foreground"
+                title="The pulse endpoint reports pending and processing as one sum, so how many are running right now is not known here"
+              >
+                could not check
+              </div>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-4">
-            Normal queue depth is &lt;10 pending jobs.
+            Queue depth is pending plus processing. Under 10 is normal.
           </p>
         </CardContent>
       </Card>
@@ -242,7 +295,9 @@ export function SystemHealth({ password }: SystemHealthProps) {
                   className="p-3 rounded-lg bg-destructive/5 border border-destructive/10"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium capitalize">{err.provider}</span>
+                    <span className="text-xs font-medium capitalize">
+                      {err.provider}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {new Date(err.createdAt).toLocaleString()}
                     </span>

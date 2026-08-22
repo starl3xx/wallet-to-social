@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  ArrowsClockwise as RefreshCw,
+} from '@phosphor-icons/react';
 import { Sparkline } from './Sparkline';
 
 interface DailyStat {
@@ -86,14 +89,20 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
 
       return acc;
     },
-    {} as Record<string, { lookups: number; users: number; newUsers: number; revenue: number }>
+    {} as Record<
+      string,
+      { lookups: number; users: number; newUsers: number; revenue: number }
+    >
   );
 
   const weeks = Object.entries(weeklyStats)
     .sort((a, b) => a[0].localeCompare(b[0]))
     .slice(-12);
 
-  const cumulativeUsers = dailyStats.reduce((sum, stat) => sum + stat.newUsers, 0);
+  const cumulativeUsers = dailyStats.reduce(
+    (sum, stat) => sum + stat.newUsers,
+    0
+  );
 
   if (loading && dailyStats.length === 0) {
     return (
@@ -119,12 +128,18 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Growth & retention</h2>
-        <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchData}
+          disabled={loading}
+        >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           )}
+          <span className="sr-only">Refresh</span>
         </Button>
       </div>
 
@@ -136,7 +151,9 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <div className="text-xs text-muted-foreground mb-1">New users/week</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                New users/week
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold">
                   {weeks.length > 0 ? weeks[weeks.length - 1][1].newUsers : 0}
@@ -150,11 +167,15 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Total users (30d)</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                Total users (30d)
+              </div>
               <div className="text-2xl font-bold">{cumulativeUsers}</div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Lookups/week</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                Lookups/week
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold">
                   {weeks.length > 0 ? weeks[weeks.length - 1][1].lookups : 0}
@@ -186,7 +207,9 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                       <td className="py-2">{week}</td>
                       <td className="text-right">{data.newUsers}</td>
                       <td className="text-right">{data.lookups}</td>
-                      <td className="text-right">${(data.revenue / 100).toFixed(0)}</td>
+                      <td className="text-right">
+                        ${(data.revenue / 100).toFixed(0)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -212,27 +235,34 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                 <thead>
                   <tr className="text-muted-foreground">
                     <th className="text-left py-2">Cohort</th>
-                    {Array.from({ length: Math.max(...retention.map((r) => r.retention.length)) }).map(
-                      (_, i) => (
-                        <th key={i} className="text-center py-2 px-2">
-                          W{i}
-                        </th>
-                      )
-                    )}
+                    {Array.from({
+                      length: Math.max(
+                        ...retention.map((r) => r.retention.length)
+                      ),
+                    }).map((_, i) => (
+                      <th key={i} className="text-center py-2 px-2">
+                        W{i}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {retention.map((cohort) => (
                     <tr key={cohort.cohortWeek} className="border-t">
-                      <td className="py-2 font-mono text-xs">{cohort.cohortWeek}</td>
+                      <td className="py-2 font-mono text-xs">
+                        {cohort.cohortWeek}
+                      </td>
                       {cohort.retention.map((rate, i) => (
                         <td
                           key={i}
                           className="text-center py-2 px-2"
+                          /* Retention is a measured fact about a cohort, so
+                             the heat is `attested`; a violet cell reads as
+                             something to click. */
                           style={{
                             backgroundColor:
                               rate > 0
-                                ? `color-mix(in oklch, var(--accent-brand) ${Math.min(rate / 100, 1) * 50}%, transparent)`
+                                ? `color-mix(in oklch, var(--attested) ${Math.min(rate / 100, 1) * 50}%, transparent)`
                                 : 'transparent',
                           }}
                         >
@@ -242,10 +272,14 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                       {/* Fill empty cells */}
                       {Array.from({
                         length:
-                          Math.max(...retention.map((r) => r.retention.length)) -
-                          cohort.retention.length,
+                          Math.max(
+                            ...retention.map((r) => r.retention.length)
+                          ) - cohort.retention.length,
                       }).map((_, i) => (
-                        <td key={`empty-${i}`} className="text-center py-2 px-2 text-muted-foreground">
+                        <td
+                          key={`empty-${i}`}
+                          className="text-center py-2 px-2 text-muted-foreground"
+                        >
                           -
                         </td>
                       ))}
@@ -256,7 +290,8 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
             </div>
           )}
           <p className="text-xs text-muted-foreground mt-4">
-            Each row shows what % of users from that cohort week returned in subsequent weeks.
+            Each row shows what % of users from that cohort week returned in
+            subsequent weeks.
           </p>
         </CardContent>
       </Card>

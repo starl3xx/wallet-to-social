@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Lock, WarningCircle } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, Lock, WarningCircle } from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
 import {
   REACHABILITY_LABEL,
@@ -148,6 +148,91 @@ type SortDirection = 'asc' | 'desc';
 
 const ROW_HEIGHT = 44; // Fixed row height for virtualization
 
+/**
+ * The header's height, fixed for the same reason the rows' is. The header
+ * scrolls inside the same container as the rows, stuck to its top, so the
+ * virtualiser has to be told how far down the list starts (`scrollMargin`),
+ * and that number has to be the one the header actually renders at. It is
+ * `--h-ctl`: every cell in it is a sort button, and a control in a row
+ * resolves to that height. A height derived from padding would drift the day
+ * the label size changed, and every row would land a few pixels off.
+ */
+const HEADER_HEIGHT = 34;
+
+/** The attestation gutter: one dot wide. Also the wallet column's sticky offset. */
+const GUTTER_WIDTH = 18;
+
+/**
+ * Row fills, opaque. They were `/30` tints over a transparent row, which is
+ * the same colour on the page, but the gutter and wallet cells now pin to the
+ * left edge and inherit the row's fill to mask the columns sliding beneath
+ * them. A translucent fill lets those columns show through the pinned cells,
+ * so each tint is composited on the page here instead. Hover is `hover:`, not
+ * a class toggled in JS, so touch devices never latch it.
+ */
+const ROW_FILL =
+  'bg-background hover:bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]';
+const ROW_FILL_ENRICHED =
+  'bg-[color-mix(in_oklab,var(--accent-brand-tint)_30%,var(--background))] hover:bg-accent-brand-tint dark:hover:bg-[color-mix(in_oklab,var(--accent-brand-tint)_50%,var(--background))]';
+
+/**
+ * A sortable column header. The cell carries the ARIA sort state, and a real
+ * button inside it carries the click: these were divs with `onClick`, which a
+ * mouse could use and nothing else could. No tab stop, no Enter or Space, no
+ * `aria-sort`. The button fills the cell so the whole header stays the target.
+ * Its focus ring is inset because the header sits flush against the frame's
+ * top edge, where an outer ring would be clipped by the scroller.
+ *
+ * `uppercase` is inherited from the header row, which is where `font-mono`
+ * sits too; the pair stays together there.
+ */
+function SortHeader({
+  field,
+  label,
+  title,
+  sortField,
+  sortDirection,
+  onSort,
+  className,
+  style,
+}: {
+  field: SortField;
+  label: string;
+  title?: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const isSorted = sortField === field;
+  const Arrow = sortDirection === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <div
+      role="columnheader"
+      aria-sort={
+        isSorted
+          ? sortDirection === 'asc'
+            ? 'ascending'
+            : 'descending'
+          : 'none'
+      }
+      className={className}
+      style={style}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        title={title}
+        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
+      >
+        {label}
+        {isSorted && <Arrow className="h-3 w-3" aria-hidden />}
+      </button>
+    </div>
+  );
+}
+
 export const ResultsTable = memo(function ResultsTable({
   results,
   extraColumns = [],
@@ -275,6 +360,9 @@ export const ResultsTable = memo(function ResultsTable({
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10, // Render 10 extra rows above/below viewport
+    // The header is in the scroll content, above the list, so row offsets
+    // start this far down. `start` includes it; the transform subtracts it.
+    scrollMargin: HEADER_HEIGHT,
   });
 
   const handleSort = useCallback((field: SortField) => {
@@ -296,16 +384,6 @@ export const ResultsTable = memo(function ResultsTable({
       return field;
     });
   }, []);
-
-  const SortIcon = useCallback(
-    ({ field }: { field: SortField }) => {
-      if (sortField !== field) return null;
-      return (
-        <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-      );
-    },
-    [sortField, sortDirection]
-  );
 
   const truncateWallet = (wallet: string) => {
     return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
@@ -383,12 +461,36 @@ export const ResultsTable = memo(function ResultsTable({
     }
   }, []);
 
-  // Calculate column count for grid
-  const baseColumns = 6; // wallet, ens, twitter, farcaster, fc_followers, priority
-  const columnCount =
-    baseColumns + (hasHoldings ? 1 : 0) + filteredExtraColumns.length;
+  /**
+   * Minimum track widths, in px, in column order. The grid template and the
+   * grid's own `min-width` both come from this list, so the grid can never be
+   * narrower than the tracks it declares. A grid narrower than its tracks
+   * overflows its box without widening it, which is how the phone view clipped
+   * four columns behind an `overflow-hidden` frame and offered no scrollbar.
+   * With a real width the frame gets a real `scrollWidth` instead.
+   */
+  const { gridTemplate, gridMinWidth, columnCount } = useMemo(() => {
+    const tracks = [
+      GUTTER_WIDTH, // attestation gutter
+      120, // wallet
+      100, // ENS
+      ...(hasHoldings ? [100] : []),
+      ...filteredExtraColumns.map(() => 80),
+      120, // Twitter
+      120, // Farcaster
+      100, // FC followers
+      140, // priority
+    ];
+    return {
+      gridTemplate: tracks
+        .map((min, i) => (i === 0 ? `${min}px` : `minmax(${min}px, 1fr)`))
+        .join(' '),
+      gridMinWidth: tracks.reduce((sum, min) => sum + min, 0),
+      columnCount: tracks.length,
+    };
+  }, [hasHoldings, filteredExtraColumns]);
 
-  const gridTemplate = `18px minmax(120px, 1fr) minmax(100px, 1fr) ${hasHoldings ? 'minmax(100px, 1fr) ' : ''}${filteredExtraColumns.map(() => 'minmax(80px, 1fr) ').join('')}minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(140px, 1fr)`;
+  const isEmpty = filteredAndSorted.length === 0;
 
   return (
     <div className="space-y-4">
@@ -436,82 +538,124 @@ export const ResultsTable = memo(function ResultsTable({
           field holds pipeline stage markers like 'graph' and 'cache' on the
           forward path, so deriving provenance from it reported owner-attested
           identities as unattested. */}
-      <div className="border rounded-lg overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-border">
+
+      {/* One scroll container, both axes. This is the product's one genuine
+          data table, which is the only place the design language allows a
+          sideways scroll: its rows are virtualised at a fixed height, so a
+          stacked reflow would need variable heights and a second table, and
+          the reflowed form of this data already exists as the CSV.
+
+          The header lives inside the scroller, stuck to its top, so it pans
+          with the rows: a header outside the scroller keeps its columns
+          where they were while the rows move under it. The virtualiser
+          measures this element, so it has to be the one that scrolls
+          vertically. Its height caps at the header plus 600px of rows. */}
+      <div
+        ref={parentRef}
+        className="overflow-auto rounded-lg border border-border"
+        style={{ maxHeight: HEADER_HEIGHT + 600 }}
+      >
+        <div
+          role="table"
+          aria-rowcount={filteredAndSorted.length + 1}
+          aria-colcount={columnCount}
+          style={{ minWidth: gridMinWidth }}
+        >
+          {/* Header */}
           <div
-            className="grid font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground"
+            role="row"
+            aria-rowindex={1}
+            className="sticky top-0 z-20 grid border-b border-border bg-background font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground"
             style={{
               gridTemplateColumns: gridTemplate,
+              height: HEADER_HEIGHT,
             }}
           >
-            {/* Attestation gutter. Empty in the header: the column is a legend
-                for the rows, and a label here would crowd 18px. */}
-            <div aria-hidden="true" />
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('wallet')}
-            >
-              Wallet <SortIcon field="wallet" />
+            {/* Attestation gutter. Empty on screen: the column is a legend for
+                the rows, and a label here would crowd 18px. A screen reader
+                still needs the column named, so the name is visually hidden.
+                Pinned to the left edge with the wallet beside it, so a row
+                keeps its identity while the identities scroll. */}
+            <div role="columnheader" className="sticky left-0 z-10 bg-inherit">
+              <span className="sr-only">Attested</span>
             </div>
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('ens_name')}
-            >
-              ENS <SortIcon field="ens_name" />
-            </div>
+            <SortHeader
+              field="wallet"
+              label="Wallet"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              className="sticky z-10 bg-inherit"
+              style={{ left: GUTTER_WIDTH }}
+            />
+            <SortHeader
+              field="ens_name"
+              label="ENS"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
             {hasHoldings && (
-              <div
-                className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-                onClick={() => handleSort('holdings')}
-              >
-                {holdingsLabel} <SortIcon field="holdings" />
-              </div>
+              <SortHeader
+                field="holdings"
+                label={holdingsLabel}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
             )}
             {filteredExtraColumns.map((col) => (
-              <div key={col} className="px-4 py-3">
-                {col}
+              <div
+                key={col}
+                role="columnheader"
+                className="flex items-center px-4"
+              >
+                {/* A CSV header is customer data with no length bound, and
+                    this row has a fixed height it must not change. */}
+                <span className="truncate">{col}</span>
               </div>
             ))}
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('twitter_handle')}
-            >
-              Twitter <SortIcon field="twitter_handle" />
-            </div>
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('farcaster')}
-            >
-              Farcaster <SortIcon field="farcaster" />
-            </div>
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('fc_followers')}
-            >
-              FC Followers <SortIcon field="fc_followers" />
-            </div>
-            <div
-              className="transition-control cursor-pointer px-4 py-3 hover:text-foreground"
-              onClick={() => handleSort('priority_score')}
+            <SortHeader
+              field="twitter_handle"
+              label="Twitter"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
+            <SortHeader
+              field="farcaster"
+              label="Farcaster"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
+            <SortHeader
+              field="fc_followers"
+              label="FC Followers"
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
+            <SortHeader
+              field="priority_score"
+              label="Priority"
               title="Based on holdings × follower reach"
-            >
-              Priority <SortIcon field="priority_score" />
-            </div>
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
           </div>
-        </div>
 
-        {/* Virtualized body */}
-        <div
-          ref={parentRef}
-          className="overflow-auto"
-          style={{
-            height: Math.min(filteredAndSorted.length * ROW_HEIGHT, 600),
-          }}
-        >
-          {filteredAndSorted.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              No results found
+          {/* Virtualized body */}
+          {isEmpty ? (
+            <div role="row" aria-rowindex={2}>
+              <div
+                role="cell"
+                aria-colspan={columnCount}
+                className="py-8 text-center text-muted-foreground"
+              >
+                No results found
+              </div>
             </div>
           ) : (
             <div
@@ -529,14 +673,19 @@ export const ResultsTable = memo(function ResultsTable({
                 return (
                   <div
                     key={result.wallet}
-                    className={`absolute top-0 left-0 w-full grid items-center border-b border-border transition-colors ${
-                      isEnriched
-                        ? 'bg-accent-brand-tint/30 hover:bg-accent-brand-tint dark:hover:bg-accent-brand-tint/50'
-                        : 'hover:bg-muted/30'
+                    role="row"
+                    aria-rowindex={virtualRow.index + 2}
+                    /* `transition-[background-color]`, not `transition-control`:
+                       that utility also transitions `transform`, and a virtualised
+                       row is positioned by one, so a re-sort would slide every row
+                       to its new place. Background colour is the only thing a
+                       virtualised row may animate. */
+                    className={`absolute top-0 left-0 grid w-full items-center border-b border-border transition-[background-color] ${
+                      isEnriched ? ROW_FILL_ENRICHED : ROW_FILL
                     }`}
                     style={{
                       height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
+                      transform: `translateY(${virtualRow.start - HEADER_HEIGHT}px)`,
                       gridTemplateColumns: gridTemplate,
                     }}
                   >
@@ -551,7 +700,14 @@ export const ResultsTable = memo(function ResultsTable({
                         row height and drifted at any other, because every other
                         cell is centred by the row's own `items-center` while
                         this one measured from the top edge. */}
-                    <div className="flex items-center justify-center">
+                    {/* The gutter and the wallet are sticky on the left, and
+                        `self-stretch` so their inherited fill covers the whole
+                        row height: a cell sized to its content would mask only
+                        an 8px strip of the columns sliding beneath it. */}
+                    <div
+                      role="cell"
+                      className="sticky left-0 z-10 flex items-center justify-center self-stretch bg-inherit"
+                    >
                       {(() => {
                         const state = attestationOf(result);
                         if (state === 'attested') {
@@ -575,7 +731,11 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Wallet */}
-                    <div className="px-4 py-2 font-mono text-xs">
+                    <div
+                      role="cell"
+                      className="sticky z-10 flex items-center self-stretch bg-inherit px-4 font-mono text-xs"
+                      style={{ left: GUTTER_WIDTH }}
+                    >
                       <div className="flex items-center gap-2">
                         <button
                           className="relative hover:text-accent-brand cursor-pointer transition-colors"
@@ -622,26 +782,36 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* ENS */}
-                    <div className="px-4 py-2 font-mono text-xs truncate">
+                    <div
+                      role="cell"
+                      className="px-4 py-2 font-mono text-xs truncate"
+                    >
                       {result.ens_name || '-'}
                     </div>
 
                     {/* Holdings */}
                     {hasHoldings && (
-                      <div className="px-4 py-2 font-mono text-xs tabular-nums">
+                      <div
+                        role="cell"
+                        className="px-4 py-2 font-mono text-xs tabular-nums"
+                      >
                         {formatHoldings(result.holdings)}
                       </div>
                     )}
 
                     {/* Extra columns */}
                     {filteredExtraColumns.map((col) => (
-                      <div key={col} className="px-4 py-2 text-sm truncate">
+                      <div
+                        key={col}
+                        role="cell"
+                        className="px-4 py-2 text-sm truncate"
+                      >
                         {(result[col] as string) || '-'}
                       </div>
                     ))}
 
                     {/* Twitter */}
-                    <div className="px-4 py-2 font-mono text-xs">
+                    <div role="cell" className="px-4 py-2 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
                       ) : (
@@ -650,7 +820,7 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Farcaster */}
-                    <div className="px-4 py-2 font-mono text-xs">
+                    <div role="cell" className="px-4 py-2 font-mono text-xs">
                       {result.farcaster ? (
                         <a
                           href={
@@ -673,7 +843,7 @@ export const ResultsTable = memo(function ResultsTable({
                         compare down a column, not an identifier to read. Söhne's
                         tnum substitutes .lt glyphs at a uniform 608 units, so the
                         digits align without changing face. */}
-                    <div className="px-4 py-2 text-sm tabular-nums">
+                    <div role="cell" className="px-4 py-2 text-sm tabular-nums">
                       {isPaidTier ? (
                         result.fc_followers !== undefined ? (
                           result.fc_followers.toLocaleString()
@@ -693,7 +863,7 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Priority */}
-                    <div className="px-4 py-2 text-sm">
+                    <div role="cell" className="px-4 py-2 text-sm">
                       {isPaidTier ? (
                         <PriorityIndicator score={result.priority_score} />
                       ) : (

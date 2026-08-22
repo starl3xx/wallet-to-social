@@ -4,7 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardActivator, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkline } from './Sparkline';
-import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, TrendUp as TrendingUp, TrendDown as TrendingDown, Minus, MagnifyingGlass as Search, CurrencyDollar as DollarSign, WarningCircle as AlertCircle, Stack as Layers, Users, ChartBar as BarChart3 } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  ArrowsClockwise as RefreshCw,
+  TrendUp as TrendingUp,
+  TrendDown as TrendingDown,
+  Minus,
+  MagnifyingGlass as Search,
+  CurrencyDollar as DollarSign,
+  WarningCircle as AlertCircle,
+  Stack as Layers,
+  Users,
+  ChartBar as BarChart3,
+} from '@phosphor-icons/react';
 
 interface PulseData {
   lookupsToday: number;
@@ -24,7 +36,10 @@ interface ExecutivePulseProps {
   onMetricClick?: (metric: string) => void;
 }
 
-export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps) {
+export function ExecutivePulse({
+  password,
+  onMetricClick,
+}: ExecutivePulseProps) {
   const [data, setData] = useState<PulseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,25 +70,37 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
     fetchPulse();
   }, [fetchPulse]);
 
+  // A trend is a measured outcome, so it is green or amber, never violet: violet
+  // marks something you can act on, and a number that went up is not that. Down
+  // is caution rather than destructive, which is reserved for failed jobs and
+  // for revoking and deleting.
   const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'flat' }) => {
     switch (trend) {
       case 'up':
-        return <TrendingUp className="h-4 w-4 text-accent-brand" />;
+        return <TrendingUp className="h-4 w-4 text-attested" />;
       case 'down':
-        return <TrendingDown className="h-4 w-4 text-destructive" />;
+        return <TrendingDown className="h-4 w-4 text-caution" />;
       default:
         return <Minus className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
-  const StatusIndicator = ({ status }: { status: 'green' | 'yellow' | 'red' }) => {
+  // The key is literally `green`, so the dot is `attested`: the API measured a
+  // low error rate and is stating it as a fact.
+  const StatusIndicator = ({
+    status,
+  }: {
+    status: 'green' | 'yellow' | 'red';
+  }) => {
     const colors = {
-      green: 'bg-accent-brand',
+      green: 'bg-attested',
       yellow: 'bg-caution',
       red: 'bg-destructive',
     };
     return (
-      <span className={`inline-block w-2 h-2 rounded-full ${colors[status]} mr-1`} />
+      <span
+        className={`inline-block w-2 h-2 rounded-full ${colors[status]} mr-1`}
+      />
     );
   };
 
@@ -103,12 +130,18 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Executive pulse</h2>
-        <Button variant="ghost" size="sm" onClick={fetchPulse} disabled={loading}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchPulse}
+          disabled={loading}
+        >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           )}
+          <span className="sr-only">Refresh</span>
         </Button>
       </div>
 
@@ -172,7 +205,9 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
               <span>Conversion rate</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{data.conversionRate.toFixed(1)}%</span>
+              <span className="text-2xl font-bold">
+                {data.conversionRate.toFixed(1)}%
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -191,10 +226,14 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
               <span>Revenue (MTD)</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">${data.revenueMTD.toLocaleString()}</span>
+              <span className="text-2xl font-bold">
+                ${data.revenueMTD.toLocaleString()}
+              </span>
               <span
                 className={`text-xs ${
-                  data.revenueVsLastMonth >= 0 ? 'text-accent-brand' : 'text-destructive'
+                  data.revenueVsLastMonth >= 0
+                    ? 'text-attested'
+                    : 'text-caution'
                 }`}
               >
                 {data.revenueVsLastMonth >= 0 ? '+' : ''}
@@ -241,16 +280,20 @@ export function ExecutivePulse({ password, onMetricClick }: ExecutivePulseProps)
             </div>
             <div className="flex items-center justify-between">
               <span className="text-2xl font-bold">{data.queueDepth}</span>
+              {/* Two tiers, matching the two labels that differ. There was a
+                  destructive tier at > 50, tested after > 10 and so never
+                  reached; it is gone rather than reordered, because a backlog
+                  is a metric and destructive is for revoking and deleting. */}
               <span
                 className={`text-xs ${
-                  data.queueDepth > 10
-                    ? 'text-caution'
-                    : data.queueDepth > 50
-                      ? 'text-destructive'
-                      : 'text-accent-brand'
+                  data.queueDepth > 10 ? 'text-caution' : 'text-attested'
                 }`}
               >
-                {data.queueDepth === 0 ? 'idle' : data.queueDepth <= 10 ? 'normal' : 'busy'}
+                {data.queueDepth === 0
+                  ? 'idle'
+                  : data.queueDepth <= 10
+                    ? 'normal'
+                    : 'busy'}
               </span>
             </div>
           </CardContent>

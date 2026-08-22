@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/ui/modal';
+import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { AdminNav, type AdminTab } from '@/components/admin/AdminNav';
 import { HandleConflicts } from '@/components/admin/HandleConflicts';
 import {
@@ -29,7 +38,6 @@ import {
   XCircle,
   MagnifyingGlass as Search,
   ArrowCounterClockwise as RotateCcw,
-  X,
   ArrowSquareOut as ExternalLink,
 } from '@phosphor-icons/react';
 import {
@@ -49,6 +57,23 @@ import {
 // The union lives with the nav that renders it, so a new destination cannot be
 // added to one and forgotten in the other.
 type Tab = AdminTab;
+
+/**
+ * The users tab filter. Four states, so it is a segmented control that shows
+ * them all rather than a select that hides three. The empty string is "all",
+ * kept as the value the API already treats as no filter.
+ *
+ * Module scope, not inline: `Segmented` keeps the thumb position in arithmetic
+ * over this array, and rebuilding it every render gives the memoised children a
+ * new identity for no reason.
+ */
+type TierFilter = '' | 'free' | 'pro' | 'unlimited';
+const TIERS: SegmentedOption<TierFilter>[] = [
+  { value: '', label: 'All tiers', content: 'All' },
+  { value: 'free', label: 'Free', content: 'Free' },
+  { value: 'pro', label: 'Pro', content: 'Pro' },
+  { value: 'unlimited', label: 'Unlimited', content: 'Unlimited' },
+];
 
 // Interfaces
 interface WhitelistEntry {
@@ -189,7 +214,7 @@ export default function AdminPage() {
   // Users state
   const [usersList, setUsersList] = useState<UserEntry[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [tierFilter, setTierFilter] = useState<string>('');
+  const [tierFilter, setTierFilter] = useState<TierFilter>('');
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
   // Check for stored password on mount
@@ -484,21 +509,20 @@ export default function AdminPage() {
     }
   };
 
-  // Status badge helper
+  // Status badge helper. A completed job is a measured outcome, so it is
+  // green: violet is for things you can act on, and a finished job is not one
+  // of them. `Badge` has no destructive tone because a badge states a fact
+  // rather than threatening one, so a failed job overrides the tint inline.
   const StatusBadge = ({ status }: { status: string }) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-muted text-muted-foreground',
-      processing: 'bg-accent-brand-tint text-accent-brand',
-      completed: 'bg-accent-brand-tint text-accent-brand',
-      failed: 'bg-destructive/10 text-destructive',
+    if (status === 'failed') {
+      return <Badge tone="destructive">{status}</Badge>;
+    }
+    const tones: Record<string, 'muted' | 'brand' | 'attested'> = {
+      pending: 'muted',
+      processing: 'brand',
+      completed: 'attested',
     };
-    return (
-      <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || colors.pending}`}
-      >
-        {status}
-      </span>
-    );
+    return <Badge tone={tones[status] || 'muted'}>{status}</Badge>;
   };
 
   // Tier badge helper
@@ -557,7 +581,7 @@ export default function AdminPage() {
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full">
-                Login
+                Sign in
               </Button>
             </form>
           </CardContent>
@@ -722,11 +746,18 @@ export default function AdminPage() {
                           size="icon-sm"
                           onClick={() => handleDelete(entry.id)}
                           disabled={deletingId === entry.id}
+                          aria-label="Remove from whitelist"
                         >
                           {deletingId === entry.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden
+                            />
                           ) : (
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2
+                              className="h-4 w-4 text-destructive"
+                              aria-hidden
+                            />
                           )}
                         </Button>
                       </TableCell>
@@ -747,15 +778,20 @@ export default function AdminPage() {
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle>Jobs ({jobs.length})</CardTitle>
           <div className="flex items-center gap-2">
+            {/* Five states, one past what a segmented control shows, so it
+                stays a select. `h-control` so it agrees with the button beside
+                it, and `border-input` because a control's edge has to clear
+                3:1; the bare `border` it had was the decorative card hairline. */}
             <select
-              className="px-3 py-1.5 text-sm border rounded-lg bg-background"
+              className="h-control rounded-lg border border-input bg-background px-3 text-sm"
+              aria-label="Filter by status"
               value={jobStatusFilter}
               onChange={(e) => {
                 setJobStatusFilter(e.target.value);
                 setJobs([]); // Clear to trigger refetch
               }}
             >
-              <option value="">All Status</option>
+              <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="processing">Processing</option>
               <option value="completed">Completed</option>
@@ -768,10 +804,11 @@ export default function AdminPage() {
               disabled={jobsLoading}
             >
               {jobsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-4 w-4" aria-hidden />
               )}
+              <span className="sr-only">Refresh</span>
             </Button>
           </div>
         </CardHeader>
@@ -959,111 +996,110 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
-      {/* Job Results Modal */}
-      {viewingJobId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-5xl max-h-[80vh] flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between border-b">
-              <div>
-                <CardTitle>Job results</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Job ID: {viewingJobId.slice(0, 8)}... •{' '}
-                  {jobResults?.length || 0} results
-                </p>
-              </div>
-              <Button variant="ghost" size="icon-sm" onClick={closeJobResults}>
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-0">
-              {jobResultsLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : !jobResults || jobResults.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No results found
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background">
-                    <TableRow>
-                      <TableHead>Wallet</TableHead>
-                      <TableHead>ENS</TableHead>
-                      <TableHead>Twitter</TableHead>
-                      <TableHead>Farcaster</TableHead>
-                      <TableHead>FC Followers</TableHead>
-                      <TableHead>Sources</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {jobResults.map((result, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-mono text-xs">
-                          {result.wallet.slice(0, 6)}...
-                          {result.wallet.slice(-4)}
-                        </TableCell>
-                        <TableCell>{result.ens_name || '-'}</TableCell>
-                        <TableCell>
-                          {result.twitter_handle ? (
-                            <a
-                              href={
-                                result.twitter_url ||
-                                `https://x.com/${result.twitter_handle}`
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-accent-brand hover:underline flex items-center gap-1"
-                            >
-                              @{result.twitter_handle}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {result.farcaster ? (
-                            <a
-                              href={
-                                result.farcaster_url ||
-                                `https://warpcast.com/${result.farcaster}`
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-accent-brand hover:underline flex items-center gap-1"
-                            >
-                              @{result.farcaster}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {result.fc_followers?.toLocaleString() || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {result.source?.map((s) => (
-                              <span
-                                key={s}
-                                className="px-1.5 py-0.5 text-xs rounded-sm bg-muted"
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Job results dialog. Radix owns the behaviour: overlay, focus trap,
+          focus restore, Escape, the labelled close, and the 100dvh bound with
+          a body that scrolls. This was a `fixed inset-0` div around a Card,
+          which had none of that, and an unnamed X to close it. */}
+      <Modal
+        open={!!viewingJobId}
+        onOpenChange={(open) => {
+          if (!open) closeJobResults();
+        }}
+      >
+        <ModalContent className="max-w-5xl">
+          <ModalHeader>
+            <ModalTitle>Job results</ModalTitle>
+            <ModalDescription>
+              Job {viewingJobId?.slice(0, 8)}… · {jobResults?.length || 0}{' '}
+              results
+            </ModalDescription>
+          </ModalHeader>
+          {jobResultsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : !jobResults || jobResults.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No results found
+            </p>
+          ) : (
+            <Table>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow>
+                  <TableHead>Wallet</TableHead>
+                  <TableHead>ENS</TableHead>
+                  <TableHead>X</TableHead>
+                  <TableHead>Farcaster</TableHead>
+                  <TableHead>Farcaster followers</TableHead>
+                  <TableHead>Sources</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobResults.map((result, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-mono text-xs">
+                      {result.wallet.slice(0, 6)}...
+                      {result.wallet.slice(-4)}
+                    </TableCell>
+                    <TableCell>{result.ens_name || '-'}</TableCell>
+                    <TableCell>
+                      {result.twitter_handle ? (
+                        <a
+                          href={
+                            result.twitter_url ||
+                            `https://x.com/${result.twitter_handle}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent-brand hover:underline flex items-center gap-1"
+                        >
+                          @{result.twitter_handle}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {result.farcaster ? (
+                        <a
+                          href={
+                            result.farcaster_url ||
+                            `https://warpcast.com/${result.farcaster}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent-brand hover:underline flex items-center gap-1"
+                        >
+                          @{result.farcaster}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {result.fc_followers?.toLocaleString() || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 flex-wrap">
+                        {result.source?.map((s) => (
+                          <span
+                            key={s}
+                            className="px-1.5 py-0.5 text-xs rounded-sm bg-muted"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 
@@ -1096,10 +1132,11 @@ export default function AdminPage() {
             disabled={historyLoading}
           >
             {historyLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" aria-hidden />
             )}
+            <span className="sr-only">Refresh</span>
           </Button>
         </div>
       </CardHeader>
@@ -1175,11 +1212,18 @@ export default function AdminPage() {
                         size="icon-sm"
                         onClick={() => handleDeleteHistory(entry.id)}
                         disabled={deletingHistoryId === entry.id}
+                        aria-label="Delete lookup"
                       >
                         {deletingHistoryId === entry.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden
+                          />
                         ) : (
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <Trash2
+                            className="h-4 w-4 text-destructive"
+                            aria-hidden
+                          />
                         )}
                       </Button>
                     </TableCell>
@@ -1198,19 +1242,15 @@ export default function AdminPage() {
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle>Users ({usersList.length})</CardTitle>
         <div className="flex items-center gap-2">
-          <select
-            className="px-3 py-1.5 text-sm border rounded-lg bg-background"
+          <Segmented
+            ariaLabel="Tier"
+            options={TIERS}
             value={tierFilter}
-            onChange={(e) => {
-              setTierFilter(e.target.value);
+            onChange={(tier) => {
+              setTierFilter(tier);
               setUsersList([]); // Clear to trigger refetch
             }}
-          >
-            <option value="">All Tiers</option>
-            <option value="free">Free</option>
-            <option value="pro">Pro</option>
-            <option value="unlimited">Unlimited</option>
-          </select>
+          />
           <Button
             variant="outline"
             size="sm"
@@ -1218,10 +1258,11 @@ export default function AdminPage() {
             disabled={usersLoading}
           >
             {usersLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" aria-hidden />
             )}
+            <span className="sr-only">Refresh</span>
           </Button>
         </div>
       </CardHeader>
@@ -1310,8 +1351,15 @@ export default function AdminPage() {
                           credits only
                         </span>
                       ) : (
+                        /* A control, so it takes the control height and the
+                           control edge rather than a chip radius and the
+                           decorative hairline. At 34px inside a p-2 cell it
+                           opens the two legacy rows to 50px; that is the
+                           price of a select that can be seen and hit, and
+                           there are only two such rows. */
                         <select
-                          className="px-2 py-1 text-xs border rounded-sm bg-background"
+                          className="h-control rounded-lg border border-input bg-background px-3 text-sm"
+                          aria-label="Change tier"
                           value={user.tier}
                           onChange={(e) =>
                             handleUpdateTier(user.id, e.target.value)
