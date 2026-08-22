@@ -9,8 +9,8 @@ Content lives in **`docs-site/`**, not in this folder.
 | Mintlify project             | exists (`walletlink`)                                           |
 | `docs.walletlink.social` DNS | **done**, verified resolving                                    |
 | Mintlify MCP servers         | **done**, in `.mcp.json`                                        |
-| Docs content                 | **first cut written**, in `docs-site/`                          |
-| Mintlify GitHub sync         | **not connected** — points at nothing until set to `docs-site/` |
+| Docs content                 | **live and maintained**, in `docs-site/`                        |
+| Mintlify GitHub sync         | **connected**, content root `docs-site/`; a merge to `main` publishes (verified current 2026-08-22) |
 | Freshness enforcement        | **done** — PR template + `.github/workflows/docs-freshness.yml` |
 
 ## `docs-site/` vs `docs/`

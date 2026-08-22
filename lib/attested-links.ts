@@ -237,10 +237,16 @@ export async function recordConflicts(
 /**
  * Write the links, obeying every rule in this module's header.
  *
- * The three `CASE` expressions all test the same thing, and they have to: the
+ * The `CASE` expressions all test the same thing, and they have to: the
  * handle, the account id and the source label must agree about whether this
  * source is describing the account we already hold. Any one of them written
  * unconditionally reintroduces the bug this module exists to prevent.
+ *
+ * They also share the renamed_from guard. The stored handle is NULL exactly
+ * on rows that were cleared, and an attested link can go on carrying the dead
+ * string the conflict resolver already replaced. A refused fill writes
+ * nothing: no handle, no user id, no source label, no quality bump, no
+ * timestamp.
  */
 export async function upsertLinks(
   links: AttestedLink[],
@@ -272,21 +278,34 @@ export async function upsertLinks(
       .onConflictDoUpdate({
         target: socialGraph.wallet,
         set: {
-          twitterHandle: sql`COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle)`,
-          twitterUrl: sql`COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url)`,
+          twitterHandle: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+            THEN social_graph.twitter_handle
+            ELSE COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle)
+          END`,
+          twitterUrl: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+            THEN social_graph.twitter_url
+            ELSE COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url)
+          END`,
           twitterUserId: sql`CASE
-            WHEN social_graph.twitter_handle IS NULL
+            WHEN (social_graph.twitter_handle IS NULL
+                AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from))
               OR lower(social_graph.twitter_handle) = lower(EXCLUDED.twitter_handle)
             THEN COALESCE(EXCLUDED.twitter_user_id, social_graph.twitter_user_id)
             ELSE social_graph.twitter_user_id
           END`,
           twitterVerified: sql`CASE
             WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
+              AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
             THEN true ELSE social_graph.twitter_verified
           END`,
           sources: sql`CASE
             WHEN social_graph.twitter_handle IS NOT NULL
               AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
+            THEN social_graph.sources
+            WHEN social_graph.twitter_handle IS NULL
+              AND lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
             THEN social_graph.sources
             WHEN ${source.id} = ANY(COALESCE(social_graph.sources, ARRAY[]::text[]))
             THEN social_graph.sources
@@ -296,10 +315,14 @@ export async function upsertLinks(
             WHEN social_graph.twitter_handle IS NOT NULL
               AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
             THEN social_graph.data_quality_score
+            WHEN social_graph.twitter_handle IS NULL
+              AND lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+            THEN social_graph.data_quality_score
             ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), ${source.quality})
           END`,
           lastUpdatedAt: sql`CASE
             WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
+              AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
             THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at
           END`,
         },

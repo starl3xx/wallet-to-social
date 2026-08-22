@@ -470,9 +470,14 @@ every other call, one per wallet returned.
   as a `twitter_also` CSV column and included in the X list by
   `components/ExportButton.tsx`. Read by `alsoOnXForWallets` in
   `lib/handle-reachability.ts`, one query per batch.
-- **Open:** the monthly full Farcaster sweep and the live lookup path both prefer an
-  incoming handle and would write the old string back; they should refuse an incoming
-  handle equal to `twitter_renamed_from`.
+- **Done (2026-08-22):** every social_graph writer that carries an incoming X
+  handle refuses one equal to `twitter_renamed_from`. The sweep and the live
+  lookup upsert shipped with the guard (PRs #135/#136). The fill-if-empty
+  ingests (`lib/ens-harvest.ts`, `lib/attested-links.ts`) gained it in the
+  follow-up: their stored handle is NULL exactly on rows that were cleared, so
+  an ENS text record or an attested link that still carries the dead string
+  could refill it. A refused fill writes nothing, including no source label,
+  no quality bump and no timestamp.
 
 ## Recent Changes (2026-08-21)
 
