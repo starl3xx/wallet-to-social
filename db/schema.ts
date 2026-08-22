@@ -217,8 +217,36 @@ export const users = pgTable(
     paidAt: timestamp('paid_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     walletsUsed: integer('wallets_used').default(0).notNull(), // lifetime wallets processed; gates nothing, kept as a usage record
+    /**
+     * Lifecycle mail opt-out, set by the unsubscribe endpoint. Honored by
+     * every lifecycle send; transactional mail (magic links, purchase
+     * sign-in) ignores it, because that mail is the account working.
+     */
+    emailOptOut: boolean('email_opt_out').default(false).notNull(),
   },
   (table) => [index('users_email_idx').on(table.email)]
+);
+
+/**
+ * One row per lifecycle email actually sent, so a send is at-most-once.
+ *
+ * `emailKey` names the email ('relaunch-trial-2026-08', 'welcome-1', ...).
+ * The unique pair is the idempotency guard: a re-run campaign script or a
+ * cron that catches up after a missed day cannot double-send.
+ */
+export const lifecycleEmails = pgTable(
+  'lifecycle_emails',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    emailKey: text('email_key').notNull(),
+    sentAt: timestamp('sent_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('lifecycle_emails_user_key_idx').on(table.userId, table.emailKey),
+  ]
 );
 
 /**

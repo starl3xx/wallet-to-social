@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (lifecycle email pipeline and the relaunch Trial-grant campaign)
+
+- **Lifecycle mail exists as a category, separate from transactional.**
+  `sendLifecycleEmail` in `lib/email.ts` sends with List-Unsubscribe and
+  one-click headers, replies to help@walletlink.social, and refuses to send
+  without `EMAIL_UNSUBSCRIBE_SECRET` (a send with no working unsubscribe is
+  not a degraded send, it is one we must not make). Magic-link and purchase
+  mail are unchanged and ignore the opt-out.
+- **Schema: `users.email_opt_out` and the `lifecycle_emails` send ledger**
+  (unique on user and email key, so every lifecycle send is at-most-once).
+  Migration is `scripts/migrate-email-lifecycle.ts`; **run it before this
+  deploys** (drizzle selects declared columns, the twitter_renamed_from
+  lesson), then `scripts/migrate-grant-readonly.ts` for the CI role.
+- **`/api/email/unsubscribe`**: stateless HMAC verification, GET for the
+  footer link, POST for RFC 8058 one-click. Sets the flag and never reveals
+  whether an address has an account.
+- **`scripts/relaunch-trial-grant.ts`**: grants the Trial pack ($0 lot,
+  synthetic payment id, noted) to every account that never bought and sends
+  the campaign email. Dry-run default, `--to` preview, `--send` to execute,
+  idempotent at both steps. Nothing has been sent.
+- Funnel figures that motivated this (measured 2026-08-22): 102 accounts, 93
+  from 2026-01, 11 ever ran a lookup, 0 ever bought, 2 signed in within 30
+  days. Activation is the failure point, so the campaign gives the dormant
+  list a concrete reason to return.
+
 ### 2026-08-22 (free-to-paid: gate analytics, checkout prefill, email sequence drafts)
 
 - **The buy-credits modal logs which gate opened it.** `useUpgradeModal().open`

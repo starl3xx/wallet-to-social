@@ -453,6 +453,17 @@ every other call, one per wallet returned.
 
 ## Recent Changes (2026-08-22)
 
+- **Lifecycle email pipeline.** `users.email_opt_out` plus the
+  `lifecycle_emails` send ledger (unique on user and email key), the
+  stateless-HMAC `/api/email/unsubscribe` endpoint (GET and RFC 8058
+  one-click POST), and `sendLifecycleEmail` in `lib/email.ts`
+  (List-Unsubscribe headers, reply-to help@, refuses without
+  `EMAIL_UNSUBSCRIBE_SECRET`). Migration:
+  `scripts/migrate-email-lifecycle.ts`, run BEFORE deploy, then
+  `scripts/migrate-grant-readonly.ts`. The relaunch campaign
+  (`scripts/relaunch-trial-grant.ts`) grants the Trial pack to every
+  never-bought account and emails them; dry-run default, nothing sent yet.
+  Drafts and run order: `docs/EMAIL-SEQUENCE.md`.
 - **Handle conflicts, bucket 1, resolve automatically.** `lib/conflict-resolution.ts`
   accepts the attested source's handle where ours is `not_found` or `unavailable` and
   theirs is live, both on checks no older than 7 days, and any supplied id matches. New
