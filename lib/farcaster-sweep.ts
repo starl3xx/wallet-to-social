@@ -291,9 +291,15 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           // Gaining or changing an attested X handle is an identity change too.
           // Guarded on EXCLUDED being non-null: when Neynar reports no X we may
           // deliberately keep another source's handle, and that is not a change.
+          // A refused rename (EXCLUDED equals twitter_renamed_from, handled
+          // above) is not a change either: nothing served moved, and bumping
+          // the timestamp would raise a false "new matches" badge on every
+          // resolved wallet at every full sweep.
           lastUpdatedAt: sql`CASE WHEN ${socialGraph.farcaster} IS DISTINCT FROM EXCLUDED.farcaster
               OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid
-              OR (EXCLUDED.twitter_handle IS NOT NULL AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
+              OR (EXCLUDED.twitter_handle IS NOT NULL
+                  AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(${socialGraph.twitterRenamedFrom})
+                  AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
             THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
         },
       });
