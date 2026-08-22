@@ -365,13 +365,38 @@ async function upsertHarvestedRecords(records: ResolvedRecord[]): Promise<number
       .onConflictDoUpdate({
         target: socialGraph.wallet,
         set: {
-          twitterHandle: sql`COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle)`,
-          twitterUrl: sql`COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url)`,
+          // This fill-if-empty writer still needs the renamed_from guard: the
+          // stored handle is NULL exactly on rows that were cleared, and an
+          // ENS text record can go on holding the dead string the conflict
+          // resolver already replaced. Filling from it would reopen the
+          // conflict, so a refused fill keeps every column as it was.
+          twitterHandle: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from) THEN social_graph.twitter_handle
+            ELSE COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle) END`,
+          twitterUrl: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from) THEN social_graph.twitter_url
+            ELSE COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url) END`,
           github: sql`COALESCE(social_graph.github, EXCLUDED.github)`,
-          twitterVerified: sql`CASE WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL THEN true ELSE social_graph.twitter_verified END`,
-          sources: sql`CASE WHEN 'ens_onchain' = ANY(social_graph.sources) THEN social_graph.sources ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ens_onchain') END`,
-          dataQualityScore: sql`GREATEST(COALESCE(social_graph.data_quality_score, 0), 50)`,
-          lastUpdatedAt: sql`CASE WHEN (social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL) OR (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL) THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at END`,
+          twitterVerified: sql`CASE WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
+            AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
+            THEN true ELSE social_graph.twitter_verified END`,
+          // A refused rename must not stamp the row either: no source label
+          // and no quality bump, unless the same record also fills github,
+          // which is a real write that earns both.
+          sources: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.sources
+            WHEN 'ens_onchain' = ANY(social_graph.sources) THEN social_graph.sources
+            ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ens_onchain') END`,
+          dataQualityScore: sql`CASE
+            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.data_quality_score
+            ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), 50) END`,
+          lastUpdatedAt: sql`CASE WHEN (social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
+              AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from))
+            OR (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL) THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at END`,
         },
       });
     upserted += batch.length;

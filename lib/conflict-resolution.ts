@@ -58,14 +58,16 @@
  * the old handle is not served from cache for up to seven days. Running it
  * twice writes nothing the second time.
  *
- * ## What this does not protect against
+ * ## How a swap survives later writers
  *
- * The old handle is still the string Farcaster holds, and two writers carry
- * it back: the monthly full Farcaster sweep, and a live lookup that reaches the
- * Farcaster API. Both prefer an incoming handle over the stored one. The
- * `twitter_renamed_from` column exists so those writers can refuse an incoming
- * handle equal to it; until they do, an accepted swap lasts until the next
- * writer that carries the dead string.
+ * The old handle is still the string Farcaster and the other sources hold,
+ * and every writer that carries it back refuses an incoming handle equal to
+ * `twitter_renamed_from`: the monthly full sweep (`lib/farcaster-sweep.ts`),
+ * the live lookup upsert (`lib/social-graph.ts`, at the JS layer and again at
+ * the SQL layer), and the fill-if-empty ingests (`lib/ens-harvest.ts`,
+ * `lib/attested-links.ts`). A new social_graph writer that skips this guard
+ * reopens the conflict on its first run, so add the guard before the writer
+ * ships.
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';

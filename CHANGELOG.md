@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the renamed-from guard covers the fill-if-empty ingests)
+
+- **`lib/ens-harvest.ts` and `lib/attested-links.ts` refuse a fill equal to
+  `twitter_renamed_from`.** Both writers only fill a NULL `twitter_handle`,
+  and the stored handle is NULL exactly on rows that were cleared, so an ENS
+  text record or an attested link that still carries the dead string could put
+  it back. A refused fill writes nothing: no handle, no url, no user id, no
+  source label, no quality bump, no timestamp. With this, every social_graph
+  writer that carries an incoming X handle holds the guard, and the
+  `lib/conflict-resolution.ts` header now documents that invariant.
+- **Stale records corrected.** `PROJECT_OVERVIEW.md` closed the open item (the
+  sweep and live lookup guards shipped in PRs #135/#136), and
+  `docs/DOCS-SITE.md` now records the Mintlify GitHub sync as connected, which
+  it has been since content merged to `main` started publishing.
+
 ### 2026-08-22 (handle conflicts: the unreachable bucket resolves itself)
 
 - **Bucket 1 of the conflict queue resolves automatically.** Measured on
