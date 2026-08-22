@@ -9,8 +9,11 @@
  *   npx tsx --env-file=.env.local scripts/relaunch-trial-grant.ts --send --limit 5
  *
  * Eligible: an account that is not a legacy tier (pro/unlimited), holds no
- * credit lot of any kind, has not opted out of lifecycle mail, and has not
- * already received this email (lifecycle_emails key below).
+ * credit lot other than this campaign's own grant, has not opted out of
+ * lifecycle mail, and has not already received this email (lifecycle_emails
+ * key below). "Other than this campaign's own grant" is what makes a re-run
+ * after a failed send work: the grant lands before the email, so the granted
+ * lot must not disqualify the account from the retry.
  *
  * Idempotent at both steps. The grant carries the synthetic payment id
  * `grant-relaunch-2026-08:<userId>`, so the unique index on
@@ -27,10 +30,13 @@
 
 import { neon } from '@neondatabase/serverless';
 
-// The unsubscribe and CTA links in a real send must carry the production
-// origin. A local run would otherwise resolve getSiteUrl() to localhost,
-// which is the class of bug lib/site-url.ts exists to prevent.
-process.env.NEXT_PUBLIC_URL ||= 'https://walletlink.social';
+// The unsubscribe links in delivered mail must carry the production origin,
+// unconditionally: `.env.local` legitimately sets NEXT_PUBLIC_URL to
+// localhost for `next dev`, and a `||=` here would keep it, mailing 100
+// people unsubscribe links that point at a dead port (the class of bug
+// lib/site-url.ts exists to prevent). This script only ever addresses the
+// production site, so it overrides rather than defaults.
+process.env.NEXT_PUBLIC_URL = 'https://walletlink.social';
 
 const EMAIL_KEY = 'relaunch-trial-2026-08';
 const GRANT_ID_PREFIX = 'grant-relaunch-2026-08:';
@@ -80,7 +86,15 @@ async function main() {
     FROM users u
     WHERE u.tier NOT IN ('pro', 'unlimited')
       AND u.email_opt_out = false
-      AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+      -- Any lot except this campaign's own grant disqualifies: a purchase,
+      -- and also a hand-issued support grant (NULL payment id), which means
+      -- the account already has credits and this email would be wrong.
+      AND NOT EXISTS (
+        SELECT 1 FROM credit_lots cl
+        WHERE cl.user_id = u.id
+          AND (cl.stripe_payment_id IS NULL
+               OR cl.stripe_payment_id NOT LIKE ${GRANT_ID_PREFIX + '%'})
+      )
       AND NOT EXISTS (
         SELECT 1 FROM lifecycle_emails le
         WHERE le.user_id = u.id AND le.email_key = ${EMAIL_KEY}
