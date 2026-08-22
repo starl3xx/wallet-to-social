@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import {
@@ -10,6 +10,10 @@ import {
   normalizeTwitterHandle,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
+import {
+  decodeReverseCursor,
+  encodeReverseCursor,
+} from '@/lib/reverse-cursor';
 import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
@@ -62,6 +66,18 @@ export async function GET(
 
   const normalizedHandle = normalizeTwitterHandle(handle);
 
+  // Keyset pagination. No cursor means the first page.
+  const rawCursor = request.nextUrl.searchParams.get('cursor');
+  const cursor = rawCursor === null ? null : decodeReverseCursor(rawCursor);
+  if (rawCursor !== null && cursor === null) {
+    return apiError(
+      'Invalid cursor. Pass the next_cursor value from a previous response, unmodified.',
+      'INVALID_CURSOR',
+      400,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+
   // Query social graph
   const db = getDb();
   if (!db) {
@@ -83,8 +99,23 @@ export async function GET(
 
   const totalCount = countResult?.count ?? 0;
 
-  // Find all wallets with this Twitter handle (limited)
-  const results = await db
+  // The page after the cursor position. NULLS LAST puts wallets without
+  // Farcaster reach at the end rather than first (Postgres sorts NULLs first
+  // under DESC), and a cursor in that bucket carries f: null, where only the
+  // wallet tiebreak advances.
+  const afterCursor =
+    cursor === null
+      ? undefined
+      : cursor.f === null
+        ? sql`(${socialGraph.fcFollowers} IS NULL AND ${socialGraph.wallet} > ${cursor.w})`
+        : sql`(${socialGraph.fcFollowers} < ${cursor.f}
+            OR (${socialGraph.fcFollowers} = ${cursor.f} AND ${socialGraph.wallet} > ${cursor.w})
+            OR ${socialGraph.fcFollowers} IS NULL)`;
+
+  // Find the wallets with this Twitter handle, one page at a time. The +1 row
+  // is the has-more probe: it never ships, it only says whether a next page
+  // exists, so next_cursor is exact instead of guessed from a full page.
+  const fetched = await db
     .select({
       wallet: socialGraph.wallet,
       ensName: socialGraph.ensName,
@@ -104,10 +135,24 @@ export async function GET(
       dataQualityScore: socialGraph.dataQualityScore,
     })
     .from(socialGraph)
-    .where(eq(socialGraph.twitterHandle, normalizedHandle))
-    .limit(MAX_RESULTS);
+    .where(
+      afterCursor === undefined
+        ? eq(socialGraph.twitterHandle, normalizedHandle)
+        : and(eq(socialGraph.twitterHandle, normalizedHandle), afterCursor)
+    )
+    .orderBy(
+      sql`${socialGraph.fcFollowers} DESC NULLS LAST`,
+      asc(socialGraph.wallet)
+    )
+    .limit(MAX_RESULTS + 1);
 
-  const truncated = totalCount > MAX_RESULTS;
+  const truncated = fetched.length > MAX_RESULTS;
+  const results = truncated ? fetched.slice(0, MAX_RESULTS) : fetched;
+  const lastRow = results[results.length - 1];
+  const nextCursor =
+    truncated && lastRow
+      ? encodeReverseCursor({ f: lastRow.fcFollowers ?? null, w: lastRow.wallet })
+      : null;
 
   // Track usage
   trackApiUsage({
@@ -135,9 +180,10 @@ export async function GET(
         data: [],
         meta: {
           handle: normalizedHandle,
-          total_count: 0,
+          total_count: totalCount,
           returned_count: 0,
           truncated: false,
+          next_cursor: null,
         },
       },
       { ...context.rateLimitHeaders, ...corsHeaders }
@@ -202,6 +248,7 @@ export async function GET(
         total_count: totalCount,
         returned_count: results.length,
         truncated,
+        next_cursor: nextCursor,
       },
     },
     { ...context.rateLimitHeaders, ...corsHeaders }

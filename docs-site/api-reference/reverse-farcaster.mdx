@@ -4,7 +4,7 @@ description: "GET /v1/reverse/farcaster/{username}"
 api: "GET https://walletlink.social/api/v1/reverse/farcaster/{username}"
 ---
 
-Finds every wallet linked to a Farcaster username. Costs **1 match credit per wallet returned**, up to 100. A username with no wallets attached costs nothing. Separately, it weighs 2 units against your rate limit.
+Finds every wallet linked to a Farcaster username. Costs **1 match credit per wallet returned**, 100 per page. A username with no wallets attached costs nothing. Separately, each request weighs 2 units against your rate limit.
 
 Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-is-complete), this is the most reliable lookup in the API. An empty result means the username genuinely has no addresses attached, not that we have not indexed it yet.
 
@@ -12,6 +12,14 @@ Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-i
 
 <ParamField path="username" type="string" required>
   1 to 20 characters, lowercase letters, numbers and underscores. Input is lowercased before matching.
+</ParamField>
+
+## Query parameters
+
+<ParamField query="cursor" type="string">
+  Continues a paginated result: pass the `next_cursor` value from the previous
+  response, unmodified. Omit it for the first page. A value this API did not
+  produce returns `INVALID_CURSOR`.
 </ParamField>
 
 ## Request
@@ -26,15 +34,18 @@ curl https://walletlink.social/api/v1/reverse/farcaster/dwr \
 Identical in shape to the [reverse X lookup](/api-reference/reverse-twitter), with `farcaster` always present instead of `twitter`, and `meta.username` instead of `meta.handle`.
 
 <ResponseField name="data" type="array">
-  Matching wallets, at most 100 per request.
+  Matching wallets, at most 100 per page, ordered by Farcaster reach
+  (highest follower count first, wallets without one last, wallet address as
+  the tiebreak).
 </ResponseField>
 
 <ResponseField name="meta" type="object">
   <Expandable title="properties">
     <ResponseField name="username" type="string">The normalized, lowercased username.</ResponseField>
-    <ResponseField name="total_count" type="number">Total matches in the index, ignoring the 100-result cap.</ResponseField>
+    <ResponseField name="total_count" type="number">Total matches in the index, across all pages.</ResponseField>
     <ResponseField name="returned_count" type="number">How many are in this response.</ResponseField>
-    <ResponseField name="truncated" type="boolean">Whether `total_count` exceeded 100.</ResponseField>
+    <ResponseField name="truncated" type="boolean">Whether more results remain after this page.</ResponseField>
+    <ResponseField name="next_cursor" type="string | null">Pass as `cursor` to fetch the next page. `null` on the last page.</ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -61,7 +72,8 @@ Identical in shape to the [reverse X lookup](/api-reference/reverse-twitter), wi
     "username": "vitalik.eth",
     "total_count": 1,
     "returned_count": 1,
-    "truncated": false
+    "truncated": false,
+    "next_cursor": null
   }
 }
 ```
@@ -70,8 +82,8 @@ Identical in shape to the [reverse X lookup](/api-reference/reverse-twitter), wi
 
 Multiple results are the normal case here, more so than on X. A Farcaster account has one custody address plus any number of verified addresses, and all of them are indexed. A single active account returning three or four wallets is unremarkable.
 
-The same 100-result cap and lack of pagination apply. See [one handle, many wallets](/api-reference/reverse-twitter#one-handle-many-wallets).
+The same 100-per-page pagination applies. See [one handle, many wallets](/api-reference/reverse-twitter#one-handle-many-wallets).
 
 ## Errors
 
-`INVALID_USERNAME`, plus the [standard errors](/api-reference/errors).
+`INVALID_USERNAME`, `INVALID_CURSOR`, plus the [standard errors](/api-reference/errors).
