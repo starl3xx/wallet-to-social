@@ -143,9 +143,7 @@ export const knownAgents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [
-    index('known_agents_framework_idx').on(table.framework),
-  ]
+  (table) => [index('known_agents_framework_idx').on(table.framework)]
 );
 
 // Background job queue for large lookups
@@ -211,6 +209,105 @@ export const users = pgTable(
   (table) => [index('users_email_idx').on(table.email)]
 );
 
+/**
+ * Credit lots: one row per purchase, drawn down FIFO by expiry.
+ *
+ * ## Why lots and not a balance column
+ *
+ * Credits expire twelve months from purchase, so "how many does this account
+ * have" is a question about time, not a number you can keep in a column. A
+ * single balance would have to be swept by a job that knows every purchase
+ * date, which is the lot table again with the audit trail thrown away.
+ *
+ * FIFO by `expiresAt`, so the credits closest to expiring are spent first. The
+ * alternative, spending the newest first, quietly maximises how much expires
+ * unused, which would be a design that profits from the customer forgetting.
+ *
+ * ## The unit is a MATCH, not a submitted wallet
+ *
+ * `remaining` counts wallets we resolved to an X handle or a Farcaster account.
+ * A miss costs the buyer nothing. That is the whole pricing position, and it is
+ * only honest if the meter is enforced here rather than described in copy: the
+ * same predicate as `lookup_jobs.any_social_found`, which is
+ * `twitter_handle || farcaster`.
+ *
+ * ## Expiry is enforced in the query
+ *
+ * Every read filters `expires_at > now()`. Nothing sweeps expired rows, because
+ * a lot that has expired is still the record of a purchase that happened, and
+ * deleting it would make revenue recognition unauditable. If expiry lived only
+ * in the copy, deferred revenue would never clear.
+ */
+export const creditLots = pgTable(
+  'credit_lots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull(),
+    /** Matches bought. Never mutated; spend is recorded in `consumed`. */
+    granted: integer('granted').notNull(),
+    /** Matches spent from this lot. Always <= granted. */
+    consumed: integer('consumed').default(0).notNull(),
+    /** Which pack, or 'grant' for anything issued by hand. */
+    pack: text('pack').notNull(),
+    /** Cents actually charged. 0 for a grant. Not derived from `pack`, because
+     *  a price can change and this is the record of what was paid. */
+    amountCents: integer('amount_cents').default(0).notNull(),
+    stripePaymentId: text('stripe_payment_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    /** Why a lot was granted by hand. Empty for a purchase. */
+    note: text('note'),
+  },
+  (table) => [
+    index('credit_lots_user_idx').on(table.userId),
+    // The drawdown query: this account's live lots, oldest expiry first.
+    index('credit_lots_user_expiry_idx').on(table.userId, table.expiresAt),
+    /**
+     * One lot per Stripe payment. The webhook is retried on any non-2xx, and
+     * without this a retry after a partial failure grants the pack twice.
+     * `provisionPaidCheckout` already relies on the same guarantee for tiers.
+     */
+    uniqueIndex('credit_lots_stripe_payment_idx').on(table.stripePaymentId),
+  ]
+);
+
+/**
+ * Every debit, one row per job.
+ *
+ * Kept separate from the lots so a spend can be explained after the fact: which
+ * job, how many matches, and which lots paid for it. A customer asking "what
+ * happened to my credits" is answerable from this table alone.
+ *
+ * Also the free tier's meter. A free account has no lots, and its allowance is
+ * a rolling 30-day window over these rows, which is what makes splitting a file
+ * pointless: twenty runs of 500 debit exactly what one run of 10,000 debits.
+ */
+export const creditLedger = pgTable(
+  'credit_ledger',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull(),
+    /** Matches debited. Positive. */
+    matches: integer('matches').notNull(),
+    /** Wallets submitted, for the record. Never charged for. */
+    walletsSubmitted: integer('wallets_submitted').default(0).notNull(),
+    /** 'free' when the rolling allowance paid, otherwise 'lots'. */
+    paidFrom: text('paid_from').notNull(),
+    jobId: uuid('job_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('credit_ledger_user_idx').on(table.userId),
+    // The free-tier window query: this account, last 30 days.
+    index('credit_ledger_user_created_idx').on(table.userId, table.createdAt),
+    /**
+     * One debit per job. The worker can resume a job after a transport failure,
+     * and without this a resumed job charges twice for the same matches.
+     */
+    uniqueIndex('credit_ledger_job_idx').on(table.jobId),
+  ]
+);
+
 // Whitelist for unlimited access (admin-managed)
 export const whitelist = pgTable(
   'whitelist',
@@ -239,7 +336,10 @@ export const analyticsEvents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('analytics_events_type_created_idx').on(table.eventType, table.createdAt),
+    index('analytics_events_type_created_idx').on(
+      table.eventType,
+      table.createdAt
+    ),
     index('analytics_events_user_id_idx').on(table.userId),
     index('analytics_events_session_id_idx').on(table.sessionId),
   ]
@@ -259,30 +359,32 @@ export const apiMetrics = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('api_metrics_provider_created_idx').on(table.provider, table.createdAt),
+    index('api_metrics_provider_created_idx').on(
+      table.provider,
+      table.createdAt
+    ),
     index('api_metrics_job_id_idx').on(table.jobId),
   ]
 );
 
 // Daily aggregated statistics (computed nightly)
-export const dailyStats = pgTable(
-  'daily_stats',
-  {
-    date: date('date').primaryKey(),
-    totalLookups: integer('total_lookups').default(0).notNull(),
-    totalWalletsProcessed: integer('total_wallets_processed').default(0).notNull(),
-    uniqueUsers: integer('unique_users').default(0).notNull(),
-    newUsers: integer('new_users').default(0).notNull(),
-    revenueCents: integer('revenue_cents').default(0).notNull(),
-    proPurchases: integer('pro_purchases').default(0).notNull(),
-    unlimitedPurchases: integer('unlimited_purchases').default(0).notNull(),
-    avgMatchRate: numeric('avg_match_rate', { precision: 5, scale: 2 }),
-    cacheHitRate: numeric('cache_hit_rate', { precision: 5, scale: 2 }),
-    avgLatencyMs: integer('avg_latency_ms'),
-    errorCount: integer('error_count').default(0).notNull(),
-    computedAt: timestamp('computed_at').defaultNow().notNull(),
-  }
-);
+export const dailyStats = pgTable('daily_stats', {
+  date: date('date').primaryKey(),
+  totalLookups: integer('total_lookups').default(0).notNull(),
+  totalWalletsProcessed: integer('total_wallets_processed')
+    .default(0)
+    .notNull(),
+  uniqueUsers: integer('unique_users').default(0).notNull(),
+  newUsers: integer('new_users').default(0).notNull(),
+  revenueCents: integer('revenue_cents').default(0).notNull(),
+  proPurchases: integer('pro_purchases').default(0).notNull(),
+  unlimitedPurchases: integer('unlimited_purchases').default(0).notNull(),
+  avgMatchRate: numeric('avg_match_rate', { precision: 5, scale: 2 }),
+  cacheHitRate: numeric('cache_hit_rate', { precision: 5, scale: 2 }),
+  avgLatencyMs: integer('avg_latency_ms'),
+  errorCount: integer('error_count').default(0).notNull(),
+  computedAt: timestamp('computed_at').defaultNow().notNull(),
+});
 
 // ============================================================================
 // Authentication

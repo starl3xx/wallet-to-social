@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCredits } from '@/lib/use-credits';
 import dynamic from 'next/dynamic';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
@@ -20,22 +21,58 @@ import { useAuth } from '@/components/AuthProvider';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 
 // Lazy-load modals — not needed until user interaction
-const UpgradeModal = dynamic(() => import('@/components/UpgradeModal').then(m => ({ default: m.UpgradeModal })));
-const AddAddressesModal = dynamic(() => import('@/components/AddAddressesModal').then(m => ({ default: m.AddAddressesModal })));
-const ContractImportModal = dynamic(() => import('@/components/ContractImportModal').then(m => ({ default: m.ContractImportModal })));
+const UpgradeModal = dynamic(() =>
+  import('@/components/UpgradeModal').then((m) => ({ default: m.UpgradeModal }))
+);
+const AddAddressesModal = dynamic(() =>
+  import('@/components/AddAddressesModal').then((m) => ({
+    default: m.AddAddressesModal,
+  }))
+);
+const ContractImportModal = dynamic(() =>
+  import('@/components/ContractImportModal').then((m) => ({
+    default: m.ContractImportModal,
+  }))
+);
 import type { ImportedContract } from '@/components/ContractImportModal';
-const AuthModal = dynamic(() => import('@/components/AuthModal').then(m => ({ default: m.AuthModal })));
-const FarcasterDMModal = dynamic(() => import('@/components/FarcasterDMModal').then(m => ({ default: m.FarcasterDMModal })));
+const AuthModal = dynamic(() =>
+  import('@/components/AuthModal').then((m) => ({ default: m.AuthModal }))
+);
+const FarcasterDMModal = dynamic(() =>
+  import('@/components/FarcasterDMModal').then((m) => ({
+    default: m.FarcasterDMModal,
+  }))
+);
 import { getUserId } from '@/lib/user-id';
 import { Analytics } from '@/lib/client-analytics';
 import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
-import { SUPPORTED_CHAINS, CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
+import {
+  SUPPORTED_CHAINS,
+  CHAIN_LABELS,
+  type SupportedChain,
+} from '@/lib/chains';
 import { parseContractDeepLink } from '@/lib/contract-deep-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
-import { SCAN_DEPTHS, scanDepthOptions, type ScanDepth } from '@/lib/scan-depth';
-import { PencilSimple as Pencil, Plus, Check, X, PaperPlaneTilt as Send, Warning as AlertTriangle, ArrowsClockwise as RefreshCw, Lightning, Binoculars, Swap, MagnifyingGlass } from '@phosphor-icons/react';
+import {
+  SCAN_DEPTHS,
+  scanDepthOptions,
+  type ScanDepth,
+} from '@/lib/scan-depth';
+import {
+  PencilSimple as Pencil,
+  Plus,
+  Check,
+  X,
+  PaperPlaneTilt as Send,
+  Warning as AlertTriangle,
+  ArrowsClockwise as RefreshCw,
+  Lightning,
+  Binoculars,
+  Swap,
+  MagnifyingGlass,
+} from '@phosphor-icons/react';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
@@ -91,7 +128,8 @@ export default function Home() {
     fetch('/api/public-stats')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (cancelled || !data || typeof data.total_wallets !== 'number') return;
+        if (cancelled || !data || typeof data.total_wallets !== 'number')
+          return;
         // Only trust index-scale numbers; dev/empty databases keep the fallback
         if (data.total_wallets >= 1_000_000) {
           const millions = (data.total_wallets / 1_000_000).toFixed(1);
@@ -109,6 +147,16 @@ export default function Home() {
   // User access state from AuthProvider
   const { user, isLoading: authLoading } = useAuth();
   const userTier: UserTier = user?.tier || 'free';
+
+  /**
+   * Entitlement, which `userTier` can no longer answer.
+   *
+   * A pack purchase does not change `users.tier`, so every gate written as
+   * `userTier === 'pro' || userTier === 'unlimited'` refused a paying customer
+   * the features they had just been sold. See lib/use-credits.ts.
+   */
+  const credits = useCredits(!!user);
+  const entitled = credits.entitled;
   const isWhitelisted = user?.isWhitelisted || false;
   const userEmail = user?.email || null;
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -116,18 +164,25 @@ export default function Home() {
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [inputSource, setInputSource] = useState<'file_upload' | 'text_input' | 'contract_import'>('file_upload');
+  const [inputSource, setInputSource] = useState<
+    'file_upload' | 'text_input' | 'contract_import'
+  >('file_upload');
   // The contract behind a contract import. Sent with the job so the admin Jobs
   // table can name what was looked up, not only how many wallets it held.
-  const [sourceContract, setSourceContract] = useState<ImportedContract | null>(null);
+  const [sourceContract, setSourceContract] = useState<ImportedContract | null>(
+    null
+  );
 
   // Add addresses modal state
   const [showAddAddressesModal, setShowAddAddressesModal] = useState(false);
 
   // Contract import modal state (Pro and Unlimited)
   const [showContractImportModal, setShowContractImportModal] = useState(false);
-  const [addAddressesLookupId, setAddAddressesLookupId] = useState<string | null>(null);
-  const [addAddressesExistingWallets, setAddAddressesExistingWallets] = useState<string[]>([]);
+  const [addAddressesLookupId, setAddAddressesLookupId] = useState<
+    string | null
+  >(null);
+  const [addAddressesExistingWallets, setAddAddressesExistingWallets] =
+    useState<string[]>([]);
 
   // Auth modal for rate limit prompts
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -139,14 +194,18 @@ export default function Home() {
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
-  const [currentLookupName, setCurrentLookupName] = useState<string | null>(null);
+  const [currentLookupName, setCurrentLookupName] = useState<string | null>(
+    null
+  );
   // Set only for reverse lookups. Drives the truncation notice, which matters
   // because the endpoint caps at 100 with no pagination, so a popular handle
   // silently returns a partial answer unless we say so.
   const [reverseMeta, setReverseMeta] = useState<ReverseMeta | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
-  const [enrichedWallets, setEnrichedWallets] = useState<Set<string>>(new Set());
+  const [enrichedWallets, setEnrichedWallets] = useState<Set<string>>(
+    new Set()
+  );
   /**
    * A merge that resolved but could not be saved back to the lookup.
    *
@@ -197,7 +256,10 @@ export default function Home() {
             setError(data.error || 'Job failed');
             setState('error');
             localStorage.removeItem('currentJobId');
-          } else if (data.status === 'pending' || data.status === 'processing') {
+          } else if (
+            data.status === 'pending' ||
+            data.status === 'processing'
+          ) {
             // Job still running - resume watching
             setJobIdState(savedJobId);
 
@@ -216,7 +278,10 @@ export default function Home() {
             });
 
             // Estimate start time based on progress for time remaining calculation
-            const progressRatio = data.progress.total > 0 ? data.progress.processed / data.progress.total : 0;
+            const progressRatio =
+              data.progress.total > 0
+                ? data.progress.processed / data.progress.total
+                : 0;
             setStartTime(Date.now() - progressRatio * 60000);
             setState('processing');
           } else {
@@ -242,12 +307,12 @@ export default function Home() {
   // modal instead of the importer, so the feature is discoverable before it
   // is bought rather than invisible until after.
   const handleContractCardClick = useCallback(() => {
-    if (userTier === 'pro' || userTier === 'unlimited') {
+    if (entitled) {
       setShowContractImportModal(true);
     } else {
       setShowUpgradeModal(true);
     }
-  }, [userTier]);
+  }, [entitled]);
 
   /**
    * `/?contract=0x…&chain=base` opens the importer with the contract filled in.
@@ -290,14 +355,23 @@ export default function Home() {
    * silently open an importer the person had moved on from.
    */
   useEffect(() => {
-    if (!deepLinkContract || authLoading || deepLinkActed.current) return;
+    // Wait for credits as well as auth. `entitled` is false while the balance
+    // is still loading, and this effect acts exactly once, so acting early
+    // would send a paying customer to the upgrade modal and never correct it.
+    if (
+      !deepLinkContract ||
+      authLoading ||
+      credits.loading ||
+      deepLinkActed.current
+    )
+      return;
     deepLinkActed.current = true;
-    if (userTier === 'pro' || userTier === 'unlimited') {
+    if (entitled) {
       setShowContractImportModal(true);
     } else {
       setShowUpgradeModal(true);
     }
-  }, [deepLinkContract, authLoading, userTier]);
+  }, [deepLinkContract, authLoading, credits.loading, entitled]);
 
   const [displayedProcessed, setDisplayedProcessed] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -336,7 +410,7 @@ export default function Home() {
   const extractAddresses = (text: string): string[] => {
     if (!text.trim()) return [];
     const matches = text.match(/0x[a-fA-F0-9]{40}/gi) || [];
-    return [...new Set(matches.map(addr => addr.toLowerCase()))];
+    return [...new Set(matches.map((addr) => addr.toLowerCase()))];
   };
 
   // Count valid Ethereum addresses in pasted text
@@ -468,7 +542,8 @@ export default function Home() {
           userId: getUserId(),
           email: userEmail || undefined,
           inputSource,
-          sourceContract: inputSource === 'contract_import' ? sourceContract : undefined,
+          sourceContract:
+            inputSource === 'contract_import' ? sourceContract : undefined,
         }),
       });
 
@@ -482,7 +557,10 @@ export default function Home() {
         }
         // Handle rate limit response
         if (response.status === 429) {
-          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
+          setRateLimitMessage(
+            errorData.error ||
+              'Rate limit exceeded. Sign in for unlimited access.'
+          );
           setShowAuthModal(true);
           setState('ready');
           return;
@@ -507,7 +585,17 @@ export default function Home() {
     // the same value twice, React bails out of that update, and without this
     // dependency the callback keeps the first contract: the second import would
     // be filed in the admin panel under the first one's name.
-  }, [wallets, originalData, saveToHistory, lookupName, scanDepth, userTier, userEmail, inputSource, sourceContract]);
+  }, [
+    wallets,
+    originalData,
+    saveToHistory,
+    lookupName,
+    scanDepth,
+    userTier,
+    userEmail,
+    inputSource,
+    sourceContract,
+  ]);
 
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
@@ -538,14 +626,18 @@ export default function Home() {
           pollingRef.current = null;
         }
         setJobId(null);
-        setError('Lookup timed out. Please try again or check History for results.');
+        setError(
+          'Lookup timed out. Please try again or check History for results.'
+        );
         setProgress((prev) => ({ ...prev, status: 'error' }));
         setState('error');
         return;
       }
 
       try {
-        const response = await fetch(`/api/jobs/${jobId}?userId=${encodeURIComponent(getUserId())}`);
+        const response = await fetch(
+          `/api/jobs/${jobId}?userId=${encodeURIComponent(getUserId())}`
+        );
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
@@ -559,7 +651,10 @@ export default function Home() {
         // Reset to 2s when progress is detected
         if (data.progress.processed === lastProgressRef.current) {
           // No progress - increase polling interval
-          pollIntervalRef.current = Math.min(pollIntervalRef.current + 500, 5000);
+          pollIntervalRef.current = Math.min(
+            pollIntervalRef.current + 500,
+            5000
+          );
         } else {
           // Progress detected - reset to fast polling
           pollIntervalRef.current = 2000;
@@ -603,28 +698,41 @@ export default function Home() {
           setJobId(null); // Clear localStorage
 
           // Check if we need to merge with an existing lookup
-          const pendingMergeLookupId = localStorage.getItem('pendingMergeLookupId');
+          const pendingMergeLookupId = localStorage.getItem(
+            'pendingMergeLookupId'
+          );
           if (pendingMergeLookupId) {
             localStorage.removeItem('pendingMergeLookupId');
 
             // Fetch existing results and merge
             try {
-              const existingRes = await fetch(`/api/history/${pendingMergeLookupId}`);
+              const existingRes = await fetch(
+                `/api/history/${pendingMergeLookupId}`
+              );
               if (existingRes.ok) {
                 const existingData = await existingRes.json();
-                const existingResults: WalletSocialResult[] = existingData.results || [];
+                const existingResults: WalletSocialResult[] =
+                  existingData.results || [];
                 const newResults: WalletSocialResult[] = data.results || [];
 
                 // Merge results (new takes precedence, merge sources)
                 const resultMap = new Map<string, WalletSocialResult>();
-                existingResults.forEach(r => resultMap.set(r.wallet.toLowerCase(), r));
-                newResults.forEach(r => {
+                existingResults.forEach((r) =>
+                  resultMap.set(r.wallet.toLowerCase(), r)
+                );
+                newResults.forEach((r) => {
                   const key = r.wallet.toLowerCase();
                   const existing = resultMap.get(key);
                   if (existing) {
                     // Merge sources
-                    const mergedSources = [...new Set([...existing.source, ...r.source])];
-                    resultMap.set(key, { ...existing, ...r, source: mergedSources });
+                    const mergedSources = [
+                      ...new Set([...existing.source, ...r.source]),
+                    ];
+                    resultMap.set(key, {
+                      ...existing,
+                      ...r,
+                      source: mergedSources,
+                    });
                   } else {
                     resultMap.set(key, r);
                   }
@@ -638,11 +746,14 @@ export default function Home() {
                 // saved, and it survived until the next reload took it away
                 // with no explanation. Showing the new addresses without the
                 // old ones is the honest failure: it matches what is stored.
-                const saved = await fetch(`/api/history/${pendingMergeLookupId}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ results: mergedResults }),
-                });
+                const saved = await fetch(
+                  `/api/history/${pendingMergeLookupId}`,
+                  {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ results: mergedResults }),
+                  }
+                );
 
                 if (saved.ok) {
                   setMergeWarning(null);
@@ -688,7 +799,10 @@ export default function Home() {
                 body: `Found ${data.stats.twitterFound} Twitter and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
               });
             } else {
-              console.log('Notification permission not granted:', permissionStatus);
+              console.log(
+                'Notification permission not granted:',
+                permissionStatus
+              );
             }
 
             // Also update page title as a reliable fallback (works when tab is backgrounded)
@@ -725,7 +839,10 @@ export default function Home() {
         console.error('Poll error:', err);
         consecutiveErrorsRef.current++;
         // Exponential backoff for errors: 2s, 4s, 8s, 16s, cap at 30s
-        pollIntervalRef.current = Math.min(2000 * Math.pow(2, consecutiveErrorsRef.current - 1), 30000);
+        pollIntervalRef.current = Math.min(
+          2000 * Math.pow(2, consecutiveErrorsRef.current - 1),
+          30000
+        );
         scheduleNextPoll();
       }
     };
@@ -735,7 +852,10 @@ export default function Home() {
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
       }
-      pollingRef.current = setTimeout(pollJobStatus, pollIntervalRef.current) as unknown as NodeJS.Timeout;
+      pollingRef.current = setTimeout(
+        pollJobStatus,
+        pollIntervalRef.current
+      ) as unknown as NodeJS.Timeout;
     };
 
     // Poll immediately, then use adaptive interval
@@ -842,14 +962,21 @@ export default function Home() {
   }, []);
 
   const handleLoadHistory = useCallback(
-    (loadedResults: WalletSocialResult[], lookupId?: string, lookupName?: string | null, enrichedWalletsArray?: string[]) => {
+    (
+      loadedResults: WalletSocialResult[],
+      lookupId?: string,
+      lookupName?: string | null,
+      enrichedWalletsArray?: string[]
+    ) => {
       // Show results immediately
       setResults(loadedResults);
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
       setCurrentLookupName(lookupName || null);
-      setEnrichedWallets(new Set(enrichedWalletsArray?.map(w => w.toLowerCase()) || []));
+      setEnrichedWallets(
+        new Set(enrichedWalletsArray?.map((w) => w.toLowerCase()) || [])
+      );
       // The notice belonged to a different run; it must not follow a lookup
       // the user has just opened from history.
       setMergeWarning(null);
@@ -860,7 +987,9 @@ export default function Home() {
       setState('complete');
 
       // Check for results that have farcaster username but no fc_fid
-      const needsFidEnrichment = loadedResults.filter(r => r.farcaster && !r.fc_fid);
+      const needsFidEnrichment = loadedResults.filter(
+        (r) => r.farcaster && !r.fc_fid
+      );
 
       // Enrich FIDs in background (don't block UI)
       if (needsFidEnrichment.length > 0) {
@@ -868,7 +997,7 @@ export default function Home() {
 
         const enrichFids = async () => {
           try {
-            const usernames = needsFidEnrichment.map(r => r.farcaster!);
+            const usernames = needsFidEnrichment.map((r) => r.farcaster!);
             const BATCH_SIZE = 100;
             const allFids: Record<string, number> = {};
 
@@ -882,12 +1011,14 @@ export default function Home() {
             for (let i = 0; i < batches.length; i += CONCURRENT) {
               const concurrentBatches = batches.slice(i, i + CONCURRENT);
               const responses = await Promise.all(
-                concurrentBatches.map(batch =>
+                concurrentBatches.map((batch) =>
                   fetch('/api/enrich-fids', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ usernames: batch }),
-                  }).then(r => r.ok ? r.json() : null).catch(() => null)
+                  })
+                    .then((r) => (r.ok ? r.json() : null))
+                    .catch(() => null)
                 )
               );
 
@@ -900,15 +1031,17 @@ export default function Home() {
 
             // Update results with enriched FIDs
             if (Object.keys(allFids).length > 0) {
-              setResults(prev => prev.map(r => {
-                if (r.farcaster && !r.fc_fid) {
-                  const fid = allFids[r.farcaster.toLowerCase()];
-                  if (fid) {
-                    return { ...r, fc_fid: fid };
+              setResults((prev) =>
+                prev.map((r) => {
+                  if (r.farcaster && !r.fc_fid) {
+                    const fid = allFids[r.farcaster.toLowerCase()];
+                    if (fid) {
+                      return { ...r, fc_fid: fid };
+                    }
                   }
-                }
-                return r;
-              }));
+                  return r;
+                })
+              );
             }
           } catch (err) {
             console.error('Failed to enrich FIDs:', err);
@@ -931,7 +1064,9 @@ export default function Home() {
       const res = await fetch(`/api/history/${lookupId}`);
       if (!res.ok) throw new Error('Failed to fetch lookup');
       const data = await res.json();
-      const existingWallets = (data.results as WalletSocialResult[]).map(r => r.wallet);
+      const existingWallets = (data.results as WalletSocialResult[]).map(
+        (r) => r.wallet
+      );
       setAddAddressesLookupId(lookupId);
       setAddAddressesExistingWallets(existingWallets);
       setShowAddAddressesModal(true);
@@ -941,82 +1076,88 @@ export default function Home() {
   }, []);
 
   // Handle adding addresses to existing lookup
-  const handleAddToLookup = useCallback(async (lookupId: string, newAddresses: string[]) => {
-    if (newAddresses.length === 0) return;
+  const handleAddToLookup = useCallback(
+    async (lookupId: string, newAddresses: string[]) => {
+      if (newAddresses.length === 0) return;
 
-    // Set up for processing the new addresses
-    setWallets(newAddresses);
-    setOriginalData({});
-    setExtraColumns([]);
-    // The cap notice described the reverse query, not this grown list. Once
-    // addresses are added the row count no longer matches what it claims.
-    setReverseMeta(null);
-    setState('processing');
-    setResults([]);
-    // A retry is a fresh attempt, so the previous verdict must not survive it.
-    setMergeWarning(null);
-    setCacheHits(0);
-    setJobId(null);
-    setDisplayedProcessed(0);
-    setStartTime(Date.now());
-    setProgress({
-      total: newAddresses.length,
-      processed: 0,
-      twitterFound: 0,
-      farcasterFound: 0,
-      status: 'processing',
-      message: 'Submitting job...',
-    });
-
-    try {
-      // Submit job for new addresses only (don't save to history, we'll merge)
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wallets: newAddresses,
-          originalData: {},
-          saveToHistory: false, // Don't save - we'll merge
-          ...scanDepthOptions(scanDepth),
-          userId: getUserId(),
-          email: userEmail || undefined,
-        }),
+      // Set up for processing the new addresses
+      setWallets(newAddresses);
+      setOriginalData({});
+      setExtraColumns([]);
+      // The cap notice described the reverse query, not this grown list. Once
+      // addresses are added the row count no longer matches what it claims.
+      setReverseMeta(null);
+      setState('processing');
+      setResults([]);
+      // A retry is a fresh attempt, so the previous verdict must not survive it.
+      setMergeWarning(null);
+      setCacheHits(0);
+      setJobId(null);
+      setDisplayedProcessed(0);
+      setStartTime(Date.now());
+      setProgress({
+        total: newAddresses.length,
+        processed: 0,
+        twitterFound: 0,
+        farcasterFound: 0,
+        status: 'processing',
+        message: 'Submitting job...',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.upgradeRequired) {
-          setShowUpgradeModal(true);
-          setState('ready');
-          return;
+      try {
+        // Submit job for new addresses only (don't save to history, we'll merge)
+        const response = await fetch('/api/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wallets: newAddresses,
+            originalData: {},
+            saveToHistory: false, // Don't save - we'll merge
+            ...scanDepthOptions(scanDepth),
+            userId: getUserId(),
+            email: userEmail || undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          if (errorData.upgradeRequired) {
+            setShowUpgradeModal(true);
+            setState('ready');
+            return;
+          }
+          // Handle rate limit response
+          if (response.status === 429) {
+            setRateLimitMessage(
+              errorData.error ||
+                'Rate limit exceeded. Sign in for unlimited access.'
+            );
+            setShowAuthModal(true);
+            setState('ready');
+            return;
+          }
+          throw new Error(errorData.error || `HTTP error: ${response.status}`);
         }
-        // Handle rate limit response
-        if (response.status === 429) {
-          setRateLimitMessage(errorData.error || 'Rate limit exceeded. Sign in for unlimited access.');
-          setShowAuthModal(true);
-          setState('ready');
-          return;
-        }
-        throw new Error(errorData.error || `HTTP error: ${response.status}`);
+
+        const { jobId: newJobId } = await response.json();
+
+        // Store the lookup ID we're updating for when job completes
+        localStorage.setItem('pendingMergeLookupId', lookupId);
+
+        setJobId(newJobId);
+        setProgress((prev) => ({
+          ...prev,
+          message: 'Job queued - processing will start shortly...',
+        }));
+      } catch (err) {
+        console.error('Job submission error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to submit job');
+        setProgress((prev) => ({ ...prev, status: 'error' }));
+        setState('error');
       }
-
-      const { jobId: newJobId } = await response.json();
-
-      // Store the lookup ID we're updating for when job completes
-      localStorage.setItem('pendingMergeLookupId', lookupId);
-
-      setJobId(newJobId);
-      setProgress((prev) => ({
-        ...prev,
-        message: 'Job queued - processing will start shortly...',
-      }));
-    } catch (err) {
-      console.error('Job submission error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to submit job');
-      setProgress((prev) => ({ ...prev, status: 'error' }));
-      setState('error');
-    }
-  }, [scanDepth, userEmail]);
+    },
+    [scanDepth, userEmail]
+  );
 
   // Handle creating new lookup from modal
   const handleCreateNewFromModal = useCallback((addresses: string[]) => {
@@ -1033,46 +1174,52 @@ export default function Home() {
   }, []);
 
   // Handle importing wallets from contract address
-  const handleContractImport = useCallback((importedWallets: string[], source: ImportedContract) => {
-    if (importedWallets.length === 0) return;
-    setWallets(importedWallets);
-    /**
-     * Feed the bag sizes in as a "Bag" column rather than as a new field.
-     *
-     * `/api/lookup` already finds a holdings column by name in `originalData`
-     * and parses it into `result.holdings`, which the table already renders and
-     * sorts and the priority score already uses. Naming the column is the whole
-     * integration; a second path for the same number would be a second thing to
-     * keep in step.
-     *
-     * EVERY wallet carries the key, and an unmeasured one carries an empty
-     * string. The map must not be sparse: `/api/lookup` detects the holdings
-     * column from the keys of the FIRST wallet alone, so a first wallet with no
-     * measured balance would leave it finding no column at all and silently
-     * dropping every bag in the import, hiding the column and sending priority
-     * scoring back to treating holdings as 1.
-     *
-     * An empty string is not a zero. `parseHoldingsValue` returns null for it
-     * and the caller skips it before parsing, so an unmeasured wallet still
-     * ends up with no holdings rather than a confident 0.
-     */
-    const bags = source.balances;
-    setOriginalData(
-      bags
-        ? Object.fromEntries(
-            importedWallets.map((w) => {
-              const key = w.toLowerCase();
-              const bag = bags[key];
-              return [key, { Bag: typeof bag === 'number' ? String(bag) : '' }];
-            })
-          )
-        : {}
-    );
-    setExtraColumns([]);
-    setInputSource('contract_import');
-    setSourceContract(source);
-    setState('ready');
-  }, []);
+  const handleContractImport = useCallback(
+    (importedWallets: string[], source: ImportedContract) => {
+      if (importedWallets.length === 0) return;
+      setWallets(importedWallets);
+      /**
+       * Feed the bag sizes in as a "Bag" column rather than as a new field.
+       *
+       * `/api/lookup` already finds a holdings column by name in `originalData`
+       * and parses it into `result.holdings`, which the table already renders and
+       * sorts and the priority score already uses. Naming the column is the whole
+       * integration; a second path for the same number would be a second thing to
+       * keep in step.
+       *
+       * EVERY wallet carries the key, and an unmeasured one carries an empty
+       * string. The map must not be sparse: `/api/lookup` detects the holdings
+       * column from the keys of the FIRST wallet alone, so a first wallet with no
+       * measured balance would leave it finding no column at all and silently
+       * dropping every bag in the import, hiding the column and sending priority
+       * scoring back to treating holdings as 1.
+       *
+       * An empty string is not a zero. `parseHoldingsValue` returns null for it
+       * and the caller skips it before parsing, so an unmeasured wallet still
+       * ends up with no holdings rather than a confident 0.
+       */
+      const bags = source.balances;
+      setOriginalData(
+        bags
+          ? Object.fromEntries(
+              importedWallets.map((w) => {
+                const key = w.toLowerCase();
+                const bag = bags[key];
+                return [
+                  key,
+                  { Bag: typeof bag === 'number' ? String(bag) : '' },
+                ];
+              })
+            )
+          : {}
+      );
+      setExtraColumns([]);
+      setInputSource('contract_import');
+      setSourceContract(source);
+      setState('ready');
+    },
+    []
+  );
 
   // Handle saving the lookup name
   const handleSaveLookupName = useCallback(async () => {
@@ -1099,7 +1246,7 @@ export default function Home() {
     if (!currentLookupId) return;
 
     // Use current results as the existing wallets
-    const existingWallets = results.map(r => r.wallet);
+    const existingWallets = results.map((r) => r.wallet);
     setAddAddressesLookupId(currentLookupId);
     setAddAddressesExistingWallets(existingWallets);
     setShowAddAddressesModal(true);
@@ -1137,9 +1284,12 @@ export default function Home() {
             coverage in the paragraph and again in the stats line. */}
         <h1 className="max-w-[60ch] pt-2 text-sm text-muted-foreground sm:text-base">
           Turn a wallet list into the{' '}
-          <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and Farcaster
-          accounts behind it.{' '}
-          <a href="/vs/addressable" className="transition-control underline hover:text-accent-brand">
+          <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" /> and
+          Farcaster accounts behind it.{' '}
+          <a
+            href="/vs/addressable"
+            className="transition-control underline hover:text-accent-brand"
+          >
             Simple alternative to Addressable
           </a>
           .
@@ -1149,389 +1299,435 @@ export default function Home() {
             {/* The pulse goes on the figure that actually moves. Coverage is a
                 fixed 100%; this is the count that grows as lookups feed the
                 graph, which is what "and counting" claims. */}
-            <span className="h-1.5 w-1.5 rounded-full bg-attested motion-safe:animate-pulse" aria-hidden />
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-attested motion-safe:animate-pulse"
+              aria-hidden
+            />
             <span className="font-medium tabular-nums text-foreground">
               {indexedWallets ?? INDEXED_WALLETS}
             </span>{' '}
             wallets indexed and counting
           </span>
-          <span aria-hidden="true" className="opacity-40">·</span>
-          <span>
-            <span className="font-medium tabular-nums text-foreground">100%</span> Farcaster coverage
+          <span aria-hidden="true" className="opacity-40">
+            ·
           </span>
-          <span aria-hidden="true" className="opacity-40">·</span>
           <span>
-            <span className="font-medium tabular-nums text-foreground">13K+</span> AI agents flagged
+            <span className="font-medium tabular-nums text-foreground">
+              100%
+            </span>{' '}
+            Farcaster coverage
+          </span>
+          <span aria-hidden="true" className="opacity-40">
+            ·
+          </span>
+          <span>
+            <span className="font-medium tabular-nums text-foreground">
+              13K+
+            </span>{' '}
+            AI agents flagged
           </span>
         </div>
       </div>
 
-        {/* Upgrade Modal */}
-        <UpgradeModal
-          open={showUpgradeModal}
-          onOpenChange={setShowUpgradeModal}
-          currentTier={userTier}
-          walletCount={wallets.length > 0 ? wallets.length : undefined}
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        currentTier={userTier}
+        walletCount={wallets.length > 0 ? wallets.length : undefined}
+      />
+
+      {/* Add Addresses Modal */}
+      {addAddressesLookupId && (
+        <AddAddressesModal
+          open={showAddAddressesModal}
+          onOpenChange={setShowAddAddressesModal}
+          lookupId={addAddressesLookupId}
+          existingWallets={addAddressesExistingWallets}
+          onAddToLookup={handleAddToLookup}
+          onCreateNewLookup={handleCreateNewFromModal}
         />
+      )}
 
-        {/* Add Addresses Modal */}
-        {addAddressesLookupId && (
-          <AddAddressesModal
-            open={showAddAddressesModal}
-            onOpenChange={setShowAddAddressesModal}
-            lookupId={addAddressesLookupId}
-            existingWallets={addAddressesExistingWallets}
-            onAddToLookup={handleAddToLookup}
-            onCreateNewLookup={handleCreateNewFromModal}
-          />
-        )}
-
-        {/* Auth Modal for rate limit prompts */}
-        <AuthModal open={showAuthModal} onOpenChange={(open) => {
+      {/* Auth Modal for rate limit prompts */}
+      <AuthModal
+        open={showAuthModal}
+        onOpenChange={(open) => {
           setShowAuthModal(open);
           if (!open) setRateLimitMessage(null);
-        }} />
+        }}
+      />
 
-        {/* Contract Import Modal (Pro and Unlimited) */}
-        <ContractImportModal
-          open={showContractImportModal}
-          // Closing drops the deep link, so a later manual open starts blank
-          // rather than re-filling a contract the person has already dismissed.
-          onOpenChange={(next) => {
-            setShowContractImportModal(next);
-            if (!next) setDeepLinkContract(null);
-          }}
-          onImport={handleContractImport}
-          initialAddress={deepLinkContract?.address}
-          initialChain={deepLinkContract?.chain}
-        />
+      {/* Contract Import Modal (Pro and Unlimited) */}
+      <ContractImportModal
+        open={showContractImportModal}
+        // Closing drops the deep link, so a later manual open starts blank
+        // rather than re-filling a contract the person has already dismissed.
+        onOpenChange={(next) => {
+          setShowContractImportModal(next);
+          if (!next) setDeepLinkContract(null);
+        }}
+        onImport={handleContractImport}
+        initialAddress={deepLinkContract?.address}
+        initialChain={deepLinkContract?.chain}
+      />
 
-        {/* Farcaster DM Modal (Unlimited tier only) */}
-        <FarcasterDMModal
-          open={showFarcasterDMModal}
-          onOpenChange={setShowFarcasterDMModal}
-          results={results}
-        />
+      {/* Farcaster DM Modal (Unlimited tier only) */}
+      <FarcasterDMModal
+        open={showFarcasterDMModal}
+        onOpenChange={setShowFarcasterDMModal}
+        results={results}
+      />
 
-        <div className="space-y-6">
-          {/* Upload State */}
-          {state === 'upload' && (
-            <div className="space-y-6">
-              {/* The three input methods as peers. Contract import shows locked
+      <div className="space-y-6">
+        {/* Upload State */}
+        {state === 'upload' && (
+          <div className="space-y-6">
+            {/* The three input methods as peers. Contract import shows locked
                   rather than hidden on free accounts, so the layout is stable
                   and the feature is discoverable before it is bought. */}
-              <InputMethodPicker
-                onFileLoaded={handleFileLoaded}
-                onPasteClick={handlePasteToggle}
-                pasteActive={showPasteInput}
-                // Yielding to open dialogs is handled inside the component by
-                // asking the DOM, not enumerated here: dialogs also open from
-                // the access banner and lookup history, which this file does
-                // not track, and any list would go stale on the next one added
-                contractLocked={userTier !== 'pro' && userTier !== 'unlimited'}
-                onContractClick={handleContractCardClick}
-              />
+            <InputMethodPicker
+              onFileLoaded={handleFileLoaded}
+              onPasteClick={handlePasteToggle}
+              pasteActive={showPasteInput}
+              // Yielding to open dialogs is handled inside the component by
+              // asking the DOM, not enumerated here: dialogs also open from
+              // the access banner and lookup history, which this file does
+              // not track, and any list would go stale on the next one added
+              contractLocked={!entitled}
+              onContractClick={handleContractCardClick}
+            />
 
-              {/* Paste panel, opened by the middle card */}
-              <div className="text-center">
-                {showPasteInput && (
-                  <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
-                    <textarea
-                      value={pasteText}
-                      onChange={(e) => setPasteText(e.target.value)}
-                      placeholder={"Paste wallet addresses in any format\n0x1234..., 0xabcd...\nor one per line\nor mixed with other text"}
-                      className="w-full h-40 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        {countValidAddresses(pasteText)} valid addresses detected
-                      </span>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => {
+            {/* Paste panel, opened by the middle card */}
+            <div className="text-center">
+              {showPasteInput && (
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/30 text-left">
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    placeholder={
+                      'Paste wallet addresses in any format\n0x1234..., 0xabcd...\nor one per line\nor mixed with other text'
+                    }
+                    className="w-full h-40 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {countValidAddresses(pasteText)} valid addresses detected
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
                           setShowPasteInput(false);
                           setPasteText('');
-                        }}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handlePasteAddresses} disabled={countValidAddresses(pasteText) === 0}>
-                          Load addresses
-                        </Button>
-                      </div>
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handlePasteAddresses}
+                        disabled={countValidAddresses(pasteText) === 0}
+                      >
+                        Load addresses
+                      </Button>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* The other direction. Featured on the front page rather than
-                  buried, because it is the differentiator and it was previously
-                  sold in the upgrade modal with no interface anywhere. */}
-              <ReverseLookup
-                locked={userTier !== 'pro' && userTier !== 'unlimited'}
-                onUpgradeClick={handleOpenUpgradeModal}
-                onSignInRequired={() => setShowAuthModal(true)}
-                onResults={handleReverseResults}
-              />
-
-              {/* Derived from SUPPORTED_CHAINS rather than typed out, so adding
-                  a chain updates the page instead of leaving stale copy behind */}
-              <p className="text-center text-xs text-muted-foreground">
-                {SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(' · ')}
-              </p>
-
-              <RecentWins />
-              <LookupHistory onLoadLookup={handleLoadHistory} userTier={userTier} onAddAddresses={handleOpenAddAddresses} />
-            </div>
-          )}
-
-          {/* Ready State */}
-          {state === 'ready' && (
-            <div className="space-y-4">
-              {/* Wallet limit warning */}
-              {wallets.length > TIER_LIMITS[userTier] && (
-                <div className="p-4 bg-caution-tint border border-caution/30 rounded-lg flex items-center justify-between gap-4">
-                  <p className="text-sm text-caution">
-                    Your file has{' '}
-                    <span className="font-semibold">
-                      {wallets.length.toLocaleString()}
-                    </span>{' '}
-                    wallets but the {userTier} plan allows a maximum of{' '}
-                    <span className="font-semibold">
-                      {TIER_LIMITS[userTier].toLocaleString()}
-                    </span>
-                    . Upgrade to process all wallets.
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => setShowUpgradeModal(true)}
-                    className="shrink-0"
-                  >
-                    Upgrade
-                  </Button>
                 </div>
               )}
+            </div>
 
-              {/* Two questions, asked in words rather than in pipeline terms.
+            {/* The other direction. Featured on the front page rather than
+                  buried, because it is the differentiator and it was previously
+                  sold in the upgrade modal with no interface anywhere. */}
+            <ReverseLookup
+              locked={!entitled}
+              onUpgradeClick={handleOpenUpgradeModal}
+              onSignInRequired={() => setShowAuthModal(true)}
+              onResults={handleReverseResults}
+            />
+
+            {/* Derived from SUPPORTED_CHAINS rather than typed out, so adding
+                  a chain updates the page instead of leaving stale copy behind */}
+            <p className="text-center text-xs text-muted-foreground">
+              {SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(' · ')}
+            </p>
+
+            <RecentWins />
+            <LookupHistory
+              onLoadLookup={handleLoadHistory}
+              userTier={userTier}
+              onAddAddresses={handleOpenAddAddresses}
+            />
+          </div>
+        )}
+
+        {/* Ready State */}
+        {state === 'ready' && (
+          <div className="space-y-4">
+            {/* Wallet limit warning */}
+            {wallets.length > TIER_LIMITS[userTier] && (
+              <div className="p-4 bg-caution-tint border border-caution/30 rounded-lg flex items-center justify-between gap-4">
+                <p className="text-sm text-caution">
+                  Your file has{' '}
+                  <span className="font-semibold">
+                    {wallets.length.toLocaleString()}
+                  </span>{' '}
+                  wallets but the {userTier} plan allows a maximum of{' '}
+                  <span className="font-semibold">
+                    {TIER_LIMITS[userTier].toLocaleString()}
+                  </span>
+                  . Upgrade to process all wallets.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="shrink-0"
+                >
+                  Upgrade
+                </Button>
+              </div>
+            )}
+
+            {/* Two questions, asked in words rather than in pipeline terms.
                   This was four checkboxes in one wrapping row, two of which
                   ("ENS onchain lookup", "Fast mode") named implementation
                   details and pulled in opposite directions. What a person
                   actually decides here is how long to wait and whether to keep
                   the result, so those are the two things the panel asks. */}
-              <div className="p-4 bg-muted rounded-lg space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="font-medium">
-                      {wallets.length.toLocaleString()} wallet addresses loaded
-                    </p>
+            <div className="p-4 bg-muted rounded-lg space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {wallets.length.toLocaleString()} wallet addresses loaded
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Estimated processing time:{' '}
+                    {estimateTime(wallets.length, scanDepth)}
+                  </p>
+                  {extraColumns.length > 0 && (
                     <p className="text-sm text-muted-foreground">
-                      Estimated processing time: {estimateTime(wallets.length, scanDepth)}
+                      Extra columns: {extraColumns.join(', ')}
                     </p>
-                    {extraColumns.length > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Extra columns: {extraColumns.join(', ')}
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleReset}
+                  className="shrink-0"
+                >
+                  <Swap className="h-4 w-4" aria-hidden />
+                  Choose different file
+                </Button>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                {/* How long against how thorough */}
+                <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
+                  <Eyebrow className="sm:pt-2.5">Scan depth</Eyebrow>
+                  <div className="space-y-1.5">
+                    <Segmented<ScanDepth>
+                      ariaLabel="Scan depth"
+                      value={scanDepth}
+                      onChange={setScanDepth}
+                      className="w-full max-w-[17rem]"
+                      options={[
+                        {
+                          value: 'fast',
+                          label: SCAN_DEPTHS.fast.label,
+                          content: (
+                            <>
+                              <Lightning className="h-4 w-4" aria-hidden />
+                              {SCAN_DEPTHS.fast.label}
+                            </>
+                          ),
+                        },
+                        {
+                          value: 'deep',
+                          label: SCAN_DEPTHS.deep.label,
+                          content: (
+                            <>
+                              <Binoculars className="h-4 w-4" aria-hidden />
+                              {SCAN_DEPTHS.deep.label}
+                            </>
+                          ),
+                        },
+                      ]}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {SCAN_DEPTHS[scanDepth].blurb}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Keep it, and under what name */}
+                <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
+                  <Eyebrow className="sm:pt-2.5">History</Eyebrow>
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        htmlFor="saveHistory"
+                        className="flex h-control items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          id="saveHistory"
+                          checked={saveToHistory}
+                          onChange={(e) => setSaveToHistory(e.target.checked)}
+                          className="rounded-sm"
+                        />
+                        Save this lookup
+                      </label>
+                      {saveToHistory && (
+                        <Input
+                          placeholder="Name it (optional)"
+                          value={lookupName}
+                          onChange={(e) => setLookupName(e.target.value)}
+                          className="w-full max-w-xs"
+                          aria-label="Lookup name"
+                        />
+                      )}
+                    </div>
+                    {!saveToHistory && (
+                      <p className="text-xs text-muted-foreground">
+                        Results are not kept. Export them before you leave this
+                        page.
                       </p>
                     )}
                   </div>
-                  <Button variant="outline" onClick={handleReset} className="shrink-0">
-                    <Swap className="h-4 w-4" aria-hidden />
-                    Choose different file
-                  </Button>
-                </div>
-
-                <div className="space-y-4 border-t pt-4">
-                  {/* How long against how thorough */}
-                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
-                    <Eyebrow className="sm:pt-2.5">
-                      Scan depth
-                    </Eyebrow>
-                    <div className="space-y-1.5">
-                      <Segmented<ScanDepth>
-                        ariaLabel="Scan depth"
-                        value={scanDepth}
-                        onChange={setScanDepth}
-                        className="w-full max-w-[17rem]"
-                        options={[
-                          {
-                            value: 'fast',
-                            label: SCAN_DEPTHS.fast.label,
-                            content: (
-                              <>
-                                <Lightning className="h-4 w-4" aria-hidden />
-                                {SCAN_DEPTHS.fast.label}
-                              </>
-                            ),
-                          },
-                          {
-                            value: 'deep',
-                            label: SCAN_DEPTHS.deep.label,
-                            content: (
-                              <>
-                                <Binoculars className="h-4 w-4" aria-hidden />
-                                {SCAN_DEPTHS.deep.label}
-                              </>
-                            ),
-                          },
-                        ]}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {SCAN_DEPTHS[scanDepth].blurb}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Keep it, and under what name */}
-                  <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
-                    <Eyebrow className="sm:pt-2.5">
-                      History
-                    </Eyebrow>
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <label
-                          htmlFor="saveHistory"
-                          className="flex h-control items-center gap-2 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            id="saveHistory"
-                            checked={saveToHistory}
-                            onChange={(e) => setSaveToHistory(e.target.checked)}
-                            className="rounded-sm"
-                          />
-                          Save this lookup
-                        </label>
-                        {saveToHistory && (
-                          <Input
-                            placeholder="Name it (optional)"
-                            value={lookupName}
-                            onChange={(e) => setLookupName(e.target.value)}
-                            className="w-full max-w-xs"
-                            aria-label="Lookup name"
-                          />
-                        )}
-                      </div>
-                      {!saveToHistory && (
-                        <p className="text-xs text-muted-foreground">
-                          Results are not kept. Export them before you leave this page.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-                  {canNotify() && (
-                    <label
-                      htmlFor="notifyOnComplete"
-                      className="flex items-center gap-2 text-sm text-muted-foreground"
-                      title="Get a browser notification when lookup finishes"
-                    >
-                      <input
-                        type="checkbox"
-                        id="notifyOnComplete"
-                        checked={notifyOnComplete}
-                        onChange={async (e) => {
-                          if (e.target.checked) {
-                            const granted = await requestPermission();
-                            setNotifyOnComplete(granted);
-                            localStorage.setItem('notifyOnComplete', granted.toString());
-                          } else {
-                            setNotifyOnComplete(false);
-                            localStorage.setItem('notifyOnComplete', 'false');
-                          }
-                        }}
-                        className="rounded-sm"
-                      />
-                      Notify when done
-                    </label>
-                  )}
-                  <div className="flex-1" />
-                  <Button onClick={startLookup}>
-                    <MagnifyingGlass className="h-4 w-4" aria-hidden />
-                    Start lookup
-                  </Button>
                 </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+                {canNotify() && (
+                  <label
+                    htmlFor="notifyOnComplete"
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                    title="Get a browser notification when lookup finishes"
+                  >
+                    <input
+                      type="checkbox"
+                      id="notifyOnComplete"
+                      checked={notifyOnComplete}
+                      onChange={async (e) => {
+                        if (e.target.checked) {
+                          const granted = await requestPermission();
+                          setNotifyOnComplete(granted);
+                          localStorage.setItem(
+                            'notifyOnComplete',
+                            granted.toString()
+                          );
+                        } else {
+                          setNotifyOnComplete(false);
+                          localStorage.setItem('notifyOnComplete', 'false');
+                        }
+                      }}
+                      className="rounded-sm"
+                    />
+                    Notify when done
+                  </label>
+                )}
+                <div className="flex-1" />
+                <Button onClick={startLookup}>
+                  <MagnifyingGlass className="h-4 w-4" aria-hidden />
+                  Start lookup
+                </Button>
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Processing State */}
-          {state === 'processing' && (
-            <ProgressBar progress={progress} displayedProcessed={displayedProcessed} timeRemaining={getTimeRemaining()} onCancel={handleCancel} scanDepth={scanDepth} includesEns={tierCanUseENS(userTier, isWhitelisted)} />
-          )}
+        {/* Processing State */}
+        {state === 'processing' && (
+          <ProgressBar
+            progress={progress}
+            displayedProcessed={displayedProcessed}
+            timeRemaining={getTimeRemaining()}
+            onCancel={handleCancel}
+            scanDepth={scanDepth}
+            includesEns={entitled}
+          />
+        )}
 
-          {/* Error State */}
-          {state === 'error' && (
-            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <p className="text-destructive font-medium mb-2">Error</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                {error || 'An unknown error occurred'}
-              </p>
-              <Button variant="outline" onClick={handleReset}>
-                Try again
-              </Button>
-            </div>
-          )}
+        {/* Error State */}
+        {state === 'error' && (
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <p className="text-destructive font-medium mb-2">Error</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {error || 'An unknown error occurred'}
+            </p>
+            <Button variant="outline" onClick={handleReset}>
+              Try again
+            </Button>
+          </div>
+        )}
 
-          {/* Complete State */}
-          {state === 'complete' && results.length > 0 && (
-            <div className="space-y-6">
-              {mergeWarning && (
-                <div className="flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-caution" aria-hidden />
-                  <p className="text-sm text-caution">
-                    {mergeWarning} You are looking at the new addresses only, and
-                    the saved lookup still holds what it held before.
-                  </p>
-                </div>
-              )}
-              {/* Stacks on a phone. A row of buttons never wraps, so when the
+        {/* Complete State */}
+        {state === 'complete' && results.length > 0 && (
+          <div className="space-y-6">
+            {mergeWarning && (
+              <div className="flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
+                <AlertTriangle
+                  className="mt-0.5 h-4 w-4 flex-none text-caution"
+                  aria-hidden
+                />
+                <p className="text-sm text-caution">
+                  {mergeWarning} You are looking at the new addresses only, and
+                  the saved lookup still holds what it held before.
+                </p>
+              </div>
+            )}
+            {/* Stacks on a phone. A row of buttons never wraps, so when the
                   viewport cannot hold the name beside the actions the two go on
                   separate lines rather than the row reflowing. */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  {/* Lookup name with edit capability */}
-                  {isEditingName ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editNameValue}
-                        onChange={(e) => setEditNameValue(e.target.value)}
-                        placeholder="Enter lookup name..."
-                        className="max-w-xs h-8"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveLookupName();
-                          if (e.key === 'Escape') setIsEditingName(false);
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleSaveLookupName}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsEditingName(false)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* The eyebrow is what says the string below it is a name you
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                {/* Lookup name with edit capability */}
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editNameValue}
+                      onChange={(e) => setEditNameValue(e.target.value)}
+                      placeholder="Enter lookup name..."
+                      className="max-w-xs h-8"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveLookupName();
+                        if (e.key === 'Escape') setIsEditingName(false);
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleSaveLookupName}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setIsEditingName(false)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    {/* The eyebrow is what says the string below it is a name you
                           set, not a section heading. A pencil beside a word does not
                           communicate "label this so you can find it later", and the
                           affordance is visible at rest because on touch there is no
                           hover to reveal it. */}
-                      <Eyebrow className="mb-1">Lookup name</Eyebrow>
-                      <div className="flex items-center gap-2.5">
-                        <h2 className="text-xl font-semibold tracking-[-0.02em]">
-                          {currentLookupName || 'Results'}
-                        </h2>
-                        {currentLookupId && (userTier === 'pro' || userTier === 'unlimited') && (
+                    <Eyebrow className="mb-1">Lookup name</Eyebrow>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                        {currentLookupName || 'Results'}
+                      </h2>
+                      {currentLookupId &&
+                        (userTier === 'pro' || userTier === 'unlimited') && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1544,25 +1740,26 @@ export default function Home() {
                             Rename
                           </button>
                         )}
-                      </div>
                     </div>
-                  )}
-                  {cacheHits > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {cacheHits.toLocaleString()} results from cache (24h)
-                    </p>
-                  )}
-                </div>
-                {/* One filled action, one contextual action, everything else in the
+                  </div>
+                )}
+                {cacheHits > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {cacheHits.toLocaleString()} results from cache (24h)
+                  </p>
+                )}
+              </div>
+              {/* One filled action, one contextual action, everything else in the
                     menu. This was up to seven buttons of equal weight in a wrapping
                     row, which gave "Export CSV" and "\u{1D54F} Share" the same emphasis and
                     ragged onto a second line. A row of buttons never wraps. */}
-                <div className="flex flex-none items-center gap-2">
-                  {/* Hidden below sm and offered in the menu instead. A row of
+              <div className="flex flex-none items-center gap-2">
+                {/* Hidden below sm and offered in the menu instead. A row of
                       buttons never wraps, so on a phone the row has to get
                       shorter rather than reflow: ExportButton alone is two
                       controls, and the name sits beside all of it. */}
-                  {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
+                {userTier === 'unlimited' &&
+                  (results.some((r) => r.fc_fid) || enrichingFids) && (
                     <Button
                       variant="outline"
                       onClick={() => setShowFarcasterDMModal(true)}
@@ -1573,85 +1770,95 @@ export default function Home() {
                       <Send className="h-4 w-4" />
                       {enrichingFids
                         ? 'Loading FIDs...'
-                        : `DM ${results.filter(r => r.fc_fid).length.toLocaleString()}`}
+                        : `DM ${results.filter((r) => r.fc_fid).length.toLocaleString()}`}
                     </Button>
                   )}
 
-                  <ExportButton
-                    results={results}
-                    extraColumns={extraColumns}
-                    userTier={userTier}
-                    onUpgradeClick={handleOpenUpgradeModal}
-                    lookupName={currentLookupName}
-                  />
+                <ExportButton
+                  results={results}
+                  extraColumns={extraColumns}
+                  entitled={entitled}
+                  onUpgradeClick={handleOpenUpgradeModal}
+                  lookupName={currentLookupName}
+                />
 
-                  <OverflowMenu>
-                    {userTier === 'unlimited' && (results.some(r => r.fc_fid) || enrichingFids) && (
+                <OverflowMenu>
+                  {userTier === 'unlimited' &&
+                    (results.some((r) => r.fc_fid) || enrichingFids) && (
                       <div className="sm:hidden">
                         <MenuItem onClick={() => setShowFarcasterDMModal(true)}>
                           <Send className="h-4 w-4" aria-hidden />
-                          DM {results.filter(r => r.fc_fid).length.toLocaleString()} FC users
+                          DM{' '}
+                          {results
+                            .filter((r) => r.fc_fid)
+                            .length.toLocaleString()}{' '}
+                          FC users
                         </MenuItem>
                       </div>
                     )}
-                    {currentLookupId && userTier === 'unlimited' && (
-                      <MenuItem onClick={handleAddAddressesFromResults}>
-                        <Plus className="h-4 w-4" aria-hidden />
-                        Add addresses
-                      </MenuItem>
-                    )}
-                    <MenuItem onClick={handleReset}>
-                      <RefreshCw className="h-4 w-4" aria-hidden />
-                      New lookup
+                  {currentLookupId && userTier === 'unlimited' && (
+                    <MenuItem onClick={handleAddAddressesFromResults}>
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Add addresses
                     </MenuItem>
-                    <div className="my-1 border-t border-border" />
-                    <ShareButtons
-                      twitterCount={results.filter((r) => r.twitter_handle).length}
-                      farcasterCount={results.filter((r) => r.farcaster).length}
-                      totalWallets={results.length}
-                      /* Same predicate as StatsCards, so the shared figure and
+                  )}
+                  <MenuItem onClick={handleReset}>
+                    <RefreshCw className="h-4 w-4" aria-hidden />
+                    New lookup
+                  </MenuItem>
+                  <div className="my-1 border-t border-border" />
+                  <ShareButtons
+                    twitterCount={
+                      results.filter((r) => r.twitter_handle).length
+                    }
+                    farcasterCount={results.filter((r) => r.farcaster).length}
+                    totalWallets={results.length}
+                    /* Same predicate as StatsCards, so the shared figure and
                          the one on screen can never disagree. */
-                      reachableCount={
-                        results.filter(
-                          (r) => r.twitter_handle || r.farcaster || r.lens || r.github
-                        ).length
-                      }
-                      asMenuItems
-                    />
-                  </OverflowMenu>
-                </div>
+                    reachableCount={
+                      results.filter(
+                        (r) =>
+                          r.twitter_handle || r.farcaster || r.lens || r.github
+                      ).length
+                    }
+                    asMenuItems
+                  />
+                </OverflowMenu>
               </div>
+            </div>
 
-              {/* Report the cap honestly. There is no pagination behind it, so
+            {/* Report the cap honestly. There is no pagination behind it, so
                   the rest is genuinely unreachable rather than one click away,
                   and implying otherwise would be worse than saying nothing. */}
-              {reverseMeta?.truncated && (
-                <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
-                  <p className="text-xs text-caution">
-                    Showing {reverseMeta.returnedCount} of{' '}
-                    {reverseMeta.totalCount.toLocaleString()} wallets, ordered by
-                    Farcaster reach. Need the full set?{' '}
-                    <a href="mailto:help@walletlink.social" className="underline">
-                      Get in touch
-                    </a>
-                    .
-                  </p>
-                </div>
-              )}
+            {reverseMeta?.truncated && (
+              <div className="flex items-start gap-2 rounded-lg border border-caution/30 bg-caution-tint p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
+                <p className="text-xs text-caution">
+                  Showing {reverseMeta.returnedCount} of{' '}
+                  {reverseMeta.totalCount.toLocaleString()} wallets, ordered by
+                  Farcaster reach. Need the full set?{' '}
+                  <a href="mailto:help@walletlink.social" className="underline">
+                    Get in touch
+                  </a>
+                  .
+                </p>
+              </div>
+            )}
 
-              <StatsCards results={results} />
-              <ResultsTable
-                results={results}
-                extraColumns={extraColumns}
-                userTier={userTier}
-                onUpgradeClick={handleOpenUpgradeModal}
-                enrichedWallets={enrichedWallets}
-                holdingsLabel={inputSource === 'contract_import' ? 'Bag' : 'Holdings'}
-              />
-            </div>
-          )}
-        </div>
+            <StatsCards results={results} />
+            <ResultsTable
+              results={results}
+              extraColumns={extraColumns}
+              entitled={entitled}
+              onUpgradeClick={handleOpenUpgradeModal}
+              enrichedWallets={enrichedWallets}
+              holdingsLabel={
+                inputSource === 'contract_import' ? 'Bag' : 'Holdings'
+              }
+            />
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 }

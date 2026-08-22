@@ -1,14 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { UploadSimple as Upload, ClipboardText as ClipboardList, Polygon as Boxes, Lock } from '@phosphor-icons/react';
+import {
+  UploadSimple as Upload,
+  ClipboardText as ClipboardList,
+  Polygon as Boxes,
+  Lock,
+} from '@phosphor-icons/react';
 
 interface InputMethodPickerProps {
   onFileLoaded: (file: File) => void;
   onPasteClick: () => void;
   pasteActive: boolean;
   onContractClick: () => void;
-  /** Contract import is Pro and Unlimited. Free accounts see it locked rather than hidden. */
+  /** Contract import needs credits. Accounts without any see it locked rather than hidden. */
   contractLocked: boolean;
   disabled?: boolean;
 }
@@ -76,7 +81,8 @@ export function InputMethodPicker({
         '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
       ) !== null;
 
-    const isFileDrag = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
+    const isFileDrag = (e: DragEvent) =>
+      e.dataTransfer?.types?.includes('Files');
 
     // preventDefault runs for every file drag, dialog open or not. Skipping it
     // hands the drop back to the browser, which navigates to the file and
@@ -133,22 +139,31 @@ export function InputMethodPicker({
     'group flex w-full items-center gap-4 rounded-lg border border-dashed border-accent-brand ' +
     'bg-accent-brand-tint p-5 text-left transition-control ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
-    (disabled ? 'opacity-50 pointer-events-none ' : 'hover:border-accent-brand-hover ');
+    (disabled
+      ? 'opacity-50 pointer-events-none '
+      : 'hover:border-accent-brand-hover ');
 
   const altBase =
     'group inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border ' +
     'px-4 py-2.5 text-sm font-medium text-foreground/80 transition-control ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
-    (disabled ? 'opacity-50 pointer-events-none ' : 'hover:border-accent-brand hover:text-accent-brand ');
+    (disabled
+      ? 'opacity-50 pointer-events-none '
+      : 'hover:border-accent-brand hover:text-accent-brand ');
 
   return (
     <div>
       {isDragging && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
           <div className="rounded-lg border-2 border-dashed border-accent-brand bg-background px-8 py-6 text-center">
-            <Upload className="mx-auto h-10 w-10 text-accent-brand" aria-hidden />
+            <Upload
+              className="mx-auto h-10 w-10 text-accent-brand"
+              aria-hidden
+            />
             <p className="mt-3 text-lg font-medium">Drop it anywhere</p>
-            <p className="text-sm text-muted-foreground">CSV or Excel (.xlsx)</p>
+            <p className="text-sm text-muted-foreground">
+              CSV or Excel (.xlsx)
+            </p>
           </div>
         </div>
       )}
@@ -164,7 +179,9 @@ export function InputMethodPicker({
           <Upload className="h-5 w-5" aria-hidden weight="bold" />
         </span>
         <span className="min-w-0">
-          <span className="block font-semibold">Drop a file, or click to browse</span>
+          <span className="block font-semibold">
+            Drop a file, or click to browse
+          </span>
           <span className="block text-sm text-muted-foreground">
             CSV or Excel &middot; drag it anywhere on this page
           </span>
@@ -207,7 +224,7 @@ export function InputMethodPicker({
           className={altBase}
           aria-label={
             contractLocked
-              ? 'Import from a contract address (available on Pro and Unlimited)'
+              ? 'Import from a contract address (needs credits)'
               : 'Import from a contract address'
           }
         >
@@ -219,13 +236,15 @@ export function InputMethodPicker({
           Import from a contract
           {contractLocked && (
             <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              Pro
+              Credits
             </span>
           )}
         </button>
       </div>
 
-      {error && <p className="mt-3 text-center text-sm text-destructive">{error}</p>}
+      {error && (
+        <p className="mt-3 text-center text-sm text-destructive">{error}</p>
+      )}
     </div>
   );
 }

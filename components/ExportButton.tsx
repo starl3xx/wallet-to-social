@@ -12,7 +12,15 @@ interface ExportButtonProps {
   results: WalletSocialResult[];
   extraColumns?: string[];
   disabled?: boolean;
-  userTier?: 'free' | 'pro' | 'unlimited';
+  /**
+   * Whether paid features are unlocked, decided by the caller.
+   *
+   * Was `userTier`, and reading entitlement off a tier stopped working the day
+   * packs shipped: a pack purchase leaves `users.tier` as `free`, so this
+   * component locked Twitter list export for someone who
+   * had just paid for it.
+   */
+  entitled?: boolean;
   onUpgradeClick?: () => void;
   lookupName?: string | null;
 }
@@ -21,11 +29,11 @@ export const ExportButton = memo(function ExportButton({
   results,
   extraColumns = [],
   disabled,
-  userTier = 'free',
+  entitled = false,
   onUpgradeClick,
   lookupName,
 }: ExportButtonProps) {
-  const isPaidTier = userTier === 'pro' || userTier === 'unlimited';
+  const isPaidTier = entitled;
 
   // Generate filename base from lookup name or default
   const getFilenameBase = (prefix: string) => {
@@ -44,7 +52,10 @@ export const ExportButton = memo(function ExportButton({
 
   // Memoize sorted results - only recalculate when results change
   const sortedResults = useMemo(
-    () => [...results].sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0)),
+    () =>
+      [...results].sort(
+        (a, b) => (b.priority_score || 0) - (a.priority_score || 0)
+      ),
     [results]
   );
 
@@ -184,7 +195,6 @@ export const ExportButton = memo(function ExportButton({
     URL.revokeObjectURL(url);
   };
 
-
   /**
    * Distinct handles left out, counted the same way as the ones going in.
    *
@@ -207,7 +217,8 @@ export const ExportButton = memo(function ExportButton({
     const dead = new Set<string>();
     for (const r of results) {
       if (!r.twitter_handle) continue;
-      if (!r.twitter_reachability || r.twitter_reachability === 'live') continue;
+      if (!r.twitter_reachability || r.twitter_reachability === 'live')
+        continue;
       const key = r.twitter_handle.toLowerCase();
       if (exported.has(key)) continue;
       dead.add(key);
@@ -247,7 +258,7 @@ export const ExportButton = memo(function ExportButton({
         <Button
           variant="outline"
           onClick={onUpgradeClick}
-          title="Upgrade to export Twitter list"
+          title="Buy credits to export the 𝕏 list"
         >
           <Lock className="w-4 h-4 mr-2" />
           <svg
@@ -258,10 +269,13 @@ export const ExportButton = memo(function ExportButton({
           >
             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
           </svg>
-          Twitter list (Pro)
+          𝕏 list
         </Button>
       )}
-      <Button onClick={handleExportCSV} disabled={disabled || results.length === 0}>
+      <Button
+        onClick={handleExportCSV}
+        disabled={disabled || results.length === 0}
+      >
         <svg
           className="w-4 h-4 mr-2"
           fill="none"

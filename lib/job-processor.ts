@@ -20,6 +20,7 @@ import {
   calculatePriorityScore,
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
+import { chargeForJob } from '@/lib/credits';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
@@ -34,6 +35,16 @@ export interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
+  /**
+   * The `users.id` to debit, set only when a signed-in account created the job.
+   *
+   * Separate from `userId`, which for an anonymous caller is a localStorage
+   * value that a cleared cache resets. Guessing at uuid shape to tell them
+   * apart would charge a ledger row to a string that is not an account, so the
+   * caller states it instead: `/api/jobs` sets this from the session and
+   * nowhere else can.
+   */
+  meteredUserId?: string;
   tier?: UserTier;
   canUseNeynar?: boolean;
   canUseENS?: boolean;
@@ -67,7 +78,15 @@ export interface ProcessResult {
 export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   const db = getDb();
   if (!db) {
-    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, anySocialFound: 0, cacheHits: 0, error: 'Database not configured' };
+    return {
+      completed: true,
+      processedCount: 0,
+      twitterFound: 0,
+      farcasterFound: 0,
+      anySocialFound: 0,
+      cacheHits: 0,
+      error: 'Database not configured',
+    };
   }
 
   // Load job from DB
@@ -78,11 +97,26 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     .limit(1);
 
   if (!job) {
-    return { completed: true, processedCount: 0, twitterFound: 0, farcasterFound: 0, anySocialFound: 0, cacheHits: 0, error: 'Job not found' };
+    return {
+      completed: true,
+      processedCount: 0,
+      twitterFound: 0,
+      farcasterFound: 0,
+      anySocialFound: 0,
+      cacheHits: 0,
+      error: 'Job not found',
+    };
   }
 
   if (job.status === 'completed' || job.status === 'failed') {
-    return { completed: true, processedCount: job.processedCount, twitterFound: job.twitterFound, farcasterFound: job.farcasterFound, anySocialFound: job.anySocialFound, cacheHits: job.cacheHits };
+    return {
+      completed: true,
+      processedCount: job.processedCount,
+      twitterFound: job.twitterFound,
+      farcasterFound: job.farcasterFound,
+      anySocialFound: job.anySocialFound,
+      cacheHits: job.cacheHits,
+    };
   }
 
   // Mark as processing
@@ -97,12 +131,18 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
   try {
     const options = job.options as JobOptions;
-    const originalData = (job.originalData || {}) as Record<string, Record<string, string>>;
+    const originalData = (job.originalData || {}) as Record<
+      string,
+      Record<string, string>
+    >;
     const allWallets = job.wallets;
     const startIndex = job.processedCount;
 
     // Get chunk to process
-    const walletsToProcess = allWallets.slice(startIndex, startIndex + CHUNK_SIZE);
+    const walletsToProcess = allWallets.slice(
+      startIndex,
+      startIndex + CHUNK_SIZE
+    );
 
     if (walletsToProcess.length === 0) {
       // All done - finalize job
@@ -130,7 +170,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
         let holdings: number | undefined;
         if (holdingsColumn && walletData[holdingsColumn]) {
-          holdings = parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
+          holdings =
+            parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
         }
 
         results.set(walletLower, {
@@ -195,7 +236,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             source: [...existing.source, 'graph:none'],
           });
           graphNegativeHits++;
-        } else if (graphResult.quality === 'high' && graphResult.data && !graphResult.needsRefresh) {
+        } else if (
+          graphResult.quality === 'high' &&
+          graphResult.data &&
+          !graphResult.needsRefresh
+        ) {
           // Trust high-quality data completely - skip all API calls for this wallet
           results.set(wallet, mergeGraphRow(existing, graphResult.data));
           graphHits++;
@@ -242,7 +287,9 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           // conflate "served data" with "served a trusted empty answer"
           negativeHitCount: graphNegativeHits,
           totalWallets: walletsToProcess.length,
-          hitRate: Math.round(((graphHits + graphNegativeHits) / walletsToProcess.length) * 100),
+          hitRate: Math.round(
+            ((graphHits + graphNegativeHits) / walletsToProcess.length) * 100
+          ),
         },
       });
     }
@@ -272,7 +319,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       cacheHits += cached.size;
 
       for (const [wallet, data] of cached) {
-        const isNegativeHit = data.source.length === 1 && data.source[0] === 'none';
+        const isNegativeHit =
+          data.source.length === 1 && data.source[0] === 'none';
         const existing = results.get(wallet)!;
         if (isNegativeHit) {
           // Negative cache: wallet was checked before with no results — skip APIs
@@ -326,15 +374,40 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         canUseENS
           ? batchLookupENS(uncachedWallets).catch((error) => {
               console.error('ENS lookup error:', error);
-              return new Map<string, { ensName?: string; twitter?: string; twitterUrl?: string; github?: string }>();
+              return new Map<
+                string,
+                {
+                  ensName?: string;
+                  twitter?: string;
+                  twitterUrl?: string;
+                  github?: string;
+                }
+              >();
             })
-          : Promise.resolve(new Map<string, { ensName?: string; twitter?: string; twitterUrl?: string; github?: string }>()),
+          : Promise.resolve(
+              new Map<
+                string,
+                {
+                  ensName?: string;
+                  twitter?: string;
+                  twitterUrl?: string;
+                  github?: string;
+                }
+              >()
+            ),
         canUseNeynar
-          ? batchFetchNeynar(uncachedWallets, neynarApiKey, undefined, undefined, {
-              failedWallets: apiFailedWallets,
-            }).catch((error) => {
+          ? batchFetchNeynar(
+              uncachedWallets,
+              neynarApiKey,
+              undefined,
+              undefined,
+              {
+                failedWallets: apiFailedWallets,
+              }
+            ).catch((error) => {
               console.error('Neynar fetch error:', error);
-              for (const w of uncachedWallets) apiFailedWallets.add(w.toLowerCase());
+              for (const w of uncachedWallets)
+                apiFailedWallets.add(w.toLowerCase());
               return new Map<string, NeynarResult>();
             })
           : Promise.resolve(new Map<string, NeynarResult>()),
@@ -396,9 +469,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
         await updateJobStage(db, jobId, 'web3bio');
-        const web3BioResults = await batchFetchWeb3Bio(walletsNeedingWeb3Bio, undefined, undefined, {
-          failedWallets: apiFailedWallets,
-        });
+        const web3BioResults = await batchFetchWeb3Bio(
+          walletsNeedingWeb3Bio,
+          undefined,
+          undefined,
+          {
+            failedWallets: apiFailedWallets,
+          }
+        );
 
         for (const [wallet, data] of web3BioResults) {
           const existing = results.get(wallet)!;
@@ -424,7 +502,12 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           .map((w) => {
             const r = results.get(w.toLowerCase())!;
             if (r.source.includes('cache')) return null;
-            const hasSocial = r.twitter_handle || r.farcaster || r.ens_name || r.lens || r.github;
+            const hasSocial =
+              r.twitter_handle ||
+              r.farcaster ||
+              r.ens_name ||
+              r.lens ||
+              r.github;
             if (!hasSocial && r.source.length === 0) {
               return { ...r, source: ['none'] as string[] };
             }
@@ -484,10 +567,16 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     // Calculate stats for this chunk
-    const chunkResults = walletsToProcess.map((w) => results.get(w.toLowerCase())!);
-    const twitterFound = job.twitterFound + chunkResults.filter((r) => r.twitter_handle).length;
-    const farcasterFound = job.farcasterFound + chunkResults.filter((r) => r.farcaster).length;
-    const anySocialFound = job.anySocialFound + chunkResults.filter((r) => r.twitter_handle || r.farcaster).length;
+    const chunkResults = walletsToProcess.map(
+      (w) => results.get(w.toLowerCase())!
+    );
+    const twitterFound =
+      job.twitterFound + chunkResults.filter((r) => r.twitter_handle).length;
+    const farcasterFound =
+      job.farcasterFound + chunkResults.filter((r) => r.farcaster).length;
+    const anySocialFound =
+      job.anySocialFound +
+      chunkResults.filter((r) => r.twitter_handle || r.farcaster).length;
 
     const newProcessedCount = startIndex + walletsToProcess.length;
     const allResults = Array.from(results.values());
@@ -497,7 +586,15 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     if (isComplete) {
       // Finalize: save to history and social graph
-      await finalizeJobWithResults(db, job, allResults, twitterFound, farcasterFound, anySocialFound, cacheHits);
+      await finalizeJobWithResults(
+        db,
+        job,
+        allResults,
+        twitterFound,
+        farcasterFound,
+        anySocialFound,
+        cacheHits
+      );
       return {
         completed: true,
         processedCount: newProcessedCount,
@@ -590,13 +687,15 @@ function mergeGraphRow(
     lens: stored.lens || existing.lens,
     github: stored.github || existing.github,
     twitter_verified: stored.twitter_verified ?? existing.twitter_verified,
-    farcaster_verified: stored.farcaster_verified ?? existing.farcaster_verified,
+    farcaster_verified:
+      stored.farcaster_verified ?? existing.farcaster_verified,
     source: [...existing.source, 'graph'],
     is_agent: existing.is_agent || stored.is_agent,
     agent_name: existing.agent_name || stored.agent_name,
     agent_framework: existing.agent_framework || stored.agent_framework,
     agent_type: existing.agent_type || stored.agent_type,
-    agent_token_symbol: existing.agent_token_symbol || stored.agent_token_symbol,
+    agent_token_symbol:
+      existing.agent_token_symbol || stored.agent_token_symbol,
     agent_verified: existing.agent_verified || stored.agent_verified,
   };
 }
@@ -720,11 +819,7 @@ async function finalizeJobWithResults(
     ? []
     : results.filter(
         (r) =>
-          r.twitter_handle ||
-          r.farcaster ||
-          r.lens ||
-          r.github ||
-          r.ens_name
+          r.twitter_handle || r.farcaster || r.lens || r.github || r.ens_name
       );
 
   if (positiveResults.length > 0) {
@@ -733,15 +828,22 @@ async function finalizeJobWithResults(
     // Determine write status
     if (writeResult.failed === 0) {
       socialGraphWriteStatus = 'success';
-      console.log(`Social graph: persisted ${writeResult.succeeded} of ${positiveResults.length} wallets`);
+      console.log(
+        `Social graph: persisted ${writeResult.succeeded} of ${positiveResults.length} wallets`
+      );
     } else if (writeResult.succeeded > 0) {
       socialGraphWriteStatus = 'partial';
       socialGraphWriteErrors = writeResult.errors;
-      console.warn(`Social graph: partial write - ${writeResult.succeeded} succeeded, ${writeResult.failed} failed`);
+      console.warn(
+        `Social graph: partial write - ${writeResult.succeeded} succeeded, ${writeResult.failed} failed`
+      );
     } else {
       socialGraphWriteStatus = 'failed';
       socialGraphWriteErrors = writeResult.errors;
-      console.error('CRITICAL: Social graph persist completely failed:', writeResult.errors);
+      console.error(
+        'CRITICAL: Social graph persist completely failed:',
+        writeResult.errors
+      );
     }
 
     // Track write failures in analytics
@@ -774,13 +876,57 @@ async function finalizeJobWithResults(
       completedAt,
       updatedAt: new Date(),
       socialGraphWriteStatus,
-      socialGraphWriteErrors: socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
+      socialGraphWriteErrors:
+        socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
     })
     .where(eq(lookupJobs.id, job.id));
 
+  /**
+   * Charge for the matches, after the job is marked complete.
+   *
+   * Deliberately after. A job that fails partway is not charged, and the debit
+   * is keyed on the job id, so a resumed job that reaches here twice inserts
+   * once and the second attempt is swallowed by the unique index.
+   *
+   * `anySocialFound` is the meter: wallets carrying an X handle or a Farcaster
+   * account. Misses are free, which is the whole pricing position, so this must
+   * not be `processedCount` however tempting the symmetry.
+   *
+   * Never fatal. A ledger write that fails must not fail a lookup the caller
+   * has already waited for; the work is done and the results are theirs. The
+   * cost of a missed debit is one uncharged job, which is strictly better than
+   * a completed job that reports as failed.
+   */
+  /**
+   * Called for every job by a signed-in account, including zero-match ones.
+   *
+   * The earlier `anySocialFound > 0` guard skipped the cheap case, and that was
+   * wrong once legacy accounts started recording usage: they are never charged
+   * but their submitted-wallet counts feed the daily anti-enumeration ceiling,
+   * and a run that matched nothing is exactly the shape enumeration takes.
+   * `chargeForJob` returns early for the metered zero-match case, so the only
+   * cost here is one function call.
+   */
+  if (options.meteredUserId) {
+    try {
+      await chargeForJob(
+        options.meteredUserId,
+        job.id,
+        anySocialFound,
+        job.wallets.length,
+        options.tier ?? 'free'
+      );
+    } catch (error) {
+      console.error('Credit charge failed (job still succeeded):', error);
+    }
+  }
+
   // Track lookup completed event
-  const durationMs = completedAt.getTime() - (job.startedAt?.getTime() || job.createdAt.getTime());
-  const matchRate = job.wallets.length > 0 ? (anySocialFound / job.wallets.length) * 100 : 0;
+  const durationMs =
+    completedAt.getTime() -
+    (job.startedAt?.getTime() || job.createdAt.getTime());
+  const matchRate =
+    job.wallets.length > 0 ? (anySocialFound / job.wallets.length) * 100 : 0;
 
   trackEvent('lookup_completed', {
     userId: options.userId || job.userId || undefined,
@@ -885,7 +1031,9 @@ export async function getNextPendingJob(): Promise<LookupJob | null> {
  * Get multiple pending jobs to process in parallel
  * This allows the cron worker to clear the queue faster
  */
-export async function getNextPendingJobs(limit: number = 5): Promise<LookupJob[]> {
+export async function getNextPendingJobs(
+  limit: number = 5
+): Promise<LookupJob[]> {
   const db = getDb();
   if (!db) {
     return [];

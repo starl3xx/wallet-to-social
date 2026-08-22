@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
+import { PackPricing } from '@/components/PackPricing';
+import { PACKS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
-import { TIER_PRICES } from '@/lib/access';
-import { ArrowRight, BookOpenText, Check, MagnifyingGlass, X } from '@phosphor-icons/react/dist/ssr';
+import {
+  ArrowRight,
+  BookOpenText,
+  Check,
+  MagnifyingGlass,
+  X,
+} from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
@@ -60,7 +67,8 @@ const jsonLd = {
   },
   datePublished: '2025-01-01',
   dateModified: new Date().toISOString().split('T')[0],
-  keywords: 'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
+  keywords:
+    'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
 };
 
 export default function BlazeComparison() {
@@ -77,10 +85,14 @@ export default function BlazeComparison() {
                 word inside a 200-weight line. Both cuts are already loaded. */}
             <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
               A lookup, not a{' '}
-              <em className="font-semibold not-italic text-accent-brand">CRM</em>.
+              <em className="font-semibold not-italic text-accent-brand">
+                CRM
+              </em>
+              .
             </h1>
             <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
-              Blaze wants to be where you manage the relationship. We just tell you who the wallet belongs to, and hand it back.
+              Blaze wants to be where you manage the relationship. We just tell
+              you who the wallet belongs to, and hand it back.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2.5">
@@ -91,7 +103,11 @@ export default function BlazeComparison() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <a href="https://docs.walletlink.social" target="_blank" rel="noopener noreferrer">
+                <a
+                  href="https://docs.walletlink.social"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <BookOpenText className="h-4 w-4" aria-hidden />
                   Read the API docs
                 </a>
@@ -106,8 +122,15 @@ export default function BlazeComparison() {
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
-              <Figure value="16-46%" label="have an X or Farcaster account" brand />
-              <Figure value={`$${TIER_PRICES.pro}`} label="once, no subscription" />
+              <Figure
+                value="16-46%"
+                label="have an X or Farcaster account"
+                brand
+              />
+              <Figure
+                value={`$${PACKS.trial.priceCents / 100}`}
+                label="to start, no subscription"
+              />
             </dl>
           </header>
 
@@ -117,7 +140,9 @@ export default function BlazeComparison() {
 
           {/* What happened */}
           <section className="mb-12">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">What happened to Blaze?</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
+              What happened to Blaze?
+            </h2>
             <p className="text-muted-foreground mb-4">
               Blaze was a Web3 CRM platform built around community management
               and lead generation. Its &ldquo;Wallet CRM&rdquo; feature matched
@@ -131,11 +156,10 @@ export default function BlazeComparison() {
               <li>Campaign management</li>
             </ul>
             <p className="text-muted-foreground">
-              The company has since pivoted out of web3 entirely, and its
-              former domain no longer resolves. The Wallet CRM, its
-              wallet-to-Twitter matching, and its subscriptions went with it.
-              If you relied on Blaze for wallet-to-social data, that workflow
-              needs a new home.
+              The company has since pivoted out of web3 entirely, and its former
+              domain no longer resolves. The Wallet CRM, its wallet-to-Twitter
+              matching, and its subscriptions went with it. If you relied on
+              Blaze for wallet-to-social data, that workflow needs a new home.
             </p>
           </section>
 
@@ -169,7 +193,8 @@ export default function BlazeComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        ${TIER_PRICES.pro} - ${TIER_PRICES.unlimited}
+                        ${PACKS.trial.priceCents / 100} - $
+                        {PACKS.index.priceCents / 100}
                       </span>{' '}
                       one-time
                     </td>
@@ -200,7 +225,9 @@ export default function BlazeComparison() {
                     </td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-4 pr-4 font-medium">Farcaster Followers</td>
+                    <td className="py-4 pr-4 font-medium">
+                      Farcaster Followers
+                    </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
                     </td>
@@ -212,7 +239,9 @@ export default function BlazeComparison() {
                     <td className="py-4 pr-4 font-medium">Priority Score</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Pro+)
+                      </span>
                     </td>
                     <td className="py-4 pl-4">
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -222,7 +251,9 @@ export default function BlazeComparison() {
                     <td className="py-4 pr-4 font-medium">Lookup History</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
-                      <span className="text-xs text-muted-foreground ml-1">(Pro+)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Pro+)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       Was part of the CRM
@@ -244,7 +275,9 @@ export default function BlazeComparison() {
                     <td className="py-4 pr-4 font-medium">Farcaster DMs</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <Check className="h-4 w-4 text-accent-brand" />
-                      <span className="text-xs text-muted-foreground ml-1">(Unlimited)</span>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        (Unlimited)
+                      </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -277,21 +310,26 @@ export default function BlazeComparison() {
               <li>Upload your CSV of wallet addresses</li>
               <li>We match them against our identity index</li>
               <li>Export Twitter handles and Farcaster profiles</li>
-              <li>Save lookups (Pro+), and grow them with new addresses (Unlimited)</li>
+              <li>
+                Save lookups (Pro+), and grow them with new addresses
+                (Unlimited)
+              </li>
             </ol>
             <p className="text-muted-foreground">
-              Lookups are backed by an index of {INDEXED_WALLETS} wallets with complete
-              Farcaster protocol coverage, refreshed daily. Over 99.9% of
-              Twitter matches are user-attested (links the wallet owner created
-              themselves, such as a verified Farcaster account or an onchain ENS
-              record), and every match carries the evidence behind it, so there
-              is no guesswork in your outreach list.
+              Lookups are backed by an index of {INDEXED_WALLETS} wallets with
+              complete Farcaster protocol coverage, refreshed daily. Over 99.9%
+              of Twitter matches are user-attested (links the wallet owner
+              created themselves, such as a verified Farcaster account or an
+              onchain ENS record), and every match carries the evidence behind
+              it, so there is no guesswork in your outreach list.
             </p>
           </section>
 
           {/* Migrating from Blaze */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Migrating from Blaze</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+              Migrating from Blaze
+            </h2>
             <div className="border rounded-lg p-6 bg-accent-brand-tint border-accent-brand">
               <h3 className="font-semibold mb-4 text-accent-brand">
                 Three steps to rebuild your wallet-to-Twitter workflow:
@@ -325,32 +363,11 @@ export default function BlazeComparison() {
 
           {/* Pricing */}
           <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">Pricing after Blaze</h2>
+            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+              Pricing after Blaze
+            </h2>
 
-            <div className="bg-muted/30 rounded-lg p-6 mb-6">
-              <h3 className="font-semibold mb-4">walletlink.social</h3>
-              <div className="grid sm:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Free</p>
-                  <p className="text-2xl font-bold">$0</p>
-                  <p className="text-muted-foreground">Up to 500 wallets/lookup</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Pro</p>
-                  <p className="text-2xl font-bold">$99</p>
-                  <p className="text-muted-foreground">
-                    Up to 5,000 wallets/lookup (one-time)
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Unlimited</p>
-                  <p className="text-2xl font-bold">$249</p>
-                  <p className="text-muted-foreground">
-                    Unlimited wallets/lookup forever
-                  </p>
-                </div>
-              </div>
-            </div>
+            <PackPricing />
 
             <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
@@ -358,9 +375,9 @@ export default function BlazeComparison() {
                 Blaze started at $79/month, $948+ per year. walletlink.social
                 Pro is{' '}
                 <span className="font-semibold text-accent-brand">
-                  $99 once
-                </span>,{' '}
-                less than two months of the old Blaze subscription, and it
+                  ${PACKS.trial.priceCents / 100} to start
+                </span>
+                , less than two months of the old Blaze subscription, and it
                 never renews.
               </p>
             </div>
@@ -372,8 +389,7 @@ export default function BlazeComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free - 500 wallets, no credit card
-              required.
+              Try walletlink.social free - 500 wallets, no credit card required.
             </p>
             <Link
               href="/"
@@ -423,7 +439,6 @@ export default function BlazeComparison() {
             </ul>
           </nav>
         </article>
-
       </PageShell>
     </>
   );

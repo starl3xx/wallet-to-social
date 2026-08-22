@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
+import { effectiveTierForUserId } from '@/lib/access';
 import { validateApiKey } from './api-keys';
 import { checkRateLimit, type RateLimitHeaders } from './rate-limiter';
 import { trackApiUsage } from './api-usage';
@@ -97,15 +99,43 @@ export async function authenticateApiRequest(
 
   if (!keyResult) {
     return {
-      error: apiError(
-        'Invalid or expired API key',
-        'INVALID_API_KEY',
-        401
-      ),
+      error: apiError('Invalid or expired API key', 'INVALID_API_KEY', 401),
     };
   }
 
   const { key, plan } = keyResult;
+
+  /**
+   * The API draws on the same credit balance as the app.
+   *
+   * Without this, a $29 pack buys 5,000 API requests a day forever, which at
+   * the batch endpoint's 50 addresses per request is 250,000 wallets a day: an
+   * export licence for the index, sold by accident. The rate limit bounds the
+   * burst, not the total, and the total is the thing worth bounding.
+   *
+   * Checked here rather than in each endpoint because this is the one gate they
+   * all pass through, and a metered endpoint somebody forgot to wire is the
+   * same hole with extra steps.
+   *
+   * A balance check, not a debit. What a call costs is not known until it
+   * resolves, so the debit belongs where the matches are counted, exactly as it
+   * does for a job. This refuses the call when nothing is left.
+   */
+  const tier = await effectiveTierForUserId(key.userId);
+  if (!legacyTierIsUnmetered(tier)) {
+    const balance = await getBalance(key.userId);
+    if (balance.available <= 0) {
+      return {
+        error: apiError(
+          balance.onFreeAllowance
+            ? 'Free allowance used up for this 30-day window. Buy a pack to continue.'
+            : 'No credits left. Buy a pack to continue.',
+          'NO_CREDITS',
+          402
+        ),
+      };
+    }
+  }
 
   // Check rate limits
   const rateLimitResult = await checkRateLimit(key, plan, credits);
@@ -140,7 +170,10 @@ export function withApiAuth<T>(
     params: T
   ) => Promise<NextResponse>
 ) {
-  return async (request: NextRequest, { params }: { params: Promise<T> }): Promise<NextResponse> => {
+  return async (
+    request: NextRequest,
+    { params }: { params: Promise<T> }
+  ): Promise<NextResponse> => {
     const startTime = Date.now();
     const resolvedParams = await params;
 
@@ -165,6 +198,17 @@ export function withApiAuth<T>(
         responseStatus: response.status,
         latencyMs: Date.now() - startTime,
         creditsUsed: 1,
+        /**
+         * A generic wrapper cannot know what the handler resolved, so it never
+         * bills. Every endpoint currently in `/v1` calls `trackApiUsage`
+         * itself with a real count; this path exists for handlers that do not,
+         * and it records the request without charging for it.
+         *
+         * If a resolving endpoint is ever written on top of `withApiAuth`
+         * alone, it will run free. Better that than a wrapper guessing at a
+         * number it cannot see.
+         */
+        matches: null,
       }).catch(console.error);
 
       return response;
@@ -179,9 +223,16 @@ export function withApiAuth<T>(
         responseStatus: 500,
         latencyMs: Date.now() - startTime,
         creditsUsed: 0,
+        // A request that threw resolved nothing and is not billed.
+        matches: null,
       }).catch(console.error);
 
-      return apiError('Internal server error', 'INTERNAL_ERROR', 500, context.rateLimitHeaders);
+      return apiError(
+        'Internal server error',
+        'INTERNAL_ERROR',
+        500,
+        context.rateLimitHeaders
+      );
     }
   };
 }

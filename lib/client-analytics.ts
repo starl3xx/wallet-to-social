@@ -2,6 +2,7 @@
 
 import type { AnalyticsEventType } from './analytics';
 import type { PaidTier } from '@/lib/access';
+import type { PackId } from '@/lib/packs';
 
 // Get or create a session ID for tracking
 function getSessionId(): string {
@@ -18,7 +19,11 @@ function getSessionId(): string {
 // Get user ID from localStorage
 function getUserId(): string | undefined {
   if (typeof window === 'undefined') return undefined;
-  return localStorage.getItem('user_id') || localStorage.getItem('user_email') || undefined;
+  return (
+    localStorage.getItem('user_id') ||
+    localStorage.getItem('user_email') ||
+    undefined
+  );
 }
 
 // Track an analytics event from the client
@@ -36,10 +41,13 @@ export async function trackClientEvent(
     // plain fetch is commonly aborted on unload, which would lose exactly the
     // event we added to tell "reached Stripe" apart from "checkout errored".
     // sendBeacon is preferred where available since it is designed for this.
-    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.sendBeacon === 'function'
+    ) {
       const queued = navigator.sendBeacon(
         '/api/analytics/track',
-        new Blob([body], { type: 'application/json' }),
+        new Blob([body], { type: 'application/json' })
       );
       if (queued) return;
     }
@@ -68,11 +76,21 @@ export const Analytics = {
   lookupStarted: (walletCount: number, tier: string, includeENS: boolean) =>
     trackClientEvent('lookup_started', { walletCount, tier, includeENS }),
 
-  lookupCompleted: (walletCount: number, matchRate: number, durationMs: number) =>
-    trackClientEvent('lookup_completed', { walletCount, matchRate, durationMs }),
+  lookupCompleted: (
+    walletCount: number,
+    matchRate: number,
+    durationMs: number
+  ) =>
+    trackClientEvent('lookup_completed', {
+      walletCount,
+      matchRate,
+      durationMs,
+    }),
 
-  exportClicked: (format: 'csv' | 'twitter' | 'share_twitter' | 'share_farcaster', resultCount: number) =>
-    trackClientEvent('export_clicked', { format, resultCount }),
+  exportClicked: (
+    format: 'csv' | 'twitter' | 'share_twitter' | 'share_farcaster',
+    resultCount: number
+  ) => trackClientEvent('export_clicked', { format, resultCount }),
 
   historySaved: (lookupId: string, walletCount: number) =>
     trackClientEvent('history_saved', { lookupId, walletCount }),
@@ -80,16 +98,29 @@ export const Analytics = {
   upgradeModalViewed: (trigger: string, currentTier: string) =>
     trackClientEvent('upgrade_modal_viewed', { trigger, currentTier }),
 
-  checkoutStarted: (tier: PaidTier) =>
-    trackClientEvent('checkout_started', { tier }),
+  /**
+   * `sku` is a pack id now, and was a tier id before packs existed.
+   *
+   * Kept as one event rather than split into `pack_checkout_started`, because
+   * the funnel question is "how many people who opened the modal reached
+   * Stripe", and that question does not care what they were buying. Splitting
+   * would break the comparison across the pricing change, which is the one
+   * comparison worth having.
+   *
+   * The property stays named `tier` in the payload for the same reason: 261
+   * historical modal views and their downstream events are keyed on it, and
+   * renaming the field would orphan them.
+   */
+  checkoutStarted: (sku: PaidTier | PackId) =>
+    trackClientEvent('checkout_started', { tier: sku }),
 
   /** Fired once Stripe has actually handed us a session URL. */
-  checkoutRedirected: (tier: PaidTier) =>
-    trackClientEvent('checkout_redirected', { tier }),
+  checkoutRedirected: (sku: PaidTier | PackId) =>
+    trackClientEvent('checkout_redirected', { tier: sku }),
 
   /** Fired when checkout never reached Stripe, with the reason. */
-  checkoutFailed: (tier: PaidTier, reason: string) =>
-    trackClientEvent('checkout_failed', { tier, reason }),
+  checkoutFailed: (sku: PaidTier | PackId, reason: string) =>
+    trackClientEvent('checkout_failed', { tier: sku, reason }),
 
   limitHit: (tier: string, limit: number, attempted: number) =>
     trackClientEvent('limit_hit', { tier, limit, attempted }),

@@ -4,7 +4,7 @@ description: "GET /v1/wallet/{address}"
 api: "GET https://walletlink.social/api/v1/wallet/{address}"
 ---
 
-Returns every identity attached to a single address. Costs **1 credit**.
+Returns every identity attached to a single address. Costs **1 match credit if the address resolves** to an X handle or a Farcaster account, and nothing if it does not.
 
 For more than a handful of addresses use [batch](/api-reference/batch) instead.
 

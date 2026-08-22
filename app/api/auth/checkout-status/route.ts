@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { getBalance } from '@/lib/credits';
+import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
+import { PACKS, isPackId } from '@/lib/packs';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
-import { getUserAccess, provisionPaidCheckout, type PaidTier } from '@/lib/access';
+import {
+  getUserAccess,
+  provisionPaidCheckout,
+  type PaidTier,
+} from '@/lib/access';
 
 export const runtime = 'nodejs';
 
@@ -67,6 +76,69 @@ export async function GET(request: NextRequest) {
   if (!email) {
     // Paid, but we can't tie it to an account yet. The client keeps polling.
     return NextResponse.json({ paid: true, tier: 'free', email: null });
+  }
+
+  /**
+   * A pack, granted here as well as in the webhook.
+   *
+   * The tier path below has had this belt-and-braces grant since a payment
+   * could outrun its webhook, and the pack path needs it for the same reason.
+   * Without it a buyer whose webhook is slow or failing sees a success page
+   * that tells them nothing and holds no credits.
+   *
+   * Safe to run alongside the webhook: `grantPack` is idempotent on the Stripe
+   * payment id, so whichever arrives second grants nothing.
+   */
+  const pack = session.metadata?.pack;
+
+  if (pack && isPackId(pack)) {
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || session.id;
+
+    try {
+      const { userId } = await fulfilPackPurchase(
+        email,
+        pack,
+        paymentIntentId,
+        session.amount_total ?? PACKS[pack].priceCents
+      );
+      const balance = await getBalance(userId);
+
+      /**
+       * Whether this browser is already signed in as the buyer.
+       *
+       * Checkout does not require an account, so the common case is a buyer
+       * returning from Stripe still signed out, holding credits on an account
+       * they cannot reach. A sign-in link is emailed on every purchase, and the
+       * page needs to know whether to point at it or stay quiet.
+       *
+       * Compared by email rather than trusting the session alone: someone
+       * signed in as one account can buy credits for another, and telling them
+       * they are ready to go would be wrong.
+       */
+      const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+      const current = token ? await validateSession(token) : { user: null };
+      const signedInAsBuyer =
+        current.user?.email?.toLowerCase() === email.toLowerCase();
+
+      return NextResponse.json({
+        paid: true,
+        email,
+        pack,
+        packName: PACKS[pack].name,
+        matchesGranted: PACKS[pack].matches,
+        balance: balance.available,
+        signedInAsBuyer,
+        // The success page renders a plan when it sees a tier. A pack purchase
+        // has none, and reporting the buyer's *access* tier here is what showed
+        // a whitelisted account "Unlimited Plan" after a $29 Trial.
+        tier: null,
+      });
+    } catch (error) {
+      console.error('Pack grant from success page failed:', error);
+    }
   }
 
   // Grant it here rather than waiting on the webhook. `tier` is our own metadata

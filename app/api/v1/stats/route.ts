@@ -68,6 +68,8 @@ export async function GET(request: NextRequest) {
     responseStatus: 200,
     latencyMs: Date.now() - startTime,
     creditsUsed: CREDITS_COST,
+    // Index-wide counts. Resolves no wallet, bills nothing.
+    matches: null,
   }).catch(console.error);
 
   return apiSuccess(

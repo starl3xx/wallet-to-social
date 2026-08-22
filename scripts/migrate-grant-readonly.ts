@@ -23,6 +23,8 @@ const READ_ONLY_TABLES = [
   'handle_conflicts',
   'x_handle_attempts',
   'clanker_unresolved_ids',
+  'credit_lots',
+  'credit_ledger',
 ];
 const ROLE = 'sweep_runner';
 

@@ -11,7 +11,10 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
-import { reachabilityForWallets, publicTwitterField } from '@/lib/handle-reachability';
+import {
+  reachabilityForWallets,
+  publicTwitterField,
+} from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
 
@@ -115,6 +118,13 @@ export async function GET(
     responseStatus: 200,
     latencyMs: Date.now() - startTime,
     creditsUsed: CREDITS_COST,
+    /**
+     * Every returned wallet is a match: the query selected them BY the handle,
+     * so each one is a resolved wallet-to-social link. A handle nobody holds
+     * returns zero rows and costs nothing, which is the same rule as the
+     * forward path.
+     */
+    matches: results.length,
   }).catch(console.error);
 
   if (results.length === 0) {
@@ -143,7 +153,10 @@ export async function GET(
    * reassigned while the other is not.
    */
   const reach = await reachabilityForWallets(
-    results.map((r) => ({ wallet: r.wallet, handle: r.twitterHandle ?? normalizedHandle }))
+    results.map((r) => ({
+      wallet: r.wallet,
+      handle: r.twitterHandle ?? normalizedHandle,
+    }))
   );
 
   const data = results.map((result) => {

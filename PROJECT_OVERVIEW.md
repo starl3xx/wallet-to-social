@@ -15,15 +15,36 @@
 ### Core Value Proposition
 - Upload CSV with wallet addresses → get Twitter/Farcaster handles for those wallets
 - Industry average match rate is ~2.5%; this tool achieves 15-25% match rates
-- One-time payment model (not subscription) for paid tiers
+- Credit packs priced in matches, one-time payments, no subscription. You are
+  charged only for the wallets we resolve.
 
 ### User Tiers
 
-| Tier | Price | Per-Lookup Limit | Total Quota | Key Features |
-|------|-------|------------------|-------------|--------------|
-| Free | $0 | 500 wallets | Unlimited lookups | Full CSV export, 1 saved lookup |
-| Pro | $99 | 5,000 wallets | Unlimited lookups | Contract import, ENS lookups, follower counts, priority scoring, full history |
-| Unlimited | $249 | Unlimited | Unlimited | Everything + priority support |
+**Credit packs, priced in matches.** A match is a wallet resolved to an X or
+Farcaster account. A wallet we cannot resolve costs nothing, which is why every
+figure below is quoted against matches rather than wallets submitted.
+
+| Plan | Price | Matches | Notes |
+|------|-------|---------|-------|
+| Free | $0 | 100 per rolling 30 days | Cumulative and account-wide, not per lookup |
+| Trial | $29 | 250 | One list, once |
+| Campaign | $99 | 1,500 | A launch or an airdrop |
+| Scale | $299 | 6,000 | Several lists, or one large one |
+| Index | $899 | 25,000 | Agencies and repeat work |
+
+Every pack carries all seven chains, uncapped CSV export, API access on the same
+credits, reverse lookup, deep scan with onchain ENS, and X reachability on every
+match. One-time payments, not subscriptions. Credits last 12 months.
+
+The prices live in `lib/packs.ts` and nowhere else: the modal, the checkout, the
+comparison pages and the schema.org offers all read them, so they cannot
+disagree.
+
+**Legacy tiers are never metered.** `pro` ($99 one-time, 5,000 wallets per
+lookup) and `unlimited` ($249 one-time) were sold before credits existed and
+keep exactly what they bought, permanently. `unlimited` carries one condition,
+an anti-enumeration ceiling of 1,000,000 wallets in a rolling 24 hours, which is
+75x the largest job anyone has ever run.
 
 **Starter was retired 2026-08-12.** It is no longer purchasable; the tier still resolves in code so any legacy account holding it keeps working.
 

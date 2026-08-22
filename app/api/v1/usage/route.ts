@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
 
   // Get period from query params (default: month)
   const url = new URL(request.url);
-  const period = (url.searchParams.get('period') as 'day' | 'week' | 'month') || 'month';
+  const period =
+    (url.searchParams.get('period') as 'day' | 'week' | 'month') || 'month';
 
   if (!['day', 'week', 'month'].includes(period)) {
     return apiError(
@@ -59,6 +60,8 @@ export async function GET(request: NextRequest) {
     responseStatus: 200,
     latencyMs: Date.now() - startTime,
     creditsUsed: CREDITS_COST,
+    // Reports the caller their own usage. Resolves no wallet, bills nothing.
+    matches: null,
   }).catch(console.error);
 
   return apiSuccess(
@@ -74,8 +77,14 @@ export async function GET(request: NextRequest) {
         },
         plan_limits: {
           requests_per_minute: context.plan.requestsPerMinute,
-          requests_per_day: context.plan.requestsPerDay === -1 ? 'unlimited' : context.plan.requestsPerDay,
-          requests_per_month: context.plan.requestsPerMonth === -1 ? 'unlimited' : context.plan.requestsPerMonth,
+          requests_per_day:
+            context.plan.requestsPerDay === -1
+              ? 'unlimited'
+              : context.plan.requestsPerDay,
+          requests_per_month:
+            context.plan.requestsPerMonth === -1
+              ? 'unlimited'
+              : context.plan.requestsPerMonth,
           max_batch_size: context.plan.maxBatchSize,
         },
         rate_limits: {

@@ -11,8 +11,8 @@ export type PaidTier = Exclude<UserTier, 'free'>;
 export interface UserAccess {
   tier: UserTier;
   isWhitelisted: boolean;
-  walletLimit: number;       // per-lookup limit
-  walletsUsed: number;       // cumulative wallets processed
+  walletLimit: number; // per-lookup limit
+  walletsUsed: number; // cumulative wallets processed
   canUseNeynar: boolean;
   canUseENS: boolean;
 }
@@ -174,6 +174,35 @@ export async function getUserAccess(
 }
 
 /**
+ * The tier that actually governs an account, by user id.
+ *
+ * **Whitelist-aware, and that is the whole reason it exists.** `users.tier` is
+ * `free` for a whitelisted account, while `getUserAccess` reports `unlimited`,
+ * so a surface reading the column directly reaches the opposite conclusion from
+ * one calling the helper. That split metered a whitelisted account's API calls
+ * while leaving its app lookups free, which is one account behaving as two
+ * customers depending on which door it came through.
+ *
+ * Use this anywhere entitlement is decided from an id rather than an email.
+ */
+export async function effectiveTierForUserId(
+  userId: string
+): Promise<UserTier> {
+  const db = getDb();
+  if (!db) return 'free';
+
+  const [user] = await db
+    .select({ email: users.email, tier: users.tier })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) return 'free';
+  if (await isWhitelisted(user.email)) return 'unlimited';
+  return normalizeTier(user.tier);
+}
+
+/**
  * Get or create a user by email
  */
 export async function getOrCreateUser(email: string) {
@@ -280,7 +309,10 @@ export async function provisionPaidCheckout(
   tier: PaidTier,
   stripeCustomerId: string,
   stripePaymentId: string,
-  context: { sessionId: string; via: 'checkout.session' | 'payment_intent' | 'success-page' }
+  context: {
+    sessionId: string;
+    via: 'checkout.session' | 'payment_intent' | 'success-page';
+  }
 ): Promise<ProvisionResult> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
@@ -350,7 +382,8 @@ export async function provisionPaidCheckout(
       .where(eq(users.email, normalizedEmail))
       .limit(1);
 
-    if (!existing) return { provisioned: false, reason: 'no-account', tier: 'free' };
+    if (!existing)
+      return { provisioned: false, reason: 'no-account', tier: 'free' };
 
     return {
       provisioned: false,
@@ -401,9 +434,11 @@ export async function getUserByEmail(email: string) {
 /**
  * Add entry to whitelist
  */
-export async function addToWhitelist(
-  entry: { email?: string; wallet?: string; note?: string }
-): Promise<string> {
+export async function addToWhitelist(entry: {
+  email?: string;
+  wallet?: string;
+  note?: string;
+}): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 

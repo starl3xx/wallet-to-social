@@ -80,9 +80,33 @@ export const TIER_RANK: Record<string, number> = {
   unlimited: 2,
 };
 
+/**
+ * The plan a credit-holding account gets, whatever its tier.
+ *
+ * `developer`, matching what legacy Pro received: 60 requests a minute, 5,000 a
+ * day. The rate limit is about protecting the service from a burst, and a pack
+ * buyer bursts no harder than a Pro buyer did. What they may actually consume
+ * is bounded by their credit balance, which is a separate and much tighter
+ * limit, so there is nothing to gain by rationing them twice.
+ */
+export const CREDIT_API_PLAN = 'developer';
+
 /** The api_plans id this tier is entitled to, or null if it has no API access. */
 export function apiPlanForTier(tier: string): string | null {
   return TIER_API_PLAN[tier] ?? null;
+}
+
+/**
+ * The plan for an account, from either entitlement.
+ *
+ * A legacy tier wins where it is higher, so an Unlimited account that also buys
+ * a pack keeps `startup` rather than being quietly demoted to `developer`.
+ */
+export function apiPlanForAccount(
+  tier: string,
+  hasCredits: boolean
+): string | null {
+  return apiPlanForTier(tier) ?? (hasCredits ? CREDIT_API_PLAN : null);
 }
 
 /** Daily request allowance for a tier, or null if it has no API access. */

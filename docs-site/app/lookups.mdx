@@ -17,7 +17,7 @@ Three routes, equivalent once the lookup starts.
     Any text holding addresses. They are picked out of whatever surrounds them.
   </Card>
   <Card title="Import a contract" icon="cube">
-    Give a contract address, get its holders. Pro and Unlimited.
+    Give a contract address, get its holders. Any paid plan.
   </Card>
 </CardGroup>
 
@@ -53,15 +53,34 @@ the flag on the result stays the thing to trust rather than the size of the
 list. If you need the complete set, run the import again once the primary index
 is serving.
 
-## How many addresses per lookup
+## How much a lookup costs
 
-| Plan | Addresses per lookup |
-| --- | --- |
-| Free | 500 |
-| Pro | 5,000 |
-| Unlimited | No limit |
+You are charged for **matches**, not for addresses submitted. A match is a
+wallet we resolve to an X handle or a Farcaster account. A wallet we cannot
+resolve costs nothing, so a list with a low match rate costs you less rather
+than the same.
 
-The cap is per lookup, not per month or per lifetime. There is no cumulative quota on any plan.
+| Plan | Matches | Price |
+| --- | --- | --- |
+| Free | 100 every 30 days | $0 |
+| Trial | 250 | $29 |
+| Campaign | 1,500 | $99 |
+| Scale | 6,000 | $299 |
+| Index | 25,000 | $899 |
+
+Credits are cumulative and account-wide, not per lookup: twenty runs of 500
+addresses draw exactly what one run of 10,000 draws. They last 12 months from
+purchase.
+
+One limit is on addresses rather than matches. A submission may be at most ten
+times your remaining matches, which is a guard against submitting a million junk
+addresses to burn our upstream credits for free. At a typical match rate a real
+list needs about four times, so it will not affect you.
+
+<Note>
+Accounts that bought **Pro** or **Unlimited** before credits existed are not
+metered and keep exactly what they bought.
+</Note>
 
 ## Choosing how hard to look
 
@@ -106,6 +125,6 @@ X has no equivalent: there is no API route for messaging an arbitrary handle, so
 
 ## Going the other way
 
-Reverse lookup takes an X handle or a Farcaster username and returns the wallets attached to that person. It is on the front page for Pro and Unlimited accounts, and it answers the question that comes up most often before a campaign: does this person already hold our token.
+Reverse lookup takes an X handle or a Farcaster username and returns the wallets attached to that person. It is on the front page for any paid account, and it answers the question that comes up most often before a campaign: does this person already hold our token.
 
 Results are capped at 100 and ordered by Farcaster reach, matching [the API](/api-reference/reverse-twitter).

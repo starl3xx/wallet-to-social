@@ -10,14 +10,24 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Key as KeyRound, Copy, Check, CircleNotch as Loader2, Warning as AlertTriangle, Trash as Trash2, ArrowSquareOut as ExternalLink } from '@phosphor-icons/react';
-import { API_PLANS, apiPlanForTier } from '@/lib/api-plans';
+import {
+  Key as KeyRound,
+  Copy,
+  Check,
+  CircleNotch as Loader2,
+  Warning as AlertTriangle,
+  Trash as Trash2,
+  ArrowSquareOut as ExternalLink,
+} from '@phosphor-icons/react';
+import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
 import type { UserTier } from '@/lib/access';
 
 interface ApiKeysModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tier: UserTier;
+  /** Whether credits back this account. See lib/use-credits.ts. */
+  entitled?: boolean;
   onUpgradeClick?: () => void;
 }
 
@@ -47,6 +57,7 @@ export function ApiKeysModal({
   open,
   onOpenChange,
   tier,
+  entitled = false,
   onUpgradeClick,
 }: ApiKeysModalProps) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -67,7 +78,10 @@ export function ApiKeysModal({
   // modal closes. The server stores a hash, so this really is unrecoverable.
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
-  const planId = apiPlanForTier(tier);
+  // apiPlanForAccount, not apiPlanForTier: a pack buyer's tier is `free`, and
+  // the description two hundred lines below already tells them API access comes
+  // with credits. The gate has to agree with the copy.
+  const planId = apiPlanForAccount(tier, entitled);
   const plan = planId ? API_PLANS[planId] : null;
   const hasApiAccess = !!plan;
 
@@ -79,11 +93,14 @@ export function ApiKeysModal({
     try {
       const res = await fetch('/api/developer/keys');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load your API keys');
+      if (!res.ok)
+        throw new Error(data.error || 'Could not load your API keys');
       setKeys(data.keys ?? []);
       setHasLoaded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load your API keys');
+      setError(
+        err instanceof Error ? err.message : 'Could not load your API keys'
+      );
     } finally {
       setLoading(false);
     }
@@ -136,12 +153,16 @@ export function ApiKeysModal({
       setRevokingId(id);
       setError(null);
       try {
-        const res = await fetch(`/api/developer/keys/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/developer/keys/${id}`, {
+          method: 'DELETE',
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Could not revoke the key');
         await loadKeys();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not revoke the key');
+        setError(
+          err instanceof Error ? err.message : 'Could not revoke the key'
+        );
       } finally {
         setRevokingId(null);
         setConfirmRevokeId(null);
@@ -159,7 +180,9 @@ export function ApiKeysModal({
     } catch {
       // Clipboard can be blocked by permissions or a non-secure context. The
       // key is selectable in the field either way, so this is not fatal.
-      setError('Could not copy automatically. Select the key and copy it manually.');
+      setError(
+        'Could not copy automatically. Select the key and copy it manually.'
+      );
     }
   }, [revealedKey]);
 
@@ -174,7 +197,7 @@ export function ApiKeysModal({
           <ModalDescription>
             {hasApiAccess
               ? 'Programmatic access to the wallet index. Keys carry your whole plan allowance, so treat them as server-side secrets.'
-              : 'API access is included with Pro and Unlimited.'}
+              : 'API access comes with credits, and draws on the same balance. Buy a pack to get a key.'}
           </ModalDescription>
         </ModalHeader>
 
@@ -247,8 +270,8 @@ export function ApiKeysModal({
                 <div className="mb-2 flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-caution" />
                   <p className="text-xs text-caution">
-                    Copy this now. It is shown once and only a hash is stored, so
-                    it cannot be recovered later, only replaced.
+                    Copy this now. It is shown once and only a hash is stored,
+                    so it cannot be recovered later, only replaced.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

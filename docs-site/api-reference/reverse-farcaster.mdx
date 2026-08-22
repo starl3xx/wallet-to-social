@@ -4,7 +4,7 @@ description: "GET /v1/reverse/farcaster/{username}"
 api: "GET https://walletlink.social/api/v1/reverse/farcaster/{username}"
 ---
 
-Finds every wallet linked to a Farcaster username. Costs **2 credits**.
+Finds every wallet linked to a Farcaster username. Costs **1 match credit per wallet returned**, up to 100. A username with no wallets attached costs nothing. Separately, it weighs 2 units against your rate limit.
 
 Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-is-complete), this is the most reliable lookup in the API. An empty result means the username genuinely has no addresses attached, not that we have not indexed it yet.
 

@@ -4,7 +4,12 @@ import {
   resolveCheckoutEmail,
   StripeConfigError,
 } from '@/lib/stripe';
-import { provisionPaidCheckout, type PaidTier } from '@/lib/access';
+import {
+  provisionPaidCheckout,
+  type PaidTier,
+} from '@/lib/access';
+import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
+import { PACKS, isPackId, type PackId } from '@/lib/packs';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -74,8 +79,64 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Grant a credit pack, from either provisioning path.
+ *
+ * Idempotent on `stripePaymentId` through a partial unique index, which is what
+ * makes it safe to call from both `checkout.session.completed` and
+ * `payment_intent.succeeded`. Whichever arrives second inserts nothing.
+ *
+ * `fulfilPackPurchase` creates the account if it does not exist, because a pack
+ * can be the first thing someone ever buys. The tier path has the same
+ * property, through `provisionPaidCheckout`.
+ *
+ * A pack never changes `users.tier`. Tier is the legacy one-time entitlement
+ * and packs are credits; conflating them would either hand a pack buyer the old
+ * unmetered Pro limits or retroactively meter someone who bought Unlimited.
+ */
+async function grantPackFromWebhook(
+  email: string,
+  pack: PackId,
+  stripePaymentId: string,
+  amountCents: number,
+  via: string
+) {
+  const { granted } = await fulfilPackPurchase(
+    email,
+    pack,
+    stripePaymentId,
+    amountCents
+  );
+  console.log(
+    granted
+      ? `Granted ${PACKS[pack].matches} matches (${pack}) to ${email} via ${via}`
+      : `Pack ${pack} for ${email} already granted for payment ${stripePaymentId}`
+  );
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = resolveCheckoutEmail(session);
+  const pack = session.metadata?.pack;
+
+  // Packs first: a session carries either a pack or a tier, never both.
+  if (email && pack && isPackId(pack)) {
+    const paymentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || session.id;
+    await grantPackFromWebhook(
+      email,
+      pack,
+      paymentId,
+      // What Stripe actually charged, not what the pack table says. A price can
+      // change between a checkout opening and completing, and this row is the
+      // record of the payment rather than of the price list.
+      session.amount_total ?? PACKS[pack].priceCents,
+      'checkout.session'
+    );
+    return;
+  }
+
   const tier = session.metadata?.tier as PaidTier | undefined;
 
   if (!email || !tier) {
@@ -115,6 +176,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   const email = paymentIntent.metadata?.email;
+  const pack = paymentIntent.metadata?.pack;
+
+  if (email && pack && isPackId(pack)) {
+    await grantPackFromWebhook(
+      email,
+      pack,
+      paymentIntent.id,
+      paymentIntent.amount_received || PACKS[pack].priceCents,
+      'payment_intent'
+    );
+    return;
+  }
+
   const tier = paymentIntent.metadata?.tier as PaidTier | undefined;
 
   if (!email || !tier) {

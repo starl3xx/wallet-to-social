@@ -1,6 +1,8 @@
 import { eq, and, gte, sql, desc } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { apiUsage, type NewApiUsage } from '@/db/schema';
+import { apiUsage, apiKeys, type NewApiUsage } from '@/db/schema';
+import { chargeForApiCall } from '@/lib/credits';
+import { effectiveTierForUserId } from '@/lib/access';
 
 /**
  * Tracks an API request for billing and analytics
@@ -14,6 +16,21 @@ export async function trackApiUsage(usage: {
   responseStatus: number;
   latencyMs: number;
   creditsUsed?: number;
+  /**
+   * Matches this call returned, which is what the caller is billed for.
+   *
+   * **Required, and `null` rather than omitted for a non-resolving endpoint.**
+   * It was optional, and two rounds of review found the same bug twice: an
+   * endpoint that simply never passed it resolved wallets for free. An optional
+   * billing field on a shared helper is a hole that reopens every time somebody
+   * adds an endpoint, because forgetting it is silent and looks like working
+   * code.
+   *
+   * `null` says "this endpoint resolves nothing" (`/v1/stats`, `/v1/usage`).
+   * `0` says "it resolves, and found nothing", which is free but is a different
+   * fact. Both are now deliberate, and the compiler asks the question.
+   */
+  matches: number | null;
 }): Promise<void> {
   const db = getDb();
   if (!db) return;
@@ -30,6 +47,51 @@ export async function trackApiUsage(usage: {
     });
   } catch (error) {
     console.error('Failed to track API usage:', error);
+  }
+
+  /**
+   * Debit the match ledger, the same balance the app spends.
+   *
+   * Here rather than in each endpoint because every endpoint already calls
+   * this, and Bugbot found the first version of this PR checking a balance on
+   * the API path without ever drawing it down: once a pack had any credits at
+   * all, the API ran until rate limits alone stopped it. That is the
+   * export-licence hole this PR set out to close, left open on the surface most
+   * able to exploit it.
+   *
+   * Keyed on the api_usage row rather than a job, so a retried request is
+   * charged again. That is correct: a retry is a second resolution and it cost
+   * us a second time. Job debits are idempotent because a *resumed* job is one
+   * piece of work; two API calls are two.
+   *
+   * Never fatal, for the same reason as the job path: the caller already has
+   * their answer, and one uncharged call beats a successful response reported
+   * as an error.
+   */
+  if (usage.matches !== null && usage.matches > 0) {
+    try {
+      const [key] = await db
+        .select({ userId: apiKeys.userId })
+        .from(apiKeys)
+        .where(eq(apiKeys.id, usage.apiKeyId))
+        .limit(1);
+      if (!key) return;
+
+      // Whitelist-aware, to agree with the gate in authenticateApiRequest.
+      // A whitelisted account keeps `free` in the tier column, so reading
+      // the column here would debit an account the gate just called
+      // unmetered.
+      const tier = await effectiveTierForUserId(key.userId);
+
+      await chargeForApiCall(
+        key.userId,
+        usage.matches,
+        usage.walletCount ?? usage.matches,
+        tier
+      );
+    } catch (error) {
+      console.error('Failed to debit API credits:', error);
+    }
   }
 }
 
@@ -84,7 +146,9 @@ export async function getKeyUsageStats(
       errorCount: sql<number>`COUNT(*) FILTER (WHERE ${apiUsage.responseStatus} >= 400)::int`,
     })
     .from(apiUsage)
-    .where(and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart)));
+    .where(
+      and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart))
+    );
 
   const totalRequests = stats?.totalRequests ?? 0;
   const errorCount = stats?.errorCount ?? 0;
@@ -96,7 +160,9 @@ export async function getKeyUsageStats(
       count: sql<number>`COUNT(*)::int`,
     })
     .from(apiUsage)
-    .where(and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart)))
+    .where(
+      and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart))
+    )
     .groupBy(apiUsage.endpoint);
 
   const requestsByEndpoint: Record<string, number> = {};
@@ -112,7 +178,9 @@ export async function getKeyUsageStats(
       credits: sql<number>`COALESCE(SUM(${apiUsage.creditsUsed}), 0)::int`,
     })
     .from(apiUsage)
-    .where(and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart)))
+    .where(
+      and(eq(apiUsage.apiKeyId, apiKeyId), gte(apiUsage.createdAt, periodStart))
+    )
     .groupBy(sql`DATE(${apiUsage.createdAt})`)
     .orderBy(sql`DATE(${apiUsage.createdAt})`);
 
@@ -133,16 +201,18 @@ export async function getKeyUsageStats(
 export async function getRecentUsage(
   apiKeyId: string,
   limit: number = 100
-): Promise<Array<{
-  id: string;
-  endpoint: string;
-  method: string;
-  walletCount: number;
-  responseStatus: number;
-  latencyMs: number;
-  creditsUsed: number;
-  createdAt: Date;
-}>> {
+): Promise<
+  Array<{
+    id: string;
+    endpoint: string;
+    method: string;
+    walletCount: number;
+    responseStatus: number;
+    latencyMs: number;
+    creditsUsed: number;
+    createdAt: Date;
+  }>
+> {
   const db = getDb();
   if (!db) return [];
 
@@ -195,12 +265,14 @@ export async function getBillingCredits(
  */
 export async function getUsageByUser(
   period: 'day' | 'week' | 'month' = 'month'
-): Promise<Array<{
-  apiKeyId: string;
-  totalRequests: number;
-  totalCredits: number;
-  avgLatencyMs: number;
-}>> {
+): Promise<
+  Array<{
+    apiKeyId: string;
+    totalRequests: number;
+    totalCredits: number;
+    avgLatencyMs: number;
+  }>
+> {
   const db = getDb();
   if (!db) return [];
 

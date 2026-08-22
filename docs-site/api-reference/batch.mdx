@@ -4,14 +4,14 @@ description: "POST /v1/batch"
 api: "POST https://walletlink.social/api/v1/batch"
 ---
 
-Resolves many addresses in one request. Costs **1 credit per wallet submitted**.
+Resolves many addresses in one request. Costs **1 match credit per address that resolves**, after duplicates are removed. Addresses that match nothing cost nothing.
 
-This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same credits, but the batch is one request instead of fifty and returns in a fraction of the time.
+This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same match credits, but the batch is one request instead of fifty and returns in a fraction of the time.
 
 ## Body
 
 <ParamField body="wallets" type="string[]" required>
-  Addresses to resolve. Up to 50 on Pro, 200 on Unlimited. The whole body is capped at 1 MB.
+  Addresses to resolve. Up to 50, or 200 on a legacy Unlimited account. The whole body is capped at 1 MB.
 </ParamField>
 
 ## Request
@@ -85,8 +85,10 @@ and it is the only way to see the quality metadata.
 
 ## Cost
 
-Credits are charged on the addresses you **submit**, before deduplication.
-Submitting `[A, B, A]` costs 3 credits and returns 2 records. Deduplicate first.
+Match credits are charged on the addresses that **resolve**, after
+deduplication. Submitting `[A, B, A]` where A resolves and B does not costs 1
+credit and returns 2 records. Deduplicating still helps, because duplicates
+count against your rate limit even though they are billed once.
 
 A batch that exceeds your plan limit is rejected whole with
 `BATCH_SIZE_EXCEEDED`. Nothing is charged and nothing is partially processed, so
