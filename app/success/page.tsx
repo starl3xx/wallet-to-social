@@ -13,6 +13,8 @@ import {
   Warning,
 } from '@phosphor-icons/react';
 import type { UserTier } from '@/lib/access';
+import { CREDIT_LIFETIME_MONTHS } from '@/lib/packs';
+import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 
 type VerificationState = 'verifying' | 'success' | 'error';
 
@@ -228,7 +230,7 @@ function SuccessContent() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-accent-brand" />
-                    All seven chains, uncapped CSV export
+                    All {CHAIN_COUNT_WORD} chains, uncapped CSV export
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-accent-brand" />
@@ -236,7 +238,7 @@ function SuccessContent() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-accent-brand" />
-                    Credits last 12 months
+                    Credits last {CREDIT_LIFETIME_MONTHS} months
                   </li>
                 </ul>
               </div>

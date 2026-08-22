@@ -1,6 +1,6 @@
 # Product Marketing Context
 
-**Document version:** v1
+**Document version:** v2
 **Last updated:** 2026-08-22
 
 Every figure here is verified: coverage numbers come from `lib/public-figures.ts` (checked by `scripts/check-published-figures.ts`), prices from `lib/packs.ts`. Do not quote a number that is not in those files.
@@ -12,6 +12,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **Product category:** wallet-to-social resolution; the shelf buyers search is "token holder outreach" and "wallet to Twitter".
 **Product type:** self-serve SaaS web app plus a REST API (API access comes with every pack, same credits).
 **Business model:** one-time credit packs, metered in matches (a wallet resolved to an X or Farcaster account; misses cost nothing). No subscriptions. Free is 100 matches per rolling 30 days. Credits last 12 months. Packs: Trial $29 / 250 matches, Campaign $99 / 1,500, Scale $299 / 6,000, Index $899 / 25,000.
+**Refund policy (decided 2026-08-22): no guarantees and no refunds.** The risk reversal is the free allowance (prove your match rate before paying) plus misses costing nothing. State the policy plainly when asked; never propose guarantee or refund offers.
 
 ## Target Audience
 
@@ -116,4 +117,5 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 ## Changelog
 
 *Newest first. One line per revision: what changed and why.*
+- v2 (2026-08-22) — Recorded Jake's refund decision: no guarantees, no refunds; the free allowance plus free misses is the risk reversal.
 - v1 (2026-08-22) — Initial context, auto-drafted from README, lib/public-figures.ts, lib/packs.ts, and the /vs pages. Gaps flagged: verbatim customer language, testimonials.

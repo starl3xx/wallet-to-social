@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (/pricing through the critical readers, and two figures stop being typed)
+
+- **The pricing copy survived a 7-critical-readers pass.** Headline is now
+  "Pay per match. Misses cost nothing." (the model in the H1 slot instead of
+  an "X, not Y" template); the lede carries the evidence claim and the
+  free-proof line; "honest" is no longer self-applied; and a new FAQ entry
+  states the refund policy plainly: no refunds, check first with the free
+  allowance (decided by Jake 2026-08-22, recorded in
+  .agents/product-marketing.md v2).
+- **"12 months" and "seven chains" are derived, not typed.** New
+  `CREDIT_LIFETIME_MONTHS` in lib/packs.ts; `CHAIN_COUNT_WORD` now imported
+  where it was retyped. Interpolated at every surface that said either:
+  /pricing, PackPricing (all /vs pages), the layout JSON-LD, the success
+  page, and the buy-credits modal.
+
 ### 2026-08-22 (/pricing exists)
 
 - **`/pricing` is a page.** Until now the packs rendered only inside the

@@ -69,48 +69,33 @@ List-Unsubscribe header.
 
 ### Email 1, day 0: Your first 100 matches are free
 
-You signed up for walletlink.social. Here is what to do with it.
+Hey, thanks for signing up for walletlink.social. Here’s what you can do with it..
 
-Paste a contract address, or upload a CSV of wallets. We resolve each wallet
-against a 4.8 million wallet identity index and return the people: X handles
-and Farcaster accounts, ranked by holdings times reach.
+Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a 4.8 million wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.
 
-You have 100 free matches every 30 days. A match is a wallet we resolve to
-an X or Farcaster account. Wallets we cannot resolve cost nothing, so a
-low-match list spends almost none of your allowance.
+You have 100 free matches every 30 days. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.
 
 [Run a lookup]
 
-If anything is unclear, reply to this email. A person reads it.
+If anything is unclear, just reply to this email! 
 
 ### Email 2, day 2: What your chain says about your match rate
 
-Most wallet tools quote one match rate. We quote yours.
+Most wallet tools quote one match rate. We quote *yours*.
 
-The chain decides the number more than the collection does. Measured across
-26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. The
-industry average for wallet-to-social is about 2.5%. The full coverage
-breakdown, ours and the average, is in our docs.
+The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. The industry average for wallet-to-social is about 2.5%. The full coverage breakdown, ours and the average, is in our docs.
 
-So before you plan a campaign, check the chain your holders live on. A Base
-token list resolves nearly half its wallets to an X or Farcaster account. An
-Ethereum list resolves fewer, and every one it resolves is labelled with the
-evidence behind it.
+So before you plan a campaign, check the chain your holders live on. A Base token list resolves nearly half its wallets to an X or Farcaster account. An Ethereum list resolves fewer, and every one it resolves is labelled with the evidence behind it.
 
 [Check your list]
 
 ### Email 3, day 5: A handle that reaches nobody is not a match
 
-Of 437,823 X handles we resolved, 69.6% are live. 20.6% are suspended, and
-9.7% are names nobody holds any more.
+Of 437,823 X handles we resolved, 69.6% are live. 20.6% are suspended, and 9.7% are names nobody holds any more.
 
-A single coverage number counts all three groups. We label every match with
-its reachability, because a campaign sent to dead handles is worse than a
-smaller campaign sent to real ones.
+A single coverage number counts all three groups. We label every match with its **reachability**, because a campaign sent to dead handles is obviously worse than a smaller campaign sent to real ones.
 
-The same rule applies to how a match is made. Over 99.9% of our X handles
-were published by the account owner, through a Farcaster verification or an
-onchain ENS record. Nothing is guessed from display names or bios.
+The same rule applies to how a match is made. Over 99.9% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record. Nothing is guessed from display names or bios.
 
 [See it on your list]
 
@@ -118,12 +103,9 @@ onchain ENS record. Nothing is guessed from display names or bios.
 
 Two things people miss on the first lookup.
 
-Reverse lookup. Give it an X handle or a Farcaster username and it returns
-the wallets attached to that person. Useful before a partnership, an
-allowlist, or an airdrop: does this person already hold your token?
+**Reverse lookup**. Give it an X handle or a Farcaster username and it returns the wallets attached to that person. Useful before a partnership, an allowlist, or an airdrop: does this person already hold your token?
 
-Priority. Every result is ranked by holdings times follower reach, so the
-whale with an audience sits at the top of your list, not row 4,000.
+**Priority**. Every result is ranked by holdings times follower reach, so the whale with an audience sits at the top of your list, not row 4,000.
 
 Both come with any credit pack, on all seven chains.
 
@@ -131,19 +113,15 @@ Both come with any credit pack, on all seven chains.
 
 ### Email 5, day 14: 250 matches, once: $29
 
-If walletlink.social showed you real matches, here is the price.
+If walletlink.social showed you real matches, here’s the price:
 
-The Trial pack is $29, once. It covers 250 matches, and misses are still
-free. No subscription; credits last 12 months. Every pack includes the full
-CSV export, the X list export, reverse lookup, priority ranking, deep scan
-with onchain ENS, and API access on the same credits.
+The Trial pack is $29, once. It covers 250 matches, and misses are still free. No subscription; credits last 12 months. Every pack includes the full CSV export, the X list export, reverse lookup, priority ranking, deep scan with onchain ENS, and API access on the same credits.
 
-If your free lookups showed few matches, do not buy. That is the honest read
-of your list, and it is why we charge for matches instead of promises.
+If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.
 
 [Buy the Trial pack]
 
-You will not get another sales email from us after this one.
+You won’t get another sales email from us after this one.
 
 ## Implementation state
 

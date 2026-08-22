@@ -4,6 +4,7 @@ import {
   PACK_IDS,
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
+  CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
 import { Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
@@ -17,6 +18,7 @@ import {
   INDEXED_WALLETS,
   INDEXED_WALLETS_LONG,
   WALLETS_WITH_X,
+  CHAIN_COUNT_WORD,
 } from '@/lib/public-figures';
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
@@ -117,7 +119,7 @@ const jsonLd = {
       name: PACKS[id].name,
       price: String(PACKS[id].priceCents / 100),
       priceCurrency: 'USD',
-      description: `${PACKS[id].matches.toLocaleString()} matches, one-time payment, credits last 12 months`,
+      description: `${PACKS[id].matches.toLocaleString()} matches, one-time payment, credits last ${CREDIT_LIFETIME_MONTHS} months`,
     })),
   ],
   /**
@@ -159,7 +161,7 @@ const faqSchema = {
       name: 'How much does walletlink.social cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes all seven chains, uncapped CSV export, API access, reverse lookup from a handle to its wallets, deep scan with onchain ENS, and X reachability on every match. All packs are one-time payments, not subscriptions, and credits last 12 months.`,
+        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes all ${CHAIN_COUNT_WORD} chains, uncapped CSV export, API access, reverse lookup from a handle to its wallets, deep scan with onchain ENS, and X reachability on every match. All packs are one-time payments, not subscriptions, and credits last ${CREDIT_LIFETIME_MONTHS} months.`,
       },
     },
     {
