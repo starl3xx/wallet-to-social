@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (reverse lookups paginate, and the slice is no longer arbitrary)
+
+- **`/v1/reverse/twitter/{handle}` and `/v1/reverse/farcaster/{username}` take
+  a `cursor` query parameter and return `meta.next_cursor`.** Keyset
+  pagination over (`fc_followers DESC NULLS LAST`, `wallet ASC`), encoded and
+  strictly validated in `lib/reverse-cursor.ts`; a cursor the API did not
+  produce answers `400 INVALID_CURSOR`. The +1-row probe makes `next_cursor`
+  exact, and `truncated` now means more results remain after this page (on
+  the first page that is the same signal as before).
+- **The routes gained an ORDER BY.** They served an arbitrary, nondeterministic
+  100-row slice; they now walk Farcaster reach first with the wallet address
+  as tiebreak, matching the web app's `/api/reverse` ordering, which also
+  makes the "ordered by Farcaster reach, matching the API" line in
+  `docs-site/app/lookups.mdx` true.
+- Billing is per page: 2 rate-limit units per request, 1 match credit per
+  wallet returned, unchanged in rate.
+- Docs: both reverse pages document `cursor`, `next_cursor`, the ordering and
+  the live-index caveat; the "no pagination" paragraph is gone.
+
 ### 2026-08-22 (api_usage stores route templates, not concrete paths)
 
 - **`api_usage.endpoint` now holds the route template.** The three
