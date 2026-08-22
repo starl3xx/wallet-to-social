@@ -112,7 +112,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
     <div className="flex items-center">
       <div className="flex-1 text-center">
         <div className="text-xs text-muted-foreground mb-1">{label}</div>
-        <div className="text-lg font-bold tabular-nums">
+        <div className="text-lg font-semibold tabular-nums">
           {count.toLocaleString()}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums">
@@ -144,7 +144,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -219,7 +219,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 rate={rateOf(funnel.exportsClicked)}
               />
               <FunnelStep
-                label="Upgrade modal"
+                label="Saw pricing"
                 count={funnel.upgradeModalViewed}
                 rate={rateOf(funnel.upgradeModalViewed)}
               />
@@ -245,56 +245,50 @@ export function UserBehavior({ password }: UserBehaviorProps) {
               No cohort data available yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cohort</TableHead>
-                    <TableHead>Definition</TableHead>
-                    <TableHead className="text-right">Count</TableHead>
-                    <TableHead className="text-right">Avg lookups</TableHead>
-                    <TableHead className="text-right">Conversion</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cohorts.map((cohort) => (
-                    <TableRow key={cohort.name}>
-                      <TableCell className="font-medium">
-                        {cohort.name}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {cohort.definition}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {cohort.count}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {cohort.avgLookups.toFixed(1)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {/* Three tiers, two colours. A high rate is a measured
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cohort</TableHead>
+                  <TableHead>Definition</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                  <TableHead className="text-right">Avg lookups</TableHead>
+                  <TableHead className="text-right">Conversion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cohorts.map((cohort) => (
+                  <TableRow key={cohort.name}>
+                    <TableCell className="font-medium">{cohort.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {cohort.definition}
+                    </TableCell>
+                    <TableCell className="text-right">{cohort.count}</TableCell>
+                    <TableCell className="text-right">
+                      {cohort.avgLookups.toFixed(1)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {/* Three tiers, two colours. A high rate is a measured
                             good outcome, so green; a low one is worth a look,
                             so caution; the middle is just a number. Not
                             destructive at the bottom: that is for failed jobs
                             and for revoking and deleting, and a quiet cohort
                             is neither. */}
-                        <span
-                          className={
-                            cohort.conversionRate > 50
-                              ? 'text-attested'
-                              : cohort.conversionRate > 10
-                                ? undefined
-                                : 'text-caution'
-                          }
-                        >
-                          {cohort.conversionRate.toFixed(0)}%
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      <span
+                        className={
+                          cohort.conversionRate > 50
+                            ? 'text-attested'
+                            : cohort.conversionRate > 10
+                              ? undefined
+                              : 'text-caution'
+                        }
+                      >
+                        {cohort.conversionRate.toFixed(0)}%
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -313,7 +307,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 <div className="text-xs text-muted-foreground mb-1">
                   ENS lookup rate
                 </div>
-                <div className="text-xl font-bold">
+                <div className="text-xl font-semibold tabular-nums">
                   {features.ensLookupRate.toFixed(0)}%
                 </div>
               </div>
@@ -321,7 +315,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 <div className="text-xs text-muted-foreground mb-1">
                   History save rate
                 </div>
-                <div className="text-xl font-bold">
+                <div className="text-xl font-semibold tabular-nums">
                   {features.historySaveRate.toFixed(0)}%
                 </div>
               </div>
@@ -329,7 +323,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 <div className="text-xs text-muted-foreground mb-1">
                   Export rate
                 </div>
-                <div className="text-xl font-bold">
+                <div className="text-xl font-semibold tabular-nums">
                   {features.exportRate.toFixed(0)}%
                 </div>
               </div>
@@ -338,7 +332,7 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                   Export formats
                 </div>
                 <div className="text-sm">
-                  CSV: {features.exportFormats.csv} / Twitter:{' '}
+                  CSV {features.exportFormats.csv} · X list{' '}
                   {features.exportFormats.twitter}
                 </div>
               </div>
@@ -353,19 +347,19 @@ export function UserBehavior({ password }: UserBehaviorProps) {
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-sm text-muted-foreground">Free</div>
-                  <div className="text-lg font-bold">
+                  <div className="text-lg font-semibold tabular-nums">
                     {features.avgLookupSize.free.toLocaleString()}
                   </div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Pro</div>
-                  <div className="text-lg font-bold">
+                  <div className="text-lg font-semibold tabular-nums">
                     {features.avgLookupSize.pro.toLocaleString()}
                   </div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Unlimited</div>
-                  <div className="text-lg font-bold">
+                  <div className="text-lg font-semibold tabular-nums">
                     {features.avgLookupSize.unlimited.toLocaleString()}
                   </div>
                 </div>

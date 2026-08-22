@@ -117,7 +117,7 @@ export function ExecutivePulse({
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchPulse}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -160,7 +160,9 @@ export function ExecutivePulse({
               <span>Lookups today</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">{data.lookupsToday}</span>
+              <span className="text-2xl font-extralight tabular-nums">
+                {data.lookupsToday}
+              </span>
               <Sparkline
                 data={data.lookupsTrend}
                 width={60}
@@ -185,7 +187,9 @@ export function ExecutivePulse({
               <span>Active users (7d)</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{data.activeUsers7d}</span>
+              <span className="text-2xl font-extralight tabular-nums">
+                {data.activeUsers7d}
+              </span>
               <TrendIcon trend={data.activeUsersTrend} />
             </div>
           </CardContent>
@@ -205,7 +209,7 @@ export function ExecutivePulse({
               <span>Conversion rate</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 {data.conversionRate.toFixed(1)}%
               </span>
             </div>
@@ -226,7 +230,7 @@ export function ExecutivePulse({
               <span>Revenue (MTD)</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 ${data.revenueMTD.toLocaleString()}
               </span>
               <span
@@ -257,7 +261,7 @@ export function ExecutivePulse({
               <span>Error rate (24h)</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 <StatusIndicator status={data.errorStatus} />
                 {data.errorRate.toFixed(1)}%
               </span>
@@ -279,7 +283,9 @@ export function ExecutivePulse({
               <span>Queue depth</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{data.queueDepth}</span>
+              <span className="text-2xl font-extralight tabular-nums">
+                {data.queueDepth}
+              </span>
               {/* Two tiers, matching the two labels that differ. There was a
                   destructive tier at > 50, tested after > 10 and so never
                   reached; it is gone rather than reordered, because a backlog

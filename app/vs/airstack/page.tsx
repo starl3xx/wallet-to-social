@@ -115,17 +115,21 @@ export default function AirstackComparison() {
             </div>
 
             {/* The proof row closes the hero. Four figures, each appearing once,
-                with the contactable one in brand because it is the number to act on.
-                It is a range, not an average: Base measures 46.2% and Ethereum
-                16.6%, and an average would hide the thing that decides a campaign
-                and coverage carrying a green mark because it is the measured one. */}
+                and the two measured ones carry the green mark: coverage, because
+                it is the claim we can prove, and the reachable rate, because it
+                is a range, not an average (Base measures 46.2% and Ethereum
+                16.6%, and an average would hide the thing that decides a
+                campaign). The rate used to sit in brand as "the number to act
+                on", but a rate is nothing the reader can act on, and violet is
+                the colour of an affordance. Green is the colour of a measured
+                fact, and the hit rate is named as one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
                 label="have an X or Farcaster account"
-                brand
+                attested
               />
               <Figure
                 value={`$${PACKS.trial.priceCents / 100}`}
@@ -163,7 +167,14 @@ export default function AirstackComparison() {
             </p>
           </section>
 
-          {/* Migration table */}
+          {/* Migration table. A Check in a capability cell is green, whichever
+              column it sits in: "has this" is a measured fact, and green is the
+              colour of one. A cross is muted. Captioned cells put the glyph and
+              its caption in one flex row; Tailwind's preflight makes svg
+              `display: block`, so an icon followed by a span stacked on two
+              lines with the caption indented 4px under the glyph. The cards further
+              down are lists, not capability claims, and their check marks take
+              the card's own text colour. */}
           <section className="mb-16">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
               What Airstack offered vs what walletlink.social offers
@@ -208,14 +219,16 @@ export default function AirstackComparison() {
                       Wallet → socials API
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (every pack)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (every pack)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -227,14 +240,16 @@ export default function AirstackComparison() {
                       Reverse lookup (handle → wallets)
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (any Farcaster handle)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (any Farcaster handle)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -244,14 +259,16 @@ export default function AirstackComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Bulk CSV lookups</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (no code required)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (no code required)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -279,14 +296,16 @@ export default function AirstackComparison() {
                       Onchain data queries
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X
-                        alt="No"
-                        role="img"
-                        aria-label="No"
-                        className="h-4 w-4 text-muted-foreground"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (identity only)
+                      <span className="flex items-start gap-2">
+                        <X
+                          alt="No"
+                          role="img"
+                          aria-label="No"
+                          className="mt-0.5 h-4 w-4 flex-none text-muted-foreground"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (identity only)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4 text-muted-foreground">
@@ -308,9 +327,9 @@ export default function AirstackComparison() {
               over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
               with complete Farcaster protocol coverage: every account’s
               verified and custody addresses, usernames, and follower counts,
-              refreshed daily. Over 99.9% of Twitter matches are user-attested,
-              most through an X account verified on Farcaster and the rest
-              through onchain ENS records.
+              refreshed daily. Over 99.9% of X matches are user-attested, most
+              through an X account verified on Farcaster and the rest through
+              onchain ENS records.
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API
@@ -378,7 +397,11 @@ export default function AirstackComparison() {
             </div>
           </section>
 
-          {/* CTA */}
+          {/* Closing CTA. The Button primitive on a Link, the same as the hero:
+              this used to paste Button's class string onto the Link, which drifted
+              the moment Button changed (it had already lost the focus ring). The
+              label is the one the product uses for this action everywhere, so the
+              hero and the close name the same destination the same way. */}
           <section className="text-center py-12 border-t">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
@@ -387,50 +410,41 @@ export default function AirstackComparison() {
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
               every {FREE_WINDOW_DAYS} days, no credit card required.
             </p>
-            <Link
-              href="/"
-              className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
-            >
-              Start your first lookup
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            <Button asChild>
+              <Link href="/">
+                Run a lookup
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
           </section>
 
-          {/* Related Comparisons */}
+          {/* Related comparisons. Each link is the `link` variant at `inline`
+              size, the one treatment for a text link in a list or a sentence;
+              these were grey and underlined at rest, a third look for the same
+              meaning. The names match the footer's Compare column, so one
+              destination has one name wherever it is linked. */}
           <nav className="py-8 border-t" aria-label="Related comparisons">
             <h2 className="text-lg font-semibold mb-4">Related comparisons</h2>
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
-                <Link
-                  href="/vs/addressable"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Addressable
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/addressable">vs Addressable</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/cookie3"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Cookie3
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/cookie3">vs Cookie3</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/blaze"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Blaze alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/blaze">vs Blaze</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/holder"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Holder alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/holder">vs Holder</Link>
+                </Button>
               </li>
             </ul>
           </nav>

@@ -5,6 +5,8 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import {
   Gauge,
   ChartBar as BarChart3,
+  ChartLineUp,
+  MagnifyingGlass,
   TrendUp as TrendingUp,
   CurrencyDollar as DollarSign,
   Wrench,
@@ -41,8 +43,14 @@ interface NavItem {
 }
 
 /**
- * Two groups, twelve destinations. Previously twelve `Button` elements written
- * out longhand in the page, in two `flex ... overflow-x-auto` strips.
+ * Two groups, thirteen destinations. Previously written out longhand in the
+ * page as `Button` elements, in two `flex … overflow-x-auto` strips.
+ *
+ * Each label is the words the pane puts in its own heading, and each icon
+ * serves one destination. Both had drifted: "Dashboard" opened a pane headed
+ * "Usage metrics" inside a page whose h1 is "Admin dashboard", and `Gauge`
+ * stood for both Pulse and Usage while `ChartBar` stood for both Behavior and
+ * Dashboard, so the icon told you nothing the label had not.
  *
  * The strips were the defect. The design language is explicit that a content
  * strip never scrolls sideways and reflows as a responsive grid, with
@@ -60,11 +68,11 @@ const ANALYTICS: NavItem[] = [
 
 const OPERATIONS: NavItem[] = [
   { value: 'whitelist', label: 'Whitelist', icon: Sparkles },
-  { value: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  { value: 'dashboard', label: 'Lookups', icon: MagnifyingGlass },
   { value: 'jobs', label: 'Jobs', icon: Briefcase },
   { value: 'history', label: 'Saved lookups', icon: History },
   { value: 'users', label: 'Users', icon: Users },
-  { value: 'usage', label: 'Usage', icon: Gauge },
+  { value: 'usage', label: 'Usage', icon: ChartLineUp },
   { value: 'enrichment', label: 'Enrichment', icon: Pencil },
   { value: 'conflicts', label: 'Conflicts', icon: WarningCircle },
 ];
@@ -136,8 +144,18 @@ export function AdminNav({
 }) {
   return (
     <div className="mb-8 space-y-4">
-      <NavGroup title="Analytics" items={ANALYTICS} active={active} onSelect={onSelect} />
-      <NavGroup title="Operations" items={OPERATIONS} active={active} onSelect={onSelect} />
+      <NavGroup
+        title="Analytics"
+        items={ANALYTICS}
+        active={active}
+        onSelect={onSelect}
+      />
+      <NavGroup
+        title="Operations"
+        items={OPERATIONS}
+        active={active}
+        onSelect={onSelect}
+      />
     </div>
   );
 }

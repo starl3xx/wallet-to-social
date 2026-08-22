@@ -4,6 +4,20 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * The data table, used by the admin panes.
+ *
+ * Adapted from the shadcn paste in the two places it still carried the
+ * library's hover: a row hovered to `bg-muted/50` and the footer sat on the same
+ * wash, both with `transition-colors`. A translucent fill reads differently on
+ * every surface it lands on, and the design language has one grey for a rested
+ * surface, `--muted`, at full opacity. `transition-control` carries the 120ms
+ * colour duration the tokens define; `transition-colors` brought Tailwind's.
+ *
+ * Separation stays on the decorative hairline: a row rule is not a control, so
+ * `border-b` resolving to `--border` is correct here, where `border-input` is
+ * for edges that have to clear 3:1.
+ */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
     <div
@@ -44,7 +58,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        'bg-muted/50 border-t font-medium [&>tr]:last:border-b-0',
+        'bg-muted border-t font-medium [&>tr]:last:border-b-0',
         className
       )}
       {...props}
@@ -57,7 +71,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     <tr
       data-slot="table-row"
       className={cn(
-        'hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors',
+        'hover:bg-muted data-[state=selected]:bg-muted border-b transition-control',
         className
       )}
       {...props}

@@ -16,6 +16,7 @@ import {
   ArrowsClockwise as RefreshCw,
   Warning as AlertTriangle,
 } from '@phosphor-icons/react';
+import { shortId } from './format';
 
 interface ApiStat {
   provider: string;
@@ -137,7 +138,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -147,7 +148,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">System health</h2>
+        <h3 className="text-base font-semibold">System health</h3>
         <Button
           variant="ghost"
           size="sm"
@@ -174,56 +175,54 @@ export function SystemHealth({ password }: SystemHealthProps) {
               No API metrics available yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Provider</TableHead>
-                    <TableHead className="text-right">Avg latency</TableHead>
-                    <TableHead className="text-right">P99</TableHead>
-                    <TableHead className="text-right">Error rate</TableHead>
-                    <TableHead className="text-right">Total calls</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead className="text-right">Avg latency</TableHead>
+                  <TableHead className="text-right">P99</TableHead>
+                  <TableHead className="text-right">Error rate</TableHead>
+                  <TableHead className="text-right">Total calls</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apiStats.map((stat) => (
+                  <TableRow key={stat.provider}>
+                    <TableCell className="font-medium capitalize">
+                      {stat.provider}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {stat.avgLatency}ms
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {stat.p99Latency}ms
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span
+                        className={
+                          stat.errorRate < 1
+                            ? 'text-attested'
+                            : stat.errorRate < 5
+                              ? 'text-caution'
+                              : 'text-destructive'
+                        }
+                      >
+                        {stat.errorRate.toFixed(1)}%
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {stat.totalCalls.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <StatusIndicator status={getStatus(stat.errorRate)} />
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {apiStats.map((stat) => (
-                    <TableRow key={stat.provider}>
-                      <TableCell className="font-medium capitalize">
-                        {stat.provider}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {stat.avgLatency}ms
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {stat.p99Latency}ms
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={
-                            stat.errorRate < 1
-                              ? 'text-attested'
-                              : stat.errorRate < 5
-                                ? 'text-caution'
-                                : 'text-destructive'
-                          }
-                        >
-                          {stat.errorRate.toFixed(1)}%
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {stat.totalCalls.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center">
-                          <StatusIndicator status={getStatus(stat.errorRate)} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -244,7 +243,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
                 Queue depth
               </div>
               {queue ? (
-                <div className="text-2xl font-semibold tabular-nums">
+                <div className="text-2xl font-extralight tabular-nums">
                   {queue.depth}
                 </div>
               ) : (
@@ -285,27 +284,32 @@ export function SystemHealth({ password }: SystemHealthProps) {
         <CardContent>
           {errors.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">
-              No recent errors - all systems operational
+              No recent errors: all systems operational
             </p>
           ) : (
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {/* A record of an error, not an error banner: each row is a
+                  quiet muted tile with one hairline, and only the message is
+                  red. The faded `/10` border it had was the drift the design
+                  language bans, passing CI only because the guard does not
+                  list `destructive`. */}
               {errors.map((err) => (
                 <div
                   key={err.id}
-                  className="p-3 rounded-lg bg-destructive/5 border border-destructive/10"
+                  className="p-3 rounded-lg border border-border bg-muted"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium capitalize">
                       {err.provider}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
                       {new Date(err.createdAt).toLocaleString()}
                     </span>
                   </div>
                   <p className="text-sm text-destructive">{err.errorMessage}</p>
                   {err.jobId && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Job: {err.jobId.slice(0, 8)}...
+                    <p className="font-mono text-xs text-muted-foreground mt-1">
+                      Job: {shortId(err.jobId)}
                     </p>
                   )}
                 </div>

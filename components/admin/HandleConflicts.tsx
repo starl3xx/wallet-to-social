@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Banner } from './Banner';
+import { shortWallet } from './format';
 
 /**
  * The queue of wallets where two attested sources name different X accounts.
@@ -54,22 +64,25 @@ const FILTERS: Array<{ value: string; label: string; hint: string }> = [
     label: 'Both live',
     hint: 'Both handles resolve. Ours may belong to somebody who took a freed name.',
   },
-  { value: 'unchecked', label: 'Unchecked', hint: 'One side has not been resolved yet' },
+  {
+    value: 'unchecked',
+    label: 'Unchecked',
+    hint: 'One side has not been resolved yet',
+  },
 ];
 
-/** Reachability, said plainly. Null means nobody has looked. */
+/**
+ * Reachability, said plainly, as a `Badge`. Live is a measured fact, so it is
+ * green; a suspended or unclaimed handle is a stale record, so it is caution.
+ * Null means nobody has looked, which is the absence of a fact, so it is muted.
+ */
 function StatusChip({ status }: { status: string | null }) {
-  if (!status) return <span className="text-xs text-muted-foreground">not checked</span>;
+  if (!status) return <Badge tone="muted">not checked</Badge>;
   const live = status === 'live';
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium',
-        live ? 'bg-attested-tint text-attested' : 'bg-caution-tint text-caution'
-      )}
-    >
+    <Badge tone={live ? 'attested' : 'caution'}>
       {live ? 'live' : status === 'unavailable' ? 'suspended' : 'unclaimed'}
-    </span>
+    </Badge>
   );
 }
 
@@ -84,9 +97,12 @@ export function HandleConflicts({ password }: { password: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/conflicts?filter=${filter}&limit=100`, {
-        headers: { 'x-admin-password': password },
-      });
+      const res = await fetch(
+        `/api/admin/conflicts?filter=${filter}&limit=100`,
+        {
+          headers: { 'x-admin-password': password },
+        }
+      );
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       const data = await res.json();
       setConflicts(data.conflicts ?? []);
@@ -109,9 +125,10 @@ export function HandleConflicts({ password }: { password: string }) {
       <div className="flex flex-col gap-2">
         <Eyebrow as="h2">Handle conflicts</Eyebrow>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Wallets where two owner-attested sources name different X accounts. Recorded
-          by every ingest and resolved by none of them, because a disagreement between
-          two attested sources is evidence rather than a race to write last.
+          Wallets where two owner-attested sources name different X accounts.
+          Recorded by every ingest and resolved by none of them, because a
+          disagreement between two attested sources is evidence rather than a
+          race to write last.
         </p>
       </div>
 
@@ -146,65 +163,73 @@ export function HandleConflicts({ password }: { password: string }) {
             </Button>
           ))}
         </div>
-        {active && <p className="text-xs text-muted-foreground">{active.hint}</p>}
+        {active && (
+          <p className="text-xs text-muted-foreground">{active.hint}</p>
+        )}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <Banner tone="error">{error}</Banner>}
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
       {!loading && conflicts.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Nothing in this group.
-        </p>
+        <p className="text-sm text-muted-foreground">Nothing in this group.</p>
       )}
 
+      {/* The `Table` primitive inside a `Card`, as every other pane. This was
+          a raw table in its own bordered box with a filled `bg-muted` header
+          and `px-3 py-2` cells: a second header fill and a third row height
+          for the one object the panel is mostly made of. */}
       {!loading && conflicts.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted text-left">
-                <th className="px-3 py-2 font-medium">Wallet</th>
-                <th className="px-3 py-2 font-medium">We serve</th>
-                <th className="px-3 py-2 font-medium">Other source says</th>
-                <th className="px-3 py-2 font-medium">Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {conflicts.map((c) => (
-                <tr key={c.wallet} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2 font-mono text-xs">
-                    {c.wallet.slice(0, 10)}…{c.wallet.slice(-6)}
-                    {c.farcaster && (
-                      <div className="text-muted-foreground">fc: {c.farcaster}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs">@{c.ours}</span>
-                      <StatusChip status={c.oursStatus} />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {(c.oursSources ?? []).join(', ') || 'unknown source'}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs">@{c.theirs}</span>
-                      <StatusChip status={c.theirsStatus} />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.theirSource}
-                      {c.theirUserId ? ` · id ${c.theirUserId}` : ''}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
-                    {new Date(c.lastSeenAt).toISOString().slice(0, 10)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Card>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Wallet</TableHead>
+                  <TableHead>We serve</TableHead>
+                  <TableHead>Other source says</TableHead>
+                  <TableHead>Seen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {conflicts.map((c) => (
+                  <TableRow key={c.wallet}>
+                    <TableCell className="font-mono text-xs">
+                      {shortWallet(c.wallet)}
+                      {c.farcaster && (
+                        <div className="text-muted-foreground">
+                          Farcaster: {c.farcaster}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">@{c.ours}</span>
+                        <StatusChip status={c.oursStatus} />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {(c.oursSources ?? []).join(', ') || 'unknown source'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">@{c.theirs}</span>
+                        <StatusChip status={c.theirsStatus} />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.theirSource}
+                        {c.theirUserId ? ` · id ${c.theirUserId}` : ''}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {new Date(c.lastSeenAt).toISOString().slice(0, 10)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

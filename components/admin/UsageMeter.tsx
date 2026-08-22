@@ -15,8 +15,8 @@ import {
 import {
   CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
-  Warning as AlertTriangle,
 } from '@phosphor-icons/react';
+import { Banner } from './Banner';
 
 interface DailyRow {
   day: string;
@@ -99,12 +99,7 @@ export function UsageMeter({
   }
 
   if (error) {
-    return (
-      <div className="flex items-start gap-3 rounded-lg border border-destructive bg-destructive/10 p-4">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" aria-hidden />
-        <p className="text-sm text-destructive">{error}</p>
-      </div>
-    );
+    return <Banner tone="error">{error}</Banner>;
   }
 
   if (!data) return null;
@@ -117,7 +112,9 @@ export function UsageMeter({
     return (
       <div className="space-y-1.5">
         <Eyebrow>{p.label}</Eyebrow>
-        <p className={`text-2xl font-semibold tabular-nums ${over ? 'text-destructive' : ''}`}>
+        <p
+          className={`text-2xl font-extralight tabular-nums ${over ? 'text-destructive' : ''}`}
+        >
           {n(p.spent)}
           <span className="ml-1.5 text-sm font-normal text-muted-foreground">
             of {n(p.limit)}
@@ -148,7 +145,12 @@ export function UsageMeter({
             creates one.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchData}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
@@ -182,70 +184,75 @@ export function UsageMeter({
             </span>{' '}
             wallets, on {data.allTimePeak.peak_day ?? 'an unknown day'}.
           </p>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Account</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead className="text-right">Peak day</TableHead>
+                <TableHead>On</TableHead>
+                <TableHead className="text-right">Lifetime</TableHead>
+                <TableHead className="text-right">Active days</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.peaks.length === 0 && (
                 <TableRow>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead className="text-right">Peak day</TableHead>
-                  <TableHead>On</TableHead>
-                  <TableHead className="text-right">Lifetime</TableHead>
-                  <TableHead className="text-right">Active days</TableHead>
+                  <TableCell
+                    colSpan={6}
+                    className="text-sm text-muted-foreground"
+                  >
+                    No signed-in lookups yet.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.peaks.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-sm text-muted-foreground">
-                      No signed-in lookups yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {data.peaks.map((p, i) => (
-                  <TableRow key={`${p.email ?? 'anon'}-${i}`}>
-                    <TableCell className="max-w-[18rem] truncate font-mono text-xs">
-                      {p.email && onAccountClick ? (
-                        <Button
-                          variant="link"
-                          size="inline"
-                          className="max-w-full truncate font-mono text-xs"
-                          onClick={() => onAccountClick(p.email!)}
-                        >
-                          {p.email}
-                        </Button>
-                      ) : (
-                        (p.email ?? 'anonymous')
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">{p.tier ?? 'free'}</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {n(p.peak_wallets)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {p.busiest_day}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {n(p.total_wallets)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {p.active_days}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              )}
+              {data.peaks.map((p, i) => (
+                <TableRow key={`${p.email ?? 'anon'}-${i}`}>
+                  <TableCell className="max-w-[18rem] truncate">
+                    {p.email && onAccountClick ? (
+                      <Button
+                        variant="link"
+                        size="inline"
+                        className="max-w-full truncate"
+                        onClick={() => onAccountClick(p.email!)}
+                      >
+                        {p.email}
+                      </Button>
+                    ) : (
+                      (p.email ?? 'anonymous')
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">{p.tier ?? 'free'}</TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {n(p.peak_wallets)}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {p.busiest_day}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {n(p.total_wallets)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {p.active_days}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Wallets per day, last 30 days</CardTitle>
+          <CardTitle className="text-base">
+            Wallets per day, last 30 days
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5">
           {data.daily.length === 0 && (
-            <p className="text-sm text-muted-foreground">No lookups in the last 30 days.</p>
+            <p className="text-sm text-muted-foreground">
+              No lookups in the last 30 days.
+            </p>
           )}
           {data.daily.map((d) => (
             <div key={d.day} className="flex items-center gap-3">

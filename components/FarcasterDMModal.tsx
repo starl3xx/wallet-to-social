@@ -7,11 +7,12 @@ import {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalFooter,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
 import {
-  PaperPlaneTilt as Send,
+  ArrowSquareOut,
   DownloadSimple as Download,
   ArrowsClockwise as RefreshCw,
   CheckCircle as CheckCircle2,
@@ -49,6 +50,18 @@ type Step = 'configure' | 'preview' | 'sending' | 'complete';
 
 const MAX_MESSAGE_LENGTH = 500;
 const API_KEY_STORAGE_KEY = 'warpcast_api_key';
+
+/**
+ * The figure treatment from `Figure`: 200 at title tracking, the hero-figure
+ * weight everywhere a figure stands alone at 24px and up, with tabular digits
+ * because these tick every 250ms and proportional digits make a counting
+ * number wobble. They were `font-bold`, which is 700 and not one of the five
+ * weights, and the final pair was a size up from the live three for no reason
+ * the layout could state. Colour does the sorting: the sent count is the
+ * outcome and takes `attested`, failed takes `destructive`, the rest is plain.
+ */
+const TILE_FIGURE =
+  'text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]';
 
 export function FarcasterDMModal({
   open,
@@ -223,18 +236,16 @@ export function FarcasterDMModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent className="max-w-2xl">
         <ModalHeader>
-          <ModalTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-accent-brand" />
-            Send Farcaster DMs
-          </ModalTitle>
+          <ModalTitle>Send Farcaster DMs</ModalTitle>
           <ModalDescription>
             Send personalized direct messages to{' '}
             {recipients.length.toLocaleString()} Farcaster users in your results
           </ModalDescription>
         </ModalHeader>
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+        {/* Step indicator. No margin of its own: the body is a flex column
+            with `gap-4`, and a margin here stacked on it to 32px. */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span
             className={
               step === 'configure' ? 'text-foreground font-medium' : ''
@@ -294,8 +305,9 @@ export function FarcasterDMModal({
                   {/* Named by function, not by the icon: a screen reader hears
                       "Show API key", and aria-pressed says whether it is. The
                       ghost Button brings the focus ring and transition-control
-                      with it; `right-1` keeps the 32px pill inside the field's
-                      `pr-10`. */}
+                      with it. `h-7 w-7` rather than the 34px icon control: a
+                      control nested inside a 34px field needs air on both
+                      edges, and a utility beats the components-layer height. */}
                   <Button
                     type="button"
                     variant="ghost"
@@ -303,7 +315,7 @@ export function FarcasterDMModal({
                     onClick={() => setShowApiKey(!showApiKey)}
                     aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                     aria-pressed={showApiKey}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground"
                   >
                     {showApiKey ? (
                       <EyeOff className="h-4 w-4" />
@@ -320,7 +332,9 @@ export function FarcasterDMModal({
                   {testingKey ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : keyValid === true ? (
-                    <CheckCircle2 className="h-4 w-4 text-accent-brand" />
+                    // A key that passed its test is a measured fact, so it is
+                    // green. Violet would call the result an affordance.
+                    <CheckCircle2 className="h-4 w-4 text-attested" />
                   ) : keyValid === false ? (
                     <XCircle className="h-4 w-4 text-destructive" />
                   ) : (
@@ -330,8 +344,8 @@ export function FarcasterDMModal({
               </div>
 
               {keyError && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
+                <p className="flex items-center gap-1 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" />
                   {keyError}
                 </p>
               )}
@@ -358,14 +372,27 @@ export function FarcasterDMModal({
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                   <li>
                     Go to{' '}
-                    <a
-                      href="https://warpcast.com/~/developers/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-foreground underline hover:no-underline"
+                    {/* The one text-link treatment, and the one leave-site
+                        glyph at its one size. `size-3` is `h-3 w-3`; Button
+                        sizes any SVG child without a `size-` class to 16px,
+                        and that rule outranks the icon's own classes. `gap-1`
+                        because a button's 8px is too wide for an arrow after
+                        a word. */}
+                    <Button
+                      asChild
+                      variant="link"
+                      size="inline"
+                      className="gap-1"
                     >
-                      warpcast.com/~/developers/api-keys
-                    </a>
+                      <a
+                        href="https://warpcast.com/~/developers/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        warpcast.com/~/developers/api-keys
+                        <ArrowSquareOut className="size-3" aria-hidden />
+                      </a>
+                    </Button>
                   </li>
                   <li>Sign in with your Farcaster account</li>
                   <li>Create a new API key and paste it here</li>
@@ -400,38 +427,48 @@ export function FarcasterDMModal({
                   placeholder={`Hey {{username}}! I noticed you hold some tokens...`}
                   className="h-32 resize-none"
                 />
-                <span className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                <span className="absolute bottom-2 right-2 text-xs tabular-nums text-muted-foreground">
                   {message.length}/{MAX_MESSAGE_LENGTH}
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2 text-xs">
+              {/* These insert text, so they are controls and take the outline
+                  pill: border, focus ring, press. They wore the Badge recipe
+                  (chip radius, tint, no border, mono), which says "fact" to
+                  anyone who has learned the product's other badges. Mono
+                  stays, because a template token is machine data in its own
+                  element. */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-muted-foreground">Variables:</span>
                 {['{{username}}', '{{holdings}}', '{{ens}}', '{{wallet}}'].map(
                   (v) => (
-                    <button
+                    <Button
                       key={v}
                       type="button"
+                      variant="outline"
+                      size="sm"
+                      className="font-mono text-xs"
                       onClick={() => setMessage((m) => m + v)}
-                      className="px-2 py-0.5 bg-muted rounded-sm hover:bg-muted/80 font-mono"
                     >
                       {v}
-                    </button>
+                    </Button>
                   )
                 )}
               </div>
             </div>
 
-            {/* Continue button */}
-            <div className="flex justify-end gap-2">
+            {/* Every action row in this dialog is a ModalFooter, inline in
+                the body: one layout, primary at the right, stacking on a
+                phone. No margin on the icons; Button's `gap-2` owns that. */}
+            <ModalFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button onClick={handleContinueToPreview} disabled={!canContinue}>
                 Continue
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
-            </div>
+            </ModalFooter>
           </div>
         )}
 
@@ -479,8 +516,9 @@ export function FarcasterDMModal({
               )}
             </div>
 
-            {/* Warning */}
-            <div className="p-3 bg-caution-tint border border-caution/30 rounded-lg text-sm text-caution">
+            {/* Warning. A full-opacity tint and no border: it carried a
+                `/30` border, which the elevation rule bans. */}
+            <div className="rounded-lg bg-caution-tint p-3 text-sm text-caution">
               <p className="font-medium flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
                 Keep this tab open
@@ -491,17 +529,16 @@ export function FarcasterDMModal({
               </p>
             </div>
 
-            {/* Buttons */}
-            <div className="flex justify-between">
+            <ModalFooter>
               <Button variant="outline" onClick={() => setStep('configure')}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
+                <ChevronLeft className="h-4 w-4" />
                 Back
               </Button>
               <Button onClick={handleStartSending}>
-                <Play className="h-4 w-4 mr-1" />
+                <Play className="h-4 w-4" />
                 Start sending
               </Button>
-            </div>
+            </ModalFooter>
           </div>
         )}
 
@@ -517,7 +554,7 @@ export function FarcasterDMModal({
                     @{progress.currentUsername}
                   </span>
                 </span>
-                <span>
+                <span className="tabular-nums">
                   {progress.sent + progress.failed} / {progress.total}
                 </span>
               </div>
@@ -531,22 +568,23 @@ export function FarcasterDMModal({
               </div>
             </div>
 
-            {/* Stats */}
+            {/* Stats. Sent is the outcome and is green: a DM that went is a
+                measured fact, and violet would have called it an affordance. */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-accent-brand">
+              <div className="rounded-lg bg-muted p-3 text-center">
+                <div className={`${TILE_FIGURE} text-attested`}>
                   {progress.sent}
                 </div>
                 <div className="text-xs text-muted-foreground">Sent</div>
               </div>
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-destructive">
+              <div className="rounded-lg bg-muted p-3 text-center">
+                <div className={`${TILE_FIGURE} text-destructive`}>
                   {progress.failed}
                 </div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold">
+              <div className="rounded-lg bg-muted p-3 text-center">
+                <div className={TILE_FIGURE}>
                   {progress.total - progress.sent - progress.failed}
                 </div>
                 <div className="text-xs text-muted-foreground">Remaining</div>
@@ -564,9 +602,9 @@ export function FarcasterDMModal({
                     className="flex items-center gap-2 px-3 py-1.5 text-xs border-b last:border-b-0"
                   >
                     {entry.status === 'sent' ? (
-                      <CheckCircle2 className="h-3 w-3 text-accent-brand flex-shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 flex-none text-attested" />
                     ) : (
-                      <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+                      <XCircle className="h-4 w-4 flex-none text-destructive" />
                     )}
                     <span className="font-medium">@{entry.username}</span>
                     {entry.error && (
@@ -578,13 +616,12 @@ export function FarcasterDMModal({
                 ))}
             </div>
 
-            {/* Cancel button */}
-            <div className="flex justify-center">
+            <ModalFooter>
               <Button variant="outline" onClick={handleCancel}>
-                <Square className="h-4 w-4 mr-1" />
+                <Square className="h-4 w-4" />
                 Stop sending
               </Button>
-            </div>
+            </ModalFooter>
           </div>
         )}
 
@@ -592,13 +629,25 @@ export function FarcasterDMModal({
         {step === 'complete' && progress && (
           <div className="space-y-6">
             {/* Summary */}
-            <div className="text-center space-y-2">
+            {/* A display moment, so `h-10 w-10` duotone: the icon scale has
+                no 48px step. Every DM sent is a measured outcome, so the
+                check is green. */}
+            <div className="space-y-2 text-center">
               {progress.status === 'cancelled' ? (
-                <AlertCircle className="h-12 w-12 mx-auto text-caution" />
+                <AlertCircle
+                  className="mx-auto h-10 w-10 text-caution"
+                  weight="duotone"
+                />
               ) : progress.failed === 0 ? (
-                <CheckCircle2 className="h-12 w-12 mx-auto text-accent-brand" />
+                <CheckCircle2
+                  className="mx-auto h-10 w-10 text-attested"
+                  weight="duotone"
+                />
               ) : (
-                <AlertCircle className="h-12 w-12 mx-auto text-caution" />
+                <AlertCircle
+                  className="mx-auto h-10 w-10 text-caution"
+                  weight="duotone"
+                />
               )}
               <h3 className="text-xl font-semibold">
                 {progress.status === 'cancelled'
@@ -609,42 +658,42 @@ export function FarcasterDMModal({
               </h3>
             </div>
 
-            {/* Final stats */}
+            {/* Final stats, on the same figure as the live three. The tints
+                are the full-opacity tokens: the sent tile was a `/30` wash
+                of the brand tint and the failed tile a `/10` wash of the
+                solid red, and a banner is one tint, not a mix. */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-accent-brand-tint/30 rounded-lg">
-                <div className="text-3xl font-bold text-accent-brand">
+              <div className="rounded-lg bg-attested-tint p-4 text-center">
+                <div className={`${TILE_FIGURE} text-attested`}>
                   {progress.sent}
                 </div>
-                <div className="text-sm text-accent-brand">
-                  Sent successfully
-                </div>
+                <div className="text-sm text-attested">Sent successfully</div>
               </div>
-              <div className="text-center p-4 bg-destructive/10 rounded-lg">
-                <div className="text-3xl font-bold text-destructive">
+              <div className="rounded-lg bg-destructive-tint p-4 text-center">
+                <div className={`${TILE_FIGURE} text-destructive`}>
                   {progress.failed}
                 </div>
                 <div className="text-sm text-destructive">Failed</div>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2 justify-center">
+            {/* One action row: the two outline alternates to the left of the
+                one filled primary. They were a centred cluster with Done
+                centred on its own row beneath. At most three controls, so no
+                overflow menu is needed. */}
+            <ModalFooter>
               <Button variant="outline" onClick={handleDownloadLog}>
-                <Download className="h-4 w-4 mr-1" />
+                <Download className="h-4 w-4" />
                 Download log (CSV)
               </Button>
               {progress.failedRecipients.length > 0 && (
                 <Button variant="outline" onClick={handleRetryFailed}>
-                  <RefreshCw className="h-4 w-4 mr-1" />
+                  <RefreshCw className="h-4 w-4" />
                   Retry {progress.failedRecipients.length} failed
                 </Button>
               )}
-            </div>
-
-            {/* Close button */}
-            <div className="flex justify-center">
               <Button onClick={() => onOpenChange(false)}>Done</Button>
-            </div>
+            </ModalFooter>
           </div>
         )}
       </ModalContent>

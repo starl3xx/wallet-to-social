@@ -11,7 +11,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowsClockwise, CheckCircle, WarningCircle, XCircle } from '@phosphor-icons/react';
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  WarningCircle,
+  XCircle,
+} from '@phosphor-icons/react';
+import { Banner } from './Banner';
 
 /**
  * Whether the machinery behind our claims is actually configured and running.
@@ -82,10 +88,12 @@ export function DependencyHealth({ password }: { password: string }) {
   }, [fetchData]);
 
   if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+    return <Banner tone="error">{error}</Banner>;
   }
   if (!data) {
-    return <p className="text-sm text-muted-foreground">Loading dependencies…</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Loading dependencies…</p>
+    );
   }
 
   const { summary } = data;
@@ -100,124 +108,156 @@ export function DependencyHealth({ password }: { password: string }) {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base flex items-center gap-2">
             {allWell ? (
-              <CheckCircle weight="fill" className="h-5 w-5 text-attested" aria-hidden />
+              <CheckCircle
+                weight="fill"
+                className="h-5 w-5 text-attested"
+                aria-hidden
+              />
             ) : (
-              <WarningCircle weight="fill" className="h-5 w-5 text-destructive" aria-hidden />
+              <WarningCircle
+                weight="fill"
+                className="h-5 w-5 text-destructive"
+                aria-hidden
+              />
             )}
             Dependencies and scheduled work
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchData}
+            disabled={loading}
+          >
             <ArrowsClockwise className="h-4 w-4" aria-hidden />
             <span className="sr-only">Refresh</span>
           </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           {data.summary.databaseReachable === false && (
-            <p className="text-sm text-destructive">
-              Job history could not be read, so every row below says “could not check” rather
-              than accusing a job of not running. The dependency list above is unaffected: it
-              needs no database.
-            </p>
+            <Banner tone="error">
+              Job history could not be read, so every row below says “could not
+              check” rather than accusing a job of not running. The dependency
+              list above is unaffected: it needs no database.
+            </Banner>
           )}
           <p className="text-sm text-muted-foreground">
-            Read locally: an environment variable’s presence, and a timestamp already in the
-            database. No request leaves the server, so nothing here can be slow or cost anything,
-            and a provider being down cannot stop this page loading.
+            Read locally: an environment variable’s presence, and a timestamp
+            already in the database. No request leaves the server, so nothing
+            here can be slow or cost anything, and a provider being down cannot
+            stop this page loading.
           </p>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Capability</TableHead>
-                  <TableHead>Configured</TableHead>
-                  <TableHead>If missing</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Capability</TableHead>
+                <TableHead>Configured</TableHead>
+                <TableHead>If missing</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.dependencies.map((d) => (
+                <TableRow key={d.capability}>
+                  <TableCell className="font-medium">
+                    {d.capability}
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {d.vars.join(', ')}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {d.configured ? (
+                      <span className="inline-flex items-center gap-1.5 text-attested text-sm">
+                        <CheckCircle
+                          className="h-4 w-4"
+                          weight="fill"
+                          aria-hidden
+                        />{' '}
+                        set
+                      </span>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-sm ${
+                          d.severity === 'critical'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        <XCircle
+                          className="h-4 w-4"
+                          weight="fill"
+                          aria-hidden
+                        />
+                        {d.severity === 'critical' ? 'missing' : 'not set'}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {d.impact}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.dependencies.map((d) => (
-                  <TableRow key={d.capability}>
-                    <TableCell className="font-medium">
-                      {d.capability}
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {d.vars.join(', ')}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {d.configured ? (
-                        <span className="inline-flex items-center gap-1.5 text-attested text-sm">
-                          <CheckCircle className="h-4 w-4" weight="fill" aria-hidden /> set
-                        </span>
-                      ) : (
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-sm ${
-                            d.severity === 'critical' ? 'text-destructive' : 'text-muted-foreground'
-                          }`}
-                        >
-                          <XCircle className="h-4 w-4" weight="fill" aria-hidden />
-                          {d.severity === 'critical' ? 'MISSING' : 'not set'}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{d.impact}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scheduled job</TableHead>
-                  <TableHead>Cadence</TableHead>
-                  <TableHead>Last success</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Scheduled job</TableHead>
+                <TableHead>Cadence</TableHead>
+                <TableHead>Last success</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.jobs.map((j) => (
+                <TableRow key={j.name}>
+                  <TableCell className="font-medium">{j.name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {j.schedule}
+                  </TableCell>
+                  <TableCell className="text-sm tabular-nums">
+                    {j.status === 'unknown' ? (
+                      <span
+                        className="text-muted-foreground"
+                        title="The query for job history did not complete, so this says nothing about the job"
+                      >
+                        could not check
+                      </span>
+                    ) : j.status === 'never' ? (
+                      <span className="text-destructive">never recorded</span>
+                    ) : j.status === 'failing' ? (
+                      <span
+                        className="text-destructive"
+                        title="The job ran and reported that it failed. Running is not succeeding."
+                      >
+                        ran, reported failure
+                      </span>
+                    ) : (
+                      <span
+                        className={
+                          j.status === 'late' ? 'text-destructive' : undefined
+                        }
+                      >
+                        {j.hoursAgo !== null && j.hoursAgo < 1
+                          ? 'under an hour ago'
+                          : `${j.hoursAgo}h ago`}
+                        {j.status === 'late' ? ' (late)' : ''}
+                      </span>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.jobs.map((j) => (
-                  <TableRow key={j.name}>
-                    <TableCell className="font-medium">{j.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{j.schedule}</TableCell>
-                    <TableCell className="text-sm tabular-nums">
-                      {j.status === 'unknown' ? (
-                        <span
-                          className="text-muted-foreground"
-                          title="The query for job history did not complete, so this says nothing about the job"
-                        >
-                          could not check
-                        </span>
-                      ) : j.status === 'never' ? (
-                        <span className="text-destructive">never recorded</span>
-                      ) : j.status === 'failing' ? (
-                        <span
-                          className="text-destructive"
-                          title="The job ran and reported that it failed. Running is not succeeding."
-                        >
-                          ran, reported failure
-                        </span>
-                      ) : (
-                        <span className={j.status === 'late' ? 'text-destructive' : undefined}>
-                          {j.hoursAgo !== null && j.hoursAgo < 1
-                            ? 'under an hour ago'
-                            : `${j.hoursAgo}h ago`}
-                          {j.status === 'late' ? ' (late)' : ''}
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
 
           {data.unscheduled.length > 0 && (
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
-              <h3 className="text-sm font-medium">Real work that runs on no schedule</h3>
+              <h3 className="text-sm font-medium">
+                Real work that runs on no schedule
+              </h3>
               <p className="text-sm text-muted-foreground">
-                Listed rather than omitted. A job with no cron produces no failures, which is
-                exactly how the docs came to claim a daily cadence for one of these.
+                Listed rather than omitted. A job with no cron produces no
+                failures, which is exactly how the docs came to claim a daily
+                cadence for one of these.
               </p>
               {data.unscheduled.map((u) => (
                 <div key={u.name} className="text-sm">

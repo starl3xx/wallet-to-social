@@ -21,40 +21,65 @@ interface StatsCardsProps {
  * legible for free: 231 𝕏 plus 285 Farcaster against 306 reachable says 210
  * people have both, and five equal cards said nothing about that at all.
  *
- * These are counts of identities *present*, not *attested*, so none of them is
- * green: `twitter` counts any row with a handle, including ones correlated from
- * an index, and the attestation colour would claim a provenance the number does
- * not have. Green here waits on per-identity verification reaching the client.
+ * The hero figure is green, because a hit rate is a measured outcome: "this
+ * lookup returned this" (docs/DESIGN-LANGUAGE.md, Colour, which names the hit
+ * rate beside the gutter dot and the live pulse). It was brand violet, which
+ * marks an affordance, and nothing about the count can be pressed; Recent wins
+ * already painted the same measure green forty pixels of scroll away. The
+ * earlier worry, that `twitter` counts handles correlated from an index, is
+ * answered by where the claim sits: green on the figure says the lookup found
+ * this many, and the per-row gutter dots carry whether each one is attested.
+ * The three parts beneath stay plain, which is what makes the outcome read.
+ *
+ * Weight 200: the one weight for a figure standing alone at 24px and up.
  */
-export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps) {
-  const stats = useMemo(() => ({
-    total: results.length,
-    twitter: results.filter((r) => r.twitter_handle).length,
-    farcaster: results.filter((r) => r.farcaster).length,
-    agents: results.filter((r) => r.is_agent).length,
-    anySocial: results.filter(
-      (r) => r.twitter_handle || r.farcaster || r.lens || r.github
-    ).length,
-  }), [results]);
+export const StatsCards = memo(function StatsCards({
+  results,
+}: StatsCardsProps) {
+  const stats = useMemo(
+    () => ({
+      total: results.length,
+      twitter: results.filter((r) => r.twitter_handle).length,
+      farcaster: results.filter((r) => r.farcaster).length,
+      agents: results.filter((r) => r.is_agent).length,
+      anySocial: results.filter(
+        (r) => r.twitter_handle || r.farcaster || r.lens || r.github
+      ).length,
+    }),
+    [results]
+  );
 
-  const pct = stats.total > 0 ? ((stats.anySocial / stats.total) * 100).toFixed(1) : '0.0';
+  const pct =
+    stats.total > 0
+      ? ((stats.anySocial / stats.total) * 100).toFixed(1)
+      : '0.0';
 
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5 border-t border-border pt-5">
       <div>
-        <p className="text-5xl font-extralight leading-none tracking-[-0.04em] tabular-nums text-accent-brand">
+        <p className="text-5xl font-extralight leading-none tracking-[var(--tracking-display)] tabular-nums text-attested">
           {stats.anySocial.toLocaleString()}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          reachable of <span className="tabular-nums">{stats.total.toLocaleString()}</span> wallets
+          reachable of{' '}
+          <span className="tabular-nums">{stats.total.toLocaleString()}</span>{' '}
+          wallets
           {' · '}
           <span className="tabular-nums">{pct}</span>%
         </p>
       </div>
 
       <dl className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-muted-foreground">
-        <Split icon={<XMark className="h-3 w-3" />} label="handles" value={stats.twitter} />
-        <Split icon={<FarcasterMark className="h-3 w-3" />} label="Farcaster" value={stats.farcaster} />
+        <Split
+          icon={<XMark className="h-3 w-3" />}
+          label="handles"
+          value={stats.twitter}
+        />
+        <Split
+          icon={<FarcasterMark className="h-3 w-3" />}
+          label="Farcaster"
+          value={stats.farcaster}
+        />
         <Split label="agents" value={stats.agents} />
       </dl>
     </div>
@@ -62,8 +87,14 @@ export const StatsCards = memo(function StatsCards({ results }: StatsCardsProps)
 });
 
 function Split({
-  icon, label, value,
-}: { icon?: React.ReactNode; label: string; value: number }) {
+  icon,
+  label,
+  value,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  value: number;
+}) {
   return (
     /* dt before dd in the DOM, because a definition list requires the term first
        and assistive tech reads the pairing from that order. flex-col-reverse puts

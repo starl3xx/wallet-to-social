@@ -7,6 +7,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalFooter,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -131,31 +132,40 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
 
-              <Button
-                className="w-full"
-                onClick={handleSendMagicLink}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="h-4 w-4" />
-                    Send sign-in link
-                  </>
-                )}
-              </Button>
+              {/* The action row in ModalFooter's one layout: natural width at
+                  the right on a desktop, full width on a phone. It was a
+                  full-width button at every size, one of four row layouts
+                  the six dialogs had between them. */}
+              <ModalFooter>
+                <Button onClick={handleSendMagicLink} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4" />
+                      Send sign-in link
+                    </>
+                  )}
+                </Button>
+              </ModalFooter>
             </div>
           </>
         ) : (
           <>
             <ModalHeader>
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent-brand-tint">
-                <CheckCircle2 className="h-6 w-6 text-accent-brand" />
-              </div>
+              {/* A display moment, so the icon is `h-10 w-10` duotone with no
+                  disc: it was a 24px icon in a 48px tinted disc, two sizes the
+                  icon scale does not have. Green, because the link went: a
+                  delivered sign-in link is a measured outcome, and violet would
+                  have called it an affordance. The header's `space-y` owns the
+                  gap beneath it. */}
+              <CheckCircle2
+                className="mx-auto h-10 w-10 text-attested"
+                weight="duotone"
+              />
               <ModalTitle className="text-center">Check your email</ModalTitle>
               <ModalDescription className="text-center">
                 We sent a sign-in link to <strong>{email}</strong>
@@ -168,10 +178,26 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 minutes.
               </p>
 
-              <div className="flex flex-col gap-2">
+              {/* Neither is the primary (the primary action is in the
+                  person's inbox), so no filled button. Resend is the one they
+                  are likelier to want, so it sits last in the DOM: right on a
+                  desktop, top of the stack on a phone. `tabular-nums` because
+                  the countdown ticks once a second and proportional digits
+                  would make the label wobble. */}
+              <ModalFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setState('email');
+                    setError(null);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Use a different email
+                </Button>
                 <Button
                   variant="outline"
-                  className="w-full"
+                  className="tabular-nums"
                   onClick={handleResend}
                   disabled={loading || cooldown > 0}
                 >
@@ -186,19 +212,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     'Resend link'
                   )}
                 </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => {
-                    setState('email');
-                    setError(null);
-                  }}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Use a different email
-                </Button>
-              </div>
+              </ModalFooter>
 
               {error && (
                 <p className="text-sm text-destructive text-center">{error}</p>

@@ -4,7 +4,9 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ArrowDown, ArrowUp, Lock, WarningCircle } from '@phosphor-icons/react';
+import { cn } from '@/lib/utils';
 import type { WalletSocialResult } from '@/lib/types';
 import {
   REACHABILITY_LABEL,
@@ -79,16 +81,20 @@ const TwitterCell = memo(function TwitterCell({
     );
   }
 
+  /* The link variant at inline size: the one treatment for a text link in a
+     cell. The face comes from the cell, since `cn` lets `font-mono text-xs`
+     beat the variant's base. */
   return (
-    <a
-      href={result.twitter_url || `https://x.com/${handle}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-accent-brand hover:underline"
-      title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
-    >
-      @{handle}
-    </a>
+    <Button asChild variant="link" size="inline" className="font-mono text-xs">
+      <a
+        href={result.twitter_url || `https://x.com/${handle}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
+      >
+        @{handle}
+      </a>
+    </Button>
   );
 });
 
@@ -176,6 +182,16 @@ const ROW_FILL_ENRICHED =
   'bg-[color-mix(in_oklab,var(--accent-brand-tint)_30%,var(--background))] hover:bg-accent-brand-tint dark:hover:bg-[color-mix(in_oklab,var(--accent-brand-tint)_50%,var(--background))]';
 
 /**
+ * A filter toggle that is on: the outline button with the brand edge, the
+ * tint fill and the brand text, which is the segmented control's selected
+ * treatment and the Rename pill's resting one. Hover stays on the tint, since
+ * hover changes colour only and the outline's own `hover:bg-accent` would
+ * have flashed a selected pill grey. `cn` merges these over the variant's.
+ */
+const FILTER_ON =
+  'border-accent-brand bg-accent-brand-tint text-accent-brand hover:bg-accent-brand-tint hover:text-accent-brand dark:bg-accent-brand-tint dark:hover:bg-accent-brand-tint';
+
+/**
  * A sortable column header. The cell carries the ARIA sort state, and a real
  * button inside it carries the click: these were divs with `onClick`, which a
  * mouse could use and nothing else could. No tab stop, no Enter or Space, no
@@ -220,17 +236,69 @@ function SortHeader({
       className={className}
       style={style}
     >
+      {/* The label face is restated on the button: Tailwind's preflight sets
+          text-transform: none on every button, so the header row's transform
+          does not reach it. */}
       <button
         type="button"
         onClick={() => onSort(field)}
         title={title}
-        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
+        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[0.14em] outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
       >
         {label}
         {isSorted && <Arrow className="h-3 w-3" aria-hidden />}
       </button>
     </div>
   );
+}
+
+/**
+ * The header of a column the account has not paid for, and that column's one
+ * upgrade affordance.
+ *
+ * Every cell beneath it used to carry its own muted "Locked" button: sixteen
+ * identical upgrade controls on one screen, each painted in the colour of text
+ * you cannot act on, each discoverable only by hovering. One control per
+ * column, here, and the cells show a dash in muted, which is what muted means.
+ *
+ * Not a sort header: nothing visible is there to sort. The control is an
+ * action, so it resets the row's mono uppercase to sentence-case sans; the
+ * lock is allowed because it sits inside a control. `size-3` rather than
+ * `h-3 w-3` on it, because the Button base forces any svg without a `size-`
+ * class to 16px, and a 16px lock beside 12px text in a 34px header is the
+ * wrong scale. The row's widths are measured with this control in place (see
+ * the track list below).
+ */
+function LockedHeader({
+  label,
+  feature,
+  onUpgradeClick,
+}: {
+  label: string;
+  /** Finishes the sentence "Buy credits to see …" in the control's title. */
+  feature: string;
+  onUpgradeClick?: () => void;
+}) {
+  return (
+    <div role="columnheader" className="flex items-center gap-3 px-4">
+      <span className="truncate">{label}</span>
+      <Button
+        variant="link"
+        size="inline"
+        onClick={onUpgradeClick}
+        title={`Buy credits to see ${feature}`}
+        className="font-sans text-xs normal-case tracking-[var(--tracking-body)]"
+      >
+        <Lock className="size-3" aria-hidden />
+        Unlock
+      </Button>
+    </div>
+  );
+}
+
+/** What a locked column's cells show: a dash, in the colour of text you cannot act on. */
+function LockedCell() {
+  return <span className="text-muted-foreground">–</span>;
 }
 
 export const ResultsTable = memo(function ResultsTable({
@@ -431,20 +499,27 @@ export const ResultsTable = memo(function ResultsTable({
     const level = getPriorityLevel(score);
     if (level === 0) return <span className="text-muted-foreground">-</span>;
 
+    /* The bars are foreground, not violet: a priority score is a computed
+       figure, neither an affordance nor an attested fact, and violet on it
+       said "you can act on this". The score is a table figure, so it takes
+       the figure cut, 500 tabular. The bars own their own `gap-0.5` and the
+       outer row its `gap-2`; a margin on the figure was adding to the gap. */
     return (
       <div
-        className="flex items-center gap-0.5 cursor-help"
+        className="flex items-center gap-2 cursor-help"
         title={`Priority: ${formatPriorityScore(score)} (Based on holdings × follower reach)`}
       >
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className={`w-1 h-3 rounded-sm ${
-              i < level ? 'bg-accent-brand' : 'bg-muted'
-            }`}
-          />
-        ))}
-        <span className="ml-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-0.5">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className={`w-1 h-3 rounded-sm ${
+                i < level ? 'bg-foreground' : 'bg-muted'
+              }`}
+            />
+          ))}
+        </div>
+        <span className="font-medium tabular-nums">
           {formatPriorityScore(score)}
         </span>
       </div>
@@ -470,16 +545,24 @@ export const ResultsTable = memo(function ResultsTable({
    * With a real width the frame gets a real `scrollWidth` instead.
    */
   const { gridTemplate, gridMinWidth, columnCount } = useMemo(() => {
+    /* The two paid columns are measured, not guessed, because their headers
+       are the widest things in the row. In headless Chrome with Geist Mono at
+       12px, uppercase, 0.14em tracking: "FARCASTER FOLLOWERS" is 169px and
+       "PRIORITY" 71px. Add 32px of cell padding, then either the sort arrow
+       (4px gap + 12px) when entitled, or the Unlock control (12px gap + 12px
+       lock + 8px gap + 37px "Unlock" in Söhne at 12px/500) when locked. The
+       header row is a fixed 34px, so a label that does not fit does not wrap,
+       it clips. */
     const tracks = [
       GUTTER_WIDTH, // attestation gutter
       120, // wallet
       100, // ENS
       ...(hasHoldings ? [100] : []),
       ...filteredExtraColumns.map(() => 80),
-      120, // Twitter
+      120, // X handle
       120, // Farcaster
-      100, // FC followers
-      140, // priority
+      isPaidTier ? 220 : 272, // Farcaster followers
+      isPaidTier ? 140 : 176, // priority
     ];
     return {
       gridTemplate: tracks
@@ -488,12 +571,24 @@ export const ResultsTable = memo(function ResultsTable({
       gridMinWidth: tracks.reduce((sum, min) => sum + min, 0),
       columnCount: tracks.length,
     };
-  }, [hasHoldings, filteredExtraColumns]);
+  }, [hasHoldings, filteredExtraColumns, isPaidTier]);
 
   const isEmpty = filteredAndSorted.length === 0;
 
   return (
     <div className="space-y-4">
+      {/* Filters. Each toggle keeps one label, named for what it does, and
+          says whether it is on through `aria-pressed` and the selected
+          treatment the segmented control uses: outline with the brand edge,
+          tint fill, brand text. They used to flip to the filled variant and
+          reword themselves by state ("Top influencers" became "Top influencers
+          (1K+)"), so a filter that was on became a second solid violet pill
+          and the row shifted as the text changed width. Filled is reserved
+          for the one primary action, which is Export CSV above.
+
+          The result count is not in this row. On a phone the input takes a
+          line, the pills a second, and the count sat alone on a third; it is
+          a caption of the table and sits beneath it. */}
       <div className="flex flex-wrap items-center gap-4">
         <Input
           placeholder="Search wallet, ENS, or handle..."
@@ -502,31 +597,34 @@ export const ResultsTable = memo(function ResultsTable({
           className="max-w-sm"
         />
         <Button
-          variant={showOnlyTwitter ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
+          aria-pressed={showOnlyTwitter}
+          className={cn(showOnlyTwitter && FILTER_ON)}
           onClick={() => setShowOnlyTwitter(!showOnlyTwitter)}
         >
-          {showOnlyTwitter ? 'Showing Twitter only' : 'Show only with Twitter'}
+          With X handle
         </Button>
         <Button
-          variant={showTopInfluencers ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
+          aria-pressed={showTopInfluencers}
+          className={cn(showTopInfluencers && FILTER_ON)}
           onClick={() => setShowTopInfluencers(!showTopInfluencers)}
         >
-          {showTopInfluencers ? 'Top influencers (1K+)' : 'Top influencers'}
+          Top influencers (1K+)
         </Button>
         {results.some((r) => r.is_agent) && (
           <Button
-            variant={showOnlyAgents ? 'default' : 'outline'}
+            variant="outline"
             size="sm"
+            aria-pressed={showOnlyAgents}
+            className={cn(showOnlyAgents && FILTER_ON)}
             onClick={() => setShowOnlyAgents(!showOnlyAgents)}
           >
-            {showOnlyAgents ? 'Showing agents only' : 'Agents only'}
+            Agents only
           </Button>
         )}
-        <span className="text-sm text-muted-foreground">
-          {filteredAndSorted.length.toLocaleString()} results
-        </span>
       </div>
 
       {/* One template, used by the header and every row. It was duplicated,
@@ -615,9 +713,12 @@ export const ResultsTable = memo(function ResultsTable({
                 <span className="truncate">{col}</span>
               </div>
             ))}
+            {/* The platform is "X" and "Farcaster" is never abbreviated: one
+                screen named the same platform four ways (Twitter, the U+1D54F
+                character, X, FC). */}
             <SortHeader
               field="twitter_handle"
-              label="Twitter"
+              label="X handle"
               sortField={sortField}
               sortDirection={sortDirection}
               onSort={handleSort}
@@ -629,21 +730,37 @@ export const ResultsTable = memo(function ResultsTable({
               sortDirection={sortDirection}
               onSort={handleSort}
             />
-            <SortHeader
-              field="fc_followers"
-              label="FC Followers"
-              sortField={sortField}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            <SortHeader
-              field="priority_score"
-              label="Priority"
-              title="Based on holdings × follower reach"
-              sortField={sortField}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
+            {isPaidTier ? (
+              <SortHeader
+                field="fc_followers"
+                label="Farcaster followers"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            ) : (
+              <LockedHeader
+                label="Farcaster followers"
+                feature="Farcaster followers"
+                onUpgradeClick={onUpgradeClick}
+              />
+            )}
+            {isPaidTier ? (
+              <SortHeader
+                field="priority_score"
+                label="Priority"
+                title="Based on holdings × follower reach"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            ) : (
+              <LockedHeader
+                label="Priority"
+                feature="the priority score"
+                onUpgradeClick={onUpgradeClick}
+              />
+            )}
           </div>
 
           {/* Virtualized body */}
@@ -737,8 +854,17 @@ export const ResultsTable = memo(function ResultsTable({
                       style={{ left: GUTTER_WIDTH }}
                     >
                       <div className="flex items-center gap-2">
-                        <button
-                          className="relative hover:text-accent-brand cursor-pointer transition-colors"
+                        {/* The link variant at inline size, which is the one
+                            treatment for a text control in a cell and brings
+                            the focus ring with it. Foreground rather than the
+                            variant's brand colour: the address is the row's
+                            identity and reads as data, and muted would say it
+                            cannot be acted on. Hover goes to brand, colour
+                            only. */}
+                        <Button
+                          variant="link"
+                          size="inline"
+                          className="relative font-mono text-xs text-foreground hover:text-accent-brand"
                           onClick={() => handleCopyWallet(result.wallet)}
                           title={`${result.wallet}\nClick to copy`}
                         >
@@ -751,15 +877,20 @@ export const ResultsTable = memo(function ResultsTable({
                               Copied!
                             </span>
                           )}
-                        </button>
+                        </Button>
+                        {/* Both chips are the Badge primitive. One meaning,
+                            one colour: "agent" is a single fact, and the five
+                            framework branches this replaces resolved to three
+                            colours with three of them identical. Badge caps at
+                            12ch and truncates, because agent_name is
+                            third-party data with no length bound and this row
+                            has a fixed 44px height it must not change. "New"
+                            was a solid brand fill in capitals, the paint
+                            of a filled button on a fact. */}
                         {result.is_agent && (
-                          <span
-                            /* One meaning, one colour: "agent" is a single fact, and the
-                               five framework branches this replaces resolved to three
-                               colours with three of them identical. Capped and truncated
-                               because agent_name is third-party data with no length bound,
-                               and this row has a fixed 44px height it must not change. */
-                            className="shrink-0 max-w-[12ch] truncate whitespace-nowrap rounded-sm bg-accent-brand-tint px-1.5 py-0.5 text-xs font-medium text-accent-brand"
+                          <Badge
+                            tone="brand"
+                            className="shrink-0"
                             title={[
                               result.agent_name,
                               result.agent_framework &&
@@ -771,12 +902,12 @@ export const ResultsTable = memo(function ResultsTable({
                               .join(' | ')}
                           >
                             {result.agent_name || 'Agent'}
-                          </span>
+                          </Badge>
                         )}
                         {isEnriched && (
-                          <span className="px-1.5 py-0.5 text-xs font-medium rounded-sm bg-accent-brand text-accent-brand-foreground">
-                            NEW
-                          </span>
+                          <Badge tone="brand" className="shrink-0">
+                            New
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -789,11 +920,16 @@ export const ResultsTable = memo(function ResultsTable({
                       {result.ens_name || '-'}
                     </div>
 
-                    {/* Holdings */}
+                    {/* Holdings. Two cuts in this row, one per kind of value:
+                        identifiers (wallet, ENS, X handle, Farcaster) are
+                        12px mono, because they are read; figures (holdings,
+                        Farcaster followers, priority) are 14px sans at 500
+                        with tabular numerals, because they are compared down
+                        a column. This one is a figure. */}
                     {hasHoldings && (
                       <div
                         role="cell"
-                        className="px-4 py-2 font-mono text-xs tabular-nums"
+                        className="px-4 py-2 text-sm font-medium tabular-nums"
                       >
                         {formatHoldings(result.holdings)}
                       </div>
@@ -810,7 +946,7 @@ export const ResultsTable = memo(function ResultsTable({
                       </div>
                     ))}
 
-                    {/* Twitter */}
+                    {/* X handle */}
                     <div role="cell" className="px-4 py-2 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
@@ -822,28 +958,41 @@ export const ResultsTable = memo(function ResultsTable({
                     {/* Farcaster */}
                     <div role="cell" className="px-4 py-2 font-mono text-xs">
                       {result.farcaster ? (
-                        <a
-                          href={
-                            result.farcaster_url ||
-                            `https://warpcast.com/${result.farcaster}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-brand hover:underline"
+                        <Button
+                          asChild
+                          variant="link"
+                          size="inline"
+                          className="font-mono text-xs"
                         >
-                          @{result.farcaster}
-                        </a>
+                          <a
+                            href={
+                              result.farcaster_url ||
+                              `https://warpcast.com/${result.farcaster}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            @{result.farcaster}
+                          </a>
+                        </Button>
                       ) : (
                         '-'
                       )}
                     </div>
 
-                    {/* FC Followers */}
+                    {/* Farcaster followers */}
                     {/* tabular-nums, not font-mono: a follower count is a figure to
                         compare down a column, not an identifier to read. Söhne's
                         tnum substitutes .lt glyphs at a uniform 608 units, so the
-                        digits align without changing face. */}
-                    <div role="cell" className="px-4 py-2 text-sm tabular-nums">
+                        digits align without changing face. Weight 500 is the
+                        table-figure cut.
+
+                        A locked cell is a dash in muted and nothing else. The
+                        column's one upgrade control is in its header. */}
+                    <div
+                      role="cell"
+                      className="px-4 py-2 text-sm font-medium tabular-nums"
+                    >
                       {isPaidTier ? (
                         result.fc_followers !== undefined ? (
                           result.fc_followers.toLocaleString()
@@ -851,14 +1000,7 @@ export const ResultsTable = memo(function ResultsTable({
                           '-'
                         )
                       ) : (
-                        <button
-                          onClick={onUpgradeClick}
-                          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-                          title="Buy credits to see FC followers"
-                        >
-                          <Lock className="h-3 w-3" />
-                          <span className="text-xs">Locked</span>
-                        </button>
+                        <LockedCell />
                       )}
                     </div>
 
@@ -867,14 +1009,7 @@ export const ResultsTable = memo(function ResultsTable({
                       {isPaidTier ? (
                         <PriorityIndicator score={result.priority_score} />
                       ) : (
-                        <button
-                          onClick={onUpgradeClick}
-                          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-                          title="Buy credits to see priority score"
-                        >
-                          <Lock className="h-3 w-3" />
-                          <span className="text-xs">Locked</span>
-                        </button>
+                        <LockedCell />
                       )}
                     </div>
                   </div>
@@ -884,6 +1019,11 @@ export const ResultsTable = memo(function ResultsTable({
           )}
         </div>
       </div>
+
+      {/* The count, as a caption of the table it counts. */}
+      <p className="text-xs text-muted-foreground tabular-nums">
+        {filteredAndSorted.length.toLocaleString()} results
+      </p>
     </div>
   );
 });

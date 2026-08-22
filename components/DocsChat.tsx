@@ -164,7 +164,7 @@ export function DocsChat() {
           {
             '--search-snippet-primary-color': 'var(--accent-brand)',
             '--search-snippet-primary-hover': 'var(--accent-brand-hover)',
-            // 48px is the `icon-lg` control. 56px was a size nothing else
+            // 48px is a spacing step and the footer's round controls' size. 56px was a size nothing else
             // in the product has, and the largest filled violet object on
             // every page.
             '--chat-bubble-button-size': '48px',

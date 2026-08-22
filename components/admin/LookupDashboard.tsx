@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { Sparkline } from './Sparkline';
+import { shortId } from './format';
 import {
   CircleNotch as Loader2,
   ArrowsClockwise as RefreshCw,
@@ -175,7 +176,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchDashboard}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -190,7 +191,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
     <div className="space-y-6">
       {/* Header with period toggle */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Usage metrics</h2>
+        <h2 className="text-lg font-semibold">Lookup metrics</h2>
         <div className="flex items-center gap-2">
           <Segmented
             ariaLabel="Time period"
@@ -223,7 +224,9 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Lookups</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">{usage.totalLookups}</span>
+              <span className="text-2xl font-extralight tabular-nums">
+                {usage.totalLookups}
+              </span>
               <span
                 className={`text-xs ${usage.lookupsChange >= 0 ? 'text-attested' : 'text-caution'}`}
               >
@@ -240,7 +243,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Wallets</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 {usage.totalWallets.toLocaleString()}
               </span>
               <span
@@ -259,7 +262,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Match rate</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 {usage.avgMatchRate.toFixed(1)}%
               </span>
               <span
@@ -278,7 +281,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <span>Avg time</span>
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold">
+              <span className="text-2xl font-extralight tabular-nums">
                 {formatTime(usage.avgProcessingTime)}
               </span>
               <span
@@ -305,7 +308,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Twitter/X</span>
+                  <span className="text-sm">X</span>
                   <span className="text-sm font-medium">
                     {match.twitterRate.toFixed(1)}%
                   </span>
@@ -360,9 +363,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-0.5 rounded-sm bg-accent-brand" />
-                      <span className="text-xs text-muted-foreground">
-                        Twitter
-                      </span>
+                      <span className="text-xs text-muted-foreground">X</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-0.5 rounded-sm bg-accent-brand/40" />
@@ -420,7 +421,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                     <Layers className="h-4 w-4 text-caution" />
                     <span className="text-sm">Pending</span>
                   </div>
-                  <span className="text-2xl font-bold">
+                  <span className="text-2xl font-extralight tabular-nums">
                     {performance.pendingJobs}
                   </span>
                 </div>
@@ -429,7 +430,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                     <Loader2 className="h-4 w-4 text-accent-brand animate-spin" />
                     <span className="text-sm">Running</span>
                   </div>
-                  <span className="text-2xl font-bold">
+                  <span className="text-2xl font-extralight tabular-nums">
                     {performance.runningJobs}
                   </span>
                 </div>
@@ -449,7 +450,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                     <CheckCircle className="h-4 w-4 text-attested" />
                     <span className="text-sm">Success</span>
                   </div>
-                  <span className="text-2xl font-bold">
+                  <span className="text-2xl font-extralight tabular-nums">
                     {performance.successRate.toFixed(1)}%
                   </span>
                 </div>
@@ -458,7 +459,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                     <XCircle className="h-4 w-4 text-destructive" />
                     <span className="text-sm">Failed</span>
                   </div>
-                  <span className="text-2xl font-bold">
+                  <span className="text-2xl font-extralight tabular-nums">
                     {performance.failedCount}
                   </span>
                 </div>
@@ -527,38 +528,36 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
                 No recent activity
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Wallets</TableHead>
-                      <TableHead>Twitter</TableHead>
-                      <TableHead>Farcaster</TableHead>
-                      <TableHead>Match rate</TableHead>
-                      <TableHead>Time</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Wallets</TableHead>
+                    <TableHead>X</TableHead>
+                    <TableHead>Farcaster</TableHead>
+                    <TableHead>Match rate</TableHead>
+                    <TableHead>Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentActivity.map((activity) => (
+                    <TableRow key={activity.id}>
+                      <TableCell className="font-mono text-xs">
+                        {shortId(activity.id)}
+                      </TableCell>
+                      <TableCell>
+                        {activity.walletCount.toLocaleString()}
+                      </TableCell>
+                      <TableCell>{activity.twitterFound}</TableCell>
+                      <TableCell>{activity.farcasterFound}</TableCell>
+                      <TableCell>{activity.matchRate.toFixed(1)}%</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatTimeAgo(activity.completedAt)}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentActivity.map((activity) => (
-                      <TableRow key={activity.id}>
-                        <TableCell className="font-mono text-xs">
-                          {activity.id.slice(0, 8)}...
-                        </TableCell>
-                        <TableCell>
-                          {activity.walletCount.toLocaleString()}
-                        </TableCell>
-                        <TableCell>{activity.twitterFound}</TableCell>
-                        <TableCell>{activity.farcasterFound}</TableCell>
-                        <TableCell>{activity.matchRate.toFixed(1)}%</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {formatTimeAgo(activity.completedAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         )}

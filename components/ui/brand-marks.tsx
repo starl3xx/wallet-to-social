@@ -13,6 +13,11 @@ import { cn } from '@/lib/utils';
  * share cards, where Satori has no fallback chain at all. Farcaster has no
  * character to begin with.
  *
+ * Only these two. A GitHub mark and an external-link arrow lived here too, and
+ * both are icons Phosphor owns (`GithubLogo`, `ArrowSquareOut`); keeping local
+ * drawings gave "this link leaves the site" two shapes. Farcaster is the one
+ * mark Phosphor lacks (docs/DESIGN-LANGUAGE.md, Icons).
+ *
  * No `use client`: pure SVG plus next/image and next/link, so server components
  * can render all of it.
  */
@@ -29,7 +34,7 @@ import { cn } from '@/lib/utils';
  * `header` steps down as a unit below `sm`, mark and wordmark together, so it
  * stays one lockup rather than a shrunken word beside a full-size mark.
  * `footer` is the phone-header pair at every width, so on one phone screen the
- * two lockups are the same object.
+ * two lockups are the same object. The header steps up to 30px at sm.
  *
  * No `hover:opacity-80`: the name is already `text-accent-brand`, and hover
  * changes colour only (docs/DESIGN-LANGUAGE.md, Motion). Opacity on a
@@ -38,7 +43,10 @@ import { cn } from '@/lib/utils';
 const LOCKUP = {
   header: {
     mark: 'h-7 w-7 sm:h-9 sm:w-9',
-    word: 'text-xl tracking-[var(--tracking-title)] sm:text-[2rem] sm:tracking-[var(--tracking-display)]',
+    // text-3xl (30px), not the 32px it was: 32 is not a step on the type
+    // scale, and at 30px the tracking token is the title one, so both values
+    // come from the system. The header row is 10px narrower for it.
+    word: 'text-xl tracking-[var(--tracking-title)] sm:text-3xl',
   },
   footer: {
     mark: 'h-7 w-7',
@@ -128,43 +136,6 @@ export function FarcasterMark({
       aria-hidden="true"
     >
       <path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z" />
-    </svg>
-  );
-}
-
-export function GithubMark({ className = 'h-4 w-4' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3Z" />
-    </svg>
-  );
-}
-
-/** An arrow that means, and only means, this link leaves the site. */
-export function ExternalMark({
-  className = 'h-3 w-3',
-}: {
-  className?: string;
-}) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   );
 }

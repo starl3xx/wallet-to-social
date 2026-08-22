@@ -4,15 +4,16 @@ import { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   MagnifyingGlass as Search,
   CircleNotch as Loader2,
   User,
   Briefcase,
   Wallet,
-  Envelope as Mail,
   X,
 } from '@phosphor-icons/react';
+import { shortId } from './format';
 
 interface SearchResult {
   type: 'user' | 'job' | 'lookup';
@@ -84,8 +85,8 @@ export function UniversalSearch({
               (j: { id: string; status: string; walletCount: number }) => ({
                 type: 'job' as const,
                 id: j.id,
-                title: `Job ${j.id.slice(0, 8)}...`,
-                subtitle: `Status: ${j.status} | ${j.walletCount} wallets`,
+                title: `Job ${shortId(j.id)}`,
+                subtitle: `Status: ${j.status} · ${j.walletCount} wallets`,
               })
             )
           );
@@ -111,8 +112,8 @@ export function UniversalSearch({
               }) => ({
                 type: 'lookup' as const,
                 id: h.id,
-                title: h.name || `Lookup ${h.id.slice(0, 8)}...`,
-                subtitle: `${h.walletCount} wallets | User: ${h.userId?.slice(0, 8) || 'unknown'}...`,
+                title: h.name || `Lookup ${shortId(h.id)}`,
+                subtitle: `${h.walletCount} wallets · User: ${h.userId ? shortId(h.userId) : 'unknown'}`,
               })
             )
         );
@@ -163,7 +164,7 @@ export function UniversalSearch({
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Input
-              placeholder="Search users, jobs, wallets, or emails..."
+              placeholder="Search users, jobs, wallets, or emails…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -204,7 +205,7 @@ export function UniversalSearch({
                 {results.map((result) => (
                   <button
                     key={`${result.type}-${result.id}`}
-                    className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors"
+                    className="w-full text-left p-3 rounded-lg border border-input hover:bg-accent transition-control"
                     onClick={() => onResultClick?.(result)}
                   >
                     <div className="flex items-start gap-3">
@@ -216,9 +217,7 @@ export function UniversalSearch({
                           <span className="font-medium truncate">
                             {result.title}
                           </span>
-                          <span className="text-xs px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground capitalize">
-                            {result.type}
-                          </span>
+                          <Badge tone="muted">{result.type}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground truncate">
                           {result.subtitle}

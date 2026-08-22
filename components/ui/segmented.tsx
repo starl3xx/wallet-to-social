@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { FOCUS_RING } from '@/components/ui/button';
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -53,7 +54,10 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value)
+  );
   const active = options[index];
 
   const move = (from: number, delta: number) => {
@@ -64,10 +68,19 @@ export function Segmented<T extends string>({
 
   const onKeyDown = (e: React.KeyboardEvent, i: number) => {
     const k = e.key;
-    if (k === 'ArrowRight' || k === 'ArrowDown') { e.preventDefault(); move(i, 1); }
-    else if (k === 'ArrowLeft' || k === 'ArrowUp') { e.preventDefault(); move(i, -1); }
-    else if (k === 'Home') { e.preventDefault(); move(0, 0); }
-    else if (k === 'End') { e.preventDefault(); move(options.length - 1, 0); }
+    if (k === 'ArrowRight' || k === 'ArrowDown') {
+      e.preventDefault();
+      move(i, 1);
+    } else if (k === 'ArrowLeft' || k === 'ArrowUp') {
+      e.preventDefault();
+      move(i, -1);
+    } else if (k === 'Home') {
+      e.preventDefault();
+      move(0, 0);
+    } else if (k === 'End') {
+      e.preventDefault();
+      move(options.length - 1, 0);
+    }
   };
 
   return (
@@ -122,15 +135,21 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cn(
             'segmented-option relative z-10 flex h-full flex-1 basis-0 items-center justify-center gap-1.5 rounded-full',
-            'px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2',
-            'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            'px-3 text-sm font-medium',
+            // The ring Button and Input draw, from the one string, so the
+            // segment beside a button lights up the same way it does.
+            FOCUS_RING,
             // An unselected segment reads at near-full contrast rather than as
             // muted grey. Muted is the colour of text you cannot act on, and it
             // was telling people the other half of the control was disabled.
-            o.value === value ? 'font-semibold' : 'text-foreground/75 hover:text-foreground'
+            o.value === value
+              ? 'font-semibold'
+              : 'text-foreground/75 hover:text-foreground'
           )}
           style={
-            o.value === value ? { color: o.activeColor ?? 'var(--accent-brand)' } : undefined
+            o.value === value
+              ? { color: o.activeColor ?? 'var(--accent-brand)' }
+              : undefined
           }
         >
           {o.content}

@@ -9,7 +9,9 @@ import {
   ModalDescription,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { XMark } from '@/components/ui/brand-marks';
 import {
   Check,
   CircleNotch as Loader2,
@@ -80,6 +82,31 @@ const PACK_ICON: Record<PackId, typeof Lightning> = {
   scale: TrendUp,
   index: Stack,
 };
+
+/**
+ * The platform mark inside running copy, sized and aligned the way the home
+ * page sets it. Never the literal 𝕏 character: Söhne has no U+1D54F, so it
+ * fell back to another face and rendered thinner and narrower than the words
+ * around it. `label` makes it read as "X" to a screen reader, because here the
+ * mark stands in for the word.
+ */
+const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
+
+/**
+ * What every pack includes, said once below the cards. Keyed because one
+ * item carries the platform mark and so is not a string.
+ */
+const INCLUDED: { key: string; label: React.ReactNode }[] = [
+  { key: 'chains', label: 'All seven chains' },
+  { key: 'csv', label: 'Full CSV export, never capped' },
+  { key: 'api', label: 'API access, drawing the same credits' },
+  { key: 'reverse', label: 'Reverse lookup: handle → wallets' },
+  { key: 'ens', label: 'Deep scan with onchain ENS' },
+  { key: 'x', label: <>{X_IN_COPY} reachability on every match</> },
+  { key: 'contract', label: 'Import from a contract address' },
+  { key: 'dms', label: 'Farcaster DMs to matched holders' },
+  { key: 'expiry', label: 'Credits last 12 months' },
+];
 
 /** Dollars, without a trailing `.00` on the whole numbers every pack uses. */
 function price(cents: number): string {
@@ -159,9 +186,18 @@ export function UpgradeModal({
             Buy credits
           </ModalTitle>
           <ModalDescription>
-            {walletCount
-              ? `Your file has ${walletCount.toLocaleString()} wallets. You are charged only for the ones we resolve to an 𝕏 or Farcaster account.`
-              : 'You are charged only for the wallets we resolve to an 𝕏 or Farcaster account. Misses are free.'}
+            {walletCount ? (
+              <>
+                Your file has {walletCount.toLocaleString()} wallets. You are
+                charged only for the ones we resolve to an {X_IN_COPY} or
+                Farcaster account.
+              </>
+            ) : (
+              <>
+                You are charged only for the wallets we resolve to an{' '}
+                {X_IN_COPY} or Farcaster account. Misses are free.
+              </>
+            )}
           </ModalDescription>
         </ModalHeader>
 
@@ -218,14 +254,19 @@ export function UpgradeModal({
                     isSuggested ? 'border-accent-brand' : 'border-border'
                   )}
                 >
-                  {/* A badge, so it takes the badge treatment: mono, upper,
-                      tint, no border. It was a filled sentence-case pill, which
-                      is the treatment reserved for actions, and it sat directly
-                      above a button wearing the same clothes. */}
+                  {/* A badge, so it is the Badge primitive: mono, upper, tint,
+                      no border. It was a filled sentence-case pill, which is
+                      the treatment reserved for actions, and it sat directly
+                      above a button wearing the same clothes. `max-w-none`
+                      because "Fits your list" is 14ch and the primitive caps
+                      at 12ch for values it cannot trust; this one it can. */}
                   {isSuggested && (
-                    <span className="absolute -top-2.5 left-4 rounded-sm bg-accent-brand-tint px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)] text-accent-brand">
+                    <Badge
+                      tone="brand"
+                      className="absolute -top-2.5 left-4 max-w-none"
+                    >
                       {walletCount ? 'Fits your list' : 'Most bought'}
-                    </span>
+                    </Badge>
                   )}
 
                   <div>
@@ -238,11 +279,14 @@ export function UpgradeModal({
                       </span>
                       <h3 className="text-sm font-semibold">{pack.name}</h3>
                     </div>
-                    {/* The figure treatment from `Figure`: weight 300 at title
-                        tracking. It was `font-bold`, which is 700 and not one
-                        of the five weights the scale defines. */}
+                    {/* The figure treatment from `Figure`: weight 200 at title
+                        tracking, the hero-figure weight everywhere a figure
+                        stands alone at 24px and up. It was `font-bold`, then
+                        `font-medium`, which is the weight of the button label
+                        directly beneath it, so price and button read at one
+                        weight. */}
                     <div className="mt-1 flex items-baseline gap-1.5">
-                      <span className="text-2xl font-medium tabular-nums tracking-[var(--tracking-title)]">
+                      <span className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
                         {price(pack.priceCents)}
                       </span>
                       <span className="text-sm text-muted-foreground">
@@ -290,26 +334,20 @@ export function UpgradeModal({
           {/* Said once, below the cards, rather than repeated as a feature
               bullet on all four. Every pack carries every one of these, so
               listing them per card would be four identical lists and would
-              imply a difference between the rungs that does not exist. */}
+              imply a difference between the rungs that does not exist.
+
+              The check is `attested`, the one green, at UI scale with no disc.
+              It wore `success-light` and `success-foreground`, a pair kept in
+              globals.css for this list alone and tuned a step away from
+              `attested`, so the product shipped two greens and said it had
+              one. */}
           <div className="flex-none rounded-lg bg-muted/40 p-4">
             <p className="mb-2 text-sm font-medium">Every pack includes</p>
             <ul className="grid gap-x-6 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-2">
-              {[
-                'All seven chains',
-                'Full CSV export, never capped',
-                'API access, drawing the same credits',
-                'Reverse lookup: handle → wallets',
-                'Deep scan with onchain ENS',
-                '𝕏 reachability on every match',
-                'Import from a contract address',
-                'Farcaster DMs to matched holders',
-                'Credits last 12 months',
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <div className="rounded-full bg-success-light p-0.5">
-                    <Check className="h-3 w-3 text-success-foreground" />
-                  </div>
-                  {item}
+              {INCLUDED.map((item) => (
+                <li key={item.key} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 flex-none text-attested" />
+                  {item.label}
                 </li>
               ))}
             </ul>

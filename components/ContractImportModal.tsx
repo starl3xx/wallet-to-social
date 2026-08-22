@@ -10,10 +10,10 @@ import {
   ModalFooter,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   CircleNotch as Loader2,
-  FileCode,
   Warning as AlertTriangle,
 } from '@phosphor-icons/react';
 import type { ContractType } from '@/lib/contract-holders';
@@ -176,18 +176,6 @@ export function ContractImportModal({
     setResult(null);
   }, []);
 
-  // Get contract type badge color
-  const getTypeBadgeColor = (type: ContractType) => {
-    switch (type) {
-      case 'ERC-721':
-        return 'bg-accent-brand-tint text-accent-brand';
-      case 'ERC-1155':
-        return 'bg-accent-brand-tint text-accent-brand';
-      default:
-        return 'bg-accent-brand-tint text-accent-brand';
-    }
-  };
-
   return (
     <Modal open={open} onOpenChange={handleClose}>
       {/* The preview step is the tall one: a chain picker, a holder count, a
@@ -199,11 +187,15 @@ export function ContractImportModal({
         className="max-w-md"
         footer={
           step === 'preview' && result ? (
+            // ModalFooter's own layout: natural widths, the filled primary at
+            // the right. Both buttons carried `flex-1`, which made Back and
+            // Import siblings of equal size, and the affordance rule is that
+            // alternates are never that.
             <ModalFooter>
-              <Button variant="outline" onClick={handleBack} className="flex-1">
+              <Button variant="outline" onClick={handleBack}>
                 Back
               </Button>
-              <Button onClick={handleImport} className="flex-1">
+              <Button onClick={handleImport}>
                 Import {result.wallets.length.toLocaleString()} wallets
               </Button>
             </ModalFooter>
@@ -211,13 +203,16 @@ export function ContractImportModal({
         }
       >
         <ModalHeader>
-          <ModalTitle className="flex items-center gap-2">
-            <FileCode className="h-5 w-5" />
-            Import from contract
-          </ModalTitle>
+          {/* The same words as the button that opens it ("Import from a
+              contract", InputMethodPicker), so the dialog confirms the
+              choice rather than restating it. "Its holders", not "all
+              holders": the preview step of this same dialog warns when the
+              list is capped, and a promise the next screen retracts is the
+              kind of "all" CLAUDE.md says to be most suspicious of. */}
+          <ModalTitle>Import from a contract</ModalTitle>
           <ModalDescription>
             {step === 'input' &&
-              'Enter an ERC-20 token or NFT contract address to import all holders.'}
+              'Enter an ERC-20 token or NFT contract address to import its holders.'}
             {step === 'loading' && 'Fetching token holders...'}
             {step === 'preview' &&
               result &&
@@ -230,9 +225,12 @@ export function ContractImportModal({
         {/* Input Step */}
         {step === 'input' && (
           <div className="space-y-4">
+            {/* The one error banner treatment: a full-opacity tint and no
+                border. It was `bg-destructive/10` under a `/20` border, and a
+                faded border is the thing the elevation rule bans. */}
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2 rounded-lg bg-destructive-tint p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" />
                 <p className="text-sm text-destructive">{error}</p>
               </div>
             )}
@@ -267,7 +265,7 @@ export function ContractImportModal({
               <legend className="mb-2 flex w-full items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">Network</span>
                 <span className="text-xs text-muted-foreground">
-                  the network this contract is deployed on
+                  The network this contract is deployed on.
                 </span>
               </legend>
               {/* Real radio inputs, visually hidden, with the label styled as
@@ -288,7 +286,11 @@ export function ContractImportModal({
                       onChange={() => setChain(c)}
                       className="peer sr-only"
                     />
-                    <span className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                    {/* `border-input`, because a tile you can select is a
+                        control and its edge has to clear 3:1; `border-border`
+                        is the decorative hairline. `transition-control`
+                        carries the product's durations. */}
+                    <span className="block rounded-lg border border-input px-3 py-2 text-center text-sm transition-control hover:border-muted-foreground hover:bg-muted/40 peer-checked:border-foreground peer-checked:bg-muted peer-checked:font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
                       {CHAIN_LABELS[c]}
                     </span>
                   </label>
@@ -302,21 +304,27 @@ export function ContractImportModal({
               )}
             </fieldset>
 
-            {/* Load button */}
-            <Button
-              className="w-full"
-              onClick={handleLoadHolders}
-              disabled={!isValidAddress || loading}
-            >
-              Load holders
-            </Button>
+            {/* The action row, in ModalFooter's one layout. This step is
+                short, so the row sits in the body rather than the footer
+                slot: a pinned footer costs height on the screens with least
+                of it, and here there is nothing to scroll past. */}
+            <ModalFooter>
+              <Button
+                onClick={handleLoadHolders}
+                disabled={!isValidAddress || loading}
+              >
+                Load holders
+              </Button>
+            </ModalFooter>
           </div>
         )}
 
         {/* Loading Step */}
+        {/* `h-5 w-5`, the same spinner ApiKeysModal shows for the same state;
+            it was `h-8`, a size the icon scale does not have. */}
         {step === 'loading' && (
-          <div className="py-8 flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="flex flex-col items-center gap-4 py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{loadingMessage}</p>
           </div>
         )}
@@ -333,11 +341,12 @@ export function ContractImportModal({
                     ({result.tokenSymbol})
                   </span>
                 </div>
-                <span
-                  className={`px-2 py-0.5 text-xs font-medium rounded-full ${getTypeBadgeColor(result.contractType)}`}
-                >
-                  {result.contractType}
-                </span>
+                {/* A contract type identifies, so it is a muted Badge. It was
+                    a sentence-case sans pill in the brand tint, which is the
+                    shape badge.tsx names as the one it removed from this
+                    file, and the helper that picked its colour returned the
+                    same classes on every branch. */}
+                <Badge>{result.contractType}</Badge>
               </div>
 
               <div className="flex items-center justify-between text-sm">
@@ -358,7 +367,7 @@ export function ContractImportModal({
 
               {result.truncated && (
                 <div className="flex items-start gap-2 pt-2 border-t">
-                  <AlertTriangle className="h-4 w-4 text-caution mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-caution" />
                   {/* Report what was actually imported, not the cap. A holder
                       list can come back short of the cap when the source is a
                       block explorer that pages slowly and the request runs out

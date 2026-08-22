@@ -41,7 +41,7 @@ import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 export const metadata: Metadata = {
   title: 'walletlink.social vs Cookie3: Comparison (2026)',
   description:
-    'Cookie3 caps Twitter to wallet matching at 10,000 accounts on every tier you can buy. Compare it with a dedicated wallet-to-social lookup priced once.',
+    'Cookie3 caps X to wallet matching at 10,000 accounts on every tier you can buy. Compare it with a dedicated wallet-to-social lookup priced once.',
   keywords: [
     'Cookie3 alternative',
     'Twitter wallet matching',
@@ -114,8 +114,8 @@ export default function Cookie3Comparison() {
               .
             </h1>
             <p className="max-w-[46ch] text-lg font-light leading-snug text-foreground/80">
-              Cookie3 includes wallet-to-Twitter matching from $749 a month, and
-              caps it at 10,000 accounts on every tier a person can buy.
+              Cookie3 includes wallet-to-X matching from $749 a month, and caps
+              it at 10,000 accounts on every tier a person can buy.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2.5">
@@ -138,17 +138,21 @@ export default function Cookie3Comparison() {
             </div>
 
             {/* The proof row closes the hero. Four figures, each appearing once,
-                with the contactable one in brand because it is the number to act on.
-                It is a range, not an average: Base measures 46.2% and Ethereum
-                16.6%, and an average would hide the thing that decides a campaign
-                and coverage carrying a green mark because it is the measured one. */}
+                and the two measured ones carry the green mark: coverage, because
+                it is the claim we can prove, and the reachable rate, because it
+                is a range, not an average (Base measures 46.2% and Ethereum
+                16.6%, and an average would hide the thing that decides a
+                campaign). The rate used to sit in brand as "the number to act
+                on", but a rate is nothing the reader can act on, and violet is
+                the colour of an affordance. Green is the colour of a measured
+                fact, and the hit rate is named as one. */}
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5 border-t border-border pt-5">
               <Figure value={INDEXED_WALLETS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
                 label="have an X or Farcaster account"
-                brand
+                attested
               />
               <Figure
                 value={`$${PACKS.trial.priceCents / 100}`}
@@ -161,7 +165,14 @@ export default function Cookie3Comparison() {
             <ReachabilityClaim competitor="Cookie3" />
           </div>
 
-          {/* Quick Summary */}
+          {/* Quick comparison. A Check in a capability cell is green, whichever
+              column it sits in: "has this" is a measured fact, and green is the
+              colour of one. A cross is muted. Captioned cells put the glyph and
+              its caption in one flex row; Tailwind's preflight makes svg
+              `display: block`, so an icon followed by a span stacked on two
+              lines with the caption indented 4px under the glyph. The cards further
+              down are lists, not capability claims, and their check marks take
+              the card's own text colour. */}
           <section className="mb-16">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
               Quick comparison
@@ -201,40 +212,46 @@ export default function Cookie3Comparison() {
                       Wallet → X matching
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (capped only by the matches you buy)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (capped only by the matches you buy)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-muted-foreground"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (up to 10K accounts on Website, Basic and Growth alike;
-                        unlimited on Enterprise only)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (up to 10K accounts on Website, Basic and Growth
+                          alike; unlimited on Enterprise only)
+                        </span>
                       </span>
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster lookup</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (complete coverage)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (complete coverage)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -280,26 +297,30 @@ export default function Cookie3Comparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Self-serve signup</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({FREE_MATCHES_PER_WINDOW} matches free every{' '}
-                        {FREE_WINDOW_DAYS} days, no card)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          ({FREE_MATCHES_PER_WINDOW} matches free every{' '}
+                          {FREE_WINDOW_DAYS} days, no card)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X
-                        alt="No"
-                        role="img"
-                        aria-label="No"
-                        className="h-4 w-4 text-muted-foreground"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (trial granted by a rep, no free tier)
+                      <span className="flex items-start gap-2">
+                        <X
+                          alt="No"
+                          role="img"
+                          aria-label="No"
+                          className="mt-0.5 h-4 w-4 flex-none text-muted-foreground"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (trial granted by a rep, no free tier)
+                        </span>
                       </span>
                     </td>
                   </tr>
@@ -308,14 +329,16 @@ export default function Cookie3Comparison() {
                       X handle still reaches somebody
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (checked per record)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (checked per record)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -330,14 +353,16 @@ export default function Cookie3Comparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Agent detection</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check
-                        alt="Yes"
-                        role="img"
-                        aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
-                      />
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (13K+ agents)
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (13K+ agents)
+                        </span>
                       </span>
                     </td>
                     <td className="py-4 pl-4">
@@ -366,7 +391,7 @@ export default function Cookie3Comparison() {
                         alt="Yes"
                         role="img"
                         aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
+                        className="h-4 w-4 text-attested"
                       />
                     </td>
                   </tr>
@@ -387,7 +412,7 @@ export default function Cookie3Comparison() {
                         alt="Yes"
                         role="img"
                         aria-label="Yes"
-                        className="h-4 w-4 text-accent-brand"
+                        className="h-4 w-4 text-attested"
                       />
                     </td>
                   </tr>
@@ -489,9 +514,9 @@ export default function Cookie3Comparison() {
             <p className="text-muted-foreground mt-4">
               If you arrived looking for agent mindshare rankings and agent
               token data, that is Cookie.fun, and it does not resolve your
-              wallet list to anybody. If you arrived looking for
-              wallet-to-Twitter matching on a price sheet, that is Cookie3, and
-              this page is the comparison.
+              wallet list to anybody. If you arrived looking for wallet-to-X
+              matching on a price sheet, that is Cookie3, and this page is the
+              comparison.
             </p>
           </section>
 
@@ -609,7 +634,7 @@ export default function Cookie3Comparison() {
                 </li>
                 <li>
                   - Growth: $749 / month ($599 annual). 1M wallets, 100K
-                  enriched exports. The cheapest tier where Twitter matching is
+                  enriched exports. The cheapest tier where X matching is
                   switched on.
                 </li>
                 <li>
@@ -658,7 +683,11 @@ export default function Cookie3Comparison() {
             </ol>
           </section>
 
-          {/* CTA */}
+          {/* Closing CTA. The Button primitive on a Link, the same as the hero:
+              this used to paste Button's class string onto the Link, which drifted
+              the moment Button changed (it had already lost the focus ring). The
+              label is the one the product uses for this action everywhere, so the
+              hero and the close name the same destination the same way. */}
           <section className="text-center py-12 border-t">
             <h2 className="text-2xl font-light tracking-[-0.028em] mb-4">
               Ready to find your wallet holders?
@@ -667,50 +696,41 @@ export default function Cookie3Comparison() {
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
               every {FREE_WINDOW_DAYS} days, no card, no call.
             </p>
-            <Link
-              href="/"
-              className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
-            >
-              Start your first lookup
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            <Button asChild>
+              <Link href="/">
+                Run a lookup
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
           </section>
 
-          {/* Related Comparisons */}
+          {/* Related comparisons. Each link is the `link` variant at `inline`
+              size, the one treatment for a text link in a list or a sentence;
+              these were grey and underlined at rest, a third look for the same
+              meaning. The names match the footer's Compare column, so one
+              destination has one name wherever it is linked. */}
           <nav className="py-8 border-t" aria-label="Related comparisons">
             <h2 className="text-lg font-semibold mb-4">Related comparisons</h2>
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
-                <Link
-                  href="/vs/addressable"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  walletlink.social vs Addressable
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/addressable">vs Addressable</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/blaze"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Blaze alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/blaze">vs Blaze</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/holder"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Holder alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/holder">vs Holder</Link>
+                </Button>
               </li>
               <li>
-                <Link
-                  href="/vs/airstack"
-                  className="text-muted-foreground hover:text-foreground underline"
-                >
-                  Airstack alternative
-                </Link>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/airstack">vs Airstack</Link>
+                </Button>
               </li>
             </ul>
           </nav>

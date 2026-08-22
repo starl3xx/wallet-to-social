@@ -171,7 +171,7 @@ export function AddAddressesModal({
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Processing...
                     </>
                   ) : (
@@ -225,7 +225,7 @@ export function AddAddressesModal({
                 {/* Action buttons */}
                 <div className="space-y-2">
                   <Button className="w-full" onClick={handleAddToLookup}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4" />
                     Add to this lookup
                   </Button>
                   <Button
@@ -233,7 +233,7 @@ export function AddAddressesModal({
                     className="w-full"
                     onClick={handleCreateNew}
                   >
-                    <FileText className="h-4 w-4 mr-2" />
+                    <FileText className="h-4 w-4" />
                     Create new lookup instead
                   </Button>
                 </div>

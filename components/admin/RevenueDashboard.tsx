@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -202,7 +203,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
         <Button variant="outline" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
       </div>
@@ -246,7 +247,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               <DollarSign className="h-3 w-3" />
               <span>Net revenue, all time</span>
             </div>
-            <div className="text-2xl font-bold tabular-nums">
+            <div className="text-2xl font-extralight tabular-nums">
               {money(allTime?.netCents ?? 0)}
             </div>
             {!!allTime?.refundedCents && (
@@ -262,7 +263,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <div className="text-xs text-muted-foreground mb-1">
               Net this month
             </div>
-            <div className="text-2xl font-bold tabular-nums">
+            <div className="text-2xl font-extralight tabular-nums">
               {money(thisMonth?.netCents ?? 0)}
             </div>
             {!!thisMonth?.refundedCents && (
@@ -277,7 +278,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <div className="text-xs text-muted-foreground mb-1">
               Paid conversions
             </div>
-            <div className="text-2xl font-bold tabular-nums">
+            <div className="text-2xl font-extralight tabular-nums">
               {allTime?.count ?? 0}
             </div>
             <div className="text-xs text-muted-foreground">
@@ -290,7 +291,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <div className="text-xs text-muted-foreground mb-1">
               Complimentary
             </div>
-            <div className="text-2xl font-bold tabular-nums">
+            <div className="text-2xl font-extralight tabular-nums">
               {compedUsers.length}
             </div>
             <div className="text-xs text-muted-foreground">
@@ -312,14 +313,14 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <div className="flex items-center justify-between gap-2 text-center">
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Lookups</div>
-                <div className="text-lg font-bold tabular-nums">
+                <div className="text-lg font-semibold tabular-nums">
                   {funnel.lookupsStarted}
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Saw pricing</div>
-                <div className="text-lg font-bold tabular-nums">
+                <div className="text-lg font-semibold tabular-nums">
                   {funnel.upgradeModalViewed}
                 </div>
               </div>
@@ -328,7 +329,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                 <div className="text-xs text-muted-foreground">
                   Started checkout
                 </div>
-                <div className="text-lg font-bold tabular-nums">
+                <div className="text-lg font-semibold tabular-nums">
                   {funnel.checkoutStarted}
                 </div>
               </div>
@@ -336,15 +337,15 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               <div className="flex-1">
                 <div className="text-xs text-muted-foreground">Completed</div>
                 {/* A completed payment is a real outcome, so it is green. */}
-                <div className="text-lg font-bold tabular-nums text-attested">
+                <div className="text-lg font-semibold tabular-nums text-attested">
                   {funnel.paymentCompleted}
                 </div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t text-center">
               <span className="text-sm text-muted-foreground">
-                Modal → Payment conversion rate:{' '}
-                <span className="font-bold text-foreground tabular-nums">
+                Saw pricing to completed:{' '}
+                <span className="font-semibold text-foreground tabular-nums">
                   {conversionRate.toFixed(1)}%
                 </span>
               </span>
@@ -364,7 +365,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
               No payments yet
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -379,10 +380,11 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                   {revenue.payments.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>{p.email ?? '-'}</TableCell>
+                      {/* Brand tone: the product is ours, neither good nor
+                          bad. A purchase outcome would be green; the name of
+                          what was bought is not an outcome. */}
                       <TableCell>
-                        <span className="px-2 py-1 rounded-sm text-xs font-medium bg-accent-brand-tint text-accent-brand">
-                          {productName(p)}
-                        </span>
+                        <Badge tone="brand">{productName(p)}</Badge>
                       </TableCell>
                       <TableCell className="tabular-nums">
                         {p.fullyRefunded ? (
@@ -406,7 +408,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {p.id.slice(0, 14)}…
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                         {new Date(p.created).toLocaleDateString()}
                       </TableCell>
                     </TableRow>
@@ -419,7 +421,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
                   counted above.
                 </p>
               )}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -434,36 +436,32 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
             <CardTitle className="text-base">Complimentary accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Holds</TableHead>
-                    <TableHead>Paid for</TableHead>
-                    <TableHead>Since</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Holds</TableHead>
+                  <TableHead>Paid for</TableHead>
+                  <TableHead>Since</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {compedUsers.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <Badge tone="muted">{u.tier}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {u.paidFor ?? 'nothing'}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {new Date(u.paidAt || u.createdAt).toLocaleDateString()}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {compedUsers.map((u) => (
-                    <TableRow key={u.id}>
-                      <TableCell>{u.email}</TableCell>
-                      <TableCell>
-                        <span className="px-2 py-1 rounded-sm text-xs font-medium bg-muted text-muted-foreground">
-                          {u.tier}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {u.paidFor ?? 'nothing'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(u.paidAt || u.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
