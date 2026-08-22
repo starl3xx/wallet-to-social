@@ -1,7 +1,7 @@
 import { getOrCreateUser } from '@/lib/access';
 import { grantPack } from '@/lib/credits';
 import { generateMagicLinkToken } from '@/lib/auth';
-import { sendMagicLink, isEmailConfigured } from '@/lib/email';
+import { sendPurchaseSignInLink, isEmailConfigured } from '@/lib/email';
 import { PACKS, type PackId } from '@/lib/packs';
 
 /**
@@ -49,7 +49,7 @@ export async function fulfilPackPurchase(
   );
 
   if (granted) {
-    await sendSignInLink(email);
+    await sendSignInLink(email, pack);
   }
 
   return { granted, userId: user.id };
@@ -62,7 +62,7 @@ export async function fulfilPackPurchase(
  * arrive is a support conversation; a fulfilment that rolls back because an
  * email failed is a customer who paid and got nothing.
  */
-async function sendSignInLink(email: string): Promise<void> {
+async function sendSignInLink(email: string, pack: PackId): Promise<void> {
   if (!isEmailConfigured()) {
     console.warn(`No email service, so no sign-in link sent to ${email}`);
     return;
@@ -77,7 +77,13 @@ async function sendSignInLink(email: string): Promise<void> {
       console.warn(`No sign-in link for ${email}: ${tokenResult.error}`);
       return;
     }
-    const sent = await sendMagicLink(email, tokenResult.token);
+    // Not the generic sign-in mail. That one says "ignore this if you did not
+    // request it", and a signed-out buyer did not request it: they bought
+    // something, and this is the only way into the account holding it.
+    const sent = await sendPurchaseSignInLink(email, tokenResult.token, {
+      name: PACKS[pack].name,
+      matches: PACKS[pack].matches,
+    });
     if (!sent.success) {
       console.error(`Sign-in link failed for ${email}: ${sent.error}`);
     }

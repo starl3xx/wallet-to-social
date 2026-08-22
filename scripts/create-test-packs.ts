@@ -25,7 +25,9 @@
  *
  * Each price carries a lookup key (`pack_trial_test` and so on) and the script
  * reuses an existing price with that key rather than making a second one.
- * Running it twice is safe and prints the same ids.
+ * Running it twice is safe and prints the same ids. If `lib/packs.ts` has
+ * changed since, the old price is archived and a new one takes over the key,
+ * so the printed ids are always the ones that match the code.
  *
  * ## It refuses a live key
  *
@@ -68,38 +70,52 @@ async function main() {
       lookup_keys: [lookupKey],
       limit: 1,
     });
+    const found = existing.data[0];
 
-    if (existing.data[0]) {
-      const price = existing.data[0];
-      // Reused, so say whether it still matches. A price cannot be edited, and
-      // silently reusing a stale one would defeat the point of the script.
-      const matches = price.unit_amount === pack.priceCents && !price.recurring;
-      console.log(
-        `  ${matches ? 'reused ' : 'STALE  '} ${pack.name.padEnd(9)} ${price.id}` +
-          (matches
-            ? ''
-            : `\n           amount or type no longer matches lib/packs.ts. Archive it in the dashboard and re-run.`)
-      );
-      env.push(`${pack.priceEnvVar}=${price.id}`);
+    // A price cannot be edited, so one that no longer matches lib/packs.ts is
+    // replaced rather than reused. Its id is never printed: the env block
+    // below is what gets pasted into Vercel, and a stale id in it is a wrong
+    // charge at checkout.
+    const stale =
+      !!found && (found.unit_amount !== pack.priceCents || !!found.recurring);
+
+    if (found && !stale) {
+      console.log(`  reused  ${pack.name.padEnd(9)} ${found.id}`);
+      env.push(`${pack.priceEnvVar}=${found.id}`);
       continue;
     }
 
-    const product = await stripe.products.create({
-      name: `walletlink ${pack.name}`,
-      description: `${pack.matches.toLocaleString()} matches. ${pack.fits}.`,
-    });
+    const product = stale
+      ? found.product
+      : (
+          await stripe.products.create({
+            name: `walletlink ${pack.name}`,
+            description: `${pack.matches.toLocaleString()} matches. ${pack.fits}.`,
+          })
+        ).id;
 
     const price = await stripe.prices.create({
-      product: product.id,
+      product: typeof product === 'string' ? product : product.id,
       unit_amount: pack.priceCents,
       currency: 'usd',
       lookup_key: lookupKey,
+      // Archiving a price does not release its lookup key, so replacing one
+      // needs the key moved explicitly. Without this, the create fails with
+      // "lookup_key already exists" and the stale price stays in place.
+      transfer_lookup_key: stale,
       // No `recurring`, so this is one-off. That is the whole point.
     });
 
-    console.log(
-      `  created ${pack.name.padEnd(9)} ${price.id}  $${pack.priceCents / 100}, ${pack.matches.toLocaleString()} matches`
-    );
+    if (stale) {
+      await stripe.prices.update(found.id, { active: false });
+      console.log(
+        `  replaced ${pack.name.padEnd(9)} ${price.id}  (${found.id} no longer matched lib/packs.ts and is archived)`
+      );
+    } else {
+      console.log(
+        `  created ${pack.name.padEnd(9)} ${price.id}  $${pack.priceCents / 100}, ${pack.matches.toLocaleString()} matches`
+      );
+    }
     env.push(`${pack.priceEnvVar}=${price.id}`);
   }
 

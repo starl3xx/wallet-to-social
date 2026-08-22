@@ -1,8 +1,8 @@
 import { eq, and, gte, sql, desc } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { apiUsage, apiKeys, users, type NewApiUsage } from '@/db/schema';
+import { apiUsage, apiKeys, type NewApiUsage } from '@/db/schema';
 import { chargeForApiCall } from '@/lib/credits';
-import { normalizeTier } from '@/lib/access';
+import { effectiveTierForUserId } from '@/lib/access';
 
 /**
  * Tracks an API request for billing and analytics
@@ -77,17 +77,17 @@ export async function trackApiUsage(usage: {
         .limit(1);
       if (!key) return;
 
-      const [user] = await db
-        .select({ tier: users.tier })
-        .from(users)
-        .where(eq(users.id, key.userId))
-        .limit(1);
+      // Whitelist-aware, to agree with the gate in authenticateApiRequest.
+      // A whitelisted account keeps `free` in the tier column, so reading
+      // the column here would debit an account the gate just called
+      // unmetered.
+      const tier = await effectiveTierForUserId(key.userId);
 
       await chargeForApiCall(
         key.userId,
         usage.matches,
         usage.walletCount ?? usage.matches,
-        normalizeTier(user?.tier)
+        tier
       );
     } catch (error) {
       console.error('Failed to debit API credits:', error);
