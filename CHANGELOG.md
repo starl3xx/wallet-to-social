@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (holder reachability reports: the programmatic SEO play ships)
+
+- **`/holders/[chain]/[address]`: a report page per seeded collection.**
+  Every page ranking for "[collection] holders" lists bare addresses; these
+  answer who the people behind the wallets are and how many are reachable,
+  from the index at hourly ISR (61 pages at launch, growing with the daily
+  seed cron; no static figure literals, so nothing joins the figure
+  checker by its own rule). Labels keep the discipline: "holders measured"
+  and identity counts stay distinct from the attested-green "reachable
+  people" number; the 2,000-holder measurement cap is disclosed on capped
+  collections; aggregates only, never a wallet or handle list.
+- **An overlap section links the mesh together** ("these holders also
+  hold", seeded collections only), plus a `/holders` hub grouped by chain,
+  sitemap entries (hub 0.8, reports 0.7) and a footer link.
+- **`scripts/cast-farcaster.ts` and `scripts/setup-farcaster-signer.ts`**
+  (PR #150): casting as @walletlink through an approved Neynar managed
+  signer, dry-run default, budget-gated.
+
 ### 2026-08-22 (the welcome sequence goes live for new signups)
 
 - **The five-email welcome sequence sends, daily at 15:00 UTC.** Jake

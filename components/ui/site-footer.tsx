@@ -97,6 +97,7 @@ export function SiteFooter() {
                 naming the link after it hands people the wrong model of the product. */}
             <FooterLink href="/">Wallet lookup</FooterLink>
             <FooterLink href="/pricing">Pricing</FooterLink>
+            <FooterLink href="/holders">Holder reports</FooterLink>
             <FooterLink href="/blog">Blog</FooterLink>
           </FooterColumn>
 
