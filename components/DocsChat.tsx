@@ -93,7 +93,10 @@ export function DocsChat() {
     const host = hostRef.current;
     if (!host?.shadowRoot) return false;
     const root = host.shadowRoot;
-    if (typeof CSSStyleSheet === 'undefined' || !('adoptedStyleSheets' in root)) {
+    if (
+      typeof CSSStyleSheet === 'undefined' ||
+      !('adoptedStyleSheets' in root)
+    ) {
       return true; // Nothing to do on a browser without adopted sheets.
     }
     const sheet = new CSSStyleSheet();
@@ -136,26 +139,39 @@ export function DocsChat() {
           Before upgrade it is an empty inline element with no content, so there
           is nothing to see and nothing to shift. */}
       <chat-bubble-snippet
-          ref={hostRef}
-          api-url={`${ENDPOINT}/`}
-          placeholder={PLACEHOLDER}
-          // Follows the site's own toggle rather than the OS setting. The
-          // widget defaults to "auto", which reads prefers-color-scheme and
-          // would show a light bubble on a manually darkened site.
-          theme={resolvedTheme}
-          // CLAUDE.md: never reference an API provider in the UI. The default
-          // footer reads "Powered by Cloudflare AI Search", which is precisely
-          // that, on the most customer-visible surface we have.
-          hide-branding="true"
-          style={
-            {
-              '--search-snippet-primary-color': 'var(--accent-brand)',
-              '--search-snippet-primary-hover': 'var(--accent-brand-hover)',
-              '--chat-bubble-button-size': '56px',
-              '--chat-bubble-button-icon-color': 'var(--accent-brand-foreground)',
-            } as React.CSSProperties
-          }
-        />
+        ref={hostRef}
+        // A stacking context on the host, below the dialogs' z-50. The
+        // launcher inside the shadow root is `position: fixed` at z-index
+        // 9999, and a fixed descendant paints within its nearest ancestor
+        // stacking context, so capping the host caps the widget: a Radix
+        // overlay now covers the bubble instead of leaving a full-colour
+        // control floating above the scrim, and on a phone over the panel.
+        // The host carries no `:host { display }` rule of its own (checked
+        // against the pinned bundle), so `relative` positions it as the
+        // inline element it is and adds no layout.
+        className="relative isolate z-40"
+        api-url={`${ENDPOINT}/`}
+        placeholder={PLACEHOLDER}
+        // Follows the site's own toggle rather than the OS setting. The
+        // widget defaults to "auto", which reads prefers-color-scheme and
+        // would show a light bubble on a manually darkened site.
+        theme={resolvedTheme}
+        // CLAUDE.md: never reference an API provider in the UI. The default
+        // footer reads "Powered by Cloudflare AI Search", which is precisely
+        // that, on the most customer-visible surface we have.
+        hide-branding="true"
+        style={
+          {
+            '--search-snippet-primary-color': 'var(--accent-brand)',
+            '--search-snippet-primary-hover': 'var(--accent-brand-hover)',
+            // 48px is the `icon-lg` control. 56px was a size nothing else
+            // in the product has, and the largest filled violet object on
+            // every page.
+            '--chat-bubble-button-size': '48px',
+            '--chat-bubble-button-icon-color': 'var(--accent-brand-foreground)',
+          } as React.CSSProperties
+        }
+      />
     </>
   );
 }
@@ -164,6 +180,9 @@ export function DocsChat() {
 // module, so the old `declare global { namespace JSX }` form no longer
 // registers custom elements and the tag fails to typecheck.
 declare module 'react' {
+  // The augmentation has to be a namespace: that is the shape React declares,
+  // and there is no module-syntax equivalent that merges into it.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
     interface IntrinsicElements {
       'chat-bubble-snippet': React.DetailedHTMLProps<

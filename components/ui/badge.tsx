@@ -24,6 +24,8 @@ const TONES = {
   brand: 'bg-accent-brand-tint text-accent-brand',
   /** Truncation, staleness, approaching a limit. */
   caution: 'bg-caution-tint text-caution',
+  /** A failed job, a revoked key. The only red badge there is. */
+  destructive: 'bg-destructive-tint text-destructive',
   /** Everything else, which is most of them. */
   muted: 'bg-muted text-muted-foreground',
 } as const;

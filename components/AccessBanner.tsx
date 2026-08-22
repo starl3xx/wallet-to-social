@@ -3,62 +3,68 @@
 import { useState } from 'react';
 import {
   Lightning as Zap,
-  Crown,
   User,
   SignIn as LogIn,
   SignOut as LogOut,
   Key as KeyRound,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { TIER_LIMITS, type UserTier } from '@/lib/access';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
 import { useCredits } from '@/lib/use-credits';
 import { AuthModal } from '@/components/AuthModal';
 import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { useAuth } from '@/components/AuthProvider';
+import { useUpgradeModal } from '@/components/UpgradeModalProvider';
 import { cn } from '@/lib/utils';
 
 interface AccessBannerProps {
-  tier: UserTier;
-  isWhitelisted?: boolean;
-  onUpgradeClick?: () => void;
   /** Rendered between the tier chip and the account control. */
   trailing?: React.ReactNode;
 }
 
 /**
+ * The account cluster in the header: tier or balance, Buy credits, the
+ * account control. PageShell renders it on every page.
+ *
+ * It used to take `tier`, `isWhitelisted` and `onUpgradeClick` from the
+ * homepage, which was the only page that rendered it, so a signed-in buyer on
+ * /vs/holder saw no balance, no account and no way to buy. All three now come
+ * from context: tier and whitelist from `useAuth`, the buy-credits modal from
+ * `useUpgradeModal`, so the shell can render this with no props.
+ *
  * Every tier state is the same object: a badge, not a control.
  *
  * These were five hand-rolled divs with `py-1 sm:py-1.5`, so their height came
  * from padding and landed somewhere near 28px in a row of 40px controls. A status
- * chip should not compete with the things you can press, which is what the badge
- * treatment already encodes: uppercase mono, chip radius, tint fill, no border.
+ * chip should not compete with the things you can press, which is what the Badge
+ * primitive already encodes: uppercase mono, chip radius, tint fill, no border.
+ * A local CHIP string restated it with different padding, and the two legacy
+ * chips then added a solid brand fill and a leading icon, which are two of the
+ * four axes that make a button a button (docs/DESIGN-LANGUAGE.md, Affordance):
+ * the one chip that says "you are a paying account" looked like something to
+ * press. Badge's `brand` tone is the tint the primitive already names for
+ * things that are ours.
  *
- * **Every call site goes through `cn`, never a template string.** CHIP opens
- * with `inline-flex`, and a caller that adds `hidden` does not win: both are
- * plain `display` utilities of equal specificity, so the one
- * Tailwind emits later decides, and that is `.inline-flex`. Measured in Chrome,
+ * **Every class override goes through `cn`, never a template string.** Badge
+ * opens with `inline-flex`, and a caller that adds `hidden` does not win: both
+ * are plain `display` utilities of equal specificity, so the one Tailwind emits
+ * later decides, and that is `.inline-flex`. Measured in Chrome,
  * `class="inline-flex hidden"` computes to `inline-flex`. The chip stayed
  * visible, and the 61px it was supposed to return to a 320px header did not
- * come back.
- *
- * `cn` runs tailwind-merge, which resolves same-variant conflicts by keeping the
- * last one, so `hidden` wins at the base and `sm:inline-flex` still applies from
- * `sm`. A concatenated class string cannot express "override", only "append".
+ * come back. `cn` runs tailwind-merge, which resolves same-variant conflicts by
+ * keeping the last one, so `hidden` wins at the base and `sm:inline-flex` still
+ * applies from `sm`.
  */
-const CHIP =
-  'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-xs uppercase tracking-[var(--tracking-label)]';
-
-export function AccessBanner({
-  tier,
-  isWhitelisted,
-  onUpgradeClick,
-  trailing,
-}: AccessBannerProps) {
+export function AccessBanner({ trailing }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { user, isLoading, signOut } = useAuth();
+  const upgradeModal = useUpgradeModal();
+  const tier: UserTier = user?.tier ?? 'free';
+  const isWhitelisted = user?.isWhitelisted ?? false;
   /**
    * The balance, and whether paid features are unlocked.
    *
@@ -67,6 +73,11 @@ export function AccessBanner({
    * question: a pack buyer's tier is `free`.
    */
   const credits = useCredits(!!user);
+
+  // No list is in hand here, so no wallet count: the modal marks its default
+  // pack. The in-flow buttons on the homepage pass the loaded list through
+  // their own wrapper.
+  const handleUpgradeClick = () => upgradeModal.open();
 
   const handleSignOut = async () => {
     setShowDropdown(false);
@@ -137,7 +148,10 @@ export function AccessBanner({
       );
     }
 
-    // Not authenticated - show sign in button
+    // Not authenticated: the way in. "Sign in" at every width. It read
+    // "Login" below sm to save 8px while the AuthModal title, the My lookups
+    // card and the rate-limit message all said "Sign in"; one control, one
+    // word. The 8px comes back from Buy credits collapsing to its icon.
     return (
       <>
         <Button
@@ -148,9 +162,8 @@ export function AccessBanner({
              row of 34px ones. */
           onClick={() => setAuthModalOpen(true)}
         >
-          <LogIn className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-          <span className="hidden sm:inline">Sign in</span>
-          <span className="sm:hidden">Login</span>
+          <LogIn className="h-4 w-4" />
+          Sign in
         </Button>
         <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
       </>
@@ -161,7 +174,7 @@ export function AccessBanner({
   const renderTierBadge = () => {
     /**
      * One hue family rather than four unrelated colours. The two legacy chips
-     * take the brand fill; they are not for sale, so the chip is the only
+     * take the brand tint; they are not for sale, so the chip is the only
      * place those names still appear to the account that holds them.
      *
      * Whitelisted is green. It was amber, and I argued for that on the grounds
@@ -170,14 +183,18 @@ export function AccessBanner({
      * green marks a measured fact, and having access is one.
      */
     if (isWhitelisted) {
+      // max-w-none: a fixed word plus the dot runs past the 12ch cap, and a
+      // badge that says "WHITELISTE…" is worse than no badge.
       return (
-        <div className={cn(CHIP, 'bg-attested-tint text-attested')}>
+        <Badge tone="attested" className="max-w-none">
+          {/* inline-block, because Badge wraps its children in a truncating
+              span and a flex-only dot would collapse inside it. */}
           <span
-            className="h-1.5 w-1.5 flex-none rounded-full bg-attested"
+            className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-attested align-middle"
             aria-hidden
           />
-          <span className="font-medium text-attested">Whitelisted</span>
-        </div>
+          Whitelisted
+        </Badge>
       );
     }
 
@@ -189,43 +206,39 @@ export function AccessBanner({
      */
     if (tier === 'unlimited') {
       return (
-        <div
-          className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+        <Badge
+          tone="brand"
           title="Legacy Unlimited account: never metered, no expiry"
         >
-          <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
-          <span className="font-medium text-accent-brand-foreground">
-            Unlimited
-          </span>
-        </div>
+          Unlimited
+        </Badge>
       );
     }
 
     if (tier === 'pro') {
       return (
-        <div
-          className={cn(CHIP, 'bg-accent-brand text-accent-brand-foreground')}
+        <Badge
+          tone="brand"
+          // A fixed string, so the 12ch cap is lifted explicitly: the unit
+          // is spelt out. "5,000 wallets" alone read as a balance next to a
+          // product that counts matches; this is the per-lookup cap that
+          // account was sold, and it never goes down.
+          className="max-w-none"
           title={`Legacy Pro account: up to ${TIER_LIMITS.pro.toLocaleString()} wallets per lookup, never metered`}
         >
-          <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-accent-brand-foreground" />
-          <span className="font-medium text-accent-brand-foreground">Pro</span>
-          {/* The unit is spelt out. "5,000 wallets" alone read as a balance
-              next to a product that counts matches; this is the per-lookup cap
-              that account was sold, and it never goes down. */}
-          <span className="text-accent-brand-foreground/75 hidden sm:inline">
-            {TIER_LIMITS.pro.toLocaleString()} wallets per lookup
+          Pro
+          <span className="hidden sm:inline">
+            {' '}
+            · {TIER_LIMITS.pro.toLocaleString()} wallets per lookup
           </span>
-        </div>
+        </Badge>
       );
     }
 
     // No legacy tier: the balance, and the way to add to it. This is everyone
     // who is not one of the two legacy accounts, pack holders included.
-    // Deliberately NOT wrapped in CHIP. This is the only state containing an
-    // action, and CHIP is a label treatment: its font-mono, tracking and muted
-    // colour inherit straight into the Button and turn the one revenue CTA in the
-    // header into muted label type. A balance readout and its CTA are a label and
-    // an action, and those never share a treatment.
+    // The balance is a Badge and the CTA is a Button: a label and an action,
+    // and those never share a treatment.
     return (
       <div className="flex items-center gap-2">
         {/* Desktop only, and not purely for room. This is the one state whose
@@ -242,10 +255,11 @@ export function AccessBanner({
             lookup. It read "500 left" from TIER_LIMITS.free, which is the old
             per-lookup wallet cap: a number that never decreased however much
             somebody used, and that now describes nothing the product sells. */}
-        <span
+        <Badge
+          tone="muted"
           className={cn(
-            CHIP,
-            'bg-muted text-muted-foreground',
+            // A fixed string, never user data, so the 12ch cap is lifted.
+            'max-w-none',
             // A paid balance stays at every width (docs/DESIGN-LANGUAGE.md):
             // it is the one number a buyer came back to check. The free chip
             // goes below sm, because a visitor does not need a badge saying so.
@@ -255,14 +269,33 @@ export function AccessBanner({
           {credits.available === null
             ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
             : `${credits.available.toLocaleString()} matches`}
-        </span>
+        </Badge>
         {/* "Buy credits", matching the modal it opens and what is actually
             sold. "Upgrade" named a tier ladder that no longer exists, and a
-            control is labelled by function. */}
-        <Button size="sm" className="btn-shine" onClick={onUpgradeClick}>
-          <Zap className="h-3.5 w-3.5" weight="fill" />
-          <span className="hidden sm:inline">Buy credits</span>
-          <span className="sm:hidden">+</span>
+            control is labelled by function.
+
+            Below sm it is the icon control the Button already defines, with
+            its name in aria-label and title. It collapsed to a "+" beside the
+            bolt, which gave the control an accessible name of "+" and read as
+            "more power"; an icon inside a filled enclosure already reads as a
+            control, and the round icon size is narrower than the pill was,
+            which is what lets "Sign in" keep its word. */}
+        <Button
+          size="icon"
+          className="btn-shine sm:hidden"
+          onClick={handleUpgradeClick}
+          aria-label="Buy credits"
+          title="Buy credits"
+        >
+          <Zap className="h-4 w-4" weight="fill" />
+        </Button>
+        <Button
+          size="sm"
+          className="btn-shine hidden sm:inline-flex"
+          onClick={handleUpgradeClick}
+        >
+          <Zap className="h-4 w-4" weight="fill" />
+          Buy credits
         </Button>
       </div>
     );
@@ -285,7 +318,7 @@ export function AccessBanner({
         open={apiKeysOpen}
         onOpenChange={setApiKeysOpen}
         tier={tier}
-        onUpgradeClick={onUpgradeClick}
+        onUpgradeClick={handleUpgradeClick}
       />
     </div>
   );

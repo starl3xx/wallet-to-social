@@ -1,6 +1,5 @@
-import Image from 'next/image';
 import Link from 'next/link';
-import { XMark, FarcasterMark, GithubMark, ExternalMark } from './brand-marks';
+import { XMark, GithubMark, ExternalMark, BrandLockup } from './brand-marks';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
@@ -27,16 +26,13 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_1fr_1.1fr_1.2fr]">
           <div>
-            <Link href="/" className="flex items-center gap-2.5">
-              <Image src="/icon.png" alt="" width={30} height={30} className="rounded-mark" />
-              <span className="text-xl font-semibold tracking-[var(--tracking-title)]">
-                <span className="text-accent-brand">walletlink</span>
-                <span className="text-muted-foreground">.social</span>
-              </span>
-            </Link>
+            {/* The same object as the header's, at the phone-header size. It
+                was a third hand-written lockup (30px mark, 20px wordmark),
+                matching neither header pair. */}
+            <BrandLockup size="footer" />
             <p className="mt-3 max-w-[34ch] text-sm text-muted-foreground">
-              Wallet addresses to the identities their owners published. Attested,
-              never inferred.
+              Wallet addresses to the identities their owners published.
+              Attested, never inferred.
             </p>
             {/* Below `sm` only, because above it the control is in the header.
                 The header row wants 606px and cannot shrink, and this control is
@@ -48,14 +44,22 @@ export function SiteFooter() {
               <ThemeToggle />
             </div>
             <div className="mt-4 flex gap-2">
-              <a href="https://x.com/walletlinkETH" target="_blank" rel="noopener noreferrer"
+              <a
+                href="https://x.com/walletlinkETH"
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="walletlink.social on X"
-                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand">
+                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand"
+              >
                 <XMark className="h-3.5 w-3.5" />
               </a>
-              <a href={REPO} target="_blank" rel="noopener noreferrer"
+              <a
+                href={REPO}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="walletlink.social on GitHub"
-                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand">
+                className="transition-control flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-accent-brand hover:text-accent-brand"
+              >
                 <GithubMark className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -81,25 +85,41 @@ export function SiteFooter() {
           </FooterColumn>
 
           <FooterColumn title="Developers">
-            <FooterLink href="https://docs.walletlink.social" external>Documentation</FooterLink>
-            <FooterLink href="https://docs.walletlink.social/api-reference/introduction" external>
+            <FooterLink href="https://docs.walletlink.social" external>
+              Documentation
+            </FooterLink>
+            <FooterLink
+              href="https://docs.walletlink.social/api-reference/introduction"
+              external
+            >
               API reference
             </FooterLink>
-            <FooterLink href={REPO} external>GitHub</FooterLink>
+            <FooterLink href={REPO} external>
+              GitHub
+            </FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Project">
-            <FooterLink href={`${REPO}/blob/main/CHANGELOG.md`} external>Changelog</FooterLink>
-            <FooterLink href="mailto:help@walletlink.social">help@walletlink.social</FooterLink>
+            <FooterLink href={`${REPO}/blob/main/CHANGELOG.md`} external>
+              Changelog
+            </FooterLink>
+            <FooterLink href="mailto:help@walletlink.social">
+              help@walletlink.social
+            </FooterLink>
           </FooterColumn>
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-xs text-muted-foreground">
           {/* The site is the product; the copyright is the company that owns it. */}
           <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
-          <a href="https://starl3xx.fun" target="_blank" rel="noopener noreferrer"
-            className="transition-control hover:text-foreground">
-            made with 🌠 by <span className="font-medium text-foreground">@starl3xx</span>
+          <a
+            href="https://starl3xx.fun"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-control hover:text-foreground"
+          >
+            made with 🌠 by{' '}
+            <span className="font-medium text-foreground">@starl3xx</span>
           </a>
         </div>
       </div>
@@ -107,7 +127,13 @@ export function SiteFooter() {
   );
 }
 
-function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+function FooterColumn({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-2.5">
       {/* The one label style: mono, uppercase, 0.14em. */}
@@ -120,21 +146,36 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
 }
 
 function FooterLink({
-  href, children, external,
-}: { href: string; children: React.ReactNode; external?: boolean }) {
+  href,
+  children,
+  external,
+}: {
+  href: string;
+  children: React.ReactNode;
+  external?: boolean;
+}) {
   const className =
     'transition-control inline-flex items-center gap-1.5 text-sm text-foreground/80 hover:text-accent-brand';
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
         {children}
         <ExternalMark className="h-2.5 w-2.5 text-muted-foreground" />
       </a>
     );
   }
   return href.startsWith('mailto:') ? (
-    <a href={href} className={className}>{children}</a>
+    <a href={href} className={className}>
+      {children}
+    </a>
   ) : (
-    <Link href={href} className={className}>{children}</Link>
+    <Link href={href} className={className}>
+      {children}
+    </Link>
   );
 }

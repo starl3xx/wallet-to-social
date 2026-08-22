@@ -201,13 +201,23 @@ export default function Cookie3Comparison() {
                       Wallet → X matching
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (capped only by the matches you buy)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-muted-foreground" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (up to 10K accounts on Website, Basic and Growth alike;
                         unlimited on Enterprise only)
@@ -217,7 +227,12 @@ export default function Cookie3Comparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Farcaster lookup</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (complete coverage)
                       </span>
@@ -265,14 +280,24 @@ export default function Cookie3Comparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Self-serve signup</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         ({FREE_MATCHES_PER_WINDOW} matches free every{' '}
                         {FREE_WINDOW_DAYS} days, no card)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        aria-label="No"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (trial granted by a rep, no free tier)
                       </span>
@@ -283,25 +308,45 @@ export default function Cookie3Comparison() {
                       X handle still reaches somebody
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (checked per record)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        aria-label="No"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Agent detection</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                       <span className="text-xs text-muted-foreground ml-1">
                         (13K+ agents)
                       </span>
                     </td>
                     <td className="py-4 pl-4">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        aria-label="No"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -309,10 +354,20 @@ export default function Cookie3Comparison() {
                       Website and campaign analytics
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        aria-label="No"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -320,10 +375,20 @@ export default function Cookie3Comparison() {
                       Conversion tracking and audiences
                     </td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      <X className="h-4 w-4 text-muted-foreground" />
+                      <X
+                        alt="No"
+                        role="img"
+                        aria-label="No"
+                        className="h-4 w-4 text-muted-foreground"
+                      />
                     </td>
                     <td className="py-4 pl-4">
-                      <Check className="h-4 w-4 text-accent-brand" />
+                      <Check
+                        alt="Yes"
+                        role="img"
+                        aria-label="Yes"
+                        className="h-4 w-4 text-accent-brand"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -517,9 +582,12 @@ export default function Cookie3Comparison() {
             </div>
           </section>
 
-          {/* Pricing Comparison */}
-          <section className="mb-16">
-            <h2 className="text-2xl font-light tracking-[-0.028em] mb-6">
+          {/* Pricing comparison. The section owns the rhythm: space-y-6 separates
+              the heading, the pack grid and the callouts, so the h2 carries no
+              margin of its own and the callouts carry no mt. Gap and margin must
+              not both own the same space. */}
+          <section className="mb-16 space-y-6">
+            <h2 className="text-2xl font-light tracking-[-0.028em]">
               Pricing breakdown
             </h2>
 
@@ -551,7 +619,7 @@ export default function Cookie3Comparison() {
               </ul>
             </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
+            <div className="p-4 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
                 <span className="font-medium">What the money buys:</span> a year
                 on Cookie3 Growth is $8,988, or $7,188 paid annually, for a
@@ -604,7 +672,7 @@ export default function Cookie3Comparison() {
               className="transition-control inline-flex h-control items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-brand px-5 text-sm font-medium text-accent-brand-foreground hover:bg-accent-brand-hover active:scale-[0.97]"
             >
               Start your first lookup
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </section>
 

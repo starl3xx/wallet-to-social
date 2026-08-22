@@ -167,7 +167,9 @@ export function UpgradeModal({
 
         <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
           <div className="flex-none space-y-2">
-            <label className="text-sm font-medium">Email address</label>
+            <label htmlFor="buy-credits-email" className="text-sm font-medium">
+              Email address
+            </label>
             {/* Says what the field is for, because without it the modal reads
                 as a payment form: it is titled "Buy credits", it lists prices,
                 and it has buttons that say Buy. The first person to use it
@@ -179,6 +181,7 @@ export function UpgradeModal({
               Stripe.
             </p>
             <Input
+              id="buy-credits-email"
               type="email"
               placeholder="you@example.com"
               value={email}

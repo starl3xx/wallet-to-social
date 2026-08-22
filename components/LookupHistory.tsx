@@ -3,6 +3,7 @@
 import { useEffect, useState, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { SignIn } from '@phosphor-icons/react';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/components/AuthProvider';
@@ -218,11 +219,17 @@ export const LookupHistory = memo(function LookupHistory({
                     {lookup.name ||
                       `${lookup.walletCount.toLocaleString()} wallets`}
                   </p>
+                  {/* A measured count, so it is attested (green), not brand:
+                      violet marks an affordance and this is not pressable.
+                      Shortened to stay under Badge's 12ch cap; the full
+                      phrase lives in the title. */}
                   {enrichmentCount > 0 && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-brand-tint text-accent-brand">
-                      {enrichmentCount} new match
-                      {enrichmentCount !== 1 ? 'es' : ''}
-                    </span>
+                    <Badge
+                      tone="attested"
+                      title={`${enrichmentCount} new match${enrichmentCount !== 1 ? 'es' : ''}`}
+                    >
+                      {enrichmentCount} new
+                    </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">

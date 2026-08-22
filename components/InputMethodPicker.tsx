@@ -7,6 +7,9 @@ import {
   Polygon as Boxes,
   Lock,
 } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface InputMethodPickerProps {
   onFileLoaded: (file: File) => void;
@@ -143,13 +146,17 @@ export function InputMethodPicker({
       ? 'opacity-50 pointer-events-none '
       : 'hover:border-accent-brand-hover ');
 
-  const altBase =
-    'group inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border ' +
-    'px-4 py-2.5 text-sm font-medium text-foreground/80 transition-control ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
-    (disabled
-      ? 'opacity-50 pointer-events-none '
-      : 'hover:border-accent-brand hover:text-accent-brand ');
+  /**
+   * The alternates are Button's outline variant, not a hand-rolled pill. The
+   * hand-rolled one drew its edge in `--border`, which is decorative and read at
+   * 1.26:1 in light, so both pills were barely outlined. The variant carries
+   * `border-input` (the 3:1 control edge), `h-control`, the icon gap and the
+   * focus ring. Only what is specific to this row goes through className: the
+   * resting text tone and the brand hover, and `cn` lets those win over the
+   * variant's own.
+   */
+  const altClass =
+    'flex-1 text-foreground/80 hover:border-accent-brand hover:text-accent-brand';
 
   return (
     <div>
@@ -208,20 +215,27 @@ export function InputMethodPicker({
 
       {/* Alternates: same actions, demoted to their real frequency. */}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onPasteClick}
+          disabled={disabled}
           aria-expanded={pasteActive}
-          className={`${altBase} ${pasteActive ? 'border-accent-brand text-accent-brand' : ''}`}
+          className={cn(
+            altClass,
+            pasteActive && 'border-accent-brand text-accent-brand'
+          )}
         >
           <ClipboardList className="h-4 w-4" aria-hidden />
           Paste a list
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onContractClick}
-          className={altBase}
+          disabled={disabled}
+          className={altClass}
           aria-label={
             contractLocked
               ? 'Import from a contract address (needs credits)'
@@ -234,12 +248,10 @@ export function InputMethodPicker({
             <Boxes className="h-4 w-4" aria-hidden />
           )}
           Import from a contract
-          {contractLocked && (
-            <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              Credits
-            </span>
-          )}
-        </button>
+          {/* The lock is the control's leading icon; the fact that credits
+              unlock it is a Badge, not a second copy of Badge's classes. */}
+          {contractLocked && <Badge>Credits</Badge>}
+        </Button>
       </div>
 
       {error && (

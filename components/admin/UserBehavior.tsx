@@ -11,7 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CircleNotch as Loader2, ArrowsClockwise as RefreshCw, CaretRight as ChevronRight } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  ArrowsClockwise as RefreshCw,
+  CaretRight as ChevronRight,
+} from '@phosphor-icons/react';
 
 interface FunnelData {
   pageViews: number;
@@ -108,7 +112,9 @@ export function UserBehavior({ password }: UserBehaviorProps) {
     <div className="flex items-center">
       <div className="flex-1 text-center">
         <div className="text-xs text-muted-foreground mb-1">{label}</div>
-        <div className="text-lg font-bold tabular-nums">{count.toLocaleString()}</div>
+        <div className="text-lg font-bold tabular-nums">
+          {count.toLocaleString()}
+        </div>
         <div className="text-xs text-muted-foreground tabular-nums">
           {rate === null ? (
             <span title="No page views recorded in this window, so a rate cannot be computed">
@@ -160,25 +166,34 @@ export function UserBehavior({ password }: UserBehaviorProps) {
    * inventing a rate.
    */
   const baseCount = funnel?.pageViews ? funnel.pageViews : null;
-  const rateOf = (n: number) => (baseCount === null ? null : (n / baseCount) * 100);
+  const rateOf = (n: number) =>
+    baseCount === null ? null : (n / baseCount) * 100;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">User behavior analytics</h2>
-        <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchData}
+          disabled={loading}
+        >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           )}
+          <span className="sr-only">Refresh</span>
         </Button>
       </div>
 
       {/* User Journey Funnel */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">User journey funnel (7 days)</CardTitle>
+          <CardTitle className="text-base">
+            User journey funnel (7 days)
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {funnel && (
@@ -244,22 +259,32 @@ export function UserBehavior({ password }: UserBehaviorProps) {
                 <TableBody>
                   {cohorts.map((cohort) => (
                     <TableRow key={cohort.name}>
-                      <TableCell className="font-medium">{cohort.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {cohort.name}
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {cohort.definition}
                       </TableCell>
-                      <TableCell className="text-right">{cohort.count}</TableCell>
+                      <TableCell className="text-right">
+                        {cohort.count}
+                      </TableCell>
                       <TableCell className="text-right">
                         {cohort.avgLookups.toFixed(1)}
                       </TableCell>
                       <TableCell className="text-right">
+                        {/* Three tiers, two colours. A high rate is a measured
+                            good outcome, so green; a low one is worth a look,
+                            so caution; the middle is just a number. Not
+                            destructive at the bottom: that is for failed jobs
+                            and for revoking and deleting, and a quiet cohort
+                            is neither. */}
                         <span
                           className={
                             cohort.conversionRate > 50
-                              ? 'text-accent-brand'
+                              ? 'text-attested'
                               : cohort.conversionRate > 10
-                                ? 'text-caution'
-                                : 'text-destructive'
+                                ? undefined
+                                : 'text-caution'
                           }
                         >
                           {cohort.conversionRate.toFixed(0)}%
@@ -277,27 +302,44 @@ export function UserBehavior({ password }: UserBehaviorProps) {
       {/* Feature Adoption */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Feature adoption (30 days)</CardTitle>
+          <CardTitle className="text-base">
+            Feature adoption (30 days)
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {features && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <div className="text-xs text-muted-foreground mb-1">ENS lookup rate</div>
-                <div className="text-xl font-bold">{features.ensLookupRate.toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  ENS lookup rate
+                </div>
+                <div className="text-xl font-bold">
+                  {features.ensLookupRate.toFixed(0)}%
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-1">History save rate</div>
-                <div className="text-xl font-bold">{features.historySaveRate.toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  History save rate
+                </div>
+                <div className="text-xl font-bold">
+                  {features.historySaveRate.toFixed(0)}%
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-1">Export rate</div>
-                <div className="text-xl font-bold">{features.exportRate.toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  Export rate
+                </div>
+                <div className="text-xl font-bold">
+                  {features.exportRate.toFixed(0)}%
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-1">Export formats</div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  Export formats
+                </div>
                 <div className="text-sm">
-                  CSV: {features.exportFormats.csv} / Twitter: {features.exportFormats.twitter}
+                  CSV: {features.exportFormats.csv} / Twitter:{' '}
+                  {features.exportFormats.twitter}
                 </div>
               </div>
             </div>
@@ -305,7 +347,9 @@ export function UserBehavior({ password }: UserBehaviorProps) {
 
           {features && (
             <div className="mt-4 pt-4 border-t">
-              <div className="text-xs text-muted-foreground mb-2">Average lookup size by tier</div>
+              <div className="text-xs text-muted-foreground mb-2">
+                Average lookup size by tier
+              </div>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-sm text-muted-foreground">Free</div>

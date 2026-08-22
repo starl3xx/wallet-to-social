@@ -2,6 +2,45 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (design review, PR 1 of 3: defects and the shell)
+
+- **One header on every page.** `PageShell` now renders the account cluster
+  itself (balance chip, Buy credits, theme control, Sign in or avatar), so
+  `/check`, the five `/vs` pages and the blog carry the same header as home.
+  Before this a dark-mode visitor on `/vs` at desktop width had no theme
+  control anywhere on the page, and a signed-in buyer there saw no balance.
+  The upgrade dialog moved into a provider (`useUpgradeModal`) so the header
+  can open it from any route. "Sign in" at every width; below `sm` Buy credits
+  is the icon control with an accessible name rather than a "+" pill.
+
+- **Phones can read the results and the blog again.** The results table is
+  the product's one genuine data table, and it now scrolls sideways inside its
+  own box with the wallet column pinned; it used to clip four columns with no
+  way to reach them. Blog tables get their own scroll box, so the post no
+  longer scrolls the whole page at 375px.
+
+- **Control edges at 3:1.** Every textarea and the two home alternates drew
+  their edge with the decorative hairline (1.26:1). A `Textarea` primitive
+  shares `Input`'s edge; the alternates are `Button` outlines. Pending stage
+  labels no longer sit at half opacity below AA.
+
+- **Keyboard and screen readers.** Sort headers are real buttons with
+  `aria-sort`; icon-only controls have names; form labels are associated with
+  their fields; the admin job dialog is the `Modal` primitive with a focus
+  trap and Escape instead of a hand-rolled `fixed inset-0`.
+
+- **One badge.** `CHIP` and six hand-rolled chips are `<Badge>`, including the
+  two "Credits" badges that sat forty pixels apart in two shapes. A
+  `destructive-tint` token joins the other three tints.
+
+- **Smaller defects.** The results heading derives a real name ("4 pasted
+  wallets", the CSV file name, "Holders of X") and never falls back to
+  "Results"; the cache note reads the 7-day TTL from the constant instead of
+  saying 24h; the chat launcher is 48px and sits below open dialogs; admin
+  queue health reads its payload instead of hard-coded zeros; measured-good
+  admin states are green, not violet; `/vs` capability cells carry alt text
+  and the pricing blocks have a gap.
+
 ### 2026-08-22 (Farcaster DMs for every pack)
 
 - **Farcaster DMs open to pack holders.** The in-app DM sender had stayed on

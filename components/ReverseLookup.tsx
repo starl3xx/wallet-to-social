@@ -7,10 +7,10 @@ import {
   Detective,
   CircleNotch as Loader2,
   Warning as AlertTriangle,
-  Lock,
   Wallet,
 } from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
+import { Badge } from '@/components/ui/badge';
 import { Segmented } from '@/components/ui/segmented';
 import type { WalletSocialResult } from '@/lib/types';
 
@@ -128,13 +128,10 @@ export function ReverseLookup({
         <h2 className="text-base font-semibold">Reverse lookup</h2>
         {/* Named by what unlocks it, not by a tier nobody can buy. Any pack
             does (the free allowance does not), so "Credits" is the honest
-            one-word answer. */}
-        {locked && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            <Lock className="h-3 w-3" />
-            Credits
-          </span>
-        )}
+            one-word answer. A Badge, with no lock icon: it states a fact
+            beside a heading, and the old sentence-case pill with a leading
+            icon shared three of a button's four axes. */}
+        {locked && <Badge>Credits</Badge>}
         <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
           find the wallets behind any account
         </span>
@@ -214,9 +211,15 @@ export function ReverseLookup({
             {empty.handle}
           </span>
           .{' '}
-          {empty.platform === 'farcaster'
-            ? 'Farcaster coverage is complete, so this account genuinely has no addresses attached.'
-            : '𝕏 handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.'}
+          {empty.platform === 'farcaster' ? (
+            'Farcaster coverage is complete, so this account genuinely has no addresses attached.'
+          ) : (
+            <>
+              <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />{' '}
+              handles are only known when the owner published the link, so this
+              is an absence of evidence rather than evidence of absence.
+            </>
+          )}
         </p>
       )}
     </div>

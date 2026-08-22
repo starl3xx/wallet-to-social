@@ -12,7 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MagnifyingGlass as Search, CircleNotch as Loader2, FloppyDisk as Save, X, ArrowSquareOut as ExternalLink, PencilSimple as Pencil } from '@phosphor-icons/react';
+import {
+  MagnifyingGlass as Search,
+  CircleNotch as Loader2,
+  FloppyDisk as Save,
+  X,
+  ArrowSquareOut as ExternalLink,
+  PencilSimple as Pencil,
+} from '@phosphor-icons/react';
 
 interface SocialGraphData {
   wallet: string;
@@ -42,7 +49,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
   const [editFarcaster, setEditFarcaster] = useState('');
   const [editEns, setEditEns] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   // Recent manual edits
   const [recentEdits, setRecentEdits] = useState<SocialGraphData[]>([]);
@@ -83,9 +93,12 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
     setSaveMessage(null);
 
     try {
-      const res = await fetch(`/api/admin/social-graph?wallet=${encodeURIComponent(wallet)}`, {
-        headers: { 'x-admin-password': password },
-      });
+      const res = await fetch(
+        `/api/admin/social-graph?wallet=${encodeURIComponent(wallet)}`,
+        {
+          headers: { 'x-admin-password': password },
+        }
+      );
       if (res.ok) {
         const data = await res.json();
         setWalletData(data.wallet);
@@ -113,7 +126,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
 
     // At least one field required
     if (!editTwitter.trim() && !editFarcaster.trim() && !editEns.trim()) {
-      setSaveMessage({ type: 'error', text: 'At least one social field required' });
+      setSaveMessage({
+        type: 'error',
+        text: 'At least one social field required',
+      });
       return;
     }
 
@@ -139,7 +155,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
         const data = await res.json();
         setWalletData(data.wallet);
         setIsEditing(false);
-        setSaveMessage({ type: 'success', text: 'Saved successfully with manual source' });
+        setSaveMessage({
+          type: 'success',
+          text: 'Saved successfully with manual source',
+        });
 
         // Refresh recent edits
         const recentRes = await fetch('/api/admin/social-graph', {
@@ -151,7 +170,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
         }
       } else {
         const error = await res.json();
-        setSaveMessage({ type: 'error', text: error.error || 'Failed to save' });
+        setSaveMessage({
+          type: 'error',
+          text: error.error || 'Failed to save',
+        });
       }
     } catch (err) {
       console.error('Save error:', err);
@@ -166,7 +188,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
     setIsEditing(false);
     // Trigger search
     setTimeout(() => {
-      const searchBtn = document.querySelector('[data-search-btn]') as HTMLButtonElement;
+      const searchBtn = document.querySelector(
+        '[data-search-btn]'
+      ) as HTMLButtonElement;
       if (searchBtn) searchBtn.click();
     }, 0);
   }, []);
@@ -204,17 +228,27 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="font-mono"
             />
-            <Button onClick={handleSearch} disabled={searching || !searchQuery.trim()} data-search-btn>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <Button
+              onClick={handleSearch}
+              disabled={searching || !searchQuery.trim()}
+              aria-label="Search"
+              data-search-btn
+            >
+              {searching ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Search className="h-4 w-4" aria-hidden />
+              )}
             </Button>
           </div>
 
-          {/* Message */}
+          {/* Message. A save that went through is a real outcome, so it is
+              green; violet would say there is something here to click. */}
           {saveMessage && (
             <div
               className={`mt-4 p-3 rounded-lg text-sm ${
                 saveMessage.type === 'success'
-                  ? 'bg-accent-brand-tint/30 text-accent-brand'
+                  ? 'bg-attested-tint text-attested'
                   : 'bg-destructive/10 text-destructive'
               }`}
             >
@@ -232,13 +266,18 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="text-muted-foreground">ENS:</span>{' '}
-                      {walletData.ensName || <span className="text-muted-foreground">-</span>}
+                      {walletData.ensName || (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">Twitter:</span>{' '}
                       {walletData.twitterHandle ? (
                         <a
-                          href={walletData.twitterUrl || `https://x.com/${walletData.twitterHandle}`}
+                          href={
+                            walletData.twitterUrl ||
+                            `https://x.com/${walletData.twitterHandle}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-accent-brand hover:underline inline-flex items-center gap-1"
@@ -254,7 +293,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       <span className="text-muted-foreground">Farcaster:</span>{' '}
                       {walletData.farcaster ? (
                         <a
-                          href={walletData.farcasterUrl || `https://warpcast.com/${walletData.farcaster}`}
+                          href={
+                            walletData.farcasterUrl ||
+                            `https://warpcast.com/${walletData.farcaster}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-accent-brand hover:underline inline-flex items-center gap-1"
@@ -267,8 +309,12 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       )}
                     </div>
                     <div>
-                      <span className="text-muted-foreground">FC Followers:</span>{' '}
-                      {walletData.fcFollowers?.toLocaleString() || <span className="text-muted-foreground">-</span>}
+                      <span className="text-muted-foreground">
+                        FC Followers:
+                      </span>{' '}
+                      {walletData.fcFollowers?.toLocaleString() || (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">Sources:</span>{' '}
@@ -277,7 +323,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                           <span
                             key={s}
                             className={`px-1.5 py-0.5 text-xs rounded-sm ${
-                              s === 'manual' ? 'bg-accent-brand-tint text-accent-brand' : 'bg-muted'
+                              s === 'manual'
+                                ? 'bg-accent-brand-tint text-accent-brand'
+                                : 'bg-muted'
                             }`}
                           >
                             {s}
@@ -286,7 +334,9 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       </div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Last updated:</span>{' '}
+                      <span className="text-muted-foreground">
+                        Last updated:
+                      </span>{' '}
                       {formatDate(walletData.lastUpdatedAt)}
                     </div>
                   </div>
@@ -307,30 +357,33 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Twitter</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">
+                        Twitter
+                      </label>
                       <Input
                         placeholder="@handle"
                         value={editTwitter}
                         onChange={(e) => setEditTwitter(e.target.value)}
-                        className="h-9"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Farcaster</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">
+                        Farcaster
+                      </label>
                       <Input
                         placeholder="@handle"
                         value={editFarcaster}
                         onChange={(e) => setEditFarcaster(e.target.value)}
-                        className="h-9"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">ENS</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">
+                        ENS
+                      </label>
                       <Input
                         placeholder="name.eth"
                         value={editEns}
                         onChange={(e) => setEditEns(e.target.value)}
-                        className="h-9"
                       />
                     </div>
                   </div>
@@ -350,7 +403,12 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                     <Button
                       size="sm"
                       onClick={handleSave}
-                      disabled={saving || (!editTwitter.trim() && !editFarcaster.trim() && !editEns.trim())}
+                      disabled={
+                        saving ||
+                        (!editTwitter.trim() &&
+                          !editFarcaster.trim() &&
+                          !editEns.trim())
+                      }
                     >
                       {saving ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-1" />
@@ -402,14 +460,18 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       </TableCell>
                       <TableCell>
                         {edit.twitterHandle ? (
-                          <span className="text-accent-brand">@{edit.twitterHandle}</span>
+                          <span className="text-accent-brand">
+                            @{edit.twitterHandle}
+                          </span>
                         ) : (
                           '-'
                         )}
                       </TableCell>
                       <TableCell>
                         {edit.farcaster ? (
-                          <span className="text-accent-brand">@{edit.farcaster}</span>
+                          <span className="text-accent-brand">
+                            @{edit.farcaster}
+                          </span>
                         ) : (
                           '-'
                         )}

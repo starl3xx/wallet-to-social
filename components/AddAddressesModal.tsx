@@ -9,6 +9,7 @@ import {
   ModalDescription,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/input';
 import { FileUpload } from '@/components/FileUpload';
 import { parseFile } from '@/lib/file-parser';
 import { CircleNotch as Loader2, Plus, FileText } from '@phosphor-icons/react';
@@ -26,7 +27,7 @@ interface AddAddressesModalProps {
 const extractAddresses = (text: string): string[] => {
   if (!text.trim()) return [];
   const matches = text.match(/0x[a-fA-F0-9]{40}/gi) || [];
-  return [...new Set(matches.map(addr => addr.toLowerCase()))];
+  return [...new Set(matches.map((addr) => addr.toLowerCase()))];
 };
 
 export function AddAddressesModal({
@@ -44,14 +45,14 @@ export function AddAddressesModal({
   const [step, setStep] = useState<'input' | 'confirm'>('input');
 
   const existingSet = useMemo(
-    () => new Set(existingWallets.map(w => w.toLowerCase())),
+    () => new Set(existingWallets.map((w) => w.toLowerCase())),
     [existingWallets]
   );
 
   // Process addresses from paste input
   const handleProcessPaste = useCallback(() => {
     const extracted = extractAddresses(pasteText);
-    const unique = extracted.filter(addr => !existingSet.has(addr));
+    const unique = extracted.filter((addr) => !existingSet.has(addr));
     const dupes = extracted.length - unique.length;
 
     setNewAddresses(unique);
@@ -60,26 +61,29 @@ export function AddAddressesModal({
   }, [pasteText, existingSet]);
 
   // Process addresses from file upload
-  const handleFileLoaded = useCallback(async (file: File) => {
-    setLoading(true);
-    try {
-      const result = await parseFile(file);
-      if (result.error) {
-        console.error(result.error);
-        return;
+  const handleFileLoaded = useCallback(
+    async (file: File) => {
+      setLoading(true);
+      try {
+        const result = await parseFile(file);
+        if (result.error) {
+          console.error(result.error);
+          return;
+        }
+
+        const walletList = result.rows.map((r) => r.wallet.toLowerCase());
+        const unique = walletList.filter((addr) => !existingSet.has(addr));
+        const dupes = walletList.length - unique.length;
+
+        setNewAddresses(unique);
+        setDuplicateCount(dupes);
+        setStep('confirm');
+      } finally {
+        setLoading(false);
       }
-
-      const walletList = result.rows.map(r => r.wallet.toLowerCase());
-      const unique = walletList.filter(addr => !existingSet.has(addr));
-      const dupes = walletList.length - unique.length;
-
-      setNewAddresses(unique);
-      setDuplicateCount(dupes);
-      setStep('confirm');
-    } finally {
-      setLoading(false);
-    }
-  }, [existingSet]);
+    },
+    [existingSet]
+  );
 
   // Reset and close
   const handleClose = useCallback(() => {
@@ -140,16 +144,25 @@ export function AddAddressesModal({
 
             {/* Paste input */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Paste addresses</label>
-              <textarea
+              <label
+                htmlFor="add-addresses-paste"
+                className="text-sm font-medium"
+              >
+                Paste addresses
+              </label>
+              <Textarea
+                id="add-addresses-paste"
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="Paste wallet addresses in any format..."
-                className="w-full h-32 p-3 text-sm font-mono border rounded-lg resize-none bg-background"
+                rows={5}
+                className="font-mono text-sm"
               />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  {validCount > 0 ? `${validCount} addresses detected` : 'No addresses detected'}
+                  {validCount > 0
+                    ? `${validCount} addresses detected`
+                    : 'No addresses detected'}
                 </span>
                 <Button
                   size="sm"
@@ -191,7 +204,9 @@ export function AddAddressesModal({
               <div className="pt-2 border-t">
                 <div className="flex items-center justify-between font-medium">
                   <span className="text-sm">After merge:</span>
-                  <span>{existingWallets.length + newAddresses.length} total</span>
+                  <span>
+                    {existingWallets.length + newAddresses.length} total
+                  </span>
                 </div>
               </div>
             </div>
@@ -209,10 +224,7 @@ export function AddAddressesModal({
               <>
                 {/* Action buttons */}
                 <div className="space-y-2">
-                  <Button
-                    className="w-full"
-                    onClick={handleAddToLookup}
-                  >
+                  <Button className="w-full" onClick={handleAddToLookup}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add to this lookup
                   </Button>

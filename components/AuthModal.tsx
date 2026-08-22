@@ -10,7 +10,12 @@ import {
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CircleNotch as Loader2, Envelope as Mail, CheckCircle as CheckCircle2, ArrowLeft } from '@phosphor-icons/react';
+import {
+  CircleNotch as Loader2,
+  Envelope as Mail,
+  CheckCircle as CheckCircle2,
+  ArrowLeft,
+} from '@phosphor-icons/react';
 
 interface AuthModalProps {
   open: boolean;
@@ -104,7 +109,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
+                {/* A visible label, the same one Buy credits uses, so the two
+                    email dialogs match and the field has a name. The
+                    placeholder alone named nothing for a screen reader. */}
+                <label htmlFor="sign-in-email" className="text-sm font-medium">
+                  Email address
+                </label>
                 <Input
+                  id="sign-in-email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
@@ -152,7 +164,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground text-center">
-                Click the link in the email to sign in. The link expires in 15 minutes.
+                Click the link in the email to sign in. The link expires in 15
+                minutes.
               </p>
 
               <div className="flex flex-col gap-2">

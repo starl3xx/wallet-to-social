@@ -11,6 +11,7 @@ import { PageViewTracker } from '@/components/PageViewTracker';
 import { DocsChat } from '@/components/DocsChat';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
+import { UpgradeModalProvider } from '@/components/UpgradeModalProvider';
 import './globals.css';
 import {
   INDEXED_WALLETS,
@@ -229,7 +230,11 @@ export default function RootLayout({
       </head>
       <body className={`${geistMono.variable} antialiased`}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {/* The buy-credits modal lives here rather than on the homepage
+                because the shell's header opens it from every route. */}
+            <UpgradeModalProvider>{children}</UpgradeModalProvider>
+          </AuthProvider>
           {/* Inside ThemeProvider so the widget follows the site's own theme
               toggle, but outside AuthProvider so sign-in state does not
               re-render it. */}

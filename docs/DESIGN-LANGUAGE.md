@@ -252,9 +252,16 @@ sizes, which is how three heights ended up in one header.
 ## Layout
 
 One shell, owned by `PageShell`: `mx-auto w-full max-w-6xl px-6`. Pages declare no
-container, no header, no footer and no `max-w-*` of their own.
+container, no header, no footer and no `max-w-*` of their own. The shell renders
+the whole header row itself on every page: lockup, tier or balance chip, Buy
+credits, the theme control, the account control, and one viewport-wide hairline
+beneath. **One exception, named:** admin passes `wide` for `max-w-7xl`, because
+dense tables genuinely need more than 1152px.
 
-Reading columns constrain **measure**, not the shell: prose is `max-w-[68ch]`.
+Reading columns constrain **measure**, not the shell: prose sits in a
+`max-w-[68ch]` column. On a blog post the column is a `text-lg` wrapper around
+the header, the prose, the back link and the CTA, so all four share one left
+edge; `ch` is computed from the wrapper's size, not the prose's.
 
 ### The header on a phone
 
@@ -282,7 +289,8 @@ An account holding credits keeps its balance chip at every width, for the same
 reason the free chip goes: the chip is the only thing saying the account is
 paid, and the balance is the one number a buyer came back to check. The row can
 afford it because a signed-in row carries an avatar instead of "Sign in" and the
-Buy credits button collapses to "+" below `sm`; measure it anyway. Legacy Pro
+Buy credits button collapses to the icon control (`size="icon"`, named by
+`aria-label`) below `sm`; measure it anyway. Legacy Pro
 and Unlimited keep their chip too: those rows are shorter still, with no Buy
 credits button at all.
 

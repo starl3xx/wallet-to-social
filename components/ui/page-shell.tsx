@@ -1,6 +1,7 @@
-import Image from 'next/image';
-import Link from 'next/link';
 import { SiteFooter } from './site-footer';
+import { BrandLockup } from './brand-marks';
+import { AccessBanner } from '@/components/AccessBanner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 /**
  * The shell every page renders inside.
@@ -15,37 +16,40 @@ import { SiteFooter } from './site-footer';
  *
  *   - Three content widths. 1152px on the homepage, 896px on blog and all five
  *     /vs pages, 1280px on admin, so the measure re-flowed by up to 256px as you
- *     navigated. One width now, owned here.
+ *     navigated. One width now, owned here. Admin keeps `wide` (1280px) as the
+ *     one named exception: dense tables genuinely need more than 1152px, and
+ *     docs/DESIGN-LANGUAGE.md records it under Layout.
  *   - A brand lockup that was a different object on the homepage (40px mark at
  *     10px radius beside a 30px two-tone bold h1) than on the seven other pages
  *     (24px mark at 4px radius beside a 14px muted span). The most repeated
- *     element on the site drifted the most.
- *   - ThemeToggle existed only on the homepage, so a dark-mode visitor on /vs had
- *     no way to switch back. **Still true above `sm`**, and this shell does not
- *     fix it: the control arrives through `actions`, and only the homepage
- *     passes any. Below `sm` the footer now carries one on every page, so the
- *     gap is currently desktop-only. Listed here rather than quietly corrected,
- *     because a docstring claiming a fix that never landed is worse than the
- *     bug.
+ *     element on the site drifted the most. It is `BrandLockup` now, shared
+ *     with the footer, so the two cannot drift again.
+ *   - Three headers. The account cluster, the theme control and the header rule
+ *     each arrived through an optional prop that exactly one page passed, so
+ *     /check, the five /vs pages and both blog routes rendered a lockup and
+ *     nothing else: a dark-mode visitor on /vs had no way to switch back above
+ *     `sm`, and a signed-in buyer saw no balance, no account and no way to buy.
+ *     The shell renders the whole row itself on every page now, and the
+ *     account cluster reads everything it needs from context.
  *
  * Pages render `<PageShell>{content}</PageShell>` and declare no header, no
  * footer, no container and no max-w of their own. Reading columns constrain
  * measure inside the shell (`max-w-[68ch]` on prose), never the shell itself.
  *
  * No `use client`: the marketing and blog pages are server components, and this
- * has to work there. Interactive controls are passed in through `actions`.
+ * has to work there. The interactive parts of the header are client components
+ * rendered from here, which a server component may do.
  */
 export function PageShell({
   children,
-  actions,
   wide,
   onBrandClick,
-  continuesHeader,
 }: {
   children: React.ReactNode;
-  /** Interactive header controls. The homepage passes tier, upgrade and theme. */
-  actions?: React.ReactNode;
-  /** Admin only. Dense tables genuinely need more than 1152px. */
+  /**
+   * Admin only, and the one defensible difference between pages. Dense tables
+   * genuinely need more than 1152px; nothing else does.
+   */
   wide?: boolean;
   /**
    * Extra work on the brand click, for the homepage.
@@ -56,63 +60,38 @@ export function PageShell({
    * nothing, so results would survive the click. The homepage passes its reset.
    */
   onBrandClick?: () => void;
-  /**
-   * The page renders a continuation of the header block at the top of <main>
-   * (proposition, proof strip) and draws the closing rule itself.
-   */
-  continuesHeader?: boolean;
 }) {
   const width = wide ? 'max-w-7xl' : 'max-w-6xl';
   return (
     <div className="flex min-h-screen flex-col">
-      {/* The rule belongs under the whole header block, not under the lockup row.
-          A border here plus main's py-12 drew a hairline immediately below the
-          wordmark and then left 48px of nothing before the page's own first line,
-          so the lockup floated alone above a gap.
-
-          The homepage continues the block with a proposition and a proof strip,
-          and those have to live in <main> because they contain the page's h1 and
-          a heading does not belong in the banner landmark. So the page owns the
-          rule instead: it sets `continuesHeader` and draws the border under its
-          own strip. Every other page keeps it here, where the lockup really is
-          the end of the block. */}
-      <header className={continuesHeader ? '' : 'border-b border-border'}>
-        <div className={`mx-auto flex w-full ${width} items-center gap-2 px-6 pt-5 pb-3 sm:gap-3`}>
-          <Link
-            href="/"
-            onClick={onBrandClick}
-            className="transition-control flex items-center gap-2.5 hover:opacity-80"
-          >
-            {/* The lockup steps down as a unit on phones, mark and wordmark
-                together, so it stays one object rather than a shrunken word
-                beside a full-size mark. */}
-            <Image
-              src="/icon.png"
-              alt=""
-              width={36}
-              height={36}
-              priority
-              className="h-7 w-7 rounded-mark sm:h-9 sm:w-9"
+      {/* One rule, viewport-wide, under the lockup row on every page. The
+          homepage used to draw its own inside the container instead, so the
+          same hairline stopped at the container edge there and ran edge to
+          edge everywhere else. Main's pt-8 is what keeps the lockup from
+          floating above a gap: the page's first line sits close beneath. */}
+      <header className="border-b border-border">
+        <div
+          className={`mx-auto flex w-full ${width} items-center gap-2 px-6 pt-5 pb-3 sm:gap-3`}
+        >
+          <BrandLockup size="header" onClick={onBrandClick} priority />
+          <div className="ml-auto">
+            {/* Chip, Buy credits, theme, account: the avatar ends the row.
+                The theme control is a three-option segmented at 132px, which
+                is more than a phone can give it. Below `sm` it renders in the
+                footer instead, which is on every page and has room. Exactly
+                one is ever on screen. */}
+            <AccessBanner
+              trailing={
+                <div className="hidden sm:block">
+                  <ThemeToggle />
+                </div>
+              }
             />
-            {/* The brand sits on the name, not the suffix. ".social" is the
-                address; "walletlink" is the thing. */}
-            <span className="text-xl font-semibold tracking-[var(--tracking-title)] sm:text-[2rem] sm:tracking-[var(--tracking-display)]">
-              <span className="text-accent-brand">walletlink</span>
-              {/* The suffix is the address, and the address is the one part a
-                  phone can spare. Measured with Söhne loaded, this row wants
-                  606px and never shrinks, because every part of it is
-                  `flex-none` and `whitespace-nowrap`: it overflowed a 375px
-                  screen by 231px and a 320px screen by 286px. Dropping ".social"
-                  returns 46px of that, and the mark plus "walletlink" still
-                  reads as the lockup. */}
-              <span className="hidden text-muted-foreground sm:inline">.social</span>
-            </span>
-          </Link>
-          {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
+          </div>
         </div>
       </header>
 
-      <main className={`mx-auto w-full flex-1 ${width} px-6 pb-12 ${continuesHeader ? 'pt-0' : 'pt-8'}`}>
+      <main className={`mx-auto w-full flex-1 ${width} px-6 pt-8 pb-12`}>
         {children}
       </main>
 

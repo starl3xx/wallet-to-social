@@ -9,8 +9,24 @@ import {
   ModalDescription,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { PaperPlaneTilt as Send, DownloadSimple as Download, ArrowsClockwise as RefreshCw, CheckCircle as CheckCircle2, XCircle, WarningCircle as AlertCircle, Eye, EyeSlash as EyeOff, CircleNotch as Loader2, CaretRight as ChevronRight, CaretLeft as ChevronLeft, Key, ChatText as MessageSquare, Play, Square } from '@phosphor-icons/react';
+import { Input, Textarea } from '@/components/ui/input';
+import {
+  PaperPlaneTilt as Send,
+  DownloadSimple as Download,
+  ArrowsClockwise as RefreshCw,
+  CheckCircle as CheckCircle2,
+  XCircle,
+  WarningCircle as AlertCircle,
+  Eye,
+  EyeSlash as EyeOff,
+  CircleNotch as Loader2,
+  CaretRight as ChevronRight,
+  CaretLeft as ChevronLeft,
+  Key,
+  ChatText as MessageSquare,
+  Play,
+  Square,
+} from '@phosphor-icons/react';
 import type { WalletSocialResult } from '@/lib/types';
 import {
   extractDMRecipients,
@@ -34,7 +50,11 @@ type Step = 'configure' | 'preview' | 'sending' | 'complete';
 const MAX_MESSAGE_LENGTH = 500;
 const API_KEY_STORAGE_KEY = 'warpcast_api_key';
 
-export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMModalProps) {
+export function FarcasterDMModal({
+  open,
+  onOpenChange,
+  results,
+}: FarcasterDMModalProps) {
   // Step state
   const [step, setStep] = useState<Step>('configure');
 
@@ -54,20 +74,23 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
   // Extract eligible recipients
   const recipients = useMemo(() => extractDMRecipients(results), [results]);
 
-  // Load saved API key on mount
+  // Load the saved key when the dialog opens, and reset everything when it
+  // closes. Both run from one effect's cleanup rather than as synchronous
+  // setState calls in the effect body, which React flags as a cascading
+  // render. The cleanup runs on the open → closed edge, which is exactly when
+  // the reset is wanted; the load runs on the closed → open edge, deferred a
+  // tick so it is not a render-phase write either.
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const id = window.setTimeout(() => {
       const saved = localStorage.getItem(API_KEY_STORAGE_KEY);
       if (saved) {
         setApiKey(saved);
         setSaveApiKey(true);
       }
-    }
-  }, [open]);
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!open) {
+    }, 0);
+    return () => {
+      window.clearTimeout(id);
       setStep('configure');
       setProgress(null);
       setKeyValid(null);
@@ -77,7 +100,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
-    }
+    };
   }, [open]);
 
   // Test API key
@@ -149,8 +172,14 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
         setProgress((prev) => ({
           ...newProgress,
           // Add previous sent count to new progress
-          sent: (prev?.sent || 0) - (prev?.failedRecipients.length || 0) + newProgress.sent,
-          log: [...(prev?.log || []).filter((l) => l.status === 'sent'), ...newProgress.log],
+          sent:
+            (prev?.sent || 0) -
+            (prev?.failedRecipients.length || 0) +
+            newProgress.sent,
+          log: [
+            ...(prev?.log || []).filter((l) => l.status === 'sent'),
+            ...newProgress.log,
+          ],
         }));
       },
       abortControllerRef.current.signal
@@ -179,7 +208,7 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
   const previewRecipient = useMemo(() => {
     if (recipients.length === 0) return null;
     // Find first recipient with holdings, or fall back to first
-    return recipients.find(r => r.holdings !== undefined) || recipients[0];
+    return recipients.find((r) => r.holdings !== undefined) || recipients[0];
   }, [recipients]);
 
   const previewMessage = useMemo(() => {
@@ -199,25 +228,36 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             Send Farcaster DMs
           </ModalTitle>
           <ModalDescription>
-            Send personalized direct messages to {recipients.length.toLocaleString()} Farcaster users in your results
+            Send personalized direct messages to{' '}
+            {recipients.length.toLocaleString()} Farcaster users in your results
           </ModalDescription>
         </ModalHeader>
 
         {/* Step indicator */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <span className={step === 'configure' ? 'text-foreground font-medium' : ''}>
+          <span
+            className={
+              step === 'configure' ? 'text-foreground font-medium' : ''
+            }
+          >
             1. Configure
           </span>
           <ChevronRight className="h-4 w-4" />
-          <span className={step === 'preview' ? 'text-foreground font-medium' : ''}>
+          <span
+            className={step === 'preview' ? 'text-foreground font-medium' : ''}
+          >
             2. Preview
           </span>
           <ChevronRight className="h-4 w-4" />
-          <span className={step === 'sending' ? 'text-foreground font-medium' : ''}>
+          <span
+            className={step === 'sending' ? 'text-foreground font-medium' : ''}
+          >
             3. Send
           </span>
           <ChevronRight className="h-4 w-4" />
-          <span className={step === 'complete' ? 'text-foreground font-medium' : ''}>
+          <span
+            className={step === 'complete' ? 'text-foreground font-medium' : ''}
+          >
             4. Done
           </span>
         </div>
@@ -229,12 +269,18 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Key className="h-4 w-4 text-muted-foreground" />
-                <label className="text-sm font-medium">Warpcast API key</label>
+                <label
+                  htmlFor="warpcast-api-key"
+                  className="text-sm font-medium"
+                >
+                  Warpcast API key
+                </label>
               </div>
 
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
+                    id="warpcast-api-key"
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => {
@@ -245,13 +291,26 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                     placeholder="Enter your Warpcast API key"
                     className="pr-10"
                   />
-                  <button
+                  {/* Named by function, not by the icon: a screen reader hears
+                      "Show API key", and aria-pressed says whether it is. The
+                      ghost Button brings the focus ring and transition-control
+                      with it; `right-1` keeps the 32px pill inside the field's
+                      `pr-10`. */}
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                    aria-pressed={showApiKey}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
                   >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                    {showApiKey ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
                 <Button
                   variant="outline"
@@ -285,7 +344,10 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                   onChange={(e) => setSaveApiKey(e.target.checked)}
                   className="rounded-sm"
                 />
-                <label htmlFor="saveApiKey" className="text-sm text-muted-foreground">
+                <label
+                  htmlFor="saveApiKey"
+                  className="text-sm text-muted-foreground"
+                >
                   Save API key for next time
                 </label>
               </div>
@@ -309,7 +371,8 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                   <li>Create a new API key and paste it here</li>
                 </ol>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Your API key is stored locally in your browser and never sent to our servers.
+                  Your API key is stored locally in your browser and never sent
+                  to our servers.
                 </p>
               </div>
             </div>
@@ -318,15 +381,24 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <label className="text-sm font-medium">Message</label>
+                <label htmlFor="dm-message" className="text-sm font-medium">
+                  Message
+                </label>
               </div>
 
               <div className="relative">
-                <textarea
+                {/* The Textarea primitive owns the edge (`border-input`, 3:1),
+                    the focus ring and the placeholder token. A bare `border`
+                    here resolved to the decorative `--border` at 1.26:1, so
+                    the empty field had no visible boundary. */}
+                <Textarea
+                  id="dm-message"
                   value={message}
-                  onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                  onChange={(e) =>
+                    setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))
+                  }
                   placeholder={`Hey {{username}}! I noticed you hold some tokens...`}
-                  className="w-full h-32 p-3 text-sm border rounded-lg resize-none bg-background"
+                  className="h-32 resize-none"
                 />
                 <span className="absolute bottom-2 right-2 text-xs text-muted-foreground">
                   {message.length}/{MAX_MESSAGE_LENGTH}
@@ -335,16 +407,18 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
 
               <div className="flex flex-wrap gap-2 text-xs">
                 <span className="text-muted-foreground">Variables:</span>
-                {['{{username}}', '{{holdings}}', '{{ens}}', '{{wallet}}'].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setMessage((m) => m + v)}
-                    className="px-2 py-0.5 bg-muted rounded-sm hover:bg-muted/80 font-mono"
-                  >
-                    {v}
-                  </button>
-                ))}
+                {['{{username}}', '{{holdings}}', '{{ens}}', '{{wallet}}'].map(
+                  (v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setMessage((m) => m + v)}
+                      className="px-2 py-0.5 bg-muted rounded-sm hover:bg-muted/80 font-mono"
+                    >
+                      {v}
+                    </button>
+                  )
+                )}
               </div>
             </div>
 
@@ -368,7 +442,9 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             <div className="p-4 bg-muted rounded-lg space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Recipients</span>
-                <span className="font-medium">{recipients.length.toLocaleString()} users</span>
+                <span className="font-medium">
+                  {recipients.length.toLocaleString()} users
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Estimated time</span>
@@ -380,16 +456,25 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
 
             {/* Preview message */}
             <div className="space-y-2">
-              <p className="text-sm font-medium">Preview (for @{previewRecipient?.username}):</p>
+              <p className="text-sm font-medium">
+                Preview (for @{previewRecipient?.username}):
+              </p>
               <div className="p-3 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap border">
-                {previewMessage || <span className="text-muted-foreground italic">Empty message</span>}
+                {previewMessage || (
+                  <span className="text-muted-foreground italic">
+                    Empty message
+                  </span>
+                )}
               </div>
               {previewRecipient && (
                 <p className="text-xs text-muted-foreground">
-                  Data for this user: username="{previewRecipient.username}"
-                  {previewRecipient.holdings !== undefined && `, holdings=${previewRecipient.holdings.toLocaleString()}`}
+                  Data for this user: username=“{previewRecipient.username}”
+                  {previewRecipient.holdings !== undefined &&
+                    `, holdings=${previewRecipient.holdings.toLocaleString()}`}
                   {previewRecipient.ens && `, ens="${previewRecipient.ens}"`}
-                  {!previewRecipient.holdings && !previewRecipient.ens && ' (no holdings/ENS data)'}
+                  {!previewRecipient.holdings &&
+                    !previewRecipient.ens &&
+                    ' (no holdings/ENS data)'}
                 </p>
               )}
             </div>
@@ -401,7 +486,8 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
                 Keep this tab open
               </p>
               <p className="mt-1 text-caution">
-                DMs are sent from your browser. Closing this tab will stop the process.
+                DMs are sent from your browser. Closing this tab will stop the
+                process.
               </p>
             </div>
 
@@ -426,7 +512,10 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>
-                  Sending to <span className="font-medium">@{progress.currentUsername}</span>
+                  Sending to{' '}
+                  <span className="font-medium">
+                    @{progress.currentUsername}
+                  </span>
                 </span>
                 <span>
                   {progress.sent + progress.failed} / {progress.total}
@@ -445,11 +534,15 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-accent-brand">{progress.sent}</div>
+                <div className="text-2xl font-bold text-accent-brand">
+                  {progress.sent}
+                </div>
                 <div className="text-xs text-muted-foreground">Sent</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-destructive">{progress.failed}</div>
+                <div className="text-2xl font-bold text-destructive">
+                  {progress.failed}
+                </div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
@@ -462,22 +555,27 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
 
             {/* Recent log entries */}
             <div className="max-h-32 overflow-y-auto border rounded-lg">
-              {progress.log.slice(-5).reverse().map((entry, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs border-b last:border-b-0"
-                >
-                  {entry.status === 'sent' ? (
-                    <CheckCircle2 className="h-3 w-3 text-accent-brand flex-shrink-0" />
-                  ) : (
-                    <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
-                  )}
-                  <span className="font-medium">@{entry.username}</span>
-                  {entry.error && (
-                    <span className="text-muted-foreground truncate">{entry.error}</span>
-                  )}
-                </div>
-              ))}
+              {progress.log
+                .slice(-5)
+                .reverse()
+                .map((entry, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs border-b last:border-b-0"
+                  >
+                    {entry.status === 'sent' ? (
+                      <CheckCircle2 className="h-3 w-3 text-accent-brand flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+                    )}
+                    <span className="font-medium">@{entry.username}</span>
+                    {entry.error && (
+                      <span className="text-muted-foreground truncate">
+                        {entry.error}
+                      </span>
+                    )}
+                  </div>
+                ))}
             </div>
 
             {/* Cancel button */}
@@ -514,11 +612,17 @@ export function FarcasterDMModal({ open, onOpenChange, results }: FarcasterDMMod
             {/* Final stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-accent-brand-tint/30 rounded-lg">
-                <div className="text-3xl font-bold text-accent-brand">{progress.sent}</div>
-                <div className="text-sm text-accent-brand">Sent successfully</div>
+                <div className="text-3xl font-bold text-accent-brand">
+                  {progress.sent}
+                </div>
+                <div className="text-sm text-accent-brand">
+                  Sent successfully
+                </div>
               </div>
               <div className="text-center p-4 bg-destructive/10 rounded-lg">
-                <div className="text-3xl font-bold text-destructive">{progress.failed}</div>
+                <div className="text-3xl font-bold text-destructive">
+                  {progress.failed}
+                </div>
                 <div className="text-sm text-destructive">Failed</div>
               </div>
             </div>
