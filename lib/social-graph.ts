@@ -557,6 +557,9 @@ export function calculateQualityScore(
       case 'clanker':
       case 'ethos':
       case 'debank_tweet':
+      case 'sybil_list':
+      case 'snapshot_profile':
+      case 'opensea_profile':
         // Attested sources where the owner established both halves: a wallet
         // signature plus an account sign-in, an onchain attestation issued after
         // the same proof, a token deploy the account itself requested, or a
@@ -613,7 +616,10 @@ function isTwitterVerified(sources: string[]): boolean {
       s === 'ethos' ||
       s === 'eas' ||
       s === 'clanker' ||
-      s === 'debank_tweet'
+      s === 'debank_tweet' ||
+      s === 'sybil_list' ||
+      s === 'snapshot_profile' ||
+      s === 'opensea_profile'
   );
 }
 

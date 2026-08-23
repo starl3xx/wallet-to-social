@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (three more attested-link sources: Sybil, Snapshot, OpenSea)
+
+- **`scripts/import-sybil-list.ts`**: Uniswap's deprecated Sybil delegate
+  registry, a frozen public JSON of signature-verified wallet-to-handle
+  pairs. Dry-run against the live graph: 2,781 usable links, 2,100 new
+  wallets, 257 fills, 258 corroborations, 166 conflicts to record.
+- **`scripts/harvest-snapshot-profiles.ts`**: Snapshot profiles are set
+  with a wallet-signed message and may name a Twitter handle. Walks the
+  public hub API oldest-first with a checkpoint in ingest_state and a
+  per-run request budget.
+- **`scripts/enrich-opensea-accounts.ts`**: OpenSea accounts are wallet
+  logins with OAuth-connected socials. Per-address enrichment, defaulting
+  to the most-followed Farcaster wallets missing an X handle. The endpoint
+  sometimes returns a numeric X user id instead of a handle; those are
+  counted and skipped, because an id is only ever stored beside the handle
+  it belongs to.
+- All three are thin adapters over the shared attested-link ingest, with
+  sources `sybil_list`, `snapshot_profile` and `opensea_profile` wired into
+  the public-source allowlist (attested-social), `calculateQualityScore`
+  (+25 peers) and `isTwitterVerified`. Every script is dry-run by default.
+
 ### 2026-08-22 (DeBank binding-tweet harvest, written ahead of credits)
 
 - **`scripts/harvest-debank-bindings.ts`**: DeBank's Twitter binding flow
