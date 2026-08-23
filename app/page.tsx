@@ -395,7 +395,10 @@ export default function Home() {
   // forwards the gate name so the analytics can say which gate converts.
   const handleOpenUpgradeModal = useCallback(
     (source?: string) => {
-      upgradeModal.open(wallets.length > 0 ? wallets.length : undefined, source);
+      upgradeModal.open(
+        wallets.length > 0 ? wallets.length : undefined,
+        source
+      );
     },
     [upgradeModal, wallets.length]
   );
@@ -1444,7 +1447,17 @@ export default function Home() {
             pulse: a pulse says the system is running, and Recent wins
             already carries that one below. Gaps 48/16, pt 16: the /vs row's
             40/20/20 are not spacing steps. */}
-        <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4 border-t border-border pt-4">
+        {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
+            100.5 + 92.1 = 273px, and two 48px gaps ask for 369px against the
+            342px a 390px phone gives this column, so the row wrapped 2 + 1 and
+            cost 137px instead of 69px: more than the h1 and the lede together,
+            and the largest single reason the opening block read as massive on a
+            phone. 16px gaps need 305px, which is the only step on the scale that
+            still fits at 360, where the `xs` breakpoint says a phone stops.
+            Above `sm` nothing changes. The figure strings are live, so a wider
+            index number puts 360 back on two rows; that is the graceful end of
+            this, not a break. */}
+        <dl className="mt-6 flex flex-wrap gap-x-4 gap-y-4 border-t border-border pt-4 sm:gap-x-12">
           <Figure
             value={indexedWallets ?? INDEXED_WALLETS}
             label="wallets indexed"
@@ -1582,9 +1595,19 @@ export default function Home() {
             />
 
             {/* Derived from SUPPORTED_CHAINS rather than typed out, so adding
-                  a chain updates the page instead of leaving stale copy behind */}
-            <p className="text-center text-xs text-muted-foreground">
-              {SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(' · ')}
+                  a chain updates the page instead of leaving stale copy behind.
+
+                  Wrapped as flex items rather than joined on a middot, which is
+                  the ruling the proof row above already carries: the joined
+                  string is 410px natural and wraps at every phone width, so
+                  line one ended on a dangling separator ("… Polygon · ") at
+                  360, 375 and 390. One instance of that defect was fixed and
+                  its twin here was not. Gaps do the separating, so the middots
+                  go at every width, as they did on the proof row. */}
+            <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {SUPPORTED_CHAINS.map((c) => (
+                <span key={c}>{CHAIN_LABELS[c]}</span>
+              ))}
             </p>
 
             <RecentWins />

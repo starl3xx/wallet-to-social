@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-23 (the homepage gets the phone pass the header already had)
+
+- **The two alternates were 22px tall on every phone.** `altClass` carried a
+  bare `flex-1`, and `flex-1` is `flex: 1 1 0%`: on a flex item the basis
+  supplies the main size, so `height` is never consulted. Below `sm` that row is
+  `flex-col`, so the 0% basis replaced `h-control`, the container had no free
+  space to grow into, and `min-height: auto` dropped each pill to its content
+  height. `sm:flex-1` restores 34px on a phone and changes nothing above it.
+  Measured 22px at 320/360/375/390 and 34px at 640 before, 34px everywhere
+  after, which is why no desktop review ever caught it.
+- **The same defect, one card down.** The reverse-lookup field measured 35.5px
+  against a Segmented and a button at 34px: three heights in one control row,
+  the exact failure `--height-control` was created to end, reappearing three
+  panes below the header where it was first fixed. Now 34/34/34.
+- **The proof row cost 137px on a phone and 69px on a desktop.** Three figures
+  need 273px; two 48px gaps ask for 369px against the 342px a 390px phone
+  leaves, so the row wrapped 2 + 1. `gap-x-4` below `sm` fits it on one line
+  down to 360. The opening block goes 263px to 195px and the dropzone's top edge
+  394px to 326px.
+- **The chain strip stopped dangling its separator.** `.join(' · ')` is 410px
+  natural and wraps at every phone width, so line one ended on a middot. Laid
+  out as flex children with a gap, which is the ruling the proof row above it
+  already carried. The middots go at every width, as they did there.
+- **The dropzone drew a white halo in dark mode.** Its class string hand-copied
+  four of `FOCUS_RING`'s five classes and dropped `ring-offset-background`;
+  Tailwind's initial ring-offset colour is `#fff`, so the page's primary action
+  painted a white gap inside its own focus ring. It imports the shared string
+  now.
+- **DESIGN-LANGUAGE.md named sixteen tokens that do not exist.** `--h-ctl`,
+  `--r-container`, `--t-display`, `--d-base`, `--e-out` and the rest resolve to
+  nothing; every occurrence in the codebase was inside a comment. Renamed to
+  what `globals.css` actually declares. The doc's own first line is "If a value
+  is not here, it should not be in the code."
+- **Two sections added to the doc**: the flex-item rule above, with the
+  measurements, under Control height; and "The page on a phone" beside "The
+  header on a phone", which had a measured pass over one row and none over the
+  body. Also the arithmetic for why the control height stays 34px: `size-control`
+  takes width from the same token, and 44px puts the phone header 16px over a
+  320px screen.
+
 ### 2026-08-23 (llms.txt rewritten, and Venice.ai joins the Ask AI row)
 
 - **/llms.txt roughly triples**, from a summary with four link lists to a file

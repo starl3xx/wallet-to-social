@@ -193,7 +193,13 @@ export function ReverseLookup({
             if (e.key === 'Enter') submit();
           }}
           placeholder={platform === 'twitter' ? '@vitalikbuterin' : 'dwr'}
-          className="flex-1 font-mono"
+          // `sm:flex-1`, for the reason recorded in InputMethodPicker's
+          // `altClass`: a bare `flex-1` on a control inside a `flex-col` row
+          // replaces `h-control` with a 0% basis. This field measured 35.5px on
+          // a phone against 34px for the Segmented above it and the button
+          // below, so one control row showed three heights, which is the exact
+          // failure `--height-control` was created to end.
+          className="font-mono sm:flex-1"
           spellCheck={false}
           autoCapitalize="none"
           autoCorrect="off"

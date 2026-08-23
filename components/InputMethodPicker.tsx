@@ -7,7 +7,7 @@ import {
   Polygon as Boxes,
   Lock,
 } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -144,7 +144,13 @@ export function InputMethodPicker({
   const dropBase =
     'group flex w-full items-center gap-4 rounded-lg border border-dashed border-accent-brand ' +
     'bg-accent-brand-tint p-4 text-left transition-control ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
+    /* The shared ring, not four fifths of it hand-copied. This string carried
+       its own and dropped `ring-offset-background`, and Tailwind's initial
+       `--tw-ring-offset-color` is `#fff`, so in dark mode the page's primary
+       action drew a 2px white gap between itself and the violet ring. "The one
+       focus ring" (components/ui/button.tsx) was broken in the one place it is
+       most seen. */
+    `${FOCUS_RING} ` +
     (disabled
       ? 'opacity-50 pointer-events-none '
       : 'hover:border-accent-brand-hover ');
@@ -157,9 +163,25 @@ export function InputMethodPicker({
    * focus ring. Only what is specific to this row goes through className: the
    * resting text tone and the brand hover, and `cn` lets those win over the
    * variant's own.
+   *
+   * **`sm:flex-1`, never a bare `flex-1`.** `flex-1` is `flex: 1 1 0%`, and on a
+   * flex item the basis supplies the main size, so `height` is not consulted.
+   * Below `sm` this row is `flex-col`, which makes the main axis vertical: the
+   * 0% basis replaced `h-control`, the container had no free space to grow into,
+   * and `min-height: auto` dropped each pill to its content height. Both
+   * alternates rendered **22px** on every phone width and 34px at `sm` and
+   * above, which is why no desktop review ever saw it. They were the shortest
+   * controls on the page, sitting directly under a 44px disc, and they were what
+   * "these don't look like buttons" was pointing at.
+   *
+   * The width is unaffected either way: a column flex container stretches its
+   * items, so the pills are full-bleed below `sm` with or without the class.
+   *
+   * `/75` is the wash the design language names (DESIGN-LANGUAGE.md, Shape:
+   * "Unselected sits at `text-foreground/75`"). `/80` was a second unnamed one.
    */
   const altClass =
-    'flex-1 text-foreground/80 hover:border-accent-brand hover:text-accent-brand';
+    'text-foreground/75 hover:border-accent-brand hover:text-accent-brand sm:flex-1';
 
   return (
     <div>
