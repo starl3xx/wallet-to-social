@@ -938,6 +938,18 @@ export const ResultsTable = memo(function ResultsTable({
                             identity and reads as data, and muted would say it
                             cannot be acted on. Hover goes to brand, colour
                             only. */}
+                        {/* The confirmation swaps in place of the address
+                            rather than floating beside it. Every overlay
+                            position lost a stacking war somewhere: above sat
+                            behind the sticky header (the cell's own z-10
+                            context cannot clear the header's z-20), below was
+                            painted over by the next virtualised row (opaque
+                            bg, later rows paint above earlier overflow). An
+                            in-place swap has nothing to fight; the keyed span
+                            re-fires the fade-in, and role="status" announces
+                            what the swap shows. Green: a completed copy is a
+                            real outcome, and the address itself is back in
+                            two seconds. */}
                         <Button
                           variant="link"
                           size="inline"
@@ -945,29 +957,16 @@ export const ResultsTable = memo(function ResultsTable({
                           onClick={() => handleCopyWallet(result.wallet)}
                           title={`${result.wallet}\nClick to copy`}
                         >
-                          {truncateWallet(result.wallet)}
-                          {copiedWallet === result.wallet && (
-                            /* bg-foreground/text-background, not bg-black/text-white. The
-                               dark theme's background is itself near-black, so a literally
-                               black toast on it had no edge at all.
-
-                               role="status" so the copy is announced, not only
-                               shown. Below the address, not above: the cell
-                               is its own sticky z-10 stacking context, so no
-                               z-index inside it can clear the header row's
-                               z-20, and above-the-address put the first
-                               visible row's toast behind the header. Beneath,
-                               it overlaps only the next row and needs no
-                               z-fight. The fade is opacity only, on the toast
-                               itself: the virtualised row beneath may animate
-                               nothing beyond background colour, and the static
-                               centering transform stays untouched. */
+                          {copiedWallet === result.wallet ? (
                             <span
+                              key="copied"
                               role="status"
-                              className="fade-in-fast absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded-sm whitespace-nowrap z-30"
+                              className="fade-in-fast text-attested"
                             >
                               Copied!
                             </span>
+                          ) : (
+                            truncateWallet(result.wallet)
                           )}
                         </Button>
                         {/* Both chips are the Badge primitive. One meaning,
