@@ -98,6 +98,24 @@ const VIEWPORTS = [
  */
 const PATHS = ['/', '/check', '/pricing'];
 
+/**
+ * The floor that stops a blank page from passing.
+ *
+ * Without it the arithmetic is: a page that fails to render has no elements, so
+ * nothing declares the contract, so nothing is measured, so there are no
+ * violations, so the check reports `ok (0 controls at 34px)` and exits 0. **A
+ * blank page and a healthy page produce the same verdict**, which is the exact
+ * shape of silent success the fixtures exist to prevent, reappearing on the half
+ * of the run the fixtures do not cover.
+ *
+ * The observed counts are 11 to 12 on `/`, 9 on `/check` and 8 on `/pricing`.
+ * The homepage varies by one at 320 between macOS and the Linux runner, so this
+ * is a floor rather than an equality: it is here to tell a rendered page from an
+ * empty one, not to pin a number that legitimately moves when a control wraps
+ * out of view.
+ */
+const MIN_CONTROLS_PER_PAGE = 5;
+
 // ---------------------------------------------------------------------------
 // The token, read from the stylesheet that ships
 // ---------------------------------------------------------------------------
@@ -536,6 +554,14 @@ async function main() {
       ) {
         console.log(
           `  ${RED}fail${RESET}  ${where}: the page computes --height-control as ${r.tokenOnPage}, globals.css says ${expected}px`
+        );
+        failures++;
+      }
+
+      if (r.checked < MIN_CONTROLS_PER_PAGE) {
+        console.log(
+          `  ${RED}fail${RESET}  ${where}: only ${r.checked} control${r.checked === 1 ? '' : 's'} declared the height, expected at least ${MIN_CONTROLS_PER_PAGE}. ` +
+            'The page probably did not render, and an empty page has no violations to report.'
         );
         failures++;
       }
