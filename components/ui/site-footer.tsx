@@ -1,15 +1,12 @@
 import Link from 'next/link';
-import {
-  ArrowSquareOut,
-  GithubLogo,
-} from '@phosphor-icons/react/dist/ssr';
+import { ArrowSquareOut, GithubLogo } from '@phosphor-icons/react/dist/ssr';
 import { XMark, FarcasterMark, BrandLockup } from './brand-marks';
 import { Eyebrow } from './eyebrow';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
 
-// One question, asked of each assistant in its own prefill parameter. The
+// One question, asked of each assistant that accepts a prefill parameter. The
 // phrasing is deliberately open: the assistants read /llms.txt and the public
 // pages, so the answer is theirs to give, and a leading question ("why is X
 // great") would read as astroturf the moment the answer hedged.
@@ -24,6 +21,16 @@ const ASK_AI = [
     label: 'Perplexity',
     href: `https://www.perplexity.ai/search?q=${ASK_AI_PROMPT}`,
   },
+  // Venice takes no prefill, so this is the one link in the row that opens an
+  // empty composer and leaves the visitor to type. Its chat reads no question
+  // out of the URL: ?prompt=, ?q=, ?message=, ?text= and ?input= all render the
+  // placeholder, checked 2026-08-23 against the rendered app rather than the
+  // docs, which describe only the API. Shipping a fourth link with a parameter
+  // nobody reads would have looked identical in the diff and done nothing.
+  // Venice is worth the row anyway: it is the assistant that needs no account
+  // and keeps the conversation in the browser, so it is the one an audience
+  // that cares about wallet privacy is most likely to already be in.
+  { label: 'Venice.ai', href: 'https://venice.ai/chat' },
 ];
 
 const SOCIAL =
@@ -170,7 +177,7 @@ export function SiteFooter() {
             /llms.txt is already written for them; these links put a visitor
             one click from asking about the product in their own assistant,
             with the question pre-filled. Text links, not provider logos: the
-            footer's icon rule is that a glyph carries information, and three
+            footer's icon rule is that a glyph carries information, and four
             brand marks here would carry none the words do not. */}
         <div className="mt-12 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
           <span>Ask AI about walletlink.social</span>

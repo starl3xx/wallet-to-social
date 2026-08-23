@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-23 (llms.txt rewritten, and Venice.ai joins the Ask AI row)
+
+- **/llms.txt roughly triples**, from a summary with four link lists to a file
+  an assistant can answer from without visiting the site. New sections: who it
+  is for and the jobs people hire it for, what a match is and what it costs,
+  the five evidence classes and the quality-score bands, the four reachability
+  states (including `reassigned`, which the file had never named), coverage as
+  two numbers rather than one, and the API in prose. The Product section gains
+  `/holders` and the shape of a per-collection report URL; Docs gains the two
+  product-side pages and Scan depth; every comparison entry gains the one claim
+  its page actually makes; all 26 blog posts are listed with descriptions.
+- **Every figure interpolates a constant**, including the ones just added
+  (`X_HANDLES_HELD`, `KNOWN_AGENTS`) and the API limits, which now come from
+  `API_PLANS[CREDIT_API_PLAN]` rather than being typed. The reason is written
+  into the route's header: `check-published-figures.ts` reads this file's
+  _source_, so a literal typed here is invisible in both directions, and only
+  the four hardcoded percentages are actually watched. All 57 figures pass.
+- **The chain rates are labelled.** "Base 46.2%, Ethereum 16.6%" now says what
+  it measures ("have an X or Farcaster account") and when it was measured, and
+  the two-number rule is stated beside it rather than left implicit.
+- **Venice.ai joins the Ask AI row.** It takes no prefill parameter:
+  `?prompt=`, `?q=`, `?message=`, `?text=` and `?input=` were each checked
+  against the rendered app on 2026-08-23 and all five land on an empty
+  composer, so the link opens the chat and the visitor types. Recorded in the
+  code rather than discovered again by the next person.
+
 ### 2026-08-22 (marketing and docs audit: 6-auditor sweep, 49 files corrected)
 
 - **The uncited "2.5% industry average" and its "9x" derivative are purged**
@@ -127,6 +153,7 @@ All notable changes to walletlink.social. Newest first.
   whenever such a page has under half its holders checked. A fully checked
   page that still misses the floor carries no note, because there the
   numbers are the finding.
+
 ### 2026-08-22 (the results table gains the attested filter and a row-detail dialog)
 
 - **"Attested only" pill**, first in the filter row: isolates exactly the
@@ -411,7 +438,7 @@ All notable changes to walletlink.social. Newest first.
   than a share of the balance, and is refused when the balance cannot be read
   or sits at the reserve; acceptance still runs, since it costs nothing.
   `npx tsx --env-file=.env.local scripts/resolve-handle-conflicts.ts
-  [--dry-run] [--limit N] [--credit-cap N] [--recheck-days N]` is the manual
+[--dry-run] [--limit N] [--credit-cap N] [--recheck-days N]` is the manual
   entry. The dry run prints counts, the blocked reasons, what it would re-check
   and a sample of 20, and writes nothing, rechecks included.
 
@@ -713,7 +740,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   `TIER_PRICES`, so half the figures moved when the constants moved and half did
   not.
 
-
 ### 2026-08-20 (a figure that could only fail by growing)
 
 - **Review fixes, and both were the same mistake twice.** The measurement guard
@@ -808,7 +834,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   not "is this close enough to be honest" but "is this tighter than the
   distance to the nearest value it could be confused with".
 
-
 ### 2026-08-20 (a comparison page aimed at the wrong Cookie)
 
 - **`/vs/cookie` argued against a product that does not compete with us.** The
@@ -841,7 +866,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   tell. A short section names which is which and sends the agent-research reader
   where they meant to go.
 
-
 ### 2026-08-19 (a dot that only lined up at one row height)
 
 - **A manual correction now reaches the saved lookups that show it.** Editing a
@@ -860,7 +884,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   exactly one row height and drift at any other, which is why it looked fine
   when it was written and wrong in a screenshot. The gutter now centres like
   everything beside it.
-
 
 ### 2026-08-19 (the Bag, and a list that repeated people)
 
@@ -896,7 +919,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   separately, and the "left out" figure counts distinct dead handles too:
   reporting handles going in and rows left out put two different units in one
   sentence.
-
 
 ### 2026-08-19 (the footer names the company)
 
@@ -936,8 +958,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   checked and none left unchecked. The figure guard passed throughout, because
   it checks numbers against the database and this was a false clause sitting
   beside numbers that were merely stale.
-
-
 
 ### 2026-08-19 (the safe direction was still a dead end)
 
@@ -979,7 +999,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - **The catch-up run then cleared the whole backlog**: 18 links from 25 social
   deploys, 5 new wallets, and `blocksBehindHead` back to 0.
 
-
 ### 2026-08-18 (things that looked fine and were not)
 
 - **Three "why is this empty" reports, none of which were empty.** The blog had
@@ -1016,7 +1035,7 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   the timestamps would be a claim about when we looked.
 - **The Health tab answers whether anything is configured and running.** Nine
   capabilities with what breaks without each, seven jobs with their last
-  *successful* run, and a section for work that runs on no schedule, which is
+  _successful_ run, and a section for work that runs on no schedule, which is
   how the missing cron stayed invisible. It makes no external requests.
 - **Two sweeps were reporting failures as successes.** Both wrote their event
   before deciding they had failed, so a 502 left a record identical to a healthy
@@ -1069,7 +1088,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   credential lives where stays private; "a new table needs a grant" is a fact
   about the schema and belongs with the schema.
 
-
 ### 2026-08-17 (every surface, not only the ones I had touched)
 
 - **Four surfaces were outside the check.** The README said 4.7M, two versions
@@ -1097,7 +1115,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - The social media skill is outside the repository, so the check cannot see it.
   It now carries the current figures and says plainly that it is checked by a
   person, not by the machine.
-
 
 ### 2026-08-17 (one number, one place, and the claim moved to where people read it)
 
@@ -1129,7 +1146,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - **The word "reachable" now means one thing.** It was used for "has an X or
   Farcaster account" in marketing and for "the account still works" in the API.
 
-
 ### 2026-08-17 (a machine for the docs rule)
 
 - **Every number we publish is now checked against the database.**
@@ -1148,7 +1164,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   passed. A number written to the digit is an exact claim and gets no room.
 - **Corrected: the index passed 5 million**, so "4.9 million" was low in 2 doc
   pages and 20 places in the app.
-
 
 ### 2026-08-17 (we check if the X account still works, and we say so)
 
@@ -1183,7 +1198,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   what we serve reaches nobody and the other source works. Before this they were
   saved and unreadable. It shows the evidence and does not decide: a suspension
   can be lifted, and a person can hold two accounts.
-
 
 ### 2026-08-16 (two more attested sources, and one shape for all of them)
 
@@ -1227,7 +1241,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   after its first page was counted as read, so a part-finished sweep reported
   success.
 - Index now 4,938,576 wallets, 1,149,451 with an X handle.
-
 
 ### 2026-08-16 (a new source, and the first way to see a handle go bad)
 
@@ -1284,7 +1297,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   right answer: if two people each say an address is theirs, this source cannot
   say which, so it is not attested evidence.
 
-
 ### 2026-08-16 (colour that no guard was looking at)
 
 - **The share cards and the sign-in email did not use the brand colours.** Both
@@ -1319,7 +1331,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   correct.
 - Removed five unused Next.js example SVG files.
 
-
 ### 2026-08-16 (the design skill gave instructions that CI rejects)
 
 - **The frontend-design skill now points at `docs/DESIGN-LANGUAGE.md` first.**
@@ -1339,7 +1350,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   `components/ui/`, does a token cover it, can it be a prop, and only then write
   something new. It also says what may never be skipped: accessibility, error
   states, input validation, and anything asked for by name.
-
 
 ### 2026-08-16 (a window that moves with the provider)
 
@@ -1523,7 +1533,7 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   box that was too small. Thus it did not cut the contents and it did not show
   a scroll bar.
 - **A dialog is a flex column now.** The body is `flex-1 min-h-0
-  overflow-y-auto`. A measurement in Chrome shows the difference at a screen of
+overflow-y-auto`. A measurement in Chrome shows the difference at a screen of
   663px: before, the panel was 631px and the body was 1298px, with the button
   644px below the edge of the panel. After, the body is 629px and the button is
   25px inside the panel.
@@ -1613,7 +1623,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - **The page replaces the panel, and does not sit above it.** Two subjects on
   one screen make the reader decide which numbers belong to which.
 
-
 ### 2026-08-15 (a daily budget for the token holder index)
 
 - **A customer used 75% of the daily allowance in two hours.** The ERC-20
@@ -1651,7 +1660,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
     high cost, and to stop each cron because of one failed query would make a
     worse problem.
 
-
 ### 2026-08-15 (a modal that spilled, and controls that did not look like controls)
 
 - **The upgrade modal put its last button below its own edge.** The dialog has a
@@ -1685,7 +1693,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
 - **Two buttons got an icon.** “Find wallets” has a wallet. “Sign in” in the My
   lookups panel has the same icon as “Sign in” in the header.
 
-
 ### 2026-08-15 (a price we do not sell, a term we never defined, and a feature that moves tier)
 
 - **Five comparison pages showed $149.** Pro is $99. The number was written into
@@ -1716,7 +1723,6 @@ matched`. `/v1/usage` returns a `credits` object. `/api/developer/plans`
   - The gate on `GET` also stops the query, not only the answer. That query
     examines each wallet in the lookup, and it is the most expensive operation
     on the endpoint.
-
 
 ### 2026-08-15 (the same correction, applied to each surface that gives it)
 
@@ -1758,7 +1764,6 @@ and more serious fault.
   carries its evidence”. It is stronger, a person can check it, and it stays
   correct when we add a source.
 
-
 ### 2026-08-15 (say what the X coverage really is, in a way that stays true)
 
 - **The coverage page said “one of two routes”. The code has more.** It said
@@ -1784,7 +1789,6 @@ and more serious fault.
   verification. All are corrected. “We never guess” stays, because it is true at
   each evidence level: an identity index correlates published profile data, and
   it does not infer from a display name, a description or a time correlation.
-
 
 ### 2026-08-15 (a control that painted itself out, and two missing doc pages)
 
@@ -1812,7 +1816,6 @@ and more serious fault.
 - **A code comment named 2 networks where the code supports 7.** The comment in
   `lib/chains.ts` for token holder lists was written when two indexes were in
   use. Comments become incorrect in the same way as documentation.
-
 
 ### 2026-08-15 (a health report for the social graph, and a weekly repair)
 
@@ -1853,7 +1856,6 @@ faults were 63,275 rows, which is 1.3% of the table.
   not touch them:** 3 ENS names that are on more than one wallet, 6 Farcaster
   ids that carry more than one username, and 112 Farcaster usernames that have
   no id. The cron counts them and reports them.
-
 
 ### 2026-08-15 (one scan-depth control, in place of two checkboxes)
 
@@ -1920,7 +1922,6 @@ faults were 63,275 rows, which is 1.3% of the table.
   incorrect on the screen. A fast scan now shows only the two stages that it
   runs.
 
-
 ### 2026-08-15 (job context in the admin panel, and two faults it exposed)
 
 - **The Jobs table showed a localStorage uuid in the User column.** A signed-in
@@ -1956,7 +1957,6 @@ The graph was not damaged by that incident. The guard in `job-processor.ts`
 excluded every wallet whose check failed, so 5,432 wallets kept no row instead
 of a false "no socials" row.
 
-
 ### 2026-08-15 (Stripe made no Customer objects)
 
 - `createCheckoutSession` did not set `customer_creation`. The default value is
@@ -1983,7 +1983,6 @@ of a false "no socials" row.
   value from `session.customer`, which is null when no Customer exists. An empty
   string in an id column says "there is an id, and it is blank".
 
-
 ### 2026-08-15 (the apex domain is canonical)
 
 - Vercel now serves `walletlink.social` directly. It sends a 308 redirect from
@@ -2000,7 +1999,6 @@ of a false "no socials" row.
 
 **The rule to keep:** a URL that one machine gives to another machine must never
 point at a redirect. Declare one origin only.
-
 
 ### 2026-08-15 (the Starter tier is removed)
 
@@ -2022,7 +2020,6 @@ point at a redirect. Declare one origin only.
   longer casts the value. The column holds free text. An unknown value used to
   index the limit map to `undefined`, which gave a broken lookup and no error.
 
-
 ### 2026-08-15 (the share text gave a match rate that was too high)
 
 - The share copy calculated the match rate as
@@ -2036,7 +2033,6 @@ point at a redirect. Declare one origin only.
 - `StatsCards` had the same overlap error, and it was corrected earlier. The
   error stayed in `ShareButtons`, because that component calculates its own
   statistics instead of receiving them.
-
 
 ### 2026-08-15 (checkout provisioning, after a customer paid two times and got nothing)
 
@@ -2084,7 +2080,6 @@ they took $198 from the first paying customer and gave the customer nothing.
   Starter on 2026-08-12, and the checkout rejects it. The old check meant that
   deletion of a dead env var would answer 503 to every purchase.
 
-
 ### 2026-08-14 (AI assistant on the marketing site)
 
 - Floating chat bubble backed by Cloudflare AI Search over both
@@ -2116,7 +2111,7 @@ they took $198 from the first paying customer and gave the customer nothing.
 - New `docs-site/` holding the Mintlify content for docs.walletlink.social:
   13 pages covering the concepts and a full `/v1` API reference, written
   against the route handlers rather than against this README.
-- `docs-site/` is the *only* publishable folder. `docs/` stays internal, since
+- `docs-site/` is the _only_ publishable folder. `docs/` stays internal, since
   `docs/SECURITY.md` is the backup and restore runbook.
 - Freshness is enforced, not requested: `.github/pull_request_template.md` asks
   for an explicit docs decision and `.github/workflows/docs-freshness.yml`
@@ -2167,7 +2162,7 @@ they took $198 from the first paying customer and gave the customer nothing.
   (`scripts/migrate-ingest-state.ts`, applied 2026-08-12); the daily Vercel
   cron (`/api/cron/ens-harvest`, 05:00 UTC) scans ~7,200 new blocks per day.
 - CLI: `npx tsx --env-file=.env.local scripts/ens-harvest.ts
-  --backfill | --incremental`. Interrupt-safe.
+--backfill | --incremental`. Interrupt-safe.
 - The ENS registry address comes from ethers' network config, not a typed
   constant — a wrong registry address fails silently (every `resolver()`
   read returns `0x`), which is exactly what happened on the first attempt.
@@ -2191,7 +2186,7 @@ they took $198 from the first paying customer and gave the customer nothing.
   (`.github/workflows/farcaster-sweep.yml`) — requires `DATABASE_URL` and
   `NEYNAR_API_KEY` repository secrets.
 - CLI: `npx tsx --env-file=.env.local scripts/farcaster-sweep.ts
-  --full | --incremental | --range A B`. Idempotent, safe to interrupt.
+--full | --incremental | --range A B`. Idempotent, safe to interrupt.
 
 ### 2026-08-12 (negative-result persistence)
 
@@ -2227,7 +2222,7 @@ Driven by the funnel: 41 checkout sessions started, 0 completed. Free gave 1,000
 per lookup with unlimited lookups and ungated CSV export, leaving Pro with little to sell.
 
 **Deploy order matters:** the `$99` Stripe price must exist and `STRIPE_PRICE_PRO` must
-point at it *before* this ships, or the site advertises $99 and charges $149.
+point at it _before_ this ships, or the site advertises $99 and charges $149.
 
 ### 2026-08-12
 
@@ -2271,6 +2266,7 @@ point at it *before* this ships, or the site advertises $99 and charges $149.
   - New table: `ip_rate_limit_buckets` with hourly bucket granularity
 
 **Database migration required**:
+
 ```sql
 CREATE TABLE IF NOT EXISTS ip_rate_limit_buckets (
   ip_address TEXT NOT NULL,
@@ -2299,6 +2295,7 @@ CREATE TABLE IF NOT EXISTS ip_rate_limit_buckets (
 - **PROJECT_OVERVIEW.md**: New comprehensive context document for LLMs
 
 **Database migration required**:
+
 ```sql
 ALTER TABLE users ADD COLUMN wallets_used INTEGER NOT NULL DEFAULT 0;
 ```
@@ -2308,6 +2305,7 @@ ALTER TABLE users ADD COLUMN wallets_used INTEGER NOT NULL DEFAULT 0;
 **Scalability audit: fixes for high-load scenarios**
 
 Critical fixes (P0):
+
 - **Inngest concurrency**: Increased from 10 to 100 concurrent jobs - 50 jobs now start in ~5s vs ~250s
 - **API timeouts**: Added 15-second timeouts to all external API calls (Web3.bio, Neynar, ENS) - prevents jobs from hanging indefinitely
 - **Rate limit race condition**: Fixed with atomic UPSERT - accurate counting under high concurrency
@@ -2315,6 +2313,7 @@ Critical fixes (P0):
 - **Cache state loss bug**: Fixed Inngest step serialization issue that was discarding cache hits - 2-3x faster processing
 
 High priority fixes (P1):
+
 - **Debounced search**: 300ms debounce on ResultsTable search - eliminates 1-2s lag with 10K+ results
 - **Parallel cron processing**: Process 5 jobs simultaneously instead of 1 - 5x faster queue clearing
 - **Adaptive polling**: Starts at 2s, increases to 5s when idle - ~60% reduction in server requests
@@ -2322,9 +2321,11 @@ High priority fixes (P1):
 - **COUNT aggregates**: Replaced full table scans with `COUNT(*) FILTER` - ~99% faster stats queries
 
 Additional fix:
+
 - **Neynar 404 handling**: Gracefully handles batches where no addresses have Farcaster accounts
 
 **Database migrations required**:
+
 ```sql
 CREATE INDEX IF NOT EXISTS lookup_jobs_status_created_idx ON lookup_jobs (status, created_at);
 CREATE INDEX IF NOT EXISTS lookup_history_user_created_idx ON lookup_history (user_id, created_at);
@@ -2333,6 +2334,7 @@ CREATE INDEX IF NOT EXISTS lookup_history_user_created_idx ON lookup_history (us
 ### 2025-01-17 (Evening)
 
 **Admin Wallet Enrichment feature**
+
 - **Manual wallet enrichment**: New "Enrichment" tab in admin panel for adding/editing social data
   - Search any wallet address to view existing social_graph data
   - Add Twitter, Farcaster, or ENS manually with 'manual' source tag
@@ -2340,17 +2342,20 @@ CREATE INDEX IF NOT EXISTS lookup_history_user_created_idx ON lookup_history (us
 - **New API endpoint**: `POST /api/admin/social-graph` for admin wallet enrichment
 
 **New matches notifications**
+
 - **Enrichment badges**: "X new matches" badge appears on lookups when wallets have been enriched since last view
 - **Row highlighting**: Enriched wallets highlighted with green background + "NEW" badge in results table
 - **View tracking**: `lastViewedAt` timestamp tracks when users load lookups for accurate "new" detection
 - **Automatic clearing**: Badges clear after user views the lookup (read-receipt pattern)
 
 **Input source tracking**
+
 - **Source column in admin history**: Shows whether lookup came from "File" (upload) or "Paste" (text input)
 - **Color-coded badges**: Blue for file uploads, purple for text input
 - **New database column**: `input_source` on `lookup_history` table
 
 **Database migrations required**:
+
 ```sql
 ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMP;
 ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
@@ -2359,6 +2364,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-17
 
 **Public API infrastructure**
+
 - **Subscription API product**: New `/api/v1/` endpoints for external developers to access social_graph data
 - **API key management**: Generate, validate, revoke, and rotate API keys with SHA-256 hashing
 - **Three pricing tiers**: Developer ($49/mo), Startup ($199/mo), Enterprise ($799/mo)
@@ -2375,6 +2381,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **New database tables**: `api_plans`, `api_keys`, `api_usage`, `rate_limit_buckets`
 
 **Processing modal redesign**
+
 - **Animated activity indicators**: Spinning ring + pulse effect shows processing even at 0%
 - **Pipeline visualization**: 4-stage progress (Cache → Web3.bio → Farcaster → ENS) with active stage highlighting
 - **Shimmer effects**: Progress bar has animated shimmer and sliding gradient when idle
@@ -2382,11 +2389,13 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **Job restoration fix**: Returning to page now properly restores stage info and animations
 
 **New comparison pages**
+
 - **`/vs/blaze`**: Compare against Blaze Web3 CRM ($79/month) - highlights Farcaster support and one-time pricing
 - **`/vs/holder`**: Compare against Holder.xyz wallet messaging platform - emphasizes lookup focus vs CRM
 - **SEO improvements**: Shortened titles, added keywords, Twitter cards, enhanced JSON-LD, internal linking between all /vs/ pages
 
 **My lookups: Tiered history + Add addresses feature**
+
 - **Renamed "Recent Lookups" to "My lookups"**: Better reflects user ownership
 - **Tiered history visibility**: Free users see 1 lookup, Pro/Unlimited see full history with pagination
 - **Add addresses to lookups (Pro+)**: Click "+" on any lookup to add more addresses
@@ -2398,6 +2407,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **Updated vs/addressable page**: New comparison rows for Lookup History and Add to Lookups
 
 **Admin dashboard enhancements**
+
 - **Tabbed admin UI**: New tabs for Activity, Jobs, History, and Users management
 - **Activity tab**: View/hide/delete completed jobs from public Live Activity feed
 - **Jobs tab**: Monitor all jobs, filter by status, retry failed jobs, cancel stuck ones
@@ -2408,6 +2418,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **Fixed match rate calculation**: Now uses `anySocialFound` instead of double-counting Twitter + Farcaster
 
 **UX improvements**
+
 - **Wallet limit warning**: Shows banner when uploaded file exceeds tier limit (before clicking Start)
 - **Updated time estimates**: Processing now shows ~10s per 1K wallets (was incorrectly showing ~2min)
 - **Live Activity filter**: Now hides lookups with fewer than 25 wallets
@@ -2418,17 +2429,20 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-16
 
 **SEO & positioning**
+
 - **Addressable alternative positioning**: New `/vs/addressable` comparison page
 - **SEO meta tags**: Optimized title, description, and Open Graph tags for search visibility
 - **Comparison content**: Feature comparison showing advantages over Addressable
 
 **Live Activity improvements**
+
 - **Industry average comparison**: Shows "9x industry avg" badge (vs ~2.5% baseline)
 - **Cleaner copy**: Simplified homepage messaging and AccessBanner text
 
 ### 2025-01-15
 
 **Tiered pricing with Stripe integration**
+
 - **Three tiers**: Free (500 wallets), Pro (5,000 wallets, $99), Unlimited ($249)
 - **Stripe Checkout**: One-time payment flow with automatic tier upgrade
 - **Admin whitelist**: Manual unlimited access grants via `/admin` dashboard
@@ -2436,6 +2450,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **User database**: New `users` and `whitelist` tables for access management
 
 **UI overhaul - Stripe-inspired design**
+
 - **New color scheme**: Indigo accent color (`#635bff`) replacing green
 - **Card-based layout**: Clean cards with subtle shadows and borders
 - **Improved typography**: Better hierarchy and spacing throughout
@@ -2443,16 +2458,19 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **Consistent styling**: Buttons, inputs, and badges unified
 
 **Rebrand to walletlink.social**
+
 - **New domain**: Rebranded from previous name to walletlink.social
 - **App icon**: Custom wallet emoji icon as favicon and header logo
 - **Header clickable**: Logo/title returns to homepage from any state
 
 **Performance optimizations**
+
 - **Table virtualization**: ResultsTable uses `@tanstack/react-virtual` for 13K+ rows
 - **Component memoization**: React.memo, useMemo, useCallback throughout
 - **Reduced re-renders**: Optimized polling to avoid unnecessary state updates
 
 **Live Activity redesign**
+
 - **Card-based tiles**: Horizontal scrolling cards showing recent lookups
 - **Pulsing indicator**: Green dot animation for "live" feel
 - **Social proof**: Shows wallet count, Twitter/FC found, and match rate %
@@ -2460,6 +2478,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-14
 
 **User-specific history + public wins showcase**
+
 - **Private "Recent lookups"**: Each user only sees their own lookup history (localStorage ID until profiles)
 - **"Recently processed" showcase**: Public tiles showing successful lookups (>10% social rate) as social proof
   - Updates every 3 minutes via polling
@@ -2468,6 +2487,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **New database columns**: `user_id` on `lookup_history` and `lookup_jobs` tables
 
 **Major performance optimizations + Inngest integration**
+
 - **Parallel API calls**: Web3.bio and Neynar now run concurrently (saves 2-3s per batch)
 - **Parallel Neynar batches**: Process 5 batches simultaneously instead of sequentially (5x faster)
 - **Increased ENS batch size**: 50 wallets per batch instead of 20 (2.5x faster)
@@ -2479,19 +2499,23 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - **Estimated speedup**: 13k wallets now ~2-3 minutes (was ~17 minutes)
 
 **Persist job ID across page refresh**
+
 - Saves active job ID to localStorage so progress survives page refresh
 - Automatically restores in-progress job state on page load
 - Fixes issue where refreshing the page would lose connection to running job
 
 **Add estimated processing time**
+
 - Shows estimated time when file is uploaded (based on wallet count)
 - Shows time remaining during processing (based on actual rate)
 
 **Smooth progress bar animation**
+
 - Progress counter animates smoothly instead of jumping in chunks
 - Creates responsive feel during batch processing
 
 **Add background job queue for large wallet lookups**
+
 - New job queue system handles batches of any size without timeout
 - Vercel Cron worker processes jobs in chunks (2000 wallets per invocation)
 - Jobs persist in database and resume automatically if interrupted
@@ -2501,12 +2525,14 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - New API endpoints: `POST /api/jobs`, `GET /api/jobs/[id]`, `POST /api/jobs/worker`
 
 **Add browser notification on lookup complete**
+
 - Opt-in checkbox to receive browser notification when long lookups finish
 - Uses native Web Notifications API (no dependencies)
 - Shows count of Twitter/Farcaster accounts found
 - Click notification to focus the app tab
 
 **Add Excel (.xlsx) file upload support**
+
 - New file format support: upload .xlsx files in addition to CSV
 - Unified file parser abstraction (`lib/file-parser.ts`) for extensibility
 - Uses `read-excel-file` library (~50KB) for efficient Excel parsing
@@ -2517,6 +2543,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-14
 
 **Add permanent social graph database** (`868e2bd`)
+
 - New `social_graph` table stores all wallets with discovered social accounts permanently
 - Merge & update strategy: new data fills gaps, follower counts update, existing data preserved
 - Enrichment: backfills results from social graph after API calls complete
@@ -2524,6 +2551,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - Tracks firstSeenAt, lastUpdatedAt, and lookupCount per wallet
 
 **Add dark mode with system preference toggle** (`9c414c0`)
+
 - Dark mode support with automatic system preference detection
 - Toggle cycles through System/Light/Dark modes
 - Preference saved to localStorage
@@ -2531,6 +2559,7 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 ### 2025-01-13
 
 **Add holdings, priority score, and enhanced export features** (`c1c77e2`)
+
 - Holdings/Value column: auto-detects value columns from CSV (Peak index DTF value, balance, holdings, etc.), displays with $X,XXX.XX formatting
 - Priority Score column: calculates `holdings × log₁₀(fcFollowers + 1)` with 5-bar visual indicator
 - Top Influencers filter: quick filter button for accounts with 1K+ Farcaster followers
@@ -2539,31 +2568,37 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - Enhanced CSV export: includes all columns (wallet, ens, holdings, twitter, farcaster, fc_followers, priority_score, source), sorted by priority score descending
 
 **Format codebase with Prettier** (`2bd28ff`)
+
 - Added Prettier configuration and formatted all source files
 
 ### Previous Updates
 
 **Add Web3.bio API key support** (`f75c0fd`)
+
 - Support for Web3.bio API key to increase rate limits
 
 **Add warning for ENS with large wallet batches** (`2fc0aa4`)
+
 - Show warning when using ENS lookup with >1000 wallets (may timeout)
 
 **Speed up lookups to avoid Vercel timeout** (`b7e6899`)
+
 - Optimized batch processing to complete within Vercel's function timeout limits
 
 **Add ENS text record lookups for onchain Twitter handles** (`b38f945`)
+
 - Query ENS text records directly onchain for the most accurate Twitter handle data
 - Optional toggle (slower but more reliable than API sources)
 
 **Add Neon database integration for caching and history** (`96f3780`)
+
 - 24-hour result caching to speed up repeated lookups
 - Lookup history feature to save and reload previous searches
 
 **Initial commit: Wallet Social Lookup app** (`0ecff9d`)
+
 - Core wallet-to-social lookup functionality
 - Web3.bio and Neynar API integration
 - CSV upload and export
 
 ---
-
