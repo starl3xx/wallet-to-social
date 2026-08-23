@@ -81,13 +81,13 @@ Upload the CSV to a wallet identity resolution tool. You get back results:
 
 **Step 4: Outreach.**
 
-Now you have 463 real humans with social profiles (506 minus 43 agents) that you can contact directly. You segment them:
+Now you have 463 real humans with a linked identity (506 minus 43 agents). Not all of them are contactable: some hold only an ENS or Lens identity, and some X handles are dead, so the export's reachability labels decide who makes the outreach list. You segment the reachable ones:
 
 | Segment                | Count | Message                                                     |
 | ---------------------- | ----- | ----------------------------------------------------------- |
-| Whales (>100K tokens)  | 28    | Personal DM from a core team member about upcoming proposal |
-| Mid-holders (10K-100K) | 187   | Farcaster cast tagging them in a governance summary thread  |
-| Smaller holders        | 248   | Batch outreach with a link to a governance guide            |
+| Whales (>100K tokens)  | 21    | Personal DM from a core team member about upcoming proposal |
+| Mid-holders (10K-100K) | 118   | Farcaster cast tagging them in a governance summary thread  |
+| Smaller holders        | 161   | Batch outreach with a link to a governance guide            |
 
 You just turned a Dune dashboard into a targeted outreach campaign.
 

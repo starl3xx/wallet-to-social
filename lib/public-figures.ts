@@ -1,3 +1,5 @@
+import { SUPPORTED_CHAINS } from '@/lib/chains';
+
 /**
  * The figures we publish, in one place.
  *
@@ -85,8 +87,29 @@ export const X_HANDLES_RESOLVED = '437,823';
  */
 export const X_HANDLES_HELD = '446,329';
 
-/** Supported EVM chains. Derived from `SUPPORTED_CHAINS`, not counted by hand. */
-export const CHAIN_COUNT_WORD = 'seven';
+/**
+ * Supported EVM chains, genuinely derived. The comment here used to say
+ * "derived, not counted by hand" over a hand-typed 'seven', which is how
+ * adding a chain would have updated every derived list while this word
+ * stayed wrong beside them.
+ */
+const COUNT_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+];
+export const CHAIN_COUNT_WORD =
+  COUNT_WORDS[SUPPORTED_CHAINS.length] ?? String(SUPPORTED_CHAINS.length);
 
 /**
  * Known agent wallets in the detector's list. A floor: the count only grows.

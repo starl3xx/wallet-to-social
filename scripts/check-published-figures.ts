@@ -393,10 +393,14 @@ const CLAIMS: Claim[] = [
       'lib/public-figures.ts',
       'content/published/filter-agents-before-airdrop.md',
       'content/published/ai-agents-why-it-matters.md',
+      'content/published/walletlink-vs-blaze.md',
+      'content/published/walletlink-vs-addressable.md',
     ],
-    // Matches the constant declaration and the blog form "13,622+ ... agent".
+    // Matches the constant declaration, the prose form "13,622+ ... agent",
+    // and the comparison-table form where "agent" precedes the number
+    // ("AI agent detection | Yes (13,622+ flagged)").
     pattern:
-      /KNOWN_AGENTS = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)\+[\s\S]{0,25}?agent/,
+      /KNOWN_AGENTS = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)\+[\s\S]{0,25}?agent|agent[\s\S]{0,40}?([0-9]{1,3}(?:,[0-9]{3})+)\+/i,
     actual: () => one(sql`SELECT count(*)::int FROM known_agents`),
     // Written to the digit with a trailing +: a floor that must never
     // overstate, and must not sit far behind either.
