@@ -275,10 +275,12 @@ export default function Home() {
   // else: not saved to history, not saved server-side, not yet exported. The
   // browser ignores the prompt text, so none is written.
   useEffect(() => {
+    // Keyed on whether a save actually happened (currentLookupId), never on
+    // the checkbox: a failed history write leaves the id null with the box
+    // checked, and reverse lookups never touch the box at all.
     if (
       state !== 'complete' ||
       results.length === 0 ||
-      saveToHistory ||
       currentLookupId !== null ||
       exportedThisRun
     ) {
@@ -291,7 +293,7 @@ export default function Home() {
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [state, results.length, saveToHistory, currentLookupId, exportedThisRun]);
+  }, [state, results.length, currentLookupId, exportedThisRun]);
 
   const handleExported = useCallback(() => setExportedThisRun(true), []);
 
