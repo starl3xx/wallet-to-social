@@ -61,8 +61,13 @@ async function main() {
     FROM credit_lots cl
     JOIN lifecycle_emails le
       ON le.user_id = cl.user_id AND le.email_key = ${EMAIL_KEY}
-    WHERE (cl.stripe_payment_id IS NULL
-           OR cl.stripe_payment_id NOT LIKE 'grant-%')
+    -- A purchase is a lot somebody paid for: a Stripe id that is not a
+    -- grant marker, and a positive amount, the same predicate the revenue
+    -- dashboard uses. A NULL payment id is a hand-issued support grant,
+    -- which must not inflate this row.
+    WHERE cl.stripe_payment_id IS NOT NULL
+      AND cl.stripe_payment_id NOT LIKE 'grant-%'
+      AND cl.amount_cents > 0
       AND cl.created_at > le.sent_at`;
 
   const pct = (n: number, d: number) =>
