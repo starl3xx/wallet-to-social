@@ -1,6 +1,6 @@
 # Product Marketing Context
 
-**Document version:** v2
+**Document version:** v3
 **Last updated:** 2026-08-22
 
 Every figure here is verified: coverage numbers come from `lib/public-figures.ts` (checked by `scripts/check-published-figures.ts`), prices from `lib/packs.ts`. Do not quote a number that is not in those files.
@@ -54,7 +54,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 - Complete Farcaster coverage: every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information.
 - Attested-first X handles: over 99.9% published by the account owner (Farcaster verification or onchain ENS record), labelled always, never inferred from bios or timing.
 - Reachability on every match: of 437,823 X handles resolved, 69.6% are live, 20.6% suspended, 9.7% names nobody holds. Each match says which.
-- Honest two-number coverage: any-identity vs X-or-Farcaster, stated per chain (Base 46.2%, Ethereum 16.6%, industry average ~2.5%).
+- Honest two-number coverage: any-identity vs X-or-Farcaster, stated per chain (Base 46.2%, Ethereum 16.6%; typical tools publish low single digits).
 - Reverse lookup: handle to wallets, the question most wallet tooling cannot answer.
 **How we do it differently:** coverage would be higher if we guessed. We do not guess.
 **Why that's better:** contacting the wrong person is worse than contacting fewer people.
@@ -64,7 +64,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 
 | Objection | Response |
 |-----------|----------|
-| "Only 16% on Ethereum?" | That is the honest number; the industry average is ~2.5%, and tools quoting more are counting identities you cannot message. Base runs 46.2%. |
+| "Only 16% on Ethereum?" | That is the honest number; typical tools publish low single digits, and tools quoting more are counting identities you cannot message. Base runs 46.2%. |
 | "Is this data fresh?" | Farcaster refreshes daily; every match carries a reachability state checked against the live account. |
 | "Is holder outreach spammy?" | You are announcing to people who already bought your token, on channels they publish publicly. The evidence class on each match shows the owner published the link. |
 
@@ -98,7 +98,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 
 ## Proof Points
 
-**Metrics:** 4.8M wallet index; complete Farcaster coverage (4.7M wallets), refreshed daily; 437,823 X handles resolved; up to 46.2% match rate on Base vs ~2.5% industry average (9x).
+**Metrics:** 4.8M wallet index; complete Farcaster coverage (4.7M wallets), refreshed daily; 437,823 X handles resolved; up to 46.2% match rate on Base, many times what typical tools publish. Never cite a numeric industry average: the old ~2.5%/9x figure had no source and was purged 2026-08-22.
 **Customers:** (gap: none citable yet)
 **Testimonials:** (gap: none yet; the first paying customers should be asked)
 **Value themes:**
@@ -117,5 +117,6 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 ## Changelog
 
 *Newest first. One line per revision: what changed and why.*
+- v3 (2026-08-22) — Purged the uncited ~2.5% industry-average / 9x claim from coverage, objections and metrics; comparisons now use measured figures or stay qualitative.
 - v2 (2026-08-22) — Recorded Jake's refund decision: no guarantees, no refunds; the free allowance plus free misses is the risk reversal.
 - v1 (2026-08-22) — Initial context, auto-drafted from README, lib/public-figures.ts, lib/packs.ts, and the /vs pages. Gaps flagged: verbatim customer language, testimonials.

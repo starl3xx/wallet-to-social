@@ -203,4 +203,4 @@ The collections that thrive long-term are the ones that treat their holder list 
 
 ---
 
-Start with your holder list. Upload it at [walletlink.social](https://walletlink.social) and see who your community really is. Free for your first 100 matches every 30 days.
+Start with your holder list. Upload it at [walletlink.social](https://walletlink.social) and see who your community really is. Free for your first 100 matches in every rolling 30-day window.

@@ -20,6 +20,12 @@ import {
   WALLETS_WITH_X,
   CHAIN_COUNT_WORD,
 } from '@/lib/public-figures';
+import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
+
+// The chain list, derived so a new chain cannot leave this copy behind.
+const CHAIN_LIST = SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c])
+  .join(', ')
+  .replace(/, ([^,]+)$/, ' and $1');
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
 // is no Google Fonts request for the body face any more. Geist Mono stays:
@@ -33,7 +39,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
   title:
     'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-  description: `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
+  description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -70,7 +76,7 @@ export const metadata: Metadata = {
   openGraph: {
     title:
       'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-    description: `Turn wallet addresses into Twitter and Farcaster profiles across seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
+    description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
     type: 'website',
     siteName: 'walletlink.social',
   },
@@ -78,7 +84,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title:
       'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-    description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across seven EVM chains.`,
+    description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across ${CHAIN_COUNT_WORD} EVM chains.`,
     creator: '@starl3xx',
   },
   alternates: {
@@ -112,7 +118,7 @@ const jsonLd = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: '100 matches every 30 days',
+      description: `${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window`,
     },
     ...PACK_IDS.map((id) => ({
       '@type': 'Offer',
@@ -153,7 +159,7 @@ const faqSchema = {
       name: 'What is the match rate for wallet-to-social lookups?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'There is no single match rate, and the chain matters more than anything else. Measured across 26 collections and 72,318 holders on 2026-08-17, against our own index with no external calls: Base 46.2%, Ethereum 16.6%, Robinhood Chain 15.6%, and 30.8% across all three. Base is roughly three times Ethereum because Base is where Farcaster lives. The industry average sits near 2.5%, so even the lowest chain here is six times that. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches are resolved through several independent routes and every match is labelled with the evidence behind it. Over 99.9% come from owner-attested routes: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. The remainder is correlated from identity indexes and labelled as such. Nothing is inferred from display names, bios or timing.',
+        text: 'There is no single match rate, and the chain matters more than anything else. Measured across 26 collections and 72,318 holders on 2026-08-17, against our own index with no external calls: Base 46.2%, Ethereum 16.6%, Robinhood Chain 15.6%, and 30.8% across all three. Base is roughly three times Ethereum because Base is where Farcaster lives. Tools that match wallets to social accounts typically publish rates in the low single digits, so even the lowest chain here clears that by a wide margin. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches are resolved through several independent routes and every match is labelled with the evidence behind it. Over 99.9% come from owner-attested routes: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. The remainder is correlated from identity indexes and labelled as such. Nothing is inferred from display names, bios or timing.',
       },
     },
     {
@@ -193,7 +199,7 @@ const faqSchema = {
       name: 'Which blockchains does walletlink.social support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'walletlink.social supports seven EVM chains: Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain. You can upload a wallet list from any of them, or import every holder of an NFT collection or ERC-20 token directly from its contract address. Both import types work on every supported network.',
+        text: `walletlink.social supports ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. You can upload a wallet list from any of them, or import every holder of an NFT collection or ERC-20 token directly from its contract address. Both import types work on every supported network.`,
       },
     },
     {

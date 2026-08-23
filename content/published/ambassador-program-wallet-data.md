@@ -83,10 +83,7 @@ with open('enriched_holders.csv') as f:
     scored = []
     for row in reader:
         if row['twitter_handle'] or row['farcaster_handle']:
-            followers = max(
-                int(row.get('twitter_followers', 0)),
-                int(row.get('farcaster_followers', 0))
-            )
+            followers = int(row.get('farcaster_followers', 0))
             score = priority_score(float(row['holdings']), followers)
             scored.append({**row, 'priority_score': score})
 

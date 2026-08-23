@@ -58,7 +58,7 @@ When you run these addresses through wallet identity resolution, expect results 
 
 Match rates skew higher for top holders because larger positions correlate with more established onchain identities. Whales tend to have ENS names, Farcaster accounts, and active social profiles.
 
-From 1,000 early holders, expect to identify 200-250 social profiles. That’s 200-250 people you can actually reach, research, and engage.
+From 1,000 early holders, expect to identify 200-250 profiles with some linked identity. The subset you can actually message on X or Farcaster runs closer to 130, and every result is labelled with its reachability.
 
 ## Building the activation playbook
 

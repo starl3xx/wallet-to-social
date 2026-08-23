@@ -12,7 +12,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
@@ -98,7 +98,7 @@ export default function HolderComparison() {
                 `text-foreground/80` was an opacity wash standing in for the
                 token that already means "secondary text". */}
             <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-              Holder messages wallets. We resolve wallets to the accounts their
+              Holder messaged wallets. We resolve wallets to the accounts their
               owners actually read, so you can reach them anywhere.
             </p>
 
@@ -152,7 +152,7 @@ export default function HolderComparison() {
           </header>
 
           <div className="mb-16">
-            <ReachabilityClaim competitor="Holder" />
+            <ReachabilityClaim competitor="Holder" retired />
           </div>
 
           {/* What happened */}
@@ -299,7 +299,7 @@ export default function HolderComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (every pack, on all seven supported chains)
+                          (every pack, on all {CHAIN_COUNT_WORD} supported chains)
                         </span>
                       </span>
                     </td>
@@ -432,7 +432,7 @@ export default function HolderComparison() {
               <p className="text-sm">
                 <span className="font-medium">No subscription to replace:</span>{' '}
                 every pack is a one-time payment, and every one includes API
-                access. Pay once, keep your holder data workflow forever.
+                access. Pay once; what you export is yours to keep.
               </p>
             </div>
           </section>
@@ -448,7 +448,7 @@ export default function HolderComparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no credit card required.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

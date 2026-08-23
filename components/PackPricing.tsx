@@ -68,7 +68,7 @@ export function PackPricing() {
             $0
           </p>
           <p className="text-muted-foreground">
-            {FREE_MATCHES_PER_WINDOW} matches every {FREE_WINDOW_DAYS} days
+            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}-day window
           </p>
         </div>
         {PACK_IDS.map((id) => (

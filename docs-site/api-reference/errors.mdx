@@ -25,6 +25,7 @@ Branch on `code`. The `error` string is written for humans and may be reworded.
 | `INVALID_HANDLE`      | 400    | X handle is not 1 to 15 characters of letters, numbers or underscores.                              |
 | `INVALID_USERNAME`    | 400    | Farcaster username is not 1 to 20 characters of lowercase letters, numbers or underscores.          |
 | `INVALID_PARAMETER`   | 400    | A query parameter is out of range, such as an unrecognized `period`.                                |
+| `INVALID_CURSOR`      | 400    | A `cursor` value the API did not produce, on the reverse-lookup endpoints.                          |
 | `INVALID_REQUEST`     | 400    | Body is missing, not valid JSON, or `wallets` is absent or empty.                                   |
 | `INVALID_REQUEST`     | 413    | Request body exceeded 1 MB.                                                                         |
 | `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit: 50, or 200 on a legacy Unlimited account.                       |

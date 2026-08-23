@@ -37,13 +37,13 @@ This distinction mattered more than any individual feature comparison.
 | Airdrop targeting tools           | Export-based            | Built-in                 |
 | Match rate (reported)             | 22%                     | ~5-8% (varied)           |
 | Pricing model                     | One-time payment        | Monthly subscription     |
-| Free tier                         | 100 matches per 30 days | Limited trial            |
+| Free tier                         | 100 matches per rolling 30 days | Limited trial            |
 
 ## Match rate: the core metric
 
 For wallet-to-social resolution specifically, match rate is the number that matters. A tool that resolves 22% of your wallets gives you 4x more actionable data than one resolving 5%.
 
-walletlink.social reports a 22% match rate, roughly 9x the industry average of 2.5%. Over 99.9% of it comes from deterministic, user-attested sources: Farcaster verified addresses and onchain ENS records, held in a persistent social graph. The remainder is correlated from identity indexes and carries that as its evidence class, so every match tells you how it was established. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
+walletlink.social reports a 22% match rate, many times the low-single-digit rates typical tools publish. Over 99.9% of it comes from deterministic, user-attested sources: Farcaster verified addresses and onchain ENS records, held in a persistent social graph. The remainder is correlated from identity indexes and carries that as its evidence class, so every match tells you how it was established. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
 
 Blaze’s match rate varied depending on the community type and data sources used. Published benchmarks were hard to find, but users reported rates in the 5-8% range for general wallet lists. Blaze compensated by offering more tools to act on the data it did resolve.
 
@@ -57,7 +57,7 @@ The pricing models reflected the different product philosophies.
 
 | Pack     | Matches         | Price         |
 | -------- | --------------- | ------------- |
-| Free     | 100 per 30 days | $0            |
+| Free     | 100 per rolling 30 days | $0            |
 | Trial    | 250             | $29 one-time  |
 | Campaign | 1,500           | $99 one-time  |
 | Scale    | 6,000           | $299 one-time |
@@ -71,7 +71,7 @@ The economic comparison depended on the use case:
 
 - **One-time or occasional lookups**: walletlink.social was dramatically cheaper. A single one-time payment vs. hundreds per month.
 - **Ongoing marketing operations**: Blaze’s subscription made more sense if you were using the CRM, campaigns, and analytics daily.
-- **Budget-constrained teams**: walletlink.social’s free tier (100 matches every 30 days) lets you validate the approach before spending anything.
+- **Budget-constrained teams**: walletlink.social’s free tier (100 matches in every rolling 30-day window) lets you validate the approach before spending anything.
 
 ## When walletlink.social was (and is) the right choice
 
@@ -134,4 +134,4 @@ There was no universally correct answer: it depended on whether you needed a sca
 
 **Migrating from Blaze, or just want to test the match rate?**
 
-[walletlink.social](https://walletlink.social) is free for your first 100 matches every 30 days. Upload a sample of your holder list and see the 22% match rate firsthand, no subscription required. If you’re coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.
+[walletlink.social](https://walletlink.social) is free for your first 100 matches in every rolling 30-day window. Upload a sample of your holder list and see the 22% match rate firsthand, no subscription required. If you’re coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.

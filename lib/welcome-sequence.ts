@@ -62,7 +62,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       paragraphs: [
         'Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.',
         `Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
-        `You have ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.`,
+        `You have ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.`,
       ],
       button: { label: 'Run a lookup', url: SITE },
       footnote: 'If anything is unclear, just reply to this email!',
@@ -75,7 +75,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       subject: 'What your chain says about your match rate',
       paragraphs: [
         'Most wallet tools quote one match rate. We quote *yours*.',
-        'The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. The industry average for wallet-to-social is about 2.5%. The full coverage breakdown, ours and the average, is in our docs.',
+        'The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. Typical tools publish rates in the low single digits. The full coverage breakdown is in our docs.',
         'So before you plan a campaign, check the chain your holders live on. A Base token list resolves nearly half its wallets to an X or Farcaster account. An Ethereum list resolves fewer, and every one it resolves is labelled with the evidence behind it.',
       ],
       button: { label: 'Check your list', url: SITE },

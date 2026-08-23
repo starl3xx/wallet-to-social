@@ -117,4 +117,4 @@ Transaction-based detection is not going away. But it is becoming the secondary 
 
 ---
 
-See which of your wallets resolve to real identities. Try [walletlink.social](https://walletlink.social) free for your first 100 matches every 30 days.
+See which of your wallets resolve to real identities. Try [walletlink.social](https://walletlink.social) free for your first 100 matches in every rolling 30-day window.

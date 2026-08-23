@@ -1,6 +1,6 @@
 ---
 title: 'Why your DAO has a communication problem, not a participation problem'
-meta_description: "Low DAO governance participation is usually a visibility issue, not apathy. Holders can't vote on proposals they never see. Direct outreach changes the math."
+meta_description: "Low DAO governance participation is usually a visibility issue, not apathy. Holders can’t vote on proposals they never see. Direct outreach changes the math."
 published: true
 publish_date: '2026-04-13'
 ---
@@ -81,7 +81,7 @@ Direct outreach for governance requires two capabilities:
 1. **Knowing who your holders are** (wallet identity resolution)
 2. **Reaching them where they are** (social platform outreach)
 
-The first step is resolving your governance token holder addresses to social profiles. At a 22% match rate, a DAO with 5,000 governance token holders can identify approximately 1,100 holders with Twitter or Farcaster profiles.
+The first step is resolving your governance token holder addresses to social profiles. At a 22% identity match rate, a DAO with 5,000 governance token holders can identify approximately 1,100 holders with some linked identity; roughly 650 of those resolve to an X or Farcaster account you can actually message, and the export labels which.
 
 The second step is establishing a governance notification practice. This doesn’t mean spamming holders with every minor proposal. It means thoughtful, targeted outreach for votes that matter.
 

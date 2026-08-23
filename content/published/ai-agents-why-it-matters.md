@@ -87,7 +87,7 @@ Here’s how to clean your holder data before a campaign:
 
 1. **Export your holder list** from the chain (Etherscan, Dune, direct RPC).
 2. **Run identity resolution.** Wallets that resolve to social profiles are human. Set these aside as your verified group.
-3. **Check remaining wallets against known agent lists.** Our published dataset covers 13,622+ agent wallets and grows monthly.
+3. **Check remaining wallets against known agent lists.** Our index covers 13,622+ agent wallets, grows monthly, and labels them directly in lookup results.
 4. **Apply behavioral filters** to the remaining unresolved, non-listed wallets: transaction regularity, gas patterns, contract interaction analysis.
 5. **Categorize the results:**
 

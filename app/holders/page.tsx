@@ -6,6 +6,7 @@ import {
   chainLabel,
   type ListedHolderCollection,
 } from '@/lib/holder-pages';
+import { INDEXED_WALLETS } from '@/lib/public-figures';
 
 /**
  * The hub over the per-collection reports: every collection above the
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Holder reachability reports',
     description:
-      'How many holders of each collection resolve to reachable people, measured against a 4.8M wallet identity index.',
+      `How many holders of each collection resolve to reachable people, measured against a ${INDEXED_WALLETS} wallet identity index.`,
     url: 'https://walletlink.social/holders',
     siteName: 'walletlink.social',
   },

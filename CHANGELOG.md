@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (marketing and docs audit: 6-auditor sweep, 49 files corrected)
+
+- **The uncited "2.5% industry average" and its "9x" derivative are purged**
+  from every public surface: docs, homepage JSON-LD, llms.txt, the welcome
+  sequence, and eleven blog posts (one retitled). Comparisons now use our
+  measured figures or "low single digits, published by typical tools".
+  CLAUDE.md and the positioning doc (v3) ban the number so it cannot return.
+- **Provider names removed from public copy**: three blog posts named data
+  vendors; they now describe evidence classes and mechanisms only.
+- **Resolution vs reach un-conflated across seven posts**: 22% is the
+  any-identity rate; the messageable X-or-Farcaster share (~13%) is now
+  stated wherever "reachable people" were counted from the larger number.
+- **Figure integrity**: the owner-attested claim's checker query now counts
+  the four new attested sources (the Sybil import had moved the measured
+  share under the published floor with nothing wrong); its watch list gains
+  the four /vs pages and two comparison posts, and the pattern survives JSX
+  line wraps. A known-agents claim (13,622, live-verified) joins the
+  registry with new `KNOWN_AGENTS` constants. The docs coverage page's
+  stale 95.9% resolution coverage is corrected to 98.1%, and
+  "We resolved every X handle" lost its "every". 54 figures, all passing.
+- **Truth fixes**: "Most bought" (no sales data) is now "Recommended"; the
+  free allowance reads "rolling 30-day window" everywhere instead of
+  "every 30 days"; /vs/holder speaks of Holder in the past tense with the
+  retired treatment and drops a "forever" promise; the Addressable OG
+  description matches the body's pricing claim; cache TTL corrected to 7
+  days in two posts; the priority-score post now describes the formula the
+  product actually computes (Farcaster followers, a paid field); two posts
+  stop claiming a public agent dataset that does not exist; the fabricated
+  "[DAO Name]" case-study attribution is anonymized; blog JSON-LD stops
+  stamping dateModified with render time; an uncited "80% of builders"
+  claim went qualitative in three posts.
+- **Docs-site accuracy**: INVALID_CURSOR joins the error table, the
+  reverse-Farcaster example drops reachability fields the API never
+  returns there, examples use x.com, quickstart marks which flow steps
+  need a pack, and chain lists and counts interpolate their constants.
+
 ### 2026-08-22 (the Snapshot and OpenSea harvests go on weekly crons)
 
 - **Two scheduled workflows**: `snapshot-profile-harvest` (Sunday 06:00

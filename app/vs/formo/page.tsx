@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     'crypto marketing',
   ],
   openGraph: {
-    title: 'walletlink.social vs Formo: Which is Right for You?',
+    title: 'walletlink.social vs Formo: which is right for you?',
     description:
       'A system of record for the users of your own app, or a lookup that takes a wallet list and returns the X and Farcaster accounts behind it.',
     type: 'article',
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social vs Formo Comparison',
+    title: 'walletlink.social vs Formo comparison',
     description:
       'Wallet-to-social lookups priced once, by the match, against a DeFi analytics subscription with wallet profiles inside it.',
   },
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'walletlink.social vs Formo: Which is Right for You?',
+  headline: 'walletlink.social vs Formo: which is right for you?',
   description:
     'Detailed comparison of a dedicated wallet-to-social lookup with Formo, a product-analytics and attribution platform for DeFi apps. Compare the wallet import, the pricing model and what each returns for a list.',
   author: {
@@ -615,7 +615,7 @@ export default function FormoComparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no card, nothing to install.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no card, nothing to install.
             </p>
             <Button asChild>
               <Link href="/">

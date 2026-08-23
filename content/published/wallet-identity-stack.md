@@ -1,6 +1,6 @@
 ---
 title: 'The wallet identity stack: ENS, Farcaster, and beyond'
-meta_description: 'Technical overview of wallet identity data sources: ENS text records, Farcaster verified addresses, Lens profiles, and Web3.bio aggregation layer.'
+meta_description: 'Technical overview of wallet identity data sources: ENS text records, Farcaster verified addresses, Lens profiles, and identity aggregators.'
 published: true
 publish_date: '2026-04-20'
 ---
@@ -74,7 +74,7 @@ Onchain queries are reliable but slow (one RPC call per record per name). For ba
 - Cryptographically verified: the wallet owner signed a message proving ownership
 - Bidirectional: you can go from wallet to Farcaster AND from Farcaster to wallet
 - Fresh data: verifications are recent (Farcaster’s growth is concentrated in 2024-2025)
-- High-quality audience: 80%+ of active crypto builders are on Farcaster
+- High-quality audience: heavily weighted toward active crypto builders
 - Twitter handle often available as a connected account
 - Rich metadata (follower counts, bio, activity)
 
@@ -83,19 +83,13 @@ Onchain queries are reliable but slow (one RPC call per record per name). For ba
 - Limited to Farcaster users (~400,000 DAUs, growing)
 - Biased toward crypto-native and builder audiences
 - Users can unverify addresses (though this is rare)
-- Requires Farcaster Hub access or API (Neynar, Pinata) for querying
+- Requires Farcaster Hub access or a hub API for querying
 
 **Typical match rate contribution:** 8-12% of crypto-active wallet lists. This is the single highest-contributing source for most resolution pipelines.
 
 **Querying Farcaster verifications:**
 
-```bash
-# Using Neynar API
-curl "https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=0x123,0x456" \
-  -H "api_key: YOUR_KEY"
-```
-
-The Neynar API supports batch lookups of up to 350 addresses per request, making it efficient for large-scale resolution.
+Several hub APIs expose an addresses-to-users lookup and support batching hundreds of addresses per request, making them efficient for large-scale resolution.
 
 ### Lens Protocol profiles
 
@@ -125,9 +119,9 @@ The Neynar API supports batch lookups of up to 350 addresses per request, making
 
 **Typical match rate contribution:** 2-4% of wallet lists. Meaningful but secondary to Farcaster and ENS.
 
-### Web3.bio aggregation
+### Identity aggregators
 
-**How it works:** Web3.bio is an aggregation layer that queries multiple identity sources (ENS, Farcaster, Lens, Unstoppable Domains, and others) through a single API. It normalizes results into a consistent format.
+**How it works:** an aggregator queries multiple identity sources (ENS, Farcaster, Lens, Unstoppable Domains, and others) through a single API and normalizes results into a consistent format.
 
 **What it provides:**
 
@@ -152,7 +146,7 @@ The Neynar API supports batch lookups of up to 350 addresses per request, making
 - May lag behind primary sources for very recent verifications
 - Response format may not include all metadata from each source
 
-**Typical match rate contribution:** As an aggregator, Web3.bio’s contribution is the sum of its sources minus overlap. A well-configured pipeline using Web3.bio as the primary aggregator with direct Farcaster/Neynar lookups as a supplement typically yields 18-22% total match rates.
+**Typical match rate contribution:** an aggregator’s contribution is the sum of its sources minus overlap. A well-configured pipeline pairing an aggregator with direct protocol-level Farcaster lookups typically yields 18-22% total match rates.
 
 ### Other sources
 
@@ -214,9 +208,9 @@ For critical use cases (airdrop targeting, governance outreach), consider weight
 
 If you’re building your own resolution system, the recommended architecture is:
 
-1. **First pass: Farcaster batch lookup** via Neynar API (highest match rate, highest quality)
-2. **Second pass: ENS text records** for unresolved wallets (via Alchemy or direct RPC)
-3. **Third pass: Web3.bio** for remaining unresolved wallets (catches Lens, UD, and other sources)
+1. **First pass: protocol-level Farcaster batch lookup** (highest match rate, highest quality)
+2. **Second pass: onchain ENS text records** for unresolved wallets (any RPC works)
+3. **Third pass: an identity aggregator** for remaining unresolved wallets (catches Lens, UD, and other sources)
 4. **Deduplication**: merge results where multiple sources resolve the same wallet
 5. **Confidence scoring**: weight matches by source verification strength
 

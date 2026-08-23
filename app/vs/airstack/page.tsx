@@ -428,7 +428,7 @@ export default function AirstackComparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no credit card required.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

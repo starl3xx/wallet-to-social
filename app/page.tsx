@@ -19,7 +19,7 @@ import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { XMark } from '@/components/ui/brand-marks';
 import { useAuth } from '@/components/AuthProvider';
 import { useUpgradeModal } from '@/components/UpgradeModalProvider';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, KNOWN_AGENTS_SHORT } from '@/lib/public-figures';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 
 // Lazy-load modals: not needed until user interaction. The buy-credits modal
@@ -699,7 +699,7 @@ export default function Home() {
         if (response.status === 429) {
           setRateLimitMessage(
             errorData.error ||
-              `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`
+              `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window.`
           );
           setShowAuthModal(true);
           setState('ready');
@@ -1285,7 +1285,7 @@ export default function Home() {
           if (response.status === 429) {
             setRateLimitMessage(
               errorData.error ||
-                `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches every ${FREE_WINDOW_DAYS} days.`
+                `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window.`
             );
             setShowAuthModal(true);
             setState('ready');
@@ -1450,7 +1450,7 @@ export default function Home() {
             label="wallets indexed"
           />
           <Figure value="100%" label="Farcaster coverage" attested />
-          <Figure value="13K+" label="AI agents flagged" />
+          <Figure value={KNOWN_AGENTS_SHORT} label="AI agents flagged" />
         </dl>
       </div>
 

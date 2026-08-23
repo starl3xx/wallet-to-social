@@ -33,7 +33,7 @@ import {
  */
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: `Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days.`,
+  description: `Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window.`,
   alternates: { canonical: 'https://walletlink.social/pricing' },
   openGraph: {
     title: 'walletlink.social pricing',
@@ -68,7 +68,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: 'What is free?',
-    a: `${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days, on every account. Small lists never need a pack.`,
+    a: `${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window, on every account. Small lists never need a pack.`,
   },
   {
     q: 'How do I buy?',

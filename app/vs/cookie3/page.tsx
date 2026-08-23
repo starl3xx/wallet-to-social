@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  KNOWN_AGENTS,
+  KNOWN_AGENTS_SHORT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 /**
@@ -50,7 +54,7 @@ export const metadata: Metadata = {
     'crypto marketing',
   ],
   openGraph: {
-    title: 'walletlink.social vs Cookie3: Which is Right for You?',
+    title: 'walletlink.social vs Cookie3: which is right for you?',
     description:
       'A marketing analytics suite that matches your first 10,000 accounts, or a wallet-to-social lookup that matches the whole list.',
     type: 'article',
@@ -59,7 +63,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social vs Cookie3 Comparison',
+    title: 'walletlink.social vs Cookie3 comparison',
     description:
       'Wallet-to-social lookups priced once, by the match, against a subscription analytics suite.',
   },
@@ -71,7 +75,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'walletlink.social vs Cookie3: Which is Right for You?',
+  headline: 'walletlink.social vs Cookie3: which is right for you?',
   description:
     'Detailed comparison of a dedicated wallet-to-social lookup with Cookie3, a web3 marketing analytics suite. Compare the matching cap, pricing model and export limits.',
   author: {
@@ -374,7 +378,7 @@ export default function Cookie3Comparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (13K+ agents)
+                          ({KNOWN_AGENTS_SHORT} agents)
                         </span>
                       </span>
                     </td>
@@ -488,7 +492,7 @@ export default function Cookie3Comparison() {
                 itself
               </li>
               <li>
-                Agent detection across 13,000+ known agents (Virtuals, ERC-8004,
+                Agent detection across {KNOWN_AGENTS}+ known agents (Virtuals, ERC-8004,
                 ElizaOS, Olas)
               </li>
               <li>A CSV of the whole thing, on every pack</li>
@@ -712,7 +716,7 @@ export default function Cookie3Comparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no card, no call.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no card, no call.
             </p>
             <Button asChild>
               <Link href="/">

@@ -12,7 +12,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
@@ -27,16 +27,16 @@ export const metadata: Metadata = {
     'crypto marketing',
   ],
   openGraph: {
-    title: 'walletlink.social vs Addressable: Which is Right for You?',
+    title: 'walletlink.social vs Addressable: which is right for you?',
     description:
-      'Compare wallet-to-social lookup tools. Credit packs from $29, no subscription, against an $18,000/yr enterprise floor. See which is right for your crypto marketing needs.',
+      'Compare wallet-to-social lookup tools. Credit packs from $29, no subscription, against enterprise pricing that starts near $1,000/month. See which is right for your crypto marketing needs.',
     type: 'article',
     url: 'https://walletlink.social/vs/addressable',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'walletlink.social vs Addressable Comparison',
+    title: 'walletlink.social vs Addressable comparison',
     description:
       'One-time payment vs enterprise subscription for wallet-to-social lookups.',
   },
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: 'walletlink.social vs Addressable: Which is Right for You?',
+  headline: 'walletlink.social vs Addressable: which is right for you?',
   description:
     'Detailed comparison of wallet-to-social lookup tools for crypto marketing teams. Compare pricing, features, and use cases.',
   author: {
@@ -370,7 +370,7 @@ export default function AddressableComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (every pack, on all seven supported chains)
+                          (every pack, on all {CHAIN_COUNT_WORD} supported chains)
                         </span>
                       </span>
                     </td>
@@ -443,8 +443,8 @@ export default function AddressableComparison() {
               <li>Cross-chain wallet analytics</li>
             </ul>
             <p className="text-muted-foreground">
-              If you&apos;re running ongoing paid campaigns and need to measure
-              ROI across the full marketing funnel, Addressable&apos;s
+              If you’re running ongoing paid campaigns and need to measure
+              ROI across the full marketing funnel, Addressable’s
               enterprise approach makes sense.
             </p>
           </section>
@@ -510,7 +510,7 @@ export default function AddressableComparison() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
-                    <span>You don&apos;t want another subscription</span>
+                    <span>You don’t want another subscription</span>
                   </li>
                 </ul>
               </div>
@@ -529,11 +529,11 @@ export default function AddressableComparison() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-                    <span>You&apos;re running ongoing paid campaigns</span>
+                    <span>You’re running ongoing paid campaigns</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-                    <span>Budget isn&apos;t a primary constraint</span>
+                    <span>Budget isn’t a primary constraint</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
@@ -600,7 +600,7 @@ export default function AddressableComparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no credit card required.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

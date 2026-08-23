@@ -144,4 +144,4 @@ Start with the workflow that addresses your most urgent need. For most projects,
 
 **Get started with your holder list.**
 
-[walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches every 30 days, enough to test any of these workflows on your top holders.
+[walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches in every rolling 30-day window, enough to test any of these workflows on your top holders.
