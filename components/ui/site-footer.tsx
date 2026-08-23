@@ -2,7 +2,6 @@ import Link from 'next/link';
 import {
   ArrowSquareOut,
   GithubLogo,
-  ShootingStar,
 } from '@phosphor-icons/react/dist/ssr';
 import { XMark, FarcasterMark, BrandLockup } from './brand-marks';
 import { Eyebrow } from './eyebrow';
@@ -203,12 +202,13 @@ export function SiteFooter() {
               llms.txt
             </a>
           </span>
-          {/* The credit's glyph is Phosphor, at the UI size, like every other
-              icon. It began as the 🌠 emoji (the brand: starl3xx is the star),
-              a colour bitmap drawn differently on every OS; an earlier cleanup
-              swapped it for a heart and lost the pun. ShootingStar keeps both
-              the vector discipline and the joke. The words go to screen
-              readers only, so the sentence still reads as one. */}
+          {/* The 🌠 emoji, deliberately: the brand (starl3xx is the star),
+              and the one emoji on the site, by Jake's explicit call
+              (2026-08-22). An earlier cleanup swapped it for a Phosphor
+              heart on vector-discipline grounds and lost the pun; a later
+              fix tried Phosphor's ShootingStar and was overruled. Platform
+              emoji fonts announce it as "shooting star", so the sentence
+              reads whole without any sr-only text. */}
           <a
             href="https://starl3xx.fun"
             target="_blank"
@@ -216,8 +216,7 @@ export function SiteFooter() {
             className="transition-control inline-flex items-center gap-1 hover:text-foreground"
           >
             made with
-            <ShootingStar className="h-4 w-4" aria-hidden />
-            <span className="sr-only">a shooting star</span>
+            <span>🌠</span>
             by <span className="font-medium text-foreground">@starl3xx</span>
           </a>
         </div>
