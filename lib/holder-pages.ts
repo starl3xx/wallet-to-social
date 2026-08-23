@@ -31,6 +31,51 @@ export interface HolderCollection {
   holdersImported: number;
 }
 
+/** A collection above the listing floor, carrying the number that earned it. */
+export interface ListedHolderCollection extends HolderCollection {
+  reachableAny: number;
+}
+
+/**
+ * The listing floor: the hub, the sitemap and prerendering carry a report
+ * only once it shows at least this many reachable people, at at least this
+ * share of the measured holders. A freshly seeded collection starts near
+ * zero because its resolution job has not run (the API budget can pause for
+ * weeks), and a zero that means "not yet checked" must never be published
+ * as a finding. The floor keys on the reachable count rather than checked
+ * coverage because reachable only ever undercounts: everyone shown was
+ * really found, so a collection that clears the floor is safe to list even
+ * mid-measurement, and one that later clears it graduates on the next
+ * revalidation with no manual step.
+ */
+export const LISTING_MIN_REACHABLE = 20;
+export const LISTING_MIN_RATE = 0.05;
+
+/**
+ * Below this checked coverage, a below-floor page is a measurement still
+ * running, not a measured low rate, and says so. A fully checked collection
+ * that still misses the floor (a bot-heavy holder base) gets no such note:
+ * its numbers are the finding.
+ */
+export const MEASUREMENT_IN_PROGRESS_BELOW = 0.5;
+
+export function meetsListingFloor(
+  reachable: number,
+  holderCount: number
+): boolean {
+  return (
+    reachable >= LISTING_MIN_REACHABLE &&
+    reachable >= holderCount * LISTING_MIN_RATE
+  );
+}
+
+export function measurementInProgress(stats: HolderStats): boolean {
+  return (
+    !meetsListingFloor(stats.reachableAny, stats.holderCount) &&
+    stats.checked < stats.holderCount * MEASUREMENT_IN_PROGRESS_BELOW
+  );
+}
+
 export interface HolderStats {
   holderCount: number;
   checked: number;
@@ -52,17 +97,53 @@ export interface HolderOverlap {
   sharedHolders: number;
 }
 
-/** Every collection that seeded successfully; the page list and the sitemap. */
-export async function listHolderCollections(): Promise<HolderCollection[]> {
+/**
+ * Every collection above the listing floor; the page list, the sitemap and
+ * generateStaticParams. Below-floor pages stay live at their direct URLs
+ * through getHolderCollection, they just are not pointed at. The reachable
+ * count is the same expression getHolderStats uses over the same
+ * current-batch window, so the hub label and the page figure agree.
+ */
+export async function listHolderCollections(): Promise<
+  ListedHolderCollection[]
+> {
   const db = getDb();
   if (!db) return [];
   const result = (await db.execute(sql`
-    SELECT address, chain, name, symbol, contract_type AS "contractType",
-           total_holders AS "totalHolders", holders_imported AS "holdersImported"
-    FROM seeded_contracts
-    WHERE holders_imported > 0 AND name IS NOT NULL
-    ORDER BY holders_imported DESC, name
-  `)) as unknown as { rows: HolderCollection[] };
+    WITH latest AS (
+      SELECT contract, chain, max(last_seen_at) AS at
+      FROM wallet_holdings GROUP BY contract, chain
+    ),
+    holders AS (
+      SELECT wh.contract, wh.chain, wh.wallet
+      FROM wallet_holdings wh
+      JOIN latest l ON l.contract = wh.contract AND l.chain = wh.chain
+      WHERE wh.last_seen_at >= l.at - interval '1 hour'
+    ),
+    reach AS (
+      SELECT h.contract, h.chain,
+             count(*)::int AS holder_count,
+             count(*) FILTER (WHERE x.status = 'live'
+                                 OR g.farcaster IS NOT NULL)::int AS reachable
+      FROM holders h
+      LEFT JOIN social_graph g ON g.wallet = h.wallet
+      LEFT JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
+      GROUP BY h.contract, h.chain
+    )
+    SELECT sc.address, sc.chain, sc.name, sc.symbol,
+           sc.contract_type AS "contractType",
+           sc.total_holders AS "totalHolders",
+           sc.holders_imported AS "holdersImported",
+           r.reachable AS "reachableAny"
+    FROM seeded_contracts sc
+    JOIN reach r ON r.contract = sc.address AND r.chain = sc.chain
+    WHERE sc.holders_imported > 0 AND sc.name IS NOT NULL
+      AND r.reachable >= ${LISTING_MIN_REACHABLE}
+      -- The float cast is load-bearing: bound beside an int multiplication
+      -- the parameter infers as integer and 0.05 fails to parse.
+      AND r.reachable >= r.holder_count * ${LISTING_MIN_RATE}::float8
+    ORDER BY r.reachable DESC, sc.name
+  `)) as unknown as { rows: ListedHolderCollection[] };
   return result.rows;
 }
 

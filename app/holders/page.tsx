@@ -4,14 +4,16 @@ import { PageShell } from '@/components/ui/page-shell';
 import {
   listHolderCollections,
   chainLabel,
-  type HolderCollection,
+  type ListedHolderCollection,
 } from '@/lib/holder-pages';
 
 /**
- * The hub over the per-collection reports: every seeded collection, grouped
- * by chain. It exists for the crawl path and the reader who arrived at one
- * report and wants the rest; the grouping is by chain because the chain
- * decides the match rate more than the collection does.
+ * The hub over the per-collection reports: every collection above the
+ * listing floor (lib/holder-pages.ts), grouped by chain. It exists for the
+ * crawl path and the reader who arrived at one report and wants the rest;
+ * the grouping is by chain because the chain decides the match rate more
+ * than the collection does. Each entry leads with the reachable-people
+ * count, the one number a campaign can act on, rather than the sample size.
  */
 export const revalidate = 3600;
 
@@ -38,7 +40,7 @@ export const metadata: Metadata = {
 export default async function HoldersHubPage() {
   const collections = await listHolderCollections();
 
-  const byChain = new Map<string, HolderCollection[]>();
+  const byChain = new Map<string, ListedHolderCollection[]>();
   for (const c of collections) {
     const list = byChain.get(c.chain) ?? [];
     list.push(c);
@@ -76,7 +78,7 @@ export default async function HoldersHubPage() {
                     {c.name}
                   </Link>{' '}
                   <span className="tabular-nums">
-                    ({c.holdersImported.toLocaleString()} holders measured)
+                    ({c.reachableAny.toLocaleString()} reachable people)
                   </span>
                 </li>
               ))}
