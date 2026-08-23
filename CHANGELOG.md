@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (premium polish: the guidelines audit and the motion pass land)
+
+- **Two data-honesty bugs.** The results table rendered every holdings value
+  as USD even when the column is a token balance ("Bag"); it now formats a
+  plain decimal in the browser locale. And the holder pages typed the
+  free-allowance figures; they interpolate the constants.
+- **Accessibility across the grid and checkout**: the attestation dots carry
+  sr-only text, "Copied!" is a status announcement above the sticky header,
+  the search input has a name, error and caution panels announce, the email
+  field autofills and focuses on validation failure, loading buttons keep a
+  text label, and username inputs stop autocorrecting.
+- **An unsaved completed lookup warns before the tab closes**; exporting or
+  saving clears the guard.
+- **Motion joins the system**: row hover and the sort arrow use the motion
+  tokens (the arrow rotates instead of teleporting), the sort header gets
+  the one focus ring and the one press transform, copy toast, checkout
+  errors and the Buy button's label swap share one fade-in mechanism, dead
+  shimmer CSS is gone, and disabled controls fade rather than snap (opacity
+  joins .transition-control, kept under reduced motion; decided today).
+- **"Top influencers (1K+)" is gated** behind credits with the lock
+  affordance: ungated, it leaked the locked follower signal one bit at a
+  time (decided today). Also: one empty-cell character everywhere, real
+  ellipses, prose links get the link-variant affordance, the Farcaster
+  platform colours become tokens, and the pricing h1 carries its emphasis.
+
 ### 2026-08-22 (holder reachability reports: the programmatic SEO play ships)
 
 - **`/holders/[chain]/[address]`: a report page per seeded collection.**

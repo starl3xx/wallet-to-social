@@ -258,6 +258,43 @@ export default function Home() {
    */
   const [mergeWarning, setMergeWarning] = useState<string | null>(null);
 
+  /**
+   * Whether this run's results have left the page as a file. An unsaved
+   * complete lookup exists only in this tab, so navigation is guarded until
+   * the person saves or exports it; the flag resets when the view leaves
+   * 'complete', so it never carries over to the next run.
+   */
+  const [exportedThisRun, setExportedThisRun] = useState(false);
+
+  useEffect(() => {
+    if (state !== 'complete') setExportedThisRun(false);
+  }, [state]);
+
+  // The copy under "Save this lookup" says to export before leaving; this
+  // makes leaving ask first. Guarded only while the results exist nowhere
+  // else: not saved to history, not saved server-side, not yet exported. The
+  // browser ignores the prompt text, so none is written.
+  useEffect(() => {
+    if (
+      state !== 'complete' ||
+      results.length === 0 ||
+      saveToHistory ||
+      currentLookupId !== null ||
+      exportedThisRun
+    ) {
+      return;
+    }
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Chrome still requires returnValue for the prompt to appear.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [state, results.length, saveToHistory, currentLookupId, exportedThisRun]);
+
+  const handleExported = useCallback(() => setExportedThisRun(true), []);
+
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
     setJobIdState(id);
@@ -1479,7 +1516,7 @@ export default function Home() {
                     onChange={(e) => setPasteText(e.target.value)}
                     aria-label="Wallet addresses"
                     placeholder={
-                      'Paste wallet addresses in any format\n0x1234..., 0xabcd...\nor one per line\nor mixed with other text'
+                      'Paste wallet addresses in any format\n0x1234…, 0xabcd…\nor one per line\nor mixed with other text'
                     }
                     rows={7}
                     className="font-mono text-sm"
@@ -1488,7 +1525,12 @@ export default function Home() {
                       below: at 375px the count broke into three lines beside
                       the buttons. */}
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="text-sm text-muted-foreground">
+                    {/* aria-live, so the count's updates are announced as the
+                        paste changes rather than only repainted. */}
+                    <span
+                      aria-live="polite"
+                      className="text-sm text-muted-foreground"
+                    >
                       {countValidAddresses(pasteText)} valid addresses detected
                     </span>
                     <div className="flex gap-2 self-end sm:self-auto">
@@ -1800,7 +1842,10 @@ export default function Home() {
             recipe as the caution panels: the red was hand-mixed from
             `destructive/10` and `destructive/20` here and in two dialogs. */}
         {state === 'error' && (
-          <div className="p-4 bg-destructive-tint border border-destructive rounded-lg">
+          <div
+            role="alert"
+            className="p-4 bg-destructive-tint border border-destructive rounded-lg"
+          >
             <p className="text-destructive font-medium mb-2">Error</p>
             <p className="text-sm text-muted-foreground mb-4">
               {error || 'An unknown error occurred'}
@@ -1815,7 +1860,10 @@ export default function Home() {
         {state === 'complete' && results.length > 0 && (
           <div className="space-y-6">
             {mergeWarning && (
-              <div className="flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
+              <div
+                role="status"
+                className="flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4"
+              >
                 <AlertTriangle
                   className="mt-0.5 h-4 w-4 flex-none text-caution"
                   aria-hidden
@@ -1843,7 +1891,7 @@ export default function Home() {
                     <Input
                       value={editNameValue}
                       onChange={(e) => setEditNameValue(e.target.value)}
-                      placeholder="Enter lookup name..."
+                      placeholder="Enter lookup name…"
                       className="max-w-xs"
                       autoFocus
                       onKeyDown={(e) => {
@@ -1944,9 +1992,9 @@ export default function Home() {
                       title="Send DMs to Farcaster users"
                       className="hidden sm:inline-flex"
                     >
-                      <Send className="h-4 w-4" />
+                      <Send className="h-4 w-4" aria-hidden />
                       {enrichingFids
-                        ? 'Loading FIDs...'
+                        ? 'Loading FIDs…'
                         : `DM ${results.filter((r) => r.fc_fid).length.toLocaleString()}`}
                     </Button>
                   )}
@@ -1957,6 +2005,7 @@ export default function Home() {
                   entitled={entitled}
                   onUpgradeClick={handleOpenUpgradeModal}
                   lookupName={currentLookupName}
+                  onExported={handleExported}
                 />
 
                 <OverflowMenu>

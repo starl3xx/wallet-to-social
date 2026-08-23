@@ -232,6 +232,12 @@
      fill entirely: silent, and worst in the theme most people see first. */
   --x-bg: #0f1419;
   --x-fg: #ffffff;
+  /* Farcaster's purple holds against white text on both themes, so there is
+     no .dark flip: this one definition covers both. Named here rather than
+     inlined at the call site, because tokens are the rule and the platform
+     colour is only an exception to the palette, not to naming. */
+  --fc-bg: #8a63d2;
+  --fc-fg: #ffffff;
 
   /* A thumb sitting on a muted track has to be lighter than it. --background is
      lighter than --muted in light mode and DARKER in dark mode, so painting the
@@ -335,6 +341,7 @@
       color var(--duration-fast) var(--ease-out-soft),
       background-color var(--duration-fast) var(--ease-out-soft),
       border-color var(--duration-fast) var(--ease-out-soft),
+      opacity var(--duration-fast) var(--ease-out-soft),
       transform var(--duration-press) var(--ease-out-soft);
   }
 }
@@ -485,13 +492,46 @@
     transition: background-color var(--duration-fast);
   }
   .transition-control {
+    /* Opacity stays with the colours: a disabled control fading carries no
+       movement, so reduced motion keeps it (decided 2026-08-22). */
     transition:
       color var(--duration-fast),
       background-color var(--duration-fast),
-      border-color var(--duration-fast);
+      border-color var(--duration-fast),
+      opacity var(--duration-fast);
   }
   .transition-control:active {
     transform: none;
+  }
+}
+
+/* The sort header's arrow rotates between ascending and descending rather
+   than swapping glyphs: a selected state moves, it does not teleport. 220ms
+   on the in-out curve, a change between two on-screen states. */
+.sort-arrow {
+  transition: transform var(--duration-base) var(--ease-in-out-soft);
+}
+
+/* Feedback that appears in place fades in over --d-fast. One class for the
+   copy toast, the inline error and a button's label swap, so mount fades
+   stay a single mechanism; @starting-style is what lets the transition fire
+   on first paint. The exit stays an instant unmount: exits run shorter than
+   entrances, and staying mounted just to fade out is not worth the state. */
+.fade-in-fast {
+  transition: opacity var(--duration-fast) var(--ease-out-soft);
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The block above stops keyframes and the two named helpers, not a bare
+     transition, so these need their own stop. The arrow must still end
+     rotated: remove the transition, never the rotate class, or the header
+     reports the wrong sort direction. */
+  .sort-arrow,
+  .fade-in-fast {
+    transition: none;
   }
 }
 
@@ -570,10 +610,6 @@
   100% {
     transform: translateX(calc(100vw + 8rem));
   }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
 }
 
 .animate-slide {

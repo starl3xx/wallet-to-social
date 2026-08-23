@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import {
   Detective,
   CircleNotch as Loader2,
-  Warning as AlertTriangle,
   Wallet,
 } from '@phosphor-icons/react';
 import { XMark } from '@/components/ui/brand-marks';
+import { InlineError } from '@/components/ui/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Segmented } from '@/components/ui/segmented';
@@ -172,12 +172,15 @@ export function ReverseLookup({
               value: 'farcaster',
               label: 'Farcaster',
               content: 'Farcaster',
-              thumbStyle: { background: '#8A63D2' },
-              activeColor: '#FFFFFF',
+              thumbStyle: { background: 'var(--fc-bg)' },
+              activeColor: 'var(--fc-fg)',
             },
           ]}
         />
 
+        {/* A handle in its own field is machine data, so it takes the mono
+            face like the paste textarea; spellcheck, autocapitalize and
+            autocorrect are off because each one rewrites handles. */}
         <Input
           value={handle}
           onChange={(e) => {
@@ -190,7 +193,10 @@ export function ReverseLookup({
             if (e.key === 'Enter') submit();
           }}
           placeholder={platform === 'twitter' ? '@vitalikbuterin' : 'dwr'}
-          className="flex-1"
+          className="flex-1 font-mono"
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
           aria-label={
             platform === 'twitter' ? 'X handle' : 'Farcaster username'
           }
@@ -198,7 +204,12 @@ export function ReverseLookup({
 
         <Button onClick={submit} disabled={!handle.trim() || loading}>
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            /* The label stays through loading: a spinner alone is an icon-only
+               button with no accessible name. */
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              Finding…
+            </>
           ) : (
             <>
               <Wallet className="h-4 w-4" aria-hidden />
@@ -208,12 +219,7 @@ export function ReverseLookup({
         </Button>
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <p>{error}</p>
-        </div>
-      )}
+      {error && <InlineError>{error}</InlineError>}
 
       {empty && (
         <p className="text-sm text-muted-foreground">

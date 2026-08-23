@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   ModalContent,
@@ -130,6 +130,7 @@ export function UpgradeModal({
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState<PackId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -152,6 +153,9 @@ export function UpgradeModal({
   const handleBuy = async (pack: PackId) => {
     if (!email || !email.includes('@')) {
       setError('Please enter a valid email address');
+      // Focus lands on the field the error is about, not on the Buy button
+      // three cards away from it.
+      emailRef.current?.focus();
       return;
     }
 
@@ -236,8 +240,12 @@ export function UpgradeModal({
               Stripe.
             </p>
             <Input
+              ref={emailRef}
               id="buy-credits-email"
               type="email"
+              name="email"
+              autoComplete="email"
+              spellCheck={false}
               placeholder="you@example.com"
               value={email}
               onChange={(e) => {
@@ -336,14 +344,27 @@ export function UpgradeModal({
                     onClick={() => handleBuy(id)}
                     disabled={loading !== null}
                   >
-                    {loading === id ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      `Buy ${pack.name}`
-                    )}
+                    {/* The key remount is what lets `fade-in-fast` fire on the
+                        label-to-spinner swap, so the state change crossfades
+                        instead of hard-cutting; `w-full` above already keeps
+                        the width from jumping. Opacity only: blur is neither
+                        transform nor opacity, which the motion rules allow. */}
+                    <span
+                      key={loading === id ? 'loading' : 'idle'}
+                      className="fade-in-fast inline-flex items-center gap-2"
+                    >
+                      {loading === id ? (
+                        <>
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden
+                          />
+                          Processing…
+                        </>
+                      ) : (
+                        `Buy ${pack.name}`
+                      )}
+                    </span>
                   </Button>
                 </div>
               );

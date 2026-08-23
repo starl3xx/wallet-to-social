@@ -24,6 +24,12 @@ interface ExportButtonProps {
   entitled?: boolean;
   onUpgradeClick?: (source?: string) => void;
   lookupName?: string | null;
+  /**
+   * Called after a file is handed to the browser. The caller uses it to drop
+   * its unsaved-results navigation guard: once the results exist as a file,
+   * leaving the page destroys nothing.
+   */
+  onExported?: () => void;
 }
 
 export const ExportButton = memo(function ExportButton({
@@ -33,6 +39,7 @@ export const ExportButton = memo(function ExportButton({
   entitled = false,
   onUpgradeClick,
   lookupName,
+  onExported,
 }: ExportButtonProps) {
   const isPaidTier = entitled;
 
@@ -135,6 +142,7 @@ export const ExportButton = memo(function ExportButton({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    onExported?.();
   };
 
   /**
@@ -196,10 +204,8 @@ export const ExportButton = memo(function ExportButton({
   const handleExportTwitterList = () => {
     const twitterHandles = reachableHandles.map((h) => `@${h}`);
 
-    if (twitterHandles.length === 0) {
-      alert('No reachable X handles to export');
-      return;
-    }
+    // Defensive only: the button is disabled when there is nothing to export.
+    if (twitterHandles.length === 0) return;
 
     // Track export click
     Analytics.exportClicked('twitter', twitterHandles.length);
@@ -215,6 +221,7 @@ export const ExportButton = memo(function ExportButton({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    onExported?.();
   };
 
   /**
