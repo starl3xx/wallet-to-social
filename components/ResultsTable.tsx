@@ -5,7 +5,15 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUp, Lock, WarningCircle } from '@phosphor-icons/react';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import {
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/ui/modal';
+import { ArrowUp, Info, Lock, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import type { WalletSocialResult } from '@/lib/types';
 import {
@@ -195,6 +203,13 @@ const HEADER_HEIGHT = 34;
 const GUTTER_WIDTH = 18;
 
 /**
+ * The details column: one 34px icon control with 8px each side. Fixed like the
+ * gutter, because a track holding a single control must not stretch with the
+ * grid; every stretchy column is a data column.
+ */
+const DETAIL_WIDTH = 50;
+
+/**
  * The one empty-cell mark, an en dash. Every empty cell renders this constant:
  * the grid shipped an en dash in locked cells beside a hyphen everywhere else,
  * two empty-state marks in one table.
@@ -347,6 +362,282 @@ function LockedCell() {
   return <span className="text-muted-foreground">{EMPTY_CELL}</span>;
 }
 
+const truncateWallet = (wallet: string) =>
+  `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+
+/**
+ * The row's one human name, for the dialog title and the details control's
+ * accessible name: the ENS name, else a handle, else the truncated address.
+ * Never a generic noun; "Details" with no subject names nothing when every
+ * row on the screen has one.
+ */
+function rowDisplayName(r: WalletSocialResult): string {
+  if (r.ens_name) return r.ens_name;
+  if (r.twitter_handle) return `@${r.twitter_handle}`;
+  if (r.farcaster) return `@${r.farcaster}`;
+  return truncateWallet(r.wallet);
+}
+
+/**
+ * The attestation states in words, for the dialog, which has room for them.
+ * The labels restate what the gutter dot already says in its title and
+ * sr-only text, so the two surfaces can never disagree; the details follow
+ * the same one-direction rule as `attestationOf`: absence of evidence is
+ * stated as absence, never as false.
+ */
+const ATTESTATION_COPY: Record<Attestation, { label: string; detail: string }> =
+  {
+    attested: {
+      label: 'Owner-attested',
+      detail:
+        'At least one identity on this row was published by the address owner.',
+    },
+    matched: {
+      label: 'Matched from the index',
+      detail:
+        'Identities exist for this wallet, and none of them is owner-attested.',
+    },
+    none: {
+      label: 'No identity',
+      detail: 'The index holds no identity for this wallet.',
+    },
+    unknown: {
+      label: 'Not checked',
+      detail:
+        'Attestation was never checked for this row, so it is unknown rather than false.',
+    },
+  };
+
+/**
+ * One label/value row in the detail dialog's record list. The dt is the
+ * uppercase label primitive; the dd is mono because nearly every field here
+ * is machine data occupying its own element, and prose (the bio) opts out.
+ * Empty stays the one empty-cell mark, muted, exactly as the grid renders it.
+ */
+function DetailField({
+  label,
+  value,
+  mono = true,
+  children,
+}: {
+  label: string;
+  value?: string;
+  mono?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <>
+      <dt>
+        <Eyebrow as="span">{label}</Eyebrow>
+      </dt>
+      <dd className={cn('min-w-0', mono ? 'font-mono text-xs' : 'text-sm')}>
+        {children ??
+          (value || (
+            <span className="text-muted-foreground">{EMPTY_CELL}</span>
+          ))}
+      </dd>
+    </>
+  );
+}
+
+/**
+ * The row's full record, in the one dialog anatomy (components/ui/modal.tsx):
+ * an 18px/600 title with no leading icon, a flex column whose body scrolls,
+ * and no footer, because inspection has no action beyond closing. A dialog
+ * rather than an expanding row: rows are a fixed 44px for the virtualiser,
+ * and no element inside a fixed-height row may change that row's height.
+ *
+ * It exists because the grid hides most of what a row holds: lens, github and
+ * the bio have no column, the agent fields lived in a hover-only title (which
+ * touch never sees), and the address is truncated. Everything shown is
+ * already on the row object, so the dialog reveals nothing the response did
+ * not carry, which is why it is not gated.
+ */
+const RowDetailModal = memo(function RowDetailModal({
+  result,
+  open,
+  onOpenChange,
+  copiedWallet,
+  onCopyWallet,
+}: {
+  result: WalletSocialResult;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  copiedWallet: string | null;
+  onCopyWallet: (wallet: string) => void;
+}) {
+  const state = attestationOf(result);
+  const attestation = ATTESTATION_COPY[state];
+  const reach = result.twitter_reachability;
+
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent>
+        <ModalHeader>
+          {/* Machine data occupying its own element is mono, and this title is
+              the row's identifier. Size and weight stay the anatomy's. */}
+          <ModalTitle className="font-mono">
+            {rowDisplayName(result)}
+          </ModalTitle>
+          <ModalDescription>
+            Everything the index holds for this row.
+          </ModalDescription>
+        </ModalHeader>
+
+        {/* Evidence first: provenance and reachability are the two claims the
+            product is sold on, so they take the inset panel. The grid says
+            each with a mark plus a title and sr-only text; here the same mark
+            gets its words beside it, visibly, so nothing depends on
+            distinguishing two colours. */}
+        <div className="space-y-3 rounded-lg border border-border bg-muted p-4 text-sm">
+          <Eyebrow as="h3">Evidence</Eyebrow>
+          <div className="flex gap-2">
+            {/* A fixed mark slot keeps the text column aligned across rows,
+                including the states that get no mark rather than one that
+                would overstate what is known. h-5 centres the mark on the
+                first 20px line of text beside it. */}
+            <span className="flex h-5 w-4 flex-none items-center justify-center">
+              {state === 'attested' && (
+                <span
+                  className="h-2 w-2 rounded-full bg-attested"
+                  aria-hidden
+                />
+              )}
+              {state === 'matched' && (
+                <span
+                  className="h-2 w-2 rounded-full ring-1 ring-inset ring-border"
+                  aria-hidden
+                />
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="font-medium">{attestation.label}</p>
+              <p className="text-muted-foreground">{attestation.detail}</p>
+            </div>
+          </div>
+          {/* Reachability is an axis of the X handle, so the row exists only
+              where a handle does. Green is a measured fact: live means the
+              checker reached the account, so the dot is earned; the caution
+              mark is the same one the cell shows. Absent is not false, so an
+              unchecked handle says so instead of claiming either state. */}
+          {result.twitter_handle && (
+            <div className="flex gap-2">
+              <span className="flex h-5 w-4 flex-none items-center justify-center">
+                {reach === 'live' && (
+                  <span
+                    className="h-2 w-2 rounded-full bg-attested"
+                    aria-hidden
+                  />
+                )}
+                {reach && reach !== 'live' && (
+                  <WarningCircle
+                    className="h-4 w-4 text-caution"
+                    weight="fill"
+                    aria-hidden
+                  />
+                )}
+              </span>
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {reach
+                    ? REACHABILITY_LABEL[reach]
+                    : 'Reachability not checked'}
+                </p>
+                <p className="text-muted-foreground">
+                  {reach
+                    ? REACHABILITY_DETAIL[reach]
+                    : 'Whether this handle still reaches anyone has not been checked, so unreachable cannot be assumed.'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <dl className="grid grid-cols-[max-content_1fr] items-start gap-x-4 gap-y-2">
+          <DetailField label="Wallet">
+            {/* The same in-place swap the wallet cell uses: the confirmation
+                replaces the address rather than floating beside it, the keyed
+                span re-fires the fade, and role="status" announces it. The
+                full address must wrap on a phone, so `whitespace-normal
+                break-all` undoes the button base's nowrap. */}
+            <Button
+              variant="link"
+              size="inline"
+              className="whitespace-normal break-all text-left font-mono text-xs text-foreground hover:text-accent-brand"
+              onClick={() => onCopyWallet(result.wallet)}
+              title="Click to copy"
+            >
+              {copiedWallet === result.wallet ? (
+                <span
+                  key="copied"
+                  role="status"
+                  className="fade-in-fast text-attested"
+                >
+                  Copied!
+                </span>
+              ) : (
+                result.wallet
+              )}
+            </Button>
+          </DetailField>
+          <DetailField label="ENS" value={result.ens_name} />
+          <DetailField label="X handle">
+            {result.twitter_handle ? (
+              <span className="flex min-w-0 flex-col items-start">
+                {/* The cell's treatment for a dead handle, restated here: the
+                    strike says at a glance what the evidence panel above says
+                    in words. Not a link in either state; the dialog inspects
+                    the record, and an unreachable handle must never link to a
+                    stranger. */}
+                <span
+                  className={cn(
+                    reach &&
+                      reach !== 'live' &&
+                      'text-caution line-through decoration-caution/50'
+                  )}
+                >
+                  @{result.twitter_handle}
+                </span>
+                {result.twitter_also && (
+                  <span
+                    className="text-muted-foreground"
+                    title="A second X account attested by the wallet owner; both reach someone"
+                  >
+                    also @{result.twitter_also.handle}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{EMPTY_CELL}</span>
+            )}
+          </DetailField>
+          <DetailField
+            label="Farcaster"
+            value={result.farcaster ? `@${result.farcaster}` : undefined}
+          />
+          <DetailField label="Lens" value={result.lens} />
+          <DetailField label="GitHub" value={result.github} />
+          <DetailField
+            label="Farcaster bio"
+            value={result.fc_bio}
+            mono={false}
+          />
+          {/* The agent fields appear only on an agent row: four dashes on
+              every human row would be noise stating nothing. */}
+          {result.is_agent && (
+            <>
+              <DetailField label="Agent" value={result.agent_name || 'Agent'} />
+              <DetailField label="Framework" value={result.agent_framework} />
+              <DetailField label="Type" value={result.agent_type} />
+              <DetailField label="Token" value={result.agent_token_symbol} />
+            </>
+          )}
+        </dl>
+      </ModalContent>
+    </Modal>
+  );
+});
+
 export const ResultsTable = memo(function ResultsTable({
   results,
   extraColumns = [],
@@ -360,11 +651,24 @@ export const ResultsTable = memo(function ResultsTable({
   // Debounce search to prevent re-filtering on every keystroke (300ms delay)
   const debouncedSearch = useDebouncedValue(search, 300);
   const [showOnlyTwitter, setShowOnlyTwitter] = useState(false);
+  const [showOnlyAttested, setShowOnlyAttested] = useState(false);
   const [showTopInfluencers, setShowTopInfluencers] = useState(false);
   const [showOnlyAgents, setShowOnlyAgents] = useState(false);
   const [sortField, setSortField] = useState<SortField>('priority_score');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null);
+
+  /* The dialog's row and its open flag are separate on purpose: closing only
+     clears the flag, so the exit animation still has a row to fade. The next
+     open replaces the row. */
+  const [detailResult, setDetailResult] = useState<WalletSocialResult | null>(
+    null
+  );
+  const [detailOpen, setDetailOpen] = useState(false);
+  const openDetail = useCallback((result: WalletSocialResult) => {
+    setDetailResult(result);
+    setDetailOpen(true);
+  }, []);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -392,6 +696,13 @@ export const ResultsTable = memo(function ResultsTable({
 
   const filteredAndSorted = useMemo(() => {
     let filtered = results;
+
+    // Attested only. Through attestationOf, never the verified flags directly:
+    // this filter and the gutter dot must agree on what "attested" means, and
+    // there is exactly one place that decides it.
+    if (showOnlyAttested) {
+      filtered = filtered.filter((r) => attestationOf(r) === 'attested');
+    }
 
     // Apply Twitter filter
     if (showOnlyTwitter) {
@@ -462,6 +773,7 @@ export const ResultsTable = memo(function ResultsTable({
   }, [
     results,
     debouncedSearch,
+    showOnlyAttested,
     showOnlyTwitter,
     showTopInfluencers,
     showOnlyAgents,
@@ -499,10 +811,6 @@ export const ResultsTable = memo(function ResultsTable({
       return field;
     });
   }, []);
-
-  const truncateWallet = (wallet: string) => {
-    return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
-  };
 
   /* A plain decimal in the browser locale, like every other figure here. The
      column may hold a USD value, a token balance or an item count, so a
@@ -614,11 +922,16 @@ export const ResultsTable = memo(function ResultsTable({
       isPaidTier ? 140 : 176, // priority
     ];
     return {
-      gridTemplate: tracks
-        .map((min, i) => (i === 0 ? `${min}px` : `minmax(${min}px, 1fr)`))
-        .join(' '),
-      gridMinWidth: tracks.reduce((sum, min) => sum + min, 0),
-      columnCount: tracks.length,
+      // The details track is appended fixed, like the gutter leads fixed:
+      // both hold one mark or control, and only data columns stretch.
+      gridTemplate: [
+        ...tracks.map((min, i) =>
+          i === 0 ? `${min}px` : `minmax(${min}px, 1fr)`
+        ),
+        `${DETAIL_WIDTH}px`,
+      ].join(' '),
+      gridMinWidth: tracks.reduce((sum, min) => sum + min, 0) + DETAIL_WIDTH,
+      columnCount: tracks.length + 1,
     };
   }, [hasHoldings, filteredExtraColumns, isPaidTier]);
 
@@ -646,6 +959,18 @@ export const ResultsTable = memo(function ResultsTable({
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
+        {/* First among the pills because it filters the first column, the
+            attestation gutter. Ungated: the dot already shows on every free
+            row, so this reveals nothing the table does not. */}
+        <Button
+          variant="outline"
+          size="sm"
+          aria-pressed={showOnlyAttested}
+          className={cn(showOnlyAttested && FILTER_ON)}
+          onClick={() => setShowOnlyAttested(!showOnlyAttested)}
+        >
+          Attested only
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -828,6 +1153,14 @@ export const ResultsTable = memo(function ResultsTable({
                 onUpgradeClick={onUpgradeClick}
               />
             )}
+            {/* The details column. Empty on screen like the gutter: each of
+                its rows holds one icon control, and a label would crowd 50px;
+                the name is for screen readers. Pinned to the right edge the
+                way the gutter and wallet pin left, so the row's one detail
+                affordance stays reachable while the columns scroll. */}
+            <div role="columnheader" className="sticky right-0 z-10 bg-inherit">
+              <span className="sr-only">Details</span>
+            </div>
           </div>
 
           {/* Virtualized body */}
@@ -1108,6 +1441,33 @@ export const ResultsTable = memo(function ResultsTable({
                         <LockedCell />
                       )}
                     </div>
+
+                    {/* Details. An explicit control, not a clickable row: the
+                        wallet cell already owns click-to-copy, and a row that
+                        is both a copy control and a dialog trigger cannot be
+                        told apart by touch or reached by keyboard. Ghost icon,
+                        so it is the 34px control every icon control resolves
+                        to, inside the fixed 44px row. Named per row, because
+                        an icon-only control has no text for assistive tech
+                        and "Details" alone repeats down the whole column.
+                        Pinned right with the row's fill inherited, like the
+                        wallet on the left, to mask the columns beneath it. */}
+                    <div
+                      role="cell"
+                      className="sticky right-0 z-10 flex items-center justify-center self-stretch bg-inherit"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground"
+                        aria-label={`Details for ${rowDisplayName(result)}`}
+                        aria-haspopup="dialog"
+                        title="Details"
+                        onClick={() => openDetail(result)}
+                      >
+                        <Info className="h-4 w-4" aria-hidden />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -1120,6 +1480,18 @@ export const ResultsTable = memo(function ResultsTable({
       <p className="text-xs text-muted-foreground tabular-nums">
         {filteredAndSorted.length.toLocaleString()} results
       </p>
+
+      {/* Mounted while a row is held, open or not, so the close animation has
+          content to fade; the next open replaces the row. */}
+      {detailResult && (
+        <RowDetailModal
+          result={detailResult}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          copiedWallet={copiedWallet}
+          onCopyWallet={handleCopyWallet}
+        />
+      )}
     </div>
   );
 });

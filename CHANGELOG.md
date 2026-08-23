@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the results table gains the attested filter and a row-detail dialog)
+
+- **"Attested only" pill**, first in the filter row: isolates exactly the
+  distinction the product is sold on, through `attestationOf` so the pill
+  and the gutter dot share one definition. Ungated: the dot already shows
+  on every free row.
+- **A row-detail dialog** on the shared modal anatomy surfaces what the
+  grid holds but hides: full copyable address (the same in-place swap),
+  evidence and reachability states with visible labels, Lens, GitHub,
+  Farcaster bio, the second X handle, and the agent fields on agent rows.
+  Opened from a pinned per-row details button in a new trailing column,
+  keyboard reachable, titled by ENS, handle, or wallet.
+- These are the openstatus data-table patterns judged worth porting;
+  the assessment deliberately skipped the installable blocks, the command
+  palette, cell renderers, and infinite scroll as mismatched to this
+  token-native client-side grid.
+
 ### 2026-08-22 (premium polish: the guidelines audit and the motion pass land)
 
 - **Two data-honesty bugs.** The results table rendered every holdings value
