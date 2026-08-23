@@ -26,6 +26,13 @@ const READ_ONLY_TABLES = [
   'credit_lots',
   'credit_ledger',
   'lifecycle_emails',
+  // Added 2026-08-23. The known-agents claim joined the figures registry on
+  // 2026-08-22 and the table was never granted, so `published-figures` has
+  // failed on every PR since with `permission denied for table known_agents`
+  // while passing locally against the owner role. Exactly the case the
+  // CLAUDE.md note describes, caught the way it says it will be: later, in CI,
+  // on a run that was green on the machine that wrote it.
+  'known_agents',
 ];
 const ROLE = 'sweep_runner';
 
@@ -60,10 +67,30 @@ async function main() {
   `) as unknown as Array<{ table_name: string; privilege_type: string }>;
   console.log('\nverified:');
   for (const r of rows) console.log(`  ${r.table_name}: ${r.privilege_type}`);
-  if (rows.length !== READ_ONLY_TABLES.length) {
-    console.error('expected exactly one SELECT grant per table');
+
+  /**
+   * Count the tables that carry SELECT, not the privilege rows.
+   *
+   * This compared `rows.length` against the table count, which is only the same
+   * number while every table has exactly one grant. `handle_conflicts` carries
+   * INSERT and UPDATE as well, granted elsewhere for the conflict queue, so the
+   * query returned three rows for it and the script exited 1 reporting failure
+   * on a run where every grant had in fact been made. The GRANTs autocommit
+   * before this check, so the effect was purely to teach whoever ran it that
+   * the red line at the end means nothing.
+   *
+   * What the check is actually for is "every table in the list is now readable
+   * by the role", and a table holding MORE than SELECT does not violate that.
+   */
+  const withSelect = new Set(
+    rows.filter((r) => r.privilege_type === 'SELECT').map((r) => r.table_name)
+  );
+  const missing = READ_ONLY_TABLES.filter((t) => !withSelect.has(t));
+  if (missing.length > 0) {
+    console.error(`no SELECT grant for: ${missing.join(', ')}`);
     process.exit(1);
   }
+  console.log(`\nall ${READ_ONLY_TABLES.length} tables readable by ${ROLE}`);
 }
 
 main().catch((e) => {
