@@ -275,13 +275,18 @@ export default function Home() {
   // else: not saved to history, not saved server-side, not yet exported. The
   // browser ignores the prompt text, so none is written.
   useEffect(() => {
-    // Keyed on whether a save actually happened (currentLookupId), never on
-    // the checkbox: a failed history write leaves the id null with the box
-    // checked, and reverse lookups never touch the box at all.
+    // What counts as "saved" differs by path. A reverse lookup and a loaded
+    // history entry set currentLookupId (or fail to, and should warn). A
+    // forward job saves server-side during the run and never reports an id
+    // back, so for forward results the checkbox is the only signal there is,
+    // and it must not apply to reverse results, which never touch it:
+    // reverseMeta says which kind is on screen.
+    const savedForward = saveToHistory && reverseMeta === null;
     if (
       state !== 'complete' ||
       results.length === 0 ||
       currentLookupId !== null ||
+      savedForward ||
       exportedThisRun
     ) {
       return;
@@ -293,7 +298,14 @@ export default function Home() {
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [state, results.length, currentLookupId, exportedThisRun]);
+  }, [
+    state,
+    results.length,
+    currentLookupId,
+    saveToHistory,
+    reverseMeta,
+    exportedThisRun,
+  ]);
 
   const handleExported = useCallback(() => setExportedThisRun(true), []);
 
