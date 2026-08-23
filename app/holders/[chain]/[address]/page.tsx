@@ -4,13 +4,14 @@ import { notFound } from 'next/navigation';
 import { PageShell } from '@/components/ui/page-shell';
 import { Figure } from '@/components/ui/figure';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
+import { ArrowRight, Warning } from '@phosphor-icons/react/dist/ssr';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
   listHolderCollections,
   getHolderCollection,
   getHolderStats,
   getHolderOverlap,
+  measurementInProgress,
   chainLabel,
   standardLabel,
 } from '@/lib/holder-pages';
@@ -130,6 +131,28 @@ export default async function HolderPage({ params }: Props) {
             </>
           )}
         </p>
+
+        {/* A below-floor page whose holders are mostly unchecked is a
+            measurement still running, not a measured low rate, and must say
+            so: without this note the small numbers below read as a finding
+            about the collection. The caution panel is the app's one warning
+            idiom (app/page.tsx mergeWarning). A fully checked below-floor
+            page skips it, because there the numbers are the finding. */}
+        {measurementInProgress(stats) && (
+          <div className="mb-8 flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
+            <Warning
+              className="mt-0.5 h-4 w-4 flex-none text-caution"
+              aria-hidden
+            />
+            <p className="text-sm text-caution">
+              Measurement in progress: {stats.checked.toLocaleString()} of{' '}
+              {stats.holderCount.toLocaleString()} holders checked so far.
+              Every reachable person shown was really found, so the numbers
+              here are lower bounds; they rise as the remaining holders are
+              checked.
+            </p>
+          </div>
+        )}
 
         <dl className="grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
           <Figure

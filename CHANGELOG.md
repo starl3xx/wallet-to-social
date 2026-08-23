@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the holder hub stops listing unfinished measurements)
+
+- **A listing floor on /holders, the sitemap and prerendering**: a report
+  appears only once it shows at least 20 reachable people at 5% or more of
+  its measured holders (`LISTING_MIN_REACHABLE`, `LISTING_MIN_RATE` in
+  `lib/holder-pages.ts`). Three collections listed 0% reachable when in
+  fact under half a percent of their holders had ever been checked: the
+  resolution jobs never ran under the API budget pause, and a zero that
+  means "not yet checked" was published as a finding. The floor keys on the
+  reachable count because it only ever undercounts, so a collection
+  graduates onto the hub automatically at the revalidation after its
+  measurement catches up. Below-floor pages stay live at their direct URLs.
+- **The hub label leads with the outcome**: "(N reachable people)" replaces
+  "(2,000 holders measured)", which claimed measurement the budget pause
+  had not delivered. Listings order by reachable people, best first.
+- **Below-floor pages say why their numbers are small**: a caution note
+  ("Measurement in progress: N of M holders checked so far") renders
+  whenever such a page has under half its holders checked. A fully checked
+  page that still misses the floor carries no note, because there the
+  numbers are the finding.
+
 ### 2026-08-22 (the results table gains the attested filter and a row-detail dialog)
 
 - **"Attested only" pill**, first in the filter row: isolates exactly the
