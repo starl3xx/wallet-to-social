@@ -8,13 +8,19 @@ All notable changes to walletlink.social. Newest first.
   makes users tweet their wallet address from their own account, so the
   corpus of those tweets is a public set of owner-published handle-to-wallet
   attestations. The script sweeps X search for the two template phrases in
-  windows, extracts the pairs, and fill-only upserts them into social_graph
-  with source `debank_tweet`, reusing the ENS harvest's writer verbatim
-  (renamed_from guard, no stamping on a refused fill, quality 50). Wallets
-  claimed by more than one handle are dropped as unresolvable. Dry-run by
-  default; interrupt-safe checkpoint in ingest_state; stops cleanly on a
-  request budget or a 402. Needs `TWITTERAPI_IO_KEY` with credits, which is
-  why it ships unrun.
+  windows and hands the pairs to the shared attested-link ingest
+  (`lib/attested-links.ts`), which owns the fill-only rules, the agreement
+  gate, conflict recording and the quality contract; the script adds one
+  corpus-specific rule (a handle spraying bindings across more than three
+  wallets is dropped). `debank_tweet` is wired as an attested-social peer:
+  the public-source allowlist, `calculateQualityScore` (+25) and
+  `isTwitterVerified`. The last of those also gains `eas` and `clanker`,
+  which wrote `twitter_verified = true` on ingest but were missing from the
+  recompute, the exact bug the ethos entry there documents. Dry-run by
+  default (read-only classification of what a commit would do);
+  interrupt-safe checkpoint in ingest_state; stops cleanly on a request
+  budget or a 402. Needs `TWITTERAPI_IO_KEY` with credits, which is why it
+  ships unrun.
 
 ### 2026-08-22 (footer: Farcaster, llms.txt, and ask-an-AI links)
 

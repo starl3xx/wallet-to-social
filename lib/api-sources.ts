@@ -74,6 +74,15 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
    */
   clanker: 'attested-social',
 
+  /**
+   * A bind-by-tweet flow: the person connects the wallet to an identity
+   * platform, which then requires a tweet naming that wallet from the
+   * account being bound. The tweet is the public half of a binding the
+   * platform established end to end; the class is named for the mechanism,
+   * never the platform, same as every entry here.
+   */
+  debank_tweet: 'attested-social',
+
   // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
 

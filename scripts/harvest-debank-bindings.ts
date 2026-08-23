@@ -3,20 +3,14 @@
  *
  * DeBank's Twitter binding flow makes the user post a template tweet from
  * their own account naming their wallet ("I'm binding my Twitter account to
- * my Web3 Profile on @DeBankDeFi <link> 0x… #DeBank"). Each such tweet is an
- * owner-published handle→wallet claim: the same evidence class as an ENS
- * com.twitter record, in the other direction. The tweets are public and
- * finite, so this harvests them from X search and fill-only upserts the
- * pairs into social_graph, mirroring the ENS harvest writer
- * (lib/ens-harvest.ts) column for column.
- *
- * What the tweet does and does not prove: the handle's owner published the
- * claim (they posted it), so the pair earns the attested marking the same
- * way an ENS record does. It does not prove the wallet's owner agrees; a
- * disagreement with another attested source is handled downstream by the
- * handle_conflicts machinery, and the fill-only writer never overwrites an
- * existing handle. Wallets claimed by more than one handle inside the
- * corpus are dropped here as unresolvable, not written.
+ * my Web3 Profile on @DeBankDeFi <link> 0x… #DeBank"). The flow itself
+ * requires a wallet connection before the tweet, so each tweet is the public
+ * half of an owner-established binding: the same evidence class as the other
+ * attested-link sources. The tweets are public and finite, so this harvests
+ * them from X search and hands the pairs to the shared attested-link ingest
+ * (lib/attested-links.ts), which owns the fill-only rules, the agreement
+ * gate, conflict recording, and the quality contract. This script's whole
+ * job is to produce AttestedLink[].
  *
  * Downstream: the x_accounts sweep (scripts/sweep-x-accounts.ts) asks for
  * handles that have never been checked, so harvested handles enter the
@@ -36,13 +30,25 @@
  * Needs TWITTERAPI_IO_KEY (an api.twitterapi.io key; the account must hold
  * credits — it was empty on 2026-08-22, which is why this script exists
  * ahead of its first run). Interrupt-safe like the ENS harvest: the
- * checkpoint advances only after a window is fully paginated and upserted,
+ * checkpoint advances only after a window is fully paginated and ingested,
  * so a mid-run 402 costs nothing but the retry.
  */
 
-import { getDb, socialGraph } from '../db';
+import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
-import { cleanTwitterHandle, formatTwitterUrl } from '../lib/twitter-cleaner';
+import {
+  ingestLinks,
+  dedupeByWallet,
+  classifyLinks,
+  type AttestedLink,
+  type LinkSource,
+} from '../lib/attested-links';
+
+const SOURCE: LinkSource = {
+  id: 'debank_tweet',
+  /** twitter(20) + debank_tweet(25) in `calculateQualityScore`. */
+  quality: 45,
+};
 
 const STATE_KEY = 'debank_binding_harvest';
 
@@ -65,23 +71,26 @@ const QUERIES = [
 // rather than silently keeping a truncated month.
 const MAX_PAGES_PER_WINDOW = 50;
 
-const WALLET_RE = /\b0x[a-fA-F0-9]{40}\b/;
+// A handle that tweets bindings for many different wallets is not rebinding,
+// it is spraying. The real flow binds one wallet at a time and people rebind
+// rarely, so anything past this many distinct wallets drops the handle's
+// links entirely.
+const MAX_WALLETS_PER_HANDLE = 3;
 
-interface BindingPair {
-  wallet: string;
-  handle: string;
-  tweetId: string;
-  createdAt: string;
-}
+const WALLET_RE = /\b0x[a-fA-F0-9]{40}\b/;
 
 interface RunStats {
   requests: number;
   tweetsSeen: number;
   noAddress: number;
-  badHandle: number;
-  ambiguousWallets: number;
-  pairs: number;
-  upserted: number;
+  spamHandles: number;
+  links: number;
+  contested: number;
+  rejected: number;
+  newWallets: number;
+  filled: number;
+  agree: number;
+  conflicts: number;
 }
 
 // ----------------------------------------------------------------------------
@@ -210,14 +219,17 @@ async function fetchPage(
 }
 
 // ----------------------------------------------------------------------------
-// Parse and dedupe
+// Parse
 // ----------------------------------------------------------------------------
 
-function extractPairs(
-  page: SearchPage,
-  stats: RunStats
-): BindingPair[] {
-  const pairs: BindingPair[] = [];
+interface RawBinding {
+  wallet: string;
+  handle: string;
+  tweetId: string;
+}
+
+function extractBindings(page: SearchPage, stats: RunStats): RawBinding[] {
+  const out: RawBinding[] = [];
   for (const tweet of page.tweets) {
     stats.tweetsSeen++;
     const match = tweet.text.match(WALLET_RE);
@@ -228,111 +240,35 @@ function extractPairs(
       stats.noAddress++;
       continue;
     }
-    const handle = cleanTwitterHandle(tweet.author?.userName);
-    if (!handle) {
-      stats.badHandle++;
-      continue;
-    }
-    pairs.push({
-      wallet: match[0].toLowerCase(),
-      handle,
-      tweetId: tweet.id,
-      createdAt: tweet.createdAt,
-    });
+    const handle = tweet.author?.userName;
+    if (!handle) continue;
+    out.push({ wallet: match[0], handle, tweetId: tweet.id });
   }
-  return pairs;
+  return out;
 }
 
 /**
- * Latest tweet wins per handle (people rebind after moving wallets), then a
- * wallet claimed by more than one surviving handle is dropped entirely: the
- * tweets alone cannot say which claimant is real, and writing either would
- * launder a guess into an attested row.
+ * The one corpus-specific rule: drop handles spraying bindings across many
+ * wallets. Everything downstream of this (normalisation, contested wallets,
+ * the agreement gate, conflicts) is the shared ingest's job, not ours.
  */
-function dedupe(all: BindingPair[], stats: RunStats): BindingPair[] {
-  const byHandle = new Map<string, BindingPair>();
-  for (const p of all) {
-    const held = byHandle.get(p.handle);
-    if (!held || p.createdAt > held.createdAt) byHandle.set(p.handle, p);
+function dropSprayers(bindings: RawBinding[], stats: RunStats): AttestedLink[] {
+  const walletsByHandle = new Map<string, Set<string>>();
+  for (const b of bindings) {
+    const key = b.handle.toLowerCase();
+    const set = walletsByHandle.get(key) ?? new Set();
+    set.add(b.wallet.toLowerCase());
+    walletsByHandle.set(key, set);
   }
-  const byWallet = new Map<string, BindingPair[]>();
-  for (const p of byHandle.values()) {
-    byWallet.set(p.wallet, [...(byWallet.get(p.wallet) ?? []), p]);
-  }
-  const result: BindingPair[] = [];
-  for (const claims of byWallet.values()) {
-    if (claims.length === 1) result.push(claims[0]);
-    else stats.ambiguousWallets++;
-  }
-  return result;
-}
-
-// ----------------------------------------------------------------------------
-// Upsert: the ENS-harvest fill-only writer with this corpus's source label
-// ----------------------------------------------------------------------------
-
-async function upsertPairs(pairs: BindingPair[]): Promise<number> {
-  const db = getDb();
-  if (!db || pairs.length === 0) return 0;
-  const now = new Date();
-  let upserted = 0;
-
-  for (let i = 0; i < pairs.length; i += 500) {
-    const batch = pairs.slice(i, i + 500).map((p) => ({
-      wallet: p.wallet,
-      twitterHandle: p.handle,
-      twitterUrl: formatTwitterUrl(p.handle),
-      sources: ['debank_tweet'],
-      twitterVerified: true,
-      // twitter(20) + attested source(30) = 50, the same arithmetic as
-      // ens_onchain: below the 70 trust line because the Farcaster side of
-      // these wallets has never been checked.
-      dataQualityScore: 50,
-      firstSeenAt: now,
-      lastUpdatedAt: now,
-      lookupCount: 0,
-    }));
-
-    await db
-      .insert(socialGraph)
-      .values(batch)
-      .onConflictDoUpdate({
-        target: socialGraph.wallet,
-        set: {
-          // The renamed_from guard, verbatim from lib/ens-harvest.ts: a
-          // NULL handle can mean "cleared by the conflict resolver", and a
-          // binding tweet from before the rename still holds the dead
-          // string. Filling from it would reopen the conflict.
-          twitterHandle: sql`CASE
-            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from) THEN social_graph.twitter_handle
-            ELSE COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle) END`,
-          twitterUrl: sql`CASE
-            WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from) THEN social_graph.twitter_url
-            ELSE COALESCE(social_graph.twitter_url, EXCLUDED.twitter_url) END`,
-          twitterVerified: sql`CASE WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
-            AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
-            THEN true ELSE social_graph.twitter_verified END`,
-          // A refused fill stamps nothing: no source label, no quality
-          // bump, no freshness (the lesson Bugbot taught the ENS writer).
-          sources: sql`CASE
-            WHEN social_graph.twitter_handle IS NOT NULL
-              OR lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
-            THEN social_graph.sources
-            WHEN 'debank_tweet' = ANY(social_graph.sources) THEN social_graph.sources
-            ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'debank_tweet') END`,
-          dataQualityScore: sql`CASE
-            WHEN social_graph.twitter_handle IS NOT NULL
-              OR lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
-            THEN social_graph.data_quality_score
-            ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), 50) END`,
-          lastUpdatedAt: sql`CASE WHEN social_graph.twitter_handle IS NULL AND EXCLUDED.twitter_handle IS NOT NULL
-              AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(social_graph.twitter_renamed_from)
-            THEN EXCLUDED.last_updated_at ELSE social_graph.last_updated_at END`,
-        },
-      });
-    upserted += batch.length;
-  }
-  return upserted;
+  const spam = new Set(
+    [...walletsByHandle.entries()]
+      .filter(([, wallets]) => wallets.size > MAX_WALLETS_PER_HANDLE)
+      .map(([handle]) => handle)
+  );
+  stats.spamHandles += spam.size;
+  return bindings
+    .filter((b) => !spam.has(b.handle.toLowerCase()))
+    .map((b) => ({ wallet: b.wallet, handle: b.handle }));
 }
 
 // ----------------------------------------------------------------------------
@@ -374,12 +310,16 @@ async function main() {
     requests: 0,
     tweetsSeen: 0,
     noAddress: 0,
-    badHandle: 0,
-    ambiguousWallets: 0,
-    pairs: 0,
-    upserted: 0,
+    spamHandles: 0,
+    links: 0,
+    contested: 0,
+    rejected: 0,
+    newWallets: 0,
+    filled: 0,
+    agree: 0,
+    conflicts: 0,
   };
-  const samples: BindingPair[] = [];
+  const samples: AttestedLink[] = [];
 
   let windowStart = since;
   let stoppedEarly: string | null = null;
@@ -389,7 +329,7 @@ async function main() {
       addDays(windowStart, args.windowDays) < until
         ? addDays(windowStart, args.windowDays)
         : until;
-    const windowPairs: BindingPair[] = [];
+    const windowBindings: RawBinding[] = [];
 
     for (const base of QUERIES) {
       const query = `${base} since:${windowStart} until:${windowEnd}`;
@@ -412,7 +352,7 @@ async function main() {
         }
         stats.requests++;
         pages++;
-        windowPairs.push(...extractPairs(page, stats));
+        windowBindings.push(...extractBindings(page, stats));
         cursor = page.has_next_page ? page.next_cursor : null;
         if (pages >= MAX_PAGES_PER_WINDOW && cursor) {
           stoppedEarly =
@@ -423,16 +363,34 @@ async function main() {
       } while (cursor);
     }
 
-    const deduped = dedupe(windowPairs, stats);
-    stats.pairs += deduped.length;
-    for (const p of deduped) if (samples.length < 10) samples.push(p);
+    const links = dropSprayers(windowBindings, stats);
+    for (const l of links) if (samples.length < 10) samples.push(l);
 
     if (args.commit) {
-      stats.upserted += await upsertPairs(deduped);
+      const ingested = await ingestLinks(links, SOURCE);
+      stats.links += ingested.links;
+      stats.contested += ingested.contested;
+      stats.rejected += ingested.rejected;
+      stats.newWallets += ingested.newWallets;
+      stats.filled += ingested.filled;
+      stats.agree += ingested.agree;
+      stats.conflicts += ingested.conflicts;
       await saveCheckpoint(windowEnd);
+    } else {
+      // The dry run reports what a commit would do, through the same
+      // normalisation and read-only classification the ingest itself uses.
+      const { links: deduped, contested, rejected } = dedupeByWallet(links);
+      const counts = await classifyLinks(deduped);
+      stats.links += deduped.length;
+      stats.contested += contested;
+      stats.rejected += rejected;
+      stats.newWallets += counts.newWallets;
+      stats.filled += counts.wouldFill;
+      stats.agree += counts.agree;
+      stats.conflicts += counts.disagree;
     }
     console.log(
-      `  ${windowStart} → ${windowEnd}: ${deduped.length} pairs ` +
+      `  ${windowStart} → ${windowEnd}: ${links.length} links ` +
         `(${stats.requests} requests so far)`
     );
     windowStart = windowEnd;
@@ -448,13 +406,16 @@ async function main() {
   }
   console.log('\nDone:', JSON.stringify(stats, null, 2));
   if (samples.length > 0) {
-    console.log('\nSample pairs:');
-    for (const p of samples) {
-      console.log(`  ${p.wallet} → @${p.handle} (tweet ${p.tweetId}, ${p.createdAt})`);
+    console.log('\nSample links:');
+    for (const l of samples) {
+      console.log(`  ${l.wallet.toLowerCase()} → @${l.handle}`);
     }
   }
   if (!args.commit) {
-    console.log('\nDry run: no rows written, no checkpoint saved. Re-run with --commit.');
+    console.log(
+      '\nDry run: no rows written, no conflicts recorded, no checkpoint saved. ' +
+        'Re-run with --commit. (In dry-run "conflicts" counts disagreements found.)'
+    );
   }
 }
 

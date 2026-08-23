@@ -556,10 +556,12 @@ export function calculateQualityScore(
       case 'eas':
       case 'clanker':
       case 'ethos':
+      case 'debank_tweet':
         // Attested sources where the owner established both halves: a wallet
         // signature plus an account sign-in, an onchain attestation issued after
-        // the same proof, or a token deploy the account itself requested. Peers
-        // of a Farcaster verification, and scored the same.
+        // the same proof, a token deploy the account itself requested, or a
+        // bind-by-tweet flow posted from the account after a wallet connect.
+        // Peers of a Farcaster verification, and scored the same.
         //
         // It DOES stack with 'farcaster_sweep', unlike the pairs above, and
         // that is deliberate rather than an oversight. Those de-stack because
@@ -599,9 +601,19 @@ function isTwitterVerified(sources: string[]): boolean {
   // 'ethos' belongs here because the sweep writes twitter_verified = true for
   // the rows it fills. Leaving it out meant the next live lookup that merged
   // one of those rows would recompute the flag as false and silently unverify a
-  // handle nothing had disproved.
+  // handle nothing had disproved. 'eas', 'clanker' and 'debank_tweet' are here
+  // for exactly the same reason: every source ingested through
+  // lib/attested-links.ts writes twitter_verified = true, so a recompute that
+  // does not know the source replays the ethos bug.
   return sources.some(
-    (s) => s === 'ens' || s === 'ens_onchain' || s === 'manual' || s === 'ethos'
+    (s) =>
+      s === 'ens' ||
+      s === 'ens_onchain' ||
+      s === 'manual' ||
+      s === 'ethos' ||
+      s === 'eas' ||
+      s === 'clanker' ||
+      s === 'debank_tweet'
   );
 }
 
