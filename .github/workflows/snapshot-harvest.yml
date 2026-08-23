@@ -1,0 +1,50 @@
+# Weekly Snapshot profile harvest: walks the public hub API oldest-first and
+# ingests wallet-signed profiles that name a Twitter handle through the
+# shared attested-link ingest (source 'snapshot_profile').
+#
+# Checkpointed in ingest_state, so 500 requests a week walks the whole users
+# table over a few months and then ticks along incrementally; a finished
+# walk costs one empty request. Free API, keyless.
+#
+# Required repository secrets: DATABASE_URL. The role behind it needs the
+# ingestLinks write set (social_graph, handle_conflicts, ingest_state) —
+# granted to sweep_runner by scripts/migrate-grant-harvest-writes.ts.
+name: snapshot-profile-harvest
+
+on:
+  schedule:
+    - cron: '0 6 * * 0' # Sunday 06:00 UTC, before the daily backup window
+  workflow_dispatch:
+    inputs:
+      max_requests:
+        description: 'GraphQL request budget'
+        required: false
+        default: '500'
+        type: string
+
+concurrency:
+  group: snapshot-harvest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    # 500 requests at a 700ms pause is ~6 minutes plus ingest time.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: — that form is shell injection
+      # with secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/harvest-snapshot-profiles.ts --commit --max-requests "$MAX_REQUESTS"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_REQUESTS: ${{ inputs.max_requests || '500' }}
