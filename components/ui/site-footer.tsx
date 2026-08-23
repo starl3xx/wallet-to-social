@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {
   ArrowSquareOut,
   GithubLogo,
-  Heart,
+  ShootingStar,
 } from '@phosphor-icons/react/dist/ssr';
 import { XMark, FarcasterMark, BrandLockup } from './brand-marks';
 import { Eyebrow } from './eyebrow';
@@ -204,10 +204,11 @@ export function SiteFooter() {
             </a>
           </span>
           {/* The credit's glyph is Phosphor, at the UI size, like every other
-              icon. It was a colour emoji, the only one on the site: a bitmap
-              from the platform's emoji font in a row of Söhne, drawn
-              differently on every OS. The word goes to screen readers only,
-              so the sentence still reads as one. */}
+              icon. It began as the 🌠 emoji (the brand: starl3xx is the star),
+              a colour bitmap drawn differently on every OS; an earlier cleanup
+              swapped it for a heart and lost the pun. ShootingStar keeps both
+              the vector discipline and the joke. The words go to screen
+              readers only, so the sentence still reads as one. */}
           <a
             href="https://starl3xx.fun"
             target="_blank"
@@ -215,8 +216,8 @@ export function SiteFooter() {
             className="transition-control inline-flex items-center gap-1 hover:text-foreground"
           >
             made with
-            <Heart className="h-4 w-4" aria-hidden />
-            <span className="sr-only">love</span>
+            <ShootingStar className="h-4 w-4" aria-hidden />
+            <span className="sr-only">a shooting star</span>
             by <span className="font-medium text-foreground">@starl3xx</span>
           </a>
         </div>
