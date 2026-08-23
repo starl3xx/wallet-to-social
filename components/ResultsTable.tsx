@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDown, ArrowUp, Lock, WarningCircle } from '@phosphor-icons/react';
+import { ArrowUp, Lock, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import type { WalletSocialResult } from '@/lib/types';
 import {
@@ -195,6 +195,13 @@ const HEADER_HEIGHT = 34;
 const GUTTER_WIDTH = 18;
 
 /**
+ * The one empty-cell mark, an en dash. Every empty cell renders this constant:
+ * the grid shipped an en dash in locked cells beside a hyphen everywhere else,
+ * two empty-state marks in one table.
+ */
+const EMPTY_CELL = '–';
+
+/**
  * Row fills, opaque. They were `/30` tints over a transparent row, which is
  * the same colour on the page, but the gutter and wallet cells now pin to the
  * left edge and inherit the row's fill to mask the columns sliding beneath
@@ -248,7 +255,6 @@ function SortHeader({
   style?: React.CSSProperties;
 }) {
   const isSorted = sortField === field;
-  const Arrow = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   return (
     <div
       role="columnheader"
@@ -269,10 +275,21 @@ function SortHeader({
         type="button"
         onClick={() => onSort(field)}
         title={title}
-        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[var(--tracking-label)] outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-brand/50"
+        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[var(--tracking-label)] outline-none hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {label}
-        {isSorted && <Arrow className="h-3 w-3" aria-hidden />}
+        {/* One arrow, always mounted while sorted, rotating between the two
+            directions: a selected state moves, it does not teleport. The rows
+            beneath stay instant, so this is the one place a sort change shows. */}
+        {isSorted && (
+          <ArrowUp
+            className={cn(
+              'sort-arrow h-3 w-3',
+              sortDirection === 'desc' && 'rotate-180'
+            )}
+            aria-hidden
+          />
+        )}
       </button>
     </div>
   );
@@ -327,7 +344,7 @@ function LockedHeader({
 
 /** What a locked column's cells show: a dash, in the colour of text you cannot act on. */
 function LockedCell() {
-  return <span className="text-muted-foreground">–</span>;
+  return <span className="text-muted-foreground">{EMPTY_CELL}</span>;
 }
 
 export const ResultsTable = memo(function ResultsTable({
@@ -484,21 +501,22 @@ export const ResultsTable = memo(function ResultsTable({
   }, []);
 
   const truncateWallet = (wallet: string) => {
-    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+    return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
   };
 
+  /* A plain decimal in the browser locale, like every other figure here. The
+     column may hold a USD value, a token balance or an item count, so a
+     currency style would claim a unit the data never stated: a bag of 1,000
+     tokens is not "$1,000.00". */
   const formatHoldings = (value: number | undefined) => {
-    if (value === undefined) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
+    if (value === undefined) return EMPTY_CELL;
+    return new Intl.NumberFormat(undefined, {
       maximumFractionDigits: 2,
     }).format(value);
   };
 
   const formatPriorityScore = (value: number | undefined) => {
-    if (value === undefined || value === 0) return '-';
+    if (value === undefined || value === 0) return EMPTY_CELL;
     return value.toFixed(1);
   };
 
@@ -527,7 +545,8 @@ export const ResultsTable = memo(function ResultsTable({
     score: number | undefined;
   }) {
     const level = getPriorityLevel(score);
-    if (level === 0) return <span className="text-muted-foreground">-</span>;
+    if (level === 0)
+      return <span className="text-muted-foreground">{EMPTY_CELL}</span>;
 
     /* The bars are foreground, not violet: a priority score is a computed
        figure, neither an affordance nor an attested fact, and violet on it
@@ -621,7 +640,8 @@ export const ResultsTable = memo(function ResultsTable({
           a caption of the table and sits beneath it. */}
       <div className="flex flex-wrap items-center gap-4">
         <Input
-          placeholder="Search wallet, ENS, or handle..."
+          placeholder="Search wallet, ENS, or handle…"
+          aria-label="Search results"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
@@ -635,15 +655,30 @@ export const ResultsTable = memo(function ResultsTable({
         >
           With X handle
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          aria-pressed={showTopInfluencers}
-          className={cn(showTopInfluencers && FILTER_ON)}
-          onClick={() => setShowTopInfluencers(!showTopInfluencers)}
-        >
-          Top influencers (1K+)
-        </Button>
+        {/* Gated with the paid columns it filters on: an ungated toggle told
+            a free user which wallets clear 1K followers, leaking the locked
+            fc_followers signal one bit at a time (decided 2026-08-22). */}
+        {isPaidTier ? (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={showTopInfluencers}
+            className={cn(showTopInfluencers && FILTER_ON)}
+            onClick={() => setShowTopInfluencers(!showTopInfluencers)}
+          >
+            Top influencers (1K+)
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            title="Buy credits to filter by follower reach"
+            onClick={() => onUpgradeClick?.('filter-influencers')}
+          >
+            <Lock className="size-3" aria-hidden />
+            Top influencers (1K+)
+          </Button>
+        )}
         {results.some((r) => r.is_agent) && (
           <Button
             variant="outline"
@@ -828,8 +863,10 @@ export const ResultsTable = memo(function ResultsTable({
                        that utility also transitions `transform`, and a virtualised
                        row is positioned by one, so a re-sort would slide every row
                        to its new place. Background colour is the only thing a
-                       virtualised row may animate. */
-                    className={`absolute top-0 left-0 grid w-full items-center border-b border-border transition-[background-color] ${
+                       virtualised row may animate. The duration and curve are
+                       stated because Tailwind's bare default is 150ms on its own
+                       ease, neither of which the system has. */
+                    className={`absolute top-0 left-0 grid w-full items-center border-b border-border transition-[background-color] duration-[var(--duration-fast)] ease-[var(--ease-out-soft)] ${
                       isEnriched ? ROW_FILL_ENRICHED : ROW_FILL
                     }`}
                     style={{
@@ -842,8 +879,10 @@ export const ResultsTable = memo(function ResultsTable({
                         least one of these identities; hollow means they were
                         matched. Rows with no identity, and rows the graph never
                         saw, get nothing rather than a mark that would overstate
-                        what is known. The title carries the same fact in words,
-                        so nothing depends on distinguishing two colours. */}
+                        what is known. The title carries the same fact in words
+                        for a mouse, and the visually hidden text carries it to
+                        screen readers and touch, where a title never surfaces:
+                        nothing depends on distinguishing two colours. */}
                     {/* Centred, not pinned with a top padding.
                         `pt-3` aligned the dot with the address at exactly one
                         row height and drifted at any other, because every other
@@ -864,7 +903,9 @@ export const ResultsTable = memo(function ResultsTable({
                             <span
                               className="h-2 w-2 rounded-full bg-attested"
                               title="Owner-attested: this identity was published by the address owner"
-                            />
+                            >
+                              <span className="sr-only">Owner-attested</span>
+                            </span>
                           );
                         }
                         if (state === 'matched') {
@@ -872,7 +913,11 @@ export const ResultsTable = memo(function ResultsTable({
                             <span
                               className="h-2 w-2 rounded-full ring-1 ring-inset ring-border"
                               title="Matched from the index, not owner-attested"
-                            />
+                            >
+                              <span className="sr-only">
+                                Matched from the index
+                              </span>
+                            </span>
                           );
                         }
                         return null;
@@ -893,6 +938,18 @@ export const ResultsTable = memo(function ResultsTable({
                             identity and reads as data, and muted would say it
                             cannot be acted on. Hover goes to brand, colour
                             only. */}
+                        {/* The confirmation swaps in place of the address
+                            rather than floating beside it. Every overlay
+                            position lost a stacking war somewhere: above sat
+                            behind the sticky header (the cell's own z-10
+                            context cannot clear the header's z-20), below was
+                            painted over by the next virtualised row (opaque
+                            bg, later rows paint above earlier overflow). An
+                            in-place swap has nothing to fight; the keyed span
+                            re-fires the fade-in, and role="status" announces
+                            what the swap shows. Green: a completed copy is a
+                            real outcome, and the address itself is back in
+                            two seconds. */}
                         <Button
                           variant="link"
                           size="inline"
@@ -900,14 +957,16 @@ export const ResultsTable = memo(function ResultsTable({
                           onClick={() => handleCopyWallet(result.wallet)}
                           title={`${result.wallet}\nClick to copy`}
                         >
-                          {truncateWallet(result.wallet)}
-                          {copiedWallet === result.wallet && (
-                            /* bg-foreground/text-background, not bg-black/text-white. The
-                               dark theme's background is itself near-black, so a literally
-                               black toast on it had no edge at all. */
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded-sm whitespace-nowrap z-10">
+                          {copiedWallet === result.wallet ? (
+                            <span
+                              key="copied"
+                              role="status"
+                              className="fade-in-fast text-attested"
+                            >
                               Copied!
                             </span>
+                          ) : (
+                            truncateWallet(result.wallet)
                           )}
                         </Button>
                         {/* Both chips are the Badge primitive. One meaning,
@@ -949,7 +1008,7 @@ export const ResultsTable = memo(function ResultsTable({
                       role="cell"
                       className="px-4 py-2 font-mono text-xs truncate"
                     >
-                      {result.ens_name || '-'}
+                      {result.ens_name || EMPTY_CELL}
                     </div>
 
                     {/* Holdings. Two cuts in this row, one per kind of value:
@@ -974,7 +1033,7 @@ export const ResultsTable = memo(function ResultsTable({
                         role="cell"
                         className="px-4 py-2 text-sm truncate"
                       >
-                        {(result[col] as string) || '-'}
+                        {(result[col] as string) || EMPTY_CELL}
                       </div>
                     ))}
 
@@ -988,7 +1047,7 @@ export const ResultsTable = memo(function ResultsTable({
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
                       ) : (
-                        '-'
+                        EMPTY_CELL
                       )}
                     </div>
 
@@ -1013,7 +1072,7 @@ export const ResultsTable = memo(function ResultsTable({
                           </a>
                         </Button>
                       ) : (
-                        '-'
+                        EMPTY_CELL
                       )}
                     </div>
 
@@ -1034,7 +1093,7 @@ export const ResultsTable = memo(function ResultsTable({
                         result.fc_followers !== undefined ? (
                           result.fc_followers.toLocaleString()
                         ) : (
-                          '-'
+                          EMPTY_CELL
                         )
                       ) : (
                         <LockedCell />

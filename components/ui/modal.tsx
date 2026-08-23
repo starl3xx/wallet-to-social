@@ -103,8 +103,11 @@ const ModalContent = React.forwardRef<
         inner region absorbs the overflow, so this one has none left to show. See
         `UpgradeModal`, where the two buttons belong to two different cards and
         so could never have shared one pinned footer.
+
+        `overscroll-contain`: on touch, reaching the end of this scroller must
+        not chain into scrolling the page behind the overlay.
       */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-6">
         {children}
       </div>
       {/* `flex-none` so it keeps its height while the body above gives way, and

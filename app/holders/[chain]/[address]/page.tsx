@@ -5,6 +5,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { Figure } from '@/components/ui/figure';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
   listHolderCollections,
   getHolderCollection,
@@ -94,9 +95,13 @@ export default async function HolderPage({ params }: Props) {
       />
       <div className="max-w-[68ch]">
         <p className="mb-3 text-sm text-muted-foreground">
-          <Link href="/holders" className="text-accent-brand">
-            Holder reports
-          </Link>{' '}
+          {/* The link variant at inline size: the one treatment for a text
+              link inside a sentence, with the underline affordance and focus
+              ring a bare anchor lacked. Button renders the Link via Slot, so
+              it works in a server component. */}
+          <Button asChild variant="link" size="inline">
+            <Link href="/holders">Holder reports</Link>
+          </Button>{' '}
           / {chainLabel(collection.chain)}
         </p>
         <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
@@ -187,12 +192,11 @@ export default async function HolderPage({ params }: Props) {
             <ul className="space-y-2">
               {overlap.map((o) => (
                 <li key={`${o.chain}:${o.address}`} className="text-muted-foreground">
-                  <Link
-                    href={`/holders/${o.chain}/${o.address}`}
-                    className="text-accent-brand"
-                  >
-                    {o.name}
-                  </Link>{' '}
+                  <Button asChild variant="link" size="inline">
+                    <Link href={`/holders/${o.chain}/${o.address}`}>
+                      {o.name}
+                    </Link>
+                  </Button>{' '}
                   <span className="tabular-nums">
                     ({o.sharedHolders.toLocaleString()} shared holders,{' '}
                     {chainLabel(o.chain)})
@@ -207,11 +211,11 @@ export default async function HolderPage({ params }: Props) {
           <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
             Run this on your own list
           </h2>
-          <p className="mb-5 text-muted-foreground">
+          <p className="mb-6 text-muted-foreground">
             Paste any contract address or upload a CSV and get the people
-            behind the wallets, ranked by holdings times reach. Free covers
-            100 matches every 30 days, and a wallet we cannot resolve costs
-            nothing.
+            behind the wallets, ranked by holdings times reach. Free covers{' '}
+            {FREE_MATCHES_PER_WINDOW} matches every {FREE_WINDOW_DAYS} days,
+            and a wallet we cannot resolve costs nothing.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild>

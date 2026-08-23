@@ -26,6 +26,10 @@ import { cn } from '@/lib/utils';
  * `role="alert"`, so assistive tech announces the message without the person
  * having to find it. The element renders only while there is an error, which
  * is the condition the role is designed for.
+ *
+ * `fade-in-fast`: the line arrives over --d-fast rather than as a hard cut.
+ * Opacity only, and the alert role announces it regardless, so the fade
+ * delays nothing a person is waiting to know.
  */
 export function InlineError({
   children,
@@ -38,7 +42,7 @@ export function InlineError({
     <p
       role="alert"
       className={cn(
-        'flex items-start gap-2 text-sm text-destructive',
+        'fade-in-fast flex items-start gap-2 text-sm text-destructive',
         className
       )}
     >

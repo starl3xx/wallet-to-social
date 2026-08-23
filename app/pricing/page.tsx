@@ -81,9 +81,11 @@ export default function PricingPage() {
     <PageShell>
       <div className="mx-auto max-w-3xl">
         <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
-          Pay per match. Misses cost nothing.
+          Pay per{' '}
+          <em className="font-semibold not-italic text-accent-brand">match</em>.
+          Misses cost nothing.
         </h1>
-        <p className="mb-10 max-w-[52ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
+        <p className="mb-12 max-w-[52ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
           Credit packs, bought once. A match is a wallet we resolve to an X or
           Farcaster account, and each match carries its evidence. The free
           allowance shows your match rate before you pay.
@@ -101,7 +103,7 @@ export default function PricingPage() {
           </Button>
         </div>
 
-        <section className="mt-14">
+        <section className="mt-16">
           <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
             What a list actually costs
           </h2>
@@ -117,8 +119,8 @@ export default function PricingPage() {
           </p>
         </section>
 
-        <section className="mt-14">
-          <h2 className="mb-5 text-2xl font-light tracking-[var(--tracking-title)]">
+        <section className="mt-16">
+          <h2 className="mb-6 text-2xl font-light tracking-[var(--tracking-title)]">
             Questions people ask before buying
           </h2>
           <dl className="space-y-6">
@@ -131,12 +133,12 @@ export default function PricingPage() {
           </dl>
           <p className="mt-6 text-sm text-muted-foreground">
             Something else?{' '}
-            <a
-              href="mailto:help@walletlink.social"
-              className="text-accent-brand"
-            >
-              help@walletlink.social
-            </a>{' '}
+            {/* The link variant at inline size: the one treatment for a text
+                link inside a sentence, and it brings the underline affordance
+                and the focus ring a bare anchor here lacked. */}
+            <Button asChild variant="link" size="inline">
+              <a href="mailto:help@walletlink.social">help@walletlink.social</a>
+            </Button>{' '}
             reaches a person.
           </p>
         </section>
