@@ -541,11 +541,27 @@ async function main() {
   const expression = MEASURE(expected, TOLERANCE);
   let totalChecked = 0;
 
+  /**
+   * Counted by kind, and `ok` is decided per viewport rather than per assertion.
+   *
+   * The first version incremented one counter and then printed `ok` whenever the
+   * height violations happened to be empty, so a page that scrolled sideways
+   * logged its `fail` line and a green `ok` for the same measurement. It also
+   * reported every failure as "controls did not render at the height they
+   * declare", which is false for a scroll or a blank page, and then offered the
+   * `flex-1` explanation for a defect that has nothing to do with flex. Exit
+   * status was right and the log was misleading, which is a poor trade in a
+   * guard whose whole purpose is that a passing run cannot be mistaken for
+   * anything else.
+   */
+  const counts = { height: 0, scroll: 0, empty: 0, token: 0 };
+
   for (const path of PATHS) {
     for (const viewport of VIEWPORTS) {
       const r = await measure(cdp, base + path, viewport, expression);
       totalChecked += r.checked;
       const where = `${path} @ ${viewport.width}`;
+      const before = failures;
 
       if (
         r.tokenOnPage &&
@@ -555,6 +571,7 @@ async function main() {
         console.log(
           `  ${RED}fail${RESET}  ${where}: the page computes --height-control as ${r.tokenOnPage}, globals.css says ${expected}px`
         );
+        counts.token++;
         failures++;
       }
 
@@ -563,6 +580,7 @@ async function main() {
           `  ${RED}fail${RESET}  ${where}: only ${r.checked} control${r.checked === 1 ? '' : 's'} declared the height, expected at least ${MIN_CONTROLS_PER_PAGE}. ` +
             'The page probably did not render, and an empty page has no violations to report.'
         );
+        counts.empty++;
         failures++;
       }
 
@@ -570,33 +588,59 @@ async function main() {
         console.log(
           `  ${RED}fail${RESET}  ${where}: scrolls sideways, ${r.scrollWidth}px of content in ${r.innerWidth}px`
         );
+        counts.scroll++;
         failures++;
       }
 
-      if (r.violations.length === 0) {
-        console.log(
-          `  ${GREEN}ok${RESET}    ${where} ${DIM}(${r.checked} controls at ${expected}px)${RESET}`
-        );
-        continue;
-      }
       for (const v of r.violations) {
         console.log(
           `  ${RED}fail${RESET}  ${where}: ${v.axis} ${v.got}px, expected ${expected}px — ${v.el}`
         );
+        counts.height++;
         failures++;
+      }
+
+      // Green only when this viewport passed every assertion, not merely the
+      // height one.
+      if (failures === before) {
+        console.log(
+          `  ${GREEN}ok${RESET}    ${where} ${DIM}(${r.checked} controls at ${expected}px)${RESET}`
+        );
       }
     }
   }
 
   console.log();
   if (failures > 0) {
+    // Name what actually failed, and offer the flex explanation only when a
+    // height is among them, since it explains nothing about the other three.
+    const parts = [];
+    if (counts.height)
+      parts.push(
+        `${counts.height} control${counts.height === 1 ? '' : 's'} did not render at the height ${counts.height === 1 ? 'it declares' : 'they declare'}`
+      );
+    if (counts.scroll)
+      parts.push(
+        `${counts.scroll} page render${counts.scroll === 1 ? '' : 's'} scrolled sideways`
+      );
+    if (counts.empty)
+      parts.push(
+        `${counts.empty} page render${counts.empty === 1 ? '' : 's'} had too few controls to be a rendered page`
+      );
+    if (counts.token)
+      parts.push(
+        `${counts.token} page render${counts.token === 1 ? '' : 's'} computed a different --height-control than globals.css declares`
+      );
+
     fail(
-      `${failures} control${failures === 1 ? '' : 's'} did not render at the height ${failures === 1 ? 'it declares' : 'they declare'}.\n\n` +
-        'The usual cause is a control that is a flex item on the axis carrying its height.\n' +
-        '`flex-1` is `flex: 1 1 0%`, and a flex basis supplies the main size, so `height`\n' +
-        'is never consulted: inside a `flex-col` container it silently replaces `h-control`.\n' +
-        'Write `sm:flex-1`, or put `flex-1` on a wrapper div and leave the control alone.\n' +
-        'See docs/DESIGN-LANGUAGE.md, Control height.'
+      `${parts.join('.\n')}.` +
+        (counts.height
+          ? '\n\nThe usual cause of a wrong height is a control that is a flex item on the axis\n' +
+            'carrying it. `flex-1` is `flex: 1 1 0%`, and a flex basis supplies the main size,\n' +
+            'so `height` is never consulted: inside a `flex-col` container it silently replaces\n' +
+            '`h-control`. Write `sm:flex-1`, or put `flex-1` on a wrapper div and leave the\n' +
+            'control alone. See docs/DESIGN-LANGUAGE.md, Control height.'
+          : '')
     );
   }
 
