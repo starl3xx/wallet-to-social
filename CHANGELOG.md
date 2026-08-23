@@ -2,6 +2,20 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (DeBank binding-tweet harvest, written ahead of credits)
+
+- **`scripts/harvest-debank-bindings.ts`**: DeBank's Twitter binding flow
+  makes users tweet their wallet address from their own account, so the
+  corpus of those tweets is a public set of owner-published handle-to-wallet
+  attestations. The script sweeps X search for the two template phrases in
+  windows, extracts the pairs, and fill-only upserts them into social_graph
+  with source `debank_tweet`, reusing the ENS harvest's writer verbatim
+  (renamed_from guard, no stamping on a refused fill, quality 50). Wallets
+  claimed by more than one handle are dropped as unresolvable. Dry-run by
+  default; interrupt-safe checkpoint in ingest_state; stops cleanly on a
+  request budget or a 402. Needs `TWITTERAPI_IO_KEY` with credits, which is
+  why it ships unrun.
+
 ### 2026-08-22 (footer: Farcaster, llms.txt, and ask-an-AI links)
 
 - **@walletlink on Farcaster** joins X and GitHub in the footer's social
