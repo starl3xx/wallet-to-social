@@ -166,20 +166,20 @@ differently; now only the words differ.
 
 ### Tracking — bound to size, four steps
 
-| Token         | Value      | Applies at  |
-| ------------- | ---------- | ----------- |
-| `--t-display` | `-0.04em`  | ≥32px       |
-| `--t-title`   | `-0.028em` | 20–31px     |
-| `--t-lead`    | `-0.012em` | 16–19px     |
-| `--t-body`    | `-0.006em` | body and UI |
+| Token                | Value      | Applies at  |
+| -------------------- | ---------- | ----------- |
+| `--tracking-display` | `-0.04em`  | ≥32px       |
+| `--tracking-title`   | `-0.028em` | 20–31px     |
+| `--tracking-lead`    | `-0.012em` | 16–19px     |
+| `--tracking-body`    | `-0.006em` | body and UI |
 
 Checking that a value _is_ a token is not the same as checking it is the _right_
 token for its size. The wordmark passed every automated check while using
-`--t-lead` at 34px.
+`--tracking-lead` at 34px.
 
 ### Uppercase labels — one tracking
 
-`--track: 0.14em`, mono, 11px, uppercase. **This is the only uppercase text in the
+`--tracking-label: 0.14em`, mono, 11px, uppercase. **This is the only uppercase text in the
 product.** Any `uppercase` not accompanied by `font-mono` is a violation.
 
 ---
@@ -188,13 +188,13 @@ product.** Any `uppercase` not accompanied by `font-mono` is a violation.
 
 ### Radius — five values, all named
 
-| Token           | Value | Applies to                                |
-| --------------- | ----- | ----------------------------------------- |
-| `--r-container` | 14px  | cards, panels, inputs, modals, dropzones  |
-| `--r-mark`      | 9px   | the brand mark, the one square-ish object |
-| `--r-chip`      | 6px   | badges, inline code                       |
-| `--r-control`   | pill  | buttons, segmented controls               |
-| —               | 50%   | dots and avatars only                     |
+| Token           | Value | Applies to                                            |
+| --------------- | ----- | ----------------------------------------------------- |
+| `--radius-lg`   | 14px  | cards, panels, inputs, modals, dropzones              |
+| `--radius-mark` | 9px   | the brand mark, the one square-ish object             |
+| `--radius-sm`   | 6px   | badges, inline code                                   |
+| _(none)_        | pill  | buttons, segmented controls: `rounded-full`, no token |
+| —               | 50%   | dots and avatars only                                 |
 
 Banned: `rounded-md`, `rounded-xl`, `rounded-2xl`, bare `rounded`.
 
@@ -252,9 +252,48 @@ Before shipping a control, ask what it looks like on `--background`, on
 
 ### Control height
 
-`--h-ctl: 34px`. **Every control in a row resolves to it** — button, segmented,
+`--height-control: 34px`. **Every control in a row resolves to it** — button, segmented,
 input, avatar. Heights derived from padding can never agree across different font
 sizes, which is how three heights ended up in one header.
+
+**It is a width as much as a height.** `size-control` takes both from the same
+token, so raising it moves the header row, not just the control. The phone
+header fits 320px with 4px to spare, and two of its parts are 34px squares: the
+avatar and the collapsed Buy credits. At 44px that row is 336px, which is 16px
+over the screen the whole "header on a phone" section exists to fit. That is the
+argument against raising the token, and it is arithmetic rather than taste.
+
+34px is under Apple's 44pt recommendation and above the WCAG 2.2 AA floor, which
+is 24px. Every control on the homepage meets AA. Where 44 is genuinely wanted it
+is bought as a **hit area, not as a height**: `::after { content:''; position:absolute; inset:-5px }`
+on a `relative` control, which reaches 44 without moving a pixel of layout and
+keeps the token at one value. Measure the `gap-2` runs first: a −5px inset eats
+10px of an 8px gap.
+
+**A control may not be a flex item on the axis that carries its height.**
+
+`flex-1` is `flex: 1 1 0%`, and on a flex item the basis supplies the main size,
+so `height` is never consulted. In a `flex-col` container the main axis is
+vertical, so `flex-1` silently discards `h-control`; the container has no free
+space to grow into, and `min-height: auto` drops the control to its content
+height.
+
+Measured at 390px, before this was fixed: the two homepage alternates rendered
+**22px** and the reverse-lookup field **35.5px**, beside a Segmented and a button
+at 34px. Three heights in one control row, which is the failure this token was
+created to end, reappearing three panes below the header where it was first
+fixed. Both were 34px at `sm` and above, which is why no desktop review ever saw
+either.
+
+Write `sm:flex-1`, or put `flex-1` on a wrapper `div` and leave the control
+alone. `ReachabilityChecker.tsx` already had the second spelling while two other
+call sites had the first: one idea, three spellings, one correct.
+
+**No grep can catch this.** Every class involved is on-system, and all twelve
+rules in `check-design-language.mjs` pass over it. It is the defect this document
+predicts under Enforcement: a guard that reads class strings answers "is this
+value on-system?" and cannot answer "what height did this render at?". The rule
+that catches it opens a browser.
 
 ---
 
@@ -311,6 +350,42 @@ untouched at 606px.
 on-system, and the row was unusable on the most common screen size the product
 has.
 
+### The page on a phone
+
+The section above is a measured pass over one row. For a long time nothing
+comparable existed for the body, and the sentence that closes it turned out to
+describe the homepage exactly: every element below the header was individually
+on-system, and the column still read as incoherent at 390px.
+
+What was found there, measured at 390px against the 342px the shell leaves:
+
+|                            | before     | after        |
+| -------------------------- | ---------- | ------------ |
+| Opening block              | 263px      | **195px**    |
+| Proof row (three `Figure`) | 137px      | **69px**     |
+| Dropzone top edge          | 394px      | **326px**    |
+| The two alternates         | 22px       | **34px**     |
+| Reverse-lookup row         | 34/35.5/34 | **34/34/34** |
+
+Two lessons, both of which generalise:
+
+**A gap that fits on a desktop is a wrap on a phone, and a wrap costs double.**
+The proof row's three figures need 273px of content; two 48px gaps ask for 369px
+against 342px, so the row broke 2 + 1 and doubled its height. It was larger than
+the h1 and the lede combined, and it was most of why the opening read as
+oversized. The fix is a responsive gap, not a smaller figure: `gap-x-4` below
+`sm`, the row's own value above it. 16px is the only step on the scale that still
+fits at 360.
+
+**A separator joined into a string dangles when the string wraps.** Any list
+built with `.join(' · ')` ends a wrapped line on the middot. Lay the items out as
+flex children and let the gap separate them; the separator then has nothing to
+dangle from, at any width.
+
+**A desktop layout narrowed is not a phone layout.** Every defect here came from
+a value chosen at one width and never measured at another. The h1, the lede and
+the shell were fine. What failed was three gaps and two flex declarations.
+
 ### Breakpoints
 
 Tailwind's own, plus **one**: `xs` at 360px.
@@ -351,7 +426,7 @@ which has one layout; inset panels on
 `bg-muted` at `p-4`; an error beside a control is `InlineError`
 (`components/ui/inline-error.tsx`): a 14px destructive line with the 16px
 warning glyph, announced as an alert, never a box. The panel arrives by fade
-and `scale(0.97)` over `--d-base` and leaves over `--d-fast`; the close is a
+and `scale(0.97)` over `--duration-base` and leaves over `--duration-fast`; the close is a
 ghost icon button named "Close". Below `sm` the panel keeps its radius and
 inset.
 
@@ -540,14 +615,14 @@ size="inline"`.** The `link` variant existed and was used nowhere, because the
 
 Three durations, two curves.
 
-| Token         | Value                     | For                                  |
-| ------------- | ------------------------- | ------------------------------------ |
-| `--d-press`   | 80ms                      | the press itself                     |
-| `--d-fast`    | 120ms                     | hover, colour, borders               |
-| `--d-base`    | 220ms                     | state changes                        |
-| `--d-stagger` | 40ms                      | one step, never past the fourth item |
-| `--e-out`     | `cubic-bezier(.2,0,0,1)`  | anything arriving                    |
-| `--e-inout`   | `cubic-bezier(.4,0,.2,1)` | between two on-screen states         |
+| Token                | Value                     | For                                  |
+| -------------------- | ------------------------- | ------------------------------------ |
+| `--duration-press`   | 80ms                      | the press itself                     |
+| `--duration-fast`    | 120ms                     | hover, colour, borders               |
+| `--duration-base`    | 220ms                     | state changes                        |
+| `--duration-stagger` | 40ms                      | one step, never past the fourth item |
+| `--ease-out-soft`    | `cubic-bezier(.2,0,0,1)`  | anything arriving                    |
+| `--ease-in-out-soft` | `cubic-bezier(.4,0,.2,1)` | between two on-screen states         |
 
 - **Hover changes colour only.** Never size, never shadow: a control that grows
   shifts every neighbour, and this product is mostly dense rows.
@@ -682,7 +757,7 @@ So after `add`, before the commit:
 1. Replace `primary` / `secondary` / `accent` with the semantic token that
    states what the thing **means**: `accent-brand` for an affordance,
    `attested` for a measured fact.
-2. Radius to the five. Height to `--h-ctl` if it is a control.
+2. Radius to the five. Height to `--height-control` if it is a control.
 3. Hairline at full opacity. Shadow only if it floats.
 4. `transition-control`, not `transition-colors`: the tokens carry the durations.
 5. Icons to Phosphor, sized in `className`. Note that shadcn's own Phosphor
@@ -701,12 +776,12 @@ and the second implementation would have hidden that.
 
 Two CI jobs and an ESLint rule guard what a grep can see:
 
-| Guard                               | Covers                                                                                                                                |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                           |
+| Guard                               | Covers                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                              |
 | `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px label may be written only inside `Eyebrow` and `Badge`), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
-| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                 |
-| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                       |
+| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                    |
+| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                          |
 
 Both scripts run their **own fixtures first**, so a guard that has stopped working
 fails before it can report a clean codebase. They must be tested against fixtures,
