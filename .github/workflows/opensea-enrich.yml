@@ -44,7 +44,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/enrich-opensea-accounts.ts --commit --limit ${{ inputs.limit || '200' }}
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: — that form is shell injection
+      # with secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/enrich-opensea-accounts.ts --commit --limit "$LIMIT"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENSEA_API_KEY: ${{ secrets.OPENSEA_API_KEY }}
+          LIMIT: ${{ inputs.limit || '200' }}

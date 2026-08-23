@@ -41,6 +41,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/harvest-snapshot-profiles.ts --commit --max-requests ${{ inputs.max_requests || '500' }}
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: — that form is shell injection
+      # with secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/harvest-snapshot-profiles.ts --commit --max-requests "$MAX_REQUESTS"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_REQUESTS: ${{ inputs.max_requests || '500' }}
