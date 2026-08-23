@@ -27,6 +27,10 @@ on:
       - 'scripts/check-design-language.mjs'
       - 'scripts/check-contrast.mjs'
       - 'scripts/check-og-palette.mjs'
+      - 'scripts/check-control-height.mjs'
+      # The browser guard reads --height-control out of this file, and a change
+      # to the token is exactly when a rendered height needs re-measuring.
+      - 'app/globals.css'
       - 'scripts/lib/**'
       - '.github/workflows/design-tokens.yml'
 
@@ -133,3 +137,38 @@ jobs:
       # needed to identify a control has to clear 3:1.
       - name: Both themes meet WCAG AA
         run: node scripts/check-contrast.mjs
+
+  control-height:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The only design job that installs anything, because it is the only one
+      # that runs the app. The other three read source and stylesheets.
+      - run: npm ci
+
+      # The guard that opens a browser, and the only one that can answer "what
+      # height did this actually render at".
+      #
+      # It exists because on 2026-08-23 a Button carrying `h-control` was given
+      # `flex-1` inside a `flex-col` row, so a flex basis replaced its height and
+      # it rendered 22px on every phone and 34px from `sm` up. Every class was
+      # on-system, all twelve rules in check-design-language.mjs passed over it,
+      # ESLint was quiet and the build was green. The defect shipped.
+      #
+      # No browser is installed: the runner image already carries Google Chrome,
+      # and the script drives it over the DevTools protocol through Node's own
+      # WebSocket. It starts `next dev` with DATABASE_URL blank, so this needs no
+      # secrets; the pages it measures all render without one.
+      #
+      # Like the other guards it runs fixtures first, and its fixture is the
+      # 2026-08-23 bug itself. A browser guard has more ways to succeed silently
+      # than a grep does: a detached Chrome, a selector matching nothing or a
+      # settle that fires before the font loads all produce an empty violation
+      # list, which reads exactly like a healthy page.
+      - name: Every control renders at the height it declares
+        run: node scripts/check-control-height.mjs
