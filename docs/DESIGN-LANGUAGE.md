@@ -774,16 +774,18 @@ and the second implementation would have hidden that.
 
 ## Enforcement
 
-Two CI jobs and an ESLint rule guard what a grep can see:
+Four CI jobs and an ESLint rule. Three of them guard what a grep can see; the
+fourth opens a browser, because the other three cannot see a rendered box:
 
 | Guard                               | Covers                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                              |
 | `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px label may be written only inside `Eyebrow` and `Badge`), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
 | `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                    |
+| `scripts/check-control-height.mjs`  | **rendered** height: every visible element carrying `h-control` or `size-control` measures the token, on three pages at six widths, plus no sideways scroll                                                                                                                                                                              |
 | `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                          |
 
-Both scripts run their **own fixtures first**, so a guard that has stopped working
+Every guard runs its **own fixtures first**, so one that has stopped working
 fails before it can report a clean codebase. They must be tested against fixtures,
 not against the code they are meant to bless — the palette guard passed clean twice over live violations, once because
 its regex required whitespace before the class, once because it omitted six colour
@@ -792,6 +794,22 @@ families.
 A grep answers "is this value on-system?" It cannot answer "does this render?" or
 "is this the right token for this size?" Two components sharing a class name
 produce perfectly token-compliant CSS and a destroyed layout.
+
+**That paragraph described a real defect for as long as it stood unenforced.** On
+2026-08-23 a Button carrying `h-control` was given `flex-1` inside a `flex-col`
+row; a flex basis replaced its height and it rendered 22px on every phone and
+34px from `sm` up. Every class was on-system, all twelve rules passed over it,
+ESLint was quiet, the build was green, and it shipped. `check-control-height.mjs`
+is the answer: it drives the runner's own Chrome over the DevTools protocol,
+installs nothing, needs no secrets, and asserts only what a browser knows.
+
+It checks only elements that **declare** the contract, so there is no exception
+list and no judgment about what counts as a control: an element that never asks
+for the control height is not one. Its fixture is the 2026-08-23 bug itself,
+which matters more here than elsewhere, because a browser guard has more ways to
+succeed silently than a grep does. A detached browser, a selector matching
+nothing, or a settle that fires before the font loads all produce an empty
+violation list, and an empty violation list reads exactly like a healthy page.
 
 **Scope styles to components.** Three bugs in one afternoon came from one
 component's styles reaching another: a duplicated class name, a reused class name,

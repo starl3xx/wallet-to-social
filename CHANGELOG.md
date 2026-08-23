@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-23 (a guard that opens a browser)
+
+- **`scripts/check-control-height.mjs`**, the first guard here that can answer
+  "what height did this actually render at". Every visible element carrying
+  `h-control` or `size-control` must measure the token, on three pages at six
+  widths from 320 to 1280, and no page may scroll sideways. 174 rendered
+  controls checked per run.
+- **It checks only elements that declare the contract**, so there is no
+  exception list and no judgment about what counts as a control: an element that
+  never asks for the control height is not one. The responsive forms
+  (`sm:h-control`) are skipped for the same reason.
+- **No dependency, no browser download.** It drives the runner's own Chrome over
+  the DevTools protocol through Node's built-in WebSocket. The alternative was a
+  test-runner dependency and a ~180MB Chromium per CI run to send three CDP
+  messages. It starts `next dev` with `DATABASE_URL` blank, so it needs no
+  secrets; the pages it measures all render without one.
+- **Its fixture is the bug it was written for.** Like the other guards it proves
+  itself before reporting, and that matters more here: a detached browser, a
+  selector matching nothing, or a settle that fires before the font loads all
+  produce an empty violation list, which reads exactly like a healthy page. So
+  it measures the 22px `flex-1`-in-a-`flex-col` case, which it must catch, and
+  the `sm:flex-1` correction, which it must not flag.
+- **Verified against the real regression, not only the fixture.** With the fix
+  reverted in `InputMethodPicker.tsx` it reported 8 failures and exit 1, at
+  320/360/390/430 and clean at 768/1280, which is the defect's exact signature.
+  The failure message names the cause and the two correct spellings.
+- `docs/DESIGN-LANGUAGE.md` Enforcement now lists four guards rather than two,
+  and records that its own "a grep cannot answer whether this renders" paragraph
+  described a live defect for as long as it stood unenforced.
+
 ### 2026-08-23 (the homepage gets the phone pass the header already had)
 
 - **The two alternates were 22px tall on every phone.** `altClass` carried a
