@@ -49,7 +49,12 @@ function campaignContent() {
       'What changed since you signed up: the identity index reached 4.8 million wallets. Farcaster coverage is complete and refreshed daily. Every X handle carries a reachability label, live, suspended, or unclaimed, so you can drop the dead ones before you send. And reverse lookup answers the other direction: an X handle or Farcaster username in, the wallets behind it out.',
       'A match is a wallet we resolve to an X or Farcaster account, and misses cost nothing, so a low-match list barely spends the pack. Paste a contract address or upload a CSV. The pack unlocks priority ranking, the X list export, reverse lookup, deep scan, and all seven chains.',
     ],
-    button: { label: 'Use your 250 matches', url: 'https://walletlink.social' },
+    // The ref tag lands in page_view metadata, so arrivals from this email
+    // are countable next to the grant redemptions in relaunch-report.ts.
+    button: {
+      label: 'Use your 250 matches',
+      url: 'https://walletlink.social/?ref=relaunch-2026-08',
+    },
     footnote:
       'You are getting this one email because you have a walletlink.social account and the credits are already on it. Questions: reply, a person reads it.',
   };

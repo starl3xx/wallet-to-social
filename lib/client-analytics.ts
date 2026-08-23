@@ -68,7 +68,10 @@ export async function trackClientEvent(
 
 // Convenience functions for common events
 export const Analytics = {
-  pageView: (path: string) => trackClientEvent('page_view', { path }),
+  // `ref` is the campaign tag from a ?ref= query param, when one is present:
+  // the join between "we sent a link" and "somebody arrived through it".
+  pageView: (path: string, ref?: string | null) =>
+    trackClientEvent('page_view', ref ? { path, ref } : { path }),
 
   csvUpload: (fileSize: number, rowCount: number) =>
     trackClientEvent('csv_upload', { fileSize, rowCount }),

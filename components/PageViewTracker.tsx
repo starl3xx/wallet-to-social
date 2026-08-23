@@ -51,7 +51,12 @@ export function PageViewTracker() {
     lastPath.current = pathname;
     // Deliberately not awaited and errors are swallowed inside the helper:
     // analytics must never delay or break a page render.
-    Analytics.pageView(pathname);
+    //
+    // The ref tag comes off window.location rather than useSearchParams():
+    // the hook would force a Suspense boundary in the root layout for a
+    // value only read inside an effect, where window is already real.
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    Analytics.pageView(pathname, ref);
   }, [pathname]);
 
   return null;
