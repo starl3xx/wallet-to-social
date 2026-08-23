@@ -4,11 +4,28 @@ import {
   GithubLogo,
   Heart,
 } from '@phosphor-icons/react/dist/ssr';
-import { XMark, BrandLockup } from './brand-marks';
+import { XMark, FarcasterMark, BrandLockup } from './brand-marks';
 import { Eyebrow } from './eyebrow';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
+
+// One question, asked of each assistant in its own prefill parameter. The
+// phrasing is deliberately open: the assistants read /llms.txt and the public
+// pages, so the answer is theirs to give, and a leading question ("why is X
+// great") would read as astroturf the moment the answer hedged.
+const ASK_AI_PROMPT = encodeURIComponent(
+  'What is walletlink.social? What does it do, who is it for, and what does it cost?'
+);
+
+const ASK_AI = [
+  { label: 'ChatGPT', href: `https://chatgpt.com/?q=${ASK_AI_PROMPT}` },
+  { label: 'Claude', href: `https://claude.ai/new?q=${ASK_AI_PROMPT}` },
+  {
+    label: 'Perplexity',
+    href: `https://www.perplexity.ai/search?q=${ASK_AI_PROMPT}`,
+  },
+];
 
 const SOCIAL =
   'transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:text-accent-brand';
@@ -80,6 +97,15 @@ export function SiteFooter() {
                 <XMark className="h-4 w-4" />
               </a>
               <a
+                href="https://farcaster.xyz/walletlink"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="walletlink.social on Farcaster"
+                className={SOCIAL}
+              >
+                <FarcasterMark className="h-4 w-4" />
+              </a>
+              <a
                 href={REPO}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -141,9 +167,42 @@ export function SiteFooter() {
           </FooterColumn>
         </div>
 
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
-          {/* The site is the product; the copyright is the company that owns it. */}
-          <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
+        {/* The AI answer engines are an acquisition channel like search, and
+            /llms.txt is already written for them; these links put a visitor
+            one click from asking about the product in their own assistant,
+            with the question pre-filled. Text links, not provider logos: the
+            footer's icon rule is that a glyph carries information, and three
+            brand marks here would carry none the words do not. */}
+        <div className="mt-12 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+          <span>Ask AI about walletlink.social</span>
+          {ASK_AI.map((t) => (
+            <a
+              key={t.label}
+              href={t.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-control inline-flex items-center gap-1 hover:text-accent-brand"
+            >
+              {t.label}
+              <ArrowSquareOut className="h-3 w-3" aria-hidden />
+            </a>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {/* The site is the product; the copyright is the company that owns it. */}
+            <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
+            {/* A route handler, so a plain anchor rather than Link; it serves
+                text and exists to be found, by crawlers and by the people who
+                check for it. */}
+            <a
+              href="/llms.txt"
+              className="transition-control hover:text-foreground"
+            >
+              llms.txt
+            </a>
+          </span>
           {/* The credit's glyph is Phosphor, at the UI size, like every other
               icon. It was a colour emoji, the only one on the site: a bitmap
               from the platform's emoji font in a row of Söhne, drawn
