@@ -1,0 +1,50 @@
+# Weekly OpenSea account enrichment: per-address lookups for the
+# most-followed Farcaster wallets missing an X handle, ingesting
+# OAuth-connected handles through the shared attested-link ingest (source
+# 'opensea_profile'). Numeric X user ids are skipped by the script until an
+# id-to-handle resolver exists.
+#
+# The target pool shrinks as it succeeds, and the same wallet can be retried
+# across weeks while it stays unfilled; that is cheap (one request each) and
+# self-limiting rather than tracked state.
+#
+# Required repository secrets: DATABASE_URL, OPENSEA_API_KEY. The role
+# behind DATABASE_URL needs the ingestLinks write set (social_graph,
+# handle_conflicts, ingest_state) — granted to sweep_runner by
+# scripts/migrate-grant-harvest-writes.ts.
+name: opensea-account-enrich
+
+on:
+  schedule:
+    - cron: '30 6 * * 0' # Sunday 06:30 UTC, after the Snapshot harvest starts
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Wallets to try'
+        required: false
+        default: '200'
+        type: string
+
+concurrency:
+  group: opensea-enrich
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    # 200 wallets at a 300ms pause is ~2 minutes plus ingest time.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/enrich-opensea-accounts.ts --commit --limit ${{ inputs.limit || '200' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENSEA_API_KEY: ${{ secrets.OPENSEA_API_KEY }}

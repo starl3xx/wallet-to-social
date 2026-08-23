@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (the Snapshot and OpenSea harvests go on weekly crons)
+
+- **Two scheduled workflows**: `snapshot-profile-harvest` (Sunday 06:00
+  UTC, 500 hub requests a week, walks the users table from its checkpoint)
+  and `opensea-account-enrich` (Sunday 06:30 UTC, 200 wallets against the
+  missing-X default). Both idle cheaply once their pools drain.
+- **`scripts/migrate-grant-harvest-writes.ts`** (run 2026-08-22): the
+  attested-link ingest writes social_graph, handle_conflicts and
+  ingest_state, and `sweep_runner` held write on only the first — no
+  ingest_state grants at all and read-only handle_conflicts — so a harvest
+  cron on that role would have died in CI with "permission denied", the
+  exact trap CLAUDE.md documents for reads. Granted SELECT/INSERT/UPDATE on
+  both (no DELETE; a scheduled job holds nothing it does not need).
+- The Sybil import ran the same day: 2,615 rows carry `sybil_list`
+  (2,100 new wallets, 257 fills, 258 corroborations) and 166 conflicts are
+  recorded for the resolver.
+
 ### 2026-08-22 (three more attested-link sources: Sybil, Snapshot, OpenSea)
 
 - **`scripts/import-sybil-list.ts`**: Uniswap's deprecated Sybil delegate
