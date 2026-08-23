@@ -149,4 +149,4 @@ Start with your holder list. Resolve the identities. Segment the results. Send t
 
 ---
 
-Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social): free for your first 100 matches every 30 days.
+Build your holder-to-Farcaster map. Upload your wallet list at [walletlink.social](https://walletlink.social): free for your first 100 matches in every rolling 30-day window.

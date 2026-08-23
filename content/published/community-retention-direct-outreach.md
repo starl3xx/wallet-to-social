@@ -97,4 +97,4 @@ Direct outreach works. The data is clear. The only barrier has been the tooling 
 
 ---
 
-Ready to turn your holder list into a contact list? [walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches every 30 days.
+Ready to turn your holder list into a contact list? [walletlink.social](https://walletlink.social) resolves Ethereum wallets to Twitter and Farcaster profiles. Free tier covers 100 matches in every rolling 30-day window.

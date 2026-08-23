@@ -1,6 +1,6 @@
 ---
 title: 'walletlink.social vs Cookie.fun: which tool fits your workflow?'
-meta_description: "Cookie.fun and walletlink.social solve different problems. Here's when to use each and how they complement each other in a Web3 workflow."
+meta_description: "Cookie.fun and walletlink.social solve different problems. Here’s when to use each and how they complement each other in a Web3 workflow."
 published: true
 publish_date: '2026-04-30'
 ---
@@ -92,7 +92,7 @@ Cookie fits best in step 1. walletlink fits best in step 3. They are not competi
 
 Cookie operates on a freemium model with a utility token ($COOKIE) for premium features. Pricing scales with usage and access level.
 
-walletlink uses a one-time payment model. The free tier covers 100 matches every 30 days. Packs range from $29 to $899, priced in matches rather than wallets, and credits last 12 months from purchase. No subscriptions.
+walletlink uses a one-time payment model. The free tier covers 100 matches in every rolling 30-day window. Packs range from $29 to $899, priced in matches rather than wallets, and credits last 12 months from purchase. No subscriptions.
 
 Both approaches have merits. Cookie’s model fits ongoing research workflows. walletlink’s model fits project teams that need resolution in bursts (pre-airdrop, pre-governance vote, quarterly community analysis).
 
@@ -104,4 +104,4 @@ Use Cookie when you need to understand the AI agent ecosystem. Use walletlink wh
 
 ---
 
-Need to resolve your holder list to social profiles? Try [walletlink.social](https://walletlink.social): free for your first 100 matches every 30 days.
+Need to resolve your holder list to social profiles? Try [walletlink.social](https://walletlink.social): free for your first 100 matches in every rolling 30-day window.

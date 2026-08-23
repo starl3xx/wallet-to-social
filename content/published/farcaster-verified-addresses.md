@@ -1,6 +1,6 @@
 ---
 title: 'How Farcaster verified addresses changed wallet identity'
-meta_description: "Technical explanation of how Farcaster's cryptographic wallet verification delivers 3x better match rates than ENS text records alone."
+meta_description: "Technical explanation of how Farcaster’s cryptographic wallet verification delivers 3x better match rates than ENS text records alone."
 published: true
 publish_date: '2026-03-19'
 ---
@@ -37,7 +37,7 @@ This creates three problems for identity resolution:
 
 **3. Low adoption.** Setting ENS text records requires a transaction and gas fee. Most ENS holders set their primary name and stop there. Across all ENS names with at least one transaction in the past year, only about 8% have any social text records set.
 
-Despite these limitations, ENS text records were the best available data source for years. The industry’s 2.5% average match rate is largely built on ENS-only resolution.
+Despite these limitations, ENS text records were the best available data source for years. The low-single-digit match rates typical tools publish are largely built on ENS-only resolution.
 
 ## The Farcaster identity architecture
 
@@ -137,7 +137,7 @@ From an identity resolution perspective, Farcaster’s design choices solve real
 
 **Multiple addresses per identity.** People use multiple wallets. Farcaster’s model acknowledges this and lets users prove ownership of all of them under one identity.
 
-**Social data is accessible.** The Farcaster protocol is open, and APIs like Neynar provide rich social data alongside identity information. You get the connection AND the context.
+**Social data is accessible.** The Farcaster protocol is open, and public hub APIs provide rich social data alongside identity information. You get the connection AND the context.
 
 **No gas cost for users.** Farcaster runs on Optimism with minimal transaction costs. Users don’t face a $5-20 gas fee to verify a wallet, unlike setting ENS text records on mainnet.
 

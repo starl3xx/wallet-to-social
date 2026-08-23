@@ -1,6 +1,6 @@
 ---
 title: 'walletlink.social now supports Farcaster: 3x more wallet matches'
-meta_description: "Farcaster integration brings 3x more wallet matches. Find your token holders' Twitter and Farcaster profiles instantly. 16-46% match rate by chain vs 2.5% average."
+meta_description: "Farcaster integration brings 3x more wallet matches. Find your token holders' Twitter and Farcaster profiles instantly. 16-46% match rate, measured by chain."
 headline_variations:
   - 'walletlink.social now supports Farcaster: 3x more wallet matches'
   - 'Farcaster integration: turn 10,000 wallet addresses into reachable holders'
@@ -30,7 +30,7 @@ When someone connects their wallet to Farcaster, that verification is cryptograp
 The numbers:
 
 - **Farcaster DAU: 50K → 400K+** in 2024 (10x growth)
-- **80% of active crypto builders** are now on Farcaster
+- **Much of crypto's builder class** is now on Farcaster
 - **Verified addresses** = reliable matching, no guessing
 
 Farcaster is where Web3 lives. And now walletlink.social taps into it.
@@ -69,9 +69,8 @@ The bottom line:
 | ---------------- | ---------- |
 | ENS only         | ~8%        |
 | + Farcaster      | ~22%       |
-| Industry average | 2.5%       |
 
-**That’s 9x better than average.** More matches = more holders you can reach.
+**Nearly 3x the matches from the same list.** More matches = more holders you can reach.
 
 ## How it works
 
@@ -83,7 +82,7 @@ Behind the scenes, each wallet is resolved against several classes of evidence:
 2. **Onchain records**: ENS text records the address owner set themselves
 3. **Identity indexes**: correlated profiles across ENS, Lens and other namespaces
 
-Results cached 24 hours. 10K wallets in under 2 minutes.
+Results cached 7 days. 10K wallets in under 2 minutes.
 
 ## Real results: DAO case study
 
@@ -102,7 +101,7 @@ They built an ambassador program from their top 50 matches. The difference betwe
 
 **Addressable**: full CRM suite. Powerful but complex. If you just need wallet-to-identity resolution without the enterprise overhead, we’re faster and simpler.
 
-**Blaze**: bundles enrichment with campaigns, community tools, subscriptions. Great if you need all that. If you want focused, pay-as-you-go lookups, we’re leaner.
+**Blaze**: bundled enrichment with campaigns, community tools and subscriptions before it shut down; our [comparison](https://walletlink.social/vs/blaze) records it. If you want focused, pay-as-you-go lookups, we’re leaner.
 
 **Holder.xyz**: analytics-focused. Shows holder composition. We’re action-focused: giving you profiles to actually _reach_ them. Complementary, not competing.
 

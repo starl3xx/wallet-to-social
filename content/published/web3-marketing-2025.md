@@ -87,7 +87,7 @@ Several factors converged to make this possible:
 
 **ENS maturation.** ENS text records now commonly include Twitter handles, URLs, and other social links. As ENS adoption grew past the speculative phase, the percentage of ENS holders with populated text records increased.
 
-**Aggregation tooling.** Services that combine multiple identity sources (ENS, Farcaster, Lens, Web3.bio) into a single resolution pipeline achieve match rates that no individual source could. The current state of the art is around 22%, compared to the 2.5% industry average from single-source lookups.
+**Aggregation tooling.** Services that combine multiple identity sources (ENS, Farcaster, Lens, aggregators) into a single resolution pipeline achieve match rates that no individual source could. The current state of the art is around 22%, against the low single digits that single-source lookups typically deliver.
 
 **AI agent detection.** As automated wallets proliferate, distinguishing humans from bots became essential. Identity resolution inherently filters for humans: wallets with linked social profiles are almost certainly operated by real people.
 
@@ -104,7 +104,7 @@ Identity-first marketing is built on a direct signal: verified wallet-to-social 
 
 This doesn’t mean identity-first marketing is perfect. Not every wallet resolves. Not every resolved profile leads to engagement. The 22% match rate means 78% of wallets remain anonymous.
 
-But 22% of a 10,000-holder community is 2,200 reachable people. And because match rates skew toward more engaged, more connected holders, that 22% typically represents a disproportionate share of holdings, governance participation, and social influence.
+But 22% of a 10,000-holder community is 2,200 identified people, roughly 1,300 of them reachable on X or Farcaster. And because match rates skew toward more engaged, more connected holders, that 22% typically represents a disproportionate share of holdings, governance participation, and social influence.
 
 ## The practical implications
 
@@ -130,4 +130,4 @@ The spray-and-pray era is ending. The question is whether you’ll adopt identit
 
 **Start with identity.**
 
-[walletlink.social](https://walletlink.social) resolves wallet addresses to Twitter and Farcaster profiles at a 22% match rate. See who your holders actually are, and build marketing that reaches them directly.
+[walletlink.social](https://walletlink.social) resolves wallet addresses to the identities behind them: about 22% of a typical list resolves, and each match is labelled reachable or not. See who your holders actually are, and build marketing that reaches them directly.

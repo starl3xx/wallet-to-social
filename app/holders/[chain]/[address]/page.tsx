@@ -237,7 +237,7 @@ export default async function HolderPage({ params }: Props) {
           <p className="mb-6 text-muted-foreground">
             Paste any contract address or upload a CSV and get the people
             behind the wallets, ranked by holdings times reach. Free covers{' '}
-            {FREE_MATCHES_PER_WINDOW} matches every {FREE_WINDOW_DAYS} days,
+            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}-day window,
             and a wallet we cannot resolve costs nothing.
           </p>
           <div className="flex flex-wrap gap-3">

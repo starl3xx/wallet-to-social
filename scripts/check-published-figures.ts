@@ -388,19 +388,51 @@ const CLAIMS: Claim[] = [
     tolerance: 0.05,
   },
   {
+    what: 'known agent wallets flagged',
+    files: [
+      'lib/public-figures.ts',
+      'content/published/filter-agents-before-airdrop.md',
+      'content/published/ai-agents-why-it-matters.md',
+    ],
+    // Matches the constant declaration and the blog form "13,622+ ... agent".
+    pattern:
+      /KNOWN_AGENTS = '([0-9]{1,3}(?:,[0-9]{3})+)'|([0-9]{1,3}(?:,[0-9]{3})+)\+[\s\S]{0,25}?agent/,
+    actual: () => one(sql`SELECT count(*)::int FROM known_agents`),
+    // Written to the digit with a trailing +: a floor that must never
+    // overstate, and must not sit far behind either.
+    tolerance: 0,
+    kind: 'ceiling',
+    staleBelow: 0.1,
+  },
+  {
     what: 'share of X matches that are owner-attested',
     files: [
       'docs-site/concepts/coverage.mdx',
       'app/layout.tsx',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
+      // The comparison pages carry the same claim in their own words; they
+      // were outside the list when the 2026-08-22 Sybil import moved the
+      // measured share, and drifted unguarded.
+      'app/vs/addressable/page.tsx',
+      'app/vs/airstack/page.tsx',
+      'app/vs/blaze/page.tsx',
+      'app/vs/holder/page.tsx',
+      'content/published/walletlink-vs-addressable.md',
+      'content/published/walletlink-vs-blaze.md',
     ],
-    pattern: /over ([0-9]{2}\.[0-9])% of/i,
+    // \s+ rather than a space: JSX wraps "99.9%" and "of" across lines.
+    pattern: /over ([0-9]{2}\.[0-9])%\s+of/i,
     actual: async () => {
+      // Every id here must stay in step with the attested set in
+      // lib/social-graph.ts (isTwitterVerified): a new attested source that
+      // is missing from this list makes the share DROP as that source adds
+      // genuinely attested rows, which is exactly what the 2026-08-22 Sybil
+      // import did to this check (99.9 → 99.8 with nothing wrong).
       const attested = await one(sql`
         SELECT count(*)::int FROM social_graph
         WHERE twitter_handle IS NOT NULL
-          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual']`);
+          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual','debank_tweet','sybil_list','snapshot_profile','opensea_profile']`);
       const total = await one(
         sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`
       );

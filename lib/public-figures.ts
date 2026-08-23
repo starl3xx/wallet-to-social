@@ -87,3 +87,12 @@ export const X_HANDLES_HELD = '446,329';
 
 /** Supported EVM chains. Derived from `SUPPORTED_CHAINS`, not counted by hand. */
 export const CHAIN_COUNT_WORD = 'seven';
+
+/**
+ * Known agent wallets in the detector's list. A floor: the count only grows.
+ * Verified against the live known_agents table 2026-08-22 (13,622) and
+ * guarded by the figures registry.
+ */
+export const KNOWN_AGENTS = '13,622';
+/** The same fact at display size, for stat tiles. */
+export const KNOWN_AGENTS_SHORT = '13K+';

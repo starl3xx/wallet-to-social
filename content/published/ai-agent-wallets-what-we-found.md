@@ -90,7 +90,7 @@ If you’re running outreach, airdrops, or governance campaigns, agent wallets a
 
 The good news is that detection is straightforward. Identity resolution is the fastest filter: run your holder list through a service like [walletlink.social](https://walletlink.social), and any wallet that resolves to a social profile is almost certainly human. The unresolved wallets need further analysis, but you’ve already separated signal from noise.
 
-We’ve published our full agent wallet dataset (addresses only, no private data) as a public resource. If you’re building analytics tools or holder dashboards, this list is a useful exclusion filter.
+We maintain the full agent wallet dataset inside the product: flagged agents are labelled directly in lookup results, so any holder list you run is already an exclusion filter.
 
 ## The bigger picture
 

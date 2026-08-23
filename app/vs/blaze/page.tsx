@@ -12,7 +12,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
 export const metadata: Metadata = {
@@ -349,7 +349,7 @@ export default function BlazeComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (every pack, on all seven supported chains)
+                          (every pack, on all {CHAIN_COUNT_WORD} supported chains)
                         </span>
                       </span>
                     </td>
@@ -478,7 +478,7 @@ export default function BlazeComparison() {
             </h2>
             <p className="text-muted-foreground mb-6">
               Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              every {FREE_WINDOW_DAYS} days, no credit card required.
+              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

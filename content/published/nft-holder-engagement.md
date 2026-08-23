@@ -1,6 +1,6 @@
 ---
 title: 'NFT holder engagement: from anonymous wallets to real relationships'
-meta_description: "NFT projects know who minted but can't reach collectors. Learn how wallet identity resolution builds genuine holder relationships and drives secondary sales."
+meta_description: "NFT projects know who minted but can’t reach collectors. Learn how wallet identity resolution builds genuine holder relationships and drives secondary sales."
 published: true
 publish_date: '2026-03-30'
 ---
@@ -94,7 +94,7 @@ The result: secondary volume increased 40% the following week, and floor price h
 
 **Step 1: Export your holder list.** Pull current holders from your contract using Etherscan, Reservoir, or your own indexer. You need wallet addresses and token counts.
 
-**Step 2: Resolve identities.** Run the holder list through a wallet identity resolution service. At a 22% match rate, a 5,000-holder collection yields roughly 1,100 identified profiles.
+**Step 2: Resolve identities.** Run the holder list through a wallet identity resolution service. At a 22% identity match rate, a 5,000-holder collection yields roughly 1,100 identified profiles; the messageable X-or-Farcaster subset runs closer to 13%, and results label which is which.
 
 **Step 3: Calculate Priority Scores.** Rank holders by `holdings x log10(followers + 1)`. This surfaces people with both skin in the game and social reach.
 
@@ -114,4 +114,4 @@ Anonymous wallets are a temporary state, not a permanent condition. The question
 
 **Ready to identify your NFT holders?**
 
-[walletlink.social](https://walletlink.social) resolves wallet addresses to Twitter and Farcaster profiles with a 22% match rate, 9x the industry average. Upload your holder list and start building real collector relationships.
+[walletlink.social](https://walletlink.social) resolves wallet addresses to the people behind them: about 22% of a typical list resolves to some identity, roughly 13% to an X or Farcaster profile you can message, many times what typical tools publish. Upload your holder list and start building real collector relationships.

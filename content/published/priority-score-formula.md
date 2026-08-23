@@ -19,7 +19,7 @@ That’s the problem the priority score solves.
 Priority Score = Holdings x log10(followers + 1)
 ```
 
-That’s it. Holdings is the raw token balance (or USD value, depending on your preference). Followers is the combined follower count across matched social profiles (Twitter + Farcaster). The `+1` prevents the log of zero for accounts with no followers.
+That’s it. Holdings is the raw token balance (or USD value, depending on your preference). Followers is the Farcaster follower count of the matched profile, the one follower figure the product can attest. The `+1` prevents the log of zero for accounts with no followers.
 
 The logarithmic scale on followers is the key design choice. Here’s why.
 
@@ -55,7 +55,7 @@ For those who want the intuition behind logarithmic scaling:
 
 Each 10x increase in followers adds 1.0 to the multiplier. Going from 100 to 1,000 followers adds the same score increment as going from 10,000 to 100,000. This means:
 
-- A holder with 10,000 followers scores 4x a holder with 0 followers (all else equal)
+- A holder with 10,000 followers carries a 4.0 multiplier, four times the 1.0 of a holder with about 10 followers (a 0-follower holder multiplies to zero)
 - But a holder with 100,000 followers only scores 5x, not 10x
 
 This prevents celebrity accounts from completely overwhelming the rankings. A holder with 1M followers and 100 tokens shouldn’t outrank a holder with 10,000 followers and 50,000 tokens. The log scale enforces that.
@@ -92,7 +92,7 @@ Holder #5 in the priority list (@web3_educator) holds only 180,000 tokens (ranke
 
 The formula isn’t perfect. A few situations where it needs manual judgment:
 
-**Multi-platform presence.** A holder active on both Twitter and Farcaster with 5,000 followers each shows 10,000 combined followers. Someone with 10,000 on Twitter only shows the same number. But the multi-platform holder might be more valuable for cross-platform outreach. The score doesn’t capture this.
+**Multi-platform presence.** The score reads Farcaster followers only, because that is the count the product can attest. A holder with a large X audience and a small Farcaster one scores low even though they might be more valuable for cross-platform outreach. The score doesn’t capture this.
 
 **Engagement rate.** A holder with 50,000 followers and 0.1% engagement rate is less useful than one with 5,000 followers and 10% engagement rate. Follower count is a proxy for reach, not influence. We’re exploring engagement-weighted variants but haven’t shipped them yet.
 
@@ -120,7 +120,7 @@ The formula is simple enough to implement in a spreadsheet:
 
 Where B2 is holdings and C2 is followers. No libraries needed.
 
-If you’re using walletlink.social, the priority score is calculated automatically when your upload includes a holdings column. Results come pre-sorted by priority score, with the raw data available for custom analysis.
+If you’re using walletlink.social with any credit pack, the priority score is calculated automatically when your upload includes a holdings column (follower counts and priority ranking are paid result fields). Results come pre-sorted by priority score, with the raw data available for custom analysis.
 
 ---
 

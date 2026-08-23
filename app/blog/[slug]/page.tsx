@@ -69,8 +69,9 @@ export default async function BlogPost({ params }: Props) {
       '@type': 'WebPage',
       '@id': `https://walletlink.social/blog/${slug}`,
     },
+    // No dateModified: stamping render time claimed every post was edited
+    // today, on every request, in structured data served to crawlers.
     datePublished: post.publishedAt,
-    dateModified: new Date().toISOString().split('T')[0],
   };
 
   return (

@@ -1,13 +1,13 @@
 ---
 title: 'The future of wallet identity: what comes after 22%'
-meta_description: "Wallet-to-social match rates run 16-46% depending on the chain. Here's why that number is climbing and what new identity standards mean for the onchain ecosystem."
+meta_description: "Wallet-to-social match rates run 16-46% depending on the chain. Here’s why that number is climbing and what new identity standards mean for the onchain ecosystem."
 published: true
 publish_date: '2026-05-04'
 ---
 
 # The future of wallet identity: what comes after 22%
 
-Right now, the best wallet-to-social resolution tools match about 22% of Ethereum addresses to a social identity. That is roughly 9x the industry average of ~2.5%, and it is a meaningful number, enough to build outreach strategies, segment communities, and run targeted campaigns.
+Right now, the best wallet-to-social resolution tools match about 22% of Ethereum addresses to a social identity. That is many times the low-single-digit rates typical tools publish, and it is a meaningful number, enough to build outreach strategies, segment communities, and run targeted campaigns.
 
 But 22% also means 78% of wallets remain anonymous. That gap represents both a limitation and an opportunity. The interesting question is not where match rates are today, but where they are heading and what forces will push them higher.
 
@@ -105,4 +105,4 @@ We are closer to that threshold than most people realize. The 22% of today is no
 
 ---
 
-Start resolving your holders today and build your identity dataset as coverage grows. Try [walletlink.social](https://walletlink.social) free for your first 100 matches every 30 days.
+Start resolving your holders today and build your identity dataset as coverage grows. Try [walletlink.social](https://walletlink.social) free for your first 100 matches in every rolling 30-day window.

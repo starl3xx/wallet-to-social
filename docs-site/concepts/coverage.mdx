@@ -33,7 +33,7 @@ own index only, with no external API calls at measurement time.
 | **All three**   | **26**      | **72,318** |              |                  | **30.8%** |
 
 **Base is roughly three times Ethereum**, and that is not a quirk of the
-collections we picked. Base is where Farcaster lives, so a Base collection's
+collections we picked. Base is where Farcaster lives, so a Base collection’s
 holders are disproportionately people who have already linked a social account
 to a wallet. If you are planning a campaign, the chain your holders are on will
 move your reachable audience more than the size of your collection does.
@@ -41,8 +41,9 @@ move your reachable audience more than the size of your collection does.
 Use the row for your chain rather than the average. The average is the honest
 summary of these 26 collections and it describes no collection in particular.
 
-For context, the industry average for wallet-to-social matching sits near 2.5%.
-Even the lowest chain here is six times that.
+For context, tools that match wallets to social accounts typically publish
+rates in the low single digits. Even the lowest chain here clears that by a
+wide margin.
 
 <Note>
   These are counts of accounts that exist. Roughly a third of attested X handles
@@ -88,12 +89,12 @@ All three are established by the address owner rather than inferred by us, and t
 
 The third route is the newest and it is worth saying what it adds beyond reach.
 The other two record a handle as a string, captured once. This one records the
-account's permanent numeric id alongside it, so when a handle is a name its
+account’s permanent numeric id alongside it, so when a handle is a name its
 owner later changed, that is something we can detect rather than something that
 silently rots. See [when a handle stops being
 true](/concepts/data-quality#when-a-handle-stops-being-true).
 
-**Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner's own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
+**Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner’s own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
 
 **The routes grow. The labelling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you _how it was established_, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
 
@@ -108,7 +109,7 @@ any attestation notices, because an attestation records a name at a moment.
 
 So we resolve the X handles in the index against X itself, on a daily schedule.
 So far the job has resolved 437,823 handles: **69.6% are live, 20.6%
-suspended and 9.7% no longer in use**. That is 95.9% coverage of the 446,329
+suspended and 9.7% no longer in use**. That is 98.1% coverage of the 446,329
 distinct handles we hold, and the daily job works through the remainder
 oldest-first.
 

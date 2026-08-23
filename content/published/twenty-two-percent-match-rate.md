@@ -1,11 +1,11 @@
 ---
-title: 'The 22% match rate: how we got 9x better than average'
-meta_description: 'Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, against a 2.5% industry average.'
+title: 'The 22% match rate: how we got far past single digits'
+meta_description: 'Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, measured by chain.'
 published: true
 publish_date: '2026-03-26'
 ---
 
-# The 22% match rate: how we got 9x better than average
+# The 22% match rate: how we got far past single digits
 
 > **Update, August 2026:** Farcaster matching is now backed by our own index of the complete Farcaster protocol (every FID’s verified and custody addresses, 4.7M wallets, refreshed daily), so Farcaster matches are deterministic rather than best-effort API lookups. The pipeline and per-source contribution figures below describe the original architecture and predate the full index; treat them as historical context.
 >
@@ -39,11 +39,11 @@ The index-only Farcaster rate (11-13%) now equals what the live pipeline returns
 
 Where the index is still thin is ENS: index-only “any identity” is 13-15% against the live pipeline’s 23.7%, and nearly all of that gap is ENS names not yet harvested onchain. That gap is the roadmap, not a limitation of the method.
 
-The industry average for wallet-to-social identity resolution is approximately 2.5%. That means if you have 10,000 wallet addresses, most tools will identify social profiles for about 250 of them.
+Tools that resolve wallets to social identities typically publish rates in the low single digits. That means if you have 10,000 wallet addresses, most tools will identify social profiles for a few hundred of them at best.
 
 walletlink.social matches 2,200 out of those 10,000, a 22% match rate. This post explains exactly how, covering the data sources, the pipeline architecture, and where each source contributes.
 
-## Why 2.5% is the baseline
+## Why single digits is the baseline
 
 The industry average comes from a common approach: look up the wallet’s ENS name (if any), check for text records, and return whatever is found.
 
@@ -53,7 +53,7 @@ This approach has structural limitations:
 - Of those, only ~8% have social text records set
 - Of those records, ~15-20% are stale (changed handles, deactivated accounts)
 
-If you do the math: 12% (have ENS) x 8% (have text records) x 82% (records are valid) = roughly 0.8%. Some tools do better by adding scraped databases or third-party enrichment, bringing the average up to 2.5%. But the ceiling for ENS-only approaches is low.
+If you do the math: 12% (have ENS) x 8% (have text records) x 82% (records are valid) = roughly 0.8%. Some tools do better by adding scraped databases or third-party enrichment, reaching the low single digits. But the ceiling for ENS-only approaches is low.
 
 ## The four-source pipeline
 
@@ -208,4 +208,4 @@ The architecture is straightforward. The insight is simply that no single identi
 
 **See the 22% difference on your data.**
 
-[walletlink.social](https://walletlink.social) runs the full pipeline on your wallet list. Free tier covers 100 matches every 30 days. Upload a CSV and see how many holders you can identify.
+[walletlink.social](https://walletlink.social) runs the full pipeline on your wallet list. Free tier covers 100 matches in every rolling 30-day window. Upload a CSV and see how many holders you can identify.

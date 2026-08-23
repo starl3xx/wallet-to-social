@@ -15,7 +15,7 @@ publish_date: '2026-03-02'
 
 “We had 12,000 token holders and couldn’t reach any of them.”
 
-That’s how Maya Chen, Community Lead at [DAO Name], describes the situation they faced in mid-2024. The DAO had raised significant funding, built a passionate Discord community, and distributed governance tokens to early supporters.
+That’s how the community lead of a mid-sized DeFi DAO describes the situation they faced in mid-2024. The DAO had raised significant funding, built a passionate Discord community, and distributed governance tokens to early supporters.
 
 On paper, they were decentralized. In practice, they had a governance problem.
 
@@ -52,7 +52,7 @@ They uploaded their holder list to [walletlink.social](https://walletlink.social
 
 **The results surprised them:**
 
-- 34% match rate (vs. 2.5% industry average)
+- 34% match rate, far above what typical tools publish
 - 4,080 holders identified with Twitter and/or Farcaster profiles
 - 287 holders with 10K+ followers (“whales with reach”)
 - 142 holders active in other DAOs’ governance
@@ -184,7 +184,7 @@ Low participation often isn’t apathy; it’s invisibility. Holders can’t vot
 
 ## Try it yourself
 
-[walletlink.social](https://walletlink.social) is the tool [DAO Name] used to identify their holders.
+[walletlink.social](https://walletlink.social) is the tool the DAO used to identify their holders.
 
 **What you get:**
 
@@ -196,7 +196,7 @@ Low participation often isn’t apathy; it’s invisibility. Holders can’t vot
 **The math:**
 
 - 10K wallets processed in under 2 minutes
-- 22% average match rate (9x industry average)
+- 22% average match rate
 - 34%+ for governance-focused communities
 
 Every DAO thinks they have a participation problem. Most actually have an identity problem.

@@ -1,9 +1,9 @@
 ---
 title: 'Wallets are the new social profiles: why Web3 identity changes everything'
-meta_description: "The wallet identity problem is being solved. Here's what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders."
+meta_description: "The wallet identity problem is being solved. Here’s what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders."
 headline_variations:
   - 'Wallets are the new social profiles: why Web3 identity changes everything'
-  - 'From 2.5% to 22%: the match rate gap separating Web3 marketing success from failure'
+  - 'From single digits to 22%: the match rate gap separating Web3 marketing success from failure'
   - 'The wallet identity shift: how Farcaster made your token holders findable'
 published: true
 publish_date: '2026-02-24'
@@ -39,9 +39,9 @@ This isn’t a minor inconvenience. It’s a fundamental infrastructure problem.
 
 ## Why match rates matter more than you think
 
-Here’s a number that should concern you: **2.5%**.
+Here’s an uncomfortable truth: **tools that match wallets to social profiles typically publish rates in the low single digits**.
 
-That’s the average wallet-to-social match rate across the industry. Meaning if you have 10,000 wallet addresses, traditional methods identify social profiles for about 250 of them.
+Meaning if you have 10,000 wallet addresses, traditional methods identify social profiles for a few hundred of them, at best.
 
 The other 9,750? Anonymous.
 
@@ -65,7 +65,7 @@ We analyzed 500,000+ wallet addresses across different token communities to unde
 
 | Community type              | Match rate | Why                                             |
 | --------------------------- | ---------- | ----------------------------------------------- |
-| All wallets (average)       | 2.5%       | Most wallets don’t have linked social profiles  |
+| All wallets (typical tools) | single digits | Most wallets don’t have linked social profiles  |
 | DeFi-heavy wallets          | 5-10%      | Builders more likely to have ENS/Twitter        |
 | NFT communities             | 15-25%     | Social signaling culture drives profile linking |
 | DAO governance participants | 30-40%     | Most engaged users invest in identity           |
@@ -82,7 +82,7 @@ The opportunity isn’t reaching all wallets. It’s reaching the ones that matt
 
 Something changed in 2024.
 
-Farcaster’s daily active users went from 50,000 to over 400,000, a 10x increase. Frames launched and drove viral adoption. More importantly: **80% of active crypto builders are now on Farcaster**.
+Farcaster’s daily active users went from 50,000 to over 400,000, a 10x increase. Frames launched and drove viral adoption. More importantly: **much of crypto’s builder class is now on Farcaster**.
 
 Why does this matter for wallet identity?
 
@@ -98,7 +98,7 @@ That’s not incremental improvement. That’s a different capability.
 
 Let’s put this in concrete terms.
 
-A token project with 10,000 holders at a 2.5% match rate can reach 250 people directly. That’s barely enough for a small Discord server.
+A token project with 10,000 holders at a low-single-digit match rate can reach a few hundred people directly. That’s barely enough for a small Discord server.
 
 The same project at 22% can reach 2,200 people directly. That’s:
 
@@ -174,7 +174,7 @@ Consider:
 - **Identity-verified communities** means Sybil resistance without friction
 - **Personalized outreach** means converting holders into advocates
 
-The tools exist today. [walletlink.social](https://walletlink.social) can process 10,000 wallets in under 2 minutes and return a 22% match rate, 9x the industry average.
+The tools exist today. [walletlink.social](https://walletlink.social) can process 10,000 wallets in under 2 minutes and return a 22% match rate, many times what typical tools publish.
 
 ## What happens next
 
@@ -196,4 +196,4 @@ The question is whether you’ll build this capability before your competitors d
 
 [walletlink.social](https://walletlink.social) resolves wallet addresses to Twitter and Farcaster profiles. Upload your CSV, get results in minutes, see the 22% difference for yourself.
 
-10K wallets. Under 2 minutes. 9x the industry average match rate.
+10K wallets. Under 2 minutes. A 22% match rate.

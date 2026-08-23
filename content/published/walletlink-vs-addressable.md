@@ -1,6 +1,6 @@
 ---
 title: 'walletlink.social vs Addressable: a practical comparison'
-meta_description: "Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here's when each makes sense."
+meta_description: "Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here’s when each makes sense."
 published: true
 publish_date: '2026-03-05'
 ---
@@ -24,7 +24,7 @@ This difference in scope drives most of the other differences.
 |               | walletlink.social                               | Addressable                  |
 | ------------- | ----------------------------------------------- | ---------------------------- |
 | Pricing model | One-time payment                                | Monthly subscription         |
-| Entry price   | Free (100 matches per 30 days)                  | Custom (sales call required) |
+| Entry price   | Free (100 matches per rolling 30 days)                  | Custom (sales call required) |
 | Mid-range     | $29 to $99 one-time (250 to 1,500 matches)      | ~$1,000-3,000/mo (estimated) |
 | High-end      | $299 to $899 one-time (6,000 to 25,000 matches) | Enterprise pricing           |
 | Sales process | Self-serve                                      | Demo call required           |
@@ -52,7 +52,7 @@ Which model is better depends entirely on your use case.
 
 **You’re running a one-time or periodic analysis.** Governance outreach before a big vote. Airdrop planning. Quarterly holder analysis. For periodic use cases, a one-time payment beats a recurring subscription.
 
-**You don’t want a sales call.** Some teams want to evaluate the tool before talking to anyone. Our free tier (100 matches every 30 days) lets you test match rates on your actual data in under two minutes.
+**You don’t want a sales call.** Some teams want to evaluate the tool before talking to anyone. Our free tier (100 matches in every rolling 30-day window) lets you test match rates on your actual data in under two minutes.
 
 **Budget is a constraint.** A $29 one-time payment for 250 matches (roughly 1,000 wallets at our measured rate) is accessible to early-stage projects, small DAOs, and individual researchers. Not everyone has enterprise marketing budgets.
 
@@ -65,7 +65,7 @@ This is where we have less data to share, because Addressable doesn’t publish 
 What we can say:
 
 - walletlink.social achieves a **22% match rate** across general wallet populations, driven by combining onchain ENS records, protocol-level Farcaster verifications, and correlated identity data.
-- Industry average for wallet-to-social resolution (across all tools) sits around **2.5%**.
+- Typical published rates for wallet-to-social resolution across the industry sit in the **low single digits**.
 - Addressable uses proprietary data sources and machine learning to match wallets, which likely gives them strong performance on certain wallet populations.
 
 We haven’t run a controlled head-to-head comparison, and we’d be skeptical of anyone who claims to have done so objectively. If you need to compare match rates on your specific holder base, the easiest approach is to run your wallets through our free tier and compare against whatever Addressable provides during their demo.
@@ -117,4 +117,4 @@ We don’t think of Addressable as a competitor so much as a different product c
 
 **Try it on your own data.**
 
-[walletlink.social](https://walletlink.social) is free for your first 100 matches every 30 days, no sales call. Upload your holder list and see your match rate in under two minutes.
+[walletlink.social](https://walletlink.social) is free for your first 100 matches in every rolling 30-day window, no sales call. Upload your holder list and see your match rate in under two minutes.

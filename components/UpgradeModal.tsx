@@ -292,7 +292,7 @@ export function UpgradeModal({
                       tone="brand"
                       className="absolute -top-2.5 left-4 max-w-none"
                     >
-                      {walletCount ? 'Fits your list' : 'Most bought'}
+                      {walletCount ? 'Fits your list' : 'Recommended'}
                     </Badge>
                   )}
 
