@@ -83,6 +83,27 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
    */
   debank_tweet: 'attested-social',
 
+  /**
+   * A deprecated governance-delegate registry: the delegate signed the
+   * address and posted the signature in a tweet from the account, and the
+   * registry's verifier checked both before publishing the pair. Frozen
+   * corpus, both halves owner-established.
+   */
+  sybil_list: 'attested-social',
+
+  /**
+   * A governance platform profile set with a wallet-signed message that
+   * names the handle. Wallet-side attestation at ENS-record strength; not
+   * `onchain`, because nothing is published to a chain.
+   */
+  snapshot_profile: 'attested-social',
+
+  /**
+   * A marketplace account where the wallet is the login and the social
+   * account is attached by OAuth sign-in: both halves owner-established.
+   */
+  opensea_profile: 'attested-social',
+
   // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
 
