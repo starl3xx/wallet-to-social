@@ -2,6 +2,17 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-22 (footer: Farcaster, llms.txt, and ask-an-AI links)
+
+- **@walletlink on Farcaster** joins X and GitHub in the footer's social
+  row, now that the account exists.
+- **llms.txt is linked** beside the copyright, so the page written for AI
+  crawlers is discoverable by the people who check for one.
+- **"Ask AI about walletlink.social"**: prefilled-question links to
+  ChatGPT, Claude and Perplexity above the legal row. The assistants read
+  /llms.txt and the public pages; the question is deliberately neutral so
+  the answer is theirs to give.
+
 ### 2026-08-22 (the holder hub stops listing unfinished measurements)
 
 - **A listing floor on /holders, the sitemap and prerendering**: a report
@@ -22,7 +33,6 @@ All notable changes to walletlink.social. Newest first.
   whenever such a page has under half its holders checked. A fully checked
   page that still misses the floor carries no note, because there the
   numbers are the finding.
-
 ### 2026-08-22 (the results table gains the attested filter and a row-detail dialog)
 
 - **"Attested only" pill**, first in the filter row: isolates exactly the
