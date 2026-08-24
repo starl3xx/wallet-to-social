@@ -32,9 +32,14 @@ export const IP_RATE_LIMITS = {
    * whether an Authorization header is present. Gating on the header was the
    * first version and it was wrong: `Bearer hunter2` is not a key, and
    * treating any string in that header as evidence of metering left discovery
-   * uncapped to anyone who sent one. A tool call does skip this, because it
-   * reaches a handler that meters per key, and charging it twice would refuse
-   * a paying caller for sharing an address with a stranger.
+   * uncapped to anyone who sent one.
+   *
+   * Everything lands here except a body whose calls are all `tools/call`. That
+   * one skips it because it reaches a handler that meters per key, and
+   * charging it twice would refuse a paying caller for sharing an address with
+   * a stranger. The allowlist is on the metered side on purpose: a version
+   * that listed the handshake methods instead let every method nobody had
+   * thought of through unbounded.
    */
   '/api/mcp': { limit: 120, windowHours: 1 },
 } as const;

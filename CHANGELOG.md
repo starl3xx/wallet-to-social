@@ -31,9 +31,18 @@ All notable changes to walletlink.social. Newest first.
   The bound is decided by JSON-RPC method, **not** by whether an
   `Authorization` header is present: the first version gated on the header,
   which meant any junk string in it removed the only cap on discovery. A header
-  is not a key. A JSON-RPC batch must also have *every* method be protocol
-  chatter to take that path, or a batch mixing `tools/list` with `tools/call`
-  would run a paid tool on the free side.
+  is not a key.
+- **Which side the allowlist sits on is the whole design.** The second version
+  listed the handshake methods and bounded those, which left every method it
+  had not thought of, `resources/read`, `prompts/get`,
+  `notifications/cancelled` and any string a caller invented, falling through
+  to the unbounded branch. The MCP layer refuses all of them, so they reach no
+  meter, which is exactly the surface the limit exists to cover. It now
+  allowlists the metered side instead: everything is bounded except a body
+  whose calls are *all* `tools/call`. A method missing from that set is
+  bounded, which is the safe direction to fail in, and a mixed batch is
+  bounded too, or ninety-nine `tools/list` calls with one `tools/call`
+  appended would buy the whole batch a free pass.
 - **A failed call is a tool error, never a transport error.** 401, 402, 429 and
   400 from a handler would end the JSON-RPC session in most clients, and the
   person would see a dead connection rather than "no credits left". The HTTP

@@ -480,48 +480,46 @@ const handler = createMcpHandler(
 );
 
 /**
- * JSON-RPC methods that reach no v1 handler.
+ * The only JSON-RPC methods that reach something which meters.
  *
- * The distinction that matters is not whether a request carries a key, it is
- * whether it will reach something that meters. These do not, so nothing else
- * bounds them.
+ * An allowlist of the metered side, deliberately, because the first version
+ * allowlisted the other side and that was the wrong way round. It named the
+ * handshake methods and bounded those, so every method it had not thought of,
+ * `resources/read`, `prompts/get`, `notifications/cancelled` and any string a
+ * caller invented, fell through to the unbounded branch. The MCP layer refuses
+ * all of those, which means they reach no meter at all, which is exactly the
+ * surface the limit exists to cover.
+ *
+ * Listing what is metered cannot fail that way. A method missing from this set
+ * is bounded, which is the safe direction, and adding one is a deliberate act
+ * by somebody who has checked that it reaches a handler that charges for it.
  */
-const PROTOCOL_ONLY = new Set([
-  'initialize',
-  'notifications/initialized',
-  'ping',
-  'tools/list',
-  'resources/list',
-  'resources/templates/list',
-  'prompts/list',
-  'completion/complete',
-  'logging/setLevel',
-]);
+const METERED_METHODS = new Set(['tools/call']);
 
 /**
- * Whether every method in this body is protocol chatter.
+ * Whether every call in this body reaches a per-key meter.
  *
- * `every`, not `some`, and normalised to an array first, because JSON-RPC
- * allows a batch. A body mixing `tools/list` with `tools/call` would otherwise
- * pass a "the first method is public" test and take the cheap path while
- * running a paid tool.
+ * `every`, not `some`. A batch of ninety-nine `tools/list` calls with one
+ * `tools/call` appended would otherwise buy the whole batch a free pass, and
+ * the appended call costs an attacker nothing when the key is junk. A mixed
+ * batch is therefore bounded, which costs a real client one count out of 120
+ * an hour and costs that attacker the entire budget.
  *
- * A body that is not JSON, or carries no method at all, counts as protocol
- * chatter: it is going to be refused before it reaches a handler, so it is on
- * the side that needs bounding.
+ * A body that is not JSON, or carries no method, is not metered either: it is
+ * refused before it reaches a handler, so it belongs on the bounded side.
  */
-function isProtocolOnly(raw: string): boolean {
+function isMetered(raw: string): boolean {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return true;
+    return false;
   }
   const calls = Array.isArray(parsed) ? parsed : [parsed];
-  if (calls.length === 0) return true;
+  if (calls.length === 0) return false;
   return calls.every((call) => {
     const method = asObject(call)?.method;
-    return typeof method !== 'string' || PROTOCOL_ONLY.has(method);
+    return typeof method === 'string' && METERED_METHODS.has(method);
   });
 }
 
@@ -540,25 +538,26 @@ function isProtocolOnly(raw: string): boolean {
  * reach something that meters. `Bearer hunter2` is not a key, and treating it
  * as evidence of metering left the endpoint uncapped to anyone who sent one.
  *
- * A tool call still skips this. It reaches `validateApiKey`, which is a format
- * check and one indexed read before it refuses, and that costs us less than
- * the bucket write this would add. What it must not do is cost a paying caller
- * their allowance for sharing an address with a stranger.
+ * Everything is bounded here except a body whose calls are all `tools/call`.
+ * That one skips it because it reaches `validateApiKey`, which is a format
+ * check, a hash and one indexed read before it refuses, and that costs us less
+ * than the bucket write this would add. What it must not do is cost a paying
+ * caller their allowance for sharing an address with a stranger.
  */
 async function guarded(request: NextRequest): Promise<Response> {
   // GET opens a stream and DELETE tears a session down. Neither carries a
   // JSON-RPC body, and neither reaches a handler.
-  let protocolOnly = request.method !== 'POST';
+  let metered = false;
   let body: string | undefined;
 
   if (request.method === 'POST') {
     // Read once and rebuild: the handler needs this stream too, and a stream
     // can only be drained a single time.
     body = await request.text();
-    protocolOnly = isProtocolOnly(body);
+    metered = isMetered(body);
   }
 
-  if (protocolOnly) {
+  if (!metered) {
     const limit = await checkIpRateLimit(getClientIp(request), '/api/mcp');
     if (!limit.allowed) {
       return NextResponse.json(
