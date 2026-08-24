@@ -55,13 +55,13 @@ Five emails over 14 days. Trigger: a `users` row is created. Exit early when
 the account buys any pack (`credit_lots` row appears). Skip entirely for the
 two legacy accounts and whitelisted accounts.
 
-| # | Day | Job | Subject |
-|---|-----|-----|---------|
-| 1 | 0 (immediate) | Deliver the promise, first step | Your first 100 matches are free |
-| 2 | 2 | Set chain expectations honestly | What your chain says about your match rate |
-| 3 | 5 | Differentiate on reachability | A handle that reaches nobody is not a match |
-| 4 | 9 | Feature: reverse lookup and ranking | Does that handle already hold your token? |
-| 5 | 14 | The ask | 250 matches, once: $29 |
+| #   | Day           | Job                                 | Subject                                     |
+| --- | ------------- | ----------------------------------- | ------------------------------------------- |
+| 1   | 0 (immediate) | Deliver the promise, first step     | Your first 100 matches are free             |
+| 2   | 2             | Set chain expectations honestly     | What your chain says about your match rate  |
+| 3   | 5             | Differentiate on reachability       | A handle that reaches nobody is not a match |
+| 4   | 9             | Feature: reverse lookup and ranking | Does that handle already hold your token?   |
+| 5   | 14            | The ask                             | 250 matches, once: $29                      |
 
 One email, one job, one CTA. All CTAs land on the homepage lookup (email 5
 also links the buy-credits modal deep link if one exists; otherwise the
@@ -85,11 +85,11 @@ You have 100 free matches every 30 days. A match is a wallet we resolve to an X 
 
 [Run a lookup]
 
-If anything is unclear, just reply to this email! 
+If anything is unclear, just reply to this email!
 
 ### Email 2, day 2: What your chain says about your match rate
 
-Most wallet tools quote one match rate. We quote *yours*.
+Most wallet tools quote one match rate. We quote _yours_.
 
 The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. The industry average for wallet-to-social is about 2.5%. The full coverage breakdown, ours and the average, is in our docs.
 
@@ -99,7 +99,7 @@ So before you plan a campaign, check the chain your holders live on. A Base toke
 
 ### Email 3, day 5: A handle that reaches nobody is not a match
 
-Of 437,823 X handles we resolved, 69.6% are live. 20.6% are suspended, and 9.7% are names nobody holds any more.
+Of 448,069 X handles we resolved, 69.6% are live. 20.6% are suspended, and 9.7% are names nobody holds any more.
 
 A single coverage number counts all three groups. We label every match with its **reachability**, because a campaign sent to dead handles is obviously worse than a smaller campaign sent to real ones.
 
