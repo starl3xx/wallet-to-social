@@ -19,6 +19,14 @@ All notable changes to walletlink.social. Newest first.
   claim are written from the same four so they cannot disagree: delivered,
   in flight, retryable, dead. Migration:
   `scripts/migrate-lifecycle-retry.ts`, **run before deploy**.
+- **The daily runner pins a user to their earliest undelivered email, stated
+  explicitly.** Making selection agree with claim eligibility silently dropped
+  the hold that kept a user on welcome-1: a welcome-1 that was backing off or
+  exhausted no longer matched the first pass, so the user fell through to the
+  second and would have received welcome-2 of a sequence whose first email never
+  arrived. Each pass now requires that exactly the earlier emails are confirmed,
+  which is the rule the old behaviour only implied. The JS dedupe stays as a
+  safety net; it can no longer fire.
 - **The reclaim skips recorded failures** (`failed_at IS NULL`). They are also
   unconfirmed, but they are a retry schedule rather than an abandoned claim, and
   deleting one would reset its attempt count and restart the loop.

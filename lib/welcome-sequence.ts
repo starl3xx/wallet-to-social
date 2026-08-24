@@ -485,17 +485,38 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
   await reclaimStaleClaims(db);
 
   /**
-   * One pass per email, lowest number first: a user appears once per run
-   * with their smallest pending email, so a missed cron day catches up one
-   * email per user per run instead of bunching three into one morning.
+   * One pass per email, lowest number first, and each pass demands that every
+   * earlier email was *delivered*.
+   *
+   * That second half is not decoration. While selection asked only whether a
+   * row existed, an undelivered welcome-1 still held the user on the first
+   * pass, so they could never reach the second. Once selection started asking
+   * whether the row was sendable, a welcome-1 that was backing off or
+   * exhausted stopped matching that pass, the user fell through to welcome-2,
+   * and they would have received the second email of a sequence whose first
+   * email never arrived. The hold has to be stated rather than inherited from
+   * the shape of another predicate.
+   *
+   * `delivered among the earlier keys = index` is the whole rule. At index 0
+   * the array is empty and the count is 0, so it is vacuously true; at index 3
+   * it demands welcome-1, welcome-2 and welcome-3 all confirmed. Exactly one
+   * index can satisfy it for a given user, which is what makes the pacing
+   * below a safety net rather than the mechanism.
    */
   const due: Array<{ userId: string; email: string; key: string }> = [];
-  for (const e of WELCOME_EMAILS) {
+  for (const [index, e] of WELCOME_EMAILS.entries()) {
+    const earlierKeys = WELCOME_EMAILS.slice(0, index).map((p) => p.key);
     const rows = (await db.execute(sql`
       SELECT u.id AS "userId", u.email
       FROM users u
       WHERE ${ELIGIBLE_USER}
         AND u.created_at <= now() - make_interval(days => ${e.day})
+        AND (
+          SELECT count(*) FROM lifecycle_emails prev
+          WHERE prev.user_id = u.id
+            AND prev.email_key = ANY(${sql.param(earlierKeys)}::text[])
+            AND prev.confirmed_at IS NOT NULL
+        ) = ${index}
         AND NOT EXISTS (
           SELECT 1 FROM lifecycle_emails le
           WHERE le.user_id = u.id AND le.email_key = ${e.key}
@@ -504,7 +525,9 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
       ORDER BY u.created_at
     `)) as unknown as { rows: Array<{ userId: string; email: string }> };
     for (const r of rows.rows) {
-      // Lowest pending email wins; a user already queued this run is skipped.
+      // Belt and braces: the predicate above already admits a user to at most
+      // one pass, so this can no longer fire. It stays because it is cheap and
+      // because the last two bugs here were both a user reaching two passes.
       if (!due.some((d) => d.userId === r.userId)) {
         due.push({ userId: r.userId, email: r.email, key: e.key });
       }
