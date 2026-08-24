@@ -154,9 +154,19 @@ export interface WelcomeRunOutcome {
  * five-minute first-touch runner cannot drift apart. Every exit rule in the
  * file header lives here: the cutoff, the opt-out, the legacy tiers, the
  * whitelist and the purchase.
+ *
+ * FIRST_TOUCH_DELAY_MINUTES belongs here rather than in the first-touch
+ * runner, because it is a fact about the account and not about one cron. Held
+ * only in the fast runner, the daily runner's day-0 pass still computed
+ * `now() - 0 days`, so an account created at 14:59:30 got welcome-1 thirty
+ * seconds later at 15:00, next to its own magic link: the exact collision the
+ * delay exists to prevent. As a floor on eligibility no runner can reach a
+ * person inside their first five minutes. For days 2 and up the day gate
+ * dominates and this changes nothing.
  */
 const ELIGIBLE_USER = sql`
   u.created_at >= ${SEQUENCE_START}
+  AND u.created_at <= now() - make_interval(mins => ${FIRST_TOUCH_DELAY_MINUTES})
   AND u.email_opt_out = false
   AND u.tier NOT IN ('pro', 'unlimited')
   AND NOT EXISTS (
@@ -166,6 +176,46 @@ const ELIGIBLE_USER = sql`
 `;
 
 type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
+
+/**
+ * How long a claim may sit unredeemed before it is treated as abandoned.
+ * Comfortably above the route's maxDuration of 300s, so a slow run in
+ * progress is never mistaken for a dead one.
+ */
+const CLAIM_RECLAIM_MINUTES = 15;
+
+/**
+ * Delete claims that were taken and never confirmed.
+ *
+ * claimAndSend deletes its own claim when the send *returns* a failure, but it
+ * cannot delete anything when the process does not return at all: a timeout, an
+ * OOM or a deploy between the INSERT and the send leaves a row that every
+ * runner reads as "already emailed". Nothing retries it and nobody is told.
+ * That is the one failure mode claim-before-send introduced, and this is its
+ * counterweight.
+ *
+ * The residual risk is deliberate and the other way round: if the process dies
+ * after the send succeeded but before confirmed_at was written, the reclaim
+ * frees the row and the person receives that email twice. One duplicate
+ * greeting is a better failure than a welcome email that silently never
+ * arrives, so the window resolves in favour of sending.
+ */
+async function reclaimStaleClaims(
+  db: NonNullable<ReturnType<typeof getDb>>
+): Promise<number> {
+  const reclaimed = (await db.execute(sql`
+    DELETE FROM lifecycle_emails
+    WHERE confirmed_at IS NULL
+      AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+  if (reclaimed.rows.length > 0) {
+    console.warn(
+      `reclaimed ${reclaimed.rows.length} abandoned lifecycle claim(s)`
+    );
+  }
+  return reclaimed.rows.length;
+}
 
 /**
  * Take the row, then send.
@@ -197,7 +247,15 @@ async function claimAndSend(
   if (claim.rows.length === 0) return 'claimed-elsewhere';
 
   const result = await sendLifecycleEmail(email, content);
-  if (result.success) return 'sent';
+  if (result.success) {
+    // The row is now proof of delivery rather than of intent.
+    await db.execute(sql`
+      UPDATE lifecycle_emails
+      SET confirmed_at = now()
+      WHERE user_id = ${userId} AND email_key = ${emailKey}
+    `);
+    return 'sent';
+  }
 
   await db.execute(sql`
     DELETE FROM lifecycle_emails
@@ -217,13 +275,14 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
   const db = getDb();
   if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
 
+  await reclaimStaleClaims(db);
+
   const first = WELCOME_EMAILS[0];
 
   const rows = (await db.execute(sql`
     SELECT u.id AS "userId", u.email
     FROM users u
     WHERE ${ELIGIBLE_USER}
-      AND u.created_at <= now() - make_interval(mins => ${FIRST_TOUCH_DELAY_MINUTES})
       AND NOT EXISTS (
         SELECT 1 FROM lifecycle_emails le
         WHERE le.user_id = u.id AND le.email_key = ${first.key}
@@ -263,6 +322,8 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
 export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
   const db = getDb();
   if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
+
+  await reclaimStaleClaims(db);
 
   /**
    * One pass per email, lowest number first: a user appears once per run
