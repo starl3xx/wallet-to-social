@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the docs stop advertising a plan nobody is on)
+
+- **The legacy Unlimited tier is gone from `docs-site/`.** The Plans table
+  carried a second column, `Unlimited (legacy)` / `Startup`, with 300 rpm, 50k
+  requests a day and a batch size of 200, and three other pages repeated "or 200
+  on a legacy Unlimited account".
+- **Nothing was on it.** Two accounts hold a legacy tier, one `pro` and one
+  `unlimited`. `TIER_API_PLAN` maps `pro` to `developer` and `unlimited` to
+  `startup`, and only the `pro` account has ever created an API key. So no key
+  in existence carries `Startup` limits, and the column documented a plan a
+  reader could neither buy nor reach. Checked against the database before
+  removing it, not assumed.
+- **The code is untouched, deliberately.** `legacyTierIsUnmetered`, the tier
+  values, `TIER_LIMITS` and `TIER_API_PLAN` all stay: both accounts keep exactly
+  what they bought, and if the `unlimited` account ever creates a key it still
+  gets `startup` limits. CLAUDE.md requires this, and the removal was only ever
+  about what is published.
+- The admin pane keeps its Legacy badge and tier row, because it is the tool for
+  managing those two accounts and hiding them there would make it lie.
+- Also removed the `app/lookups.mdx` note about accounts that bought Pro or
+  Unlimited before credits existed. The `plan_limits` defensive-parsing advice in
+  `usage.mdx` is kept, with the legacy phrasing dropped.
+
 ### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
 
 - **Reclaimed 580 MB.** `farcaster_sweep_seen_1786631580832` held 3,676,509 rows

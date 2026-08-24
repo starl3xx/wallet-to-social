@@ -28,7 +28,7 @@ Branch on `code`. The `error` string is written for humans and may be reworded.
 | `INVALID_CURSOR`      | 400    | A `cursor` value the API did not produce, on the reverse-lookup endpoints.                          |
 | `INVALID_REQUEST`     | 400    | Body is missing, not valid JSON, or `wallets` is absent or empty.                                   |
 | `INVALID_REQUEST`     | 413    | Request body exceeded 1 MB.                                                                         |
-| `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit: 50, or 200 on a legacy Unlimited account.                       |
+| `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit of 50.                                                           |
 | `NO_CREDITS`          | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack to continue. |
 | `SERVICE_UNAVAILABLE` | 503    | Datastore is temporarily unreachable. Retry with backoff.                                           |
 | `INTERNAL_ERROR`      | 500    | Unexpected failure on our side.                                                                     |
