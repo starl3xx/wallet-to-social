@@ -443,26 +443,72 @@ async function drawDown(userId: string, matches: number): Promise<void> {
   const now = new Date();
 
   const lots = await db
-    .select({
-      id: creditLots.id,
-      granted: creditLots.granted,
-      consumed: creditLots.consumed,
-    })
+    .select({ id: creditLots.id })
     .from(creditLots)
     .where(and(eq(creditLots.userId, userId), gt(creditLots.expiresAt, now)))
     .orderBy(asc(creditLots.expiresAt));
 
   for (const lot of lots) {
     if (owed <= 0) break;
-    const room = lot.granted - lot.consumed;
-    if (room <= 0) continue;
-    const take = Math.min(room, owed);
-    await db
-      .update(creditLots)
-      .set({ consumed: sql`${creditLots.consumed} + ${take}` })
-      .where(eq(creditLots.id, lot.id));
-    owed -= take;
+
+    /**
+     * The take is computed inside the statement, against the row as this
+     * UPDATE locks it, and the amount actually taken comes back rather than
+     * being assumed.
+     *
+     * The previous version read `granted` and `consumed` in the SELECT above
+     * and computed `take` from that snapshot. Two debits in flight for the
+     * same account both read the same `consumed`, both computed a take from
+     * the same room, and both added it: a lot with 150 left could take two
+     * debits of 100 and finish at 200 consumed against 150 granted. The
+     * increment itself was atomic; the number being incremented by was stale.
+     *
+     * That broke the invariant this function's own docstring states, and the
+     * one `granted`/`consumed` are documented with in `db/schema.ts`, with no
+     * constraint anywhere to catch it. `LEAST` makes overshoot unrepresentable
+     * rather than merely unlikely.
+     */
+    const [row] = (
+      await db.execute(sql`
+        WITH locked AS (
+          SELECT id, granted, consumed
+          FROM ${creditLots}
+          WHERE id = ${lot.id}
+          FOR UPDATE
+        )
+        UPDATE ${creditLots} cl
+        SET consumed = cl.consumed + LEAST(locked.granted - locked.consumed, ${owed}::int)
+        FROM locked
+        WHERE cl.id = locked.id
+          AND locked.consumed < locked.granted
+        RETURNING LEAST(locked.granted - locked.consumed, ${owed}::int) AS taken
+      `)
+    ).rows as Array<{ taken: number }>;
+
+    // No row means the lot was already full when the lock was taken, which is
+    // the `room <= 0` case the loop used to test for up front. Nothing was
+    // taken, so nothing is subtracted.
+    owed -= Number(row?.taken ?? 0);
   }
+}
+
+/**
+ * Whether an error is a Postgres unique violation, seen through Drizzle.
+ *
+ * Drizzle wraps every driver error in a `DrizzleQueryError` and puts the
+ * original on `.cause`, so `error.code` is `undefined` and only
+ * `error.cause.code` carries `23505`. A check on the top-level `code` reads as
+ * correct and matches nothing, which is the worst shape a money check can have.
+ * Verified against this repo's own Drizzle version rather than assumed.
+ *
+ * The chain is walked rather than read one level down, because a future driver
+ * or pool wrapper is free to add another layer.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  for (let e = error; e; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: unknown }).code === '23505') return true;
+  }
+  return false;
 }
 
 /**
@@ -471,6 +517,9 @@ async function drawDown(userId: string, matches: number): Promise<void> {
  * Idempotent on `stripePaymentId` through a unique index, which matters because
  * Stripe retries a webhook on any non-2xx and `provisionPaidCheckout` already
  * depends on the same guarantee for tier grants.
+ *
+ * Returns false ONLY for "this payment was already granted". Everything else
+ * throws, so the webhook answers non-2xx and Stripe retries.
  */
 export async function grantPack(
   userId: string,
@@ -495,9 +544,23 @@ export async function grantPack(
       expiresAt,
     });
     return true;
-  } catch {
-    // Unique violation on stripe_payment_id: already granted.
-    return false;
+  } catch (error) {
+    if (isUniqueViolation(error)) return false;
+
+    /**
+     * Anything else is not "already granted" and must not be reported as it.
+     *
+     * The previous version caught every error and returned false, with a
+     * comment asserting the cause was a unique violation. A transient database
+     * failure therefore took this path, the webhook logged "already granted"
+     * and answered 2xx, Stripe never retried, and a customer who had been
+     * charged received nothing. The one line in the logs said the opposite of
+     * what had happened.
+     *
+     * Throwing means the webhook answers 500 and Stripe retries. `grantPack`
+     * is idempotent, so a retry after recovery grants exactly once.
+     */
+    throw error;
   }
 }
 

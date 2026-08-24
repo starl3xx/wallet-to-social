@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (two money bugs, found on the way to x402)
+
+Groundwork for the x402 rail, aimed at what the code actually does rather than
+at what the brief assumed. Both of these are on the **live Stripe path** and
+neither needs x402 to bite.
+
+- **A failed grant was reported as an already-completed one, and the purchase
+  was lost.** `grantPack` caught every error and returned false, with a comment
+  asserting the cause was a unique violation. The webhook reads false as
+  "already granted", logs exactly that, and answers 2xx, so Stripe never
+  retries. Any transient database failure therefore charged a customer and gave
+  them nothing, and the only line in the log said the opposite of what had
+  happened. It now returns false only for a genuine duplicate and throws
+  otherwise, so the webhook answers 500 and Stripe retries; `grantPack` is
+  idempotent, so a retry after recovery grants exactly once.
+- **The duplicate test could never have fired anyway.** Drizzle wraps every
+  driver error in a `DrizzleQueryError` and puts the original on `.cause`, so
+  `error.code` is `undefined` and only `error.cause.code` carries `23505`. A
+  check on the top-level code reads as correct and matches nothing.
+  `isUniqueViolation` walks the cause chain, and was verified against this
+  repo's own Drizzle rather than assumed.
+- **`drawDown` could spend a lot past its own limit.** It read `granted` and
+  `consumed`, computed the take in JavaScript, then added it. The increment was
+  atomic; the number being incremented by was stale. Two debits in flight for
+  one account both read the same `consumed` and both added a take computed from
+  the same room. Demonstrated against Postgres: a lot with 150 of room took two
+  concurrent debits of 100 and finished at **200 consumed against 150 granted**.
+  The take is now computed inside the statement under `FOR UPDATE`, and the
+  amount actually taken is returned rather than assumed. Same scenario now
+  lands on exactly 150.
+- That invariant is stated in this function's docstring and in `db/schema.ts`
+  ("Always <= granted") and has no constraint behind it. `LEAST` makes the
+  overshoot unrepresentable rather than merely unlikely.
+
 ### 2026-08-24 (prettier, enforced instead of dormant)
 
 - **Formatted the repo and added `.github/workflows/format.yml`.** 170 files
