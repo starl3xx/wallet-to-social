@@ -2,6 +2,67 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the MCP server, which bills nothing of its own)
+
+- **`app/api/mcp/route.ts`** puts five tools over the six `/v1` endpoints, so an
+  agent can resolve a wallet without a person first reading an API reference.
+  Remote, no OAuth, same bearer key and same balance as the REST API.
+- **The design that matters is what this layer does not do: it never
+  authenticates and never bills.** Every v1 handler already calls
+  `authenticateApiRequest` itself and already calls `trackApiUsage` itself, and
+  `trackApiUsage` performs the credit debit. A layer that did either on top
+  would have authenticated twice, incremented the rate limiter twice and charged
+  the caller twice for one tool call, and the debit is deliberately not
+  idempotent, so the second charge would have been real money. Instead each tool
+  builds a request carrying the caller's own `Authorization` header and hands it
+  to the handler.
+- **Three of the four flagged traps dissolved as a result.** `api_usage.endpoint`
+  keeps recording the same six literals the REST surface records, so a
+  client-supplied tool name can never mint a new key and
+  `requests_by_endpoint` stays the bounded set the docs promise. The rate
+  limiter is entered once per call, at the weight the equivalent REST call
+  carries. And MCP prices identically to REST by construction rather than by a
+  table somebody has to keep in step.
+- **Discovery answers without a key.** `initialize` and `tools/list` reach no
+  handler, so a client with no key or an empty balance still sees what the
+  server offers. A handshake that answered 402 looks to every client like a
+  server that is simply broken. That leaves one genuinely unauthenticated
+  surface, so it is bounded by IP at 120 an hour in `lib/ip-rate-limiter.ts`.
+  The bound is decided by JSON-RPC method, **not** by whether an
+  `Authorization` header is present: the first version gated on the header,
+  which meant any junk string in it removed the only cap on discovery. A header
+  is not a key.
+- **Which side the allowlist sits on is the whole design.** The second version
+  listed the handshake methods and bounded those, which left every method it
+  had not thought of, `resources/read`, `prompts/get`,
+  `notifications/cancelled` and any string a caller invented, falling through
+  to the unbounded branch. The MCP layer refuses all of them, so they reach no
+  meter, which is exactly the surface the limit exists to cover. It now
+  allowlists the metered side instead: everything is bounded except a body
+  whose calls are *all* `tools/call`. A method missing from that set is
+  bounded, which is the safe direction to fail in, and a mixed batch is
+  bounded too, or ninety-nine `tools/list` calls with one `tools/call`
+  appended would buy the whole batch a free pass.
+- **A failed call is a tool error, never a transport error.** 401, 402, 429 and
+  400 from a handler would end the JSON-RPC session in most clients, and the
+  person would see a dead connection rather than "no credits left". The HTTP
+  status at this layer is always 200 and the failure travels as content the
+  model can read out.
+- **A handler called as a plain function has no wrapper to catch a throw.** Over
+  HTTP, Next turns one into a 500. `lib/mcp-call.ts` reproduces that, or an
+  unhandled throw would escape into the transport.
+- **The fourth trap is real and unfixable, so it is documented at the top of the
+  route.** `scripts/check-design-language.mjs` greps `app/` for Tailwind words
+  and cannot tell a class from an English word, so a tool description containing
+  the standalone word "rounded" fails CI. The banned list is in a comment there.
+- Verified against a local production build: discovery with no key returns all
+  five tools, an invalid key comes back as HTTP 200 with a readable tool error,
+  the batch body stream drains through the synthetic request, the reverse
+  cursor arrives on `nextUrl.searchParams`, and a throwing handler becomes a 500
+  result rather than an escaped exception.
+- New docs page at `docs-site/mcp.mdx`, with the connection block for Claude and
+  for Cursor.
+
 ### 2026-08-24 (a machine-readable API, and the 43.9% it could not reach)
 
 - **`docs-site/openapi.yaml`** describes the whole public API in OpenAPI 3.1:
