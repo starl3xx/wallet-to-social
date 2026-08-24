@@ -168,7 +168,7 @@ npx tsc --noEmit     # typecheck — run this, the build will not catch type err
 npm run lint         # ESLint
 npm run format       # Prettier
 
-npm run db:push      # push schema to Neon
+npm run db:push      # refuses; schema changes are hand-written SQL, see CLAUDE.md
 npm run db:studio    # Drizzle Studio
 ```
 
