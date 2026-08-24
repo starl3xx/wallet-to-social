@@ -27,7 +27,28 @@ All notable changes to walletlink.social. Newest first.
 - **The daily runner keeps its day-0 pass** as the safety net, and both runners
   now select through one shared `ELIGIBLE_USER` fragment so the cutoff,
   opt-out, legacy-tier, whitelist and purchase exits cannot drift apart.
-- No schema change. No new table, so no `migrate-grant-readonly.ts` entry.
+- **A claim nobody redeems is a welcome email that never arrives.**
+  `claimAndSend` deletes its claim when the send *returns* a failure, but it
+  cannot delete anything when the process does not return at all: a timeout, an
+  OOM or a deploy between the INSERT and the send leaves a row every runner
+  reads as "already emailed", retried by nothing and reported to nobody. New
+  column `lifecycle_emails.confirmed_at` is written after the send succeeds, so
+  a row is proof of delivery rather than of intent, and `reclaimStaleClaims`
+  deletes unconfirmed claims older than `CLAIM_RECLAIM_MINUTES` (15) before
+  either runner selects. The residual window resolves in favour of sending: a
+  process that dies after the send but before the confirm mails that person
+  twice, and one duplicate greeting beats a welcome that silently never
+  arrives.
+- **The delay is a fact about the account, not about one cron.** Held only in
+  the fast runner, the daily runner's day-0 pass still computed `now() - 0
+  days`, so an account created at 14:59:30 got welcome-1 thirty seconds later
+  at 15:00, next to its own magic link. `FIRST_TOUCH_DELAY_MINUTES` moved into
+  `ELIGIBLE_USER`, where no runner can reach past it.
+- Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
+  backfills `confirmed_at = sent_at` on existing rows, which were written under
+  the old send-then-insert order and are all real deliveries; without the
+  backfill the first reclaim would delete them and mail those accounts again.
+  No new table, so no `migrate-grant-readonly.ts` entry.
 
 ### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
 

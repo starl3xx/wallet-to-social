@@ -464,7 +464,11 @@ every other call, one per wallet returned.
   `lifecycle_emails` row before sending so the overlap at 15:00 cannot double
   up. Enrollment stays automatic: an account created on or after
   `SEQUENCE_START` (2026-08-23) is in unless it opted out, holds a legacy tier,
-  is whitelisted, or has bought a credit pack.
+  is whitelisted, or has bought a credit pack. `lifecycle_emails.confirmed_at`
+  separates a claim from a delivery: it is written after the send succeeds, and
+  `reclaimStaleClaims` deletes unconfirmed claims older than 15 minutes so a
+  process killed mid-send does not leave a person permanently marked as
+  emailed. Migration `scripts/migrate-lifecycle-claim.ts`.
 
 ## Recent Changes (2026-08-22)
 
