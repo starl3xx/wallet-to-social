@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the money is backed up, constrained, and the banned figure is gone)
+
+- **`credit_lots` and `credit_ledger` are in the nightly backup.** They are the
+  only record of who paid and what they spent, `db-backup.yml`'s own header says
+  it captures "the irreplaceable tables", and they were not in it. The dump
+  covered 6 of 30 tables; it now covers 8. Both the `-t` entry and the
+  `backup_reader` grant are needed, and `pg_dump` fails outright if they
+  disagree, which is the right failure mode.
+- **`scripts/migrate-grant-readonly.ts` now grants both read-only roles**,
+  `sweep_runner` (CI) and `backup_reader` (the dump), from one table list each in
+  one file. Two scripts with one list each is how the second stops being
+  maintained.
+- **Foreign keys on the two money tables.** `credit_lots.user_id` and
+  `credit_ledger.user_id` now reference `users(id)`. Both columns were already
+  `uuid` and `NOT NULL` with zero violations across 106 rows, so this is a
+  catalog change with a 106-row scan, instantly reversible with `DROP
+CONSTRAINT`. Applied by `scripts/migrate-money-fks.ts` against the **direct**
+  endpoint, with `SET LOCAL lock_timeout` inside an explicit transaction.
+- **`NO ACTION`, not `CASCADE`, unlike the four other keys to `users`.** A
+  purchase record must outlive the account that made it. **Deleting a user who
+  holds credit lots now fails** instead of silently deleting their payment
+  history: a loud failure is recoverable, a silent deletion is not. 22 user rows
+  were deleted in the current stats window by something outside this repo.
+- **A non-uuid `userId` is rejected at `/api/jobs`.** Two values in `lookup_jobs`
+  came from a harness outside this repo and are the reason a join from that
+  column throws. Rejected rather than null-coerced, because a NULL `user_id`
+  marks a system job whose partial results are withheld from every caller.
+  `lib/user-id.ts` regenerates a corrupt localStorage value so a browser holding
+  one self-heals instead of getting a permanent 400.
+- **The uncited "~2.5% industry average" is gone from the last four surfaces.**
+  It was purged from every public surface on 2026-08-22 and survived in
+  `README.md`, `PROJECT_OVERVIEW.md`, the email sequence and the SEO draft. All
+  four now say "low single digits", qualitatively, as CLAUDE.md requires.
+
 ### 2026-08-24 (`npm run db:push` refuses, and the ingest tables become visible)
 
 - **`db:push` would have dropped eight tables holding 4.25M rows.** Measured

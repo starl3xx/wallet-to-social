@@ -91,7 +91,7 @@ If anything is unclear, just reply to this email!
 
 Most wallet tools quote one match rate. We quote _yours_.
 
-The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. The industry average for wallet-to-social is about 2.5%. The full coverage breakdown, ours and the average, is in our docs.
+The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. Tools that match wallets to social accounts typically publish rates in the low single digits. The full coverage breakdown is in our docs.
 
 So before you plan a campaign, check the chain your holders live on. A Base token list resolves nearly half its wallets to an X or Farcaster account. An Ethereum list resolves fewer, and every one it resolves is labelled with the evidence behind it.
 

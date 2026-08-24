@@ -15,7 +15,9 @@
 ### Core Value Proposition
 
 - Upload CSV with wallet addresses → get Twitter/Farcaster handles for those wallets
-- Industry average match rate is ~2.5%; this tool achieves 15-25% match rates
+- Match rates run 16-46% depending on the chain; tools that match wallets to
+  social accounts typically publish rates in the low single digits. Never cite a
+  numeric industry average: see CLAUDE.md, House style.
 - Credit packs priced in matches, one-time payments, no subscription. You are
   charged only for the wallets we resolve.
 
