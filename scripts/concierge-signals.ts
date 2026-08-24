@@ -186,6 +186,30 @@ async function resolveContract(address: string | null): Promise<{
   return { chain: null, collection: null, stats: null };
 }
 
+/**
+ * The seeder writes a placeholder when a contract exposes no name, and a
+ * placeholder is never a display name.
+ *
+ * The index lane rejected these from the start. Then the other lanes learned to
+ * resolve collections and started preferring `collection.name` over the handle,
+ * so a placeholder began beating a perfectly good `@username`: a reply
+ * addressed to "Unknown Token". The rule belongs in one function that every
+ * lane calls, not in the one lane that happened to think of it.
+ */
+function isNamed(name: string | null | undefined): boolean {
+  return Boolean(name && !/^unknown\b/i.test(name));
+}
+
+/** Best available label: a real collection name, else whoever posted. */
+function displayName(
+  collection: HolderCollection | null,
+  fallback: string | null,
+  lastResort: string
+): string {
+  if (isNamed(collection?.name)) return collection!.name;
+  return fallback ?? lastResort;
+}
+
 /** The public report URL, only where one actually exists. */
 function reportUrlFor(
   chain: SupportedChain | null,
@@ -216,7 +240,7 @@ async function fromIndex(): Promise<Candidate[]> {
     // A collection we cannot name cannot be a personalised reply, and the
     // seeder writes this placeholder when the contract exposes no name. It is
     // still a fine public report; it is just not a prospect.
-    if (!col.name || /^unknown\b/i.test(col.name)) continue;
+    if (!isNamed(col.name)) continue;
 
     const stats = await getHolderStats(col.chain, col.address);
     if (!stats) continue;
@@ -240,7 +264,7 @@ async function fromIndex(): Promise<Candidate[]> {
       // Same naming rule as the candidate itself: an overlap we cannot name
       // reads as filler in a sentence meant to prove we know their audience.
       overlap: overlap
-        .filter((o) => o.name && !/^unknown\b/i.test(o.name))
+        .filter((o) => isNamed(o.name))
         .map((o) => ({ name: o.name, sharedHolders: o.sharedHolders })),
       hasPublicReport: true,
     });
@@ -320,7 +344,7 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
 
       out.push({
         lane: 'x',
-        name: collection?.name ?? t.author?.userName ?? 'unknown team',
+        name: displayName(collection, t.author?.userName ?? null, 'unknown team'),
         chain,
         address,
         sourceUrl: t.url ?? `https://x.com/i/status/${t.id}`,
@@ -381,7 +405,11 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
         const { chain, collection, stats } = await resolveContract(address);
         out.push({
           lane: 'farcaster',
-          name: collection?.name ?? (author?.username ? `@${author.username}` : 'unknown caster'),
+          name: displayName(
+            collection,
+            author?.username ? `@${author.username}` : null,
+            'unknown caster'
+          ),
           chain,
           address,
           sourceUrl: author?.username
@@ -522,25 +550,48 @@ async function main() {
    * measured number survives.
    */
   const best = new Map<string, Candidate>();
+  /**
+   * handle to the key it already belongs under.
+   *
+   * One prospect has two identities, a contract and a handle, and either can
+   * arrive first. Keying on "contract if present, else handle" looked
+   * sufficient and is not: a contract-keyed winner picks up a handle when a
+   * post merges into it, and a later post from that same handle still hashes to
+   * `handle:...` and takes a second slot. The alias map is what makes the two
+   * identities converge no matter which order they arrive in.
+   */
+  const aliasOf = new Map<string, string>();
+
+  const handleKey = (h: string | null) =>
+    h ? `handle:${h.toLowerCase()}` : null;
+
   for (const c of candidates.sort((a, b) => score(b) - score(a))) {
+    const contractKey = c.chain && c.address ? `${c.chain}:${c.address}` : null;
+    const hKey = handleKey(c.handle);
     const key =
-      c.chain && c.address
-        ? `${c.chain}:${c.address}`
-        : c.handle
-          ? `handle:${c.handle.toLowerCase()}`
-          : `src:${c.sourceUrl ?? c.name}`;
+      contractKey ??
+      (hKey && aliasOf.get(hKey)) ??
+      hKey ??
+      `src:${c.sourceUrl ?? c.name}`;
+
     const prior = best.get(key);
     if (!prior) {
       best.set(key, c);
+      if (hKey) aliasOf.set(hKey, key);
       continue;
     }
+
     // Keep the winner, but do not lose the fact that a live post triggered it.
     if (!prior.sourceUrl && c.sourceUrl) {
       prior.sourceUrl = c.sourceUrl;
       prior.excerpt = prior.excerpt ?? c.excerpt;
-      prior.handle = prior.handle ?? c.handle;
       prior.postedAt = prior.postedAt ?? c.postedAt;
     }
+    // A handle learned on merge has to join the alias map too, or the next post
+    // from that handle opens a second entry for the same prospect.
+    if (!prior.handle && c.handle) prior.handle = c.handle;
+    const merged = handleKey(prior.handle);
+    if (merged) aliasOf.set(merged, key);
   }
 
   const ranked = [...best.values()].slice(0, limit);

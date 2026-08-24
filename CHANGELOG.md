@@ -37,6 +37,17 @@ All notable changes to walletlink.social. Newest first.
   lived inline in the X lane, so the Farcaster lane extracted an address and
   then drafted "NO NUMBER AVAILABLE" for contracts we hold and have published. A
   lane should not be able to forget how to look something up.
+- **One naming rule, shared.** The index lane rejected the seeder's `Unknown
+  Token` placeholder from the start. Once the other lanes learned to resolve
+  collections they began preferring the collection name over the poster, so a
+  placeholder started beating a perfectly good `@username` and produced a reply
+  addressed to "Unknown Token". `isNamed` and `displayName` now serve every
+  lane.
+- **Dedupe follows an identity that merges.** Keying on "contract if present,
+  else handle" is not enough: a contract-keyed winner picks up a handle when a
+  post merges into it, and the next post from that handle still hashed to its
+  own key and took a second slot. An alias map makes the two identities
+  converge whichever arrives first.
 - **The candidate cap breaks the query loop, not just the tweet loop**, so a run
   that is already full stops paying twitterapi.io for a page it cannot use. And
   candidates are deduped by contract, then handle, before the shortlist is
