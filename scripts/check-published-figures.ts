@@ -539,6 +539,23 @@ const MEASUREMENTS: Measurement[] = [
         pattern: /\*\*Any identity\*\*[^|]*\| \*\*([0-9]{2}\.[0-9])%\*\*/,
         rate: 'anyIdentity',
       },
+      /**
+       * The second post to publish both halves of the sample, and the first to
+       * put them in one table and argue the difference between them. Both rows
+       * are declared, because declaring only the headline is how a post ends up
+       * stating a current resolution rate beside a stale reach rate, which is
+       * precisely the conflation CLAUDE.md requires this file to police.
+       */
+      {
+        file: 'content/published/find-twitter-account-from-wallet.md',
+        pattern: /\| Any identity\s+\| ([0-9]{2}\.[0-9])%/,
+        rate: 'anyIdentity',
+      },
+      {
+        file: 'content/published/find-twitter-account-from-wallet.md',
+        pattern: /\| Reachable on X or Farcaster\s+\| ~([0-9]{2})%/,
+        rate: 'reachable',
+      },
     ],
   },
 ];

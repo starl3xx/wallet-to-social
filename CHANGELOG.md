@@ -14,6 +14,11 @@ All notable changes to walletlink.social. Newest first.
   of all three claims in `scripts/check-published-figures.ts`. The wording was
   chosen to match the patterns already there, so the guard checks it with no new
   regex. All three verified against `/api/public-stats` before publishing.
+- **Both sample rates are declared, not just the index counts.** The post states
+  the 23.7% any-identity rate and the ~13% reachable rate, so both rows of its
+  table are registered in `MEASUREMENTS.published`. Declaring only the headline
+  is how a post ends up stating a current resolution rate beside a stale reach
+  rate, which is the exact conflation this guard exists to police.
 - Keeps "any identity" (23.7%) and "reachable on X or Farcaster" (~13%) apart,
   and says in the post why quoting the first where the second belongs overstates
   an audience by half.
