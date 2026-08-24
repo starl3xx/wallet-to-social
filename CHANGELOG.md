@@ -44,6 +44,13 @@ All notable changes to walletlink.social. Newest first.
 - Checkpoints are validated on read (`isUsableCheckpoint`). A missing, null,
   zero or string `nextFid` each sweeps nothing while looking like a completed
   run.
+- **Only `--full` and `--resume` write a checkpoint.** Lifting the write out of
+  the seen-table branch to serve the resume path dropped the mode guard with it,
+  so a `--range 1 50000` validation run that budget-stopped would have
+  overwritten a real full-sweep checkpoint with its own narrow range. The next
+  `--auto` would resume that span, complete it, clear the checkpoint, and the
+  full sweep's progress would be gone with nothing reporting it. Found by Bugbot
+  on the second review pass; the first pass returned no findings.
 
 ### 2026-08-24 (the money is backed up, constrained, and the banned figure is gone)
 

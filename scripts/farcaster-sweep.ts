@@ -180,10 +180,26 @@ async function main() {
     );
   }
 
+  /**
+   * Only a sweep that is working through the whole network keeps a checkpoint.
+   *
+   * `--range` and `--incremental` cover a span somebody else chose, so a
+   * checkpoint from one of them is not a statement about the full sweep's
+   * progress. Writing one anyway would let a `--range 1 50000` validation run
+   * that happened to budget-stop overwrite a real full-sweep checkpoint with
+   * its own narrow range; the next `--auto` would resume that tiny span,
+   * "complete" it, clear the checkpoint, and the full sweep's progress would be
+   * gone with nothing reporting it.
+   */
+  const tracksProgress =
+    effectiveMode === '--full' || effectiveMode === '--resume';
+
   if (stats.budgetStopped) {
     console.warn(
-      `\nSweep stopped early on the Neynar credit budget: ${stats.budgetReason}\n` +
-        `Resume with: npx tsx --env-file=.env.local scripts/farcaster-sweep.ts --range ${stats.budgetStoppedAtFid} ${endFid}`
+      `\nSweep stopped early on the Neynar credit budget: ${stats.budgetReason}` +
+        (tracksProgress
+          ? '\nA checkpoint is saved below; the next --auto run resumes from it.'
+          : `\nResume with: npx tsx --env-file=.env.local scripts/farcaster-sweep.ts --range ${stats.budgetStoppedAtFid} ${endFid}`)
     );
   }
 
@@ -199,7 +215,11 @@ async function main() {
   const expectedFids = endFid - startFid + 1;
   const coveredRange = stats.fidsRequested >= expectedFids;
 
-  if (stats.budgetStopped && stats.budgetStoppedAtFid !== undefined) {
+  if (
+    tracksProgress &&
+    stats.budgetStopped &&
+    stats.budgetStoppedAtFid !== undefined
+  ) {
     // `!== undefined`, not truthiness: FID 0 is falsy and would fall through to
     // the completion branch, which is the one that may clean up.
     await writeSweepCheckpoint({
