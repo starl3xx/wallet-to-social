@@ -13,6 +13,26 @@ https://walletlink.social/api/mcp
 
 ## Connect
 
+### One click, from the app
+
+When you create an API key, the modal offers **Add to Cursor** and **Copy
+Claude Code command**, both already carrying that key. That is the shortest
+path, and it is only offered there: a key is shown exactly once, so a link
+published on this page could only carry a placeholder, and a placeholder
+installs a server that fails on first use.
+
+### Claude Code, one line
+
+```bash
+claude mcp add --transport http walletlink https://walletlink.social/api/mcp \
+  --header "Authorization: Bearer wts_live_YOUR_KEY"
+```
+
+That installs it for the current project. Add `-s user` to make it available in
+every project instead.
+
+### By hand
+
 Add the server to your client’s config. The key goes in an `Authorization`
 header, exactly as it does for the REST API.
 

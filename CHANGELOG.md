@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (one click into an agent)
+
+- **The API keys modal now offers "Add to Cursor" and "Copy Claude Code
+  command"**, both already carrying the key that was just created. Step three of
+  the sequence, and the lowest-friction install path that exists: no approval
+  gate, no config file, no copying a key between two windows.
+- **They are offered there and nowhere else, on purpose.** A key is shown
+  exactly once, so a link published in the docs could only carry a placeholder,
+  and a placeholder installs a server that fails on first use. The one screen
+  where the plaintext key exists is the one screen where a working link can be
+  built.
+- **Nothing about the key's handling changes.** A `cursor://` link is handled by
+  the local application and never fetched, so no key reaches an HTTP request, a
+  referer or a log. The command goes to the clipboard, not to us. The key is
+  still not persisted anywhere in the client.
+- `lib/mcp-install.ts` holds the encoding. Cursor's deeplink base64s the server
+  config object **on its own**, not wrapped in the `mcpServers` map the file
+  format uses; passing the wrapped shape produces a link that installs an empty
+  server.
+- Docs gain the Claude Code one-liner and a note that `-s user` installs it
+  everywhere rather than in one project.
+
 ### 2026-08-24 (the MCP server, which bills nothing of its own)
 
 - **`app/api/mcp/route.ts`** puts five tools over the six `/v1` endpoints, so an

@@ -20,8 +20,14 @@ import {
   CircleNotch as Loader2,
   Warning as AlertTriangle,
   Trash as Trash2,
+  Terminal,
 } from '@phosphor-icons/react';
 import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
+import {
+  claudeCodeCommand,
+  cursorInstallLink,
+  MCP_SERVER_NAME,
+} from '@/lib/mcp-install';
 import type { UserTier } from '@/lib/access';
 import { cn } from '@/lib/utils';
 
@@ -110,6 +116,9 @@ export function ApiKeysModal({
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Separate from `copied`: one flag would tick the check on both buttons at
+  // once, which reads as "both are on your clipboard" and only one is.
+  const [copiedCommand, setCopiedCommand] = useState(false);
 
   // The one and only time the raw key exists in the client. Deliberately not
   // persisted anywhere: no localStorage, no history entry, and cleared when the
@@ -224,6 +233,19 @@ export function ApiKeysModal({
     }
   }, [revealedKey]);
 
+  const handleCopyCommand = useCallback(async () => {
+    if (!revealedKey) return;
+    try {
+      await navigator.clipboard.writeText(claudeCodeCommand(revealedKey));
+      setCopiedCommand(true);
+      setTimeout(() => setCopiedCommand(false), 2000);
+    } catch {
+      setError(
+        'Could not copy automatically. Copy the key above and follow the docs instead.'
+      );
+    }
+  }, [revealedKey]);
+
   return (
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent className="max-w-lg">
@@ -318,6 +340,54 @@ export function ApiKeysModal({
                       <Copy className="h-4 w-4" />
                     )}
                   </Button>
+                </div>
+
+                {/* Both of these carry the live key, which is why they are
+                    here and nowhere else: this is the only screen where the
+                    plaintext key exists. A link published in the docs would
+                    have to carry a placeholder, and a placeholder installs a
+                    server that fails on first use.
+
+                    The rule above the fold still applies. These are a
+                    convenience for getting the key into a local agent, not a
+                    reason to stop treating it as a secret. */}
+                <div className="mt-3 border-t border-caution pt-3">
+                  <p className="mb-2 text-xs text-caution">
+                    Or send it straight to an agent. Both carry this key.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={cursorInstallLink(revealedKey)}>
+                        <ArrowSquareOut className="h-4 w-4" aria-hidden />
+                        Add to Cursor
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyCommand}
+                    >
+                      {copiedCommand ? (
+                        <Check className="h-4 w-4" aria-hidden />
+                      ) : (
+                        <Terminal className="h-4 w-4" aria-hidden />
+                      )}
+                      {copiedCommand ? 'Copied' : 'Copy Claude Code command'}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-caution">
+                    Installs as{' '}
+                    <code className="font-mono">{MCP_SERVER_NAME}</code>, with
+                    five tools over the same balance.{' '}
+                    <a
+                      href="https://docs.walletlink.social/mcp"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      What they do
+                    </a>
+                  </p>
                 </div>
               </div>
             )}
