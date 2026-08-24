@@ -33,7 +33,10 @@ function clientIp(request: NextRequest): string {
   if (vercel) return vercel.trim();
   const xff = request.headers.get('x-forwarded-for');
   if (xff) {
-    const hops = xff.split(',').map((h) => h.trim()).filter(Boolean);
+    const hops = xff
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean);
     if (hops.length) return hops[hops.length - 1];
   }
   return 'unknown';
@@ -70,7 +73,10 @@ export function requireAdmin(request: NextRequest): NextResponse | null {
   const expected = process.env.ADMIN_PASSWORD;
   // Fail closed if unconfigured — never allow an empty-secret bypass
   if (!expected) {
-    return NextResponse.json({ error: 'Admin access not configured' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Admin access not configured' },
+      { status: 503 }
+    );
   }
 
   const ip = clientIp(request);

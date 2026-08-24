@@ -12,7 +12,11 @@
  * only what it can fix, plus what it deliberately will not.
  */
 
-import { REPAIRS, runGraphRepairs, findUnrepairable } from '../lib/graph-repair';
+import {
+  REPAIRS,
+  runGraphRepairs,
+  findUnrepairable,
+} from '../lib/graph-repair';
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -21,7 +25,9 @@ async function main() {
   }
 
   const apply = process.argv.includes('--apply');
-  console.log(apply ? '\nAPPLYING repairs\n' : '\nDRY RUN — nothing will be written\n');
+  console.log(
+    apply ? '\nAPPLYING repairs\n' : '\nDRY RUN — nothing will be written\n'
+  );
 
   const run = await runGraphRepairs(apply);
 
@@ -37,7 +43,9 @@ async function main() {
       console.log(`ok       ${r.id}`);
       continue;
     }
-    console.log(`${apply ? 'fixed   ' : 'would   '} ${r.id}: ${r.found.toLocaleString()} rows`);
+    console.log(
+      `${apply ? 'fixed   ' : 'would   '} ${r.id}: ${r.found.toLocaleString()} rows`
+    );
     if (spec) console.log(`         ${spec.describes}`);
   }
 
@@ -49,7 +57,9 @@ async function main() {
   const blocked = await findUnrepairable();
   const real = blocked.filter((b) => b.count > 0);
   if (real.length > 0) {
-    console.log('\nNot repairable here — each needs an answer from outside the row:');
+    console.log(
+      '\nNot repairable here — each needs an answer from outside the row:'
+    );
     for (const b of real) {
       console.log(`  ${String(b.count).padStart(6)}  ${b.id}`);
       console.log(`          needs ${b.needs}`);

@@ -88,21 +88,23 @@ export async function GET(request: NextRequest) {
       .limit(limit);
 
     // Already filtered and limited in SQL. This only shapes the response.
-    const wins: RecentWin[] = completedJobs
-      .map((job) => {
-        // Use anySocialFound for unique count, fallback to sum for old jobs
-        const anyFound = job.anySocialFound > 0 ? job.anySocialFound : job.twitterFound + job.farcasterFound;
-        const socialRate = Math.round((anyFound / job.walletCount) * 100);
-        return {
-          id: job.id,
-          walletCount: job.walletCount,
-          twitterFound: job.twitterFound,
-          farcasterFound: job.farcasterFound,
-          anySocialFound: anyFound,
-          socialRate,
-          completedAt: job.completedAt?.toISOString() || '',
-        };
-      });
+    const wins: RecentWin[] = completedJobs.map((job) => {
+      // Use anySocialFound for unique count, fallback to sum for old jobs
+      const anyFound =
+        job.anySocialFound > 0
+          ? job.anySocialFound
+          : job.twitterFound + job.farcasterFound;
+      const socialRate = Math.round((anyFound / job.walletCount) * 100);
+      return {
+        id: job.id,
+        walletCount: job.walletCount,
+        twitterFound: job.twitterFound,
+        farcasterFound: job.farcasterFound,
+        anySocialFound: anyFound,
+        socialRate,
+        completedAt: job.completedAt?.toISOString() || '',
+      };
+    });
 
     return NextResponse.json({ wins });
   } catch (error) {

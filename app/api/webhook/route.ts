@@ -4,10 +4,7 @@ import {
   resolveCheckoutEmail,
   StripeConfigError,
 } from '@/lib/stripe';
-import {
-  provisionPaidCheckout,
-  type PaidTier,
-} from '@/lib/access';
+import { provisionPaidCheckout, type PaidTier } from '@/lib/access';
 import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
 import type Stripe from 'stripe';

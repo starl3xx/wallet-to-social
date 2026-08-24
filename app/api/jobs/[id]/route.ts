@@ -24,15 +24,14 @@ export async function GET(
     // poll jobs they created by proving ownership via userId query param)
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    const session = sessionToken ? await validateSession(sessionToken) : { user: null };
+    const session = sessionToken
+      ? await validateSession(sessionToken)
+      : { user: null };
 
     const job = await getJob(id);
 
     if (!job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     // Verify ownership: authenticated users by session, others by userId param.
@@ -99,14 +98,18 @@ export async function GET(
     // Include a generic failure signal — never the raw errorMessage, which can
     // carry database/driver internals, to an unauthenticated caller
     if (job.status === 'failed') {
-      response.error = isOwner && job.errorMessage ? job.errorMessage : 'Job failed';
+      response.error =
+        isOwner && job.errorMessage ? job.errorMessage : 'Job failed';
     }
 
     return NextResponse.json(response);
   } catch (error) {
     console.error('Job status error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get job status' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to get job status',
+      },
       { status: 500 }
     );
   }

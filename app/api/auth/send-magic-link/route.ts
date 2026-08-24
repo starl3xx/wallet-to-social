@@ -43,15 +43,9 @@ export async function POST(request: NextRequest) {
     if ('error' in tokenResult) {
       // Rate limit error returns 429
       if (tokenResult.error.includes('Too many')) {
-        return NextResponse.json(
-          { error: tokenResult.error },
-          { status: 429 }
-        );
+        return NextResponse.json({ error: tokenResult.error }, { status: 429 });
       }
-      return NextResponse.json(
-        { error: tokenResult.error },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: tokenResult.error }, { status: 500 });
     }
 
     // Send the magic link email

@@ -38,7 +38,7 @@ const comms = getAll(`
 if (comms.length === 0) {
   console.log('   ✓ All communications handled!');
 } else {
-  comms.forEach(c => {
+  comms.forEach((c) => {
     console.log(`   [COMM-${c.id}] P${c.priority} | ${c.type.toUpperCase()}`);
     console.log(`            "${c.title}"`);
     console.log(`            Audience: ${c.target_audience}`);
@@ -59,7 +59,7 @@ const trends = getAll(`
 if (trends.length === 0) {
   console.log('   No active trends');
 } else {
-  trends.forEach(t => {
+  trends.forEach((t) => {
     console.log(`   [TREND-${t.id}] Score: ${t.relevance_score}/100`);
     console.log(`            "${t.topic}"`);
     console.log(`            ${t.description.substring(0, 80)}...`);
@@ -81,7 +81,7 @@ const research = getAll(`
 if (research.length === 0) {
   console.log('   No available research');
 } else {
-  research.forEach(r => {
+  research.forEach((r) => {
     console.log(`   [RESEARCH-${r.id}] Category: ${r.category}`);
     console.log(`            "${r.title}"`);
     console.log(`            ${r.summary.substring(0, 80)}...`);
@@ -109,20 +109,23 @@ const pipeline = getAll(`
 if (pipeline.length === 0) {
   console.log('   No content in pipeline - time to plan!');
 } else {
-  pipeline.forEach(p => {
-    const emoji = {
-      'planned': '📋',
-      'writing': '✏️',
-      'review': '👀',
-      'published': '✅',
-      'cancelled': '❌'
-    }[p.status] || '📄';
+  pipeline.forEach((p) => {
+    const emoji =
+      {
+        planned: '📋',
+        writing: '✏️',
+        review: '👀',
+        published: '✅',
+        cancelled: '❌',
+      }[p.status] || '📄';
     console.log(`   ${emoji} ${p.status}: ${p.count} items`);
   });
 }
 
 console.log('\n' + '═'.repeat(70));
-console.log('💡 Ralph should prioritize: High-priority comms → Hot trends → Research');
+console.log(
+  '💡 Ralph should prioritize: High-priority comms → Hot trends → Research'
+);
 console.log('═'.repeat(70) + '\n');
 
 db.close();

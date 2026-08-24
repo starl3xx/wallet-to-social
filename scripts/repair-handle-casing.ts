@@ -20,13 +20,16 @@ async function main() {
   const [before] = (await sql`
     SELECT count(*)::int AS mixed FROM social_graph
     WHERE twitter_handle IS NOT NULL AND twitter_handle <> lower(twitter_handle)`) as any[];
-  console.log(`rows with a mixed-case handle: ${before.mixed.toLocaleString()}`);
+  console.log(
+    `rows with a mixed-case handle: ${before.mixed.toLocaleString()}`
+  );
 
   const bySource = (await sql`
     SELECT unnest(sources) AS source, count(*)::int AS n FROM social_graph
     WHERE twitter_handle IS NOT NULL AND twitter_handle <> lower(twitter_handle)
     GROUP BY 1 ORDER BY n DESC`) as any[];
-  for (const r of bySource) console.log(`  ${String(r.source).padEnd(18)} ${r.n}`);
+  for (const r of bySource)
+    console.log(`  ${String(r.source).padEnd(18)} ${r.n}`);
 
   // A collision means two wallets, or the same wallet twice, that only differed
   // by case. Worth knowing before writing, though the primary key is the wallet
@@ -52,4 +55,7 @@ async function main() {
     WHERE twitter_handle IS NOT NULL AND twitter_url <> 'https://x.com/' || twitter_handle`) as any[];
   console.log(`rows whose url disagrees with its handle: ${u.n}`);
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -30,23 +30,50 @@ console.log('\n📊 CONTENT PIPELINE STATUS');
 console.log('═'.repeat(50));
 
 // Trends
-const trendsActive = getOne('SELECT COUNT(*) as count FROM trends WHERE status = ?', ['active']);
-const trendsUsed = getOne('SELECT COUNT(*) as count FROM trends WHERE status = ?', ['used']);
+const trendsActive = getOne(
+  'SELECT COUNT(*) as count FROM trends WHERE status = ?',
+  ['active']
+);
+const trendsUsed = getOne(
+  'SELECT COUNT(*) as count FROM trends WHERE status = ?',
+  ['used']
+);
 console.log(`\n🔥 TRENDS`);
-console.log(`   Active: ${trendsActive?.count || 0} | Used: ${trendsUsed?.count || 0}`);
+console.log(
+  `   Active: ${trendsActive?.count || 0} | Used: ${trendsUsed?.count || 0}`
+);
 
 // Research
-const researchAvailable = getOne('SELECT COUNT(*) as count FROM research WHERE status = ?', ['available']);
-const researchUsed = getOne('SELECT COUNT(*) as count FROM research WHERE status = ?', ['used']);
+const researchAvailable = getOne(
+  'SELECT COUNT(*) as count FROM research WHERE status = ?',
+  ['available']
+);
+const researchUsed = getOne(
+  'SELECT COUNT(*) as count FROM research WHERE status = ?',
+  ['used']
+);
 console.log(`\n🔬 RESEARCH`);
-console.log(`   Available: ${researchAvailable?.count || 0} | Used: ${researchUsed?.count || 0}`);
+console.log(
+  `   Available: ${researchAvailable?.count || 0} | Used: ${researchUsed?.count || 0}`
+);
 
 // Communications
-const commsPending = getOne('SELECT COUNT(*) as count FROM communications WHERE status = ?', ['pending']);
-const commsAssigned = getOne('SELECT COUNT(*) as count FROM communications WHERE status = ?', ['assigned']);
-const commsCompleted = getOne('SELECT COUNT(*) as count FROM communications WHERE status = ?', ['completed']);
+const commsPending = getOne(
+  'SELECT COUNT(*) as count FROM communications WHERE status = ?',
+  ['pending']
+);
+const commsAssigned = getOne(
+  'SELECT COUNT(*) as count FROM communications WHERE status = ?',
+  ['assigned']
+);
+const commsCompleted = getOne(
+  'SELECT COUNT(*) as count FROM communications WHERE status = ?',
+  ['completed']
+);
 console.log(`\n📢 COMMUNICATIONS`);
-console.log(`   Pending: ${commsPending?.count || 0} | Assigned: ${commsAssigned?.count || 0} | Completed: ${commsCompleted?.count || 0}`);
+console.log(
+  `   Pending: ${commsPending?.count || 0} | Assigned: ${commsAssigned?.count || 0} | Completed: ${commsCompleted?.count || 0}`
+);
 
 // Content Plan
 const planStatuses = getAll(`
@@ -58,7 +85,7 @@ console.log(`\n📝 CONTENT PLAN`);
 if (planStatuses.length === 0) {
   console.log('   No content planned yet');
 } else {
-  planStatuses.forEach(s => console.log(`   ${s.status}: ${s.count}`));
+  planStatuses.forEach((s) => console.log(`   ${s.status}: ${s.count}`));
 }
 
 // Drafts
@@ -72,7 +99,7 @@ const latestDrafts = getAll(`
 `);
 console.log(`\n✏️  DRAFTS (${draftCount?.count || 0} total)`);
 if (latestDrafts.length > 0) {
-  latestDrafts.forEach(d => {
+  latestDrafts.forEach((d) => {
     console.log(`   - "${d.title}" v${d.version} (${d.word_count} words)`);
   });
 }
@@ -92,7 +119,7 @@ console.log(`\n📋 RECENT ACTIVITY`);
 if (recentLogs.length === 0) {
   console.log('   No activity yet');
 } else {
-  recentLogs.forEach(log => {
+  recentLogs.forEach((log) => {
     const time = new Date(log.created_at).toLocaleString();
     console.log(`   [${time}] ${log.action}`);
   });

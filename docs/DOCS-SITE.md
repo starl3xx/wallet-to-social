@@ -4,14 +4,14 @@ Content lives in **`docs-site/`**, not in this folder.
 
 ## Status
 
-| Piece                        | State                                                           |
-| ---------------------------- | --------------------------------------------------------------- |
-| Mintlify project             | exists (`walletlink`)                                           |
-| `docs.walletlink.social` DNS | **done**, verified resolving                                    |
-| Mintlify MCP servers         | **done**, in `.mcp.json`                                        |
-| Docs content                 | **live and maintained**, in `docs-site/`                        |
+| Piece                        | State                                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| Mintlify project             | exists (`walletlink`)                                                                               |
+| `docs.walletlink.social` DNS | **done**, verified resolving                                                                        |
+| Mintlify MCP servers         | **done**, in `.mcp.json`                                                                            |
+| Docs content                 | **live and maintained**, in `docs-site/`                                                            |
 | Mintlify GitHub sync         | **connected**, content root `docs-site/`; a merge to `main` publishes (verified current 2026-08-22) |
-| Freshness enforcement        | **done** — PR template + `.github/workflows/docs-freshness.yml` |
+| Freshness enforcement        | **done** — PR template + `.github/workflows/docs-freshness.yml`                                     |
 
 ## `docs-site/` vs `docs/`
 

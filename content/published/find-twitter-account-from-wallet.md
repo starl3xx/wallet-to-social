@@ -97,11 +97,11 @@ What changes at scale is not the method. It is that you now care about the answe
 
 Here is the honest number. On a random sample of 600 holders drawn from 26,619 across 18 collections on two chains, measured on 2026-08-13:
 
-| Measure                        | Rate  | What it means                                            |
-| ------------------------------ | ----- | -------------------------------------------------------- |
-| Any identity                   | 23.7% | ENS, Lens, GitHub, X or Farcaster: something resolves    |
-| 95% confidence interval        | 20.3% to 27.1% | The real figure for your list sits in here     |
-| Reachable on X or Farcaster    | ~13%  | A channel that will actually accept a message            |
+| Measure                     | Rate           | What it means                                         |
+| --------------------------- | -------------- | ----------------------------------------------------- |
+| Any identity                | 23.7%          | ENS, Lens, GitHub, X or Farcaster: something resolves |
+| 95% confidence interval     | 20.3% to 27.1% | The real figure for your list sits in here            |
+| Reachable on X or Farcaster | ~13%           | A channel that will actually accept a message         |
 
 Those two rates are not the same number and should never be quoted as one. **Roughly a quarter of a holder list resolves to some identity. Roughly an eighth can actually be messaged.** If you budget a campaign off the first figure, you have overstated your audience by about half.
 

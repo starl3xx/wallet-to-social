@@ -83,7 +83,12 @@ export function UserBehavior({ password }: UserBehaviorProps) {
           }),
         ]);
 
-      if (!funnelRes.ok || !cohortsRes.ok || !featuresRes.ok || !paywallRes.ok) {
+      if (
+        !funnelRes.ok ||
+        !cohortsRes.ok ||
+        !featuresRes.ok ||
+        !paywallRes.ok
+      ) {
         throw new Error('Failed to fetch behavior data');
       }
 

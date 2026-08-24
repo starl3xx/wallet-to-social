@@ -25,8 +25,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/holders' },
   openGraph: {
     title: 'Holder reachability reports',
-    description:
-      `How many holders of each collection resolve to reachable people, measured against a ${INDEXED_WALLETS} wallet identity index.`,
+    description: `How many holders of each collection resolve to reachable people, measured against a ${INDEXED_WALLETS} wallet identity index.`,
     url: 'https://walletlink.social/holders',
     siteName: 'walletlink.social',
   },

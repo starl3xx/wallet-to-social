@@ -52,7 +52,9 @@ async function main() {
   }
 
   if (!text) {
-    console.error('usage: cast-farcaster.ts "text" [--send] [--channel id] [--embed url] [--force]');
+    console.error(
+      'usage: cast-farcaster.ts "text" [--send] [--channel id] [--embed url] [--force]'
+    );
     process.exit(1);
   }
   // Farcaster's limit is UTF-8 bytes; string length counts UTF-16 code
@@ -64,7 +66,9 @@ async function main() {
   }
   const signerUuid = process.env.NEYNAR_SIGNER_UUID;
   if (!process.env.NEYNAR_API_KEY || !signerUuid) {
-    console.error('NEYNAR_API_KEY and NEYNAR_SIGNER_UUID are required (run setup-farcaster-signer.ts)');
+    console.error(
+      'NEYNAR_API_KEY and NEYNAR_SIGNER_UUID are required (run setup-farcaster-signer.ts)'
+    );
     process.exit(1);
   }
 
@@ -109,7 +113,9 @@ async function main() {
   }
 
   console.log(`\npublished: hash ${body.cast?.hash}`);
-  console.log(`https://farcaster.xyz/${body.cast?.author?.username}/${(body.cast?.hash ?? '').slice(0, 10)}`);
+  console.log(
+    `https://farcaster.xyz/${body.cast?.author?.username}/${(body.cast?.hash ?? '').slice(0, 10)}`
+  );
 
   // One credit, recorded against the shared counter like every other spend.
   await recordSpend(1);

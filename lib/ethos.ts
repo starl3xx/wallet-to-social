@@ -42,7 +42,11 @@
  * live 108 times, and theirs was dead and ours live zero times.
  */
 import { cleanTwitterHandle } from './twitter-cleaner';
-import { ingestLinks, type AttestedLink, type LinkSource } from './attested-links';
+import {
+  ingestLinks,
+  type AttestedLink,
+  type LinkSource,
+} from './attested-links';
 
 const BASE = 'https://api.ethos.network/api/v2';
 
@@ -109,7 +113,8 @@ export function isRealUser(u: EthosUser | undefined | null): u is EthosUser {
 }
 
 const keyValue = (u: EthosUser, prefix: string): string | null =>
-  (u.userkeys ?? []).find((k) => k.startsWith(prefix))?.slice(prefix.length) ?? null;
+  (u.userkeys ?? []).find((k) => k.startsWith(prefix))?.slice(prefix.length) ??
+  null;
 
 export const twitterIdOf = (u: EthosUser) => keyValue(u, 'service:x.com:');
 
@@ -148,12 +153,18 @@ interface PageResult {
  * aborts on one bad page loses every page after it; a sweep that skips one page
  * loses that page and says so in the stats.
  */
-async function fetchPage(offset: number, onRateLimit: () => void): Promise<PageResult | null> {
+async function fetchPage(
+  offset: number,
+  onRateLimit: () => void
+): Promise<PageResult | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(`${BASE}/profiles/recent?limit=${PAGE}&offset=${offset}`, {
-        headers: { 'X-Ethos-Client': CLIENT_HEADER },
-      });
+      const res = await fetch(
+        `${BASE}/profiles/recent?limit=${PAGE}&offset=${offset}`,
+        {
+          headers: { 'X-Ethos-Client': CLIENT_HEADER },
+        }
+      );
       if (res.status === 429) {
         onRateLimit();
         // Their limit is unpublished, so back off generously rather than
@@ -261,7 +272,8 @@ export async function sweepEthos(
       continue;
     }
     absorb(page);
-    if (offset % 5000 === 0) onProgress?.(`Ethos: ${offset}/${total}, ${links.length} links`);
+    if (offset % 5000 === 0)
+      onProgress?.(`Ethos: ${offset}/${total}, ${links.length} links`);
   }
 
   const ingested = await ingestLinks(links, SOURCE);

@@ -1,6 +1,6 @@
 ---
 title: 'Why your DAO has a communication problem, not a participation problem'
-meta_description: "Low DAO governance participation is usually a visibility issue, not apathy. Holders can’t vote on proposals they never see. Direct outreach changes the math."
+meta_description: 'Low DAO governance participation is usually a visibility issue, not apathy. Holders can’t vote on proposals they never see. Direct outreach changes the math.'
 published: true
 publish_date: '2026-04-13'
 ---

@@ -1,0 +1,51 @@
+name: format
+
+# Fails a PR whose files are not Prettier-formatted.
+#
+# Prettier was in this repo for months without this job, and that was the worst
+# of the three possible states. Nothing ran it: no CI, no git hook, no
+# lint-staged, and `eslint-config-prettier` was installed and never imported.
+# 150 of 352 files had drifted out of conformance, which made `npm run format`
+# a trap rather than a convenience: any invocation rewrote a wide slice of the
+# repo, so a one-line fix arrived as a hundred-file diff nobody could review.
+#
+# A formatter that runs on every commit is safe, because drift never
+# accumulates. A formatter that never runs is harmless dead config. The
+# dangerous state is the middle, and this job removes it.
+#
+# The repo was formatted once in the same PR that added this. That commit was
+# verified by diffing the rendered text of all 93 prerendered pages before and
+# after: identical, so nothing a reader sees moved.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The pinned Prettier from the lockfile, never a floating latest. Two
+      # versions disagree about line breaks, and a job that installed whatever
+      # was newest would fail PRs for a change the author did not make.
+      - name: Install
+        run: npm ci
+
+      - name: Everything is formatted
+        run: |
+          set -euo pipefail
+
+          if npx prettier --check .; then
+            exit 0
+          fi
+
+          echo
+          echo "::error::Some files are not formatted. Run 'npm run format' and commit the result. Prettier config is .prettierrc; .prettierignore lists what it skips."
+          exit 1

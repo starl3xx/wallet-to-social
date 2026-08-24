@@ -93,12 +93,32 @@ export async function getENSTextRecords(ensName: string): Promise<{
     // Wrap each text record lookup with timeout and use Promise.allSettled
     const [twitter1, twitter2, twitter3, url, github, email] =
       await Promise.allSettled([
-        withTimeout(resolver.getText('com.twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
-        withTimeout(resolver.getText('twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
-        withTimeout(resolver.getText('vnd.twitter'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(
+          resolver.getText('com.twitter'),
+          RPC_TIMEOUT_MS,
+          'getText timeout'
+        ),
+        withTimeout(
+          resolver.getText('twitter'),
+          RPC_TIMEOUT_MS,
+          'getText timeout'
+        ),
+        withTimeout(
+          resolver.getText('vnd.twitter'),
+          RPC_TIMEOUT_MS,
+          'getText timeout'
+        ),
         withTimeout(resolver.getText('url'), RPC_TIMEOUT_MS, 'getText timeout'),
-        withTimeout(resolver.getText('com.github'), RPC_TIMEOUT_MS, 'getText timeout'),
-        withTimeout(resolver.getText('email'), RPC_TIMEOUT_MS, 'getText timeout'),
+        withTimeout(
+          resolver.getText('com.github'),
+          RPC_TIMEOUT_MS,
+          'getText timeout'
+        ),
+        withTimeout(
+          resolver.getText('email'),
+          RPC_TIMEOUT_MS,
+          'getText timeout'
+        ),
       ]);
 
     // Find first valid Twitter handle
@@ -214,7 +234,9 @@ export async function batchLookupENS(
           wallet,
           ensName,
           twitter: records.twitter,
-          twitterUrl: records.twitter ? `https://x.com/${records.twitter}` : null,
+          twitterUrl: records.twitter
+            ? `https://x.com/${records.twitter}`
+            : null,
           url: records.url,
           github: records.github,
           email: records.email,

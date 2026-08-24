@@ -2,6 +2,44 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (prettier, enforced instead of dormant)
+
+- **Formatted the repo and added `.github/workflows/format.yml`.** 170 files
+  changed. Prettier had been installed for months with nothing running it: no
+  CI, no git hook, no lint-staged, and `eslint-config-prettier` installed and
+  never imported. 150 of 352 files had drifted out of conformance.
+- **The unenforced middle was the dangerous state.** A formatter that runs on
+  every commit is safe, because drift never accumulates. One that never runs is
+  harmless dead config. One that runs occasionally against a 43%-nonconformant
+  repo turns every `npm run format` into a hundred-file rewrite nobody can
+  review, which is exactly how a one-line fix earlier today arrived as a diff
+  with an unrelated reflow in it.
+- **Verified by rendering, not by reading the diff.** The visible text of all 93
+  prerendered pages was captured before and after: identical. eslint reports the
+  same 12 errors and 19 warnings on the same four files as before, so nothing
+  new was introduced.
+- **Formatting broke a guard, which is worth knowing about.** The published-
+  figures registry looks for the 13% on the share card with a regex that
+  assumed the number sat on the same line as its opening `<span>`. Prettier
+  reflowed that element across ten lines, and the guard reported `NO MATCH` on
+  a page where nothing had changed. The pattern now tolerates whitespace
+  wherever the formatter is allowed to put it, which in JSX is everywhere
+  except inside a string. It failed loudly rather than silently, which is the
+  right direction for a guard to fail in, and it is the argument for enforcing
+  a formatter once rather than letting one loose occasionally.
+- **The OpenAPI gate fired on a formatting-only change**, correctly: the
+  reformat touched two v1 route files and `lib/api-sources.ts`. The diff there
+  is line joins and splits with no value, name or behaviour changed, so the PR
+  carries the `no-docs-needed` label, which is what that label exists for.
+- **A finding that did not survive the check.** Bugbot reported that reflowing
+  `{FREE_WINDOW_DAYS}-day` across a newline renders "30 -day window", and it was
+  accepted and worked around in PR #179. It does not. JSX trims the newline
+  adjacent to an expression. React emits `<!-- -->` between the resulting text
+  nodes as a hydration delimiter, a browser never renders a comment, and the
+  first attempt at verifying this replaced every tag including comments with a
+  space, which invented the phantom twice over. The workaround is reverted and
+  the trap is written down in CLAUDE.md.
+
 ### 2026-08-24 (listed, and said out loud)
 
 - **Published to the official MCP registry** as `social.walletlink/wallet-identity`,
@@ -108,7 +146,7 @@ All notable changes to walletlink.social. Newest first.
   to the unbounded branch. The MCP layer refuses all of them, so they reach no
   meter, which is exactly the surface the limit exists to cover. It now
   allowlists the metered side instead: everything is bounded except a body
-  whose calls are *all* `tools/call`. A method missing from that set is
+  whose calls are _all_ `tools/call`. A method missing from that set is
   bounded, which is the safe direction to fail in, and a mixed batch is
   bounded too, or ninety-nine `tools/list` calls with one `tools/call`
   appended would buy the whole batch a free pass.
@@ -187,7 +225,7 @@ All notable changes to walletlink.social. Newest first.
   in a comment only), so there is nothing to measure. A token deployed this
   morning has no holders either: two sampled live had three transfers each, being
   the pool, the locker and the deployer. And handle-shaped records are often
-  launchpad bots minting tokens *about* a public figure's post, so a reply about
+  launchpad bots minting tokens _about_ a public figure's post, so a reply about
   "your holders" would reach someone with no connection to the token. Clanker
   stays a good wallet-to-X source and is not used as a prospect list.
 - **The strongest lane was already in the database.** We hold holder data for 76
@@ -214,7 +252,7 @@ All notable changes to walletlink.social. Newest first.
   they are meant to be answering. The X lane links the tweet; this now links
   the cast, with the profile as the fallback.
 - **One naming rule, shared.** The index lane rejected the seeder's `Unknown
-  Token` placeholder from the start. Once the other lanes learned to resolve
+Token` placeholder from the start. Once the other lanes learned to resolve
   collections they began preferring the collection name over the poster, so a
   placeholder started beating a perfectly good `@username` and produced a reply
   addressed to "Unknown Token". `isNamed` and `displayName` now serve every
@@ -237,6 +275,7 @@ All notable changes to walletlink.social. Newest first.
   `measurementInProgress` is true, because a near-zero reachable count there
   means "not yet checked" rather than a finding. With no measured number the
   draft refuses to invent one and offers the published per-chain figure instead.
+
 ### 2026-08-24 (the changelog stops saying the relaunch was never sent)
 
 - **Two entries claimed the relaunch campaign had not been sent.** It was sent
@@ -313,13 +352,13 @@ All notable changes to walletlink.social. Newest first.
   for accounts past `FIRST_TOUCH_DELAY_MINUTES` (5). Worst case is now about
   ten minutes.
 - **The delay is deliberate, and zero would be worse.** The account row is
-  written at magic-link *verify*, so an inline send puts welcome-1 in the inbox
+  written at magic-link _verify_, so an inline send puts welcome-1 in the inbox
   in the same second as the sign-in link, and the email the person needs
   competes with the one they did not ask for. Five minutes clears the link and
   is long enough that most people have run their first lookup, which is the
   state welcome-1's copy assumes.
 - **Sends now claim before they send.** `lifecycle_emails` is unique on
-  (user, key), but the row was written *after* the send, so two runners racing
+  (user, key), but the row was written _after_ the send, so two runners racing
   the same user delivered twice and inserted once: the constraint recorded the
   race instead of preventing it. That was theoretical with one cron and real
   with two, which overlap exactly at 15:00. `claimAndSend` inserts first and
@@ -330,7 +369,7 @@ All notable changes to walletlink.social. Newest first.
   now select through one shared `ELIGIBLE_USER` fragment so the cutoff,
   opt-out, legacy-tier, whitelist and purchase exits cannot drift apart.
 - **A claim nobody redeems is a welcome email that never arrives.**
-  `claimAndSend` deletes its claim when the send *returns* a failure, but it
+  `claimAndSend` deletes its claim when the send _returns_ a failure, but it
   cannot delete anything when the process does not return at all: a timeout, an
   OOM or a deploy between the INSERT and the send leaves a row every runner
   reads as "already emailed", retried by nothing and reported to nobody. New
@@ -343,7 +382,7 @@ All notable changes to walletlink.social. Newest first.
   arrives.
 - **The delay is a fact about the account, not about one cron.** Held only in
   the fast runner, the daily runner's day-0 pass still computed `now() - 0
-  days`, so an account created at 14:59:30 got welcome-1 thirty seconds later
+days`, so an account created at 14:59:30 got welcome-1 thirty seconds later
   at 15:00, next to its own magic link. `FIRST_TOUCH_DELAY_MINUTES` moved into
   `ELIGIBLE_USER`, where no runner can reach past it.
 - **Selection asks whether an email was delivered, never whether a row exists.**
@@ -386,6 +425,7 @@ All notable changes to walletlink.social. Newest first.
   the old send-then-insert order and are all real deliveries; without the
   backfill the first reclaim would delete them and mail those accounts again.
   No new table, so no `migrate-grant-readonly.ts` entry.
+
 ### 2026-08-24 (the docs stop advertising a plan nobody is on)
 
 - **The legacy Unlimited tier is gone from `docs-site/`.** The Plans table
@@ -408,6 +448,7 @@ All notable changes to walletlink.social. Newest first.
 - Also removed the `app/lookups.mdx` note about accounts that bought Pro or
   Unlimited before credits existed. The `plan_limits` defensive-parsing advice in
   `usage.mdx` is kept, with the legacy phrasing dropped.
+
 ### 2026-08-24 (the blog gets its front door)
 
 - **New post: "How to find the X account behind an Ethereum wallet"**

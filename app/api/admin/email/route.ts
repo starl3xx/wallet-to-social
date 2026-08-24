@@ -14,7 +14,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Email status API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch email status' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch email status',
+      },
       { status: 500 }
     );
   }

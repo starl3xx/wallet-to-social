@@ -251,7 +251,9 @@ const buffer = Buffer.from(data);
 writeFileSync(DB_PATH, buffer);
 
 console.log('✅ Database initialized at', DB_PATH);
-console.log('   Tables: founder_content, competitor_content, trends, research,');
+console.log(
+  '   Tables: founder_content, competitor_content, trends, research,'
+);
 console.log('           communications, voice_profile, content_patterns,');
 console.log('           research_briefs, content_ideas, content_plan,');
 console.log('           drafts, critique_results, published, agent_log');

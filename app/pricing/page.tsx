@@ -114,8 +114,8 @@ export default function PricingPage() {
             those {EXAMPLE_MATCHES.toLocaleString()} matches, the{' '}
             {COVERING_PACK.name} pack covers them, and the other{' '}
             {(EXAMPLE_WALLETS - EXAMPLE_MATCHES).toLocaleString()} wallets cost
-            nothing. The rate is an estimate from a measured sample; your
-            chain decides your number, which is why the free allowance exists.
+            nothing. The rate is an estimate from a measured sample; your chain
+            decides your number, which is why the free allowance exists.
           </p>
         </section>
 

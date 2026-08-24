@@ -14,7 +14,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Cohorts API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch cohort data' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch cohort data',
+      },
       { status: 500 }
     );
   }

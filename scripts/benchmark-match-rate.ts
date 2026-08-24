@@ -85,7 +85,9 @@ async function main() {
   console.log(`Discovering top ${CHAIN} collections…`);
   const candidates = await discoverNftCandidates(CHAIN);
   const picked = candidates.slice(0, COLLECTION_COUNT);
-  console.log(`  ${candidates.length} discovered, measuring top ${picked.length}\n`);
+  console.log(
+    `  ${candidates.length} discovered, measuring top ${picked.length}\n`
+  );
 
   const results: Row[] = [];
 
@@ -128,12 +130,21 @@ async function main() {
       anyIdentity: a.anyIdentity + r.anyIdentity,
       fcReach: a.fcReach + r.fcReach,
     }),
-    { holders: 0, farcaster: 0, twitter: 0, either: 0, anyIdentity: 0, fcReach: 0 }
+    {
+      holders: 0,
+      farcaster: 0,
+      twitter: 0,
+      either: 0,
+      anyIdentity: 0,
+      fcReach: 0,
+    }
   );
 
   const pct = (n: number) => `${((n / t.holders) * 100).toFixed(1)}%`;
 
-  console.log('\n| Collection | Holders | On Farcaster | Rate | With X | X-or-FC | Any identity | FC reach |');
+  console.log(
+    '\n| Collection | Holders | On Farcaster | Rate | With X | X-or-FC | Any identity | FC reach |'
+  );
   console.log('|---|---|---|---|---|---|---|---|');
   for (const r of results) {
     console.log(
@@ -144,8 +155,12 @@ async function main() {
     `| **TOTAL** | **${t.holders.toLocaleString()}** | **${t.farcaster.toLocaleString()}** | **${pct(t.farcaster)}** | **${t.twitter.toLocaleString()}** | **${pct(t.either)}** | **${pct(t.anyIdentity)}** | **${t.fcReach.toLocaleString()}** |`
   );
 
-  console.log(`\nMeasured ${results.length} collections, ${t.holders.toLocaleString()} unique holders`);
-  console.log('Source: our own social_graph only — zero external API calls at measurement time.');
+  console.log(
+    `\nMeasured ${results.length} collections, ${t.holders.toLocaleString()} unique holders`
+  );
+  console.log(
+    'Source: our own social_graph only — zero external API calls at measurement time.'
+  );
   console.log('Contracts measured:');
   for (const r of results) console.log(`  ${r.name}  ${r.address}`);
 }

@@ -26,7 +26,9 @@ async function main() {
     process.exit(1);
   }
   if (!process.env.ALCHEMY_KEY) {
-    console.warn('ALCHEMY_KEY not set — falling back to a public RPC (slower, less reliable)');
+    console.warn(
+      'ALCHEMY_KEY not set — falling back to a public RPC (slower, less reliable)'
+    );
   }
 
   const mode = process.argv[2];
@@ -46,7 +48,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Harvesting ENS text records from block ${fromBlock.toLocaleString()}...`);
+  console.log(
+    `Harvesting ENS text records from block ${fromBlock.toLocaleString()}...`
+  );
   const startTime = Date.now();
 
   const stats = await harvestEnsTextRecords(fromBlock, (msg) => {

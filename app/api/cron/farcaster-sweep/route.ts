@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
       // No sweep data yet — the initial full sweep hasn't run. Don't try to
       // do it from a serverless function; it takes ~an hour.
       return NextResponse.json({
-        message: 'No swept FIDs found: run the full sweep first (scripts/farcaster-sweep.ts --full)',
+        message:
+          'No swept FIDs found: run the full sweep first (scripts/farcaster-sweep.ts --full)',
         swept: 0,
       });
     }
@@ -52,7 +53,12 @@ export async function GET(request: NextRequest) {
     const endFid = Math.min(networkMax, maxKnown + MAX_FIDS_PER_RUN);
 
     if (endFid < startFid) {
-      return NextResponse.json({ message: 'No new FIDs', maxKnown, networkMax, swept: 0 });
+      return NextResponse.json({
+        message: 'No new FIDs',
+        maxKnown,
+        networkMax,
+        swept: 0,
+      });
     }
 
     const stats = await sweepFidRange(startFid, endFid, apiKey);

@@ -132,7 +132,9 @@ function numberSentence(col: HolderCollection, s: HolderStats): string {
     parts.push(`${s.withFarcaster.toLocaleString()} have a Farcaster account`);
   }
   if (s.xLive > 0) {
-    parts.push(`${s.xLive.toLocaleString()} have an X handle that still resolves`);
+    parts.push(
+      `${s.xLive.toLocaleString()} have an X handle that still resolves`
+    );
   }
   return `${parts.join(', ')}.`;
 }
@@ -326,7 +328,9 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
     const query = `${base} since:${sinceIso}`;
     let page: { tweets?: Tweet[] } = {};
     try {
-      const url = new URL('https://api.twitterapi.io/twitter/tweet/advanced_search');
+      const url = new URL(
+        'https://api.twitterapi.io/twitter/tweet/advanced_search'
+      );
       url.searchParams.set('queryType', 'Latest');
       url.searchParams.set('query', query);
       const res = await fetch(url, { headers: { 'X-API-Key': key } });
@@ -356,7 +360,11 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
 
       out.push({
         lane: 'x',
-        name: displayName(collection, t.author?.userName ?? null, 'unknown team'),
+        name: displayName(
+          collection,
+          t.author?.userName ?? null,
+          'unknown team'
+        ),
         chain,
         address,
         sourceUrl: t.url ?? `https://x.com/i/status/${t.id}`,
@@ -412,7 +420,8 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
           | { username?: string; followerCount?: number }
           | undefined;
         const text = String(c.text ?? '').replace(/\s+/g, ' ');
-        const ts = typeof c.timestamp === 'number' ? new Date(c.timestamp) : null;
+        const ts =
+          typeof c.timestamp === 'number' ? new Date(c.timestamp) : null;
         const address = text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
         const { chain, collection, stats } = await resolveContract(address);
         out.push({
@@ -446,7 +455,9 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
         if (out.length >= limit * 4) break;
       }
     } catch (e) {
-      console.warn(`  farcaster lane error: ${e instanceof Error ? e.message : e}`);
+      console.warn(
+        `  farcaster lane error: ${e instanceof Error ? e.message : e}`
+      );
     }
   }
   return out;
@@ -504,7 +515,8 @@ function render(c: Candidate, i: number): string {
   const meta: string[] = [];
   if (c.chain) meta.push(chainLabel(c.chain));
   if (c.handle) meta.push(`@${c.handle}`);
-  if (c.postedAt) meta.push(c.postedAt.toISOString().slice(0, 16).replace('T', ' '));
+  if (c.postedAt)
+    meta.push(c.postedAt.toISOString().slice(0, 16).replace('T', ' '));
   if (c.address) meta.push(c.address);
 
   const body = [
@@ -539,7 +551,9 @@ async function main() {
     .toISOString()
     .slice(0, 10);
 
-  console.log(`\nConcierge signals  ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`);
+  console.log(
+    `\nConcierge signals  ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`
+  );
   console.log(`source=${source}  limit=${limit}\n`);
 
   const candidates: Candidate[] = [];
@@ -628,7 +642,9 @@ async function main() {
   console.log(
     `\n${withNumbers}/${ranked.length} carry a measured number. Nothing was sent.`
   );
-  console.log('Edit before sending. Never quote a figure this script did not print.\n');
+  console.log(
+    'Edit before sending. Never quote a figure this script did not print.\n'
+  );
 }
 
 main().catch((e) => {

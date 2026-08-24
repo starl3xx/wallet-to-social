@@ -370,7 +370,8 @@ export default function AddressableComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (every pack, on all {CHAIN_COUNT_WORD} supported chains)
+                          (every pack, on all {CHAIN_COUNT_WORD} supported
+                          chains)
                         </span>
                       </span>
                     </td>
@@ -443,9 +444,9 @@ export default function AddressableComparison() {
               <li>Cross-chain wallet analytics</li>
             </ul>
             <p className="text-muted-foreground">
-              If you’re running ongoing paid campaigns and need to measure
-              ROI across the full marketing funnel, Addressable’s
-              enterprise approach makes sense.
+              If you’re running ongoing paid campaigns and need to measure ROI
+              across the full marketing funnel, Addressable’s enterprise
+              approach makes sense.
             </p>
           </section>
 
@@ -599,8 +600,8 @@ export default function AddressableComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches in a
+              rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

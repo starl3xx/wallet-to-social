@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
     const { eventType, userId, sessionId, metadata } = body;
 
     if (!eventType) {
-      return NextResponse.json({ error: 'eventType is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'eventType is required' },
+        { status: 400 }
+      );
     }
 
     // Fire and forget - don't block the response

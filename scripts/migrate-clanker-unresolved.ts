@@ -61,7 +61,9 @@ async function main() {
     SELECT count(*)::int AS n FROM clanker_unresolved_ids
   `) as unknown as Array<{ n: number }>;
   console.log(`\nclanker_unresolved_ids holds ${rows[0].n} row(s).`);
-  console.log('Next: run scripts/migrate-grant-readonly.ts with the owner DATABASE_URL.');
+  console.log(
+    'Next: run scripts/migrate-grant-readonly.ts with the owner DATABASE_URL.'
+  );
 }
 
 main().catch((e) => {

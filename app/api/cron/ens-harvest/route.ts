@@ -23,14 +23,18 @@ export async function GET(request: NextRequest) {
   }
 
   if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
     const checkpoint = await getCheckpoint();
     if (checkpoint === null) {
       return NextResponse.json({
-        message: 'No checkpoint: run the backfill first (scripts/ens-harvest.ts --backfill)',
+        message:
+          'No checkpoint: run the backfill first (scripts/ens-harvest.ts --backfill)',
         harvested: 0,
       });
     }
@@ -45,7 +49,11 @@ export async function GET(request: NextRequest) {
       },
     }).catch(console.error);
 
-    return NextResponse.json({ message: 'ok', fromBlock: checkpoint + 1, ...stats });
+    return NextResponse.json({
+      message: 'ok',
+      fromBlock: checkpoint + 1,
+      ...stats,
+    });
   } catch (error) {
     console.error('ENS harvest cron error:', error);
     return NextResponse.json({ error: 'Harvest failed' }, { status: 500 });

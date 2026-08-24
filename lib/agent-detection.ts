@@ -3,7 +3,8 @@ import { inArray } from 'drizzle-orm';
 
 // Bio keywords that suggest an AI agent
 // Note: bare "agent" is excluded to avoid false positives ("real estate agent", etc.)
-const AGENT_BIO_REGEX = /\b(bot|autonomous agent|ai[\s-]?(powered|driven|agent)|automated|artificial intelligence|onchain agent|crypto agent|defi agent|trading bot)\b/i;
+const AGENT_BIO_REGEX =
+  /\b(bot|autonomous agent|ai[\s-]?(powered|driven|agent)|automated|artificial intelligence|onchain agent|crypto agent|defi agent|trading bot)\b/i;
 
 // ============================================================================
 // Agent Detection Result
@@ -15,7 +16,11 @@ export interface AgentDetectionResult {
   agent_framework?: string;
   agent_type?: string;
   agent_token_symbol?: string;
-  agent_detection_source: 'known_list' | 'bio_keyword' | 'onchain_heuristic' | 'manual';
+  agent_detection_source:
+    | 'known_list'
+    | 'bio_keyword'
+    | 'onchain_heuristic'
+    | 'manual';
   agent_verified: boolean;
 }
 
@@ -83,7 +88,6 @@ export function detectAgentFromBio(
 
   return null;
 }
-
 
 // ============================================================================
 // Known Agents CRUD (for admin endpoint)

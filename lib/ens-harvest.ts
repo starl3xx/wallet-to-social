@@ -37,7 +37,9 @@ export const ENS_SCAN_START_BLOCK = 7_000_000;
 const ENS_REGISTRY = ethers.Network.from('mainnet').getPlugin<ethers.EnsPlugin>(
   'org.ethers.plugins.network.Ens'
 )!.address;
-const MULTICALL3 = ethers.getAddress('0xca11bde05977b3631167028862be2a173976ca11');
+const MULTICALL3 = ethers.getAddress(
+  '0xca11bde05977b3631167028862be2a173976ca11'
+);
 
 // Event signatures — computed, not hardcoded, so they're self-verifying
 const TEXT_CHANGED_3 = ethers.id('TextChanged(bytes32,string,string)');
@@ -61,7 +63,9 @@ function getProvider(): ethers.JsonRpcProvider {
   const endpoint = process.env.ALCHEMY_KEY
     ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
     : 'https://eth.llamarpc.com';
-  return new ethers.JsonRpcProvider(endpoint, 'mainnet', { staticNetwork: true });
+  return new ethers.JsonRpcProvider(endpoint, 'mainnet', {
+    staticNetwork: true,
+  });
 }
 
 export interface HarvestStats {
@@ -145,11 +149,15 @@ async function scanTextChangedLogs(
       block = upper + 1;
       onWindow?.(upper);
       // Quiet range → widen; busy range → narrow before the provider objects
-      if ((logs as unknown[]).length < 2000) window = Math.min(window * 2, 50_000);
-      else if ((logs as unknown[]).length > 5000) window = Math.max(Math.floor(window / 2), 500);
+      if ((logs as unknown[]).length < 2000)
+        window = Math.min(window * 2, 50_000);
+      else if ((logs as unknown[]).length > 5000)
+        window = Math.max(Math.floor(window / 2), 500);
     } catch {
       if (window <= 500) {
-        throw new Error(`eth_getLogs failing at minimum window (block ${block})`);
+        throw new Error(
+          `eth_getLogs failing at minimum window (block ${block})`
+        );
       }
       window = Math.max(Math.floor(window / 2), 500);
     }
@@ -175,7 +183,11 @@ async function multicall(
 ): Promise<Array<{ success: boolean; returnData: string }>> {
   const iface = new ethers.Interface(MULTICALL_ABI);
   const data = iface.encodeFunctionData('aggregate3', [
-    calls.map((c) => ({ target: c.target, allowFailure: true, callData: c.callData })),
+    calls.map((c) => ({
+      target: c.target,
+      allowFailure: true,
+      callData: c.callData,
+    })),
   ]);
   const raw = await provider.call({ to: MULTICALL3, data });
   const [results] = iface.decodeFunctionResult('aggregate3', raw);
@@ -247,7 +259,10 @@ async function resolveNodes(
     for (let j = 0; j < batch.length; j++) {
       const r = resolverResults[j];
       if (!r.success || r.returnData === '0x') continue;
-      const [resolver] = registryIface.decodeFunctionResult('resolver', r.returnData);
+      const [resolver] = registryIface.decodeFunctionResult(
+        'resolver',
+        r.returnData
+      );
       if (resolver && resolver !== ethers.ZeroAddress) {
         withResolver.push({ node: batch[j], resolver });
       }
@@ -256,30 +271,58 @@ async function resolveNodes(
 
     // Round 2: text(twitter), text(github), addr — three calls per node
     const calls = withResolver.flatMap(({ node, resolver }) => [
-      { target: resolver, callData: resolverIface.encodeFunctionData('text', [node, 'com.twitter']) },
-      { target: resolver, callData: resolverIface.encodeFunctionData('text', [node, 'com.github']) },
-      { target: resolver, callData: resolverIface.encodeFunctionData('addr', [node]) },
+      {
+        target: resolver,
+        callData: resolverIface.encodeFunctionData('text', [
+          node,
+          'com.twitter',
+        ]),
+      },
+      {
+        target: resolver,
+        callData: resolverIface.encodeFunctionData('text', [
+          node,
+          'com.github',
+        ]),
+      },
+      {
+        target: resolver,
+        callData: resolverIface.encodeFunctionData('addr', [node]),
+      },
     ]);
     const valueResults = await multicallAdaptive(provider, calls);
 
     for (let j = 0; j < withResolver.length; j++) {
-      const [twitterRes, githubRes, addrRes] = valueResults.slice(j * 3, j * 3 + 3);
+      const [twitterRes, githubRes, addrRes] = valueResults.slice(
+        j * 3,
+        j * 3 + 3
+      );
 
       let wallet: string | null = null;
       if (addrRes.success && addrRes.returnData !== '0x') {
         try {
-          const [addr] = resolverIface.decodeFunctionResult('addr', addrRes.returnData);
-          if (addr && addr !== ethers.ZeroAddress) wallet = (addr as string).toLowerCase();
+          const [addr] = resolverIface.decodeFunctionResult(
+            'addr',
+            addrRes.returnData
+          );
+          if (addr && addr !== ethers.ZeroAddress)
+            wallet = (addr as string).toLowerCase();
         } catch {
           // Non-conforming resolver — skip
         }
       }
       if (!wallet) continue;
 
-      const decodeText = (res: { success: boolean; returnData: string }): string | null => {
+      const decodeText = (res: {
+        success: boolean;
+        returnData: string;
+      }): string | null => {
         if (!res.success || res.returnData === '0x') return null;
         try {
-          const [value] = resolverIface.decodeFunctionResult('text', res.returnData);
+          const [value] = resolverIface.decodeFunctionResult(
+            'text',
+            res.returnData
+          );
           const trimmed = (value as string).trim();
           return trimmed.length > 0 ? trimmed : null;
         } catch {
@@ -313,16 +356,26 @@ async function resolveNodes(
  * Like the Farcaster sweep, harvested rows get NO last_checked_at — the
  * wallet was never run through the full pipeline.
  */
-async function upsertHarvestedRecords(records: ResolvedRecord[]): Promise<number> {
+async function upsertHarvestedRecords(
+  records: ResolvedRecord[]
+): Promise<number> {
   const db = getDb();
   if (!db || records.length === 0) return 0;
 
   // One row per wallet: merge handles across nodes, first non-null wins
-  const byWallet = new Map<string, { twitter: string | null; github: string | null }>();
+  const byWallet = new Map<
+    string,
+    { twitter: string | null; github: string | null }
+  >();
   for (const r of records) {
     const existing = byWallet.get(r.wallet);
     const twitter = cleanTwitterHandle(r.twitter);
-    const github = r.github ? r.github.replace(/^@/, '').replace(/https?:\/\/github\.com\//i, '').trim() || null : null;
+    const github = r.github
+      ? r.github
+          .replace(/^@/, '')
+          .replace(/https?:\/\/github\.com\//i, '')
+          .trim() || null
+      : null;
     if (!existing) {
       byWallet.set(r.wallet, { twitter, github });
     } else {

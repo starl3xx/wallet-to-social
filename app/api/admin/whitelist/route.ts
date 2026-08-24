@@ -72,19 +72,13 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
     const removed = await removeFromWhitelist(id);
 
     if (!removed) {
-      return NextResponse.json(
-        { error: 'Entry not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
 
     return NextResponse.json({

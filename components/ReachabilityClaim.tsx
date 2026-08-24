@@ -74,8 +74,8 @@ export function ReachabilityClaim({
           </p>
 
           <p className="text-sm text-muted-foreground">
-            We resolve the X handles in the index against X itself, on a
-            daily schedule. Of {X_HANDLES_RESOLVED} checked so far:{' '}
+            We resolve the X handles in the index against X itself, on a daily
+            schedule. Of {X_HANDLES_RESOLVED} checked so far:{' '}
             {/* `font-semibold` on each, because the browser's own stylesheet
                 makes <strong> `bolder`, which resolves to 700 on a 400 parent,
                 and the 700 cut is loaded. The emphasis weight is 600. */}

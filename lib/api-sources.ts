@@ -138,7 +138,9 @@ const SOURCE_ORDER: PublicSource[] = [
  * Deduplicates, drops anything unrecognized, and returns undefined rather
  * than an empty array so callers can omit the field entirely.
  */
-export function publicSources(sources: string[] | null | undefined): PublicSource[] | undefined {
+export function publicSources(
+  sources: string[] | null | undefined
+): PublicSource[] | undefined {
   if (!sources || sources.length === 0) return undefined;
 
   const classes = new Set<PublicSource>();

@@ -33,10 +33,7 @@ export async function POST(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
 
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (!process.env.DATABASE_URL) {
@@ -83,7 +80,8 @@ export async function POST(request: NextRequest) {
     for (const job of ordered) {
       const size = job.wallets.length - job.processedCount;
       // Always admit the first, so one huge job cannot stall the queue forever.
-      if (jobs.length > 0 && walletsInFlight + size > MAX_WALLETS_IN_FLIGHT) break;
+      if (jobs.length > 0 && walletsInFlight + size > MAX_WALLETS_IN_FLIGHT)
+        break;
       jobs.push(job);
       walletsInFlight += size;
     }
@@ -98,7 +96,9 @@ export async function POST(request: NextRequest) {
     // Process all jobs in parallel
     const results = await Promise.all(
       jobs.map(async (job) => {
-        console.log(`Processing job ${job.id}: ${job.processedCount}/${job.wallets.length} wallets`);
+        console.log(
+          `Processing job ${job.id}: ${job.processedCount}/${job.wallets.length} wallets`
+        );
         try {
           const result = await processJobChunk(job.id);
           console.log(`Job ${job.id} chunk complete:`, result);
@@ -124,7 +124,10 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const totalProcessed = results.reduce((sum, r) => sum + (r.processedCount || 0), 0);
+    const totalProcessed = results.reduce(
+      (sum, r) => sum + (r.processedCount || 0),
+      0
+    );
     const completedCount = results.filter((r) => r.completed).length;
 
     return NextResponse.json({

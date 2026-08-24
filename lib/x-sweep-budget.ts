@@ -34,7 +34,9 @@
  */
 
 /** Held back so the token deploy scan can always resolve its account ids. */
-export const RESERVE_CREDITS = Number(process.env.X_SWEEP_RESERVE_CREDITS ?? 200_000);
+export const RESERVE_CREDITS = Number(
+  process.env.X_SWEEP_RESERVE_CREDITS ?? 200_000
+);
 
 /** Day of the month the allowance refills. Verified with the account owner. */
 export const RESET_DAY = Number(process.env.X_RESOLVER_RESET_DAY ?? 17);
@@ -67,9 +69,15 @@ export const MIN_VIABLE_CREDITS = CREDITS_PER_LOOKUP * 3;
 export function daysUntilReset(now: Date, resetDay = RESET_DAY): number {
   const day = Math.min(Math.max(Math.trunc(resetDay), 1), 28);
   const next = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + (now.getUTCDate() >= day ? 1 : 0), day)
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() + (now.getUTCDate() >= day ? 1 : 0),
+      day
+    )
   );
-  const ms = next.getTime() - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const ms =
+    next.getTime() -
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return Math.max(1, Math.round(ms / 86_400_000));
 }
 

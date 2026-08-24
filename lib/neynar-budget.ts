@@ -112,7 +112,9 @@ export interface BudgetCheck {
  * background spend, and blocking every cron because the counter is unreadable
  * would trade a credit problem for an availability problem.
  */
-export async function checkBackgroundBudget(credits: number): Promise<BudgetCheck> {
+export async function checkBackgroundBudget(
+  credits: number
+): Promise<BudgetCheck> {
   let spent: number;
   try {
     spent = await getPeriodSpend();
@@ -120,7 +122,10 @@ export async function checkBackgroundBudget(credits: number): Promise<BudgetChec
     // getPeriodSpend throws on a query failure, which would otherwise fail the
     // guard CLOSED — the opposite of what this is documented to do. A blip
     // mid-sweep would abort the rest of the range for no reason.
-    console.error('checkBackgroundBudget: could not read spend, allowing:', error);
+    console.error(
+      'checkBackgroundBudget: could not read spend, allowing:',
+      error
+    );
     return {
       allowed: true,
       spent: 0,

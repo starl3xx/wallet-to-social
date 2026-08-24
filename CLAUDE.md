@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev          # Start development server (localhost:3000)
 npm run build        # Production build
 npm run lint         # ESLint
-npm run format       # Prettier format all files
+npm run format       # Prettier format all files (enforced by CI, see below)
 npm run db:push      # REFUSES. See "Schema changes" below.
 npm run db:generate  # Generate Drizzle migrations
 npm run db:studio    # Open Drizzle Studio GUI
@@ -100,6 +100,33 @@ Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both t
 - Server gates use `hasPaidAccess(userId, tier)` and `canSubmit()` from `lib/credits.ts`; API calls draw the same balance through `trackApiUsage`.
 - Client gates use `useCredits(signedIn).entitled` from `lib/use-credits.ts`. The free allowance feeds `available` but never `entitled`.
 - `pro` and `unlimited` are closed legacy tiers held by two accounts. They stay unmetered (`legacyTierIsUnmetered`) and must keep working; do not delete the tier values or `TIER_LIMITS`. Never show them as something for sale.
+
+## Formatting
+
+**Prettier is enforced.** `.github/workflows/format.yml` fails a PR whose files
+are not formatted; run `npm run format` and commit the result.
+
+It was unenforced until 2026-08-24, and that was worse than either alternative.
+Nothing ran it, 150 of 352 files had drifted, and `npm run format` was therefore
+a trap: any invocation rewrote a wide slice of the repo, so a one-line fix
+arrived as a hundred-file diff. The repo was formatted once and the gate added
+in the same PR, so drift cannot accumulate again.
+
+One thing worth knowing before you distrust a reflow. Prettier will break a JSX
+line between an expression and the text beside it:
+
+```jsx
+{FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}
+-day window
+```
+
+That is **safe**. JSX trims the newline and indentation adjacent to an
+expression, so it renders `30-day window` with no stray space. React does emit
+`<!-- -->` between the adjacent text nodes as a hydration delimiter, and a
+browser never renders a comment. Any tool that strips HTML tags by replacing
+them with a space will turn that delimiter into a phantom space and report a
+bug that no reader can see. Verify against the rendered page, not against a
+regex over the markup.
 
 ## Documentation Updates
 

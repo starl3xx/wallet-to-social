@@ -51,7 +51,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: 'article', siteName: 'walletlink.social' },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: 'article',
+      siteName: 'walletlink.social',
+    },
     // X reads twitter:* over og:*; a page without the block inherits the
     // root layout card (the /check lesson).
     twitter: { card: 'summary_large_image', title, description },
@@ -80,8 +86,16 @@ export default async function HolderPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: `${collection.name} holders on ${chainLabel(collection.chain)}: the reachable people`,
-    author: { '@type': 'Organization', name: 'walletlink.social', url: 'https://walletlink.social' },
-    publisher: { '@type': 'Organization', name: 'walletlink.social', url: 'https://walletlink.social' },
+    author: {
+      '@type': 'Organization',
+      name: 'walletlink.social',
+      url: 'https://walletlink.social',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'walletlink.social',
+      url: 'https://walletlink.social',
+    },
     mainEntityOfPage: {
       '@type': 'WebPage',
       '@id': `https://walletlink.social/holders/${collection.chain}/${collection.address}`,
@@ -107,7 +121,8 @@ export default async function HolderPage({ params }: Props) {
         </p>
         <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
           {collection.name} holders, resolved to{' '}
-          <em className="font-semibold not-italic text-accent-brand">people</em>.
+          <em className="font-semibold not-italic text-accent-brand">people</em>
+          .
         </h1>
         <p className="mb-2 text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
           Every holder ranking shows addresses. This one shows how many of the
@@ -146,10 +161,9 @@ export default async function HolderPage({ params }: Props) {
             />
             <p className="text-sm text-caution">
               Measurement in progress: {stats.checked.toLocaleString()} of{' '}
-              {stats.holderCount.toLocaleString()} holders checked so far.
-              Every reachable person shown was really found, so the numbers
-              here are lower bounds; they rise as the remaining holders are
-              checked.
+              {stats.holderCount.toLocaleString()} holders checked so far. Every
+              reachable person shown was really found, so the numbers here are
+              lower bounds; they rise as the remaining holders are checked.
             </p>
           </div>
         )}
@@ -186,7 +200,11 @@ export default async function HolderPage({ params }: Props) {
             them.
           </p>
           <dl className="grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-            <Figure value={stats.xLive.toLocaleString()} label="X handles live" attested />
+            <Figure
+              value={stats.xLive.toLocaleString()}
+              label="X handles live"
+              attested
+            />
             <Figure
               value={stats.xSuspended.toLocaleString()}
               label="suspended"
@@ -214,7 +232,10 @@ export default async function HolderPage({ params }: Props) {
             </h2>
             <ul className="space-y-2">
               {overlap.map((o) => (
-                <li key={`${o.chain}:${o.address}`} className="text-muted-foreground">
+                <li
+                  key={`${o.chain}:${o.address}`}
+                  className="text-muted-foreground"
+                >
                   <Button asChild variant="link" size="inline">
                     <Link href={`/holders/${o.chain}/${o.address}`}>
                       {o.name}
@@ -235,10 +256,10 @@ export default async function HolderPage({ params }: Props) {
             Run this on your own list
           </h2>
           <p className="mb-6 text-muted-foreground">
-            Paste any contract address or upload a CSV and get the people
-            behind the wallets, ranked by holdings times reach. Free covers{' '}
-            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}-day window,
-            and a wallet we cannot resolve costs nothing.
+            Paste any contract address or upload a CSV and get the people behind
+            the wallets, ranked by holdings times reach. Free covers{' '}
+            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}
+            -day window, and a wallet we cannot resolve costs nothing.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild>

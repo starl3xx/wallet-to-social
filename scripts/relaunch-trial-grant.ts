@@ -118,7 +118,10 @@ async function main() {
   let sent = 0;
   let failed = 0;
 
-  for (const user of eligible.slice(0, limit === Infinity ? undefined : limit)) {
+  for (const user of eligible.slice(
+    0,
+    limit === Infinity ? undefined : limit
+  )) {
     const grantId = `${GRANT_ID_PREFIX}${user.id}`;
 
     const existing = (await sql`
@@ -163,7 +166,9 @@ async function main() {
 
   console.log(`\ngranted: ${granted}, sent: ${sent}, failed: ${failed}`);
   if (failed > 0) {
-    console.log('re-run with --send to retry the failures; grants and sends both skip what already succeeded.');
+    console.log(
+      're-run with --send to retry the failures; grants and sends both skip what already succeeded.'
+    );
   }
 }
 

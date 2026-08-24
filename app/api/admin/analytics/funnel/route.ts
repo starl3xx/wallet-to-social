@@ -21,7 +21,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Funnel API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch funnel data' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch funnel data',
+      },
       { status: 500 }
     );
   }

@@ -4,11 +4,11 @@ Internal engineering notes. **Not published.** The customer-facing Mintlify
 site is built from `docs-site/`, and Mintlify's content root is set to that
 directory precisely so nothing here reaches docs.walletlink.social.
 
-| File | What it covers |
-|---|---|
-| `AI-SEARCH.md` | The assistant on walletlink.social: instances, endpoint, rate limits, the load-bearing system prompt, and its regression test |
-| `DOCS-SITE.md` | Mintlify setup, DNS, and what the docs still need |
-| `SEO-STRATEGY.md` | Keyword targets and messaging guidelines |
+| File              | What it covers                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `AI-SEARCH.md`    | The assistant on walletlink.social: instances, endpoint, rate limits, the load-bearing system prompt, and its regression test |
+| `DOCS-SITE.md`    | Mintlify setup, DNS, and what the docs still need                                                                             |
+| `SEO-STRATEGY.md` | Keyword targets and messaging guidelines                                                                                      |
 
 ## The security runbook moved
 

@@ -36,7 +36,7 @@ canonical text, mirrored in `lib/welcome-sequence.ts`).
 sends `welcome-1` only, to accounts past `FIRST_TOUCH_DELAY_MINUTES` (5).
 `/api/cron/welcome-sequence` runs at 15:00 UTC and owns days 2, 5, 9 and 14,
 keeping a day-0 pass as a safety net. Both are watched by the health pane. The
-delay is deliberate: the account row is written at magic-link *verify*, so an
+delay is deliberate: the account row is written at magic-link _verify_, so an
 immediate send would put `welcome-1` in the inbox in the same second as the
 sign-in link.
 
@@ -82,13 +82,13 @@ Five emails over 14 days. Trigger: a `users` row is created. Exit early when
 the account buys any pack (`credit_lots` row appears). Skip entirely for the
 two legacy accounts and whitelisted accounts.
 
-| #   | Day           | Job                                 | Subject                                     |
-| --- | ------------- | ----------------------------------- | ------------------------------------------- |
-| 1   | 0 (+5 min)    | Deliver the promise, first step     | Your first 100 matches are free             |
-| 2   | 2             | Set chain expectations honestly     | What your chain says about your match rate  |
-| 3   | 5             | Differentiate on reachability       | A handle that reaches nobody is not a match |
-| 4   | 9             | Feature: reverse lookup and ranking | Does that handle already hold your token?   |
-| 5   | 14            | The ask                             | 250 matches, once: $29                      |
+| #   | Day        | Job                                 | Subject                                     |
+| --- | ---------- | ----------------------------------- | ------------------------------------------- |
+| 1   | 0 (+5 min) | Deliver the promise, first step     | Your first 100 matches are free             |
+| 2   | 2          | Set chain expectations honestly     | What your chain says about your match rate  |
+| 3   | 5          | Differentiate on reachability       | A handle that reaches nobody is not a match |
+| 4   | 9          | Feature: reverse lookup and ranking | Does that handle already hold your token?   |
+| 5   | 14         | The ask                             | 250 matches, once: $29                      |
 
 One email, one job, one CTA. All CTAs land on the homepage lookup (email 5
 also links the buy-credits modal deep link if one exists; otherwise the

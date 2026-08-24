@@ -31,9 +31,14 @@ async function main() {
     FROM handle_conflicts c JOIN social_graph g ON g.wallet = c.wallet
     WHERE c.resolved_at IS NULL AND 'ethos' = ANY(g.sources)`) as any[];
   console.log(`mislabelled rows: ${before.mislabelled}`);
-  console.log(`  of which quality was raised to exactly 60: ${before.score_raised_to_60}`);
+  console.log(
+    `  of which quality was raised to exactly 60: ${before.score_raised_to_60}`
+  );
 
-  if (dry) { console.log('\ndry run. pass --apply to write.'); return; }
+  if (dry) {
+    console.log('\ndry run. pass --apply to write.');
+    return;
+  }
 
   await sql`
     UPDATE social_graph g
@@ -53,12 +58,18 @@ async function main() {
       AND data_quality_score = 60`) as any[];
   let rescored = 0;
   for (const r of stale) {
-    const correct = calculateQualityScore(r.sources ?? [], !!r.twitter_handle, !!r.farcaster);
+    const correct = calculateQualityScore(
+      r.sources ?? [],
+      !!r.twitter_handle,
+      !!r.farcaster
+    );
     if (correct === r.data_quality_score) continue;
     await sql`UPDATE social_graph SET data_quality_score = ${correct} WHERE wallet = ${r.wallet}`;
     rescored++;
   }
-  console.log(`rescored ${rescored} of ${stale.length} rows using the real scorer`);
+  console.log(
+    `rescored ${rescored} of ${stale.length} rows using the real scorer`
+  );
 
   /**
    * The retired 60 floor left rows inflated, and GREATEST can never lower them.
@@ -83,7 +94,11 @@ async function main() {
   // the real function; only the writing is batched.
   const byScore = new Map<number, string[]>();
   for (const r of inflated) {
-    const correct = calculateQualityScore(r.sources ?? [], !!r.twitter_handle, !!r.farcaster);
+    const correct = calculateQualityScore(
+      r.sources ?? [],
+      !!r.twitter_handle,
+      !!r.farcaster
+    );
     if (correct >= r.data_quality_score) continue; // understated: leave it
     if (!byScore.has(correct)) byScore.set(correct, []);
     byScore.get(correct)!.push(r.wallet);

@@ -1,6 +1,6 @@
 ---
 title: 'How Farcaster verified addresses changed wallet identity'
-meta_description: "Technical explanation of how Farcaster’s cryptographic wallet verification delivers 3x better match rates than ENS text records alone."
+meta_description: 'Technical explanation of how Farcaster’s cryptographic wallet verification delivers 3x better match rates than ENS text records alone.'
 published: true
 publish_date: '2026-03-19'
 ---

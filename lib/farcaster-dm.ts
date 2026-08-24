@@ -76,7 +76,10 @@ function formatHoldings(holdings: number | undefined): string {
  * Render template variables in a message
  * Supported: {{username}}, {{holdings}}, {{ens}}, {{wallet}}
  */
-export function renderTemplate(template: string, recipient: DMRecipient): string {
+export function renderTemplate(
+  template: string,
+  recipient: DMRecipient
+): string {
   return template
     .replace(/\{\{username\}\}/gi, recipient.username || '')
     .replace(/\{\{holdings\}\}/gi, formatHoldings(recipient.holdings))
@@ -88,7 +91,9 @@ export function renderTemplate(template: string, recipient: DMRecipient): string
  * Extract DM-eligible recipients from lookup results
  * Only includes wallets with fc_fid set (they have Farcaster accounts)
  */
-export function extractDMRecipients(results: WalletSocialResult[]): DMRecipient[] {
+export function extractDMRecipients(
+  results: WalletSocialResult[]
+): DMRecipient[] {
   return results
     .filter((r) => r.fc_fid && r.farcaster)
     .map((r) => ({
@@ -204,7 +209,11 @@ export async function sendBatchDMs(
         return progress;
       }
 
-      const result = await sendFarcasterDM(apiKey, recipient.fid, renderedMessage);
+      const result = await sendFarcasterDM(
+        apiKey,
+        recipient.fid,
+        renderedMessage
+      );
 
       if (result.success) {
         success = true;
@@ -280,7 +289,14 @@ export async function sendBatchDMs(
  * Export DM log as CSV string
  */
 export function exportLogAsCSV(log: DMLogEntry[]): string {
-  const headers = ['timestamp', 'fid', 'username', 'status', 'error', 'message'];
+  const headers = [
+    'timestamp',
+    'fid',
+    'username',
+    'status',
+    'error',
+    'message',
+  ];
   const escapeCSV = (value: string | number | undefined): string => {
     if (value === undefined || value === null) return '';
     const str = String(value);
@@ -315,7 +331,9 @@ export function validateApiKey(apiKey: string): boolean {
  * The /v2/me endpoint doesn't work with Direct Cast API keys,
  * so we validate format and test on first actual send
  */
-export async function testApiKey(apiKey: string): Promise<{ valid: boolean; error?: string; username?: string }> {
+export async function testApiKey(
+  apiKey: string
+): Promise<{ valid: boolean; error?: string; username?: string }> {
   // For wc_secret_ keys, just validate format - API test doesn't work
   if (apiKey.startsWith('wc_secret_')) {
     if (validateApiKey(apiKey)) {
@@ -344,6 +362,9 @@ export async function testApiKey(apiKey: string): Promise<{ valid: boolean; erro
     }
     return { valid: false, error: data.error || 'Invalid API key' };
   } catch (err) {
-    return { valid: false, error: err instanceof Error ? err.message : 'Network error' };
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : 'Network error',
+    };
   }
 }

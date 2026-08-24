@@ -127,11 +127,18 @@ if (draftCount.c > 0) {
   });
 
   test('Draft word counts are accurate', () => {
-    const drafts = getAll('SELECT content, word_count FROM drafts WHERE content IS NOT NULL');
-    drafts.forEach(d => {
-      const actualCount = d.content.split(/\s+/).filter(w => w.length > 0).length;
+    const drafts = getAll(
+      'SELECT content, word_count FROM drafts WHERE content IS NOT NULL'
+    );
+    drafts.forEach((d) => {
+      const actualCount = d.content
+        .split(/\s+/)
+        .filter((w) => w.length > 0).length;
       const diff = Math.abs(actualCount - d.word_count);
-      assert(diff < 10, `Word count mismatch: actual ${actualCount} vs stored ${d.word_count}`);
+      assert(
+        diff < 10,
+        `Word count mismatch: actual ${actualCount} vs stored ${d.word_count}`
+      );
     });
   });
 }
@@ -150,11 +157,14 @@ test('PRD file exists and is valid JSON', () => {
 
 // Published content file tests
 const publishedContent = getAll('SELECT plan_id FROM published');
-publishedContent.forEach(p => {
+publishedContent.forEach((p) => {
   test(`Published content file exists for plan ${p.plan_id}`, () => {
     // Content should be in content/published/ directory
     // This is a soft check - we just verify the directory exists
-    assert(existsSync('./content/published'), 'Published content directory missing');
+    assert(
+      existsSync('./content/published'),
+      'Published content directory missing'
+    );
   });
 });
 

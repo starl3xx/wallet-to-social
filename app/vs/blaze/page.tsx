@@ -349,7 +349,8 @@ export default function BlazeComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (every pack, on all {CHAIN_COUNT_WORD} supported chains)
+                          (every pack, on all {CHAIN_COUNT_WORD} supported
+                          chains)
                         </span>
                       </span>
                     </td>
@@ -477,8 +478,8 @@ export default function BlazeComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches in a
+              rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

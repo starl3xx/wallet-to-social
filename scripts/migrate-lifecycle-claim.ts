@@ -65,7 +65,9 @@ async function main() {
       AND sent_at < ${CUTOVER.toISOString()}
     RETURNING id
   `) as unknown as Array<{ id: string }>;
-  console.log(`backfilled confirmed_at on ${backfilled.length} pre-cutover row(s)`);
+  console.log(
+    `backfilled confirmed_at on ${backfilled.length} pre-cutover row(s)`
+  );
 
   await sql`
     CREATE INDEX IF NOT EXISTS lifecycle_emails_unconfirmed_idx
@@ -96,7 +98,9 @@ async function main() {
     );
     process.exit(1);
   }
-  console.log('\nverified: column and index present, no pre-cutover row left unconfirmed');
+  console.log(
+    '\nverified: column and index present, no pre-cutover row left unconfirmed'
+  );
 }
 
 main().catch((e) => {

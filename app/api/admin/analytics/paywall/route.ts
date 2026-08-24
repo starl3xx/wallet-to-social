@@ -21,7 +21,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Paywall triggers API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch paywall triggers' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch paywall triggers',
+      },
       { status: 500 }
     );
   }

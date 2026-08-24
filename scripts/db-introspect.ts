@@ -48,7 +48,9 @@ async function main() {
       continue;
     }
     console.log(`\n--- ${table} ---`);
-    console.log(cols.map((c) => `${c.column_name} (${c.data_type})`).join('\n'));
+    console.log(
+      cols.map((c) => `${c.column_name} (${c.data_type})`).join('\n')
+    );
   }
 }
 

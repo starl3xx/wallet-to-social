@@ -75,7 +75,11 @@ export const walletLookup = inngest.createFunction(
       // Mark as processing
       await db
         .update(lookupJobs)
-        .set({ status: 'processing', startedAt: new Date(), updatedAt: new Date() })
+        .set({
+          status: 'processing',
+          startedAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(lookupJobs.id, jobId));
 
       return jobData;
@@ -86,49 +90,57 @@ export const walletLookup = inngest.createFunction(
     }
 
     const options = job.options as JobOptions;
-    const originalData = (job.originalData || {}) as Record<string, Record<string, string>>;
+    const originalData = (job.originalData || {}) as Record<
+      string,
+      Record<string, string>
+    >;
     const allWallets = job.wallets;
 
     // Step 2: Initialize results map and detect holdings column
-    const { results, holdingsColumn } = await step.run('init-results', async () => {
-      const resultsMap = new Map<string, WalletSocialResult>();
+    const { results, holdingsColumn } = await step.run(
+      'init-results',
+      async () => {
+        const resultsMap = new Map<string, WalletSocialResult>();
 
-      // Load any partial results
-      const partialResults = (job.partialResults || []) as WalletSocialResult[];
-      for (const r of partialResults) {
-        resultsMap.set(r.wallet, r);
-      }
-
-      // Detect holdings column
-      const firstWallet = allWallets[0]?.toLowerCase();
-      const firstData = originalData[firstWallet] || {};
-      const dataColumns = Object.keys(firstData);
-      const holdingsCol = findHoldingsColumn(dataColumns);
-
-      // Initialize results for all wallets
-      for (const wallet of allWallets) {
-        const walletLower = wallet.toLowerCase();
-        if (!resultsMap.has(walletLower)) {
-          const walletData = originalData[walletLower] || {};
-          let holdings: number | undefined;
-          if (holdingsCol && walletData[holdingsCol]) {
-            holdings = parseHoldingsValue(walletData[holdingsCol]) ?? undefined;
-          }
-          resultsMap.set(walletLower, {
-            wallet: walletLower,
-            source: [],
-            holdings,
-            ...walletData,
-          });
+        // Load any partial results
+        const partialResults = (job.partialResults ||
+          []) as WalletSocialResult[];
+        for (const r of partialResults) {
+          resultsMap.set(r.wallet, r);
         }
-      }
 
-      // Convert to array for serialization
-      return {
-        results: Array.from(resultsMap.entries()),
-        holdingsColumn: holdingsCol,
-      };
-    });
+        // Detect holdings column
+        const firstWallet = allWallets[0]?.toLowerCase();
+        const firstData = originalData[firstWallet] || {};
+        const dataColumns = Object.keys(firstData);
+        const holdingsCol = findHoldingsColumn(dataColumns);
+
+        // Initialize results for all wallets
+        for (const wallet of allWallets) {
+          const walletLower = wallet.toLowerCase();
+          if (!resultsMap.has(walletLower)) {
+            const walletData = originalData[walletLower] || {};
+            let holdings: number | undefined;
+            if (holdingsCol && walletData[holdingsCol]) {
+              holdings =
+                parseHoldingsValue(walletData[holdingsCol]) ?? undefined;
+            }
+            resultsMap.set(walletLower, {
+              wallet: walletLower,
+              source: [],
+              holdings,
+              ...walletData,
+            });
+          }
+        }
+
+        // Convert to array for serialization
+        return {
+          results: Array.from(resultsMap.entries()),
+          holdingsColumn: holdingsCol,
+        };
+      }
+    );
 
     // Convert results back to Map
     let resultsMap = new Map<string, WalletSocialResult>(results);
@@ -164,7 +176,9 @@ export const walletLookup = inngest.createFunction(
 
     // FIXED: Use updatedResults from cache step instead of original results
     // This ensures cache hits are preserved across Inngest step boundaries
-    resultsMap = new Map<string, WalletSocialResult>(cacheResult.updatedResults);
+    resultsMap = new Map<string, WalletSocialResult>(
+      cacheResult.updatedResults
+    );
     const { cachedCount, uncachedWallets } = cacheResult;
 
     // Update progress in DB
@@ -196,117 +210,121 @@ export const walletLookup = inngest.createFunction(
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
 
-        const batchResults = await step.run(`process-batch-${batchIndex}`, async () => {
-          const batchResultsMap = new Map<string, WalletSocialResult>();
-          const neynarApiKey = process.env.NEYNAR_API_KEY;
+        const batchResults = await step.run(
+          `process-batch-${batchIndex}`,
+          async () => {
+            const batchResultsMap = new Map<string, WalletSocialResult>();
+            const neynarApiKey = process.env.NEYNAR_API_KEY;
 
-          // Initialize batch results
-          for (const wallet of batch) {
-            const walletLower = wallet.toLowerCase();
-            const walletData = originalData[walletLower] || {};
-            let holdings: number | undefined;
-            if (holdingsColumn && walletData[holdingsColumn]) {
-              holdings = parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
+            // Initialize batch results
+            for (const wallet of batch) {
+              const walletLower = wallet.toLowerCase();
+              const walletData = originalData[walletLower] || {};
+              let holdings: number | undefined;
+              if (holdingsColumn && walletData[holdingsColumn]) {
+                holdings =
+                  parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
+              }
+              batchResultsMap.set(walletLower, {
+                wallet: walletLower,
+                source: [],
+                holdings,
+                ...walletData,
+              });
             }
-            batchResultsMap.set(walletLower, {
-              wallet: walletLower,
-              source: [],
-              holdings,
-              ...walletData,
-            });
-          }
 
-          // Optional ENS lookups
-          if (options.includeENS) {
+            // Optional ENS lookups
+            if (options.includeENS) {
+              try {
+                const ensResults = await batchLookupENS(batch);
+                for (const [wallet, data] of ensResults) {
+                  const existing = batchResultsMap.get(wallet)!;
+                  batchResultsMap.set(wallet, {
+                    ...existing,
+                    ens_name: data.ensName || existing.ens_name,
+                    twitter_handle: data.twitter || existing.twitter_handle,
+                    twitter_url: data.twitterUrl || existing.twitter_url,
+                    github: data.github || existing.github,
+                    source: [...existing.source, 'ens'],
+                  });
+                }
+              } catch (error) {
+                console.error('ENS lookup error:', error);
+              }
+            }
+
+            // Web3.bio + Neynar in parallel
+            const [web3BioResults, neynarResults] = await Promise.all([
+              batchFetchWeb3Bio(batch),
+              neynarApiKey
+                ? batchFetchNeynar(batch, neynarApiKey).catch((error) => {
+                    console.error('Neynar fetch error:', error);
+                    return new Map<string, NeynarResult>();
+                  })
+                : Promise.resolve(new Map<string, NeynarResult>()),
+            ]);
+
+            // Apply Web3.bio results
+            for (const [wallet, data] of web3BioResults) {
+              const existing = batchResultsMap.get(wallet)!;
+              batchResultsMap.set(wallet, {
+                ...existing,
+                ens_name: existing.ens_name || data.ens_name,
+                twitter_handle: existing.twitter_handle || data.twitter_handle,
+                twitter_url: existing.twitter_url || data.twitter_url,
+                farcaster: data.farcaster || existing.farcaster,
+                farcaster_url: data.farcaster_url || existing.farcaster_url,
+                lens: data.lens || existing.lens,
+                github: existing.github || data.github,
+                source: existing.source.includes('web3bio')
+                  ? existing.source
+                  : [...existing.source, 'web3bio'],
+              });
+            }
+
+            // Apply Neynar results
+            for (const [wallet, data] of neynarResults) {
+              const existing = batchResultsMap.get(wallet)!;
+              batchResultsMap.set(wallet, {
+                ...existing,
+                twitter_handle: existing.twitter_handle || data.twitter_handle,
+                twitter_url: existing.twitter_url || data.twitter_url,
+                farcaster: data.farcaster || existing.farcaster,
+                farcaster_url: data.farcaster_url || existing.farcaster_url,
+                fc_followers: data.fc_followers,
+                source: existing.source.includes('neynar')
+                  ? existing.source
+                  : [...existing.source, 'neynar'],
+              });
+            }
+
+            // Cache results
             try {
-              const ensResults = await batchLookupENS(batch);
-              for (const [wallet, data] of ensResults) {
-                const existing = batchResultsMap.get(wallet)!;
-                batchResultsMap.set(wallet, {
-                  ...existing,
-                  ens_name: data.ensName || existing.ens_name,
-                  twitter_handle: data.twitter || existing.twitter_handle,
-                  twitter_url: data.twitterUrl || existing.twitter_url,
-                  github: data.github || existing.github,
-                  source: [...existing.source, 'ens'],
-                });
+              const newResults = batch
+                .map((w) => batchResultsMap.get(w.toLowerCase())!)
+                .filter((r) => r.source.length > 0);
+              if (newResults.length > 0) {
+                await cacheWalletResults(newResults);
               }
             } catch (error) {
-              console.error('ENS lookup error:', error);
+              console.error('Cache write error:', error);
             }
-          }
 
-          // Web3.bio + Neynar in parallel
-          const [web3BioResults, neynarResults] = await Promise.all([
-            batchFetchWeb3Bio(batch),
-            neynarApiKey
-              ? batchFetchNeynar(batch, neynarApiKey).catch((error) => {
-                  console.error('Neynar fetch error:', error);
-                  return new Map<string, NeynarResult>();
-                })
-              : Promise.resolve(new Map<string, NeynarResult>()),
-          ]);
-
-          // Apply Web3.bio results
-          for (const [wallet, data] of web3BioResults) {
-            const existing = batchResultsMap.get(wallet)!;
-            batchResultsMap.set(wallet, {
-              ...existing,
-              ens_name: existing.ens_name || data.ens_name,
-              twitter_handle: existing.twitter_handle || data.twitter_handle,
-              twitter_url: existing.twitter_url || data.twitter_url,
-              farcaster: data.farcaster || existing.farcaster,
-              farcaster_url: data.farcaster_url || existing.farcaster_url,
-              lens: data.lens || existing.lens,
-              github: existing.github || data.github,
-              source: existing.source.includes('web3bio')
-                ? existing.source
-                : [...existing.source, 'web3bio'],
-            });
-          }
-
-          // Apply Neynar results
-          for (const [wallet, data] of neynarResults) {
-            const existing = batchResultsMap.get(wallet)!;
-            batchResultsMap.set(wallet, {
-              ...existing,
-              twitter_handle: existing.twitter_handle || data.twitter_handle,
-              twitter_url: existing.twitter_url || data.twitter_url,
-              farcaster: data.farcaster || existing.farcaster,
-              farcaster_url: data.farcaster_url || existing.farcaster_url,
-              fc_followers: data.fc_followers,
-              source: existing.source.includes('neynar')
-                ? existing.source
-                : [...existing.source, 'neynar'],
-            });
-          }
-
-          // Cache results
-          try {
-            const newResults = batch
-              .map((w) => batchResultsMap.get(w.toLowerCase())!)
-              .filter((r) => r.source.length > 0);
-            if (newResults.length > 0) {
-              await cacheWalletResults(newResults);
+            // Count findings
+            let batchTwitter = 0;
+            let batchFarcaster = 0;
+            for (const result of batchResultsMap.values()) {
+              if (result.twitter_handle) batchTwitter++;
+              if (result.farcaster) batchFarcaster++;
             }
-          } catch (error) {
-            console.error('Cache write error:', error);
-          }
 
-          // Count findings
-          let batchTwitter = 0;
-          let batchFarcaster = 0;
-          for (const result of batchResultsMap.values()) {
-            if (result.twitter_handle) batchTwitter++;
-            if (result.farcaster) batchFarcaster++;
+            return {
+              results: Array.from(batchResultsMap.entries()),
+              twitterFound: batchTwitter,
+              farcasterFound: batchFarcaster,
+            };
           }
-
-          return {
-            results: Array.from(batchResultsMap.entries()),
-            twitterFound: batchTwitter,
-            farcasterFound: batchFarcaster,
-          };
-        });
+        );
 
         // Merge batch results into main results map
         for (const [wallet, result] of batchResults.results) {
@@ -323,7 +341,10 @@ export const walletLookup = inngest.createFunction(
           await db
             .update(lookupJobs)
             .set({
-              processedCount: Math.min(processedCount + cachedCount, allWallets.length),
+              processedCount: Math.min(
+                processedCount + cachedCount,
+                allWallets.length
+              ),
               twitterFound,
               farcasterFound,
               currentStage: 'processing',
@@ -342,7 +363,8 @@ export const walletLookup = inngest.createFunction(
           const stored = graphData.get(wallet);
           if (stored) {
             const storedData = socialGraphToResult(stored);
-            if (!result.ens_name && storedData.ens_name) result.ens_name = storedData.ens_name;
+            if (!result.ens_name && storedData.ens_name)
+              result.ens_name = storedData.ens_name;
             if (!result.twitter_handle && storedData.twitter_handle) {
               result.twitter_handle = storedData.twitter_handle;
               result.twitter_url = storedData.twitter_url;
@@ -358,14 +380,18 @@ export const walletLookup = inngest.createFunction(
             // gap-filling branch meant a handle that arrived from cache or
             // the API kept no verification at all, which is the usual case
             // and left the gutter blank on the busiest path.
-            if (result.twitter_handle && result.twitter_handle === storedData.twitter_handle) {
+            if (
+              result.twitter_handle &&
+              result.twitter_handle === storedData.twitter_handle
+            ) {
               result.twitter_verified = storedData.twitter_verified;
             }
             if (result.farcaster && result.farcaster === storedData.farcaster) {
               result.farcaster_verified = storedData.farcaster_verified;
             }
             if (!result.lens && storedData.lens) result.lens = storedData.lens;
-            if (!result.github && storedData.github) result.github = storedData.github;
+            if (!result.github && storedData.github)
+              result.github = storedData.github;
             resultsMap.set(wallet, result);
           }
         }
@@ -377,7 +403,10 @@ export const walletLookup = inngest.createFunction(
     // Step 6: Calculate priority scores
     await step.run('calculate-scores', async () => {
       for (const [wallet, result] of resultsMap) {
-        result.priority_score = calculatePriorityScore(result.holdings, result.fc_followers);
+        result.priority_score = calculatePriorityScore(
+          result.holdings,
+          result.fc_followers
+        );
         resultsMap.set(wallet, result);
       }
     });
@@ -401,7 +430,8 @@ export const walletLookup = inngest.createFunction(
       // Persist positive results to social graph
       try {
         const positiveResults = allResults.filter(
-          (r) => r.twitter_handle || r.farcaster || r.lens || r.github || r.ens_name
+          (r) =>
+            r.twitter_handle || r.farcaster || r.lens || r.github || r.ens_name
         );
         if (positiveResults.length > 0) {
           await upsertSocialGraph(positiveResults);

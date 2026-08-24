@@ -10,10 +10,7 @@ import {
   normalizeTwitterHandle,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
-import {
-  decodeReverseCursor,
-  encodeReverseCursor,
-} from '@/lib/reverse-cursor';
+import { decodeReverseCursor, encodeReverseCursor } from '@/lib/reverse-cursor';
 import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
@@ -151,7 +148,10 @@ export async function GET(
   const lastRow = results[results.length - 1];
   const nextCursor =
     truncated && lastRow
-      ? encodeReverseCursor({ f: lastRow.fcFollowers ?? null, w: lastRow.wallet })
+      ? encodeReverseCursor({
+          f: lastRow.fcFollowers ?? null,
+          w: lastRow.wallet,
+        })
       : null;
 
   // Track usage

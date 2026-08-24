@@ -113,7 +113,12 @@ function parseArgs(argv: string[]): Args {
     maxRequests: 300,
     windowDays: 30,
   };
-  const takesValue = new Set(['--since', '--until', '--max-requests', '--window-days']);
+  const takesValue = new Set([
+    '--since',
+    '--until',
+    '--max-requests',
+    '--window-days',
+  ]);
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--commit') {
@@ -130,8 +135,10 @@ function parseArgs(argv: string[]): Args {
     i++;
     if (flag === '--since') args.since = assertDate(value);
     else if (flag === '--until') args.until = assertDate(value);
-    else if (flag === '--max-requests') args.maxRequests = assertPositiveInt(value, flag);
-    else if (flag === '--window-days') args.windowDays = assertPositiveInt(value, flag);
+    else if (flag === '--max-requests')
+      args.maxRequests = assertPositiveInt(value, flag);
+    else if (flag === '--window-days')
+      args.windowDays = assertPositiveInt(value, flag);
   }
   return args;
 }
@@ -145,7 +152,8 @@ function assertDate(value: string): string {
 
 function assertPositiveInt(value: string, flag: string): number {
   const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) throw new Error(`${flag} needs a positive integer`);
+  if (!Number.isInteger(n) || n <= 0)
+    throw new Error(`${flag} needs a positive integer`);
   return n;
 }
 
@@ -195,7 +203,9 @@ async function fetchPage(
   query: string,
   cursor: string | null
 ): Promise<SearchPage> {
-  const url = new URL('https://api.twitterapi.io/twitter/tweet/advanced_search');
+  const url = new URL(
+    'https://api.twitterapi.io/twitter/tweet/advanced_search'
+  );
   url.searchParams.set('queryType', 'Latest');
   url.searchParams.set('query', query);
   if (cursor) url.searchParams.set('cursor', cursor);
@@ -205,7 +215,9 @@ async function fetchPage(
     throw new OutOfCreditsError('twitterapi.io: out of credits');
   }
   if (!res.ok) {
-    throw new Error(`twitterapi.io ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    throw new Error(
+      `twitterapi.io ${res.status}: ${(await res.text()).slice(0, 300)}`
+    );
   }
   const json = (await res.json()) as SearchPage;
   // The response shape is from the twitterapi.io docs, not a typed SDK;

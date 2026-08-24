@@ -123,9 +123,7 @@ function unsubscribeSecret(): string | null {
 }
 
 function signEmail(email: string, secret: string): string {
-  return createHmac('sha256', secret)
-    .update(email.toLowerCase())
-    .digest('hex');
+  return createHmac('sha256', secret).update(email.toLowerCase()).digest('hex');
 }
 
 export function unsubscribeUrl(email: string): string | null {
