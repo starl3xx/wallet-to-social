@@ -522,6 +522,13 @@ export async function getPaywallTriggers(
  * lifecycle_emails and users.email_opt_out were written by the campaign
  * plumbing and readable only through ad-hoc SQL; the admin surface is where
  * "did the send go out, and who opted out" belongs.
+ *
+ * Counts `confirmed_at IS NOT NULL`, because a row stopped meaning delivery
+ * when claimAndSend began taking it before the send. An unfiltered count
+ * reports an in-flight claim, and an abandoned one waiting on the reclaim, as
+ * mail that went out: the pane would answer "did the send go out" with yes on
+ * exactly the runs where it had not. `sent_at` is the claim time and stays the
+ * ordering key, since a confirm follows its claim within a second.
  */
 export async function getEmailStatus(): Promise<{
   sends: Array<{ emailKey: string; count: number; lastSentAt: Date | null }>;
@@ -533,7 +540,9 @@ export async function getEmailStatus(): Promise<{
     const sends = (await db.execute(sql`
       SELECT email_key AS "emailKey", count(*)::int AS count,
              max(sent_at) AS "lastSentAt"
-      FROM lifecycle_emails GROUP BY 1 ORDER BY max(sent_at) DESC
+      FROM lifecycle_emails
+      WHERE confirmed_at IS NOT NULL
+      GROUP BY 1 ORDER BY max(sent_at) DESC
     `)) as unknown as {
       rows: Array<{ emailKey: string; count: number; lastSentAt: Date | null }>;
     };

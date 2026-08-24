@@ -68,6 +68,17 @@ All notable changes to walletlink.social. Newest first.
   catching it, so the bare form would have thrown on every run before a single
   send: the scoping fix above would have shipped as a total outage of the
   sequence. Same binding `lib/x-accounts.ts` and `lib/clanker.ts` already use.
+- **The readers were updated too, not just the writers.** A row stopped meaning
+  delivery the moment `claimAndSend` began taking it first, so `getEmailStatus`
+  (the admin Lifecycle card) and `scripts/relaunch-report.ts` now count
+  `confirmed_at IS NOT NULL`. Unfiltered, the pane reported an in-flight claim,
+  and an abandoned one waiting on the reclaim, as mail that went out: it would
+  have answered "did the send go out" with yes on exactly the runs where it had
+  not.
+- **The suppression guard in `relaunch-trial-grant.ts` is deliberately NOT
+  filtered.** Reporting should be accurate and suppression should be
+  conservative: any row at all means do not send again. Filtering there would
+  turn a stuck claim into a second email.
 - Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
   backfills `confirmed_at = sent_at` on existing rows, which were written under
   the old send-then-insert order and are all real deliveries; without the

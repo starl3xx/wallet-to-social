@@ -31,15 +31,20 @@ async function main() {
   }
   const sql = neon(process.env.DATABASE_URL);
 
+  // confirmed_at IS NOT NULL: a row is a claim until the send succeeds. Every
+  // row under this key is confirmed today, but the report should ask the
+  // question it means rather than rely on that staying true.
   const [sent] = await sql`
     SELECT count(*)::int AS n, min(sent_at) AS first, max(sent_at) AS last
-    FROM lifecycle_emails WHERE email_key = ${EMAIL_KEY}`;
+    FROM lifecycle_emails
+    WHERE email_key = ${EMAIL_KEY} AND confirmed_at IS NOT NULL`;
 
   const [optedOut] = await sql`
     SELECT count(*)::int AS n
     FROM lifecycle_emails le
     JOIN users u ON u.id = le.user_id
-    WHERE le.email_key = ${EMAIL_KEY} AND u.email_opt_out = true`;
+    WHERE le.email_key = ${EMAIL_KEY} AND le.confirmed_at IS NOT NULL
+      AND u.email_opt_out = true`;
 
   const [visits] = await sql`
     SELECT count(*)::int AS events,
