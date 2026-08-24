@@ -120,13 +120,13 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
 
 ## Notes
 
-`plan` reports the internal plan name (`Developer`, `Startup`), not the pack you bought. Every pack reports `Developer`. See [plans](/api-reference/introduction#plans).
+`plan` reports the internal plan name, not the pack you bought. Every pack reports `Developer`. See [plans](/api-reference/introduction#plans).
 
 `total_credits` counts rate-limit units, not match credits, and it is not your bill: a 50-wallet batch is one request and 50 rate-limit units, while what it costs you is one match credit per wallet that resolved. `total_credits` exceeding `total_requests` is expected. For what you have left to spend, read `credits.available`.
 
 `error_rate` is already a percentage. `0.24` means 0.24%, not 24%.
 
-`plan_limits` can carry the string `"unlimited"` instead of a number on custom plans with no ceiling in a given window. No pack and no legacy tier does today, but parse defensively.
+`plan_limits` can carry the string `"unlimited"` instead of a number on a custom plan with no ceiling in a given window. Nothing issued today does, but parse defensively.
 
 `requests_by_endpoint` is keyed by route template, so single-wallet and reverse
 lookups each stay one entry (`/v1/wallet/{address}`,
