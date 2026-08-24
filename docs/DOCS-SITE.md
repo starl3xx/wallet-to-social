@@ -93,6 +93,21 @@ after the records go in.
   Returns 403 until the site is actually published; it is configured ahead of
   time so it starts working the moment there is content.
 
+**`/mcp` is therefore a reserved path on the docs site.** Mintlify serves its
+own documentation-search MCP endpoint there, and it wins: a page at
+`docs-site/mcp.mdx` is shadowed, and a browser asking for
+`https://docs.walletlink.social/mcp` gets `{"error":{"code":-32000,"message":
+"Method not allowed."}}` rather than the page. It was published that way for
+about an hour, with the dead URL in the MCP registry listing, before anybody
+loaded it. Our own page lives at `/mcp-server`.
+
+Static files in `docs-site/` are served from the docs root, so
+`docs-site/openapi.yaml` is public at
+`https://docs.walletlink.social/openapi.yaml` with no navigation entry and no
+auto-generated endpoint pages. That is the reason the spec is not registered in
+`docs.json`: registering it would generate a page per endpoint, duplicating the
+nine hand-written ones, and it is already reachable without doing so.
+
 `.mcp.json` is committed on purpose: it is project-scoped config, contains no
 secrets, and means anyone cloning the repo gets the same servers.
 

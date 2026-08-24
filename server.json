@@ -3,8 +3,8 @@
   "name": "social.walletlink/wallet-identity",
   "title": "walletlink.social",
   "description": "Resolve wallet addresses to X and Farcaster accounts, and back again.",
-  "version": "1.0.0",
-  "websiteUrl": "https://docs.walletlink.social/mcp",
+  "version": "1.0.1",
+  "websiteUrl": "https://docs.walletlink.social/mcp-server",
   "repository": {
     "url": "https://github.com/starl3xx/wallet-to-social",
     "source": "github"

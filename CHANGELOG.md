@@ -28,6 +28,26 @@ All notable changes to walletlink.social. Newest first.
   second of three plans. Ours is on every pack and on the free allowance,
   because it carries the same key and draws the same credits as the API it
   wraps. That is a like-for-like comparison rather than a claim.
+- **`/mcp` was already taken on the docs site, and the repo said so.** Mintlify
+  serves its own documentation-search MCP endpoint at
+  `docs.walletlink.social/mcp`, which `docs/DOCS-SITE.md` has recorded since the
+  site was built. A page at `docs-site/mcp.mdx` is shadowed by it: a browser
+  asking for that URL gets `Method not allowed` as JSON, not the page. It was
+  live that way for about an hour, and the dead URL was in the registry
+  listing, the keys modal and the API reference. The page is now `/mcp-server`,
+  the listing is republished at 1.0.1, and `docs/DOCS-SITE.md` says the path is
+  reserved.
+- **The OpenAPI spec was reachable all along.** Static files in `docs-site/`
+  are served from the docs root, so `docs-site/openapi.yaml` has been public at
+  `docs.walletlink.social/openapi.yaml` since it landed. It was left out of
+  `llms.txt` on the assumption that it was not, which was never tested. It is
+  now linked from `llms.txt` and from the MCP page, still without a `docs.json`
+  entry, since registering it would generate a page per endpoint and duplicate
+  the nine hand-written ones.
+- The free-tier line rendered "30 -day window" for one commit. Running
+  `prettier --write` over a file that had never been formatted reflowed
+  `{FREE_WINDOW_DAYS}-day` across a newline, and JSX collapses that into a
+  space. A template literal now keeps the figure and its hyphen atomic.
 
 ### 2026-08-24 (one click into an agent)
 
