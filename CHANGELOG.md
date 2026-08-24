@@ -2,6 +2,69 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the concierge shortlist, with the numbers already run)
+
+- **`scripts/concierge-signals.ts`** turns the traffic plan's "three
+  personalised replies per weekday" from an hour of manual searching into a
+  review pass. It finds candidates, computes an honest number for each from our
+  own index, and prints a drafted reply. It makes no writes, never seeds and
+  never posts.
+- **The plan's premise did not survive contact.** It named Clanker deployers as
+  the densest pocket. Clanker is not a launch feed: `lib/clanker.ts` keeps a
+  wallet and a social handle and throws the token address away (`topics[1]`, read
+  in a comment only), so there is nothing to measure. A token deployed this
+  morning has no holders either: two sampled live had three transfers each, being
+  the pool, the locker and the deployer. And handle-shaped records are often
+  launchpad bots minting tokens *about* a public figure's post, so a reply about
+  "your holders" would reach someone with no connection to the token. Clanker
+  stays a good wallet-to-X source and is not used as a prospect list.
+- **The strongest lane was already in the database.** We hold holder data for 76
+  contracts and 51 clear the public listing floor, so they already have a live
+  report at `/holders/<chain>/<address>` that their team has never been told
+  about. 50 named candidates, all carrying measured numbers, at zero API cost.
+- **The other two lanes reflect what is actually available.** X search runs
+  through the repo's own twitterapi.io key, anchored to a marketplace or explorer
+  link because the unanchored keyword query measured about three quarters
+  giveaway farms. Farcaster uses the free Warpcast endpoint: Neynar is over its
+  period budget (11,557,744 against a 10,000,000 plan limit) and pauses **all**
+  requests on overage including the live paid lookup path, so no new Neynar
+  caller may spend before 2026-09-01.
+- **A report link and a source link are different fields.** They were one, and
+  the draft printed whatever it held as "the full report is already public": on
+  an X candidate that was the prospect's own announcement post, so the reply
+  would have pointed a team at their own tweet and called it our analysis.
+- **Every lane resolves contracts through one shared helper.** The resolution
+  lived inline in the X lane, so the Farcaster lane extracted an address and
+  then drafted "NO NUMBER AVAILABLE" for contracts we hold and have published. A
+  lane should not be able to forget how to look something up.
+- **The Farcaster lane links the cast, not the caster.** It pointed at the
+  author's profile, which leaves the operator to go and find the announcement
+  they are meant to be answering. The X lane links the tweet; this now links
+  the cast, with the profile as the fallback.
+- **One naming rule, shared.** The index lane rejected the seeder's `Unknown
+  Token` placeholder from the start. Once the other lanes learned to resolve
+  collections they began preferring the collection name over the poster, so a
+  placeholder started beating a perfectly good `@username` and produced a reply
+  addressed to "Unknown Token". `isNamed` and `displayName` now serve every
+  lane.
+- **Dedupe follows an identity that merges.** Keying on "contract if present,
+  else handle" is not enough: a contract-keyed winner picks up a handle when a
+  post merges into it, and the next post from that handle still hashed to its
+  own key and took a second slot. An alias map makes the two identities
+  converge whichever arrives first.
+- **The candidate cap breaks the query loop, not just the tweet loop**, so a run
+  that is already full stops paying twitterapi.io for a page it cannot use. And
+  candidates are deduped by contract, then handle, before the shortlist is
+  sliced: with `source=all` one prospect arriving from two lanes ate two of the
+  three daily slots.
+- **The honesty rules are in the code, not the operator's head.** Always name the
+  measured denominator, because seeding caps at 2,000 wallets and "1,707 of your
+  20,977 holders" would be false. Quote `reachableAny` as a floor with "at
+  least", because `checked` runs well below `holderCount`. Use the median
+  Farcaster following, never the mean. Drop any collection where
+  `measurementInProgress` is true, because a near-zero reachable count there
+  means "not yet checked" rather than a finding. With no measured number the
+  draft refuses to invent one and offers the published per-chain figure instead.
 ### 2026-08-24 (the changelog stops saying the relaunch was never sent)
 
 - **Two entries claimed the relaunch campaign had not been sent.** It was sent
