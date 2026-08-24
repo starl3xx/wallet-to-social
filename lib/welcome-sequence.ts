@@ -220,9 +220,19 @@ const CLAIM_RECLAIM_MINUTES = 15;
 async function reclaimStaleClaims(
   db: NonNullable<ReturnType<typeof getDb>>
 ): Promise<number> {
+  /**
+   * Scoped to this sequence's own keys, and that scope is load-bearing.
+   *
+   * lifecycle_emails is a shared ledger: the relaunch campaign writes to it
+   * under its own key. An unscoped delete would treat any other sender's row
+   * as an abandoned claim of ours, remove it, and let that campaign re-send to
+   * accounts it had already mailed. A reclaim may only ever collect claims the
+   * runner that reclaims could itself have taken.
+   */
   const reclaimed = (await db.execute(sql`
     DELETE FROM lifecycle_emails
     WHERE confirmed_at IS NULL
+      AND email_key = ANY(${WELCOME_EMAILS.map((e) => e.key)})
       AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
     RETURNING id
   `)) as unknown as { rows: Array<{ id: string }> };

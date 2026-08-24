@@ -52,6 +52,15 @@ All notable changes to walletlink.social. Newest first.
   `confirmed_at IS NOT NULL`, which holds that user at welcome-1 until an email
   actually left. The lowest-pending ordering is the reason the daily runner
   loops in key order, so this is the predicate that has to carry it.
+- **The reclaim is scoped to this sequence's own keys.** `lifecycle_emails` is a
+  shared ledger: `scripts/relaunch-trial-grant.ts` writes 100 rows under
+  `relaunch-trial-2026-08`. An unscoped delete would have read every one of them
+  as an abandoned claim of ours, removed it, and let a `--send` re-run mail 100
+  accounts that had already been mailed. A reclaim may only ever collect claims
+  the runner doing the reclaiming could itself have taken. The relaunch script
+  now also writes `confirmed_at` explicitly, because a ledger where "delivered"
+  is implicit in one writer and explicit in another survives right up until
+  somebody widens a WHERE clause.
 - Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
   backfills `confirmed_at = sent_at` on existing rows, which were written under
   the old send-then-insert order and are all real deliveries; without the
