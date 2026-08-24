@@ -63,7 +63,9 @@ async function main() {
   }
 
   const current = Number(rows[0].last_block);
-  console.log(`current checkpoint : ${current} (updated ${rows[0].updated_at})`);
+  console.log(
+    `current checkpoint : ${current} (updated ${rows[0].updated_at})`
+  );
   console.log(`requested          : ${target}`);
 
   if (target <= current) {
@@ -73,7 +75,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`skips              : blocks ${current + 1}-${target}, permanently`);
+  console.log(
+    `skips              : blocks ${current + 1}-${target}, permanently`
+  );
 
   if (!apply) {
     console.log('\nDry run. Re-run with --apply to write it.');

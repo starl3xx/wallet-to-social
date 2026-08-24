@@ -285,7 +285,6 @@ type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
  */
 const CLAIM_RECLAIM_MINUTES = 15;
 
-
 /**
  * Delete claims that were taken and never confirmed.
  *
@@ -414,7 +413,9 @@ async function claimAndSend(
     SET failed_at = now(), last_error = ${result.error ?? 'unknown'}
     WHERE user_id = ${userId} AND email_key = ${emailKey}
   `);
-  console.error(`welcome ${emailKey} failed for user ${userId}: ${result.error}`);
+  console.error(
+    `welcome ${emailKey} failed for user ${userId}: ${result.error}`
+  );
   return 'failed';
 }
 
@@ -543,7 +544,13 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
 
   for (const d of due.slice(0, MAX_SENDS_PER_RUN)) {
     const email = WELCOME_EMAILS.find((e) => e.key === d.key)!;
-    const result = await claimAndSend(db, d.userId, d.email, d.key, email.content);
+    const result = await claimAndSend(
+      db,
+      d.userId,
+      d.email,
+      d.key,
+      email.content
+    );
     if (result === 'sent') {
       outcome.sent += 1;
       outcome.byKey[d.key] = (outcome.byKey[d.key] ?? 0) + 1;

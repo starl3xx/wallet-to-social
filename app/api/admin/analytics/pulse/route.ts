@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Pulse API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch pulse data' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to fetch pulse data',
+      },
       { status: 500 }
     );
   }

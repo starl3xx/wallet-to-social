@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyMagicLinkToken, createSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
+import {
+  verifyMagicLinkToken,
+  createSession,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_OPTIONS,
+} from '@/lib/auth';
 import { getOrCreateUser } from '@/lib/access';
 import { cookies } from 'next/headers';
 import { getSiteUrl } from '@/lib/site-url';
@@ -56,7 +61,11 @@ export async function GET(request: NextRequest) {
 
     // Set the session cookie
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, sessionResult.token, SESSION_COOKIE_OPTIONS);
+    cookieStore.set(
+      SESSION_COOKIE_NAME,
+      sessionResult.token,
+      SESSION_COOKIE_OPTIONS
+    );
 
     return redirectWithSuccess();
   } catch (error) {

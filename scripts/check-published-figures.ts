@@ -109,7 +109,8 @@ const CLAIMS: Claim[] = [
      * Twitter handle" as the index size, reporting 77% drift against a figure
      * that was never that claim.
      */
-    pattern: /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9])?) million'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
+    pattern:
+      /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9])?) million'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
     /**
      * The SAME predicate /api/public-stats uses, and not `count(*)`.
      *
@@ -148,7 +149,9 @@ const CLAIMS: Claim[] = [
     files: ['docs-site/concepts/coverage.mdx'],
     pattern: /([0-9]+\.[0-9]+) million wallets with a linked X handle/,
     actual: () =>
-      one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
+      one(
+        sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`
+      ),
     scale: 1_000_000,
     tolerance: 0.02,
   },
@@ -159,9 +162,12 @@ const CLAIMS: Claim[] = [
       'lib/public-figures.ts',
       'content/published/find-twitter-account-from-wallet.md',
     ],
-    pattern: /([0-9]+\.[0-9]+) million wallets have a linked Twitter handle|WALLETS_WITH_X = '([0-9]+\.[0-9]+) million'/,
+    pattern:
+      /([0-9]+\.[0-9]+) million wallets have a linked Twitter handle|WALLETS_WITH_X = '([0-9]+\.[0-9]+) million'/,
     actual: () =>
-      one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
+      one(
+        sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`
+      ),
     scale: 1_000_000,
     tolerance: 0.03,
   },
@@ -302,7 +308,9 @@ const CLAIMS: Claim[] = [
     pattern:
       /FARCASTER_WALLETS = '([0-9]+\.[0-9]) million'|([0-9]+\.[0-9])M wallets, refreshed daily|([0-9]+\.[0-9]) million Farcaster wallets/,
     actual: () =>
-      one(sql`SELECT count(*)::int FROM social_graph WHERE farcaster IS NOT NULL`),
+      one(
+        sql`SELECT count(*)::int FROM social_graph WHERE farcaster IS NOT NULL`
+      ),
     scale: 1_000_000,
     /**
      * 1%, not 3%, and the reason is the entire point of this entry.
@@ -329,7 +337,8 @@ const CLAIMS: Claim[] = [
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
-    pattern: /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live\s+\| ([0-9]{2}\.[0-9])%\s+\||([0-9]{2}\.[0-9])% live/,
+    pattern:
+      /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live\s+\| ([0-9]{2}\.[0-9])%\s+\||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
@@ -361,7 +370,8 @@ const CLAIMS: Claim[] = [
     ],
     // "are suspended" joined the phrasings with the welcome sequence, whose
     // approved copy writes the split as a sentence.
-    pattern: /([0-9]{2}\.[0-9])%\s+(?:are\s+)?suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
+    pattern:
+      /([0-9]{2}\.[0-9])%\s+(?:are\s+)?suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -385,7 +395,8 @@ const CLAIMS: Claim[] = [
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
     // keyword is more durable than trying to enumerate the prose.
-    pattern: /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
+    pattern:
+      /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'not_found'`
@@ -525,7 +536,8 @@ const MEASUREMENTS: Measurement[] = [
         file: 'app/opengraph-image.tsx',
         // The share card is the first thing anyone sees, and this figure was
         // the only number on it that nothing checked.
-        pattern: /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
+        pattern:
+          /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
         rate: 'reachable',
       },
       {
@@ -690,7 +702,10 @@ async function main() {
       // hit, so a file repeating a figure (metadata, Open Graph, Twitter card,
       // JSON-LD and FAQ copy all carry the index size) had every later instance
       // unchecked. The check could pass while published text still lied.
-      const global = new RegExp(claim.pattern.source, claim.pattern.flags.replace('g', '') + 'g');
+      const global = new RegExp(
+        claim.pattern.source,
+        claim.pattern.flags.replace('g', '') + 'g'
+      );
 
       /**
        * Exemptions are applied BEFORE the no-match test, not inside the loop
@@ -738,7 +753,9 @@ async function main() {
       }
 
       const fmt = (v: number) =>
-        claim.scale ? (v / claim.scale).toFixed(2) : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+        claim.scale
+          ? (v / claim.scale).toFixed(2)
+          : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
       // Already filtered above, so every hit here is a live claim.
       for (const hit of all) {
@@ -777,7 +794,9 @@ async function main() {
               : drift <= claim.tolerance;
 
         if (ok) {
-          console.log(`  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`);
+          console.log(
+            `  ok     ${file}: ${claim.what} = ${publishedRaw} (actual ${fmt(truth)})`
+          );
         } else if (stale) {
           console.error(
             `  STALE  ${file}: ${claim.what} published as ${publishedRaw}, actual ` +
@@ -808,7 +827,8 @@ async function main() {
   }
 
   console.log(`\n${checked} published figures checked.`);
-  if (undeclared) console.error(`${undeclared} figure(s) published but never declared.`);
+  if (undeclared)
+    console.error(`${undeclared} figure(s) published but never declared.`);
   if (problems) {
     console.error(
       `${problems} need updating. Published numbers go stale with no commit, so ` +
@@ -893,7 +913,9 @@ function sweepForUndeclared(): number {
      * have taught everyone to stop writing explanations.
      */
     if (/\.tsx?$/.test(file)) {
-      text = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+      text = text
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|\s)\/\/[^\n]*/g, '$1');
     }
 
     /**
@@ -919,9 +941,13 @@ function sweepForUndeclared(): number {
        * people to silence it with an exemption, which is how a guard stops
        * guarding.
        */
-      const g = new RegExp(c.pattern.source, c.pattern.flags.replace('g', '') + 'g');
+      const g = new RegExp(
+        c.pattern.source,
+        c.pattern.flags.replace('g', '') + 'g'
+      );
       for (const dm of text.matchAll(g)) {
-        if (dm.index !== undefined) claimedRanges.push([dm.index, dm.index + dm[0].length]);
+        if (dm.index !== undefined)
+          claimedRanges.push([dm.index, dm.index + dm[0].length]);
       }
     }
 
@@ -930,7 +956,9 @@ function sweepForUndeclared(): number {
         const hit = m[0];
         const at = m.index ?? -1;
         if (NOT_A_COVERAGE_CLAIM.some((ok) => ok.test(hit))) continue;
-        const covered = claimedRanges.some(([lo, hi]) => at >= lo - 60 && at <= hi + 60);
+        const covered = claimedRanges.some(
+          ([lo, hi]) => at >= lo - 60 && at <= hi + 60
+        );
         if (covered) continue;
         console.error(
           `  UNDECLARED ${file}: "${hit.trim()}" is not in the registry. ` +

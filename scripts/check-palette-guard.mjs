@@ -21,12 +21,19 @@
 
 import { readFileSync } from 'fs';
 
-const config = readFileSync(new URL('../eslint.config.mjs', import.meta.url), 'utf8');
+const config = readFileSync(
+  new URL('../eslint.config.mjs', import.meta.url),
+  'utf8'
+);
 
-const palette = config.match(/const TAILWIND_PALETTE =\s*\n\s*'(\(\?:[^']+\))';/)?.[1];
+const palette = config.match(
+  /const TAILWIND_PALETTE =\s*\n\s*'(\(\?:[^']+\))';/
+)?.[1];
 const shape = config.match(/const PALETTE_CLASS = `([^`]+)`/)?.[1];
 if (!palette || !shape) {
-  console.error('FAIL: could not read TAILWIND_PALETTE / PALETTE_CLASS from eslint.config.mjs');
+  console.error(
+    'FAIL: could not read TAILWIND_PALETTE / PALETTE_CLASS from eslint.config.mjs'
+  );
   process.exit(1);
 }
 
@@ -44,7 +51,10 @@ const BAD = [
   ['border-stone-300', 'stone'],
   ['text-green-500', 'chromatic, the original case'],
   ['hover:text-green-500', 'variant occupies the leading slot'],
-  ['prose-blockquote:border-l-emerald-500', 'directional suffix behind a prose variant'],
+  [
+    'prose-blockquote:border-l-emerald-500',
+    'directional suffix behind a prose variant',
+  ],
   ['bg-red-500/50', 'opacity suffix'],
   ['sm:dark:hover:bg-blue-600', 'stacked variants'],
   ['flex items-center bg-amber-100 rounded', 'mid-string'],
@@ -68,14 +78,24 @@ const GOOD = [
 
 let failed = 0;
 for (const [s, why] of BAD) {
-  if (!re.test(s)) { console.error(`FAIL  missed:      ${s.padEnd(42)} ${why}`); failed++; }
+  if (!re.test(s)) {
+    console.error(`FAIL  missed:      ${s.padEnd(42)} ${why}`);
+    failed++;
+  }
 }
 for (const [s, why] of GOOD) {
-  if (re.test(s)) { console.error(`FAIL  false alarm: ${s.padEnd(42)} ${why}`); failed++; }
+  if (re.test(s)) {
+    console.error(`FAIL  false alarm: ${s.padEnd(42)} ${why}`);
+    failed++;
+  }
 }
 
 if (failed) {
-  console.error(`\n${failed} fixture(s) failed. The guard does not do what it claims.`);
+  console.error(
+    `\n${failed} fixture(s) failed. The guard does not do what it claims.`
+  );
   process.exit(1);
 }
-console.log(`palette guard ok — ${BAD.length} violations caught, ${GOOD.length} valid strings passed`);
+console.log(
+  `palette guard ok — ${BAD.length} violations caught, ${GOOD.length} valid strings passed`
+);

@@ -1,6 +1,6 @@
 ---
 title: 'Wallets are the new social profiles: why Web3 identity changes everything'
-meta_description: "The wallet identity problem is being solved. Here’s what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders."
+meta_description: 'The wallet identity problem is being solved. Here’s what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders.'
 headline_variations:
   - 'Wallets are the new social profiles: why Web3 identity changes everything'
   - 'From single digits to 22%: the match rate gap separating Web3 marketing success from failure'
@@ -63,12 +63,12 @@ Every dollar spent on Web3 marketing is less efficient when you can’t reach yo
 
 We analyzed 500,000+ wallet addresses across different token communities to understand the match rate landscape:
 
-| Community type              | Match rate | Why                                             |
-| --------------------------- | ---------- | ----------------------------------------------- |
+| Community type              | Match rate    | Why                                             |
+| --------------------------- | ------------- | ----------------------------------------------- |
 | All wallets (typical tools) | single digits | Most wallets don’t have linked social profiles  |
-| DeFi-heavy wallets          | 5-10%      | Builders more likely to have ENS/Twitter        |
-| NFT communities             | 15-25%     | Social signaling culture drives profile linking |
-| DAO governance participants | 30-40%     | Most engaged users invest in identity           |
+| DeFi-heavy wallets          | 5-10%         | Builders more likely to have ENS/Twitter        |
+| NFT communities             | 15-25%        | Social signaling culture drives profile linking |
+| DAO governance participants | 30-40%        | Most engaged users invest in identity           |
 
 The takeaway: **your most valuable holders are the most findable**, if you know how to look.
 

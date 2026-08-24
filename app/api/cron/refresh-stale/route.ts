@@ -30,10 +30,7 @@ export async function POST(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
 
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (!process.env.DATABASE_URL) {
@@ -44,7 +41,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get stale wallets that are frequently accessed
-    const staleWallets = await getStaleWallets(STALE_REFRESH_LIMIT, MIN_LOOKUP_COUNT);
+    const staleWallets = await getStaleWallets(
+      STALE_REFRESH_LIMIT,
+      MIN_LOOKUP_COUNT
+    );
 
     if (staleWallets.length === 0) {
       return NextResponse.json({
@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`Created refresh job ${jobId} for ${staleWallets.length} wallets`);
+    console.log(
+      `Created refresh job ${jobId} for ${staleWallets.length} wallets`
+    );
 
     return NextResponse.json({
       message: `Queued ${staleWallets.length} stale wallets for refresh`,

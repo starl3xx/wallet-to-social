@@ -65,10 +65,10 @@ When we find a Farcaster profile, we pull the verified Twitter too. Another laye
 
 The bottom line:
 
-| Source           | Match rate |
-| ---------------- | ---------- |
-| ENS only         | ~8%        |
-| + Farcaster      | ~22%       |
+| Source      | Match rate |
+| ----------- | ---------- |
+| ENS only    | ~8%        |
+| + Farcaster | ~22%       |
 
 **Nearly 3x the matches from the same list.** More matches = more holders you can reach.
 

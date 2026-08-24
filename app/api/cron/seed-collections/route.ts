@@ -20,7 +20,10 @@ export async function GET(request: NextRequest) {
   }
 
   if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   // No whole-run budget gate here. The Neynar check moved down into

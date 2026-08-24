@@ -37,10 +37,7 @@ export async function DELETE(
     .limit(1);
 
   if (!user) {
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Verify key belongs to user
@@ -51,10 +48,7 @@ export async function DELETE(
     .limit(1);
 
   if (!key) {
-    return NextResponse.json(
-      { error: 'API key not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'API key not found' }, { status: 404 });
   }
 
   if (key.userId !== user.id) {
@@ -94,16 +88,12 @@ export async function POST(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
   const auth = await requireDeveloperAccess(body?.email);
   if (!auth.ok) return auth.response;
   const email = auth.identity.email;
-
 
   const db = getDb();
   if (!db) {
@@ -121,10 +111,7 @@ export async function POST(
     .limit(1);
 
   if (!user) {
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Verify key belongs to user
@@ -135,10 +122,7 @@ export async function POST(
     .limit(1);
 
   if (!key) {
-    return NextResponse.json(
-      { error: 'API key not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'API key not found' }, { status: 404 });
   }
 
   if (key.userId !== user.id) {
@@ -159,7 +143,8 @@ export async function POST(
   }
 
   return NextResponse.json({
-    message: 'API key rotated successfully. Store this new key securely - it will not be shown again.',
+    message:
+      'API key rotated successfully. Store this new key securely - it will not be shown again.',
     old_key_id: keyId,
     new_key: {
       id: result.key.id,

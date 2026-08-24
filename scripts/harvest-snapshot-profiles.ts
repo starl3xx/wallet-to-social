@@ -72,11 +72,13 @@ function parseArgs(argv: string[]): Args {
     }
     i++;
     const n = Number(value);
-    if (!Number.isInteger(n) || n < 0) throw new Error(`${flag} needs a non-negative integer`);
+    if (!Number.isInteger(n) || n < 0)
+      throw new Error(`${flag} needs a non-negative integer`);
     if (flag === '--since') args.since = n;
     else args.maxRequests = n;
   }
-  if (args.maxRequests <= 0) throw new Error('--max-requests needs a positive integer');
+  if (args.maxRequests <= 0)
+    throw new Error('--max-requests needs a positive integer');
   return args;
 }
 
@@ -123,19 +125,24 @@ async function fetchPage(createdGt: number): Promise<SnapshotUser[]> {
       body: JSON.stringify({ query, variables: { createdGt } }),
     });
     if (res.status === 429 || res.status >= 500) {
-      if (attempt >= 4) throw new Error(`Snapshot hub ${res.status} after ${attempt} attempts`);
+      if (attempt >= 4)
+        throw new Error(`Snapshot hub ${res.status} after ${attempt} attempts`);
       await new Promise((r) => setTimeout(r, attempt * 5000));
       continue;
     }
     if (!res.ok) {
-      throw new Error(`Snapshot hub ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      throw new Error(
+        `Snapshot hub ${res.status}: ${(await res.text()).slice(0, 300)}`
+      );
     }
     const json = (await res.json()) as {
       data?: { users?: SnapshotUser[] };
       errors?: Array<{ message: string }>;
     };
     if (json.errors?.length) {
-      throw new Error(`Snapshot hub errors: ${json.errors.map((e) => e.message).join('; ')}`);
+      throw new Error(
+        `Snapshot hub errors: ${json.errors.map((e) => e.message).join('; ')}`
+      );
     }
     if (!Array.isArray(json.data?.users)) {
       throw new Error(

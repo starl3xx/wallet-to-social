@@ -49,7 +49,9 @@ import { sql } from 'drizzle-orm';
 const STATE_KEY = 'holder_index_usage';
 
 /** Daily compute-unit ceiling on the plan. Free tier is 40,000. */
-export const DAILY_CU_LIMIT = Number(process.env.HOLDER_INDEX_DAILY_CU ?? 40_000);
+export const DAILY_CU_LIMIT = Number(
+  process.env.HOLDER_INDEX_DAILY_CU ?? 40_000
+);
 
 /**
  * Compute units per holder-page request.
@@ -69,7 +71,9 @@ export const DAILY_CU_LIMIT = Number(process.env.HOLDER_INDEX_DAILY_CU ?? 40_000
  * allowance is worth about **7.9 such imports a day**, not the 11 the old figure
  * implied.
  */
-export const CU_PER_REQUEST = Number(process.env.HOLDER_INDEX_CU_PER_REQUEST ?? 50);
+export const CU_PER_REQUEST = Number(
+  process.env.HOLDER_INDEX_CU_PER_REQUEST ?? 50
+);
 
 /**
  * Share of the day held back for customer imports.
@@ -219,7 +223,10 @@ export async function checkHolderIndexBudget(
   try {
     spent = await getRollingSpend();
   } catch (error) {
-    console.error('checkHolderIndexBudget: could not read spend, allowing:', error);
+    console.error(
+      'checkHolderIndexBudget: could not read spend, allowing:',
+      error
+    );
     return {
       allowed: true,
       spent: 0,

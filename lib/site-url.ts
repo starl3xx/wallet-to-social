@@ -55,7 +55,8 @@ export function getSiteUrl(): string {
 
   // Preview deployments get their own hostname, supplied without a scheme.
   const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return `https://${vercelUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
+  if (vercelUrl)
+    return `https://${vercelUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
 
   // Anything still running on Vercel at this point has no origin we can name,
   // and guessing produces exactly the silent breakage this module exists to

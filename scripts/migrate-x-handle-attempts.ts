@@ -72,7 +72,9 @@ async function main() {
     SELECT count(*)::int AS n FROM x_handle_attempts
   `) as unknown as Array<{ n: number }>;
   console.log(`\nx_handle_attempts holds ${rows[0].n} row(s).`);
-  console.log('Remember: add x_handle_attempts to scripts/migrate-grant-readonly.ts');
+  console.log(
+    'Remember: add x_handle_attempts to scripts/migrate-grant-readonly.ts'
+  );
 }
 
 main().catch((e) => {

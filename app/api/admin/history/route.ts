@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -38,7 +41,9 @@ export async function GET(request: NextRequest) {
 
     // Apply user filter if provided
     if (userId) {
-      query = query.where(like(lookupHistory.userId, `%${userId}%`)) as typeof query;
+      query = query.where(
+        like(lookupHistory.userId, `%${userId}%`)
+      ) as typeof query;
     }
 
     const entries = await query;
@@ -46,7 +51,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ entries });
   } catch (error) {
     console.error('History fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch history' },
+      { status: 500 }
+    );
   }
 }
 
@@ -57,7 +65,10 @@ export async function DELETE(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -80,6 +91,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('History delete error:', error);
-    return NextResponse.json({ error: 'Failed to delete entry' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to delete entry' },
+      { status: 500 }
+    );
   }
 }

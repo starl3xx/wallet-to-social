@@ -54,7 +54,9 @@ let failed = 0;
 for (const [[L, C, h], expected] of FIXTURES) {
   const got = hex(oklchToRgb(L, C, h));
   if (got !== expected) {
-    console.error(`FIXTURE FAIL  oklch(${L} ${C} ${h}) -> ${got}, expected ${expected}`);
+    console.error(
+      `FIXTURE FAIL  oklch(${L} ${C} ${h}) -> ${got}, expected ${expected}`
+    );
     failed++;
   }
 }
@@ -62,12 +64,16 @@ for (const [[L, C, h], expected] of FIXTURES) {
 {
   const r = contrast(oklchToRgb(0.985, 0, 0), oklchToRgb(0.145, 0, 0));
   if (Math.abs(r - 18.97) > 0.05) {
-    console.error(`FIXTURE FAIL  body-text ratio ${r.toFixed(2)}, expected ~18.97`);
+    console.error(
+      `FIXTURE FAIL  body-text ratio ${r.toFixed(2)}, expected ~18.97`
+    );
     failed++;
   }
 }
 if (failed) {
-  console.error(`\n${failed} fixture(s) failed. The colour conversion is wrong, so every number below would be too.`);
+  console.error(
+    `\n${failed} fixture(s) failed. The colour conversion is wrong, so every number below would be too.`
+  );
   process.exit(1);
 }
 
@@ -105,7 +111,9 @@ for (const [theme, body] of Object.entries(THEMES)) {
     const a = token(body, fg);
     const b = token(body, bg);
     if (!a || !b) {
-      hits.push(`${theme} ${label}: token --${!a ? fg : bg} not found as an opaque oklch value`);
+      hits.push(
+        `${theme} ${label}: token --${!a ? fg : bg} not found as an opaque oklch value`
+      );
       continue;
     }
     if (a.alpha || b.alpha) {

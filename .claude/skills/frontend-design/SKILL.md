@@ -11,6 +11,7 @@ The user provides frontend requirements: a component, page, application, or inte
 ## Design Thinking
 
 Before coding, understand the context and commit to a BOLD aesthetic direction:
+
 - **Purpose**: What problem does this interface solve? Who uses it?
 - **Tone**: Pick an extreme: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, etc. There are so many flavors to choose from. Use these for inspiration but design one that is true to the aesthetic direction.
 - **Constraints**: Technical requirements (framework, performance, accessibility).
@@ -19,6 +20,7 @@ Before coding, understand the context and commit to a BOLD aesthetic direction:
 **CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
 
 Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
+
 - Production-grade and functional
 - Visually striking and memorable
 - Cohesive with a clear aesthetic point-of-view
@@ -27,6 +29,7 @@ Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
 ## Frontend Aesthetics Guidelines
 
 Focus on:
+
 - **Typography**: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
 - **Color & Theme**: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
 - **Motion**: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
@@ -76,6 +79,7 @@ the user asked for by name.
 **The user prefers a Stripe-like design language for this project.** Reference these characteristics:
 
 ### Visual Language
+
 - **Clean minimalism**: Generous whitespace, uncluttered layouts, clear visual hierarchy
 - **Soft rounded corners**: five named values, no others. `rounded-lg` for cards,
   panels, inputs and modals (14px); `rounded-full` for buttons and segmented
@@ -86,6 +90,7 @@ the user asked for by name.
 - **Refined shadows**: Minimal, soft box-shadows for elevation when needed
 
 ### Color Palette
+
 **Write the token, never the hex.** `app/globals.css` already holds the values
 below, an ESLint rule and `.github/workflows/design-tokens.yml` both reject a raw
 colour, and the tokens are theme-aware so a `dark:` variant restating the same
@@ -101,11 +106,13 @@ token is redundant. This section names the intent; the token is the value.
 - **Backgrounds**: `background`, with `muted` for the occasional lighter section.
 
 ### Typography
+
 - **Bold, confident headings**: Large, heavy-weight titles that anchor the page
 - **Clear hierarchy**: Distinct sizing between headings, subheadings, body, and captions
 - **Comfortable line-height**: Readable, well-spaced text blocks
 
 ### Components
+
 - **Cards**: Light border, white background, comfortable padding (24px+)
 - **Buttons**: Solid primary color, white text, subtle hover states
 - **Form elements**: Clean radio buttons, select dropdowns with subtle styling
@@ -113,5 +120,6 @@ token is redundant. This section names the intent; the token is the value.
 - **Links**: Colored text (indigo/blue), no underline by default
 
 ### Interaction
+
 - **Subtle hover states**: Gentle background color shifts, not dramatic transforms
 - **Professional feel**: Trustworthy, refined, never playful or gimmicky

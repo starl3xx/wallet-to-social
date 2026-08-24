@@ -14,11 +14,17 @@ export async function POST(request: Request) {
     const { usernames } = await request.json();
 
     if (!Array.isArray(usernames) || usernames.length === 0) {
-      return NextResponse.json({ error: 'usernames array required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'usernames array required' },
+        { status: 400 }
+      );
     }
 
     if (!isNeynarConfigured()) {
-      return NextResponse.json({ error: 'Neynar not configured' }, { status: 503 });
+      return NextResponse.json(
+        { error: 'Neynar not configured' },
+        { status: 503 }
+      );
     }
 
     const apiKey = process.env.NEYNAR_API_KEY!;

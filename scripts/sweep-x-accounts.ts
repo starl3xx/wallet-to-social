@@ -31,7 +31,9 @@ const arg = (name: string, fallback: number): number => {
 async function main() {
   const key = resolverKey();
   if (!isConfigured()) {
-    console.error('X_RESOLVER_API_BASE and X_RESOLVER_API_KEY are both required');
+    console.error(
+      'X_RESOLVER_API_BASE and X_RESOLVER_API_KEY are both required'
+    );
     process.exit(1);
   }
   if (!process.env.DATABASE_URL) {
@@ -43,7 +45,9 @@ async function main() {
   const dry = process.argv.includes('--dry');
 
   const balance = await remainingCredits(key);
-  console.log(`credits available: ${balance === null ? 'unknown' : balance.toLocaleString()}`);
+  console.log(
+    `credits available: ${balance === null ? 'unknown' : balance.toLocaleString()}`
+  );
 
   /**
    * Never spend more than nine tenths of what is there.
@@ -53,18 +57,23 @@ async function main() {
    * The lesson was not "add a guard", it was "a guard you cannot see working is
    * not a guard", so this one prints what it will allow before it starts.
    */
-  const defaultCap = balance === null ? limit * CREDITS_PER_LOOKUP : Math.floor(balance * 0.9);
+  const defaultCap =
+    balance === null ? limit * CREDITS_PER_LOOKUP : Math.floor(balance * 0.9);
   const creditCap = arg('credit-cap', defaultCap);
 
   const handles = await pendingHandles(limit);
-  console.log(`handles to resolve this run: ${handles.length.toLocaleString()}`);
+  console.log(
+    `handles to resolve this run: ${handles.length.toLocaleString()}`
+  );
   console.log(
     `credit cap: ${creditCap.toLocaleString()} ` +
       `(this run would spend at most ${(handles.length * CREDITS_PER_LOOKUP).toLocaleString()})`
   );
 
   if (handles.length === 0) {
-    console.log('\nnothing pending. every handle has been checked inside the stale window.');
+    console.log(
+      '\nnothing pending. every handle has been checked inside the stale window.'
+    );
     return;
   }
   if (dry) {
@@ -89,14 +98,20 @@ async function main() {
   const seconds = (Date.now() - started) / 1000;
   const answered = progress.live + progress.notFound + progress.unavailable;
   console.log(`\n${'─'.repeat(64)}`);
-  console.log(`checked        ${progress.checked.toLocaleString()} in ${seconds.toFixed(0)}s`);
+  console.log(
+    `checked        ${progress.checked.toLocaleString()} in ${seconds.toFixed(0)}s`
+  );
   console.log(`  live         ${progress.live.toLocaleString()}`);
   console.log(
     `  not found    ${progress.notFound.toLocaleString()}` +
-      (answered ? `  (${((progress.notFound / answered) * 100).toFixed(2)}%)` : '')
+      (answered
+        ? `  (${((progress.notFound / answered) * 100).toFixed(2)}%)`
+        : '')
   );
   console.log(`  unavailable  ${progress.unavailable.toLocaleString()}`);
-  console.log(`  failed       ${progress.failed.toLocaleString()}  (not recorded, will retry)`);
+  console.log(
+    `  failed       ${progress.failed.toLocaleString()}  (not recorded, will retry)`
+  );
   console.log(`credits spent  ${progress.creditsSpent.toLocaleString()}`);
   const after = await remainingCredits(key);
   if (after !== null) console.log(`credits left   ${after.toLocaleString()}`);

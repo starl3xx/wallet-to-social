@@ -92,7 +92,9 @@ async function main() {
     );
     process.exit(1);
   }
-  console.log('\nverified: three columns, one index, every delivered row counted');
+  console.log(
+    '\nverified: three columns, one index, every delivered row counted'
+  );
 }
 
 main().catch((e) => {

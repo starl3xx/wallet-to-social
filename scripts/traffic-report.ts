@@ -75,7 +75,9 @@ async function main() {
   `;
   console.table(perDay);
 
-  section('4. GENUINE USER-INITIATED LOOKUPS (file_upload / text_input), LAST 60 DAYS');
+  section(
+    '4. GENUINE USER-INITIATED LOOKUPS (file_upload / text_input), LAST 60 DAYS'
+  );
   const userJobs = await sql`
     SELECT to_char(created_at, 'MM-DD HH24:MI') AS created,
            options->>'inputSource' AS source,
@@ -91,7 +93,9 @@ async function main() {
   `;
   console.table(userJobs);
 
-  section('5. SAVED LOOKUP HISTORY — strongest signal of a real returning user');
+  section(
+    '5. SAVED LOOKUP HISTORY — strongest signal of a real returning user'
+  );
   const history = await sql`
     SELECT to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created,
            user_id, input_source, wallet_count, twitter_found AS tw, farcaster_found AS fc,
@@ -145,7 +149,9 @@ async function main() {
   `;
   console.table(events);
 
-  section('9. DISTINCT SESSIONS PER DAY, LAST 14 DAYS — the real traffic curve');
+  section(
+    '9. DISTINCT SESSIONS PER DAY, LAST 14 DAYS — the real traffic curve'
+  );
   const sessions = await sql`
     SELECT to_char(created_at, 'YYYY-MM-DD') AS day,
            count(DISTINCT session_id) AS sessions,

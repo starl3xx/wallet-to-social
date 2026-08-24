@@ -32,7 +32,10 @@ import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
 import { checkBackgroundBudget } from './neynar-budget';
-import { checkHolderIndexBudget, estimateRequests } from './holder-index-budget';
+import {
+  checkHolderIndexBudget,
+  estimateRequests,
+} from './holder-index-budget';
 
 // Per-contract holder cap: bounds daily external-API spend for the social
 // resolution of never-seen wallets. Negatives persist, so re-encounters of
@@ -49,12 +52,22 @@ const FAILURE_RETRY_DAYS = 2;
 
 // Base/quote tokens that appear in every trending pool but aren't communities
 const TOKEN_DENYLIST = new Set([
-  'weth', 'usdc', 'usdt', 'dai', 'wbtc', 'cbeth', 'wsteth', 'cbbtc', 'usdbc', 'eth',
+  'weth',
+  'usdc',
+  'usdt',
+  'dai',
+  'wbtc',
+  'cbeth',
+  'wsteth',
+  'cbbtc',
+  'usdbc',
+  'eth',
 ]);
 
 // Infrastructure NFTs that rank top-by-holders but aren't communities —
 // their holder lists are "everyone who ever LP'd", not an audience
-const NFT_NAME_DENYLIST = /uniswap|position|aerodrome|slipstream|liquidity|\bLP\b/i;
+const NFT_NAME_DENYLIST =
+  /uniswap|position|aerodrome|slipstream|liquidity|\bLP\b/i;
 
 const OPENSEA_CHAIN_SLUGS: Record<SupportedChain, string> = {
   ethereum: 'ethereum',
@@ -107,8 +120,13 @@ async function getOpenSeaKey(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error(`OpenSea temp key request failed: ${res.status}`);
-  const json = (await res.json()) as { api_key?: string; apiKey?: string; key?: string };
+  if (!res.ok)
+    throw new Error(`OpenSea temp key request failed: ${res.status}`);
+  const json = (await res.json()) as {
+    api_key?: string;
+    apiKey?: string;
+    key?: string;
+  };
   const key = json.api_key ?? json.apiKey ?? json.key;
   if (!key) throw new Error('OpenSea temp key response had no key field');
   cachedTempKey = key;
@@ -126,7 +144,9 @@ interface OpenSeaCollection {
 }
 
 /** Top + trending NFT collections on a chain, best-ranked first, deduped. */
-export async function discoverNftCandidates(chain: SupportedChain): Promise<SeedCandidate[]> {
+export async function discoverNftCandidates(
+  chain: SupportedChain
+): Promise<SeedCandidate[]> {
   const slug = OPENSEA_CHAIN_SLUGS[chain];
   const candidates: SeedCandidate[] = [];
   const seen = new Set<string>();
@@ -145,12 +165,17 @@ export async function discoverNftCandidates(chain: SupportedChain): Promise<Seed
 
     for (const url of urls) {
       try {
-        const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+        const res = await fetch(url, {
+          headers,
+          signal: AbortSignal.timeout(15000),
+        });
         if (!res.ok) {
           console.error(`OpenSea discovery ${res.status} for ${url}`);
           continue;
         }
-        const json = (await res.json()) as { collections?: OpenSeaCollection[] };
+        const json = (await res.json()) as {
+          collections?: OpenSeaCollection[];
+        };
         for (const col of json.collections ?? []) {
           const contract = (col.contracts ?? []).find(
             (c) => c.chain === slug && c.address?.startsWith('0x')
@@ -168,7 +193,10 @@ export async function discoverNftCandidates(chain: SupportedChain): Promise<Seed
       }
     }
   } catch (error) {
-    console.error(`OpenSea unavailable for ${chain}:`, (error as Error).message);
+    console.error(
+      `OpenSea unavailable for ${chain}:`,
+      (error as Error).message
+    );
   }
 
   // Robinhood Chain must not depend on OpenSea (temp-key provisioning is
@@ -199,7 +227,10 @@ async function discoverRobinhoodNftFallback(): Promise<SeedCandidate[]> {
   // which lets priced collections outrank larger audiences
   const res = await fetch(
     'https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-721&sort=holders_count&order=desc',
-    { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) }
+    {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    }
   );
   if (!res.ok) throw new Error(`Blockscout ${res.status}`);
   const json = (await res.json()) as { items?: BlockscoutToken[] };
@@ -221,7 +252,9 @@ interface GeckoPool {
 }
 
 /** Trending token contracts on a chain via GeckoTerminal, deduped. */
-export async function discoverTokenCandidates(chain: SupportedChain): Promise<SeedCandidate[]> {
+export async function discoverTokenCandidates(
+  chain: SupportedChain
+): Promise<SeedCandidate[]> {
   const network = GECKO_NETWORKS[chain];
   const url = `https://api.geckoterminal.com/api/v2/networks/${network}/trending_pools?page=1`;
 
@@ -246,7 +279,10 @@ export async function discoverTokenCandidates(chain: SupportedChain): Promise<Se
     if (!address.startsWith('0x') || seen.has(address)) continue;
 
     // "BUB / WETH" → the pool's base symbol; skip infra tokens
-    const baseSymbol = (pool.attributes?.name ?? '').split('/')[0]?.trim().toLowerCase();
+    const baseSymbol = (pool.attributes?.name ?? '')
+      .split('/')[0]
+      ?.trim()
+      .toLowerCase();
     if (baseSymbol && TOKEN_DENYLIST.has(baseSymbol)) continue;
 
     seen.add(address);
@@ -284,7 +320,10 @@ export async function selectNovelCandidates(
         OR
         (holders_imported = 0 AND last_seeded_at > now() - make_interval(days => ${FAILURE_RETRY_DAYS}))
       )
-      AND address IN (${sql.join(addresses.map((a) => sql`${a}`), sql`, `)})
+      AND address IN (${sql.join(
+        addresses.map((a) => sql`${a}`),
+        sql`, `
+      )})
   `)) as unknown as { rows: Array<{ address: string }> };
 
   const recentlySeeded = new Set(result.rows.map((r) => r.address));
@@ -360,11 +399,16 @@ async function recordSeed(
   `);
 
   for (let i = 0; i < holders.wallets.length; i += 1000) {
-    const batch = holders.wallets.slice(i, i + 1000).map((w) => w.toLowerCase());
+    const batch = holders.wallets
+      .slice(i, i + 1000)
+      .map((w) => w.toLowerCase());
     await db.execute(sql`
       INSERT INTO wallet_holdings (wallet, contract, chain, contract_type)
       VALUES ${sql.join(
-        batch.map((w) => sql`(${w}, ${candidate.address}, ${candidate.chain}, ${holders.contractType})`),
+        batch.map(
+          (w) =>
+            sql`(${w}, ${candidate.address}, ${candidate.chain}, ${holders.contractType})`
+        ),
         sql`, `
       )}
       ON CONFLICT (wallet, contract, chain) DO UPDATE SET last_seen_at = now()
@@ -373,7 +417,9 @@ async function recordSeed(
 }
 
 /** Import one contract's holders and queue them through the lookup pipeline. */
-export async function seedContract(candidate: SeedCandidate): Promise<SeedRunResult> {
+export async function seedContract(
+  candidate: SeedCandidate
+): Promise<SeedRunResult> {
   /**
    * An ERC-20 seed draws on the same daily allowance a paying customer's
    * contract import needs, and the customer is by far the larger consumer of
@@ -388,7 +434,9 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
    * provider and cannot spend this allowance at all.
    */
   if (candidate.kind === 'erc20' && usesMeteredHolderIndex(candidate.chain)) {
-    const indexBudget = await checkHolderIndexBudget(estimateRequests(HOLDER_CAP));
+    const indexBudget = await checkHolderIndexBudget(
+      estimateRequests(HOLDER_CAP)
+    );
     if (!indexBudget.allowed) {
       console.log(`Seed skipped, holder index budget: ${indexBudget.reason}`);
       /**
@@ -428,9 +476,14 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
    * ERC-20 index that chain has, not a fallback, so this flag never applies to
    * it. The rule is about *borrowing* an alternative, not about explorers.
    */
-  const holders = await getContractHolders(candidate.address, candidate.chain, HOLDER_CAP, {
-    allowPublicFallback: false,
-  });
+  const holders = await getContractHolders(
+    candidate.address,
+    candidate.chain,
+    HOLDER_CAP,
+    {
+      allowPublicFallback: false,
+    }
+  );
 
   // Decided before recording: recordSeed needs to know whether this contract
   // should count as finished or stay in the retry window.
@@ -463,14 +516,18 @@ export async function seedContract(candidate: SeedCandidate): Promise<SeedRunRes
     );
   }
   if (resolutionQueued) {
-    jobId = await createJob(holders.wallets, {}, {
-      includeENS: false,
-      saveToHistory: false,
-      canUseNeynar: true,
-      canUseENS: false,
-      tier: 'unlimited', // System job — full pipeline access
-      inputSource: 'seed_cron',
-    });
+    jobId = await createJob(
+      holders.wallets,
+      {},
+      {
+        includeENS: false,
+        saveToHistory: false,
+        canUseNeynar: true,
+        canUseENS: false,
+        tier: 'unlimited', // System job — full pipeline access
+        inputSource: 'seed_cron',
+      }
+    );
   }
 
   trackEvent('lookup_completed', {
@@ -530,12 +587,21 @@ class SeedBudgetTimeout extends Error {}
 /** Reject if the promise outlives ms. The underlying work may still complete
  *  in the background before function teardown — that's harmless here: seed
  *  writes are idempotent and a late-created job is a real job. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new SeedBudgetTimeout(`${label} exceeded ${Math.round(ms / 1000)}s budget`)),
+        () =>
+          reject(
+            new SeedBudgetTimeout(
+              `${label} exceeded ${Math.round(ms / 1000)}s budget`
+            )
+          ),
         ms
       )
     ),
@@ -589,10 +655,17 @@ async function seedFirstViable(
       // Hard wall-clock bound: the attempt may use all remaining budget
       // minus the cleanup margin, but can never exceed it — regardless of
       // how many sequential requests the holder fetch makes internally
-      return await withTimeout(seedContract(candidate), attemptBudget, candidate.label);
+      return await withTimeout(
+        seedContract(candidate),
+        attemptBudget,
+        candidate.label
+      );
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
-      console.error(`Seed failed for ${candidate.label} (${candidate.address}):`, lastError);
+      console.error(
+        `Seed failed for ${candidate.label} (${candidate.address}):`,
+        lastError
+      );
       if (error instanceof SeedBudgetTimeout) {
         // Informative timeout (near-full budget, still too slow): keep the
         // 2-day lockout so a perpetually-slow contract can't retry first
@@ -603,7 +676,12 @@ async function seedFirstViable(
         }
         // Either way, stop attempting: no time left for another try
         return {
-          contract: { address: '?', chain, kind, label: 'time budget exhausted' },
+          contract: {
+            address: '?',
+            chain,
+            kind,
+            label: 'time budget exhausted',
+          },
           holdersImported: 0,
           totalHolders: 0,
           jobId: null,
@@ -639,14 +717,23 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   // so adding a chain can never silently stop seeding it, which is exactly the
   // bug this replaces.
   const SEED_ORDER: SupportedChain[] = [
-    'robinhood', 'ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc',
+    'robinhood',
+    'ethereum',
+    'base',
+    'arbitrum',
+    'polygon',
+    'optimism',
+    'bsc',
   ];
   const chains: SupportedChain[] = [
     ...SEED_ORDER.filter((c) => SUPPORTED_CHAINS.includes(c)),
     ...SUPPORTED_CHAINS.filter((c) => !SEED_ORDER.includes(c)),
   ];
 
-  const budgetExhausted = (chain: SupportedChain, kind: 'nft' | 'erc20'): SeedRunResult => ({
+  const budgetExhausted = (
+    chain: SupportedChain,
+    kind: 'nft' | 'erc20'
+  ): SeedRunResult => ({
     contract: { address: '?', chain, kind, label: 'time budget exhausted' },
     holdersImported: 0,
     totalHolders: 0,
@@ -663,10 +750,17 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     }
     try {
       const nftCandidates = await discoverNftCandidates(chain);
-      results.push(await seedFirstViable(nftCandidates, chain, 'nft', deadline));
+      results.push(
+        await seedFirstViable(nftCandidates, chain, 'nft', deadline)
+      );
     } catch (error) {
       results.push({
-        contract: { address: '?', chain, kind: 'nft', label: 'discovery failed' },
+        contract: {
+          address: '?',
+          chain,
+          kind: 'nft',
+          label: 'discovery failed',
+        },
         holdersImported: 0,
         totalHolders: 0,
         jobId: null,
@@ -683,10 +777,17 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
       }
       try {
         const tokenCandidates = await discoverTokenCandidates(chain);
-        results.push(await seedFirstViable(tokenCandidates, chain, 'erc20', deadline));
+        results.push(
+          await seedFirstViable(tokenCandidates, chain, 'erc20', deadline)
+        );
       } catch (error) {
         results.push({
-          contract: { address: '?', chain, kind: 'erc20', label: 'discovery failed' },
+          contract: {
+            address: '?',
+            chain,
+            kind: 'erc20',
+            label: 'discovery failed',
+          },
           holdersImported: 0,
           totalHolders: 0,
           jobId: null,

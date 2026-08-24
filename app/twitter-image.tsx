@@ -9,7 +9,8 @@ import OGImage from './opengraph-image';
  * Only `alt` differs, because the two are read in different places.
  */
 export const runtime = 'edge';
-export const alt = 'walletlink.social | Wallet-to-social lookup for crypto teams';
+export const alt =
+  'walletlink.social | Wallet-to-social lookup for crypto teams';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

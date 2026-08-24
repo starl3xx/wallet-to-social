@@ -91,7 +91,10 @@ export async function fetchWeb3BioProfile(
     if (error instanceof Error && error.name === 'AbortError') {
       console.error(`Web3.bio request timed out for ${walletOrEns}`);
     } else {
-      console.error(`Error fetching Web3.bio profile for ${walletOrEns}:`, error);
+      console.error(
+        `Error fetching Web3.bio profile for ${walletOrEns}:`,
+        error
+      );
     }
     opts?.onFailure?.();
     return null;

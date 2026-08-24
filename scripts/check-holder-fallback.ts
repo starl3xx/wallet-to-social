@@ -70,11 +70,31 @@ interface Probe {
 }
 
 const PROBES: Probe[] = [
-  { chain: 'ethereum', token: '0x163f8c2467924be0ae7b5347228cabf260318753', symbol: 'WLD' },
-  { chain: 'base', token: '0x236aa50979d5f3de3bd1eeb40e81137f22ab794b', symbol: 'TBTC' },
-  { chain: 'arbitrum', token: '0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8', symbol: 'PENDLE' },
-  { chain: 'polygon', token: '0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39', symbol: 'LINK' },
-  { chain: 'optimism', token: '0x93919784c523f39cacaa98ee0a9d96c3f32b593e', symbol: 'UNIBTC' },
+  {
+    chain: 'ethereum',
+    token: '0x163f8c2467924be0ae7b5347228cabf260318753',
+    symbol: 'WLD',
+  },
+  {
+    chain: 'base',
+    token: '0x236aa50979d5f3de3bd1eeb40e81137f22ab794b',
+    symbol: 'TBTC',
+  },
+  {
+    chain: 'arbitrum',
+    token: '0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8',
+    symbol: 'PENDLE',
+  },
+  {
+    chain: 'polygon',
+    token: '0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39',
+    symbol: 'LINK',
+  },
+  {
+    chain: 'optimism',
+    token: '0x93919784c523f39cacaa98ee0a9d96c3f32b593e',
+    symbol: 'UNIBTC',
+  },
 ];
 
 /**
@@ -89,8 +109,12 @@ const PROBE_LIMIT = 200;
 async function main() {
   // Every value this script needs, loaded after the env change above. See the
   // note on the type-only import at the top before moving any of these out.
-  const { getContractHolders, CHAIN_LABELS, hasPublicHolderFallback, SUPPORTED_CHAINS } =
-    await import('../lib/contract-holders');
+  const {
+    getContractHolders,
+    CHAIN_LABELS,
+    hasPublicHolderFallback,
+    SUPPORTED_CHAINS,
+  } = await import('../lib/contract-holders');
 
   /**
    * Every chain that claims a fallback must be probed.
@@ -130,7 +154,11 @@ async function main() {
   async function probeOnce(probe: Probe, label: string): Promise<Attempt> {
     const startedAt = Date.now();
     try {
-      const result = await getContractHolders(probe.token, probe.chain, PROBE_LIMIT);
+      const result = await getContractHolders(
+        probe.token,
+        probe.chain,
+        PROBE_LIMIT
+      );
       const ms = Date.now() - startedAt;
 
       /**
@@ -142,7 +170,9 @@ async function main() {
        * An *empty* list needs no branch here: `getContractHolders` raises
        * NO_HOLDERS before returning one, and that is handled below.
        */
-      const malformed = result.wallets.filter((w) => !/^0x[0-9a-f]{40}$/.test(w));
+      const malformed = result.wallets.filter(
+        (w) => !/^0x[0-9a-f]{40}$/.test(w)
+      );
       if (malformed.length > 0) {
         return {
           busy: false,
@@ -155,7 +185,9 @@ async function main() {
       console.log(
         `  ok   ${label.padEnd(15)} ${String(result.wallets.length).padStart(4)} holders ` +
           `of ${probe.symbol} in ${(ms / 1000).toFixed(1)}s` +
-          (result.totalHolders > 0 ? ` (of ${result.totalHolders.toLocaleString()} total)` : '')
+          (result.totalHolders > 0
+            ? ` (of ${result.totalHolders.toLocaleString()} total)`
+            : '')
       );
       return null;
     } catch (error) {
@@ -232,7 +264,9 @@ async function main() {
      */
     let attempt = await probeOnce(probe, label);
     if (attempt !== null && attempt.busy === false) {
-      console.log(`  ...  ${label.padEnd(15)} first attempt failed, retrying once`);
+      console.log(
+        `  ...  ${label.padEnd(15)} first attempt failed, retrying once`
+      );
       await new Promise((r) => setTimeout(r, 3_000));
       attempt = await probeOnce(probe, label);
     }
@@ -260,7 +294,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Holder fallback intact on all ${claimed.length} chains that claim one.`);
+  console.log(
+    `Holder fallback intact on all ${claimed.length} chains that claim one.`
+  );
 }
 
 main().catch((error) => {

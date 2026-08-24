@@ -54,14 +54,18 @@ async function main() {
   const after = (await sql`
     SELECT count(*)::int AS n FROM x_accounts WHERE last_live_user_id IS NOT NULL
   `) as unknown as Array<{ n: number }>;
-  console.log(`backfilled ${(after[0].n - before[0].n).toLocaleString()} rows (now ${after[0].n.toLocaleString()} carry one)`);
+  console.log(
+    `backfilled ${(after[0].n - before[0].n).toLocaleString()} rows (now ${after[0].n.toLocaleString()} carry one)`
+  );
 
   await sql`
     CREATE INDEX CONCURRENTLY IF NOT EXISTS x_accounts_last_live_user_id_idx
     ON x_accounts (last_live_user_id) WHERE last_live_user_id IS NOT NULL
   `;
   console.log('index x_accounts_last_live_user_id_idx: ok');
-  console.log('\nx_handle_attempts and x_accounts are already granted to sweep_runner.');
+  console.log(
+    '\nx_handle_attempts and x_accounts are already granted to sweep_runner.'
+  );
 }
 
 main().catch((e) => {

@@ -69,7 +69,9 @@ async function main() {
   console.log(`  has ens         ${n(size.has_ens)}`);
   console.log(`  has lens        ${n(size.has_lens)}`);
   console.log(`  has github      ${n(size.has_github)}`);
-  console.log(`  reachable       ${n(size.reachable)}  (${((Number(size.reachable) / total) * 100).toFixed(1)}%)`);
+  console.log(
+    `  reachable       ${n(size.reachable)}  (${((Number(size.reachable) / total) * 100).toFixed(1)}%)`
+  );
   console.log(`  no identity     ${n(size.empty_rows)}  (negatives + empties)`);
 
   // ── Negatives ───────────────────────────────────────────────────────────
@@ -115,18 +117,66 @@ async function main() {
                           OR ens_name = '' OR lens = '' OR github = '')     AS empty_strings
     FROM social_graph
   `) as Row[];
-  finding('wallets not lowercase', Number(fmt.wallet_not_lower), 'Every lookup lowercases before it queries, so these can never be hit.');
-  finding('wallets not a 0x + 40 hex address', Number(fmt.wallet_malformed), 'Cannot be matched by any lookup. Inspect before deleting.');
-  finding('twitter handles with a leading @', Number(fmt.tw_at_prefix), 'Breaks reverse lookup and the exported x.com URL.');
-  finding('twitter handles holding a URL', Number(fmt.tw_is_url), 'A handle column with a URL in it. Needs inspection, not a blind strip.');
-  finding('twitter handles outside X’s charset (a-z 0-9 _, max 15)', Number(fmt.tw_not_a_handle), 'Cannot be a real account. The exported x.com link 404s.');
-  finding('twitter handles containing whitespace', Number(fmt.tw_whitespace), 'Not a handle. Inspect.');
-  finding('twitter handles not lowercase', Number(fmt.tw_mixed_case), 'X handles are case-insensitive, so these split one account across rows.');
-  finding('farcaster names with a leading @', Number(fmt.fc_at_prefix), 'Same as above.');
-  finding('farcaster names not lowercase', Number(fmt.fc_mixed_case), 'Farcaster usernames are lowercase.');
-  finding('ens names with no dot', Number(fmt.ens_no_dot), 'Not a resolvable name.');
-  finding('ens names not lowercase', Number(fmt.ens_mixed_case), 'ENS normalises to lowercase.');
-  finding('empty strings where NULL belongs', Number(fmt.empty_strings), 'Reads as "has an identity" in every count we publish.');
+  finding(
+    'wallets not lowercase',
+    Number(fmt.wallet_not_lower),
+    'Every lookup lowercases before it queries, so these can never be hit.'
+  );
+  finding(
+    'wallets not a 0x + 40 hex address',
+    Number(fmt.wallet_malformed),
+    'Cannot be matched by any lookup. Inspect before deleting.'
+  );
+  finding(
+    'twitter handles with a leading @',
+    Number(fmt.tw_at_prefix),
+    'Breaks reverse lookup and the exported x.com URL.'
+  );
+  finding(
+    'twitter handles holding a URL',
+    Number(fmt.tw_is_url),
+    'A handle column with a URL in it. Needs inspection, not a blind strip.'
+  );
+  finding(
+    'twitter handles outside X’s charset (a-z 0-9 _, max 15)',
+    Number(fmt.tw_not_a_handle),
+    'Cannot be a real account. The exported x.com link 404s.'
+  );
+  finding(
+    'twitter handles containing whitespace',
+    Number(fmt.tw_whitespace),
+    'Not a handle. Inspect.'
+  );
+  finding(
+    'twitter handles not lowercase',
+    Number(fmt.tw_mixed_case),
+    'X handles are case-insensitive, so these split one account across rows.'
+  );
+  finding(
+    'farcaster names with a leading @',
+    Number(fmt.fc_at_prefix),
+    'Same as above.'
+  );
+  finding(
+    'farcaster names not lowercase',
+    Number(fmt.fc_mixed_case),
+    'Farcaster usernames are lowercase.'
+  );
+  finding(
+    'ens names with no dot',
+    Number(fmt.ens_no_dot),
+    'Not a resolvable name.'
+  );
+  finding(
+    'ens names not lowercase',
+    Number(fmt.ens_mixed_case),
+    'ENS normalises to lowercase.'
+  );
+  finding(
+    'empty strings where NULL belongs',
+    Number(fmt.empty_strings),
+    'Reads as "has an identity" in every count we publish.'
+  );
 
   // ── Duplicate identity ──────────────────────────────────────────────────
   section('DUPLICATE IDENTITY');
@@ -142,8 +192,12 @@ async function main() {
       GROUP BY 1 HAVING count(*) > 1
     ) d
   `) as Row[];
-  console.log(`  twitter handles on more than one wallet: ${n(tw.handles_on_many_wallets)}`);
-  console.log(`    wallets involved ${n(tw.wallets_involved)}, largest cluster ${n(tw.worst)}`);
+  console.log(
+    `  twitter handles on more than one wallet: ${n(tw.handles_on_many_wallets)}`
+  );
+  console.log(
+    `    wallets involved ${n(tw.wallets_involved)}, largest cluster ${n(tw.worst)}`
+  );
   console.log(`    Expected, and not a fault: one person owns many wallets.`);
 
   const [twCase] = (await sql`
@@ -179,7 +233,9 @@ async function main() {
       GROUP BY 1 HAVING count(*) > 1
     ) d
   `) as Row[];
-  console.log(`  farcaster ids on more than one wallet: ${n(fid.fids)} (largest ${n(fid.worst)})`);
+  console.log(
+    `  farcaster ids on more than one wallet: ${n(fid.fids)} (largest ${n(fid.worst)})`
+  );
   console.log(`    Expected: an account verifies several addresses.`);
 
   const [fidName] = (await sql`
@@ -217,20 +273,54 @@ async function main() {
       count(*) FILTER (WHERE is_agent AND agent_name IS NULL)                 AS agent_no_name
     FROM social_graph
   `) as Row[];
-  finding('twitter_verified with no handle', Number(con.tw_verified_no_handle), 'Claims attestation for an identity that is not there.');
-  finding('farcaster_verified with no username', Number(con.fc_verified_no_name), 'Same.');
-  finding('fc_fid with no username', Number(con.fid_no_name), 'Half a Farcaster identity.');
-  finding('farcaster username with no fc_fid', Number(con.name_no_fid), 'Cannot be DMed. Blocks the Unlimited DM feature.');
-  finding('twitter_url with no handle', Number(con.url_no_handle), 'The URL holds the handle we say we do not have.');
-  finding('twitter_url not matching its handle', Number(con.url_handle_mismatch), 'One of the two is wrong; the export uses the URL.');
-  finding('data_quality_score outside 0..100', Number(con.score_out_of_range), '');
+  finding(
+    'twitter_verified with no handle',
+    Number(con.tw_verified_no_handle),
+    'Claims attestation for an identity that is not there.'
+  );
+  finding(
+    'farcaster_verified with no username',
+    Number(con.fc_verified_no_name),
+    'Same.'
+  );
+  finding(
+    'fc_fid with no username',
+    Number(con.fid_no_name),
+    'Half a Farcaster identity.'
+  );
+  finding(
+    'farcaster username with no fc_fid',
+    Number(con.name_no_fid),
+    'Cannot be DMed. Blocks the Unlimited DM feature.'
+  );
+  finding(
+    'twitter_url with no handle',
+    Number(con.url_no_handle),
+    'The URL holds the handle we say we do not have.'
+  );
+  finding(
+    'twitter_url not matching its handle',
+    Number(con.url_handle_mismatch),
+    'One of the two is wrong; the export uses the URL.'
+  );
+  finding(
+    'data_quality_score outside 0..100',
+    Number(con.score_out_of_range),
+    ''
+  );
   finding('negative follower counts', Number(con.negative_followers), '');
-  finding('last_updated_at before first_seen_at', Number(con.updated_before_seen), 'A row updated before it existed. Cosmetic, but it means one of the two is wrong.');
+  finding(
+    'last_updated_at before first_seen_at',
+    Number(con.updated_before_seen),
+    'A row updated before it existed. Cosmetic, but it means one of the two is wrong.'
+  );
   // `is_agent` with no name is deliberately not a finding either. The bio
   // detector in job-processor sets `is_agent: true, agent_verified: false` and
   // never learns a name, so a nameless agent is an unverified one, not a broken
   // row. Repairing it would delete the only signal that detector produces.
-  console.log(`  note  ${n(con.agent_no_name).padStart(9)}  is_agent with no name (bio-detected, unverified: expected)`);
+  console.log(
+    `  note  ${n(con.agent_no_name).padStart(9)}  is_agent with no name (bio-detected, unverified: expected)`
+  );
   // `lookup_count = 0` is deliberately not a finding. The schema defaults it to
   // 1, and the sweep writes 0, but 0 is the honest value: it means no customer
   // has ever asked for this wallet. Reading the default as a floor would have
@@ -256,11 +346,19 @@ async function main() {
     WHERE twitter_handle IS NOT NULL OR farcaster IS NOT NULL
        OR ens_name IS NOT NULL OR lens IS NOT NULL OR github IS NOT NULL
   `) as Row[];
-  console.log(`  high    ${n(cls.high).padStart(11)}   served at once, in both modes`);
-  console.log(`  medium  ${n(cls.medium).padStart(11)}   served, and still refreshed by a deep scan`);
-  console.log(`  low     ${n(cls.low).padStart(11)}   a deep scan re-resolves; a fast scan serves it`);
+  console.log(
+    `  high    ${n(cls.high).padStart(11)}   served at once, in both modes`
+  );
+  console.log(
+    `  medium  ${n(cls.medium).padStart(11)}   served, and still refreshed by a deep scan`
+  );
+  console.log(
+    `  low     ${n(cls.low).padStart(11)}   a deep scan re-resolves; a fast scan serves it`
+  );
   console.log(`  stale   ${n(cls.stale).padStart(11)}   same`);
-  console.log(`\n  The low and stale rows are the ones a fast scan now hands back.`);
+  console.log(
+    `\n  The low and stale rows are the ones a fast scan now hands back.`
+  );
 
   // ── Freshness ───────────────────────────────────────────────────────────
   section('FRESHNESS');
@@ -290,16 +388,29 @@ async function main() {
     FROM social_graph, unnest(coalesce(sources, ARRAY['(null)'])) AS s
     GROUP BY 1 ORDER BY 2 DESC LIMIT 15
   `) as Row[];
-  for (const r of srcRows) console.log(`  ${String(r.source).padEnd(24)} ${n(r.n)}`);
+  for (const r of srcRows)
+    console.log(`  ${String(r.source).padEnd(24)} ${n(r.n)}`);
 
   // ── Samples, so a person can judge rather than trust a count ────────────
   section('SAMPLES  (up to 5 of each problem, for judgement)');
 
   const samples: Array<[string, string]> = [
-    ['twitter handle with @ or a URL', `SELECT wallet, twitter_handle FROM social_graph WHERE twitter_handle LIKE '@%' OR twitter_handle ILIKE '%http%' LIMIT 5`],
-    ['ens name on several wallets', `SELECT lower(ens_name) AS ens, count(*) AS wallets FROM social_graph WHERE ens_name IS NOT NULL GROUP BY 1 HAVING count(*) > 1 ORDER BY 2 DESC LIMIT 5`],
-    ['handle stored under two casings', `SELECT lower(twitter_handle) AS handle, array_agg(DISTINCT twitter_handle) AS variants FROM social_graph WHERE twitter_handle IS NOT NULL GROUP BY 1 HAVING count(DISTINCT twitter_handle) > 1 LIMIT 5`],
-    ['verified with nothing to verify', `SELECT wallet, twitter_verified, farcaster_verified FROM social_graph WHERE (twitter_verified AND twitter_handle IS NULL) OR (farcaster_verified AND farcaster IS NULL) LIMIT 5`],
+    [
+      'twitter handle with @ or a URL',
+      `SELECT wallet, twitter_handle FROM social_graph WHERE twitter_handle LIKE '@%' OR twitter_handle ILIKE '%http%' LIMIT 5`,
+    ],
+    [
+      'ens name on several wallets',
+      `SELECT lower(ens_name) AS ens, count(*) AS wallets FROM social_graph WHERE ens_name IS NOT NULL GROUP BY 1 HAVING count(*) > 1 ORDER BY 2 DESC LIMIT 5`,
+    ],
+    [
+      'handle stored under two casings',
+      `SELECT lower(twitter_handle) AS handle, array_agg(DISTINCT twitter_handle) AS variants FROM social_graph WHERE twitter_handle IS NOT NULL GROUP BY 1 HAVING count(DISTINCT twitter_handle) > 1 LIMIT 5`,
+    ],
+    [
+      'verified with nothing to verify',
+      `SELECT wallet, twitter_verified, farcaster_verified FROM social_graph WHERE (twitter_verified AND twitter_handle IS NULL) OR (farcaster_verified AND farcaster IS NULL) LIMIT 5`,
+    ],
   ];
   for (const [label, q] of samples) {
     // neon's default export is a tagged template. A query built as a plain

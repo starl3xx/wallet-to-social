@@ -95,7 +95,8 @@ export const REPAIRS: RepairSpec[] = [
   {
     id: 'lowercase_ens_name',
     describes: 'ens_name stored with capitals',
-    because: 'ENS normalises to lowercase, so a capitalised name never matches.',
+    because:
+      'ENS normalises to lowercase, so a capitalised name never matches.',
     maxRows: 100_000,
     count: sql`SELECT count(*)::int AS n FROM social_graph WHERE ens_name <> lower(ens_name)`,
     update: sql`UPDATE social_graph SET ens_name = lower(ens_name) WHERE ens_name <> lower(ens_name)`,
@@ -158,7 +159,8 @@ export const REPAIRS: RepairSpec[] = [
   },
   {
     id: 'twitter_url_legacy_domain',
-    describes: 'twitter_url on twitter.com rather than x.com, with the right handle',
+    describes:
+      'twitter_url on twitter.com rather than x.com, with the right handle',
     because:
       'Normalisation, not a fault: twitter.com still redirects, so neither link is broken. They are here because the ENS harvest wrote one domain and the Farcaster sweep wrote the other, and one column holding two spellings of the same link is a difference that will eventually be read as meaningful. The handle is untouched.',
     maxRows: 200_000,
@@ -219,8 +221,13 @@ export async function runGraphRepairs(apply = false): Promise<RepairRun> {
    * table that had 22,000 rows to fix. A silent zero is the worst answer a
    * check can give, so a missing row throws instead of defaulting.
    */
-  const scalar = async (q: ReturnType<typeof sql>, label: string): Promise<number> => {
-    const res = (await db.execute(q)) as unknown as { rows?: Array<{ n: number }> };
+  const scalar = async (
+    q: ReturnType<typeof sql>,
+    label: string
+  ): Promise<number> => {
+    const res = (await db.execute(q)) as unknown as {
+      rows?: Array<{ n: number }>;
+    };
     const value = res?.rows?.[0]?.n;
     if (value == null) {
       throw new Error(
@@ -302,7 +309,9 @@ export async function findUnrepairable(): Promise<
 
   // Same unwrap as above: `{ rows }`, and a missing row is an error, not a zero.
   const one = async (q: ReturnType<typeof sql>) => {
-    const res = (await db.execute(q)) as unknown as { rows?: Array<{ n: number }> };
+    const res = (await db.execute(q)) as unknown as {
+      rows?: Array<{ n: number }>;
+    };
     const value = res?.rows?.[0]?.n;
     if (value == null) throw new Error('Count returned no row.');
     return Number(value);
@@ -316,7 +325,8 @@ export async function findUnrepairable(): Promise<
           SELECT lower(ens_name) FROM social_graph
           WHERE ens_name IS NOT NULL GROUP BY 1 HAVING count(*) > 1
         ) d`),
-      needs: 'an onchain resolution, to learn which wallet the name points at now',
+      needs:
+        'an onchain resolution, to learn which wallet the name points at now',
     },
     {
       id: 'fc_fid_with_several_usernames',
@@ -333,7 +343,8 @@ export async function findUnrepairable(): Promise<
       count: await one(sql`
         SELECT count(*)::int AS n FROM social_graph
         WHERE farcaster IS NOT NULL AND fc_fid IS NULL`),
-      needs: 'a live lookup, to learn the id. Without it the wallet cannot be DMed.',
+      needs:
+        'a live lookup, to learn the id. Without it the wallet cannot be DMed.',
     },
   ];
 }

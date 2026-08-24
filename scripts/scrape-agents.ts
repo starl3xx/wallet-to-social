@@ -118,7 +118,7 @@ function holRegistryToFramework(registry: string): string | null {
     moltbook: 'moltbook',
     zerepy: 'zerepy',
     arc: 'arc',
-    'ai16z': 'elizaos',
+    ai16z: 'elizaos',
   };
   return map[registry.toLowerCase()] ?? registry.toLowerCase();
 }
@@ -134,7 +134,7 @@ function isValidEthAddress(addr: string): boolean {
 /** Result distinguishes "not found" (404/no wallet) from "error" (timeout/network) */
 type FetchResult =
   | { status: 'ok'; agents: ScrapedAgent[] }
-  | { status: 'skip' }  // 404, no wallet, or no data
+  | { status: 'skip' } // 404, no wallet, or no data
   | { status: 'error' }; // timeout, network failure, bad response
 
 async function fetchVirtualsAgent(id: number): Promise<FetchResult> {
@@ -188,9 +188,7 @@ async function fetchVirtualsAgent(id: number): Promise<FetchResult> {
       });
     }
 
-    return agents.length > 0
-      ? { status: 'ok', agents }
-      : { status: 'skip' };
+    return agents.length > 0 ? { status: 'ok', agents } : { status: 'skip' };
   } catch {
     return { status: 'error' };
   } finally {
@@ -391,9 +389,7 @@ async function scrapeHol(): Promise<Map<string, ScrapedAgent>> {
       page++;
     }
 
-    console.log(
-      `  q="${query}": ${total} results, ${queryFound} new wallets`
-    );
+    console.log(`  q="${query}": ${total} results, ${queryFound} new wallets`);
     await sleep(HOL_DELAY_MS);
   }
 
@@ -429,7 +425,9 @@ async function upsertAgents(
   dryRun: boolean
 ): Promise<void> {
   if (dryRun) {
-    console.log(`\n[DRY RUN] Would upsert ${agents.size} agents. No DB writes.`);
+    console.log(
+      `\n[DRY RUN] Would upsert ${agents.size} agents. No DB writes.`
+    );
 
     // Print source breakdown
     let virtualsCount = 0;

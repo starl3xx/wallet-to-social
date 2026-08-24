@@ -1,6 +1,6 @@
 ---
 title: 'The future of wallet identity: what comes after 22%'
-meta_description: "Wallet-to-social match rates run 16-46% depending on the chain. Here’s why that number is climbing and what new identity standards mean for the onchain ecosystem."
+meta_description: 'Wallet-to-social match rates run 16-46% depending on the chain. Here’s why that number is climbing and what new identity standards mean for the onchain ecosystem.'
 published: true
 publish_date: '2026-05-04'
 ---

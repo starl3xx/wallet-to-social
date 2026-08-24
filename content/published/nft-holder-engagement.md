@@ -1,6 +1,6 @@
 ---
 title: 'NFT holder engagement: from anonymous wallets to real relationships'
-meta_description: "NFT projects know who minted but can’t reach collectors. Learn how wallet identity resolution builds genuine holder relationships and drives secondary sales."
+meta_description: 'NFT projects know who minted but can’t reach collectors. Learn how wallet identity resolution builds genuine holder relationships and drives secondary sales.'
 published: true
 publish_date: '2026-03-30'
 ---

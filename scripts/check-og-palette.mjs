@@ -52,7 +52,7 @@ for (const [theme, body] of Object.entries(THEMES)) {
 const EXCEPTIONS = new Map([
   [
     'radial-gradient(120% 140% at 12% 8%, #2a1f72 0%, #14122e 45%, #0b0d16 100%)',
-    'the dark share card\'s ground is a designed gradient; no token is a gradient',
+    "the dark share card's ground is a designed gradient; no token is a gradient",
   ],
   [
     'rgba(57,191,137,0.20)',
@@ -66,7 +66,10 @@ const EXCEPTIONS = new Map([
 
 /** Surfaces that must write literals, and why they cannot do otherwise. */
 const SURFACES = [
-  { file: 'lib/og-fonts.ts', why: 'Satori resolves an inline style object with no CSS cascade' },
+  {
+    file: 'lib/og-fonts.ts',
+    why: 'Satori resolves an inline style object with no CSS cascade',
+  },
   { file: 'lib/email.ts', why: 'email clients strip CSS custom properties' },
   { file: 'app/blog/[slug]/opengraph-image.tsx', why: 'Satori share card' },
   { file: 'app/opengraph-image.tsx', why: 'Satori share card' },
@@ -74,7 +77,8 @@ const SURFACES = [
 
 // Hex, rgb()/rgba() and named gradients. Deliberately not matching `var(--x)`,
 // which is the thing we want these files to use where they can.
-const COLOUR = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|radial-gradient\([^;]*?\)(?=[,;\s'"`])/g;
+const COLOUR =
+  /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|radial-gradient\([^;]*?\)(?=[,;\s'"`])/g;
 
 let violations = 0;
 let checked = 0;
@@ -84,7 +88,9 @@ for (const { file, why } of SURFACES) {
   try {
     src = readFileSync(file, 'utf8');
   } catch {
-    console.error(`MISSING  ${file} — the guard names a file that no longer exists`);
+    console.error(
+      `MISSING  ${file} — the guard names a file that no longer exists`
+    );
     violations++;
     continue;
   }
@@ -93,7 +99,12 @@ for (const { file, why } of SURFACES) {
   lines.forEach((line, i) => {
     // Skip comments: the doc blocks name tokens on purpose.
     const trimmed = line.trim();
-    if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) return;
+    if (
+      trimmed.startsWith('*') ||
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('/*')
+    )
+      return;
 
     for (const raw of line.match(COLOUR) ?? []) {
       const value = raw.toLowerCase().replace(/\s+/g, ' ');
@@ -101,7 +112,12 @@ for (const { file, why } of SURFACES) {
       if (EXCEPTIONS.has(value)) continue;
       // Expand a 3-digit hex before comparing.
       const norm = /^#[0-9a-f]{3}$/.test(value)
-        ? '#' + value.slice(1).split('').map((c) => c + c).join('')
+        ? '#' +
+          value
+            .slice(1)
+            .split('')
+            .map((c) => c + c)
+            .join('')
         : value;
       if (allowed.has(norm)) continue;
       console.error(
@@ -116,7 +132,7 @@ for (const { file, why } of SURFACES) {
 if (violations) {
   console.error(
     `\n${violations} colour(s) outside the token set.\n` +
-      'Either use the token\'s value, or add it to EXCEPTIONS with a rendering reason.'
+      "Either use the token's value, or add it to EXCEPTIONS with a rendering reason."
   );
   process.exit(1);
 }

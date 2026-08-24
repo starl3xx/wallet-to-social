@@ -56,7 +56,9 @@ async function main() {
     process.exit(1);
   }
   console.log('\nverified: column and table present');
-  console.log('next: npx tsx --env-file=.env.local scripts/migrate-grant-readonly.ts');
+  console.log(
+    'next: npx tsx --env-file=.env.local scripts/migrate-grant-readonly.ts'
+  );
 }
 
 main().catch((e) => {

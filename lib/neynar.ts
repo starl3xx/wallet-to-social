@@ -298,7 +298,9 @@ export async function fetchFidsByUsernames(
 
     // Rate limit between batches
     if (i + CONCURRENT_REQUESTS < usernames.length) {
-      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+      await new Promise((resolve) =>
+        setTimeout(resolve, DELAY_BETWEEN_BATCHES)
+      );
     }
   }
 

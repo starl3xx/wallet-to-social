@@ -160,7 +160,9 @@ export async function createSession(
  */
 export async function validateSession(
   token: string
-): Promise<{ user: { id: string; email: string; tier: string } } | { user: null }> {
+): Promise<
+  { user: { id: string; email: string; tier: string } } | { user: null }
+> {
   const db = getDb();
   if (!db) {
     return { user: null };

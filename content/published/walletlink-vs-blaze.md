@@ -23,20 +23,20 @@ This distinction mattered more than any individual feature comparison.
 
 ## Feature comparison
 
-| Feature                           | walletlink.social       | Blaze (before its pivot) |
-| --------------------------------- | ----------------------- | ------------------------ |
-| Wallet-to-Twitter resolution      | Yes                     | Yes                      |
-| Wallet-to-Farcaster resolution    | Yes                     | Yes                      |
-| Batch CSV upload                  | Yes                     | Yes                      |
-| AI agent wallet detection         | Yes (13,622+ detected)  | No                       |
-| Priority score (holdings x reach) | Yes                     | Custom segments          |
-| CRM / contact management          | No                      | Yes                      |
-| Campaign tools (email, DM)        | No                      | Yes                      |
-| Community analytics dashboard     | No                      | Yes                      |
-| Discord/Telegram integration      | No                      | Yes                      |
-| Airdrop targeting tools           | Export-based            | Built-in                 |
-| Match rate (reported)             | 22%                     | ~5-8% (varied)           |
-| Pricing model                     | One-time payment        | Monthly subscription     |
+| Feature                           | walletlink.social               | Blaze (before its pivot) |
+| --------------------------------- | ------------------------------- | ------------------------ |
+| Wallet-to-Twitter resolution      | Yes                             | Yes                      |
+| Wallet-to-Farcaster resolution    | Yes                             | Yes                      |
+| Batch CSV upload                  | Yes                             | Yes                      |
+| AI agent wallet detection         | Yes (13,622+ detected)          | No                       |
+| Priority score (holdings x reach) | Yes                             | Custom segments          |
+| CRM / contact management          | No                              | Yes                      |
+| Campaign tools (email, DM)        | No                              | Yes                      |
+| Community analytics dashboard     | No                              | Yes                      |
+| Discord/Telegram integration      | No                              | Yes                      |
+| Airdrop targeting tools           | Export-based                    | Built-in                 |
+| Match rate (reported)             | 22%                             | ~5-8% (varied)           |
+| Pricing model                     | One-time payment                | Monthly subscription     |
 | Free tier                         | 100 matches per rolling 30 days | Limited trial            |
 
 ## Match rate: the core metric
@@ -55,13 +55,13 @@ The pricing models reflected the different product philosophies.
 
 **walletlink.social pricing (current):**
 
-| Pack     | Matches         | Price         |
-| -------- | --------------- | ------------- |
+| Pack     | Matches                 | Price         |
+| -------- | ----------------------- | ------------- |
 | Free     | 100 per rolling 30 days | $0            |
-| Trial    | 250             | $29 one-time  |
-| Campaign | 1,500           | $99 one-time  |
-| Scale    | 6,000           | $299 one-time |
-| Index    | 25,000          | $899 one-time |
+| Trial    | 250                     | $29 one-time  |
+| Campaign | 1,500                   | $99 one-time  |
+| Scale    | 6,000                   | $299 one-time |
+| Index    | 25,000                  | $899 one-time |
 
 A match is a wallet resolved to an X or Farcaster account; wallets that resolve to nothing cost nothing. Every pack is a one-time payment. No subscription. API access is included with all of them and draws the same credits. Credits last 12 months.
 

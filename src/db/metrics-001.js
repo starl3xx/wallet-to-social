@@ -12,7 +12,9 @@ const fileBuffer = readFileSync(DB_PATH);
 const db = new SQL.Database(fileBuffer);
 
 // Gather metrics
-const draftsResult = db.exec('SELECT COUNT(*) as count, SUM(word_count) as words FROM drafts');
+const draftsResult = db.exec(
+  'SELECT COUNT(*) as count, SUM(word_count) as words FROM drafts'
+);
 const totalDrafts = draftsResult[0].values[0][0];
 const totalWords = draftsResult[0].values[0][1];
 
@@ -28,12 +30,16 @@ const breakdown = {
   case_studies: 1,
   newsletters: 1,
   social_batches: 1,
-  social_posts: 5
+  social_posts: 5,
 };
 
 // Calculate files
-const draftFiles = readdirSync('./content/drafts').filter(f => f.endsWith('.md'));
-const publishedFiles = readdirSync('./content/published').filter(f => f.endsWith('.md'));
+const draftFiles = readdirSync('./content/drafts').filter((f) =>
+  f.endsWith('.md')
+);
+const publishedFiles = readdirSync('./content/published').filter((f) =>
+  f.endsWith('.md')
+);
 
 // Log final summary to agent_log
 db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
@@ -49,11 +55,21 @@ db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
     breakdown: breakdown,
     files_created: {
       drafts: draftFiles,
-      published: publishedFiles
+      published: publishedFiles,
     },
     stories_completed: [
-      'SETUP-001', 'PLAN-001', 'WRITE-001', 'REVIEW-001', 'PUBLISH-001',
-      'SOCIAL-001', 'NEWSLETTER-001', 'PLAN-002', 'WRITE-002', 'PLAN-003', 'WRITE-003', 'METRICS-001'
+      'SETUP-001',
+      'PLAN-001',
+      'WRITE-001',
+      'REVIEW-001',
+      'PUBLISH-001',
+      'SOCIAL-001',
+      'NEWSLETTER-001',
+      'PLAN-002',
+      'WRITE-002',
+      'PLAN-003',
+      'WRITE-003',
+      'METRICS-001',
     ],
     effective_patterns: [
       'Problem-first hooks with specific numbers',
@@ -61,9 +77,9 @@ db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
       'Competitor comparison sections',
       'Challenge → Discovery → Solution → Results for case studies',
       'Specific metrics throughout (22%, 9x, 4x)',
-      'Web3-native tone: direct, builder-focused, no fluff'
-    ]
-  })
+      'Web3-native tone: direct, builder-focused, no fluff',
+    ],
+  }),
 ]);
 
 // Save to file
@@ -75,9 +91,15 @@ console.log('╔═════════════════════�
 console.log('║         RALPH CONTENT SPRINT 1 - FINAL METRICS               ║');
 console.log('╠══════════════════════════════════════════════════════════════╣');
 console.log('║                                                              ║');
-console.log(`║  Total Content Pieces: ${totalDrafts}                                   ║`);
-console.log(`║  Total Word Count: ${totalWords}                                  ║`);
-console.log(`║  Published Pieces: ${totalPublished}                                      ║`);
+console.log(
+  `║  Total Content Pieces: ${totalDrafts}                                   ║`
+);
+console.log(
+  `║  Total Word Count: ${totalWords}                                  ║`
+);
+console.log(
+  `║  Published Pieces: ${totalPublished}                                      ║`
+);
 console.log('║                                                              ║');
 console.log('║  CONTENT BREAKDOWN                                           ║');
 console.log('║  ────────────────                                            ║');
@@ -88,10 +110,18 @@ console.log('║  • 5 Social Posts (Twitter/Farcaster)                        
 console.log('║                                                              ║');
 console.log('║  STORIES COMPLETED: 12/12                                    ║');
 console.log('║  ────────────────────────                                    ║');
-console.log('║  ✅ SETUP-001    ✅ PLAN-001     ✅ WRITE-001                 ║');
-console.log('║  ✅ REVIEW-001   ✅ PUBLISH-001  ✅ SOCIAL-001                ║');
-console.log('║  ✅ NEWSLETTER-001              ✅ PLAN-002                   ║');
-console.log('║  ✅ WRITE-002    ✅ PLAN-003     ✅ WRITE-003                 ║');
+console.log(
+  '║  ✅ SETUP-001    ✅ PLAN-001     ✅ WRITE-001                 ║'
+);
+console.log(
+  '║  ✅ REVIEW-001   ✅ PUBLISH-001  ✅ SOCIAL-001                ║'
+);
+console.log(
+  '║  ✅ NEWSLETTER-001              ✅ PLAN-002                   ║'
+);
+console.log(
+  '║  ✅ WRITE-002    ✅ PLAN-003     ✅ WRITE-003                 ║'
+);
 console.log('║  ✅ METRICS-001                                              ║');
 console.log('║                                                              ║');
 console.log('╚══════════════════════════════════════════════════════════════╝');

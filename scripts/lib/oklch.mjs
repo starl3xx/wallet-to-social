@@ -38,7 +38,8 @@ export function oklchToRgb(L, C, hDeg) {
   // Gamma-encode, then clamp. Clamping after encoding is what a browser does
   // when a colour falls outside sRGB, and several brand tones here do.
   return lin.map((v) => {
-    const enc = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+    const enc =
+      v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
     return Math.max(0, Math.min(255, Math.round(enc * 255)));
   });
 }

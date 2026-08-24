@@ -23,8 +23,10 @@ export async function POST(request: NextRequest) {
         name: p.name,
         price_monthly: `$${(p.priceMonthly / 100).toFixed(0)}`,
         requests_per_minute: p.requestsPerMinute,
-        requests_per_day: p.requestsPerDay === -1 ? 'unlimited' : p.requestsPerDay,
-        requests_per_month: p.requestsPerMonth === -1 ? 'unlimited' : p.requestsPerMonth,
+        requests_per_day:
+          p.requestsPerDay === -1 ? 'unlimited' : p.requestsPerDay,
+        requests_per_month:
+          p.requestsPerMonth === -1 ? 'unlimited' : p.requestsPerMonth,
         max_batch_size: p.maxBatchSize,
       })),
     });
@@ -60,8 +62,10 @@ export async function GET(request: NextRequest) {
       name: p.name,
       price_monthly: `$${(p.priceMonthly / 100).toFixed(0)}`,
       requests_per_minute: p.requestsPerMinute,
-      requests_per_day: p.requestsPerDay === -1 ? 'unlimited' : p.requestsPerDay,
-      requests_per_month: p.requestsPerMonth === -1 ? 'unlimited' : p.requestsPerMonth,
+      requests_per_day:
+        p.requestsPerDay === -1 ? 'unlimited' : p.requestsPerDay,
+      requests_per_month:
+        p.requestsPerMonth === -1 ? 'unlimited' : p.requestsPerMonth,
       max_batch_size: p.maxBatchSize,
     })),
   });

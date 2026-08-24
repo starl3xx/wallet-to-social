@@ -30,7 +30,11 @@
  * a new interface picked a new spelling, so the shape of `id` decides instead:
  * all digits and long enough is an account id, anything else is a handle.
  */
-import { ingestLinks, type AttestedLink, type LinkSource } from './attested-links';
+import {
+  ingestLinks,
+  type AttestedLink,
+  type LinkSource,
+} from './attested-links';
 import { isConfigured, resolverHeaders, resolverUrl } from './x-resolver';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
@@ -139,7 +143,9 @@ interface RawDeploy {
 
 function rpcUrl(): string {
   const key = process.env.ALCHEMY_KEY;
-  return key ? `https://base-mainnet.g.alchemy.com/v2/${key}` : 'https://mainnet.base.org';
+  return key
+    ? `https://base-mainnet.g.alchemy.com/v2/${key}`
+    : 'https://mainnet.base.org';
 }
 
 async function rpc(method: string, params: unknown[]): Promise<unknown> {
@@ -177,7 +183,11 @@ const isAccountId = (s: string) => /^\d{5,}$/.test(s);
  * matched rather than decoded: the surrounding tuple has moved between Clanker
  * versions and the JSON has not.
  */
-function parseDeploy(log: { topics?: string[]; data?: string; blockNumber?: string }): RawDeploy | null {
+function parseDeploy(log: {
+  topics?: string[];
+  data?: string;
+  blockNumber?: string;
+}): RawDeploy | null {
   const walletTopic = log.topics?.[2];
   if (!walletTopic || walletTopic.length !== 66) return null;
   const wallet = ('0x' + walletTopic.slice(26)).toLowerCase();
@@ -190,7 +200,9 @@ function parseDeploy(log: { topics?: string[]; data?: string; blockNumber?: stri
     return null;
   }
 
-  const m = text.match(/"platform":"([^"]*)","messageId":"[^"]*","id":"([^"]*)"/);
+  const m = text.match(
+    /"platform":"([^"]*)","messageId":"[^"]*","id":"([^"]*)"/
+  );
   if (!m) return null;
   const [, platform, identifier] = m;
   if (!identifier) return null;
@@ -246,7 +258,9 @@ async function resolveAccountIds(ids: string[]): Promise<ResolveResult> {
     const chunk = ids.slice(i, i + 100);
     try {
       const res = await fetch(
-        resolverUrl(`/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`),
+        resolverUrl(
+          `/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`
+        ),
         { headers: resolverHeaders() }
       );
       if (!res.ok) continue;
@@ -278,7 +292,8 @@ async function resolveAccountIds(ids: string[]): Promise<ResolveResult> {
       // successful response is one the resolver denies knowing.
       for (const id of chunk) answered.add(id);
       for (const u of body.users) {
-        if (u.id && u.userName && isHandle(u.userName)) resolved.set(u.id, u.userName);
+        if (u.id && u.userName && isHandle(u.userName))
+          resolved.set(u.id, u.userName);
       }
     } catch {
       // Leave them unresolved and unanswered; the next run tries again.
@@ -400,13 +415,15 @@ export async function sweepClanker(
   opts: { lookbackBlocks?: number; onProgress?: (msg: string) => void } = {}
 ): Promise<ClankerSweepStats> {
   const headHex = (await rpc('eth_blockNumber', [])) as string | null;
-  if (!headHex) throw new Error('Clanker sweep: could not read the Base head block');
+  if (!headHex)
+    throw new Error('Clanker sweep: could not read the Base head block');
   const head = parseInt(headHex, 16);
 
   const checkpoint = await getScanCheckpoint();
   // Base produces about 43,200 blocks a day, so the default is roughly a month.
   const lookback = opts.lookbackBlocks ?? 1_300_000;
-  const from = checkpoint !== null ? checkpoint + 1 : Math.max(0, head - lookback);
+  const from =
+    checkpoint !== null ? checkpoint + 1 : Math.max(0, head - lookback);
   /**
    * Scan at most MAX_RUN_BLOCKS in one run.
    *
@@ -448,12 +465,18 @@ export async function sweepClanker(
         fromBlock: '0x' + start.toString(16),
         toBlock: '0x' + end.toString(16),
       },
-    ])) as Array<{ topics?: string[]; data?: string; blockNumber?: string }> | null;
+    ])) as Array<{
+      topics?: string[];
+      data?: string;
+      blockNumber?: string;
+    }> | null;
 
     if (logs === null) {
       // A window we could not read is a gap. Stop and checkpoint before it, so
       // the next run picks it up rather than stepping over it.
-      opts.onProgress?.(`Clanker: could not read ${start}-${end}, stopping short`);
+      opts.onProgress?.(
+        `Clanker: could not read ${start}-${end}, stopping short`
+      );
       stats.toBlock = start - 1;
       break;
     }
@@ -472,7 +495,11 @@ export async function sweepClanker(
 
   stats.xDeploys = raw.length;
 
-  const ids = [...new Set(raw.filter((r) => isAccountId(r.identifier)).map((r) => r.identifier))];
+  const ids = [
+    ...new Set(
+      raw.filter((r) => isAccountId(r.identifier)).map((r) => r.identifier)
+    ),
+  ];
   stats.withAccountId = ids.length;
   const { resolved, answered } = await resolveAccountIds(ids);
 
@@ -532,12 +559,17 @@ export async function sweepClanker(
           continue;
         }
         // The earliest block still owing work. Everything before it is done.
-        unresolvedFrom = unresolvedFrom === null ? r.block : Math.min(unresolvedFrom, r.block);
+        unresolvedFrom =
+          unresolvedFrom === null ? r.block : Math.min(unresolvedFrom, r.block);
         continue; // unresolved: never guessed
       }
       links.push({ wallet: r.wallet, handle, twitterUserId: r.identifier });
     } else if (isHandle(r.identifier)) {
-      links.push({ wallet: r.wallet, handle: r.identifier, twitterUserId: null });
+      links.push({
+        wallet: r.wallet,
+        handle: r.identifier,
+        twitterUserId: null,
+      });
     }
   }
 
@@ -587,7 +619,9 @@ export async function sweepClanker(
    * A checkpoint is now ALWAYS written, and it never moves backwards.
    */
   const completedThrough =
-    unresolvedFrom === null ? stats.toBlock : Math.min(stats.toBlock, unresolvedFrom - 1);
+    unresolvedFrom === null
+      ? stats.toBlock
+      : Math.min(stats.toBlock, unresolvedFrom - 1);
 
   /**
    * No floor. Abandonment is counted in answers, never in blocks.
@@ -627,7 +661,8 @@ export async function sweepClanker(
 
   // Never move the checkpoint backwards: a short run must not replay a range a
   // longer one already finished.
-  if (checkpoint !== null) nextCheckpoint = Math.max(nextCheckpoint, checkpoint);
+  if (checkpoint !== null)
+    nextCheckpoint = Math.max(nextCheckpoint, checkpoint);
 
   stats.checkpointHeld = nextCheckpoint < stats.toBlock;
   stats.blocksBehindHead = Math.max(0, head - nextCheckpoint);

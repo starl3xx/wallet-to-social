@@ -29,7 +29,8 @@ export async function GET() {
         email: sessionResult.user.email,
         tier: access.tier,
         isWhitelisted: access.isWhitelisted,
-        walletLimit: access.walletLimit === Infinity ? null : access.walletLimit,
+        walletLimit:
+          access.walletLimit === Infinity ? null : access.walletLimit,
       },
     });
   } catch (error) {

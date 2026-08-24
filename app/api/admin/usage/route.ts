@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
-import { getPeriodSpend, MONTHLY_CREDIT_LIMIT, BACKGROUND_CEILING } from '@/lib/neynar-budget';
+import {
+  getPeriodSpend,
+  MONTHLY_CREDIT_LIMIT,
+  BACKGROUND_CEILING,
+} from '@/lib/neynar-budget';
 import {
   getRollingSpend,
   DAILY_REQUEST_LIMIT,
@@ -47,7 +51,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 503 }
+    );
   }
 
   const rows = async <T>(q: ReturnType<typeof sql>): Promise<T[]> => {
@@ -116,7 +123,10 @@ export async function GET(request: NextRequest) {
     LIMIT 25
   `);
 
-  const [allTime] = await rows<{ peak_day: string | null; peak_wallets: number }>(sql`
+  const [allTime] = await rows<{
+    peak_day: string | null;
+    peak_wallets: number;
+  }>(sql`
     SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS peak_day,
            coalesce(sum(jsonb_array_length(to_jsonb(wallets))), 0)::int AS peak_wallets
     FROM lookup_jobs

@@ -12,8 +12,14 @@ const KEY_LENGTH = 32;
  * Generates a cryptographically secure API key
  * Returns both the raw key (to show user once) and the hash (to store)
  */
-export function generateApiKey(): { rawKey: string; hashedKey: string; prefix: string } {
-  const randomPart = randomBytes(KEY_LENGTH).toString('base64url').slice(0, KEY_LENGTH);
+export function generateApiKey(): {
+  rawKey: string;
+  hashedKey: string;
+  prefix: string;
+} {
+  const randomPart = randomBytes(KEY_LENGTH)
+    .toString('base64url')
+    .slice(0, KEY_LENGTH);
   const rawKey = `${KEY_PREFIX}${randomPart}`;
   const hashedKey = hashApiKey(rawKey);
   const prefix = rawKey.slice(0, 12); // 'wts_live_xxx' for identification
@@ -176,7 +182,10 @@ export async function validateApiKey(
 /**
  * Revokes an API key
  */
-export async function revokeApiKey(keyId: string, userId: string): Promise<boolean> {
+export async function revokeApiKey(
+  keyId: string,
+  userId: string
+): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
 

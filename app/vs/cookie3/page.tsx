@@ -492,8 +492,8 @@ export default function Cookie3Comparison() {
                 itself
               </li>
               <li>
-                Agent detection across {KNOWN_AGENTS}+ known agents (Virtuals, ERC-8004,
-                ElizaOS, Olas)
+                Agent detection across {KNOWN_AGENTS}+ known agents (Virtuals,
+                ERC-8004, ElizaOS, Olas)
               </li>
               <li>A CSV of the whole thing, on every pack</li>
             </ol>
@@ -715,8 +715,8 @@ export default function Cookie3Comparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              in a rolling {FREE_WINDOW_DAYS}-day window, no card, no call.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches in a
+              rolling {FREE_WINDOW_DAYS}-day window, no card, no call.
             </p>
             <Button asChild>
               <Link href="/">

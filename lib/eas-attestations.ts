@@ -31,7 +31,11 @@
  * testing. If it stays down, the same attestations are readable with
  * `eth_getLogs` against the EAS contract, and nothing about the data changes.
  */
-import { ingestLinks, type AttestedLink, type LinkSource } from './attested-links';
+import {
+  ingestLinks,
+  type AttestedLink,
+  type LinkSource,
+} from './attested-links';
 
 /**
  * Deliberately does not name a vendor. The public class is `attested-social`,
@@ -68,25 +72,29 @@ const SCHEMAS: SchemaSource[] = [
   {
     label: 'verified-social (Optimism)',
     endpoint: 'https://optimism.easscan.org/graphql',
-    schemaId: '0xe038cd96af4cfe0ab2b4b2218a1f3fd3a7c67b65a5de538fa2cf445b9ceab681',
+    schemaId:
+      '0xe038cd96af4cfe0ab2b4b2218a1f3fd3a7c67b65a5de538fa2cf445b9ceab681',
     shape: 'provider-identity',
   },
   {
     label: 'verified-social (Base)',
     endpoint: 'https://base.easscan.org/graphql',
-    schemaId: '0xe038cd96af4cfe0ab2b4b2218a1f3fd3a7c67b65a5de538fa2cf445b9ceab681',
+    schemaId:
+      '0xe038cd96af4cfe0ab2b4b2218a1f3fd3a7c67b65a5de538fa2cf445b9ceab681',
     shape: 'provider-identity',
   },
   {
     label: 'cyberID (Base)',
     endpoint: 'https://base.easscan.org/graphql',
-    schemaId: '0xcfcf329b79035809704e8d33780714ddf7815a06490a94d57fac562937edbcef',
+    schemaId:
+      '0xcfcf329b79035809704e8d33780714ddf7815a06490a94d57fac562937edbcef',
     shape: 'twitter-handle',
   },
   {
     label: 'cyberID (Optimism)',
     endpoint: 'https://optimism.easscan.org/graphql',
-    schemaId: '0xcfcf329b79035809704e8d33780714ddf7815a06490a94d57fac562937edbcef',
+    schemaId:
+      '0xcfcf329b79035809704e8d33780714ddf7815a06490a94d57fac562937edbcef',
     shape: 'twitter-handle',
   },
 ];
@@ -128,16 +136,22 @@ interface Attestation {
  */
 const isPlausibleHandle = (h: string) => /^[A-Za-z0-9_]{1,15}$/.test(h);
 
-function linkFrom(a: Attestation, shape: SchemaSource['shape']): AttestedLink | null {
+function linkFrom(
+  a: Attestation,
+  shape: SchemaSource['shape']
+): AttestedLink | null {
   const wallet = String(a.recipient ?? '').toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(wallet) || wallet === ZERO) return null;
 
   let decoded: Record<string, unknown>;
   try {
     decoded = Object.fromEntries(
-      (JSON.parse(a.decodedDataJson) as Array<{ name: string; value?: { value?: unknown } }>).map(
-        (f) => [f.name, f.value?.value]
-      )
+      (
+        JSON.parse(a.decodedDataJson) as Array<{
+          name: string;
+          value?: { value?: unknown };
+        }>
+      ).map((f) => [f.name, f.value?.value])
     );
   } catch {
     return null;
@@ -188,7 +202,9 @@ async function readSchema(
           await sleep(1000 * (attempt + 1));
           continue;
         }
-        const body = (await res.json()) as { data?: { attestations?: Attestation[] } };
+        const body = (await res.json()) as {
+          data?: { attestations?: Attestation[] };
+        };
         batch = body?.data?.attestations ?? null;
         break;
       } catch {
@@ -202,7 +218,8 @@ async function readSchema(
     // means partial coverage. Both are reported, and `partial` matters: without
     // it a schema that died halfway counted as read and the cron returned 200
     // on an incomplete sweep.
-    if (batch === null) return page === 0 ? null : { links, rows, partial: true };
+    if (batch === null)
+      return page === 0 ? null : { links, rows, partial: true };
     if (batch.length === 0) break;
 
     rows += batch.length;
@@ -245,7 +262,9 @@ export async function sweepEasAttestations(
     if (result.partial) schemasPartial++;
     attestations += result.rows;
     all.push(...result.links);
-    onProgress?.(`EAS: ${schema.label}: ${result.rows} attestations, ${result.links.length} links`);
+    onProgress?.(
+      `EAS: ${schema.label}: ${result.rows} attestations, ${result.links.length} links`
+    );
   }
 
   if (schemasRead === 0) throw new Error('EAS sweep: no schema could be read');

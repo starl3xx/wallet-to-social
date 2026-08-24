@@ -302,9 +302,7 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
           {!email || email.sends.length === 0 ? (
             <Empty>
               No lifecycle email has been sent
-              {email && email.optOuts > 0
-                ? `; ${email.optOuts} opted out`
-                : ''}
+              {email && email.optOuts > 0 ? `; ${email.optOuts} opted out` : ''}
             </Empty>
           ) : (
             <>

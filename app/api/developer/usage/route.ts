@@ -17,9 +17,10 @@ export async function GET(request: NextRequest) {
   const auth = await requireDeveloperAccess(requestedEmail);
   if (!auth.ok) return auth.response;
   const email = auth.identity.email;
-  const period = (request.nextUrl.searchParams.get('period') as 'day' | 'week' | 'month') || 'month';
+  const period =
+    (request.nextUrl.searchParams.get('period') as 'day' | 'week' | 'month') ||
+    'month';
   const keyId = request.nextUrl.searchParams.get('keyId');
-
 
   if (!['day', 'week', 'month'].includes(period)) {
     return NextResponse.json(
@@ -44,10 +45,7 @@ export async function GET(request: NextRequest) {
     .limit(1);
 
   if (!user) {
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Get user's API keys
@@ -65,7 +63,9 @@ export async function GET(request: NextRequest) {
 
   if (targetKeys.length === 0) {
     return NextResponse.json(
-      { error: keyId ? 'API key not found' : 'No API keys found for this user' },
+      {
+        error: keyId ? 'API key not found' : 'No API keys found for this user',
+      },
       { status: 404 }
     );
   }
@@ -88,8 +88,10 @@ export async function GET(request: NextRequest) {
         },
         plan_limits: {
           requests_per_minute: plan.requestsPerMinute,
-          requests_per_day: plan.requestsPerDay === -1 ? 'unlimited' : plan.requestsPerDay,
-          requests_per_month: plan.requestsPerMonth === -1 ? 'unlimited' : plan.requestsPerMonth,
+          requests_per_day:
+            plan.requestsPerDay === -1 ? 'unlimited' : plan.requestsPerDay,
+          requests_per_month:
+            plan.requestsPerMonth === -1 ? 'unlimited' : plan.requestsPerMonth,
           max_batch_size: plan.maxBatchSize,
         },
         rate_limits: {
@@ -131,11 +133,15 @@ export async function GET(request: NextRequest) {
 
   // Aggregate totals across all keys
   const totals = {
-    total_requests: keysUsage.reduce((sum, k) => sum + k.usage.total_requests, 0),
+    total_requests: keysUsage.reduce(
+      (sum, k) => sum + k.usage.total_requests,
+      0
+    ),
     total_credits: keysUsage.reduce((sum, k) => sum + k.usage.total_credits, 0),
     total_wallets: keysUsage.reduce((sum, k) => sum + k.usage.total_wallets, 0),
     avg_latency_ms: Math.round(
-      keysUsage.reduce((sum, k) => sum + k.usage.avg_latency_ms, 0) / keysUsage.length
+      keysUsage.reduce((sum, k) => sum + k.usage.avg_latency_ms, 0) /
+        keysUsage.length
     ),
   };
 

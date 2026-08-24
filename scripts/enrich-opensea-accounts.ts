@@ -71,12 +71,14 @@ function parseArgs(argv: string[]): Args {
     if (flag === '--wallets') {
       const wallets = value.split(',').map((w) => w.trim().toLowerCase());
       for (const w of wallets) {
-        if (!/^0x[a-f0-9]{40}$/.test(w)) throw new Error(`Not a wallet address: ${w}`);
+        if (!/^0x[a-f0-9]{40}$/.test(w))
+          throw new Error(`Not a wallet address: ${w}`);
       }
       args.wallets = wallets;
     } else {
       const n = Number(value);
-      if (!Number.isInteger(n) || n <= 0) throw new Error('--limit needs a positive integer');
+      if (!Number.isInteger(n) || n <= 0)
+        throw new Error('--limit needs a positive integer');
       args.limit = n;
     }
   }
@@ -107,7 +109,10 @@ interface AccountResult {
   outcome: 'handle' | 'numericId' | 'noSocial' | 'noAccount';
 }
 
-async function fetchAccount(key: string, wallet: string): Promise<AccountResult> {
+async function fetchAccount(
+  key: string,
+  wallet: string
+): Promise<AccountResult> {
   const res = await fetch(`https://api.opensea.io/api/v2/accounts/${wallet}`, {
     headers: { 'x-api-key': key },
   });
@@ -115,14 +120,19 @@ async function fetchAccount(key: string, wallet: string): Promise<AccountResult>
     return { link: null, outcome: 'noAccount' };
   }
   if (!res.ok) {
-    throw new Error(`OpenSea ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    throw new Error(
+      `OpenSea ${res.status}: ${(await res.text()).slice(0, 300)}`
+    );
   }
   const json = (await res.json()) as {
     social_media_accounts?: Array<{ platform: string; username: string }>;
   };
-  const twitter = json.social_media_accounts?.find((s) => s.platform === 'twitter');
+  const twitter = json.social_media_accounts?.find(
+    (s) => s.platform === 'twitter'
+  );
   if (!twitter?.username) return { link: null, outcome: 'noSocial' };
-  if (/^\d+$/.test(twitter.username)) return { link: null, outcome: 'numericId' };
+  if (/^\d+$/.test(twitter.username))
+    return { link: null, outcome: 'numericId' };
   return { link: { wallet, handle: twitter.username }, outcome: 'handle' };
 }
 
@@ -166,7 +176,11 @@ async function main() {
     const classified = await classifyLinks(deduped);
     console.log(
       'Would ingest:',
-      JSON.stringify({ links: deduped.length, contested, rejected, ...classified }, null, 2)
+      JSON.stringify(
+        { links: deduped.length, contested, rejected, ...classified },
+        null,
+        2
+      )
     );
     console.log('\nDry run: nothing written. Re-run with --commit.');
   }

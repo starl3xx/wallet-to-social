@@ -74,7 +74,11 @@ async function main() {
     const counts = await classifyLinks(deduped);
     console.log(
       'Would ingest:',
-      JSON.stringify({ links: deduped.length, contested, rejected, ...counts }, null, 2)
+      JSON.stringify(
+        { links: deduped.length, contested, rejected, ...counts },
+        null,
+        2
+      )
     );
     console.log('\nDry run: nothing written. Re-run with --commit.');
   }

@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
         error: 'RESEND_API_KEY missing',
       },
     }).catch(console.error);
-    return NextResponse.json({ error: 'Email not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Email not configured' },
+      { status: 500 }
+    );
   }
 
   const startedAt = Date.now();
@@ -65,6 +68,9 @@ export async function GET(request: NextRequest) {
         error: error instanceof Error ? error.message : String(error),
       },
     }).catch(console.error);
-    return NextResponse.json({ error: 'Welcome sequence failed' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Welcome sequence failed' },
+      { status: 500 }
+    );
   }
 }

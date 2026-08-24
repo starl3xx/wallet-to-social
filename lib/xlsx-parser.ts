@@ -67,8 +67,11 @@ export async function parseXLSX(buffer: ArrayBuffer): Promise<ParseResult> {
     } else {
       // Generate placeholder headers (Column A, Column B, etc.)
       const columnCount = Math.max(...rows.map((r) => r.length));
-      headers = Array.from({ length: columnCount }, (_, i) =>
-        String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) : '')
+      headers = Array.from(
+        { length: columnCount },
+        (_, i) =>
+          String.fromCharCode(65 + (i % 26)) +
+          (i >= 26 ? Math.floor(i / 26) : '')
       );
       dataStartIndex = 0;
     }

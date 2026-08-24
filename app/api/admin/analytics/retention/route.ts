@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Retention API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch retention data' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch retention data',
+      },
       { status: 500 }
     );
   }

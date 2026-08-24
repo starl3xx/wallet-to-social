@@ -25,7 +25,11 @@ export async function GET(request: NextRequest) {
       // data" in the admin UI, with checked_at so the state is visible
       const hasSocials = !!(
         data &&
-        (data.twitterHandle || data.farcaster || data.ensName || data.lens || data.github)
+        (data.twitterHandle ||
+          data.farcaster ||
+          data.ensName ||
+          data.lens ||
+          data.github)
       );
       if (data && !hasSocials) {
         return NextResponse.json({
@@ -75,7 +79,10 @@ export async function POST(request: NextRequest) {
     // At least one social field should be provided
     if (!twitterHandle && !farcaster && !ensName) {
       return NextResponse.json(
-        { error: 'At least one social field (twitterHandle, farcaster, or ensName) required' },
+        {
+          error:
+            'At least one social field (twitterHandle, farcaster, or ensName) required',
+        },
         { status: 400 }
       );
     }
@@ -123,7 +130,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Social graph update error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { error: `Failed to update social graph: ${errorMessage}` },
       { status: 500 }

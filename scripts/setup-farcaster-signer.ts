@@ -133,7 +133,11 @@ async function main() {
   const signature = await wallet.signTypedData(
     SIGNED_KEY_REQUEST_DOMAIN,
     SIGNED_KEY_REQUEST_TYPES,
-    { requestFid: BigInt(appFid), key: created.public_key, deadline: BigInt(deadline) }
+    {
+      requestFid: BigInt(appFid),
+      key: created.public_key,
+      deadline: BigInt(deadline),
+    }
   );
 
   const registered = await neynar('/v2/farcaster/signer/signed_key', {
@@ -153,7 +157,9 @@ async function main() {
   console.log(`NEYNAR_SIGNER_UUID=${created.signer_uuid}`);
   console.log('\napprove IN THE FARCASTER APP, signed in as @walletlink:');
   console.log(registered.signer_approval_url);
-  console.log('\nthen check: npx tsx --env-file=.env.local scripts/setup-farcaster-signer.ts --status');
+  console.log(
+    '\nthen check: npx tsx --env-file=.env.local scripts/setup-farcaster-signer.ts --status'
+  );
 }
 
 main().catch((e) => {

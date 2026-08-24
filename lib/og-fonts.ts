@@ -40,7 +40,6 @@ export const OG_FONT_FAMILY = 'Sohne';
  * The same applies to anything else decorative: arrows, dingbats, most emoji.
  */
 
-
 /**
  * The URLs are built by the caller, not here, and that is load-bearing.
  * Turbopack resolves `new URL(..., import.meta.url)` at build time and needs a

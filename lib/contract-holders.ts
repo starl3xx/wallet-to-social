@@ -1,5 +1,10 @@
 import { ethers } from 'ethers';
-import { CHAIN_IDS, CHAIN_LABELS, SUPPORTED_CHAINS, type SupportedChain } from './chains';
+import {
+  CHAIN_IDS,
+  CHAIN_LABELS,
+  SUPPORTED_CHAINS,
+  type SupportedChain,
+} from './chains';
 import { recordHolderIndexSpend } from './holder-index-budget';
 
 // Re-exported so existing server-side importers keep working unchanged.
@@ -126,10 +131,19 @@ const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
     'https://rpc.mainnet.chain.robinhood.com',
     'https://rpc.arrowrpc.com',
   ],
-  arbitrum: ['https://arb1.arbitrum.io/rpc', 'https://arbitrum-one-rpc.publicnode.com'],
+  arbitrum: [
+    'https://arb1.arbitrum.io/rpc',
+    'https://arbitrum-one-rpc.publicnode.com',
+  ],
   // polygon-rpc.com now returns 401 ('tenant disabled'); these were probed live
-  polygon: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'],
-  optimism: ['https://mainnet.optimism.io', 'https://optimism-rpc.publicnode.com'],
+  polygon: [
+    'https://polygon-bor-rpc.publicnode.com',
+    'https://polygon.drpc.org',
+  ],
+  optimism: [
+    'https://mainnet.optimism.io',
+    'https://optimism-rpc.publicnode.com',
+  ],
   bsc: ['https://bsc-dataseed.binance.org', 'https://bsc-rpc.publicnode.com'],
 };
 
@@ -193,7 +207,6 @@ const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   bsc: '0x38',
 };
 
-
 /**
  * A call that ran out of time, as opposed to one that came back with an answer.
  *
@@ -248,8 +261,13 @@ function providerUrls(chain: SupportedChain): string[] {
 }
 
 // Pin the network so ethers skips auto-detection, which matters on newer chains.
-function makeProvider(url: string, chain: SupportedChain): ethers.JsonRpcProvider {
-  return new ethers.JsonRpcProvider(url, CHAIN_IDS[chain], { staticNetwork: true });
+function makeProvider(
+  url: string,
+  chain: SupportedChain
+): ethers.JsonRpcProvider {
+  return new ethers.JsonRpcProvider(url, CHAIN_IDS[chain], {
+    staticNetwork: true,
+  });
 }
 
 /**
@@ -299,7 +317,11 @@ async function withProvider<T>(
     // A healthy endpoint answers these calls in well under a second, so a
     // couple of seconds is enough for a retry to be worth starting; anything
     // slower than that was not going to rescue this import anyway.
-    if (i > 0 && deadlineMs !== undefined && deadlineMs - Date.now() < MIN_RPC_RETRY_MS) {
+    if (
+      i > 0 &&
+      deadlineMs !== undefined &&
+      deadlineMs - Date.now() < MIN_RPC_RETRY_MS
+    ) {
       break;
     }
     try {
@@ -317,7 +339,6 @@ async function withProvider<T>(
 
   throw lastError;
 }
-
 
 /**
  * Detect the contract type (ERC-20, ERC-721, or ERC-1155)
@@ -435,13 +456,17 @@ async function getTokenInfo(
         const budget =
           deadlineMs === undefined
             ? RPC_TIMEOUT_MS
-            : Math.max(1_000, Math.min(RPC_TIMEOUT_MS, deadlineMs - Date.now()));
+            : Math.max(
+                1_000,
+                Math.min(RPC_TIMEOUT_MS, deadlineMs - Date.now())
+              );
 
-        const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
-          withTimeout(contract.name(), budget, 'name() timed out'),
-          withTimeout(contract.symbol(), budget, 'symbol() timed out'),
-          withTimeout(contract.decimals(), budget, 'decimals() timed out'),
-        ]);
+        const [nameResult, symbolResult, decimalsResult] =
+          await Promise.allSettled([
+            withTimeout(contract.name(), budget, 'name() timed out'),
+            withTimeout(contract.symbol(), budget, 'symbol() timed out'),
+            withTimeout(contract.decimals(), budget, 'decimals() timed out'),
+          ]);
 
         /**
          * Both failing is thrown so the next endpoint gets a turn.
@@ -453,13 +478,22 @@ async function getTokenInfo(
          * succeeding is treated as good enough, since a token legitimately may
          * implement only one of the pair.
          */
-        if (nameResult.status === 'rejected' && symbolResult.status === 'rejected') {
+        if (
+          nameResult.status === 'rejected' &&
+          symbolResult.status === 'rejected'
+        ) {
           throw nameResult.reason;
         }
 
         return {
-          name: nameResult.status === 'fulfilled' ? nameResult.value : 'Unknown Token',
-          symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'UNKNOWN',
+          name:
+            nameResult.status === 'fulfilled'
+              ? nameResult.value
+              : 'Unknown Token',
+          symbol:
+            symbolResult.status === 'fulfilled'
+              ? symbolResult.value
+              : 'UNKNOWN',
           /**
            * 18 is the ERC-20 default and the safe guess, but a wrong guess
            * misstates every Bag by orders of magnitude, so `getContractHolders`
@@ -467,7 +501,9 @@ async function getTokenInfo(
            * than publishing a number it cannot stand behind. -1 is that signal.
            */
           decimals:
-            decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : -1,
+            decimalsResult.status === 'fulfilled'
+              ? Number(decimalsResult.value)
+              : -1,
         };
       },
       deadlineMs
@@ -486,11 +522,16 @@ async function getERC721Holders(
   address: string,
   chain: SupportedChain,
   limit: number = HOLDER_LIMIT
-): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+}> {
   const alchemyKey = process.env.ALCHEMY_KEY;
   const baseUrl = ALCHEMY_ENDPOINTS[chain];
 
-  if (!alchemyKey) throw new Error('ALCHEMY_KEY required for NFT holder lookups');
+  if (!alchemyKey)
+    throw new Error('ALCHEMY_KEY required for NFT holder lookups');
   if (!baseUrl) throw new Error('CHAIN_NO_NFT_SUPPORT');
 
   /**
@@ -508,7 +549,7 @@ async function getERC721Holders(
   const response = await withTimeout(
     fetch(url, {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
     }),
     30000, // 30s timeout for this potentially slow call
     'Alchemy getOwnersForContract timed out'
@@ -543,14 +584,17 @@ async function getERC721Holders(
    * somebody flips it back.
    */
   const owners: Array<
-    string | { ownerAddress?: string; tokenBalances?: Array<{ balance?: string }> }
+    | string
+    | { ownerAddress?: string; tokenBalances?: Array<{ balance?: string }> }
   > = data.owners || [];
 
   const balances = new Map<string, string>();
   const seen: string[] = [];
 
   for (const entry of owners) {
-    const addr = (typeof entry === 'string' ? entry : entry.ownerAddress)?.toLowerCase();
+    const addr = (
+      typeof entry === 'string' ? entry : entry.ownerAddress
+    )?.toLowerCase();
     if (!addr) continue;
     if (!balances.has(addr)) seen.push(addr);
 
@@ -807,14 +851,21 @@ async function getERC20HoldersBlockscout(
   chain: SupportedChain,
   limit: number,
   deadlineMs: number
-): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+}> {
   const base = BLOCKSCOUT_BASE_URLS[chain];
   if (!base) throw new Error('CHAIN_NO_ERC20_SUPPORT');
 
   // Do not call an explorer that has already refused us. See explorerCooldowns.
   if (isCoolingDown(base)) throw new Error('RATE_LIMIT');
 
-  const headers = { Accept: 'application/json', 'User-Agent': 'walletlink.social' };
+  const headers = {
+    Accept: 'application/json',
+    'User-Agent': 'walletlink.social',
+  };
   const seen = new Map<string, string>();
   let totalHolders = 0;
 
@@ -839,8 +890,12 @@ async function getERC20HoldersBlockscout(
       'Blockscout token lookup timed out'
     );
     if (metaRes.ok) {
-      const meta = (await metaRes.json()) as { holders_count?: string; holders?: string };
-      totalHolders = parseInt(meta.holders_count ?? meta.holders ?? '0', 10) || 0;
+      const meta = (await metaRes.json()) as {
+        holders_count?: string;
+        holders?: string;
+      };
+      totalHolders =
+        parseInt(meta.holders_count ?? meta.holders ?? '0', 10) || 0;
     }
   } catch {
     // Non-fatal: a missing total only costs an accurate `truncated` flag
@@ -848,11 +903,11 @@ async function getERC20HoldersBlockscout(
 
   const v1 = await fetchHoldersV1(base, address, limit, headers, remainingMs);
   if (v1 && v1.size > 0) {
-  // `totalHolders` stays 0 when the source did not tell us the real total.
-  // It used to fall back to the number of wallets returned, which made
-  // `truncated` (wallets.length < totalHolders) impossible to ever be true: a
-  // capped list reported itself complete. USDG imported 5,000 of its holders
-  // and told the buyer that was all of them.
+    // `totalHolders` stays 0 when the source did not tell us the real total.
+    // It used to fall back to the number of wallets returned, which made
+    // `truncated` (wallets.length < totalHolders) impossible to ever be true: a
+    // capped list reported itself complete. USDG imported 5,000 of its holders
+    // and told the buyer that was all of them.
     const wallets = Array.from(v1.keys()).slice(0, limit);
     return {
       wallets,
@@ -873,7 +928,8 @@ async function getERC20HoldersBlockscout(
     if (remainingMs() <= 0) break;
     const url = new URL(`${base}/api/v2/tokens/${address}/holders`);
     if (params) {
-      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+      for (const [k, v] of Object.entries(params))
+        url.searchParams.set(k, String(v));
     }
 
     // Never wait past the budget: a fixed 30s timeout checked only between
@@ -908,7 +964,8 @@ async function getERC20HoldersBlockscout(
     for (const item of items) {
       const hash =
         typeof item.address === 'string' ? item.address : item.address?.hash;
-      if (hash && hash.startsWith('0x')) seen.set(hash.toLowerCase(), item.value ?? '');
+      if (hash && hash.startsWith('0x'))
+        seen.set(hash.toLowerCase(), item.value ?? '');
       if (seen.size >= limit) break;
     }
 
@@ -938,13 +995,18 @@ async function getERC20Holders(
   chain: SupportedChain,
   limit: number = HOLDER_LIMIT,
   options: HolderFetchOptions = {}
-): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+}> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
   // at all, "no support for this chain" is the accurate error, and configuring a key
   // would not help. Checking the key first would mask that with a config error.
   const chainId = MORALIS_CHAIN_IDS[chain];
   const explorer = BLOCKSCOUT_BASE_URLS[chain];
-  const deadlineMs = options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
+  const deadlineMs =
+    options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
 
   if (!chainId) {
     if (explorer) {
@@ -1018,7 +1080,11 @@ async function fetchHoldersMetered(
   address: string,
   chainId: string,
   limit: number
-): Promise<{ wallets: string[]; totalHolders: number; balances: Map<string, string> }> {
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+}> {
   const moralisKey = process.env.MORALIS_API_KEY;
   if (!moralisKey) {
     throw new Error('MORALIS_NOT_CONFIGURED');
@@ -1045,93 +1111,100 @@ async function fetchHoldersMetered(
    * day the allowance is already gone.
    */
   try {
-  // Paginate through results (Moralis returns max 100 per page)
-  do {
-    requestsMade++;
-    const url = new URL(`https://deep-index.moralis.io/api/v2.2/erc20/${address}/owners`);
-    url.searchParams.set('chain', chainId);
-    url.searchParams.set('limit', '100');
-    if (cursor) url.searchParams.set('cursor', cursor);
+    // Paginate through results (Moralis returns max 100 per page)
+    do {
+      requestsMade++;
+      const url = new URL(
+        `https://deep-index.moralis.io/api/v2.2/erc20/${address}/owners`
+      );
+      url.searchParams.set('chain', chainId);
+      url.searchParams.set('limit', '100');
+      if (cursor) url.searchParams.set('cursor', cursor);
 
-    const response = await withTimeout(
-      fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'X-API-Key': moralisKey,
-        },
-      }),
-      30000,
-      'Moralis getTokenHolders timed out'
-    );
+      const response = await withTimeout(
+        fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'X-API-Key': moralisKey,
+          },
+        }),
+        30000,
+        'Moralis getTokenHolders timed out'
+      );
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
 
-      /**
-       * A spent daily allowance is not "try again in a moment".
-       *
-       * The index bills by compute unit against a daily ceiling, and once that
-       * is gone it is gone until the ceiling resets. Reporting that as a rate
-       * limit told the customer to retry, which they did, which failed, which
-       * they did again. Telling them it comes back tomorrow is the difference
-       * between a wait and a fault.
-       *
-       * Matched on the body rather than the status because the status is not
-       * reliable for this: exhaustion has been seen as 401 and as 429, and a
-       * plain 429 for burst rate is a genuinely different answer. The body is
-       * what names the reason.
-       */
-      const exhausted = /compute unit|daily limit|quota|out of credit/i.test(errorText);
-      if (exhausted) {
-        console.error('Holder index allowance spent for the day:', errorText.slice(0, 200));
-        throw new Error('DAILY_ALLOWANCE_SPENT');
+        /**
+         * A spent daily allowance is not "try again in a moment".
+         *
+         * The index bills by compute unit against a daily ceiling, and once that
+         * is gone it is gone until the ceiling resets. Reporting that as a rate
+         * limit told the customer to retry, which they did, which failed, which
+         * they did again. Telling them it comes back tomorrow is the difference
+         * between a wait and a fault.
+         *
+         * Matched on the body rather than the status because the status is not
+         * reliable for this: exhaustion has been seen as 401 and as 429, and a
+         * plain 429 for burst rate is a genuinely different answer. The body is
+         * what names the reason.
+         */
+        const exhausted = /compute unit|daily limit|quota|out of credit/i.test(
+          errorText
+        );
+        if (exhausted) {
+          console.error(
+            'Holder index allowance spent for the day:',
+            errorText.slice(0, 200)
+          );
+          throw new Error('DAILY_ALLOWANCE_SPENT');
+        }
+
+        if (response.status === 429) {
+          throw new Error('RATE_LIMIT');
+        }
+        console.error('Moralis API error response:', {
+          status: response.status,
+          body: errorText,
+          url: url.toString().replace(moralisKey, '***'),
+        });
+        throw new Error(`Moralis API error: ${response.status} - ${errorText}`);
       }
 
-      if (response.status === 429) {
-        throw new Error('RATE_LIMIT');
+      const data = await response.json();
+
+      // Get total from first response
+      if (totalHolders === 0 && data.total) {
+        totalHolders = data.total;
       }
-      console.error('Moralis API error response:', {
-        status: response.status,
-        body: errorText,
-        url: url.toString().replace(moralisKey, '***'),
-      });
-      throw new Error(`Moralis API error: ${response.status} - ${errorText}`);
-    }
 
-    const data = await response.json();
+      // Extract wallet addresses, and the balance the index already sends with
+      // each one. `balance` is the raw integer; `balance_formatted` is a decimal
+      // string when Moralis knows the token's decimals. Prefer the raw value so
+      // one conversion path serves every source.
+      const rows = (data.result || []) as Array<{
+        owner_address: string;
+        balance?: string;
+      }>;
+      for (const h of rows) {
+        const w = h.owner_address.toLowerCase();
+        wallets.push(w);
+        if (h.balance !== undefined) balances.set(w, h.balance);
+      }
 
-    // Get total from first response
-    if (totalHolders === 0 && data.total) {
-      totalHolders = data.total;
-    }
+      cursor = data.cursor || null;
 
-    // Extract wallet addresses, and the balance the index already sends with
-    // each one. `balance` is the raw integer; `balance_formatted` is a decimal
-    // string when Moralis knows the token's decimals. Prefer the raw value so
-    // one conversion path serves every source.
-    const rows = (data.result || []) as Array<{
-      owner_address: string;
-      balance?: string;
-    }>;
-    for (const h of rows) {
-      const w = h.owner_address.toLowerCase();
-      wallets.push(w);
-      if (h.balance !== undefined) balances.set(w, h.balance);
-    }
+      // Stop if we've reached our limit
+      if (wallets.length >= limit) {
+        break;
+      }
 
-    cursor = data.cursor || null;
-
-    // Stop if we've reached our limit
-    if (wallets.length >= limit) {
-      break;
-    }
-
-    // Small delay between pages to avoid rate limits
-    if (cursor) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  } while (cursor && wallets.length < limit);
+      // Small delay between pages to avoid rate limits
+      if (cursor) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } while (cursor && wallets.length < limit);
   } finally {
     /**
      * Awaited. It used to be `void`, on the reasoning that accounting serves
@@ -1241,7 +1314,8 @@ export async function getContractHolders(
    * allowance, in practice the route's 60s has already been eaten into and the
    * function overruns rather than returning the partial list it had.
    */
-  const deadlineMs = options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
+  const deadlineMs =
+    options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
 
   // Validate address format
   if (!ethers.isAddress(address)) {
@@ -1264,14 +1338,18 @@ export async function getContractHolders(
   const rpcDeadlineMs = Math.min(deadlineMs, Date.now() + RPC_PHASE_BUDGET_MS);
 
   // Detect contract type
-  const contractType = await detectContractType(normalizedAddress, chain, rpcDeadlineMs);
-
-  // Get token info
-  const { name: tokenName, symbol: tokenSymbol, decimals } = await getTokenInfo(
+  const contractType = await detectContractType(
     normalizedAddress,
     chain,
     rpcDeadlineMs
   );
+
+  // Get token info
+  const {
+    name: tokenName,
+    symbol: tokenSymbol,
+    decimals,
+  } = await getTokenInfo(normalizedAddress, chain, rpcDeadlineMs);
 
   // Fetch holders based on contract type
   let holdersResult: {
@@ -1281,12 +1359,21 @@ export async function getContractHolders(
   };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
-    holdersResult = await getERC721Holders(normalizedAddress, chain, effectiveLimit);
+    holdersResult = await getERC721Holders(
+      normalizedAddress,
+      chain,
+      effectiveLimit
+    );
   } else {
-    holdersResult = await getERC20Holders(normalizedAddress, chain, effectiveLimit, {
-      ...options,
-      deadlineMs,
-    });
+    holdersResult = await getERC20Holders(
+      normalizedAddress,
+      chain,
+      effectiveLimit,
+      {
+        ...options,
+        deadlineMs,
+      }
+    );
   }
 
   if (holdersResult.wallets.length === 0) {

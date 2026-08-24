@@ -16,22 +16,25 @@ const db = new SQL.Database(fileBuffer);
 const draftContent = readFileSync(DRAFT_PATH, 'utf-8');
 
 // Count words
-const wordCount = draftContent.split(/\s+/).filter(w => w.length > 0).length;
+const wordCount = draftContent.split(/\s+/).filter((w) => w.length > 0).length;
 
 // Insert draft
-db.run(`
+db.run(
+  `
   INSERT INTO drafts (
     plan_id, version, content, word_count, critique, critique_passed, iteration_notes
   ) VALUES (?, ?, ?, ?, ?, ?, ?)
-`, [
-  1, // plan_id
-  1, // version
-  draftContent,
-  wordCount,
-  null, // critique - to be filled in REVIEW-001
-  false,
-  'First draft. Covers all key messages from COMM-1. Includes competitor comparison section.'
-]);
+`,
+  [
+    1, // plan_id
+    1, // version
+    draftContent,
+    wordCount,
+    null, // critique - to be filled in REVIEW-001
+    false,
+    'First draft. Covers all key messages from COMM-1. Includes competitor comparison section.',
+  ]
+);
 
 // Get draft id
 const draftResult = db.exec('SELECT last_insert_rowid() as id');
@@ -50,8 +53,8 @@ db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
     plan_id: 1,
     version: 1,
     word_count: wordCount,
-    file: 'content/drafts/farcaster-integration-v1.md'
-  })
+    file: 'content/drafts/farcaster-integration-v1.md',
+  }),
 ]);
 
 // Save to file

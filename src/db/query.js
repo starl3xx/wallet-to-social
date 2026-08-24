@@ -45,9 +45,10 @@ function printTable(rows, title) {
     Object.entries(row).forEach(([key, value]) => {
       if (key !== 'id') {
         // Truncate long values
-        const display = String(value).length > 100
-          ? String(value).substring(0, 100) + '...'
-          : value;
+        const display =
+          String(value).length > 100
+            ? String(value).substring(0, 100) + '...'
+            : value;
         console.log(`    ${key}: ${display}`);
       }
     });
@@ -57,23 +58,33 @@ function printTable(rows, title) {
 switch (command) {
   case 'trends': {
     const status = arg || 'active';
-    const rows = status === 'all'
-      ? getAll('SELECT * FROM trends ORDER BY relevance_score DESC')
-      : getAll('SELECT * FROM trends WHERE status = ? ORDER BY relevance_score DESC', [status]);
+    const rows =
+      status === 'all'
+        ? getAll('SELECT * FROM trends ORDER BY relevance_score DESC')
+        : getAll(
+            'SELECT * FROM trends WHERE status = ? ORDER BY relevance_score DESC',
+            [status]
+          );
     printTable(rows, `🔥 TRENDS (${status})`);
     break;
   }
 
   case 'research': {
     const status = arg || 'available';
-    const rows = getAll('SELECT id, title, summary, category, status FROM research WHERE status = ?', [status]);
+    const rows = getAll(
+      'SELECT id, title, summary, category, status FROM research WHERE status = ?',
+      [status]
+    );
     printTable(rows, `🔬 RESEARCH (${status})`);
     break;
   }
 
   case 'comms': {
     const status = arg || 'pending';
-    const rows = getAll('SELECT id, type, title, priority, target_audience, status FROM communications WHERE status = ? ORDER BY priority', [status]);
+    const rows = getAll(
+      'SELECT id, type, title, priority, target_audience, status FROM communications WHERE status = ? ORDER BY priority',
+      [status]
+    );
     printTable(rows, `📢 COMMUNICATIONS (${status})`);
     break;
   }
@@ -81,7 +92,10 @@ switch (command) {
   case 'plan': {
     const status = arg;
     const rows = status
-      ? getAll('SELECT * FROM content_plan WHERE status = ? ORDER BY priority', [status])
+      ? getAll(
+          'SELECT * FROM content_plan WHERE status = ? ORDER BY priority',
+          [status]
+        )
       : getAll('SELECT * FROM content_plan ORDER BY status, priority');
     printTable(rows, `📝 CONTENT PLAN${status ? ` (${status})` : ''}`);
     break;
@@ -90,9 +104,12 @@ switch (command) {
   case 'drafts': {
     const planId = arg;
     const rows = planId
-      ? getAll(`SELECT d.*, cp.title as plan_title FROM drafts d
+      ? getAll(
+          `SELECT d.*, cp.title as plan_title FROM drafts d
          JOIN content_plan cp ON d.plan_id = cp.id
-         WHERE d.plan_id = ? ORDER BY d.version DESC`, [planId])
+         WHERE d.plan_id = ? ORDER BY d.version DESC`,
+          [planId]
+        )
       : getAll(`SELECT d.*, cp.title as plan_title FROM drafts d
          JOIN content_plan cp ON d.plan_id = cp.id
          ORDER BY d.updated_at DESC`);

@@ -1,7 +1,7 @@
 ---
-title: "Reverse X lookup"
-description: "GET /v1/reverse/twitter/{handle}"
-api: "GET https://walletlink.social/api/v1/reverse/twitter/{handle}"
+title: 'Reverse X lookup'
+description: 'GET /v1/reverse/twitter/{handle}'
+api: 'GET https://walletlink.social/api/v1/reverse/twitter/{handle}'
 ---
 
 Finds every wallet linked to an X handle. Costs **1 match credit per wallet returned**, 100 per page. A handle with no wallets attached costs nothing. Separately, each request weighs 2 units against your rate limit.
@@ -11,7 +11,8 @@ This runs the graph backwards, and it answers a question most wallet tooling can
 ## Path parameters
 
 <ParamField path="handle" type="string" required>
-  1 to 15 characters, letters, numbers and underscores. A leading `@` is accepted and stripped. Case-insensitive.
+  1 to 15 characters, letters, numbers and underscores. A leading `@` is
+  accepted and stripped. Case-insensitive.
 </ParamField>
 
 ## Query parameters
@@ -32,20 +33,30 @@ curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
 ## Response
 
 <ResponseField name="data" type="array">
-  Matching wallets, at most 100 per page, ordered by Farcaster reach
-  (highest follower count first, wallets without one last, wallet address as
-  the tiebreak). Each entry carries `wallet`, an always-present `twitter`
-  object, and whichever of `ens_name`, `farcaster`, `lens`, `github` and
-  `sources` apply, plus a flat `quality_score`.
+  Matching wallets, at most 100 per page, ordered by Farcaster reach (highest
+  follower count first, wallets without one last, wallet address as the
+  tiebreak). Each entry carries `wallet`, an always-present `twitter` object,
+  and whichever of `ens_name`, `farcaster`, `lens`, `github` and `sources`
+  apply, plus a flat `quality_score`.
 </ResponseField>
 
 <ResponseField name="meta" type="object">
   <Expandable title="properties">
-    <ResponseField name="handle" type="string">The normalized handle, lowercased and without `@`.</ResponseField>
-    <ResponseField name="total_count" type="number">Total matches in the index, across all pages.</ResponseField>
-    <ResponseField name="returned_count" type="number">How many are in this response.</ResponseField>
-    <ResponseField name="truncated" type="boolean">Whether more results remain after this page.</ResponseField>
-    <ResponseField name="next_cursor" type="string | null">Pass as `cursor` to fetch the next page. `null` on the last page.</ResponseField>
+    <ResponseField name="handle" type="string">
+      The normalized handle, lowercased and without `@`.
+    </ResponseField>
+    <ResponseField name="total_count" type="number">
+      Total matches in the index, across all pages.
+    </ResponseField>
+    <ResponseField name="returned_count" type="number">
+      How many are in this response.
+    </ResponseField>
+    <ResponseField name="truncated" type="boolean">
+      Whether more results remain after this page.
+    </ResponseField>
+    <ResponseField name="next_cursor" type="string | null">
+      Pass as `cursor` to fetch the next page. `null` on the last page.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -78,8 +89,8 @@ curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
 ```
 
 <Note>
-`quality_score` here is a flat number, unlike the nested `quality` object on
-[single lookup](/api-reference/wallet). Same scale, different shape.
+  `quality_score` here is a flat number, unlike the nested `quality` object on
+  [single lookup](/api-reference/wallet). Same scale, different shape.
 </Note>
 
 ## One handle, many wallets

@@ -16,18 +16,21 @@ const db = new SQL.Database(fileBuffer);
 const finalContent = readFileSync(PUBLISHED_PATH, 'utf-8');
 
 // Create published entry
-db.run(`
+db.run(
+  `
   INSERT INTO published (
     plan_id, draft_id, final_content, meta_description, final_version, iterations_required
   ) VALUES (?, ?, ?, ?, ?, ?)
-`, [
-  1, // plan_id
-  2, // draft_id (v2)
-  finalContent,
-  'Farcaster integration brings 3x more wallet matches. Find your token holders\' Twitter and Farcaster profiles instantly. 22% match rate vs 2.5% average.',
-  2, // final_version
-  2  // iterations_required
-]);
+`,
+  [
+    1, // plan_id
+    2, // draft_id (v2)
+    finalContent,
+    "Farcaster integration brings 3x more wallet matches. Find your token holders' Twitter and Farcaster profiles instantly. 22% match rate vs 2.5% average.",
+    2, // final_version
+    2, // iterations_required
+  ]
+);
 
 // Get published id
 const pubResult = db.exec('SELECT last_insert_rowid() as id');
@@ -49,8 +52,8 @@ db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
     plan_id: 1,
     comm_id: 1,
     title: 'walletlink.social Now Supports Farcaster: 3x More Wallet Matches',
-    file: 'content/published/farcaster-integration-final.md'
-  })
+    file: 'content/published/farcaster-integration-final.md',
+  }),
 ]);
 
 // Save to file

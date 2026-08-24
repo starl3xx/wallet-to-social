@@ -15,9 +15,9 @@ export interface SocialGraphHealthMetrics {
 
   // Quality distribution
   qualityDistribution: {
-    high: number;     // dataQualityScore >= 70
-    medium: number;   // 40-69 or has verified flags
-    low: number;      // < 40
+    high: number; // dataQualityScore >= 70
+    medium: number; // 40-69 or has verified flags
+    low: number; // < 40
   };
 
   // Staleness
@@ -53,7 +53,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -108,7 +111,8 @@ export async function GET(request: NextRequest) {
     const hits = hitEvents[0]?.count ?? 0;
     const misses = missEvents[0]?.count ?? 0;
     const totalLookups = hits + misses;
-    const hitRate = totalLookups > 0 ? Math.round((hits / totalLookups) * 100) : 0;
+    const hitRate =
+      totalLookups > 0 ? Math.round((hits / totalLookups) * 100) : 0;
 
     // Write success rate from jobs (last 24h)
     const writeStatusCounts = await db
@@ -137,10 +141,12 @@ export async function GET(request: NextRequest) {
       else if (row.status === 'failed') writeStats.failed = row.count;
     }
 
-    const totalWrites = writeStats.success + writeStats.partial + writeStats.failed;
-    const writeSuccessRate = totalWrites > 0
-      ? Math.round((writeStats.success / totalWrites) * 100)
-      : 100;
+    const totalWrites =
+      writeStats.success + writeStats.partial + writeStats.failed;
+    const writeSuccessRate =
+      totalWrites > 0
+        ? Math.round((writeStats.success / totalWrites) * 100)
+        : 100;
 
     // Source distribution - get counts by source
     // This is a bit expensive but provides valuable insight

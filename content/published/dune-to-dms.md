@@ -1,6 +1,6 @@
 ---
 title: 'From Dune dashboard to DMs: turning analytics into action'
-meta_description: "Dune shows who holds your token. But you can’t DM a wallet address. Here’s how to bridge the gap between onchain analytics and real outreach."
+meta_description: 'Dune shows who holds your token. But you can’t DM a wallet address. Here’s how to bridge the gap between onchain analytics and real outreach.'
 published: true
 publish_date: '2026-05-07'
 ---

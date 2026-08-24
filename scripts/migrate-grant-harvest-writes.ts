@@ -51,10 +51,14 @@ async function main() {
 
   const missing = GRANTS.filter((g) => {
     const row = check.find((c) => c.table_name === g.table);
-    return !row || !g.privileges.every((p) => (row.privs as string).includes(p));
+    return (
+      !row || !g.privileges.every((p) => (row.privs as string).includes(p))
+    );
   });
   if (missing.length > 0) {
-    console.error(`\nMissing grants on: ${missing.map((m) => m.table).join(', ')}`);
+    console.error(
+      `\nMissing grants on: ${missing.map((m) => m.table).join(', ')}`
+    );
     process.exit(1);
   }
 }

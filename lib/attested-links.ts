@@ -117,7 +117,11 @@ export function dedupeByWallet(links: AttestedLink[]): {
       continue;
     }
     const wallet = raw.wallet.toLowerCase();
-    const link: AttestedLink = { wallet, handle, twitterUserId: raw.twitterUserId ?? null };
+    const link: AttestedLink = {
+      wallet,
+      handle,
+      twitterUserId: raw.twitterUserId ?? null,
+    };
 
     const existing = byWallet.get(wallet);
     if (existing && existing.handle !== link.handle) {
@@ -173,7 +177,12 @@ export async function classifyLinks(links: AttestedLink[]): Promise<{
                   ${sql.param(batch.map((l) => l.handle))}::text[]) AS t(wallet, handle)
       LEFT JOIN social_graph g ON g.wallet = t.wallet
     `)) as unknown as {
-      rows: Array<{ new_wallets: number; would_fill: number; agree: number; disagree: number }>;
+      rows: Array<{
+        new_wallets: number;
+        would_fill: number;
+        agree: number;
+        disagree: number;
+      }>;
     };
     const r = result.rows[0];
     if (!r) continue;

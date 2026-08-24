@@ -16,62 +16,77 @@ const db = new SQL.Database(fileBuffer);
 const socialContent = readFileSync(SOCIAL_PATH, 'utf-8');
 
 // Create content idea
-db.run(`
+db.run(
+  `
   INSERT INTO content_ideas (
     topic, obvious_angle, unique_angle, angle_justification,
     target_reader, hook_options, uniqueness_score, status
   ) VALUES (?, ?, ?, ?, ?, ?, ?, 'approved')
-`, [
-  'Farcaster Launch Social Promotion',
-  'Announcing new feature on social media',
-  'Mix of problem hooks, data points, use cases, and engagement questions',
-  '5 distinct angles to test what resonates with Web3 audience',
-  'Token project founders, DAO operators, crypto marketers on Twitter/Farcaster',
-  JSON.stringify([
-    'Problem hook: wallet identity pain',
-    'Data point: 22% vs 2.5%',
-    'Use case: DAO governance improvement',
-    'Engagement: poll-style question'
-  ]),
-  82
-]);
+`,
+  [
+    'Farcaster Launch Social Promotion',
+    'Announcing new feature on social media',
+    'Mix of problem hooks, data points, use cases, and engagement questions',
+    '5 distinct angles to test what resonates with Web3 audience',
+    'Token project founders, DAO operators, crypto marketers on Twitter/Farcaster',
+    JSON.stringify([
+      'Problem hook: wallet identity pain',
+      'Data point: 22% vs 2.5%',
+      'Use case: DAO governance improvement',
+      'Engagement: poll-style question',
+    ]),
+    82,
+  ]
+);
 
 const ideaResult = db.exec('SELECT last_insert_rowid() as id');
 const ideaId = ideaResult[0].values[0][0];
 
 // Create content plan
-db.run(`
+db.run(
+  `
   INSERT INTO content_plan (
     idea_id, content_type, title, brief, target_keywords,
     voice_profile_id, quality_bar, priority, status
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published')
-`, [
-  ideaId,
-  'social',
-  'Farcaster Launch Social Media Batch',
-  '5 social posts promoting Farcaster integration',
-  JSON.stringify(['Web3', 'Farcaster', 'DAO', 'token holders', 'wallet identity']),
-  1,
-  'standard',
-  10
-]);
+`,
+  [
+    ideaId,
+    'social',
+    'Farcaster Launch Social Media Batch',
+    '5 social posts promoting Farcaster integration',
+    JSON.stringify([
+      'Web3',
+      'Farcaster',
+      'DAO',
+      'token holders',
+      'wallet identity',
+    ]),
+    1,
+    'standard',
+    10,
+  ]
+);
 
 const planResult = db.exec('SELECT last_insert_rowid() as id');
 const planId = planResult[0].values[0][0];
 
 // Create draft
-db.run(`
+db.run(
+  `
   INSERT INTO drafts (
     plan_id, version, content, word_count, critique_passed, iteration_notes
   ) VALUES (?, ?, ?, ?, ?, ?)
-`, [
-  planId,
-  1,
-  socialContent,
-  socialContent.split(/\s+/).filter(w => w.length > 0).length,
-  true,
-  '5 posts, all under 280 chars, varied angles: problem, data, native, case study, engagement'
-]);
+`,
+  [
+    planId,
+    1,
+    socialContent,
+    socialContent.split(/\s+/).filter((w) => w.length > 0).length,
+    true,
+    '5 posts, all under 280 chars, varied angles: problem, data, native, case study, engagement',
+  ]
+);
 
 // Log activity
 db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
@@ -82,8 +97,8 @@ db.run(`INSERT INTO agent_log (phase, action, details) VALUES (?, ?, ?)`, [
     plan_id: planId,
     posts: 5,
     platforms: ['Twitter/X', 'Farcaster'],
-    file: 'content/drafts/social-batch-001.md'
-  })
+    file: 'content/drafts/social-batch-001.md',
+  }),
 ]);
 
 // Save to file

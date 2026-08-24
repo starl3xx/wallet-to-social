@@ -111,7 +111,9 @@ export function getTimeRangeBounds(period: TimePeriod): TimeRange {
 /**
  * Get usage metrics for a time period
  */
-export async function getUsageMetrics(period: TimePeriod): Promise<UsageMetrics> {
+export async function getUsageMetrics(
+  period: TimePeriod
+): Promise<UsageMetrics> {
   const db = getDb();
   if (!db) {
     return {
@@ -196,14 +198,17 @@ export async function getUsageMetrics(period: TimePeriod): Promise<UsageMetrics>
     lookupsChange: calcChange(current.totalLookups, previous.totalLookups),
     walletsChange: calcChange(current.totalWallets, previous.totalWallets),
     matchRateChange: current.avgMatchRate - previous.avgMatchRate,
-    processingTimeChange: current.avgProcessingTime - previous.avgProcessingTime,
+    processingTimeChange:
+      current.avgProcessingTime - previous.avgProcessingTime,
   };
 }
 
 /**
  * Get match analytics with platform breakdown and trend data
  */
-export async function getMatchAnalytics(period: TimePeriod): Promise<MatchAnalytics> {
+export async function getMatchAnalytics(
+  period: TimePeriod
+): Promise<MatchAnalytics> {
   const db = getDb();
   if (!db) {
     return {
@@ -263,9 +268,15 @@ export async function getMatchAnalytics(period: TimePeriod): Promise<MatchAnalyt
 
   const trendData = trendRows.map((row) => ({
     date: row.date,
-    twitterRate: row.totalWallets ? (row.twitterFound / row.totalWallets) * 100 : 0,
-    farcasterRate: row.totalWallets ? (row.farcasterFound / row.totalWallets) * 100 : 0,
-    anyRate: row.totalWallets ? (row.anySocialFound / row.totalWallets) * 100 : 0,
+    twitterRate: row.totalWallets
+      ? (row.twitterFound / row.totalWallets) * 100
+      : 0,
+    farcasterRate: row.totalWallets
+      ? (row.farcasterFound / row.totalWallets) * 100
+      : 0,
+    anyRate: row.totalWallets
+      ? (row.anySocialFound / row.totalWallets) * 100
+      : 0,
   }));
 
   return {
@@ -279,7 +290,9 @@ export async function getMatchAnalytics(period: TimePeriod): Promise<MatchAnalyt
 /**
  * Get performance metrics including queue status and success rates
  */
-export async function getPerformanceMetrics(period: TimePeriod): Promise<PerformanceMetrics> {
+export async function getPerformanceMetrics(
+  period: TimePeriod
+): Promise<PerformanceMetrics> {
   const db = getDb();
   if (!db) {
     return {
@@ -304,7 +317,8 @@ export async function getPerformanceMetrics(period: TimePeriod): Promise<Perform
     .groupBy(lookupJobs.status);
 
   const pendingJobs = queueRows.find((r) => r.status === 'pending')?.count || 0;
-  const runningJobs = queueRows.find((r) => r.status === 'processing')?.count || 0;
+  const runningJobs =
+    queueRows.find((r) => r.status === 'processing')?.count || 0;
 
   // Success/failure stats for period
   const [statusCounts] = await db
@@ -314,10 +328,7 @@ export async function getPerformanceMetrics(period: TimePeriod): Promise<Perform
     })
     .from(lookupJobs)
     .where(
-      and(
-        gte(lookupJobs.createdAt, start),
-        lte(lookupJobs.createdAt, end)
-      )
+      and(gte(lookupJobs.createdAt, start), lte(lookupJobs.createdAt, end))
     );
 
   const total = statusCounts.completed + statusCounts.failed;
@@ -360,7 +371,9 @@ export async function getPerformanceMetrics(period: TimePeriod): Promise<Perform
 /**
  * Get recent completed jobs for the activity feed
  */
-export async function getRecentActivity(limit: number = 5): Promise<RecentActivity[]> {
+export async function getRecentActivity(
+  limit: number = 5
+): Promise<RecentActivity[]> {
   const db = getDb();
   if (!db) {
     return [];
@@ -385,7 +398,8 @@ export async function getRecentActivity(limit: number = 5): Promise<RecentActivi
     walletCount: row.walletCount,
     twitterFound: row.twitterFound,
     farcasterFound: row.farcasterFound,
-    matchRate: row.walletCount > 0 ? (row.anySocialFound / row.walletCount) * 100 : 0,
+    matchRate:
+      row.walletCount > 0 ? (row.anySocialFound / row.walletCount) * 100 : 0,
     completedAt: row.completedAt?.toISOString() || '',
   }));
 }
@@ -393,7 +407,9 @@ export async function getRecentActivity(limit: number = 5): Promise<RecentActivi
 /**
  * Get all dashboard data in a single call
  */
-export async function getDashboardData(period: TimePeriod): Promise<DashboardData> {
+export async function getDashboardData(
+  period: TimePeriod
+): Promise<DashboardData> {
   const [usage, match, performance, recentActivity] = await Promise.all([
     getUsageMetrics(period),
     getMatchAnalytics(period),

@@ -1,6 +1,6 @@
 ---
 title: 'walletlink.social vs Addressable: a practical comparison'
-meta_description: "Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here’s when each makes sense."
+meta_description: 'Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here’s when each makes sense.'
 published: true
 publish_date: '2026-03-05'
 ---
@@ -24,7 +24,7 @@ This difference in scope drives most of the other differences.
 |               | walletlink.social                               | Addressable                  |
 | ------------- | ----------------------------------------------- | ---------------------------- |
 | Pricing model | One-time payment                                | Monthly subscription         |
-| Entry price   | Free (100 matches per rolling 30 days)                  | Custom (sales call required) |
+| Entry price   | Free (100 matches per rolling 30 days)          | Custom (sales call required) |
 | Mid-range     | $29 to $99 one-time (250 to 1,500 matches)      | ~$1,000-3,000/mo (estimated) |
 | High-end      | $299 to $899 one-time (6,000 to 25,000 matches) | Enterprise pricing           |
 | Sales process | Self-serve                                      | Demo call required           |

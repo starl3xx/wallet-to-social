@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.DATABASE_URL) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      );
     }
 
     const run = await runGraphRepairs(true);
@@ -58,8 +61,15 @@ export async function POST(request: NextRequest) {
     if (refused.length > 0 || incomplete.length > 0) {
       trackEvent('graph_repair_blocked', {
         metadata: {
-          refused: refused.map((r) => ({ id: r.id, found: r.found, reason: r.refused })),
-          incomplete: incomplete.map((r) => ({ id: r.id, reason: r.incomplete })),
+          refused: refused.map((r) => ({
+            id: r.id,
+            found: r.found,
+            reason: r.refused,
+          })),
+          incomplete: incomplete.map((r) => ({
+            id: r.id,
+            reason: r.incomplete,
+          })),
         },
       });
     }

@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -83,7 +86,9 @@ export async function GET(request: NextRequest) {
           totalHolders?: number;
           truncated?: boolean;
         } | null>`${lookupJobs.options} -> 'sourceContract'`,
-        inputSource: sql<string | null>`${lookupJobs.options} ->> 'inputSource'`,
+        inputSource: sql<
+          string | null
+        >`${lookupJobs.options} ->> 'inputSource'`,
         createdAt: lookupJobs.createdAt,
         startedAt: lookupJobs.startedAt,
         completedAt: lookupJobs.completedAt,
@@ -105,7 +110,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ jobs });
   } catch (error) {
     console.error('Jobs fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch jobs' },
+      { status: 500 }
+    );
   }
 }
 
@@ -116,7 +124,10 @@ export async function POST(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -124,7 +135,10 @@ export async function POST(request: NextRequest) {
     const { id, action } = body;
 
     if (!id || !action) {
-      return NextResponse.json({ error: 'ID and action required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'ID and action required' },
+        { status: 400 }
+      );
     }
 
     if (action === 'retry' || action === 'rerun') {
@@ -197,6 +211,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Job action error:', error);
-    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update job' },
+      { status: 500 }
+    );
   }
 }

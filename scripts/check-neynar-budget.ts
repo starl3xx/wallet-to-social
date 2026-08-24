@@ -11,7 +11,9 @@ async function main() {
   console.log(`plan limit:         ${MONTHLY_CREDIT_LIMIT.toLocaleString()}`);
   console.log(`background ceiling: ${BACKGROUND_CEILING.toLocaleString()}`);
   console.log(`spent this period:  ${spent.toLocaleString()}`);
-  console.log(`reserved for users: ${(MONTHLY_CREDIT_LIMIT - BACKGROUND_CEILING).toLocaleString()}\n`);
+  console.log(
+    `reserved for users: ${(MONTHLY_CREDIT_LIMIT - BACKGROUND_CEILING).toLocaleString()}\n`
+  );
 
   for (const [label, n] of [
     ['daily incremental sweep (30k FIDs)', 30_000],

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pendingHandles, remainingCredits, sweepHandles } from '@/lib/x-accounts';
+import {
+  pendingHandles,
+  remainingCredits,
+  sweepHandles,
+} from '@/lib/x-accounts';
 import { isConfigured, resolverKey } from '@/lib/x-resolver';
 import { planSweep } from '@/lib/x-sweep-budget';
 import { trackEvent } from '@/lib/analytics';
@@ -73,7 +77,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
   }
   if (!isConfigured()) {
     // Not an error worth alarming on: it is a configuration fact, and the
@@ -118,9 +125,18 @@ export async function GET(request: NextRequest) {
 
     if (handles.length === 0) {
       trackEvent('lookup_completed', {
-        metadata: { eventSubtype: 'x_reachability_sweep', ok: true, checked: 0, caughtUp: true },
+        metadata: {
+          eventSubtype: 'x_reachability_sweep',
+          ok: true,
+          checked: 0,
+          caughtUp: true,
+        },
       }).catch(console.error);
-      return NextResponse.json({ message: 'Nothing pending', checked: 0, caughtUp: true });
+      return NextResponse.json({
+        message: 'Nothing pending',
+        checked: 0,
+        caughtUp: true,
+      });
     }
 
     const progress = await sweepHandles(handles, key, {
@@ -134,7 +150,9 @@ export async function GET(request: NextRequest) {
      * failed reached the resolver and got nothing usable back, which is a
      * provider problem worth surfacing rather than a healthy tick.
      */
-    const ok = progress.checked > 0 && progress.live + progress.notFound + progress.unavailable > 0;
+    const ok =
+      progress.checked > 0 &&
+      progress.live + progress.notFound + progress.unavailable > 0;
 
     trackEvent('lookup_completed', {
       metadata: {
@@ -150,11 +168,18 @@ export async function GET(request: NextRequest) {
 
     if (!ok) {
       return NextResponse.json(
-        { message: 'Resolved nothing; the resolver returned no usable answers', ...progress },
+        {
+          message: 'Resolved nothing; the resolver returned no usable answers',
+          ...progress,
+        },
         { status: 502 }
       );
     }
-    return NextResponse.json({ message: 'ok', requested: handles.length, ...progress });
+    return NextResponse.json({
+      message: 'ok',
+      requested: handles.length,
+      ...progress,
+    });
   } catch (error) {
     console.error('X reachability sweep cron error:', error);
     trackEvent('lookup_completed', {

@@ -8,7 +8,10 @@
  * metadata, and holder resolution — rather than hitting the provider APIs directly.
  */
 
-import { getContractHolders, type SupportedChain } from '../lib/contract-holders';
+import {
+  getContractHolders,
+  type SupportedChain,
+} from '../lib/contract-holders';
 
 async function main() {
   const [address, chain] = process.argv.slice(2);
@@ -25,7 +28,9 @@ async function main() {
   console.log(`token:         ${result.tokenName} (${result.tokenSymbol})`);
   console.log(`type:          ${result.contractType}`);
   console.log(`total holders: ${result.totalHolders}`);
-  console.log(`returned:      ${result.wallets.length}${result.truncated ? ' (truncated)' : ''}`);
+  console.log(
+    `returned:      ${result.wallets.length}${result.truncated ? ' (truncated)' : ''}`
+  );
   console.log(`elapsed:       ${elapsed}s`);
   console.log(`\nfirst 5:`);
   for (const w of result.wallets.slice(0, 5)) console.log(`  ${w}`);

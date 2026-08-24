@@ -32,7 +32,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { wallet, name, framework, agentType, tokenSymbol, twitterHandle, farcaster } = body;
+    const {
+      wallet,
+      name,
+      framework,
+      agentType,
+      tokenSymbol,
+      twitterHandle,
+      farcaster,
+    } = body;
 
     if (!wallet || !name) {
       return NextResponse.json(
@@ -95,10 +103,7 @@ export async function DELETE(request: NextRequest) {
     const removed = await removeKnownAgent(wallet);
 
     if (!removed) {
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
     return NextResponse.json({ message: 'Agent removed' });

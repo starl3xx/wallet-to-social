@@ -427,8 +427,8 @@ export default function AirstackComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              in a rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches in a
+              rolling {FREE_WINDOW_DAYS}-day window, no credit card required.
             </p>
             <Button asChild>
               <Link href="/">

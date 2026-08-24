@@ -34,7 +34,10 @@ export async function GET(request: NextRequest) {
 
   const db = getDb();
   if (!db) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 503 }
+    );
   }
 
   const params = request.nextUrl.searchParams;
@@ -111,7 +114,9 @@ export async function GET(request: NextRequest) {
          * A reading, not a decision. Named so nobody mistakes it for one.
          */
         verdict:
-          r.ours_status && r.ours_status !== 'live' && r.theirs_status === 'live'
+          r.ours_status &&
+          r.ours_status !== 'live' &&
+          r.theirs_status === 'live'
             ? 'ours-unreachable'
             : r.ours_status === 'live' && r.theirs_status === 'live'
               ? 'both-live'

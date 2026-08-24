@@ -1,6 +1,11 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { apiKeys, rateLimitBuckets, type ApiKey, type ApiPlan } from '@/db/schema';
+import {
+  apiKeys,
+  rateLimitBuckets,
+  type ApiKey,
+  type ApiPlan,
+} from '@/db/schema';
 
 export type BucketType = 'minute' | 'day' | 'month';
 
@@ -118,7 +123,11 @@ async function checkBucket(
         count: increment,
       })
       .onConflictDoUpdate({
-        target: [rateLimitBuckets.apiKeyId, rateLimitBuckets.bucketType, rateLimitBuckets.bucketKey],
+        target: [
+          rateLimitBuckets.apiKeyId,
+          rateLimitBuckets.bucketType,
+          rateLimitBuckets.bucketKey,
+        ],
         set: {
           count: sql`${rateLimitBuckets.count} + ${increment}`,
           updatedAt: new Date(),
@@ -152,7 +161,9 @@ async function checkBucket(
     limit,
     remaining,
     resetAt,
-    retryAfter: allowed ? undefined : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+    retryAfter: allowed
+      ? undefined
+      : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
   };
 }
 
@@ -175,7 +186,9 @@ async function accountUsageForPeriod(
 
   const bucketKey = getBucketKey(type);
   const [row] = await db
-    .select({ total: sql<number>`COALESCE(SUM(${rateLimitBuckets.count}), 0)::int` })
+    .select({
+      total: sql<number>`COALESCE(SUM(${rateLimitBuckets.count}), 0)::int`,
+    })
     .from(rateLimitBuckets)
     .innerJoin(apiKeys, eq(rateLimitBuckets.apiKeyId, apiKeys.id))
     .where(
@@ -197,7 +210,11 @@ export async function checkRateLimit(
   key: ApiKey,
   plan: ApiPlan,
   credits: number = 1
-): Promise<{ allowed: boolean; result: RateLimitResult; headers: RateLimitHeaders }> {
+): Promise<{
+  allowed: boolean;
+  result: RateLimitResult;
+  headers: RateLimitHeaders;
+}> {
   const bucketTypes: BucketType[] = ['minute', 'day', 'month'];
 
   // Check each bucket type, starting with most restrictive (minute)
@@ -216,8 +233,9 @@ export async function checkRateLimit(
     // After the per-key increment, enforce the day/month quota at the ACCOUNT
     // level so extra keys can't multiply the allowance. Plan overrides on the
     // key don't relax the account cap — the plan limit is the account ceiling.
-    if ((type === 'day' || type === 'month')) {
-      const accountLimit = type === 'day' ? plan.requestsPerDay : plan.requestsPerMonth;
+    if (type === 'day' || type === 'month') {
+      const accountLimit =
+        type === 'day' ? plan.requestsPerDay : plan.requestsPerMonth;
       if (accountLimit !== -1) {
         const accountUsed = await accountUsageForPeriod(key.userId, type);
         if (accountUsed > accountLimit) {
@@ -229,7 +247,11 @@ export async function checkRateLimit(
             resetAt,
             retryAfter: Math.ceil((resetAt.getTime() - Date.now()) / 1000),
           };
-          return { allowed: false, result: accountResult, headers: formatHeaders(accountResult) };
+          return {
+            allowed: false,
+            result: accountResult,
+            headers: formatHeaders(accountResult),
+          };
         }
       }
     }
@@ -329,7 +351,9 @@ function formatHeaders(result: RateLimitResult): RateLimitHeaders {
 /**
  * Cleans up old rate limit buckets (call periodically via cron)
  */
-export async function cleanupOldBuckets(olderThanDays: number = 7): Promise<number> {
+export async function cleanupOldBuckets(
+  olderThanDays: number = 7
+): Promise<number> {
   const db = getDb();
   if (!db) return 0;
 
