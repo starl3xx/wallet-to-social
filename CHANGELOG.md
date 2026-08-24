@@ -2,6 +2,88 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the welcome email stops arriving a day after the welcome)
+
+- **Welcome-1 now sends about five minutes after signup, not up to 24 hours
+  later.** The sequence ran on one daily cron at 15:00 UTC, so an account
+  created at 15:01 waited 23 hours and 59 minutes for the email that greets it.
+  New cron `/api/cron/welcome-first` at `*/5 * * * *` runs `welcome-1` only,
+  for accounts past `FIRST_TOUCH_DELAY_MINUTES` (5). Worst case is now about
+  ten minutes.
+- **The delay is deliberate, and zero would be worse.** The account row is
+  written at magic-link *verify*, so an inline send puts welcome-1 in the inbox
+  in the same second as the sign-in link, and the email the person needs
+  competes with the one they did not ask for. Five minutes clears the link and
+  is long enough that most people have run their first lookup, which is the
+  state welcome-1's copy assumes.
+- **Sends now claim before they send.** `lifecycle_emails` is unique on
+  (user, key), but the row was written *after* the send, so two runners racing
+  the same user delivered twice and inserted once: the constraint recorded the
+  race instead of preventing it. That was theoretical with one cron and real
+  with two, which overlap exactly at 15:00. `claimAndSend` inserts first and
+  sends only if it took the row; a failed send deletes the claim so the next
+  run retries rather than marking a person as emailed by an email that never
+  left.
+- **The daily runner keeps its day-0 pass** as the safety net, and both runners
+  now select through one shared `ELIGIBLE_USER` fragment so the cutoff,
+  opt-out, legacy-tier, whitelist and purchase exits cannot drift apart.
+- **A claim nobody redeems is a welcome email that never arrives.**
+  `claimAndSend` deletes its claim when the send *returns* a failure, but it
+  cannot delete anything when the process does not return at all: a timeout, an
+  OOM or a deploy between the INSERT and the send leaves a row every runner
+  reads as "already emailed", retried by nothing and reported to nobody. New
+  column `lifecycle_emails.confirmed_at` is written after the send succeeds, so
+  a row is proof of delivery rather than of intent, and `reclaimStaleClaims`
+  deletes unconfirmed claims older than `CLAIM_RECLAIM_MINUTES` (15) before
+  either runner selects. The residual window resolves in favour of sending: a
+  process that dies after the send but before the confirm mails that person
+  twice, and one duplicate greeting beats a welcome that silently never
+  arrives.
+- **The delay is a fact about the account, not about one cron.** Held only in
+  the fast runner, the daily runner's day-0 pass still computed `now() - 0
+  days`, so an account created at 14:59:30 got welcome-1 thirty seconds later
+  at 15:00, next to its own magic link. `FIRST_TOUCH_DELAY_MINUTES` moved into
+  `ELIGIBLE_USER`, where no runner can reach past it.
+- **Selection asks whether an email was delivered, never whether a row exists.**
+  Once the claim is taken before the send, a bare `NOT EXISTS` reads an
+  in-flight claim as a completed send: the daily runner found no welcome-1
+  pending, fell through to welcome-2, and would have delivered the second email
+  beside the first while the first was still leaving. Both runners now select on
+  `confirmed_at IS NOT NULL`, which holds that user at welcome-1 until an email
+  actually left. The lowest-pending ordering is the reason the daily runner
+  loops in key order, so this is the predicate that has to carry it.
+- **The reclaim is scoped to this sequence's own keys.** `lifecycle_emails` is a
+  shared ledger: `scripts/relaunch-trial-grant.ts` writes 100 rows under
+  `relaunch-trial-2026-08`. An unscoped delete would have read every one of them
+  as an abandoned claim of ours, removed it, and let a `--send` re-run mail 100
+  accounts that had already been mailed. A reclaim may only ever collect claims
+  the runner doing the reclaiming could itself have taken. The relaunch script
+  now also writes `confirmed_at` explicitly, because a ledger where "delivered"
+  is implicit in one writer and explicit in another survives right up until
+  somebody widens a WHERE clause.
+- **The key scope binds as `sql.param(...)::text[]`, not a bare array.** Drizzle
+  expands a plain JS array into one placeholder per element, so
+  `ANY($1, $2, ...)` reaches Postgres as "op ANY/ALL (array) requires array on
+  right side". `reclaimStaleClaims` runs first in both crons with nothing
+  catching it, so the bare form would have thrown on every run before a single
+  send: the scoping fix above would have shipped as a total outage of the
+  sequence. Same binding `lib/x-accounts.ts` and `lib/clanker.ts` already use.
+- **The readers were updated too, not just the writers.** A row stopped meaning
+  delivery the moment `claimAndSend` began taking it first, so `getEmailStatus`
+  (the admin Lifecycle card) and `scripts/relaunch-report.ts` now count
+  `confirmed_at IS NOT NULL`. Unfiltered, the pane reported an in-flight claim,
+  and an abandoned one waiting on the reclaim, as mail that went out: it would
+  have answered "did the send go out" with yes on exactly the runs where it had
+  not.
+- **The suppression guard in `relaunch-trial-grant.ts` is deliberately NOT
+  filtered.** Reporting should be accurate and suppression should be
+  conservative: any row at all means do not send again. Filtering there would
+  turn a stuck claim into a second email.
+- Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
+  backfills `confirmed_at = sent_at` on existing rows, which were written under
+  the old send-then-insert order and are all real deliveries; without the
+  backfill the first reclaim would delete them and mail those accounts again.
+  No new table, so no `migrate-grant-readonly.ts` entry.
 ### 2026-08-24 (the docs stop advertising a plan nobody is on)
 
 - **The legacy Unlimited tier is gone from `docs-site/`.** The Plans table

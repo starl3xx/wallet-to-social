@@ -138,9 +138,17 @@ async function main() {
 
     const result = await sendLifecycleEmail(user.email, campaignContent());
     if (result.success) {
+      /**
+       * confirmed_at is set here because this row records a send that already
+       * succeeded. It is not a claim. The welcome sequence's reclaim is scoped
+       * to its own keys and cannot reach this row either way, but a ledger
+       * where "delivered" is implicit in one writer and explicit in another is
+       * the kind of difference that survives right up until someone widens a
+       * WHERE clause.
+       */
       await sql`
-        INSERT INTO lifecycle_emails (user_id, email_key)
-        VALUES (${user.id}, ${EMAIL_KEY})
+        INSERT INTO lifecycle_emails (user_id, email_key, confirmed_at)
+        VALUES (${user.id}, ${EMAIL_KEY}, now())
         ON CONFLICT (user_id, email_key) DO NOTHING
       `;
       sent += 1;

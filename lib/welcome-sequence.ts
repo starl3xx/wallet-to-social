@@ -44,6 +44,18 @@ export const SEQUENCE_START = new Date('2026-08-23T00:00:00Z');
 /** Sends per run, a circuit breaker rather than a quota. */
 const MAX_SENDS_PER_RUN = 200;
 
+/**
+ * How long welcome-1 waits behind the magic link.
+ *
+ * Zero would be wrong. The account row is written at magic-link *verify*, so
+ * an inline send puts welcome-1 in the inbox in the same second as the
+ * sign-in link the person is still looking for, and the one email they need
+ * competes with the one they did not ask for. Five minutes clears the link,
+ * and it is long enough that most people have run their first lookup, which
+ * is the state welcome-1's copy assumes.
+ */
+export const FIRST_TOUCH_DELAY_MINUTES = 5;
+
 interface WelcomeEmail {
   key: string;
   /** Days after signup this email becomes due. */
@@ -137,9 +149,216 @@ export interface WelcomeRunOutcome {
   byKey: Record<string, number>;
 }
 
+/**
+ * Who the sequence may write to, as one fragment so the daily runner and the
+ * five-minute first-touch runner cannot drift apart. Every exit rule in the
+ * file header lives here: the cutoff, the opt-out, the legacy tiers, the
+ * whitelist and the purchase.
+ *
+ * FIRST_TOUCH_DELAY_MINUTES belongs here rather than in the first-touch
+ * runner, because it is a fact about the account and not about one cron. Held
+ * only in the fast runner, the daily runner's day-0 pass still computed
+ * `now() - 0 days`, so an account created at 14:59:30 got welcome-1 thirty
+ * seconds later at 15:00, next to its own magic link: the exact collision the
+ * delay exists to prevent. As a floor on eligibility no runner can reach a
+ * person inside their first five minutes. For days 2 and up the day gate
+ * dominates and this changes nothing.
+ */
+const ELIGIBLE_USER = sql`
+  u.created_at >= ${SEQUENCE_START}
+  AND u.created_at <= now() - make_interval(mins => ${FIRST_TOUCH_DELAY_MINUTES})
+  AND u.email_opt_out = false
+  AND u.tier NOT IN ('pro', 'unlimited')
+  AND NOT EXISTS (
+    SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
+  )
+  AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+`;
+
+/**
+ * Selection asks whether an email was *delivered*, never whether a row exists.
+ *
+ * Once claimAndSend takes the row before sending, a bare `NOT EXISTS` reads an
+ * in-flight claim as a completed send. The daily runner would then find no
+ * welcome-1 pending, fall through to welcome-2, and deliver the second email
+ * beside the first while the first was still leaving. The lowest-pending
+ * ordering is the whole reason the daily runner loops in key order, so this is
+ * the predicate that has to carry it.
+ *
+ * Selecting on `confirmed_at IS NOT NULL` holds that user at welcome-1 for the
+ * run. If the other runner is mid-send, this run's INSERT loses the conflict
+ * and sends nothing; if that send failed and released the claim, this run
+ * retries it. Either way the user advances only after an email actually left.
+ */
+const DELIVERED = sql`le.confirmed_at IS NOT NULL`;
+
+type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
+
+/**
+ * How long a claim may sit unredeemed before it is treated as abandoned.
+ * Comfortably above the route's maxDuration of 300s, so a slow run in
+ * progress is never mistaken for a dead one.
+ */
+const CLAIM_RECLAIM_MINUTES = 15;
+
+/**
+ * Delete claims that were taken and never confirmed.
+ *
+ * claimAndSend deletes its own claim when the send *returns* a failure, but it
+ * cannot delete anything when the process does not return at all: a timeout, an
+ * OOM or a deploy between the INSERT and the send leaves a row that every
+ * runner reads as "already emailed". Nothing retries it and nobody is told.
+ * That is the one failure mode claim-before-send introduced, and this is its
+ * counterweight.
+ *
+ * The residual risk is deliberate and the other way round: if the process dies
+ * after the send succeeded but before confirmed_at was written, the reclaim
+ * frees the row and the person receives that email twice. One duplicate
+ * greeting is a better failure than a welcome email that silently never
+ * arrives, so the window resolves in favour of sending.
+ */
+async function reclaimStaleClaims(
+  db: NonNullable<ReturnType<typeof getDb>>
+): Promise<number> {
+  /**
+   * Scoped to this sequence's own keys, and that scope is load-bearing.
+   *
+   * lifecycle_emails is a shared ledger: the relaunch campaign writes to it
+   * under its own key. An unscoped delete would treat any other sender's row
+   * as an abandoned claim of ours, remove it, and let that campaign re-send to
+   * accounts it had already mailed. A reclaim may only ever collect claims the
+   * runner that reclaims could itself have taken.
+   *
+   * `sql.param(...)::text[]` and not a bare array. Drizzle expands a plain JS
+   * array into one placeholder per element, so `ANY($1, $2, ...)` reaches
+   * Postgres as "op ANY/ALL (array) requires array on right side" and the
+   * statement throws. This runs first in both crons with nothing catching it,
+   * so the bare form would have failed every run before a single send. It is
+   * the same binding lib/x-accounts.ts and lib/clanker.ts already use.
+   */
+  const reclaimed = (await db.execute(sql`
+    DELETE FROM lifecycle_emails
+    WHERE confirmed_at IS NULL
+      AND email_key = ANY(${sql.param(WELCOME_EMAILS.map((e) => e.key))}::text[])
+      AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+  if (reclaimed.rows.length > 0) {
+    console.warn(
+      `reclaimed ${reclaimed.rows.length} abandoned lifecycle claim(s)`
+    );
+  }
+  return reclaimed.rows.length;
+}
+
+/**
+ * Take the row, then send.
+ *
+ * Both runners select welcome-1, and at 15:00 UTC they select it in the same
+ * second. The unique on (user_id, email_key) already makes the *row*
+ * at-most-once, but the row was written after the send, so two runners racing
+ * delivered twice and inserted once: the constraint was recording the race,
+ * not preventing it. Inserting first turns that unique into the lock. The
+ * loser's INSERT hits the conflict, returns no row, and it does not send.
+ *
+ * A failed send releases the claim, so the next run retries it rather than
+ * marking a person as emailed by an email that never left.
+ */
+async function claimAndSend(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  userId: string,
+  email: string,
+  emailKey: string,
+  content: LifecycleEmailContent
+): Promise<SendOutcome> {
+  const claim = (await db.execute(sql`
+    INSERT INTO lifecycle_emails (user_id, email_key)
+    VALUES (${userId}, ${emailKey})
+    ON CONFLICT (user_id, email_key) DO NOTHING
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+
+  if (claim.rows.length === 0) return 'claimed-elsewhere';
+
+  const result = await sendLifecycleEmail(email, content);
+  if (result.success) {
+    // The row is now proof of delivery rather than of intent.
+    await db.execute(sql`
+      UPDATE lifecycle_emails
+      SET confirmed_at = now()
+      WHERE user_id = ${userId} AND email_key = ${emailKey}
+    `);
+    return 'sent';
+  }
+
+  await db.execute(sql`
+    DELETE FROM lifecycle_emails
+    WHERE user_id = ${userId} AND email_key = ${emailKey}
+  `);
+  console.error(`welcome ${emailKey} failed for user ${userId}: ${result.error}`);
+  return 'failed';
+}
+
+/**
+ * Welcome-1 only, every five minutes, for accounts that cleared
+ * FIRST_TOUCH_DELAY_MINUTES. The daily runner still has a day-0 pass and is
+ * left in place as the safety net: if this route stops, the first email is
+ * late rather than lost, and claimAndSend keeps the overlap from doubling.
+ */
+export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
+  const db = getDb();
+  if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
+
+  await reclaimStaleClaims(db);
+
+  const first = WELCOME_EMAILS[0];
+
+  const rows = (await db.execute(sql`
+    SELECT u.id AS "userId", u.email
+    FROM users u
+    WHERE ${ELIGIBLE_USER}
+      AND NOT EXISTS (
+        SELECT 1 FROM lifecycle_emails le
+        WHERE le.user_id = u.id AND le.email_key = ${first.key}
+          AND ${DELIVERED}
+      )
+    ORDER BY u.created_at
+    LIMIT ${MAX_SENDS_PER_RUN}
+  `)) as unknown as { rows: Array<{ userId: string; email: string }> };
+
+  const outcome: WelcomeRunOutcome = {
+    due: rows.rows.length,
+    sent: 0,
+    failed: 0,
+    byKey: {},
+  };
+
+  for (const r of rows.rows) {
+    const result = await claimAndSend(
+      db,
+      r.userId,
+      r.email,
+      first.key,
+      first.content
+    );
+    if (result === 'sent') {
+      outcome.sent += 1;
+      outcome.byKey[first.key] = (outcome.byKey[first.key] ?? 0) + 1;
+    } else if (result === 'failed') {
+      outcome.failed += 1;
+    }
+    // Resend's default rate limit is 2 requests per second.
+    await new Promise((r) => setTimeout(r, 600));
+  }
+
+  return outcome;
+}
+
 export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
   const db = getDb();
   if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
+
+  await reclaimStaleClaims(db);
 
   /**
    * One pass per email, lowest number first: a user appears once per run
@@ -151,17 +370,12 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
     const rows = (await db.execute(sql`
       SELECT u.id AS "userId", u.email
       FROM users u
-      WHERE u.created_at >= ${SEQUENCE_START}
+      WHERE ${ELIGIBLE_USER}
         AND u.created_at <= now() - make_interval(days => ${e.day})
-        AND u.email_opt_out = false
-        AND u.tier NOT IN ('pro', 'unlimited')
-        AND NOT EXISTS (
-          SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
-        )
-        AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
         AND NOT EXISTS (
           SELECT 1 FROM lifecycle_emails le
           WHERE le.user_id = u.id AND le.email_key = ${e.key}
+            AND ${DELIVERED}
         )
       ORDER BY u.created_at
     `)) as unknown as { rows: Array<{ userId: string; email: string }> };
@@ -182,18 +396,12 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
 
   for (const d of due.slice(0, MAX_SENDS_PER_RUN)) {
     const email = WELCOME_EMAILS.find((e) => e.key === d.key)!;
-    const result = await sendLifecycleEmail(d.email, email.content);
-    if (result.success) {
-      await db.execute(sql`
-        INSERT INTO lifecycle_emails (user_id, email_key)
-        VALUES (${d.userId}, ${d.key})
-        ON CONFLICT (user_id, email_key) DO NOTHING
-      `);
+    const result = await claimAndSend(db, d.userId, d.email, d.key, email.content);
+    if (result === 'sent') {
       outcome.sent += 1;
       outcome.byKey[d.key] = (outcome.byKey[d.key] ?? 0) + 1;
-    } else {
+    } else if (result === 'failed') {
       outcome.failed += 1;
-      console.error(`welcome ${d.key} failed for user ${d.userId}: ${result.error}`);
     }
     // Resend's default rate limit is 2 requests per second.
     await new Promise((r) => setTimeout(r, 600));

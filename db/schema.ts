@@ -242,7 +242,13 @@ export const lifecycleEmails = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     emailKey: text('email_key').notNull(),
+    /** When the row was claimed. Not proof of delivery: see confirmedAt. */
     sentAt: timestamp('sent_at').defaultNow().notNull(),
+    /**
+     * Written after the send returns success. NULL means the claim was taken
+     * and never redeemed, which reclaimStaleClaims deletes so it retries.
+     */
+    confirmedAt: timestamp('confirmed_at'),
   },
   (table) => [
     uniqueIndex('lifecycle_emails_user_key_idx').on(
