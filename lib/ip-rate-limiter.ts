@@ -25,11 +25,16 @@ export const IP_RATE_LIMITS = {
    * the server is broken.
    *
    * That is a real unauthenticated endpoint, so it gets a real bound. 120 an
-   * hour is generous for a handshake that a client performs once per session
-   * and mean for anything trying to use it as a free surface. A request
-   * carrying an Authorization header skips this entirely: it is already
-   * limited per key, and limiting it here as well would refuse a paying caller
-   * for sharing an address with a stranger.
+   * hour is generous for a handshake a client performs once per session and
+   * mean for anything trying to use it as a free surface.
+   *
+   * The route decides which requests land here by JSON-RPC method, never by
+   * whether an Authorization header is present. Gating on the header was the
+   * first version and it was wrong: `Bearer hunter2` is not a key, and
+   * treating any string in that header as evidence of metering left discovery
+   * uncapped to anyone who sent one. A tool call does skip this, because it
+   * reaches a handler that meters per key, and charging it twice would refuse
+   * a paying caller for sharing an address with a stranger.
    */
   '/api/mcp': { limit: 120, windowHours: 1 },
 } as const;

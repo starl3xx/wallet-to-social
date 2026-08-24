@@ -132,5 +132,7 @@ wrong. Out of credits reads as "No credits left. Buy a pack to continue."
 Tool calls are limited per key, on the same three windows as the REST API. See
 [rate limits](/api-reference/rate-limits).
 
-Keyless discovery is limited per IP address, at 120 requests an hour. A client
-that sends a key is never subject to that.
+Discovery is limited per IP address, at 120 requests an hour. That covers
+`initialize`, `tools/list` and the other handshake methods, which answer without
+reaching the API and so are not metered against any key. Tool calls are not
+subject to it: they are metered against your key instead.

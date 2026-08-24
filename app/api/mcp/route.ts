@@ -480,16 +480,85 @@ const handler = createMcpHandler(
 );
 
 /**
- * Anonymous discovery is the one path here that touches no API key, so it is
- * the one path no key-based limit can bound. An IP limit bounds it instead.
+ * JSON-RPC methods that reach no v1 handler.
  *
- * Applied only when the request carries no `Authorization` header. A request
- * that carries one is already limited per key inside the v1 handler, and
- * limiting it twice would refuse a paying caller for sharing an address with
- * somebody else.
+ * The distinction that matters is not whether a request carries a key, it is
+ * whether it will reach something that meters. These do not, so nothing else
+ * bounds them.
+ */
+const PROTOCOL_ONLY = new Set([
+  'initialize',
+  'notifications/initialized',
+  'ping',
+  'tools/list',
+  'resources/list',
+  'resources/templates/list',
+  'prompts/list',
+  'completion/complete',
+  'logging/setLevel',
+]);
+
+/**
+ * Whether every method in this body is protocol chatter.
+ *
+ * `every`, not `some`, and normalised to an array first, because JSON-RPC
+ * allows a batch. A body mixing `tools/list` with `tools/call` would otherwise
+ * pass a "the first method is public" test and take the cheap path while
+ * running a paid tool.
+ *
+ * A body that is not JSON, or carries no method at all, counts as protocol
+ * chatter: it is going to be refused before it reaches a handler, so it is on
+ * the side that needs bounding.
+ */
+function isProtocolOnly(raw: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return true;
+  }
+  const calls = Array.isArray(parsed) ? parsed : [parsed];
+  if (calls.length === 0) return true;
+  return calls.every((call) => {
+    const method = asObject(call)?.method;
+    return typeof method !== 'string' || PROTOCOL_ONLY.has(method);
+  });
+}
+
+/**
+ * Bounds the one surface no key can bound.
+ *
+ * A tool call carries the caller's key into a v1 handler, which meters it per
+ * key on three windows. Protocol chatter reaches no handler, so nothing meters
+ * it, and `initialize` and `tools/list` answer without a key on purpose. That
+ * is a real unauthenticated endpoint and it gets a real bound.
+ *
+ * The test is the JSON-RPC method, deliberately not the presence of an
+ * `Authorization` header. Gating on the header was the first version and it
+ * was wrong twice over: any junk string in that header removed the only cap on
+ * discovery, and a header proves nothing about whether a request will ever
+ * reach something that meters. `Bearer hunter2` is not a key, and treating it
+ * as evidence of metering left the endpoint uncapped to anyone who sent one.
+ *
+ * A tool call still skips this. It reaches `validateApiKey`, which is a format
+ * check and one indexed read before it refuses, and that costs us less than
+ * the bucket write this would add. What it must not do is cost a paying caller
+ * their allowance for sharing an address with a stranger.
  */
 async function guarded(request: NextRequest): Promise<Response> {
-  if (!request.headers.get('authorization')) {
+  // GET opens a stream and DELETE tears a session down. Neither carries a
+  // JSON-RPC body, and neither reaches a handler.
+  let protocolOnly = request.method !== 'POST';
+  let body: string | undefined;
+
+  if (request.method === 'POST') {
+    // Read once and rebuild: the handler needs this stream too, and a stream
+    // can only be drained a single time.
+    body = await request.text();
+    protocolOnly = isProtocolOnly(body);
+  }
+
+  if (protocolOnly) {
     const limit = await checkIpRateLimit(getClientIp(request), '/api/mcp');
     if (!limit.allowed) {
       return NextResponse.json(
@@ -498,7 +567,7 @@ async function guarded(request: NextRequest): Promise<Response> {
           error: {
             code: -32000,
             message:
-              'Too many requests without an API key. Configure a walletlink.social key, or try again later.',
+              'Too many requests to this endpoint. Configure a walletlink.social API key, or try again later.',
           },
           id: null,
         },
@@ -511,7 +580,16 @@ async function guarded(request: NextRequest): Promise<Response> {
       );
     }
   }
-  return handler(request);
+
+  if (body === undefined) return handler(request);
+
+  return handler(
+    new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body,
+    })
+  );
 }
 
 export { guarded as GET, guarded as POST, guarded as DELETE };

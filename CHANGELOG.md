@@ -28,6 +28,12 @@ All notable changes to walletlink.social. Newest first.
   server offers. A handshake that answered 402 looks to every client like a
   server that is simply broken. That leaves one genuinely unauthenticated
   surface, so it is bounded by IP at 120 an hour in `lib/ip-rate-limiter.ts`.
+  The bound is decided by JSON-RPC method, **not** by whether an
+  `Authorization` header is present: the first version gated on the header,
+  which meant any junk string in it removed the only cap on discovery. A header
+  is not a key. A JSON-RPC batch must also have *every* method be protocol
+  chatter to take that path, or a batch mixing `tools/list` with `tools/call`
+  would run a paid tool on the free side.
 - **A failed call is a tool error, never a transport error.** 401, 402, 429 and
   400 from a handler would end the JSON-RPC session in most clients, and the
   person would see a dead connection rather than "no credits left". The HTTP
