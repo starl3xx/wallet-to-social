@@ -174,7 +174,7 @@ Display RecentWins component showing:
 
 **Q: How accurate are the results?**
 
-> Our match rates average 15-25% depending on your wallet list, which is 6-10x higher than industry average (~2.5%). We never guess: every match carries the class of evidence behind it, so you can set your own confidence threshold rather than trusting ours.
+> Our match rates run 16-46% depending on the chain your holders are on, where tools that match wallets to social accounts typically publish rates in the low single digits. We never guess: every match carries the class of evidence behind it, so you can set your own confidence threshold rather than trusting ours.
 
 **Q: Why not use Addressable?**
 

@@ -42,11 +42,11 @@ It also runs backwards: give it an X handle or a Farcaster username and it retur
 
 The number most tools quote is the one that flatters them. Two numbers matter here, and conflating them will make you plan a campaign you cannot run.
 
-| Question                               | Answer          |
-| -------------------------------------- | --------------- |
-| Wallets resolving to **any** identity  | 16-47% by chain |
-| Wallets with an X or Farcaster account | 16-46% by chain |
-| Industry average for wallet-to-social  | ~2.5%           |
+| Question                                                           | Answer            |
+| ------------------------------------------------------------------ | ----------------- |
+| Wallets resolving to **any** identity                              | 16-47% by chain   |
+| Wallets with an X or Farcaster account                             | 16-46% by chain   |
+| What tools that match wallets to social accounts typically publish | low single digits |
 
 The chain decides this more than the collection does: measured across 26 collections and 72,318 holders, Base runs 46.2% and Ethereum 16.6%, because Base is where Farcaster lives. Use your chain's figure, not an average.
 

@@ -285,7 +285,20 @@ export const creditLots = pgTable(
   'credit_lots',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    /**
+     * `NO ACTION`, not `CASCADE`, unlike the four other keys to `users`.
+     *
+     * A purchase record must outlive the account that made it. Cascade would
+     * make deleting a user silently delete the evidence that they paid, and 22
+     * user rows were deleted in the current stats window by something outside
+     * this repo. So deleting a user who holds credit lots now fails instead:
+     * a loud failure is recoverable, a silent deletion is not.
+     *
+     * Applied by scripts/migrate-money-fks.ts.
+     */
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
     /** Matches bought. Never mutated; spend is recorded in `consumed`. */
     granted: integer('granted').notNull(),
     /** Matches spent from this lot. Always <= granted. */
@@ -329,7 +342,16 @@ export const creditLedger = pgTable(
   'credit_ledger',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    /**
+     * `NO ACTION`, not `CASCADE`. Same argument as `credit_lots.userId`: a
+     * record of what somebody spent must outlive their account, so deleting a
+     * user who holds ledger rows fails rather than silently succeeding.
+     *
+     * Applied by scripts/migrate-money-fks.ts.
+     */
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
     /** Matches debited. Positive. */
     matches: integer('matches').notNull(),
     /** Wallets submitted, for the record. Never charged for. */

@@ -88,12 +88,21 @@ jobs:
             -t public.whitelist \
             -t public.lookup_history \
             -t public.known_agents \
+            -t public.credit_lots \
+            -t public.credit_ledger \
             | age -r "$BACKUP_AGE_PUBLIC_KEY" -o "$OUT"
           # A backup that "succeeds" but is empty is worse than no backup — it
-          # looks green until the day you need it. The six tables always carry
+          # looks green until the day you need it. The eight tables always carry
           # at least the seeded api_plans and ~13k known_agents rows, so a
           # healthy dump is far above this floor; anything under it means the
           # dump silently produced nothing.
+          #
+          # credit_lots and credit_ledger joined the list on 2026-08-24. They are
+          # the only record of who paid and what they spent, this job's own
+          # header says it captures the irreplaceable tables, and they were not
+          # in it. The role needs the grant as well as the -t entry; both live in
+          # scripts/migrate-grant-readonly.ts, and pg_dump fails outright if they
+          # disagree, which is the failure mode worth having.
           SIZE=$(wc -c < "$OUT")
           if [ "$SIZE" -lt 10000 ]; then
             echo "Encrypted dump is only ${SIZE} bytes — refusing to publish an empty backup" >&2

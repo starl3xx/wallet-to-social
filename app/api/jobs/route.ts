@@ -7,6 +7,7 @@ import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { isAnonUserId } from '@/lib/user-id';
 import {
   checkIpRateLimit,
   getClientIp,
@@ -89,6 +90,32 @@ export async function POST(request: NextRequest) {
     if (!wallets || wallets.length === 0) {
       return NextResponse.json(
         { error: 'No wallets provided' },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * `userId` off the body is the anonymous browser id and nothing else.
+     *
+     * The browser writes `crypto.randomUUID()` into localStorage and sends that,
+     * so anything else came from a harness. Two such values are in `lookup_jobs`
+     * from 2026-06-26, `walletlink-test-...` and `wl-eval-...`, written by
+     * something outside this repo, and they are the reason a join from this
+     * column to `lifecycle_emails.user_id` throws instead of returning rows.
+     *
+     * Rejected rather than coerced. A NULL `user_id` marks a **system** job, and
+     * `app/api/jobs/[id]/route.ts` withholds a system job's partial results from
+     * every caller, so null-coercing a malformed id would silently strip an
+     * anonymous visitor of their own results. That bug has been fixed here once
+     * already.
+     *
+     * This validates only the body field. `effectiveUserId` below may be a
+     * session id, and `userId: email` is written deliberately in three places
+     * further down; neither goes through here.
+     */
+    if (userId !== undefined && !isAnonUserId(userId)) {
+      return NextResponse.json(
+        { error: 'Invalid userId', code: 'INVALID_USER_ID' },
         { status: 400 }
       );
     }
