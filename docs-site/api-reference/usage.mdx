@@ -56,7 +56,11 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
       `avg_latency_ms`, `error_rate` as a percentage, plus
       `requests_by_endpoint` and `requests_by_day` breakdowns. `total_credits`
       counts rate-limit units, not match credits.
+
+      `requests_by_endpoint` is an object keyed by route template.
+      `requests_by_day` is an **array**, ascending, of `{ date, count, credits }`.
     </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -111,7 +115,10 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
         "/v1/batch": 380,
         "/v1/wallet/{address}": 31
       },
-      "requests_by_day": { "2026-08-13": 210, "2026-08-14": 202 }
+      "requests_by_day": [
+        { "date": "2026-08-13", "count": 210, "credits": 1980 },
+        { "date": "2026-08-14", "count": 202, "credits": 1900 }
+      ]
     }
   },
   "meta": { "generated_at": "2026-08-14T12:00:00.000Z" }
@@ -135,9 +142,9 @@ holds at most one key per route, whatever the volume. The addresses and handles
 you looked up are not stored and never appear here.
 
 <Note>
-Requests made before 2026-08-22 were keyed by the concrete request path. That
-history has been rewritten to the templates, so a period that spans the change
-still aggregates correctly.
+  Requests made before 2026-08-22 were keyed by the concrete request path. That
+  history has been rewritten to the templates, so a period that spans the change
+  still aggregates correctly.
 </Note>
 
 ## Errors

@@ -1,0 +1,1478 @@
+# OpenAPI description of the public walletlink.social API.
+#
+# This file is a contract, not a summary. Every field, status code and header
+# below was read out of the route handlers in `app/api/v1/`, and where four
+# endpoints return four slightly different shapes for the same idea, this
+# records all four rather than averaging them into one that is true of none.
+#
+# The prose pages under `docs-site/api-reference/` stay the place to learn the
+# API. This is the place a machine reads it: the Mintlify playground, SDK
+# generators, and agents doing tool discovery.
+#
+# Keep it honest. `.github/workflows/docs-freshness.yml` fails a PR that
+# changes `app/api/v1/` without touching this file, because a spec that has
+# drifted from the routes is worse than no spec: it is a lie with a schema.
+
+openapi: 3.1.0
+
+info:
+  title: walletlink.social
+  version: 1.0.0
+  summary: Resolve wallet addresses to Farcaster, X and ENS identities, in both directions.
+  description: |
+    Resolve an Ethereum address to the social identities attached to it, or go
+    the other way and find every wallet behind a handle.
+
+    ## Authentication
+
+    Pass your key in the `Authorization` header. Both forms are accepted:
+
+    ```
+    Authorization: Bearer wts_live_xxxxxxxx
+    Authorization: wts_live_xxxxxxxx
+    ```
+
+    Keys are prefixed `wts_live_` and stored only as hashes. A lost key is
+    replaced, not recovered.
+
+    Call the API from your server, never from client-side code. CORS is open,
+    so a browser request succeeds, which makes this an easy mistake to make.
+    Any key shipped to a browser is public and carries your whole balance.
+
+    ## Two meters, and they are not the same
+
+    **Match credits** are what you bought. One credit is one wallet resolved to
+    an X handle or a Farcaster account. A wallet that resolves to nothing costs
+    nothing. A record carrying only an ENS name, a Lens profile or a GitHub
+    account is returned and not billed: a match means X or Farcaster.
+
+    **Rate-limit units** are separate, are not bought, and reset on their own
+    schedule. They bound how fast you may call, never how much you may resolve.
+
+    Each operation below states both under `x-match-credits` and
+    `x-rate-limit-units`.
+
+    ## Response shape
+
+    Every success is an object with `data` and `meta`. `data` holds the result
+    and is `null` or `[]` when there is nothing to return. `meta` describes the
+    request itself: what you asked for, how much came back, whether it was
+    truncated.
+
+    Two conventions are worth internalising.
+
+    **Absent fields are omitted, not nulled.** A wallet with no GitHub account
+    has no `github` key at all. Test for presence, not for null.
+
+    **Not found is not an error.** A wallet we hold no identities for returns
+    HTTP 200 with `data: null` and `meta.found: false`. Error status codes are
+    reserved for requests that actually failed.
+
+    ## Conventions
+
+    Addresses are accepted in any case and returned lowercased. X handles are
+    accepted with or without a leading `@` and returned without it. All
+    timestamps are ISO 8601 in UTC. `OPTIONS` is supported on every path for
+    CORS preflight and returns 204.
+  contact:
+    name: walletlink.social support
+    email: help@walletlink.social
+    url: https://walletlink.social
+
+externalDocs:
+  description: Full documentation, including the concepts behind coverage and data quality.
+  url: https://docs.walletlink.social
+
+servers:
+  - url: https://walletlink.social/api/v1
+    description: Production
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Lookups
+    description: Address in, identities out.
+  - name: Reverse lookups
+    description: Identity in, addresses out. Paginated, and weighted double against your rate limit.
+  - name: Account
+    description: Index coverage and your own usage. Both are free.
+
+paths:
+  /wallet/{address}:
+    get:
+      operationId: getWallet
+      summary: Look up a wallet
+      tags: [Lookups]
+      description: |
+        Returns every identity attached to a single address.
+
+        Costs one match credit if the address resolves to an X handle or a
+        Farcaster account, and nothing if it does not.
+
+        For more than a handful of addresses use `POST /batch` instead: it
+        bills identically and is one round trip rather than many.
+      x-match-credits: 1 if the address resolves to X or Farcaster, otherwise 0
+      x-rate-limit-units: 1
+      parameters:
+        - $ref: '#/components/parameters/Address'
+      responses:
+        '200':
+          description: |
+            The lookup succeeded. `data` is the record, or `null` when nothing
+            is attached to the address, which is not an error.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Data-Staleness: { $ref: '#/components/headers/XDataStaleness' }
+            X-Last-Updated: { $ref: '#/components/headers/XLastUpdated' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/WalletRecord'
+                      - type: 'null'
+                    description: The record, or `null` when nothing is attached.
+                  meta:
+                    $ref: '#/components/schemas/WalletMeta'
+              examples:
+                found:
+                  summary: Found
+                  value:
+                    data:
+                      wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                      ens_name: vitalik.eth
+                      twitter:
+                        handle: vitalikbuterin
+                        url: https://x.com/vitalikbuterin
+                        verified: true
+                        reachable: true
+                        reachability: live
+                        reachability_checked_at: '2026-08-17T09:41:02.000Z'
+                      farcaster:
+                        username: vitalik.eth
+                        url: https://warpcast.com/vitalik.eth
+                        followers: 123456
+                        fid: 5650
+                        verified: true
+                      sources: [onchain, farcaster]
+                      quality:
+                        score: 90
+                        last_verified: '2026-08-10T09:12:00.000Z'
+                    meta:
+                      wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                      found: true
+                      last_updated: '2026-08-10T09:12:00.000Z'
+                      stale: false
+                checkedNothingFound:
+                  summary: Checked, nothing found
+                  description: |
+                    We have looked at this address and it has no identities.
+                    `checked_at` is when.
+                  value:
+                    data: null
+                    meta:
+                      wallet: '0x0000000000000000000000000000000000000001'
+                      found: false
+                      checked_at: '2026-07-02T11:30:00.000Z'
+                neverSeen:
+                  summary: Never seen
+                  description: |
+                    `checked_at: null` distinguishes an address we have never
+                    looked at from one we checked and found bare. Neither is
+                    billed.
+                  value:
+                    data: null
+                    meta:
+                      wallet: '0x0000000000000000000000000000000000000002'
+                      found: false
+                      checked_at: null
+        '400':
+          description: '`INVALID_ADDRESS`. Not `0x` followed by 40 hex characters.'
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: Invalid wallet address format. Expected 0x followed by 40 hex characters.
+                code: INVALID_ADDRESS
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /batch:
+    post:
+      operationId: lookupBatch
+      summary: Look up many wallets
+      tags: [Lookups]
+      description: |
+        Resolves up to 50 addresses in one request. `data` is an array
+        positionally aligned with the deduplicated address list, holding `null`
+        wherever nothing is attached.
+
+        Billed on matches after deduplication: `meta.matched` is the number you
+        were charged, and it is the number to reconcile against your balance.
+        `meta.found` is larger, because it counts records carrying only an ENS
+        name, a Lens profile or a GitHub account, and none of those cost
+        anything.
+
+        Two validations run **before** authentication, because the rate-limit
+        weight of this call is the number of addresses in the body and cannot
+        be known until the body is read. A request over 1 MB, or one whose body
+        is not JSON with a non-empty `wallets` array, is rejected without a
+        valid key and without rate-limit headers.
+      x-match-credits: 1 per address that resolves to X or Farcaster, after duplicates are removed
+      x-rate-limit-units: 1 per address submitted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchRequest' }
+            example:
+              wallets:
+                - '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                - '0x0000000000000000000000000000000000000001'
+      responses:
+        '200':
+          description: |
+            The batch resolved. Every entry is either a record or `null`, in
+            the order of the deduplicated request list.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    description: |
+                      Positionally aligned with the deduplicated `wallets`
+                      list. `null` where nothing is attached.
+                    items:
+                      oneOf:
+                        - $ref: '#/components/schemas/BatchRecord'
+                        - type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/BatchMeta'
+              example:
+                data:
+                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                    ens_name: vitalik.eth
+                    farcaster:
+                      username: vitalik.eth
+                      url: https://warpcast.com/vitalik.eth
+                      followers: 123456
+                      fid: 5650
+                    sources: [onchain, farcaster]
+                  - null
+                meta:
+                  requested: 2
+                  found: 1
+                  not_found: 1
+                  matched: 1
+        '400':
+          description: |
+            One of three codes.
+
+            `INVALID_REQUEST` when the body is not JSON, or `wallets` is
+            missing, not an array, or empty. Returned before authentication and
+            without rate-limit headers.
+
+            `INVALID_ADDRESS` when any entry is not `0x` plus 40 hex
+            characters. The message names up to five of them.
+
+            `BATCH_SIZE_EXCEEDED` when the list is longer than your plan’s
+            maximum. Nothing you can buy raises it, so the only fix is to split
+            the list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidRequest:
+                  summary: INVALID_REQUEST
+                  value:
+                    error: Missing or invalid "wallets" array in request body
+                    code: INVALID_REQUEST
+                invalidAddress:
+                  summary: INVALID_ADDRESS
+                  value:
+                    error: 'Invalid wallet addresses: not-an-address'
+                    code: INVALID_ADDRESS
+                batchSizeExceeded:
+                  summary: BATCH_SIZE_EXCEEDED
+                  value:
+                    error: Batch size exceeds the maximum of 50 wallets per request. Split the list across requests.
+                    code: BATCH_SIZE_EXCEEDED
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '413':
+          description: |
+            `INVALID_REQUEST`. The body exceeded 1 MB. Measured on the bytes
+            actually read rather than on `Content-Length`, which a caller can
+            omit or understate, so this fires before the body is parsed and
+            before authentication.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: Request body too large
+                code: INVALID_REQUEST
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /reverse/twitter/{handle}:
+    get:
+      operationId: reverseTwitter
+      summary: Wallets behind an X handle
+      tags: [Reverse lookups]
+      description: |
+        Every wallet in the index attested to this X account, ordered by
+        Farcaster follower count descending, then by address.
+
+        Billed one match credit per wallet returned. A handle nobody holds
+        returns an empty array and costs nothing.
+
+        Paginated by keyset cursor. When `truncated` is true, pass
+        `meta.next_cursor` back as `cursor` to get the next page. The cursor is
+        opaque: pass it back unmodified. Because it encodes a position rather
+        than a snapshot, a row whose follower count moves between pages can
+        appear twice or be skipped, which is what pagination over a live index
+        costs.
+      x-match-credits: 1 per wallet returned, up to 100
+      x-rate-limit-units: 2
+      parameters:
+        - $ref: '#/components/parameters/TwitterHandle'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: |
+            One page of wallets. `data` is `[]` and `total_count` is 0 when no
+            wallet is attested to this handle, which is not an error.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReverseTwitterRecord' }
+                  meta:
+                    $ref: '#/components/schemas/ReverseTwitterMeta'
+              example:
+                data:
+                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                    ens_name: vitalik.eth
+                    twitter:
+                      handle: vitalikbuterin
+                      url: https://x.com/vitalikbuterin
+                      verified: true
+                      reachable: true
+                      reachability: live
+                      reachability_checked_at: '2026-08-21T14:02:11.000Z'
+                    sources: [onchain]
+                    quality_score: 70
+                meta:
+                  handle: vitalikbuterin
+                  total_count: 1
+                  returned_count: 1
+                  truncated: false
+                  next_cursor: null
+        '400':
+          description: |
+            `INVALID_HANDLE` when the handle is not 1 to 15 letters, numbers or
+            underscores, or `INVALID_CURSOR` when `cursor` is not a value this
+            API produced. A malformed cursor is refused rather than silently
+            treated as page one, which would bill you again for rows you
+            already hold.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidHandle:
+                  summary: INVALID_HANDLE
+                  value:
+                    error: Invalid Twitter handle format. Expected 1-15 alphanumeric characters or underscores.
+                    code: INVALID_HANDLE
+                invalidCursor:
+                  summary: INVALID_CURSOR
+                  value:
+                    error: Invalid cursor. Pass the next_cursor value from a previous response, unmodified.
+                    code: INVALID_CURSOR
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /reverse/farcaster/{username}:
+    get:
+      operationId: reverseFarcaster
+      summary: Wallets behind a Farcaster username
+      tags: [Reverse lookups]
+      description: |
+        Every wallet in the index attested to this Farcaster account, ordered
+        by follower count descending, then by address.
+
+        Billed one match credit per wallet returned. A username nobody holds
+        returns an empty array and costs nothing.
+
+        Paginated by the same opaque keyset cursor as the X reverse lookup.
+      x-match-credits: 1 per wallet returned, up to 100
+      x-rate-limit-units: 2
+      parameters:
+        - $ref: '#/components/parameters/FarcasterUsername'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: |
+            One page of wallets. `data` is `[]` and `total_count` is 0 when no
+            wallet is attested to this username, which is not an error.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      { $ref: '#/components/schemas/ReverseFarcasterRecord' }
+                  meta:
+                    $ref: '#/components/schemas/ReverseFarcasterMeta'
+              example:
+                data:
+                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                    ens_name: vitalik.eth
+                    farcaster:
+                      username: vitalik.eth
+                      url: https://warpcast.com/vitalik.eth
+                      followers: 123456
+                      fid: 5650
+                      verified: true
+                    sources: [farcaster]
+                    quality_score: 65
+                meta:
+                  username: vitalik.eth
+                  total_count: 1
+                  returned_count: 1
+                  truncated: false
+                  next_cursor: null
+        '400':
+          description: |
+            `INVALID_USERNAME` when the username is not 1 to 32 characters of
+            letters, numbers, dots and hyphens starting with a letter or a
+            number, or `INVALID_CURSOR` when `cursor` is not a value this API
+            produced.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidUsername:
+                  summary: INVALID_USERNAME
+                  value:
+                    error: Invalid Farcaster username format. Expected 1-32 characters of lowercase letters, numbers, dots or hyphens, starting with a letter or a number.
+                    code: INVALID_USERNAME
+                invalidCursor:
+                  summary: INVALID_CURSOR
+                  value:
+                    error: Invalid cursor. Pass the next_cursor value from a previous response, unmodified.
+                    code: INVALID_CURSOR
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /stats:
+    get:
+      operationId: getStats
+      summary: Index coverage
+      tags: [Account]
+      description: |
+        Index-wide counts. Free, and resolves no wallet.
+
+        `total_wallets` counts only records carrying at least one identity.
+        `wallets_checked` is larger, because it includes addresses we looked at
+        and found bare. Coverage is `total_wallets` over `wallets_checked`;
+        computing it against the wrong denominator is the mistake this pair of
+        fields exists to prevent.
+
+        Still requires a valid key, and still returns 402 when your balance is
+        exhausted, because the balance is checked before any endpoint runs.
+      x-match-credits: 0
+      x-rate-limit-units: 0
+      responses:
+        '200':
+          description: Current index counts.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/Stats' }
+                  meta:
+                    type: object
+                    required: [generated_at]
+                    properties:
+                      generated_at:
+                        type: string
+                        format: date-time
+                        description: When these counts were computed. They are read live, not cached.
+              example:
+                data:
+                  total_wallets: 4700000
+                  wallets_checked: 9200000
+                  coverage:
+                    twitter: 1070000
+                    farcaster: 4690000
+                    ens: 890000
+                    lens: 42000
+                    github: 31000
+                  farcaster_stats:
+                    avg_followers: 210
+                    max_followers: 1200000
+                meta:
+                  generated_at: '2026-08-14T12:00:00.000Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /usage:
+    get:
+      operationId: getUsage
+      summary: Your key, balance and usage
+      tags: [Account]
+      description: |
+        What this key is, what it has spent, and what is left. Free.
+
+        Read `credits.available` to know whether the next call will work.
+        `usage.total_credits` is a different number and is not it: that counts
+        rate-limit units, one per wallet requested, and is kept under its
+        historical name because integrators read it.
+
+        `plan_limits` and `rate_limits` describe the request meter, which
+        bounds how fast you may call. `credits` is the match meter, which
+        bounds how much you may resolve, and it is the one that ends a session
+        with a 402.
+      x-match-credits: 0
+      x-rate-limit-units: 0
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: The window `usage` covers, counted back from now.
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+      responses:
+        '200':
+          description: Key metadata, both meters, and usage over the requested period.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/Usage' }
+                  meta:
+                    type: object
+                    required: [generated_at]
+                    properties:
+                      generated_at:
+                        type: string
+                        format: date-time
+              example:
+                data:
+                  key:
+                    id: key_123
+                    name: production
+                    prefix: wts_live_ab
+                    plan: Developer
+                    created_at: '2026-06-01T00:00:00.000Z'
+                    last_used_at: '2026-08-14T11:58:00.000Z'
+                  credits:
+                    available: 1180
+                    unmetered: false
+                    on_free_allowance: false
+                    free_window_resets_at: null
+                  plan_limits:
+                    requests_per_minute: 60
+                    requests_per_day: 5000
+                    requests_per_month: 50000
+                    max_batch_size: 50
+                  rate_limits:
+                    minute:
+                      limit: 60
+                      remaining: 58
+                      reset_at: '2026-08-14T12:01:00.000Z'
+                    day:
+                      limit: 5000
+                      remaining: 4310
+                      reset_at: '2026-08-15T00:00:00.000Z'
+                    month:
+                      limit: 50000
+                      remaining: 46120
+                      reset_at: '2026-09-01T00:00:00.000Z'
+                  usage:
+                    period: week
+                    total_requests: 412
+                    total_credits: 3880
+                    total_wallets: 3860
+                    avg_latency_ms: 74
+                    error_rate: 0.24
+                    requests_by_endpoint:
+                      /v1/batch: 380
+                      /v1/wallet/{address}: 31
+                    requests_by_day:
+                      - date: '2026-08-13'
+                        count: 210
+                        credits: 1980
+                      - date: '2026-08-14'
+                        count: 202
+                        credits: 1900
+                meta:
+                  generated_at: '2026-08-14T12:00:00.000Z'
+        '400':
+          description: '`INVALID_PARAMETER`. `period` was not `day`, `week` or `month`.'
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: 'Invalid period. Use: day, week, or month'
+                code: INVALID_PARAMETER
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer wts_live_xxxxxxxx`. The documented form.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        `Authorization: wts_live_xxxxxxxx`. The bare key without the `Bearer`
+        prefix is also accepted. Listed as a separate scheme because OpenAPI
+        cannot express one header that takes both forms; either satisfies the
+        API.
+
+  parameters:
+    Address:
+      name: address
+      in: path
+      required: true
+      description: |
+        An Ethereum address as `0x` followed by 40 hex characters.
+        Case-insensitive on the way in, lowercased on the way out.
+      schema:
+        type: string
+        pattern: '^0x[a-fA-F0-9]{40}$'
+      example: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+
+    TwitterHandle:
+      name: handle
+      in: path
+      required: true
+      description: |
+        An X handle, 1 to 15 letters, numbers or underscores. A leading `@` is
+        accepted and stripped; matching is case-insensitive.
+      schema:
+        type: string
+        pattern: '^@?[a-zA-Z0-9_]{1,15}$'
+      example: vitalikbuterin
+
+    FarcasterUsername:
+      name: username
+      in: path
+      required: true
+      description: |
+        A Farcaster username: 1 to 32 characters of letters, numbers, dots and
+        hyphens, starting with a letter or a number. Lowercased before
+        matching.
+
+        Both kinds of name work. A plain fname such as `dwr`, and an ENS name
+        attached to the account such as `vitalik.eth`. A large share of the
+        index is `.eth` names, so pass them through unchanged rather than
+        stripping the suffix.
+
+        Farcaster’s `!<fid>` placeholder, which stands for an account that has
+        set no username, is not a name and is rejected.
+      schema:
+        type: string
+        pattern: '^[a-zA-Z0-9][a-zA-Z0-9.-]{0,31}$'
+      example: vitalik.eth
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: |
+        The `meta.next_cursor` from a previous response, passed back
+        unmodified. Omit it for the first page. Opaque: its encoding is not
+        part of this contract and anything this API did not issue is refused
+        with `INVALID_CURSOR`.
+      schema:
+        type: string
+
+  headers:
+    XRateLimitLimit:
+      description: Rate-limit units allowed in the current window.
+      schema: { type: string }
+    XRateLimitRemaining:
+      description: Units left in the current window.
+      schema: { type: string }
+    XRateLimitReset:
+      description: |
+        When the window resets, as a **Unix timestamp in seconds**, not as
+        seconds from now. Convert it rather than treating it as a duration.
+      schema: { type: string }
+    RetryAfter:
+      description: Seconds to wait before retrying. Present on 429.
+      schema: { type: string }
+    XDataStaleness:
+      description: |
+        Present only when the record is past its freshness window or has not
+        changed in 30 days. The single value is `stale`; a fresh record carries
+        no header at all.
+      required: false
+      schema:
+        type: string
+        enum: [stale]
+    XLastUpdated:
+      description: |
+        When the record last changed, ISO 8601. Sent alongside
+        `X-Data-Staleness` only.
+      required: false
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: |
+        `MISSING_API_KEY` when there is no `Authorization` header, or
+        `INVALID_API_KEY` when the key is unrecognised, revoked or expired.
+        Neither carries rate-limit headers, because neither reached the rate
+        limiter. Retrying will not fix either.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            missing:
+              summary: MISSING_API_KEY
+              value:
+                error: 'Missing API key. Provide via Authorization header: Bearer wts_live_xxx'
+                code: MISSING_API_KEY
+            invalid:
+              summary: INVALID_API_KEY
+              value:
+                error: Invalid or expired API key
+                code: INVALID_API_KEY
+
+    PaymentRequired:
+      description: |
+        `NO_CREDITS`. The match balance is exhausted, or the free allowance for
+        this rolling 30-day window is used up. Checked on every endpoint,
+        including the two that cost nothing.
+
+        Not worth retrying. It clears when a pack is bought, or when the free
+        window rolls forward.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            freeAllowance:
+              summary: Free allowance exhausted
+              value:
+                error: Free allowance used up for this 30-day window. Buy a pack to continue.
+                code: NO_CREDITS
+            noBalance:
+              summary: Balance exhausted
+              value:
+                error: No credits left. Buy a pack to continue.
+                code: NO_CREDITS
+
+    RateLimited:
+      description: |
+        `RATE_LIMIT_EXCEEDED`. One of the three windows is full. All three
+        apply at once, so this fires even when the other two have room.
+
+        Back off with jitter. Retrying on a shared minute boundary is how a
+        fleet of workers turns one 429 into a synchronised stampede.
+      headers:
+        X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+        X-RateLimit-Remaining:
+          { $ref: '#/components/headers/XRateLimitRemaining' }
+        X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: Rate limit exceeded. Try again in 42 seconds
+            code: RATE_LIMIT_EXCEEDED
+
+    ServiceUnavailable:
+      description: |
+        `SERVICE_UNAVAILABLE`. The datastore is temporarily unreachable. Worth
+        retrying with exponential backoff.
+      headers:
+        X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+        X-RateLimit-Remaining:
+          { $ref: '#/components/headers/XRateLimitRemaining' }
+        X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: Service temporarily unavailable
+            code: SERVICE_UNAVAILABLE
+
+    InternalError:
+      description: |
+        `INTERNAL_ERROR`. An unexpected failure on our side. Worth retrying
+        with exponential backoff.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: Internal server error
+            code: INTERNAL_ERROR
+
+  schemas:
+    Error:
+      type: object
+      description: |
+        Every error shares this shape. Branch on `code`, which is stable. The
+        `error` string is written for humans and may be reworded.
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          description: Human-readable explanation. Not stable; do not parse it.
+        code:
+          type: string
+          description: Stable machine-readable identifier. Branch on this.
+          enum:
+            - MISSING_API_KEY
+            - INVALID_API_KEY
+            - NO_CREDITS
+            - RATE_LIMIT_EXCEEDED
+            - INVALID_ADDRESS
+            - INVALID_HANDLE
+            - INVALID_USERNAME
+            - INVALID_PARAMETER
+            - INVALID_CURSOR
+            - INVALID_REQUEST
+            - BATCH_SIZE_EXCEEDED
+            - SERVICE_UNAVAILABLE
+            - INTERNAL_ERROR
+
+    PublicSource:
+      type: string
+      description: |
+        How the link was attested, never who told us.
+
+        `onchain` is a record the address owner published themselves, such as
+        an ENS text record. `farcaster` is a protocol-level account
+        verification. `attested-social` is a platform where the owner proved
+        both halves, the wallet by signature and the account by sign-in.
+        `manual` was reviewed by us. `aggregated` is the weakest: correlated by
+        a third-party index rather than attested by anyone.
+
+        Anything we cannot classify is dropped rather than passed through, so
+        an unfamiliar value will never appear here.
+      enum: [onchain, farcaster, attested-social, manual, aggregated]
+
+    Reachability:
+      type: string
+      description: |
+        Whether the stored X handle still reaches anyone, resolved by a daily
+        job.
+
+        `live` reaches someone. `suspended` is held by the same person and may
+        return. `unclaimed` has been freed, so somebody else may already have
+        taken it, which is the one case where a stale record points at a
+        stranger rather than at nobody. `reassigned` means the account
+        currently answering to this handle is not the account attested
+        alongside this wallet.
+
+        The three unreachable states are kept apart on purpose: collapsing them
+        would hide the only one that is actively misleading.
+      enum: [live, suspended, unclaimed, reassigned]
+
+    TwitterAlso:
+      type: object
+      description: |
+        A second X account attested for the same wallet, present only when both
+        it and the primary handle are live.
+      required: [handle, url, source]
+      properties:
+        handle: { type: string }
+        url: { type: string, format: uri }
+        source:
+          $ref: '#/components/schemas/PublicSource'
+
+    XIdentity:
+      type: object
+      description: |
+        An X account attached to the wallet.
+
+        The three reachability fields are **omitted entirely** when the handle
+        has not been checked. A `reachable: null` would invite a consumer to
+        read it as false, and this field’s whole value is that it never
+        overstates. Absence of evidence is not evidence of absence.
+      required: [handle, url, verified]
+      properties:
+        handle:
+          type: string
+          description: Without the leading `@`, lowercased.
+        url: { type: string, format: uri }
+        verified:
+          type: boolean
+          description: |
+            Whether the link was attested rather than correlated. Narrower than
+            it looks: see the data-quality page.
+        reachable:
+          type: boolean
+          description: |
+            True only when `reachability` is `live`. Omitted when unchecked.
+        reachability:
+          $ref: '#/components/schemas/Reachability'
+        reachability_checked_at:
+          type: string
+          format: date-time
+          description: When the handle was last resolved. Omitted when unchecked.
+
+    XIdentityWithAlso:
+      description: |
+        As `XIdentity`, plus `also` where a second live X account is attested
+        for the same wallet. Returned by the forward lookups only; the reverse
+        lookups omit `also`.
+      allOf:
+        - $ref: '#/components/schemas/XIdentity'
+        - type: object
+          properties:
+            also:
+              $ref: '#/components/schemas/TwitterAlso'
+
+    FarcasterAccount:
+      type: object
+      required: [username, url]
+      properties:
+        username: { type: string }
+        url:
+          type: string
+          format: uri
+          description: The account’s Warpcast profile.
+        followers:
+          type: [integer, 'null']
+          description: Follower count at last ingest. `null` where unknown.
+        fid:
+          type: [integer, 'null']
+          description: Farcaster ID. `null` where unknown.
+        verified:
+          type: boolean
+          description: |
+            Whether the account carries a protocol-level verification of this
+            wallet.
+
+    FarcasterAccountBrief:
+      type: object
+      description: |
+        The Farcaster shape returned by `POST /batch`, which omits `verified`.
+        The other three endpoints include it. This is an inconsistency in the
+        API, recorded here rather than smoothed over, because a spec that
+        promised `verified` on every endpoint would be wrong on one of them.
+      required: [username, url]
+      properties:
+        username: { type: string }
+        url: { type: string, format: uri }
+        followers:
+          type: [integer, 'null']
+        fid:
+          type: [integer, 'null']
+
+    AgentMetadata:
+      type: object
+      description: |
+        Present only when the address is a known onchain agent. Fields with no
+        value are omitted rather than nulled.
+      required: [is_agent, verified]
+      properties:
+        is_agent:
+          type: boolean
+          const: true
+          description: Always `true`. The object is absent for a wallet that is not an agent.
+        name: { type: string }
+        framework: { type: string }
+        type: { type: string }
+        token_symbol: { type: string }
+        verified: { type: boolean }
+
+    Quality:
+      type: object
+      description: The quality object returned by `GET /wallet/{address}`.
+      required: [score, last_verified]
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 0 to 100. Higher means stronger and fresher evidence.
+        last_verified:
+          type: [string, 'null']
+          format: date-time
+          description: When the record was last re-verified, or `null` if never.
+
+    IdentityCore:
+      type: object
+      description: |
+        The fields every endpoint returns the same way. `wallet` is always
+        present; everything else is omitted when there is nothing to report.
+      required: [wallet]
+      properties:
+        wallet:
+          type: string
+          pattern: '^0x[0-9a-f]{40}$'
+          description: Lowercased address. Always present.
+        ens_name:
+          type: string
+          description: Primary ENS name.
+        lens:
+          type: string
+          description: Lens handle.
+        github:
+          type: string
+          description: GitHub username.
+        sources:
+          type: array
+          description: |
+            Evidence classes backing the record, in a stable order. Omitted
+            entirely when nothing classifiable backs it.
+          items:
+            $ref: '#/components/schemas/PublicSource'
+        agent:
+          $ref: '#/components/schemas/AgentMetadata'
+
+    WalletRecord:
+      description: The record returned by `GET /wallet/{address}`.
+      allOf:
+        - $ref: '#/components/schemas/IdentityCore'
+        - type: object
+          required: [quality]
+          properties:
+            twitter:
+              $ref: '#/components/schemas/XIdentityWithAlso'
+            farcaster:
+              $ref: '#/components/schemas/FarcasterAccount'
+            quality:
+              $ref: '#/components/schemas/Quality'
+
+    BatchRecord:
+      description: |
+        One entry in the `POST /batch` array. Carries no `quality` object: the
+        forward single lookup returns one and the reverse lookups return a bare
+        `quality_score`, and this endpoint returns neither.
+      allOf:
+        - $ref: '#/components/schemas/IdentityCore'
+        - type: object
+          properties:
+            twitter:
+              $ref: '#/components/schemas/XIdentityWithAlso'
+            farcaster:
+              $ref: '#/components/schemas/FarcasterAccountBrief'
+
+    ReverseTwitterRecord:
+      description: |
+        One wallet attested to the queried X handle. `twitter` is always
+        present, because the query selected the row by it.
+      allOf:
+        - $ref: '#/components/schemas/IdentityCore'
+        - type: object
+          required: [twitter, quality_score]
+          properties:
+            twitter:
+              $ref: '#/components/schemas/XIdentity'
+            farcaster:
+              $ref: '#/components/schemas/FarcasterAccount'
+            quality_score:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: |
+                The same 0 to 100 score the forward lookup returns inside
+                `quality`, here as a bare number.
+
+    ReverseFarcasterRecord:
+      description: |
+        One wallet attested to the queried Farcaster username. `farcaster` is
+        always present, because the query selected the row by it.
+      allOf:
+        - $ref: '#/components/schemas/IdentityCore'
+        - type: object
+          required: [farcaster, quality_score]
+          properties:
+            twitter:
+              $ref: '#/components/schemas/XIdentity'
+            farcaster:
+              $ref: '#/components/schemas/FarcasterAccount'
+            quality_score:
+              type: integer
+              minimum: 0
+              maximum: 100
+
+    WalletMeta:
+      type: object
+      description: |
+        `last_updated` and `stale` accompany a found record. `checked_at`
+        accompanies a miss and separates an address we checked and found bare
+        from one we have never seen.
+      required: [wallet, found]
+      properties:
+        wallet:
+          type: string
+          pattern: '^0x[0-9a-f]{40}$'
+          description: The normalised address you asked for.
+        found:
+          type: boolean
+          description: |
+            Whether any identity is attached. False is a successful lookup with
+            a negative answer, not an error, and it is not billed.
+        last_updated:
+          type: string
+          format: date-time
+          description: When the record last changed. Present only when `found` is true.
+        stale:
+          type: boolean
+          description: |
+            Whether the record is past its freshness window or has not changed
+            in 30 days. Present only when `found` is true.
+        checked_at:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            Present only when `found` is false. A timestamp means we looked and
+            found nothing. `null` means we have never looked.
+
+    BatchMeta:
+      type: object
+      required: [requested, found, not_found, matched]
+      properties:
+        requested:
+          type: integer
+          description: Addresses in the request after duplicates were removed.
+        found:
+          type: integer
+          description: |
+            Entries that came back as a record rather than `null`. Larger than
+            `matched`, because it counts records carrying only an ENS name, a
+            Lens profile or a GitHub account.
+        not_found:
+          type: integer
+          description: '`requested` minus `found`.'
+        matched:
+          type: integer
+          description: |
+            What this call was billed: addresses that resolved to an X handle
+            or a Farcaster account. This is the number to reconcile against
+            your balance.
+
+    ReversePageMeta:
+      type: object
+      required: [total_count, returned_count, truncated, next_cursor]
+      properties:
+        total_count:
+          type: integer
+          description: |
+            Every wallet matching the query, not just this page. Counted before
+            pagination.
+        returned_count:
+          type: integer
+          description: Wallets in `data`, at most 100.
+        truncated:
+          type: boolean
+          description: |
+            Whether a further page exists. Determined by reading one row beyond
+            the page and discarding it, so it is exact rather than inferred
+            from a full page.
+        next_cursor:
+          type: [string, 'null']
+          description: |
+            Pass back as `cursor` for the next page. `null` when `truncated` is
+            false.
+
+    ReverseTwitterMeta:
+      allOf:
+        - type: object
+          required: [handle]
+          properties:
+            handle:
+              type: string
+              description: The normalised handle you asked for, without `@`.
+        - $ref: '#/components/schemas/ReversePageMeta'
+
+    ReverseFarcasterMeta:
+      allOf:
+        - type: object
+          required: [username]
+          properties:
+            username:
+              type: string
+              description: The normalised username you asked for.
+        - $ref: '#/components/schemas/ReversePageMeta'
+
+    BatchRequest:
+      type: object
+      required: [wallets]
+      properties:
+        wallets:
+          type: array
+          description: |
+            Addresses to resolve. Duplicates are removed before the lookup and
+            before billing, but each copy still counts against your rate limit,
+            so deduplicating costs you nothing and saves throughput.
+
+            `maxItems` is the limit every credit pack carries. The enforced
+            value is your plan’s `max_batch_size`, reported by `GET /usage`.
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+
+    Stats:
+      type: object
+      required: [total_wallets, wallets_checked, coverage, farcaster_stats]
+      properties:
+        total_wallets:
+          type: integer
+          description: |
+            Records carrying at least one identity. This is the numerator for
+            coverage.
+        wallets_checked:
+          type: integer
+          description: |
+            Every address we have looked at, including those we checked and
+            found bare. This is the denominator for coverage.
+        coverage:
+          type: object
+          description: Records carrying each identity type. The buckets overlap.
+          required: [twitter, farcaster, ens, lens, github]
+          properties:
+            twitter: { type: integer }
+            farcaster: { type: integer }
+            ens: { type: integer }
+            lens: { type: integer }
+            github: { type: integer }
+        farcaster_stats:
+          type: object
+          required: [avg_followers, max_followers]
+          properties:
+            avg_followers: { type: integer }
+            max_followers: { type: integer }
+
+    Usage:
+      type: object
+      required: [key, credits, plan_limits, rate_limits, usage]
+      properties:
+        key:
+          type: object
+          required: [id, name, prefix, plan, created_at]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            prefix:
+              type: string
+              description: The visible leading characters of the key. The rest is stored only as a hash.
+            plan:
+              type: string
+              description: |
+                The internal plan name, which is not the pack you bought. Every
+                pack reports `Developer`.
+            created_at: { type: string, format: date-time }
+            last_used_at:
+              type: string
+              format: date-time
+              description: Omitted if the key has never been used.
+        credits:
+          type: object
+          description: |
+            The match meter: what you bought, and what ends a session with a
+            402. This is the number to read before deciding whether the next
+            call will work.
+          required:
+            [available, unmetered, on_free_allowance, free_window_resets_at]
+          properties:
+            available:
+              type: [integer, 'null']
+              description: |
+                Matches left. `null` only for an unmetered account, where there
+                is no number to report.
+            unmetered:
+              type: boolean
+              description: Whether this account draws on a balance at all.
+            on_free_allowance:
+              type: boolean
+              description: Whether the remaining balance is the free 30-day allowance rather than a pack.
+            free_window_resets_at:
+              type: [string, 'null']
+              format: date-time
+              description: When the free 30-day window rolls forward, or `null`.
+        plan_limits:
+          type: object
+          description: |
+            The request meter: how hard this key may hit the service. Separate
+            from `credits`, and not what is sold.
+          required:
+            [
+              requests_per_minute,
+              requests_per_day,
+              requests_per_month,
+              max_batch_size,
+            ]
+          properties:
+            requests_per_minute: { type: integer }
+            requests_per_day:
+              oneOf:
+                - type: integer
+                - type: string
+                  const: unlimited
+              description: The string `unlimited` where no daily cap applies.
+            requests_per_month:
+              oneOf:
+                - type: integer
+                - type: string
+                  const: unlimited
+            max_batch_size:
+              type: integer
+              description: The batch limit this key is actually held to.
+        rate_limits:
+          type: object
+          description: |
+            Live state of the three windows. A window is `null` when this plan
+            does not cap it.
+          required: [minute, day, month]
+          properties:
+            minute: { $ref: '#/components/schemas/RateLimitWindow' }
+            day: { $ref: '#/components/schemas/RateLimitWindow' }
+            month: { $ref: '#/components/schemas/RateLimitWindow' }
+        usage:
+          type: object
+          required:
+            [
+              period,
+              total_requests,
+              total_credits,
+              total_wallets,
+              avg_latency_ms,
+              error_rate,
+              requests_by_endpoint,
+              requests_by_day,
+            ]
+          properties:
+            period:
+              type: string
+              enum: [day, week, month]
+            total_requests: { type: integer }
+            total_credits:
+              type: integer
+              description: |
+                Rate-limit units, one per wallet requested. **Not matches.**
+                Kept under its historical name because integrators read it; the
+                match balance is `credits` above.
+            total_wallets: { type: integer }
+            avg_latency_ms: { type: integer }
+            error_rate:
+              type: number
+              description: Share of requests that returned 400 or above, as a percentage to two decimal places.
+            requests_by_endpoint:
+              type: object
+              description: |
+                Keyed by route template, never by concrete path, so the map
+                stays bounded and records no address you looked up.
+              additionalProperties: { type: integer }
+            requests_by_day:
+              type: array
+              description: One entry per calendar day in the period that saw traffic, ascending.
+              items:
+                type: object
+                required: [date, count, credits]
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  count: { type: integer }
+                  credits: { type: integer }
+
+    RateLimitWindow:
+      type: [object, 'null']
+      description: One rate-limit window, or `null` when this plan does not cap it.
+      required: [limit, remaining, reset_at]
+      properties:
+        limit: { type: integer }
+        remaining: { type: integer }
+        reset_at: { type: string, format: date-time }

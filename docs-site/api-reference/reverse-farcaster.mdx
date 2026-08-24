@@ -1,7 +1,7 @@
 ---
-title: "Reverse Farcaster lookup"
-description: "GET /v1/reverse/farcaster/{username}"
-api: "GET https://walletlink.social/api/v1/reverse/farcaster/{username}"
+title: 'Reverse Farcaster lookup'
+description: 'GET /v1/reverse/farcaster/{username}'
+api: 'GET https://walletlink.social/api/v1/reverse/farcaster/{username}'
 ---
 
 Finds every wallet linked to a Farcaster username. Costs **1 match credit per wallet returned**, 100 per page. A username with no wallets attached costs nothing. Separately, each request weighs 2 units against your rate limit.
@@ -11,7 +11,10 @@ Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-i
 ## Path parameters
 
 <ParamField path="username" type="string" required>
-  1 to 20 characters, lowercase letters, numbers and underscores. Input is lowercased before matching.
+  1 to 32 characters of letters, numbers, dots and hyphens, starting with a letter or a number. Input is lowercased before matching.
+
+Both kinds of Farcaster name work: a plain fname such as `dwr`, and an ENS name attached to the account such as `vitalik.eth`. A large share of the index is `.eth` names, so pass them through unchanged rather than stripping the suffix.
+
 </ParamField>
 
 ## Query parameters
@@ -34,18 +37,28 @@ curl https://walletlink.social/api/v1/reverse/farcaster/dwr \
 Identical in shape to the [reverse X lookup](/api-reference/reverse-twitter), with `farcaster` always present instead of `twitter`, and `meta.username` instead of `meta.handle`.
 
 <ResponseField name="data" type="array">
-  Matching wallets, at most 100 per page, ordered by Farcaster reach
-  (highest follower count first, wallets without one last, wallet address as
-  the tiebreak).
+  Matching wallets, at most 100 per page, ordered by Farcaster reach (highest
+  follower count first, wallets without one last, wallet address as the
+  tiebreak).
 </ResponseField>
 
 <ResponseField name="meta" type="object">
   <Expandable title="properties">
-    <ResponseField name="username" type="string">The normalized, lowercased username.</ResponseField>
-    <ResponseField name="total_count" type="number">Total matches in the index, across all pages.</ResponseField>
-    <ResponseField name="returned_count" type="number">How many are in this response.</ResponseField>
-    <ResponseField name="truncated" type="boolean">Whether more results remain after this page.</ResponseField>
-    <ResponseField name="next_cursor" type="string | null">Pass as `cursor` to fetch the next page. `null` on the last page.</ResponseField>
+    <ResponseField name="username" type="string">
+      The normalized, lowercased username.
+    </ResponseField>
+    <ResponseField name="total_count" type="number">
+      Total matches in the index, across all pages.
+    </ResponseField>
+    <ResponseField name="returned_count" type="number">
+      How many are in this response.
+    </ResponseField>
+    <ResponseField name="truncated" type="boolean">
+      Whether more results remain after this page.
+    </ResponseField>
+    <ResponseField name="next_cursor" type="string | null">
+      Pass as `cursor` to fetch the next page. `null` on the last page.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 

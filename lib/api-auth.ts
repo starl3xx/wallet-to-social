@@ -253,11 +253,34 @@ export function isValidTwitterHandle(handle: string): boolean {
 }
 
 /**
- * Validates Farcaster username format
+ * Validates Farcaster username format.
+ *
+ * Derived from the index rather than from the fname spec, because the column
+ * holds both kinds of name and the reverse lookup matches on the column.
+ * Against the 4,699,611 usernames stored on 2026-08-24:
+ *
+ *     dot (all of them `.eth`)   1,477,534
+ *     hyphen                       189,078
+ *     underscore                         0
+ *     longer than 20 chars         334,345   (longest is 25)
+ *
+ * The previous rule was `[a-z0-9_]{1,20}`, which allowed the one character
+ * that never occurs and rejected the two that do. It refused 2,065,051 of the
+ * usernames we hold, 43.9% of the index, including `vitalik.eth`, which is the
+ * worked example on our own published docs page. Every one of those returned
+ * 400 INVALID_USERNAME for a name that is in the table.
+ *
+ * The leading character must be alphanumeric, which is what excludes
+ * Farcaster's `!<fid>` placeholder for an account with no username set. Those
+ * are 475,698 rows and they are not addressable handles, so rejecting them is
+ * correct rather than incidental.
+ *
+ * 32 characters rather than the observed 25: an ENS name can be longer than
+ * anything we happen to hold today, and the ceiling is here to bound the input,
+ * not to encode a census.
  */
 export function isValidFarcasterUsername(username: string): boolean {
-  // Farcaster: lowercase letters, numbers, underscores
-  return /^[a-z0-9_]{1,20}$/.test(username.toLowerCase());
+  return /^[a-z0-9][a-z0-9.-]{0,31}$/.test(username.toLowerCase());
 }
 
 /**

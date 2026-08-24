@@ -312,6 +312,10 @@ Main page orchestrating:
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
+`docs-site/openapi.yaml` is the machine-readable description of all six: request and response schemas, both authentication forms, every error code, and the rate-limit and staleness headers. It is what the MCP server, SDK generation and agent discovery are built on, so it has its own CI gate in `.github/workflows/docs-freshness.yml`: touching a route, a validator, a plan limit or the `sources` enum requires touching the spec, and touching the spec runs `redocly lint` over it.
+
+Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as the fname spec, because `social_graph.farcaster` holds both fnames and attached ENS names and the reverse lookup matches on the column. See the comment on `isValidFarcasterUsername` in `lib/api-auth.ts` for the measurement behind it.
+
 ### Admin
 
 | Endpoint                  | Purpose                                                                                   |
