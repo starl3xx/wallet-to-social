@@ -143,7 +143,14 @@ export default async function BlogPost({ params }: Props) {
                 the h3 treatment on an h2. h3 keeps 600, the heading-h3 weight;
                 that weight is set per level rather than through
                 `prose-headings`, whose selector has the same specificity as
-                `prose-h2` and would leave the h2 weight to source order. */}
+                `prose-h2` and would leave the h2 weight to source order.
+
+                `prose-pre:text-foreground` is not decoration. The typography
+                plugin ships `pre` as light text on a near-black ground, and
+                only the ground was overridden here: `bg-muted` is light, so
+                every fenced block rendered gray-200 on gray-100 and the code
+                was invisible to a reader. `pre code` inherits its colour from
+                `pre`, so setting it once here covers both. */}
             <div
               className="prose prose-lg dark:prose-invert max-w-none
                 prose-h2:text-2xl prose-h2:font-light prose-h2:tracking-[var(--tracking-title)] prose-h2:mt-12 prose-h2:mb-4
@@ -153,7 +160,7 @@ export default async function BlogPost({ params }: Props) {
                 prose-a:text-accent-brand dark:prose-a:text-accent-brand prose-a:no-underline hover:prose-a:underline
                 prose-strong:text-foreground
                 prose-code:text-sm prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-mono
-                prose-pre:bg-muted prose-pre:border prose-pre:font-mono
+                prose-pre:bg-muted prose-pre:border prose-pre:font-mono prose-pre:text-foreground
                 prose-table:text-sm
                 prose-th:text-left prose-th:py-3 prose-th:px-4 prose-th:border-b prose-th:font-semibold
                 prose-td:py-3 prose-td:px-4 prose-td:border-b prose-td:tabular-nums
