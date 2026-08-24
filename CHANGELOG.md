@@ -61,6 +61,20 @@ All notable changes to walletlink.social. Newest first.
   `measurementInProgress` is true, because a near-zero reachable count there
   means "not yet checked" rather than a finding. With no measured number the
   draft refuses to invent one and offers the published per-chain figure instead.
+### 2026-08-24 (the changelog stops saying the relaunch was never sent)
+
+- **Two entries claimed the relaunch campaign had not been sent.** It was sent
+  on 2026-08-23: 100 grants, 100 emails, 0 failures, 25,000 matches granted,
+  confirmed against `lifecycle_emails`. Both statements were true on the day
+  they were written, so they carry a dated correction in place rather than
+  being rewritten. A changelog that quietly revises its own history is worth
+  less than one that shows where it was wrong.
+- Found while checking whether the ~100 dormant accounts were still eligible for
+  the welcome sequence. They are not, and the reason is not the `SEQUENCE_START`
+  cutoff everyone reaches for first: they hold credit lots now, so the purchase
+  exit rule excludes them independently. That distinction matters if the cutoff
+  ever moves. `docs/EMAIL-SEQUENCE.md` carried the same claim and was corrected
+  in PR #172.
 
 ### 2026-08-24 (a failed send stops being retried 288 times a day)
 
@@ -646,7 +660,10 @@ CONSTRAINT`. Applied by `scripts/migrate-money-fks.ts` against the **direct**
   `*italic*` markers now rendered by the lifecycle template).
   Enrollment starts at accounts created on or after 2026-08-23: the earlier
   ~100 signups stay reserved for the relaunch campaign, which has still not
-  been sent. Exits: any credit lot, opt-out, legacy tier, whitelist. Every
+  been sent. **Corrected 2026-08-24: it was sent on 2026-08-23**, 100 granted
+  and 100 emailed, 0 failures. Those accounts now hold credit lots, so the
+  purchase rule excludes them from the welcome sequence independently of the
+  cutoff. Exits: any credit lot, opt-out, legacy tier, whitelist. Every
   send is at-most-once via `lifecycle_emails`; a missed day catches up one
   email per user per run. The cron heartbeats as `welcome_sequence` and the
   admin health pane watches it.
@@ -727,7 +744,9 @@ CONSTRAINT`. Applied by `scripts/migrate-money-fks.ts` against the **direct**
 - **`scripts/relaunch-trial-grant.ts`**: grants the Trial pack ($0 lot,
   synthetic payment id, noted) to every account that never bought and sends
   the campaign email. Dry-run default, `--to` preview, `--send` to execute,
-  idempotent at both steps. Nothing has been sent.
+  idempotent at both steps. Nothing has been sent. **Corrected 2026-08-24:
+  sent 2026-08-23**, 100 grants and 100 emails, 0 failures, 25,000 matches
+  granted. Track it with `scripts/relaunch-report.ts`.
 - Funnel figures that motivated this (measured 2026-08-22): 102 accounts, 93
   from 2026-01, 11 ever ran a lookup, 0 ever bought, 2 signed in within 30
   days. Activation is the failure point, so the campaign gives the dormant
