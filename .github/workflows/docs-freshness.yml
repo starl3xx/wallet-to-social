@@ -59,3 +59,73 @@ jobs:
           echo
           echo "::error::This PR changes the public API surface but does not touch docs-site/. Update the affected pages, or add the 'no-docs-needed' label if the change is genuinely invisible to API consumers (internal refactor, comment, test)."
           exit 1
+
+      # The step above accepts ANY docs-site/ change, which is the right test
+      # for prose and the wrong one for the OpenAPI description. Editing a
+      # sentence on a .mdx page would satisfy it while openapi.yaml quietly
+      # kept describing the old routes, and a machine-readable spec that has
+      # drifted is worse than no spec: an SDK generated from it compiles, runs,
+      # and is wrong. So the narrower surface gets a narrower gate.
+      - name: Route changes require the OpenAPI description
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          CHANGED=$(git diff --name-only "$BASE...$HEAD")
+
+          # Narrower than SURFACE above on purpose. These are the files whose
+          # contents openapi.yaml restates field for field: the handlers, the
+          # validators and error codes, the batch ceiling, and the public
+          # `sources` enum.
+          SPEC_SURFACE='^(app/api/v1/|lib/api-auth\.ts|lib/api-plans\.ts|lib/api-sources\.ts)'
+
+          if ! echo "$CHANGED" | grep -qE "$SPEC_SURFACE"; then
+            echo "No files the OpenAPI description restates. Nothing to check."
+            exit 0
+          fi
+
+          echo "Files the OpenAPI description restates, touched by this PR:"
+          echo "$CHANGED" | grep -E "$SPEC_SURFACE" | sed 's/^/  /'
+
+          if echo "$CHANGED" | grep -qx 'docs-site/openapi.yaml'; then
+            echo
+            echo "docs-site/openapi.yaml was updated alongside them. OK."
+            exit 0
+          fi
+
+          echo
+          echo "::error::This PR changes a route, a validator, a plan limit or the sources enum without touching docs-site/openapi.yaml. Update the spec, or add the 'no-docs-needed' label if the change is genuinely invisible to API consumers."
+          exit 1
+
+  # Separate job: a spec that no longer parses breaks the Mintlify playground
+  # and every generated SDK, and it does so without breaking anything a test
+  # would notice. Runs only when the file is touched, since it is checking the
+  # file rather than the PR.
+  openapi:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-docs-needed') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate docs-site/openapi.yaml
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          CHANGED=$(git diff --name-only "$BASE...$HEAD")
+
+          if ! echo "$CHANGED" | grep -qx 'docs-site/openapi.yaml'; then
+            echo "openapi.yaml unchanged in this PR. Nothing to validate."
+            exit 0
+          fi
+
+          # `info-license` is disabled: the API is not offered under a licence,
+          # and inventing one to silence a linter would be the wrong fix.
+          npx --yes @redocly/cli@latest lint docs-site/openapi.yaml \
+            --skip-rule info-license

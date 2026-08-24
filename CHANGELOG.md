@@ -2,6 +2,48 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (a machine-readable API, and the 43.9% it could not reach)
+
+- **`docs-site/openapi.yaml`** describes the whole public API in OpenAPI 3.1:
+  six operations, both authentication forms, every error code, the rate-limit
+  headers, and the staleness headers on the single wallet lookup. It is the
+  dependency the MCP server, SDK generation and agent discovery all sit on.
+- **It records the four shapes rather than averaging them.** The same idea is
+  returned four slightly different ways across the endpoints: `/batch` omits
+  `verified` on the Farcaster object that the other three include, the forward
+  lookup returns a `quality` object where the reverse lookups return a bare
+  `quality_score`, and `also` appears on the forward paths only. Writing one
+  schema that was true of none of them would have been tidier and wrong, so
+  there are separate schemas and each says why it differs.
+- **Writing it found a shipped bug that made 43.9% of the index unreachable.**
+  `isValidFarcasterUsername` was `[a-z0-9_]{1,20}`. Measured against the
+  4,699,611 usernames we hold: 1,477,534 contain a dot, 189,078 contain a
+  hyphen, **zero** contain an underscore, and 334,345 are longer than 20
+  characters. The rule allowed the one character that never occurs and rejected
+  both that do, so `GET /v1/reverse/farcaster/{username}` answered 400
+  INVALID_USERNAME for 2,065,051 names that are in the table, including
+  `vitalik.eth`, which is the worked example on our own published docs page.
+- **The new rule is `[a-z0-9][a-z0-9.-]{0,31}`**, derived from the index rather
+  than from the fname spec, because the column holds both fnames and ENS names
+  and the lookup matches on the column. It accepts 4,223,912 usernames, up from
+  2,634,560. The leading-alphanumeric requirement is what still rejects
+  Farcaster's `!<fid>` placeholder for an account with no username set, which is
+  475,698 rows and not an addressable handle.
+- **Two published pages were describing something the code does not do.**
+  `usage.mdx` showed `requests_by_day` as an object keyed by date; it has always
+  been an array of `{ date, count, credits }`. `errors.mdx` and
+  `reverse-farcaster.mdx` carried the old username rule.
+- **CI gains a narrower gate.** `docs-freshness.yml` already fails a PR that
+  touches the API surface without touching `docs-site/`, but that accepts any
+  prose edit, which would let the spec drift while a sentence changed. A second
+  step requires `docs-site/openapi.yaml` specifically when a route, a validator,
+  a plan limit or the `sources` enum moves, and a second job runs
+  `redocly lint` whenever the spec itself changes, since a spec that no longer
+  parses breaks the playground and every generated SDK without breaking a test.
+- **Blog code blocks are readable again.** The typography plugin styles `pre` as
+  light text on a near-black ground; the blog overrode only the ground, so every
+  fenced block rendered gray-200 on gray-100.
+
 ### 2026-08-24 (the concierge shortlist, with the numbers already run)
 
 - **`scripts/concierge-signals.ts`** turns the traffic plan's "three

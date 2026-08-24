@@ -57,7 +57,7 @@ export async function GET(
   // Validate Farcaster username
   if (!isValidFarcasterUsername(username)) {
     return apiError(
-      'Invalid Farcaster username format. Expected 1-20 lowercase alphanumeric characters or underscores.',
+      'Invalid Farcaster username format. Expected 1-32 characters of lowercase letters, numbers, dots or hyphens, starting with a letter or a number.',
       'INVALID_USERNAME',
       400,
       { ...context.rateLimitHeaders, ...corsHeaders }
