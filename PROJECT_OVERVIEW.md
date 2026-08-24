@@ -329,6 +329,15 @@ path no key-based limit covers. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
 
+`server.json` at the repo root is the registry manifest. The server is published
+to the official MCP registry as `social.walletlink/wallet-identity` (reverse-DNS
+of the domain, which the registry requires), verified by a DNS TXT record on the
+walletlink.social apex. The Ed25519 signing key lives outside the repo at
+`~/.walletlink/mcp-registry-key.pem` and is the only way to publish an update;
+the Cloudflare record is commented with its location. Publish with
+`mcp-publisher login dns --domain walletlink.social --private-key <hex>` then
+`mcp-publisher publish`.
+
 `docs-site/openapi.yaml` is the machine-readable description of all six: request and response schemas, both authentication forms, every error code, and the rate-limit and staleness headers. It is what the MCP server, SDK generation and agent discovery are built on, so it has its own CI gate in `.github/workflows/docs-freshness.yml`: touching a route, a validator, a plan limit or the `sources` enum requires touching the spec, and touching the spec runs `redocly lint` over it.
 
 Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as the fname spec, because `social_graph.farcaster` holds both fnames and attached ENS names and the reverse lookup matches on the column. See the comment on `isValidFarcasterUsername` in `lib/api-auth.ts` for the measurement behind it.

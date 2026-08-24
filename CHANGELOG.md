@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (listed, and said out loud)
+
+- **Published to the official MCP registry** as `social.walletlink/wallet-identity`,
+  status active. Step four of the sequence. The name is reverse-DNS because the
+  registry requires it: a domain namespace is the reverse form of the domain,
+  the same convention as a Java package, so `walletlink.social` becomes
+  `social.walletlink`. Nothing user-facing carries that string; clients install
+  the server as `walletlink`.
+- **Verified by DNS, not by GitHub**, so the namespace is the domain rather than
+  `io.github.starl3xx`. That is the stronger claim: it says walletlink.social
+  vouches for this server, not that a GitHub account does. The TXT record sits
+  on the apex, SPF-style rather than DKIM-style; a selector would fail with a
+  generic signature error. The Ed25519 signing key is outside the repo at
+  `~/.walletlink/mcp-registry-key.pem`, and the Cloudflare record is commented
+  with its location, because it is the only way to publish an update.
+- `server.json` is checked in as the source of truth for future publishes. The
+  registry caps `description` at 100 characters, which rejected the first
+  attempt.
+- **The server is now said out loud on the surfaces that should say it.** The
+  pack feature lists in `UpgradeModal` and `PackPricing`, the README feature
+  table, and `llms.txt`, which is the surface an agent actually reads and had
+  no mention of the MCP server at all.
+- **`/vs/formo` gains a row.** Formo puts its MCP server behind Scale, the
+  second of three plans. Ours is on every pack and on the free allowance,
+  because it carries the same key and draws the same credits as the API it
+  wraps. That is a like-for-like comparison rather than a claim.
+
 ### 2026-08-24 (one click into an agent)
 
 - **The API keys modal now offers "Add to Cursor" and "Copy Claude Code

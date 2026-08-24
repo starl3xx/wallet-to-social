@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "social.walletlink/wallet-identity",
+  "title": "walletlink.social",
+  "description": "Resolve wallet addresses to X and Farcaster accounts, and back again.",
+  "version": "1.0.0",
+  "websiteUrl": "https://docs.walletlink.social/mcp",
+  "repository": {
+    "url": "https://github.com/starl3xx/wallet-to-social",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://walletlink.social/api/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer wts_live_... An API key from https://walletlink.social, self-serve for any account holding credits. Tool discovery works without one; calling a tool needs it.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
