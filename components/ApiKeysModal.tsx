@@ -168,7 +168,13 @@ export function ApiKeysModal({
     setNewKeyName('');
     setError(null);
     setConfirmRevokeId(null);
+    // Both copy flags, not just the first. Each is cleared by a two-second
+    // timer, so one left set here survives the close and greets the next
+    // reveal card with a tick against a clipboard that holds nothing. Adding a
+    // second flag meant adding a second reset, and the first version added
+    // only the flag.
     setCopied(false);
+    setCopiedCommand(false);
     onOpenChange(false);
   }, [creating, onOpenChange]);
 
