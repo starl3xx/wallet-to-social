@@ -18,6 +18,19 @@ All notable changes to walletlink.social. Newest first.
   prerendered pages was captured before and after: identical. eslint reports the
   same 12 errors and 19 warnings on the same four files as before, so nothing
   new was introduced.
+- **Formatting broke a guard, which is worth knowing about.** The published-
+  figures registry looks for the 13% on the share card with a regex that
+  assumed the number sat on the same line as its opening `<span>`. Prettier
+  reflowed that element across ten lines, and the guard reported `NO MATCH` on
+  a page where nothing had changed. The pattern now tolerates whitespace
+  wherever the formatter is allowed to put it, which in JSX is everywhere
+  except inside a string. It failed loudly rather than silently, which is the
+  right direction for a guard to fail in, and it is the argument for enforcing
+  a formatter once rather than letting one loose occasionally.
+- **The OpenAPI gate fired on a formatting-only change**, correctly: the
+  reformat touched two v1 route files and `lib/api-sources.ts`. The diff there
+  is line joins and splits with no value, name or behaviour changed, so the PR
+  carries the `no-docs-needed` label, which is what that label exists for.
 - **A finding that did not survive the check.** Bugbot reported that reflowing
   `{FREE_WINDOW_DAYS}-day` across a newline renders "30 -day window", and it was
   accepted and worked around in PR #179. It does not. JSX trims the newline

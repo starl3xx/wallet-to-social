@@ -534,10 +534,21 @@ const MEASUREMENTS: Measurement[] = [
     published: [
       {
         file: 'app/opengraph-image.tsx',
-        // The share card is the first thing anyone sees, and this figure was
-        // the only number on it that nothing checked.
+        /**
+         * The share card is the first thing anyone sees, and this figure was
+         * the only number on it that nothing checked.
+         *
+         * `\s*` inside the tags as well as between them. The first version
+         * assumed the number sat on the same line as its opening tag, which was
+         * true until Prettier was enforced and reflowed the element across ten
+         * lines. Nothing about the page changed and the guard reported NO MATCH.
+         *
+         * A pattern that greps source has to tolerate whitespace wherever the
+         * formatter is allowed to put it, which in JSX is everywhere except
+         * inside a string.
+         */
         pattern:
-          /<span[^>]*>([0-9]{2})%<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
+          /<span[^>]*>\s*([0-9]{2})%\s*<\/span>\s*<span[^>]*>\s*have an X or Farcaster account/,
         rate: 'reachable',
       },
       {
