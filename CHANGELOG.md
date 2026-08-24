@@ -2,6 +2,49 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
+
+- **Reclaimed 580 MB.** `farcaster_sweep_seen_1786631580832` held 3,676,509 rows
+  from a sweep that started 2026-08-13 14:33 UTC and hit the Neynar ceiling ~6.5
+  hours in. The database went from 3,245 MB to 2,665 MB.
+  `scripts/cleanup-sweep-seen-tables.ts` collects these, dry-run by default. It
+  drops with a plain `DROP` rather than `SET ROLE`: the `sweep_runner`
+  membership is `set=false`, so assuming the role is refused, while
+  `neondb_owner`'s inherited `neon_superuser` is enough. Probed inside a
+  transaction that rolled back rather than reasoned about.
+- **The monthly sweep resumes.** A budget-stopped `--full` now records where it
+  stopped in `ingest_state.farcaster_sweep_resume`, and the schedule runs
+  `--auto`: resume if there is a checkpoint, full sweep if not. Before this, each
+  month restarted at FID 1, spent its budget re-covering the same ground,
+  stopped in about the same place and abandoned another ~580 MB table. August
+  spent 11,557,744 credits against a 7,500,000 ceiling without finishing.
+- **A budget-stopped sweep now drops its own seen table** instead of keeping it
+  "for forensics". It can never be used again, so keeping it only accumulated
+  storage.
+- **Revocation cleanup is deliberately NOT extended across segments**, and the
+  reason is in `SweepCheckpoint`. Carrying the seen table across resumed
+  segments would have been the obvious design and is a data-loss path: cleanup's
+  integrity guards (a 100,000-row floor and a seen-vs-upserts ratio) are
+  per-table, so an accumulated table describes the _earlier_ segments. A final
+  segment that swept its whole range and silently returned nothing (a Neynar 404
+  maps to `[]`, and `failedCalls` only counts nulls) would add zero wallets,
+  trip no guard, and clear every pure-sweep row in the range it was meant to
+  cover, deleting outright the rows the sweep was the only source for. Order
+  10^6 rows. The floor's own comment claims to catch exactly that, and does on a
+  single-run sweep, where the count really is zero.
+- Cleanup therefore still requires one run covering the whole range, which is
+  what it required before. It also now checks `fidsRequested` against the range
+  rather than treating "did not budget-stop" as "covered it", and tests
+  `budgetStoppedAtFid !== undefined` rather than truthiness, since FID 0 is
+  falsy and would have fallen through to the branch that cleans up.
+- `clearSweepCheckpoint` upserts `'null'::jsonb` rather than deleting the row:
+  `sweep_runner` has INSERT and UPDATE on `ingest_state` but **not DELETE**, so a
+  `DELETE` would have thrown on the success path immediately after cleanup had
+  already cleared rows. It passes locally, where the owner role has DELETE.
+- Checkpoints are validated on read (`isUsableCheckpoint`). A missing, null,
+  zero or string `nextFid` each sweeps nothing while looking like a completed
+  run.
+
 ### 2026-08-24 (the money is backed up, constrained, and the banned figure is gone)
 
 - **`credit_lots` and `credit_ledger` are in the nightly backup.** They are the

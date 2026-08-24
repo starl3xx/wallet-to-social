@@ -317,6 +317,137 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
  * clean, complete sweep, pure-sweep rows that were NOT seen get their
  * Farcaster fields cleared.
  */
+const RESUME_STATE_KEY = 'farcaster_sweep_resume';
+
+/**
+ * A full sweep that ran out of credit, and where to pick it up.
+ *
+ * The sweep always knew: `budgetStoppedAtFid` has been in `SweepStats` all
+ * along and the CLI printed a resume command. Nothing wrote it down, so the
+ * monthly `--full` restarted from FID 1, spent its whole budget re-covering
+ * ground, stopped in roughly the same place, and abandoned another ~580 MB seen
+ * table.
+ *
+ * ## Why there is no seen table in here
+ *
+ * The obvious design carries the seen table across segments so revocation
+ * cleanup can run once the segments together cover the range. It is wrong, and
+ * dangerously so.
+ *
+ * `cleanupRevokedWallets` clears every pure-sweep row NOT in the seen table, and
+ * guards that with a 100,000-row floor and a "seen >= 90% of upserts" ratio.
+ * Both are per-table. Accumulate the table across segments and the guards start
+ * describing the EARLIER segments: a final segment that sweeps its whole range
+ * and silently returns nothing (a Neynar 404, which `fetchUserBatch` maps to
+ * `[]`, or a renamed response field) adds zero wallets, increments no
+ * `failedCalls`, sets no `budgetStopped`, and sails through both checks on the
+ * strength of rows another month put there. Cleanup then clears every
+ * pure-sweep row in the range that segment was supposed to cover, and deletes
+ * outright the ones the sweep was the only source for. Order 10^6 rows.
+ *
+ * The floor exists precisely to stop that: its comment says "a sweep that
+ * 'succeeded' with ~zero results must never reach cleanup". On a single-run
+ * sweep it works, because the count really is ~0. Spreading the table over
+ * segments is what defeats it.
+ *
+ * The anchor does not save it either. `upsertSweepRows` deliberately leaves
+ * `last_updated_at` alone unless the Farcaster identity changed, so most
+ * pure-sweep rows keep a months-old timestamp and the `last_updated_at <
+ * sweepStartedAt` clause excludes almost nothing.
+ *
+ * So: a resume sweeps, and does not track, and does not clean up. Revocation
+ * cleanup remains what it was, something only a sweep that covers the whole
+ * range in one run may do. That is no worse than before this checkpoint
+ * existed, since such a sweep has never once completed, and it buys the thing
+ * that was actually asked for: the range gets covered instead of re-covered.
+ */
+export interface SweepCheckpoint {
+  /** Nothing at or above this was swept. Resume here. */
+  nextFid: number;
+  /** The network max the original run probed. Frozen for the whole resume. */
+  endFid: number;
+  /** How many segments have run. Diagnostic. */
+  segments: number;
+  /** When the first segment began. Diagnostic; nothing decides on it. */
+  startedAt: string;
+}
+
+/** A checkpoint is only usable if its range is two real, ordered integers. */
+export function isUsableCheckpoint(cp: unknown): cp is SweepCheckpoint {
+  if (!cp || typeof cp !== 'object') return false;
+  const c = cp as Record<string, unknown>;
+  return (
+    Number.isSafeInteger(c.nextFid) &&
+    Number.isSafeInteger(c.endFid) &&
+    (c.nextFid as number) >= 1 &&
+    (c.nextFid as number) <= (c.endFid as number)
+  );
+}
+
+export async function readSweepCheckpoint(): Promise<SweepCheckpoint | null> {
+  const db = getDb();
+  if (!db) return null;
+  const result = (await db.execute(sql`
+    SELECT value FROM ingest_state WHERE name = ${RESUME_STATE_KEY}
+  `)) as unknown as { rows: Array<{ value: SweepCheckpoint | null }> };
+  return result.rows[0]?.value ?? null;
+}
+
+export async function writeSweepCheckpoint(cp: SweepCheckpoint): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`
+    INSERT INTO ingest_state (name, value, updated_at)
+    VALUES (${RESUME_STATE_KEY}, ${JSON.stringify(cp)}::jsonb, now())
+    ON CONFLICT (name) DO UPDATE SET
+      value = ${JSON.stringify(cp)}::jsonb, updated_at = now()
+  `);
+}
+
+/**
+ * Clear the checkpoint by writing JSON null, not by deleting the row.
+ *
+ * CI runs the sweep as `sweep_runner`, which holds SELECT, INSERT and UPDATE on
+ * `ingest_state` and **not DELETE** (verified against production 2026-08-24).
+ * A `DELETE` here would have thrown "permission denied" at the worst available
+ * moment: on the success path, immediately AFTER `cleanupRevokedWallets` had
+ * cleared rows and dropped the seen table, leaving a stale checkpoint pointing
+ * at a table that no longer exists. It passes locally, where the owner role has
+ * DELETE, which is exactly the shape of bug CLAUDE.md warns about.
+ *
+ * An upsert to `'null'::jsonb` needs only the privileges the role already has.
+ * The column is NOT NULL, and JSON null satisfies that while reading back as a
+ * JS `null`, so `readSweepCheckpoint` treats it as absent with no extra branch.
+ * Granting DELETE would also work, and would widen a CI role's rights on a
+ * table it otherwise only appends to.
+ */
+export async function clearSweepCheckpoint(): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`
+    INSERT INTO ingest_state (name, value, updated_at)
+    VALUES (${RESUME_STATE_KEY}, 'null'::jsonb, now())
+    ON CONFLICT (name) DO UPDATE SET value = 'null'::jsonb, updated_at = now()
+  `);
+}
+
+/**
+ * Drop a seen table that can never be used again.
+ *
+ * A budget-stopped `--full` calls this on its way out. Its table cannot serve a
+ * later cleanup, because cleanup requires a sweep that covered the whole range
+ * in one run, so keeping it "for forensics" only accumulates storage: the first
+ * one sat at 3,676,509 rows and 580 MB for eleven days.
+ *
+ * The name is digits-only by construction (see `beginSeenTracking`), which is
+ * what makes it safe to interpolate as an identifier.
+ */
+export async function dropSeenTable(name: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`DROP TABLE IF EXISTS ${sql.raw(name)}`);
+}
+
 export async function beginSeenTracking(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
