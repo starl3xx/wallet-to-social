@@ -586,7 +586,10 @@ CONSTRAINT`. Applied by `scripts/migrate-money-fks.ts` against the **direct**
   `*italic*` markers now rendered by the lifecycle template).
   Enrollment starts at accounts created on or after 2026-08-23: the earlier
   ~100 signups stay reserved for the relaunch campaign, which has still not
-  been sent. Exits: any credit lot, opt-out, legacy tier, whitelist. Every
+  been sent. **Corrected 2026-08-24: it was sent on 2026-08-23**, 100 granted
+  and 100 emailed, 0 failures. Those accounts now hold credit lots, so the
+  purchase rule excludes them from the welcome sequence independently of the
+  cutoff. Exits: any credit lot, opt-out, legacy tier, whitelist. Every
   send is at-most-once via `lifecycle_emails`; a missed day catches up one
   email per user per run. The cron heartbeats as `welcome_sequence` and the
   admin health pane watches it.
@@ -667,7 +670,9 @@ CONSTRAINT`. Applied by `scripts/migrate-money-fks.ts` against the **direct**
 - **`scripts/relaunch-trial-grant.ts`**: grants the Trial pack ($0 lot,
   synthetic payment id, noted) to every account that never bought and sends
   the campaign email. Dry-run default, `--to` preview, `--send` to execute,
-  idempotent at both steps. Nothing has been sent.
+  idempotent at both steps. Nothing has been sent. **Corrected 2026-08-24:
+  sent 2026-08-23**, 100 grants and 100 emails, 0 failures, 25,000 matches
+  granted. Track it with `scripts/relaunch-report.ts`.
 - Funnel figures that motivated this (measured 2026-08-22): 102 accounts, 93
   from 2026-01, 11 ever ran a lookup, 0 ever bought, 2 signed in within 30
   days. Activation is the failure point, so the campaign gives the dormant
