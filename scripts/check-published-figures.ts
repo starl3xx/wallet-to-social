@@ -98,6 +98,10 @@ const CLAIMS: Claim[] = [
       // the literal exists in exactly one file. That is the point of the
       // constant, and this check noticed the moment it became true.
       'lib/public-figures.ts',
+      // A blog post cannot import the constant, so it states the figure and is
+      // checked here instead. It uses the "N million wallet identities"
+      // phrasing precisely so the existing pattern catches it.
+      'content/published/find-twitter-account-from-wallet.md',
     ],
     /**
      * Anchored on the index context. The first version matched any
@@ -151,7 +155,10 @@ const CLAIMS: Claim[] = [
   {
     what: 'wallets with an X handle, stated in app copy',
     // Same reason as above: layout.tsx interpolates it now.
-    files: ['lib/public-figures.ts'],
+    files: [
+      'lib/public-figures.ts',
+      'content/published/find-twitter-account-from-wallet.md',
+    ],
     pattern: /([0-9]+\.[0-9]+) million wallets have a linked Twitter handle|WALLETS_WITH_X = '([0-9]+\.[0-9]+) million'/,
     actual: () =>
       one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
@@ -288,6 +295,7 @@ const CLAIMS: Claim[] = [
     what: 'Farcaster wallets, in millions',
     files: [
       'content/published/twenty-two-percent-match-rate.md',
+      'content/published/find-twitter-account-from-wallet.md',
       'lib/eas-attestations.ts',
       'lib/public-figures.ts',
     ],
