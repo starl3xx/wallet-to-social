@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the concierge shortlist, with the numbers already run)
+
+- **`scripts/concierge-signals.ts`** turns the traffic plan's "three
+  personalised replies per weekday" from an hour of manual searching into a
+  review pass. It finds candidates, computes an honest number for each from our
+  own index, and prints a drafted reply. It makes no writes, never seeds and
+  never posts.
+- **The plan's premise did not survive contact.** It named Clanker deployers as
+  the densest pocket. Clanker is not a launch feed: `lib/clanker.ts` keeps a
+  wallet and a social handle and throws the token address away (`topics[1]`, read
+  in a comment only), so there is nothing to measure. A token deployed this
+  morning has no holders either: two sampled live had three transfers each, being
+  the pool, the locker and the deployer. And handle-shaped records are often
+  launchpad bots minting tokens *about* a public figure's post, so a reply about
+  "your holders" would reach someone with no connection to the token. Clanker
+  stays a good wallet-to-X source and is not used as a prospect list.
+- **The strongest lane was already in the database.** We hold holder data for 76
+  contracts and 51 clear the public listing floor, so they already have a live
+  report at `/holders/<chain>/<address>` that their team has never been told
+  about. 50 named candidates, all carrying measured numbers, at zero API cost.
+- **The other two lanes reflect what is actually available.** X search runs
+  through the repo's own twitterapi.io key, anchored to a marketplace or explorer
+  link because the unanchored keyword query measured about three quarters
+  giveaway farms. Farcaster uses the free Warpcast endpoint: Neynar is over its
+  period budget (11,557,744 against a 10,000,000 plan limit) and pauses **all**
+  requests on overage including the live paid lookup path, so no new Neynar
+  caller may spend before 2026-09-01.
+- **The honesty rules are in the code, not the operator's head.** Always name the
+  measured denominator, because seeding caps at 2,000 wallets and "1,707 of your
+  20,977 holders" would be false. Quote `reachableAny` as a floor with "at
+  least", because `checked` runs well below `holderCount`. Use the median
+  Farcaster following, never the mean. Drop any collection where
+  `measurementInProgress` is true, because a near-zero reachable count there
+  means "not yet checked" rather than a finding. With no measured number the
+  draft refuses to invent one and offers the published per-chain figure instead.
+
 ### 2026-08-24 (a failed send stops being retried 288 times a day)
 
 - **The five-minute runner had an unbounded retry loop.** `claimAndSend` deleted
