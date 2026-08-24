@@ -29,6 +29,19 @@ All notable changes to walletlink.social. Newest first.
   period budget (11,557,744 against a 10,000,000 plan limit) and pauses **all**
   requests on overage including the live paid lookup path, so no new Neynar
   caller may spend before 2026-09-01.
+- **A report link and a source link are different fields.** They were one, and
+  the draft printed whatever it held as "the full report is already public": on
+  an X candidate that was the prospect's own announcement post, so the reply
+  would have pointed a team at their own tweet and called it our analysis.
+- **Every lane resolves contracts through one shared helper.** The resolution
+  lived inline in the X lane, so the Farcaster lane extracted an address and
+  then drafted "NO NUMBER AVAILABLE" for contracts we hold and have published. A
+  lane should not be able to forget how to look something up.
+- **The candidate cap breaks the query loop, not just the tweet loop**, so a run
+  that is already full stops paying twitterapi.io for a page it cannot use. And
+  candidates are deduped by contract, then handle, before the shortlist is
+  sliced: with `source=all` one prospect arriving from two lanes ate two of the
+  three daily slots.
 - **The honesty rules are in the code, not the operator's head.** Always name the
   measured denominator, because seeding caps at 2,000 wallets and "1,707 of your
   20,977 holders" would be false. Quote `reachableAny` as a floor with "at

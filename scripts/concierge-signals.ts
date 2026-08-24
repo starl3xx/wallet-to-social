@@ -83,6 +83,15 @@ interface Candidate {
   address: string | null;
   /** The post that triggered it, when there is one. */
   sourceUrl: string | null;
+  /**
+   * Our published report, and never the same field as sourceUrl.
+   *
+   * They were one field, and the draft linked whatever it held as "the full
+   * report is already public". On an X candidate that field is the prospect's
+   * own announcement post, so the reply would have pointed a team at their own
+   * tweet and called it our analysis.
+   */
+  reportUrl: string | null;
   /** Who to reply to, when we know. */
   handle: string | null;
   postedAt: Date | null;
@@ -151,6 +160,42 @@ function followerSentence(s: HolderStats): string | null {
   return `The median Farcaster following among them is ${s.medianFcFollowers.toLocaleString()}.`;
 }
 
+/**
+ * Address to (chain, collection, stats), shared by every lane.
+ *
+ * It lived inline in the X lane, so the Farcaster lane extracted an address and
+ * then drafted "NO NUMBER AVAILABLE" for contracts we hold and have already
+ * published. A lane should not be able to forget how to look something up.
+ */
+async function resolveContract(address: string | null): Promise<{
+  chain: SupportedChain | null;
+  collection: HolderCollection | null;
+  stats: HolderStats | null;
+}> {
+  if (!address) return { chain: null, collection: null, stats: null };
+  for (const c of SUPPORTED_CHAINS) {
+    const collection = await getHolderCollection(c, address);
+    if (!collection) continue;
+    const s = await getHolderStats(c, address);
+    return {
+      chain: c,
+      collection,
+      stats: s && !measurementInProgress(s) ? s : null,
+    };
+  }
+  return { chain: null, collection: null, stats: null };
+}
+
+/** The public report URL, only where one actually exists. */
+function reportUrlFor(
+  chain: SupportedChain | null,
+  address: string | null,
+  stats: HolderStats | null
+): string | null {
+  if (!chain || !address || !stats) return null;
+  return `${SITE}/holders/${chain}/${address}`;
+}
+
 // ---------------------------------------------------------------------------
 // Lane 1: the index we already hold
 // ---------------------------------------------------------------------------
@@ -185,7 +230,8 @@ async function fromIndex(): Promise<Candidate[]> {
       name: col.name,
       chain: col.chain,
       address: col.address,
-      sourceUrl: `${SITE}/holders/${col.chain}/${col.address}`,
+      sourceUrl: null,
+      reportUrl: `${SITE}/holders/${col.chain}/${col.address}`,
       handle: null,
       postedAt: null,
       excerpt: null,
@@ -270,22 +316,7 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
       // slug would need a resolution hop, which is a separate step a person
       // can trigger; the candidate is still worth printing without one.
       const address = t.text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
-      let chain: SupportedChain | null = null;
-      let collection: HolderCollection | null = null;
-      let stats: HolderStats | null = null;
-
-      if (address) {
-        for (const c of SUPPORTED_CHAINS) {
-          const found = await getHolderCollection(c, address);
-          if (found) {
-            chain = c;
-            collection = found;
-            const s = await getHolderStats(c, address);
-            if (s && !measurementInProgress(s)) stats = s;
-            break;
-          }
-        }
-      }
+      const { chain, collection, stats } = await resolveContract(address);
 
       out.push({
         lane: 'x',
@@ -293,6 +324,7 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
         chain,
         address,
         sourceUrl: t.url ?? `https://x.com/i/status/${t.id}`,
+        reportUrl: reportUrlFor(chain, address, stats),
         handle: t.author?.userName ?? null,
         postedAt: t.createdAt ? new Date(t.createdAt) : null,
         excerpt: t.text.replace(/\s+/g, ' ').slice(0, 220),
@@ -301,8 +333,11 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
         overlap: [],
         hasPublicReport: Boolean(collection && stats),
       });
-      if (out.length >= limit * 6) break;
     }
+    // Break the QUERY loop, not just the tweet loop. Breaking only the inner
+    // one still issued the next advanced_search and paid for a page of results
+    // the cap had already made unreachable.
+    if (out.length >= limit * 6) break;
   }
   return out;
 }
@@ -342,21 +377,24 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
           | undefined;
         const text = String(c.text ?? '').replace(/\s+/g, ' ');
         const ts = typeof c.timestamp === 'number' ? new Date(c.timestamp) : null;
+        const address = text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
+        const { chain, collection, stats } = await resolveContract(address);
         out.push({
           lane: 'farcaster',
-          name: author?.username ? `@${author.username}` : 'unknown caster',
-          chain: null,
-          address: text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null,
+          name: collection?.name ?? (author?.username ? `@${author.username}` : 'unknown caster'),
+          chain,
+          address,
           sourceUrl: author?.username
             ? `https://warpcast.com/${author.username}`
             : null,
+          reportUrl: reportUrlFor(chain, address, stats),
           handle: author?.username ?? null,
           postedAt: ts,
           excerpt: text.slice(0, 220),
-          collection: null,
-          stats: null,
+          collection,
+          stats,
           overlap: [],
-          hasPublicReport: false,
+          hasPublicReport: Boolean(collection && stats),
         });
         if (out.length >= limit * 4) break;
       }
@@ -399,8 +437,8 @@ function draft(c: Candidate): string {
         `Their holders overlap most with ${top.name} (${top.sharedHolders.toLocaleString()} wallets in common), which is the partnership list nobody asks for.`
       );
     }
-    if (c.hasPublicReport && c.sourceUrl) {
-      lines.push(`The full report is already public: ${c.sourceUrl}`);
+    if (c.reportUrl) {
+      lines.push(`The full report is already public: ${c.reportUrl}`);
     }
     lines.push('Misses cost nothing, and the first 100 matches are free.');
   } else {
@@ -426,7 +464,8 @@ function render(c: Candidate, i: number): string {
     head,
     meta.length ? `    ${meta.join('  |  ')}` : null,
     c.excerpt ? `    post: ${c.excerpt}` : null,
-    c.sourceUrl && c.lane !== 'index' ? `    link: ${c.sourceUrl}` : null,
+    c.sourceUrl ? `    post:  ${c.sourceUrl}` : null,
+    c.reportUrl ? `    report: ${c.reportUrl}` : null,
     '',
     `    DRAFT: ${draft(c)}`,
     '',
@@ -473,9 +512,42 @@ async function main() {
     return;
   }
 
-  const ranked = candidates.sort((a, b) => score(b) - score(a)).slice(0, limit);
+  /**
+   * Dedupe before slicing, because the lanes overlap by design.
+   *
+   * With source=all, a contract we already hold can arrive from the index lane
+   * and again from an X post announcing it. Unmerged, one prospect ate two of
+   * the three daily slots. Identity is the contract where there is one, and the
+   * handle otherwise; the highest-scoring copy wins, so the version carrying a
+   * measured number survives.
+   */
+  const best = new Map<string, Candidate>();
+  for (const c of candidates.sort((a, b) => score(b) - score(a))) {
+    const key =
+      c.chain && c.address
+        ? `${c.chain}:${c.address}`
+        : c.handle
+          ? `handle:${c.handle.toLowerCase()}`
+          : `src:${c.sourceUrl ?? c.name}`;
+    const prior = best.get(key);
+    if (!prior) {
+      best.set(key, c);
+      continue;
+    }
+    // Keep the winner, but do not lose the fact that a live post triggered it.
+    if (!prior.sourceUrl && c.sourceUrl) {
+      prior.sourceUrl = c.sourceUrl;
+      prior.excerpt = prior.excerpt ?? c.excerpt;
+      prior.handle = prior.handle ?? c.handle;
+      prior.postedAt = prior.postedAt ?? c.postedAt;
+    }
+  }
 
-  console.log(`${candidates.length} candidate(s), showing top ${ranked.length}\n`);
+  const ranked = [...best.values()].slice(0, limit);
+
+  console.log(
+    `${candidates.length} candidate(s), ${best.size} after dedupe, showing top ${ranked.length}\n`
+  );
   console.log('='.repeat(72));
   for (const [i, c] of ranked.entries()) {
     console.log(render(c, i));
