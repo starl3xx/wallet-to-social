@@ -98,6 +98,10 @@ const CLAIMS: Claim[] = [
       // the literal exists in exactly one file. That is the point of the
       // constant, and this check noticed the moment it became true.
       'lib/public-figures.ts',
+      // A blog post cannot import the constant, so it states the figure and is
+      // checked here instead. It uses the "N million wallet identities"
+      // phrasing precisely so the existing pattern catches it.
+      'content/published/find-twitter-account-from-wallet.md',
     ],
     /**
      * Anchored on the index context. The first version matched any
@@ -151,7 +155,10 @@ const CLAIMS: Claim[] = [
   {
     what: 'wallets with an X handle, stated in app copy',
     // Same reason as above: layout.tsx interpolates it now.
-    files: ['lib/public-figures.ts'],
+    files: [
+      'lib/public-figures.ts',
+      'content/published/find-twitter-account-from-wallet.md',
+    ],
     pattern: /([0-9]+\.[0-9]+) million wallets have a linked Twitter handle|WALLETS_WITH_X = '([0-9]+\.[0-9]+) million'/,
     actual: () =>
       one(sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`),
@@ -288,6 +295,7 @@ const CLAIMS: Claim[] = [
     what: 'Farcaster wallets, in millions',
     files: [
       'content/published/twenty-two-percent-match-rate.md',
+      'content/published/find-twitter-account-from-wallet.md',
       'lib/eas-attestations.ts',
       'lib/public-figures.ts',
     ],
@@ -530,6 +538,23 @@ const MEASUREMENTS: Measurement[] = [
         file: 'content/published/twenty-two-percent-match-rate.md',
         pattern: /\*\*Any identity\*\*[^|]*\| \*\*([0-9]{2}\.[0-9])%\*\*/,
         rate: 'anyIdentity',
+      },
+      /**
+       * The second post to publish both halves of the sample, and the first to
+       * put them in one table and argue the difference between them. Both rows
+       * are declared, because declaring only the headline is how a post ends up
+       * stating a current resolution rate beside a stale reach rate, which is
+       * precisely the conflation CLAUDE.md requires this file to police.
+       */
+      {
+        file: 'content/published/find-twitter-account-from-wallet.md',
+        pattern: /\| Any identity\s+\| ([0-9]{2}\.[0-9])%/,
+        rate: 'anyIdentity',
+      },
+      {
+        file: 'content/published/find-twitter-account-from-wallet.md',
+        pattern: /\| Reachable on X or Farcaster\s+\| ~([0-9]{2})%/,
+        rate: 'reachable',
       },
     ],
   },

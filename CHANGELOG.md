@@ -24,6 +24,26 @@ All notable changes to walletlink.social. Newest first.
 - Also removed the `app/lookups.mdx` note about accounts that bought Pro or
   Unlimited before credits existed. The `plan_limits` defensive-parsing advice in
   `usage.mdx` is kept, with the legacy phrasing dropped.
+### 2026-08-24 (the blog gets its front door)
+
+- **New post: "How to find the X account behind an Ethereum wallet"**
+  (`content/published/find-twitter-account-from-wallet.md`). Three methods, what
+  each one proves, four minutes by hand, and the answer rate at scale. The 26
+  existing posts all assume the reader already knows that resolving a wallet is
+  a thing that can be done; this is the entry point none of them is.
+- **Its figures are declared, not hardcoded.** The post states the index size,
+  the Farcaster count and the X-handle count, so it is added to the `files` list
+  of all three claims in `scripts/check-published-figures.ts`. The wording was
+  chosen to match the patterns already there, so the guard checks it with no new
+  regex. All three verified against `/api/public-stats` before publishing.
+- **Both sample rates are declared, not just the index counts.** The post states
+  the 23.7% any-identity rate and the ~13% reachable rate, so both rows of its
+  table are registered in `MEASUREMENTS.published`. Declaring only the headline
+  is how a post ends up stating a current resolution rate beside a stale reach
+  rate, which is the exact conflation this guard exists to police.
+- Keeps "any identity" (23.7%) and "reachable on X or Farcaster" (~13%) apart,
+  and says in the post why quoting the first where the second belongs overstates
+  an audience by half.
 
 ### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
 
