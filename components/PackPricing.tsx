@@ -67,8 +67,14 @@ export function PackPricing() {
           <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
             $0
           </p>
+          {/* The template literal keeps `30-day` atomic. As
+              `{FREE_WINDOW_DAYS}-day` the formatter is free to break after the
+              expression, and JSX collapses that newline into a space, so the
+              line rendered "30 -day window". Prettier cannot break inside a
+              template literal, so the hyphen cannot be orphaned again. */}
           <p className="text-muted-foreground">
-            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}-day window
+            {FREE_MATCHES_PER_WINDOW} matches in a rolling{' '}
+            {`${FREE_WINDOW_DAYS}-day`} window
           </p>
         </div>
         {PACK_IDS.map((id) => (
@@ -86,8 +92,8 @@ export function PackPricing() {
 
       <p className="mt-4 text-sm text-muted-foreground">
         Every pack carries all {CHAIN_COUNT_WORD} chains, uncapped CSV export,
-        API access on the same credits, reverse lookup, Farcaster DMs, and X
-        reachability on every match. Credits last {CREDIT_LIFETIME_MONTHS}{' '}
+        API and MCP access on the same credits, reverse lookup, Farcaster DMs,
+        and X reachability on every match. Credits last {CREDIT_LIFETIME_MONTHS}{' '}
         months. No subscription.
       </p>
     </div>

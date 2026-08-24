@@ -154,7 +154,15 @@ Billing follows the same rule as the app. A single lookup costs one match credit
 
 Rate limits for a credit-holding account are ${perMinute} requests per minute, ${perDay} per day and ${perMonth} per month, counted across every key on the account so that minting more keys does not raise the ceiling. Responses carry the remaining allowance in headers, and a rejected request says when to retry. Errors return a stable machine-readable code alongside the human-readable message.
 
-Full request and response shapes, every error code and the exact header semantics are in the API reference, linked below, rather than repeated here.
+Full request and response shapes, every error code and the exact header semantics are in the API reference, linked below, rather than repeated here. The machine-readable form is an OpenAPI 3.1 description at https://docs.walletlink.social/openapi.yaml.
+
+## For agents: the MCP server
+
+There is a remote MCP server at https://walletlink.social/api/mcp, so an agent can resolve wallets without a person first reading an API reference. Streamable HTTP, no OAuth, authenticated with the same bearer key as the REST API and drawing the same credits. It is listed in the official MCP registry as social.walletlink/wallet-identity, verified by DNS.
+
+Five tools: resolve one to ${batchSize} addresses to their social identities, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The last two are free on both meters. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
+
+Tool discovery needs no key: a client can connect and list the tools before buying anything. Calling a tool needs one. Keys are self-serve at https://walletlink.social for any account holding credits, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
 
 ## Product
 
@@ -175,6 +183,8 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 - [Coverage](https://docs.walletlink.social/concepts/coverage.md): what fraction of a wallet list resolves, per chain, and what the number actually means.
 - [Data quality](https://docs.walletlink.social/concepts/data-quality.md): evidence classes, the quality score, reachability states, and when a record goes stale.
 - [API reference](https://docs.walletlink.social/api-reference/introduction.md): base URL, authentication and conventions, then one page per endpoint.
+- [MCP server](https://docs.walletlink.social/mcp-server.md): five tools for agents, what each costs, and the config block for Claude and Cursor.
+- [OpenAPI description](https://docs.walletlink.social/openapi.yaml): the whole REST surface as OpenAPI 3.1, for SDK generation and tool discovery.
 - [Full docs for LLMs](https://docs.walletlink.social/llms-full.txt): the complete documentation in one file.
 
 ## Comparisons

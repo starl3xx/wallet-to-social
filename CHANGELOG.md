@@ -2,6 +2,53 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (listed, and said out loud)
+
+- **Published to the official MCP registry** as `social.walletlink/wallet-identity`,
+  status active. Step four of the sequence. The name is reverse-DNS because the
+  registry requires it: a domain namespace is the reverse form of the domain,
+  the same convention as a Java package, so `walletlink.social` becomes
+  `social.walletlink`. Nothing user-facing carries that string; clients install
+  the server as `walletlink`.
+- **Verified by DNS, not by GitHub**, so the namespace is the domain rather than
+  `io.github.starl3xx`. That is the stronger claim: it says walletlink.social
+  vouches for this server, not that a GitHub account does. The TXT record sits
+  on the apex, SPF-style rather than DKIM-style; a selector would fail with a
+  generic signature error. The Ed25519 signing key is outside the repo at
+  `~/.walletlink/mcp-registry-key.pem`, and the Cloudflare record is commented
+  with its location, because it is the only way to publish an update.
+- `server.json` is checked in as the source of truth for future publishes. The
+  registry caps `description` at 100 characters, which rejected the first
+  attempt.
+- **The server is now said out loud on the surfaces that should say it.** The
+  pack feature lists in `UpgradeModal` and `PackPricing`, the README feature
+  table, and `llms.txt`, which is the surface an agent actually reads and had
+  no mention of the MCP server at all.
+- **`/vs/formo` gains a row.** Formo puts its MCP server behind Scale, the
+  second of three plans. Ours is on every pack and on the free allowance,
+  because it carries the same key and draws the same credits as the API it
+  wraps. That is a like-for-like comparison rather than a claim.
+- **`/mcp` was already taken on the docs site, and the repo said so.** Mintlify
+  serves its own documentation-search MCP endpoint at
+  `docs.walletlink.social/mcp`, which `docs/DOCS-SITE.md` has recorded since the
+  site was built. A page at `docs-site/mcp.mdx` is shadowed by it: a browser
+  asking for that URL gets `Method not allowed` as JSON, not the page. It was
+  live that way for about an hour, and the dead URL was in the registry
+  listing, the keys modal and the API reference. The page is now `/mcp-server`,
+  the listing is republished at 1.0.1, and `docs/DOCS-SITE.md` says the path is
+  reserved.
+- **The OpenAPI spec was reachable all along.** Static files in `docs-site/`
+  are served from the docs root, so `docs-site/openapi.yaml` has been public at
+  `docs.walletlink.social/openapi.yaml` since it landed. It was left out of
+  `llms.txt` on the assumption that it was not, which was never tested. It is
+  now linked from `llms.txt` and from the MCP page, still without a `docs.json`
+  entry, since registering it would generate a page per endpoint and duplicate
+  the nine hand-written ones.
+- The free-tier line rendered "30 -day window" for one commit. Running
+  `prettier --write` over a file that had never been formatted reflowed
+  `{FREE_WINDOW_DAYS}-day` across a newline, and JSX collapses that into a
+  space. A template literal now keeps the figure and its hyphen atomic.
+
 ### 2026-08-24 (one click into an agent)
 
 - **The API keys modal now offers "Add to Cursor" and "Copy Claude Code

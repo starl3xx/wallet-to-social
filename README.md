@@ -63,15 +63,16 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 
 ## Features
 
-|                      |                                                                            |
-| -------------------- | -------------------------------------------------------------------------- |
-| **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses |
-| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain    |
-| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together      |
-| **Agent detection**  | 13,000+ known AI agent wallets flagged                                     |
-| **Reverse lookup**   | X handle or Farcaster username back to wallets                             |
-| **Public API**       | Included with every pack, drawing the same credits; self-serve keys        |
-| **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import   |
+|                      |                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses      |
+| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain         |
+| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together           |
+| **Agent detection**  | 13,000+ known AI agent wallets flagged                                          |
+| **Reverse lookup**   | X handle or Farcaster username back to wallets                                  |
+| **Public API**       | Included with every pack, drawing the same credits; self-serve keys             |
+| **MCP server**       | Five tools at `/api/mcp`, same key and same balance; listed in the MCP registry |
+| **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import        |
 
 ---
 
@@ -87,7 +88,7 @@ Credit packs, bought once and metered in **matches**. A match is a wallet resolv
 | Scale    | $299  | 6,000                   | Several lists, or one large one |
 | Index    | $899  | 25,000                  | Agencies and repeat work        |
 
-Every pack includes the same features (contract import, reverse lookup, deep ENS resolution, follower counts, priority score, X list export, lookup history and API access on the same credits). Packs differ only in how many matches they hold. `lib/packs.ts` is the source of truth: the pricing modal, the checkout, the comparison pages and the schema.org offers all read from it.
+Every pack includes the same features (contract import, reverse lookup, deep ENS resolution, follower counts, priority score, X list export, lookup history, and API plus MCP access on the same credits). Packs differ only in how many matches they hold. `lib/packs.ts` is the source of truth: the pricing modal, the checkout, the comparison pages and the schema.org offers all read from it.
 
 ---
 
@@ -220,6 +221,16 @@ A call made with no match credits left returns `402` with code `NO_CREDITS`.
 | Legacy Unlimited | Startup   | 300/min | 50,000 | 200   |
 
 `lib/api-plans.ts` is the single source of truth for these numbers (`CREDIT_API_PLAN` for pack holders, `TIER_API_PLAN` for the two legacy accounts), and the rate limiter reads the same module.
+
+## MCP server
+
+`https://walletlink.social/api/mcp`, five tools over the same six endpoints. Remote, no OAuth, and the same bearer key and same balance as the REST API. Listed in the official MCP registry as `social.walletlink/wallet-identity`, verified by DNS rather than by GitHub, so the namespace is the domain.
+
+It authenticates nothing and bills nothing of its own: each tool carries the caller's key into the v1 handler, which already owns authentication, rate limiting and the debit. Doing either at the MCP layer would charge twice for one tool call. `app/api/mcp/route.ts` says why at length.
+
+Discovery answers without a key, so a client can list the tools before buying anything. That is the one unauthenticated surface, and it is bounded by IP rather than by key.
+
+The keys modal offers **Add to Cursor** and **Copy Claude Code command** on the screen where a new key is shown, since that is the only place a working one-click link can be built.
 
 ---
 

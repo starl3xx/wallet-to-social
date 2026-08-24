@@ -386,7 +386,7 @@ export function ApiKeysModal({
                     <code className="font-mono">{MCP_SERVER_NAME}</code>, with
                     five tools over the same balance.{' '}
                     <a
-                      href="https://docs.walletlink.social/mcp"
+                      href="https://docs.walletlink.social/mcp-server"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline"

@@ -105,7 +105,7 @@ const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
 const INCLUDED: { key: string; label: React.ReactNode }[] = [
   { key: 'chains', label: `All ${CHAIN_COUNT_WORD} chains` },
   { key: 'csv', label: 'Full CSV export, never capped' },
-  { key: 'api', label: 'API access, drawing the same credits' },
+  { key: 'api', label: 'API and MCP server, drawing the same credits' },
   { key: 'reverse', label: 'Reverse lookup: handle → wallets' },
   { key: 'ens', label: 'Deep scan with onchain ENS' },
   { key: 'x', label: <>{X_IN_COPY} reachability on every match</> },

@@ -297,6 +297,34 @@ export default function FormoComparison() {
                       </span>
                     </td>
                   </tr>
+                  {/* Their MCP server sits behind Scale, which is the second
+                      of three plans. Ours is on every pack, including the free
+                      allowance, because it carries the same key and draws the
+                      same credits as the API it wraps. */}
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">
+                      MCP server for agents
+                    </td>
+                    <td className="py-4 px-4 bg-accent-brand-tint">
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          (five tools, on every pack and the free allowance)
+                        </span>
+                      </span>
+                    </td>
+                    <td className="py-4 pl-4">
+                      <span className="text-xs text-muted-foreground">
+                        Scale and up, {usd(FORMO_SCALE_MONTHLY_BILLED_YEARLY)} a
+                        month billed yearly
+                      </span>
+                    </td>
+                  </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">
                       Funnels, attribution, forms
@@ -614,8 +642,9 @@ export default function FormoComparison() {
               Ready to find your wallet holders?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches
-              in a rolling {FREE_WINDOW_DAYS}-day window, no card, nothing to install.
+              Try walletlink.social free: {FREE_MATCHES_PER_WINDOW} matches in a
+              rolling {FREE_WINDOW_DAYS}-day window, no card, nothing to
+              install.
             </p>
             <Button asChild>
               <Link href="/">
