@@ -44,6 +44,14 @@ All notable changes to walletlink.social. Newest first.
   days`, so an account created at 14:59:30 got welcome-1 thirty seconds later
   at 15:00, next to its own magic link. `FIRST_TOUCH_DELAY_MINUTES` moved into
   `ELIGIBLE_USER`, where no runner can reach past it.
+- **Selection asks whether an email was delivered, never whether a row exists.**
+  Once the claim is taken before the send, a bare `NOT EXISTS` reads an
+  in-flight claim as a completed send: the daily runner found no welcome-1
+  pending, fell through to welcome-2, and would have delivered the second email
+  beside the first while the first was still leaving. Both runners now select on
+  `confirmed_at IS NOT NULL`, which holds that user at welcome-1 until an email
+  actually left. The lowest-pending ordering is the reason the daily runner
+  loops in key order, so this is the predicate that has to carry it.
 - Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
   backfills `confirmed_at = sent_at` on existing rows, which were written under
   the old send-then-insert order and are all real deliveries; without the

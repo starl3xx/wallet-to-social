@@ -175,6 +175,23 @@ const ELIGIBLE_USER = sql`
   AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
 `;
 
+/**
+ * Selection asks whether an email was *delivered*, never whether a row exists.
+ *
+ * Once claimAndSend takes the row before sending, a bare `NOT EXISTS` reads an
+ * in-flight claim as a completed send. The daily runner would then find no
+ * welcome-1 pending, fall through to welcome-2, and deliver the second email
+ * beside the first while the first was still leaving. The lowest-pending
+ * ordering is the whole reason the daily runner loops in key order, so this is
+ * the predicate that has to carry it.
+ *
+ * Selecting on `confirmed_at IS NOT NULL` holds that user at welcome-1 for the
+ * run. If the other runner is mid-send, this run's INSERT loses the conflict
+ * and sends nothing; if that send failed and released the claim, this run
+ * retries it. Either way the user advances only after an email actually left.
+ */
+const DELIVERED = sql`le.confirmed_at IS NOT NULL`;
+
 type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
 
 /**
@@ -286,6 +303,7 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
       AND NOT EXISTS (
         SELECT 1 FROM lifecycle_emails le
         WHERE le.user_id = u.id AND le.email_key = ${first.key}
+          AND ${DELIVERED}
       )
     ORDER BY u.created_at
     LIMIT ${MAX_SENDS_PER_RUN}
@@ -340,6 +358,7 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
         AND NOT EXISTS (
           SELECT 1 FROM lifecycle_emails le
           WHERE le.user_id = u.id AND le.email_key = ${e.key}
+            AND ${DELIVERED}
         )
       ORDER BY u.created_at
     `)) as unknown as { rows: Array<{ userId: string; email: string }> };
