@@ -16,11 +16,13 @@ on:
       mode:
         description: 'Sweep mode'
         required: false
-        default: '--full'
+        default: '--auto'
         type: choice
         options:
+          - '--auto'
           - '--full'
           - '--incremental'
+          - '--resume'
 
 # Never run two sweeps at once — a second run's revocation cleanup could
 # interact badly with the first's writes
@@ -50,7 +52,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/farcaster-sweep.ts ${{ inputs.mode || '--full' }}
+      # `--auto` on the schedule, not `--full`. A full sweep that exhausts the
+      # Neynar background ceiling stops partway and records where; before that
+      # checkpoint existed, the next month restarted at FID 1, spent its budget
+      # re-covering the same ground, stopped in about the same place and left
+      # another ~580 MB seen table behind. August spent 11,557,744 credits
+      # against a 7,500,000 ceiling and still did not finish, so the sweep could
+      # never complete and revocation cleanup could never run.
+      #
+      # `--auto` resumes the checkpoint if there is one and starts a fresh full
+      # sweep if there is not, carrying the same seen table and the original
+      # start timestamp across segments so cleanup stays valid.
+      - run: npx tsx scripts/farcaster-sweep.ts ${{ inputs.mode || '--auto' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
