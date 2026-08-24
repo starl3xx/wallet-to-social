@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the changelog stops saying the relaunch was never sent)
+
+- **Two entries claimed the relaunch campaign had not been sent.** It was sent
+  on 2026-08-23: 100 grants, 100 emails, 0 failures, 25,000 matches granted,
+  confirmed against `lifecycle_emails`. Both statements were true on the day
+  they were written, so they carry a dated correction in place rather than
+  being rewritten. A changelog that quietly revises its own history is worth
+  less than one that shows where it was wrong.
+- Found while checking whether the ~100 dormant accounts were still eligible for
+  the welcome sequence. They are not, and the reason is not the `SEQUENCE_START`
+  cutoff everyone reaches for first: they hold credit lots now, so the purchase
+  exit rule excludes them independently. That distinction matters if the cutoff
+  ever moves. `docs/EMAIL-SEQUENCE.md` carried the same claim and was corrected
+  in PR #172.
+
 ### 2026-08-24 (a failed send stops being retried 288 times a day)
 
 - **The five-minute runner had an unbounded retry loop.** `claimAndSend` deleted
