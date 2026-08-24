@@ -162,6 +162,25 @@ const JOBS: Array<{
     maxAgeHours: 48,
     reportsOutcome: true,
   },
+  {
+    /**
+     * The runner that actually sends welcome-1, and the one whose silence
+     * costs the most: if it stops, every new signup waits a day for the email
+     * that greets them, and the daily runner keeps reporting healthy while it
+     * happens. It was missing from this list when it shipped, which meant the
+     * only cron in the product that touches a person within minutes of signup
+     * was also the only one nothing watched.
+     *
+     * Two hours, not 48: it runs every five minutes, so a gap of two hours is
+     * already 24 missed runs and unambiguous. It emits on every run, including
+     * quiet ones, so this cannot flap with signup volume.
+     */
+    name: 'Welcome first touch',
+    schedule: 'every 5 minutes',
+    subtype: 'welcome_first_touch',
+    maxAgeHours: 2,
+    reportsOutcome: true,
+  },
 ];
 
 /**

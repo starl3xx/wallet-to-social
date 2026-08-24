@@ -249,6 +249,12 @@ export const lifecycleEmails = pgTable(
      * and never redeemed, which reclaimStaleClaims deletes so it retries.
      */
     confirmedAt: timestamp('confirmed_at'),
+    /** Attempts made for this (user, key). Zero only on a pre-retry row. */
+    attempts: integer('attempts').default(0).notNull(),
+    /** When the last attempt failed. NULL means in flight, or delivered. */
+    failedAt: timestamp('failed_at'),
+    /** What the provider said, so a stuck row can be diagnosed. */
+    lastError: text('last_error'),
   },
   (table) => [
     uniqueIndex('lifecycle_emails_user_key_idx').on(

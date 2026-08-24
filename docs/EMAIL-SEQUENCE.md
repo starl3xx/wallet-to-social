@@ -17,18 +17,45 @@ passed its own 7-critical-readers pass. Eligibility excludes legacy tiers,
 opt-outs, and anyone already holding any credit lot.
 
 Run order before the first send: `scripts/migrate-email-lifecycle.ts`, then
-`scripts/migrate-grant-readonly.ts`, set `EMAIL_UNSUBSCRIBE_SECRET` in both
+`scripts/migrate-grant-readonly.ts`, then `scripts/migrate-lifecycle-claim.ts`
+and `scripts/migrate-lifecycle-retry.ts`, set `EMAIL_UNSUBSCRIBE_SECRET` in both
 .env.local and Vercel, then `--to` a test address, then `--send`.
+
+**The relaunch campaign has been sent.** 100 accounts were granted a trial lot
+and emailed on 2026-08-23. This file and CHANGELOG.md both said otherwise for a
+day; they were wrong. Those accounts now hold credit lots, so they are excluded
+from the welcome sequence by the purchase rule even though the cutoff would
+already have excluded them.
 
 # Welcome sequence: signup to first pack
 
 Status: **live**. Jake approved the copy on 2026-08-22 (his edits are the
-canonical text, mirrored in `lib/welcome-sequence.ts`), and the daily cron
-runs at 15:00 UTC (`app/api/cron/welcome-sequence/route.ts`, watched by the
-health pane). **Enrollment starts at accounts created on or after
-2026-08-23**: the earlier ~100 signups are the relaunch campaign's audience
-and are deliberately excluded (`SEQUENCE_START`). A purchase or an opt-out
-exits the sequence; every send is at-most-once via `lifecycle_emails`.
+canonical text, mirrored in `lib/welcome-sequence.ts`).
+
+**Two runners, not one.** `/api/cron/welcome-first` runs every five minutes and
+sends `welcome-1` only, to accounts past `FIRST_TOUCH_DELAY_MINUTES` (5).
+`/api/cron/welcome-sequence` runs at 15:00 UTC and owns days 2, 5, 9 and 14,
+keeping a day-0 pass as a safety net. Both are watched by the health pane. The
+delay is deliberate: the account row is written at magic-link *verify*, so an
+immediate send would put `welcome-1` in the inbox in the same second as the
+sign-in link.
+
+**Enrollment starts at accounts created on or after 2026-08-23**: the earlier
+~100 signups are the relaunch campaign's audience and are deliberately excluded
+(`SEQUENCE_START`). A purchase or an opt-out exits the sequence.
+
+**At-most-once, with one stated exception.** `claimAndSend` takes the
+`lifecycle_emails` row before it sends and writes `confirmed_at` after, so a row
+proves delivery rather than intent, and two runners cannot both send. A process
+killed between a successful send and that confirm leaves a claim the reclaim
+frees after 15 minutes, and that person receives the email twice. The window
+resolves in favour of sending on purpose: one duplicate greeting beats a welcome
+that silently never arrives.
+
+**A failed send is recorded, not erased.** The row keeps `attempts`, `failed_at`
+and `last_error`, retries on an exponential backoff (10, 20, 40, 80 minutes) and
+stops after `RETRY_CEILING` (5). Without that, a permanent failure such as an
+unverified sending domain would be retried 288 times a day per account, forever.
 
 If the copy changes here, change `lib/welcome-sequence.ts` in the same PR:
 the code is the sent truth and this file is its record. Figures in the copy come from
@@ -57,7 +84,7 @@ two legacy accounts and whitelisted accounts.
 
 | #   | Day           | Job                                 | Subject                                     |
 | --- | ------------- | ----------------------------------- | ------------------------------------------- |
-| 1   | 0 (immediate) | Deliver the promise, first step     | Your first 100 matches are free             |
+| 1   | 0 (+5 min)    | Deliver the promise, first step     | Your first 100 matches are free             |
 | 2   | 2             | Set chain expectations honestly     | What your chain says about your match rate  |
 | 3   | 5             | Differentiate on reachability       | A handle that reaches nobody is not a match |
 | 4   | 9             | Feature: reverse lookup and ranking | Does that handle already hold your token?   |
@@ -142,10 +169,14 @@ and POST for RFC 8058 one-click), and `sendLifecycleEmail` in `lib/email.ts`
 `EMAIL_UNSUBSCRIBE_SECRET`). Transactional magic-link mail ignores the
 opt-out flag; lifecycle mail honors it.
 
-Built 2026-08-22, all of it: the daily cron at 15:00 UTC walks the
-five-email schedule against `users.created_at`, `credit_lots`, and
-`lifecycle_emails` (keys `welcome-1` to `welcome-5`), heartbeats into
-`analytics_events` (`welcome_sequence`), and shows on the admin health pane.
+Built 2026-08-22, split into two runners on 2026-08-24: the daily cron at 15:00
+UTC walks the five-email schedule against `users.created_at`, `credit_lots`, and
+`lifecycle_emails` (keys `welcome-1` to `welcome-5`), while the five-minute cron
+handles `welcome-1` alone. Both heartbeat into `analytics_events`
+(`welcome_sequence`, `welcome_first_touch`) and show on the admin health pane.
+Those heartbeats are written as `lookup_completed` rows carrying an
+`eventSubtype`, and `NOT_A_HEARTBEAT` in `lib/analytics.ts` keeps them out of
+every product lookup count.
 Conversion metric: a `credit_lots` row with a real payment within 30 days of
 email 5; watch it on the admin Growth tab's Lifecycle email card.
 

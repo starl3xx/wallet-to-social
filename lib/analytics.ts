@@ -433,7 +433,8 @@ export async function getUserFunnel(
       .where(
         and(
           gte(analyticsEvents.createdAt, startDate),
-          lte(analyticsEvents.createdAt, endDate)
+          lte(analyticsEvents.createdAt, endDate),
+          NOT_A_HEARTBEAT
         )
       )
       .groupBy(analyticsEvents.eventType);
@@ -517,6 +518,30 @@ export async function getPaywallTriggers(
 }
 
 /**
+ * Cron heartbeats are not lookups.
+ *
+ * Nine scheduled routes report their health by writing a `lookup_completed`
+ * row carrying `metadata.eventSubtype`, because there is no heartbeat event
+ * type. Every product query that counts `lookup_completed` therefore counts
+ * them as work a person did. At nine a day that was a rounding error nobody
+ * noticed; `/api/cron/welcome-first` runs 288 times a day, which would have
+ * made the machines the majority of our "lookups".
+ *
+ * The right fix is a heartbeat event type of its own. Until then this is the
+ * one predicate that separates them, applied everywhere the count is read.
+ */
+const NOT_A_HEARTBEAT = sql`${analyticsEvents.metadata}->>'eventSubtype' IS NULL`;
+
+/** In-memory counterpart, for the queries that filter after fetching. */
+function isHeartbeat(metadata: unknown): boolean {
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    'eventSubtype' in (metadata as Record<string, unknown>)
+  );
+}
+
+/**
  * Lifecycle email state: sends by email key, and the opt-out count.
  *
  * lifecycle_emails and users.email_opt_out were written by the campaign
@@ -539,10 +564,10 @@ export async function getEmailStatus(): Promise<{
   try {
     const sends = (await db.execute(sql`
       SELECT email_key AS "emailKey", count(*)::int AS count,
-             max(sent_at) AS "lastSentAt"
+             max(confirmed_at) AS "lastSentAt"
       FROM lifecycle_emails
       WHERE confirmed_at IS NOT NULL
-      GROUP BY 1 ORDER BY max(sent_at) DESC
+      GROUP BY 1 ORDER BY max(confirmed_at) DESC
     `)) as unknown as {
       rows: Array<{ emailKey: string; count: number; lastSentAt: Date | null }>;
     };
@@ -995,11 +1020,12 @@ export async function getFeatureAdoption(
       );
 
     const totalLookups = events.filter(
-      (e) => e.eventType === 'lookup_completed'
+      (e) => e.eventType === 'lookup_completed' && !isHeartbeat(e.metadata)
     ).length;
     const ensLookups = events.filter(
       (e) =>
         e.eventType === 'lookup_completed' &&
+        !isHeartbeat(e.metadata) &&
         (e.metadata as Record<string, unknown>)?.includeENS === true
     ).length;
     const historySaves = events.filter(
