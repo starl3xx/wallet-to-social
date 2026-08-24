@@ -73,6 +73,48 @@ All notable changes to walletlink.social. Newest first.
   the old send-then-insert order and are all real deliveries; without the
   backfill the first reclaim would delete them and mail those accounts again.
   No new table, so no `migrate-grant-readonly.ts` entry.
+### 2026-08-24 (the docs stop advertising a plan nobody is on)
+
+- **The legacy Unlimited tier is gone from `docs-site/`.** The Plans table
+  carried a second column, `Unlimited (legacy)` / `Startup`, with 300 rpm, 50k
+  requests a day and a batch size of 200, and three other pages repeated "or 200
+  on a legacy Unlimited account".
+- **Nothing was on it.** Two accounts hold a legacy tier, one `pro` and one
+  `unlimited`. `TIER_API_PLAN` maps `pro` to `developer` and `unlimited` to
+  `startup`, and only the `pro` account has ever created an API key. So no key
+  in existence carries `Startup` limits, and the column documented a plan a
+  reader could neither buy nor reach. Checked against the database before
+  removing it, not assumed.
+- **The code is untouched, deliberately.** `legacyTierIsUnmetered`, the tier
+  values, `TIER_LIMITS` and `TIER_API_PLAN` all stay: both accounts keep exactly
+  what they bought, and if the `unlimited` account ever creates a key it still
+  gets `startup` limits. CLAUDE.md requires this, and the removal was only ever
+  about what is published.
+- The admin pane keeps its Legacy badge and tier row, because it is the tool for
+  managing those two accounts and hiding them there would make it lie.
+- Also removed the `app/lookups.mdx` note about accounts that bought Pro or
+  Unlimited before credits existed. The `plan_limits` defensive-parsing advice in
+  `usage.mdx` is kept, with the legacy phrasing dropped.
+### 2026-08-24 (the blog gets its front door)
+
+- **New post: "How to find the X account behind an Ethereum wallet"**
+  (`content/published/find-twitter-account-from-wallet.md`). Three methods, what
+  each one proves, four minutes by hand, and the answer rate at scale. The 26
+  existing posts all assume the reader already knows that resolving a wallet is
+  a thing that can be done; this is the entry point none of them is.
+- **Its figures are declared, not hardcoded.** The post states the index size,
+  the Farcaster count and the X-handle count, so it is added to the `files` list
+  of all three claims in `scripts/check-published-figures.ts`. The wording was
+  chosen to match the patterns already there, so the guard checks it with no new
+  regex. All three verified against `/api/public-stats` before publishing.
+- **Both sample rates are declared, not just the index counts.** The post states
+  the 23.7% any-identity rate and the ~13% reachable rate, so both rows of its
+  table are registered in `MEASUREMENTS.published`. Declaring only the headline
+  is how a post ends up stating a current resolution rate beside a stale reach
+  rate, which is the exact conflation this guard exists to police.
+- Keeps "any identity" (23.7%) and "reachable on X or Farcaster" (~13%) apart,
+  and says in the post why quoting the first where the second belongs overstates
+  an audience by half.
 
 ### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
 

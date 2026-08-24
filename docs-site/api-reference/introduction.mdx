@@ -33,23 +33,21 @@ Keys are prefixed `wts_live_` and are stored only as hashes. A lost key is repla
 API access is included with every credit pack rather than sold separately, and
 it draws on the same balance the app does. There is no API-only plan.
 
-|                            | **Any pack** | **Unlimited** (legacy) |
-| -------------------------- | ------------ | ---------------------- |
-| Plan name in API responses | `Developer`  | `Startup`              |
-| Requests per minute        | 60           | 300                    |
-| Requests per day           | 5,000        | 50,000                 |
-| Requests per month         | 50,000       | 500,000                |
-| Max batch size             | 50           | 200                    |
+|                            | **Any pack** |
+| -------------------------- | ------------ |
+| Plan name in API responses | `Developer`  |
+| Requests per minute        | 60           |
+| Requests per day           | 5,000        |
+| Requests per month         | 50,000       |
+| Max batch size             | 50           |
 
 These are rate limits: they bound how fast you can call, not how much you can
 resolve in total. What you can resolve is bounded by your credit balance, and a
 call made with no credits left returns `402` with code `NO_CREDITS`.
 
 <Note>
-  Responses from [`/v1/usage`](/api-reference/usage) report the plan name
-  (`Developer`, `Startup`), which does not match the pack you purchased. Every
-  pack reports `Developer`. `Startup` appears only on legacy Unlimited accounts.
-  The mapping above is the whole of it.
+  Responses from [`/v1/usage`](/api-reference/usage) report the internal plan
+  name rather than the pack you purchased. Every pack reports `Developer`.
 </Note>
 
 Higher limits are available. Email [help@walletlink.social](mailto:help@walletlink.social).
