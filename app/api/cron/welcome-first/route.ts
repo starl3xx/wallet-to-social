@@ -49,22 +49,31 @@ export async function GET(request: NextRequest) {
   try {
     const outcome = await runWelcomeFirstTouch();
 
-    // 288 runs a day, and most of them have nothing to do. Only a run that
-    // sent, failed or threw is worth a row; the daily runner is the heartbeat
-    // that proves the sequence itself is alive.
-    if (outcome.sent > 0 || outcome.failed > 0) {
-      trackEvent('lookup_completed', {
-        metadata: {
-          eventSubtype: 'welcome_first_touch',
-          ok: outcome.failed === 0,
-          delayMinutes: FIRST_TOUCH_DELAY_MINUTES,
-          due: outcome.due,
-          sent: outcome.sent,
-          failed: outcome.failed,
-          durationMs: Date.now() - startedAt,
-        },
-      }).catch(console.error);
-    }
+    /**
+     * Every run, including the quiet ones, and that is the whole point.
+     *
+     * The first version only wrote a row when something was sent, on the
+     * reasoning that 288 empty rows a day are noise. But "no row" then means
+     * both "nothing to do" and "this job has been dead since Tuesday", and the
+     * health pane cannot tell those apart, which is exactly what it exists to
+     * do. The daily runner cannot stand in for it either: it proves the
+     * sequence is alive, not that the five-minute runner is.
+     *
+     * The noise objection was real and is now fixed at the source:
+     * `NOT_A_HEARTBEAT` in lib/analytics.ts keeps subtyped cron rows out of
+     * every lookup count, so these no longer inflate product metrics.
+     */
+    trackEvent('lookup_completed', {
+      metadata: {
+        eventSubtype: 'welcome_first_touch',
+        ok: outcome.failed === 0,
+        delayMinutes: FIRST_TOUCH_DELAY_MINUTES,
+        due: outcome.due,
+        sent: outcome.sent,
+        failed: outcome.failed,
+        durationMs: Date.now() - startedAt,
+      },
+    }).catch(console.error);
 
     return NextResponse.json({ message: 'ok', ...outcome });
   } catch (error) {

@@ -24,6 +24,12 @@
 
 import { neon } from '@neondatabase/serverless';
 
+/**
+ * Rows written before this instant predate claim-before-send, so every one of
+ * them is a delivery. Anything after it may be a claim in flight.
+ */
+const CUTOVER = new Date('2026-08-24T00:00:00Z');
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -42,13 +48,24 @@ async function main() {
   await sql`ALTER TABLE lifecycle_emails ADD COLUMN IF NOT EXISTS confirmed_at timestamp`;
   console.log('column lifecycle_emails.confirmed_at: ok');
 
+  /**
+   * Bounded to rows written before the cutover, and the bound is the point.
+   *
+   * Unbounded, a second run of this script confirms whatever is unconfirmed at
+   * that moment, which after deploy means live claims held by a cron mid-send
+   * and abandoned claims still waiting on the reclaim. Both would be marked
+   * delivered, and both emails would then never be sent, silently, to whoever
+   * happened to be in flight. A migration must not become destructive by being
+   * run twice.
+   */
   const backfilled = (await sql`
     UPDATE lifecycle_emails
     SET confirmed_at = sent_at
     WHERE confirmed_at IS NULL
+      AND sent_at < ${CUTOVER.toISOString()}
     RETURNING id
   `) as unknown as Array<{ id: string }>;
-  console.log(`backfilled confirmed_at on ${backfilled.length} existing row(s)`);
+  console.log(`backfilled confirmed_at on ${backfilled.length} pre-cutover row(s)`);
 
   await sql`
     CREATE INDEX IF NOT EXISTS lifecycle_emails_unconfirmed_idx
@@ -61,8 +78,11 @@ async function main() {
     SELECT count(*)::int AS n FROM information_schema.columns
     WHERE table_name = 'lifecycle_emails' AND column_name = 'confirmed_at'
   `) as unknown as Array<{ n: number }>;
+  // Only pre-cutover rows are this script's business. An unconfirmed row newer
+  // than the cutover is a live claim doing its job, not a failure to verify.
   const [unconfirmed] = (await sql`
-    SELECT count(*)::int AS n FROM lifecycle_emails WHERE confirmed_at IS NULL
+    SELECT count(*)::int AS n FROM lifecycle_emails
+    WHERE confirmed_at IS NULL AND sent_at < ${CUTOVER.toISOString()}
   `) as unknown as Array<{ n: number }>;
   const [idx] = (await sql`
     SELECT count(*)::int AS n FROM pg_indexes
@@ -76,7 +96,7 @@ async function main() {
     );
     process.exit(1);
   }
-  console.log('\nverified: column and index present, no row left unconfirmed');
+  console.log('\nverified: column and index present, no pre-cutover row left unconfirmed');
 }
 
 main().catch((e) => {

@@ -2,6 +2,58 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (a failed send stops being retried 288 times a day)
+
+- **The five-minute runner had an unbounded retry loop.** `claimAndSend` deleted
+  its claim when a send failed, which put the account back in exactly the state
+  that made it eligible. Under one daily cron that was one retry a day. Under
+  the five-minute cron it is 288 a day, per account, forever, for any failure
+  that does not fix itself. Worse, `isEmailConfigured` only checks
+  `RESEND_API_KEY` while `sendLifecycleEmail` also refuses without
+  `EMAIL_UNSUBSCRIBE_SECRET`, so a whole class of permanent refusal passes the
+  route's precondition and lands straight in the loop.
+- **A failure is now written down.** New columns `attempts`, `failed_at` and
+  `last_error`. The claim became an upsert that re-takes a failed row only once
+  its backoff has elapsed (10, 20, 40, 80 minutes) and only while it is under
+  `RETRY_CEILING` (5). A row now carries four states, and selection and the
+  claim are written from the same four so they cannot disagree: delivered,
+  in flight, retryable, dead. Migration:
+  `scripts/migrate-lifecycle-retry.ts`, **run before deploy**.
+- **The daily runner pins a user to their earliest undelivered email, stated
+  explicitly.** Making selection agree with claim eligibility silently dropped
+  the hold that kept a user on welcome-1: a welcome-1 that was backing off or
+  exhausted no longer matched the first pass, so the user fell through to the
+  second and would have received welcome-2 of a sequence whose first email never
+  arrived. Each pass now requires that exactly the earlier emails are confirmed,
+  which is the rule the old behaviour only implied. The JS dedupe stays as a
+  safety net; it can no longer fire.
+- **The reclaim skips recorded failures** (`failed_at IS NULL`). They are also
+  unconfirmed, but they are a retry schedule rather than an abandoned claim, and
+  deleting one would reset its attempt count and restart the loop.
+- **The new cron was watched by nothing.** It is now in the health pane's `JOBS`
+  list at `maxAgeHours: 2`, and it emits a heartbeat on every run rather than
+  only when it sends. "No row" previously meant both "nothing to do" and "dead
+  since Tuesday", which is precisely the distinction that pane exists to make.
+- **Cron heartbeats are no longer counted as lookups.** Nine scheduled routes
+  report health by writing a `lookup_completed` row carrying an `eventSubtype`,
+  and every product query counted them as work a person did. At nine a day that
+  was a rounding error; at 288 the machines would have been the majority of our
+  "lookups". `NOT_A_HEARTBEAT` in `lib/analytics.ts` is now applied everywhere
+  the count is read.
+- **`migrate-lifecycle-claim.ts` is safe to re-run.** Its backfill was
+  unbounded, so a second run after deploy would have marked live and abandoned
+  claims as delivered and silently lost those emails. It is now bounded to
+  pre-cutover rows, and its verification asserts the same bound rather than
+  failing whenever a cron legitimately holds a claim.
+- **The first-touch runner has its own send cap** (`FIRST_TOUCH_MAX_SENDS` 100,
+  not the daily 200) plus a 240s wall-clock guard, so a run exits cleanly
+  instead of being killed partway and leaving claims for the reclaim.
+- `docs/EMAIL-SEQUENCE.md` and the module header described one cron, an
+  immediate day-0 send and a ledger that proves delivery. All three were stale
+  the moment the split shipped. Also corrected there: **the relaunch campaign
+  has been sent**, 100 accounts on 2026-08-23, which that file and this one both
+  denied for a day.
+
 ### 2026-08-24 (the welcome email stops arriving a day after the welcome)
 
 - **Welcome-1 now sends about five minutes after signup, not up to 24 hours

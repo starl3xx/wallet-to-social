@@ -35,14 +35,58 @@ import {
  * A purchase (any credit lot) exits the sequence: the remaining emails sell
  * what the account already has. Opt-out exits everything, checked here as
  * well as enforced by sendLifecycleEmail's caller contract. Legacy tiers are
- * never enrolled. The lifecycle_emails unique on (user, key) makes every
- * send at-most-once, and the day gates make a missed cron day catch up
- * without bunching: a user gets at most one sequence email per run.
+ * never enrolled.
+ *
+ * ## How a send is made at-most-once
+ *
+ * Two runners now select welcome-1: the five-minute first-touch cron and the
+ * daily runner's day-0 safety net. claimAndSend takes the lifecycle_emails row
+ * before it sends and writes confirmed_at after, so the unique on (user, key)
+ * acts as the lock rather than recording a race after the fact, and a row
+ * proves delivery rather than intent.
+ *
+ * One stated exception: a process killed between a successful send and the
+ * confirm leaves a claim that reclaimStaleClaims frees after 15 minutes, and
+ * that person receives the email twice. The window resolves in favour of
+ * sending on purpose.
+ *
+ * A failed send is recorded on the row (attempts, failed_at, last_error) and
+ * retried on an exponential backoff up to RETRY_CEILING, rather than deleted.
+ * Deleting it put the account straight back into the eligible set, which the
+ * five-minute cadence turns into an unbounded retry loop.
+ *
+ * ## Pacing
+ *
+ * The day gates make a missed cron day catch up without bunching: within a
+ * single run of the daily runner a user gets at most one sequence email. That
+ * is per run, not per day, and the two runners are separate runs: a user whose
+ * welcome-1 is sent by the first-touch cron at 14:58 can receive welcome-2 from
+ * the daily runner at 15:00 if they are already two days old, which happens
+ * only to an account whose welcome-1 was delayed for two days by a failure.
  */
 export const SEQUENCE_START = new Date('2026-08-23T00:00:00Z');
 
 /** Sends per run, a circuit breaker rather than a quota. */
 const MAX_SENDS_PER_RUN = 200;
+
+/**
+ * The five-minute runner's own cap, sized to its cadence rather than borrowing
+ * the daily one.
+ *
+ * 200 sends at 600ms each is 120 seconds of sleeping alone, and the route's
+ * maxDuration is 300. Add a slow provider and the run is killed partway, which
+ * with claim-before-send leaves claims the reclaim has to collect 15 minutes
+ * later. 100 still clears 28,800 welcome emails a day across 288 runs, which is
+ * far more signups than this product will see, and it finishes in well under
+ * half the budget.
+ */
+const FIRST_TOUCH_MAX_SENDS = 100;
+
+/**
+ * Stop sending and return cleanly before the platform kills the run. A clean
+ * exit leaves no claim behind; a kill leaves one per interrupted send.
+ */
+const RUN_BUDGET_MS = 240_000;
 
 /**
  * How long welcome-1 waits behind the magic link.
@@ -190,7 +234,47 @@ const ELIGIBLE_USER = sql`
  * and sends nothing; if that send failed and released the claim, this run
  * retries it. Either way the user advances only after an email actually left.
  */
-const DELIVERED = sql`le.confirmed_at IS NOT NULL`;
+/**
+ * How many times one email may be attempted before it is left for a person.
+ *
+ * Five, because the failures worth retrying are transient (a provider blip, a
+ * timeout) and clear well inside five tries, while the failures that are not
+ * (an unverified domain, a missing secret) never clear no matter how many
+ * times they are asked. The ceiling is what turns the second kind from an
+ * unbounded loop into a bounded, visible cost.
+ */
+const RETRY_CEILING = 5;
+
+/** Backoff step, doubling per attempt: 10, 20, 40, 80 minutes. */
+const RETRY_BACKOFF_BASE_MINUTES = 5;
+
+/**
+ * Exponential backoff on the attempt count, written against the row because
+ * the delay has to grow with that row's own attempts. `power` returns double
+ * precision and make_interval takes an integer, so the cast is required.
+ *
+ * Two spellings of one rule, differing only in the alias: the claim addresses
+ * the table it is upserting into, the selection addresses its correlated `le`.
+ */
+const RETRY_BACKOFF = sql`make_interval(mins => (${RETRY_BACKOFF_BASE_MINUTES} * power(2, lifecycle_emails.attempts))::int)`;
+const RETRY_BACKOFF_LE = sql`make_interval(mins => (${RETRY_BACKOFF_BASE_MINUTES} * power(2, le.attempts))::int)`;
+
+/**
+ * A row that blocks selection this run, for any of four reasons: it was
+ * delivered, another runner holds it right now, it has used up RETRY_CEILING,
+ * or its backoff has not elapsed yet.
+ *
+ * Selection and the claim's DO UPDATE have to agree. If selection were looser,
+ * every tick would pick users the claim then refuses; if it were tighter, a
+ * retry would never be offered. Both are written from the same four states, so
+ * a user reaches sendLifecycleEmail exactly when the row says they should.
+ */
+const NOT_SENDABLE = sql`(
+  le.confirmed_at IS NOT NULL
+  OR le.failed_at IS NULL
+  OR le.attempts >= ${RETRY_CEILING}
+  OR le.failed_at >= now() - ${RETRY_BACKOFF_LE}
+)`;
 
 type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
 
@@ -200,6 +284,7 @@ type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
  * progress is never mistaken for a dead one.
  */
 const CLAIM_RECLAIM_MINUTES = 15;
+
 
 /**
  * Delete claims that were taken and never confirmed.
@@ -229,6 +314,11 @@ async function reclaimStaleClaims(
    * accounts it had already mailed. A reclaim may only ever collect claims the
    * runner that reclaims could itself have taken.
    *
+   * `failed_at IS NULL` keeps it off recorded failures. Those rows are also
+   * unconfirmed, but they are a retry schedule rather than an abandoned claim,
+   * and deleting one would reset its attempt count and restart the loop this
+   * whole mechanism exists to bound.
+   *
    * `sql.param(...)::text[]` and not a bare array. Drizzle expands a plain JS
    * array into one placeholder per element, so `ANY($1, $2, ...)` reaches
    * Postgres as "op ANY/ALL (array) requires array on right side" and the
@@ -239,6 +329,7 @@ async function reclaimStaleClaims(
   const reclaimed = (await db.execute(sql`
     DELETE FROM lifecycle_emails
     WHERE confirmed_at IS NULL
+      AND failed_at IS NULL
       AND email_key = ANY(${sql.param(WELCOME_EMAILS.map((e) => e.key))}::text[])
       AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
     RETURNING id
@@ -261,8 +352,27 @@ async function reclaimStaleClaims(
  * not preventing it. Inserting first turns that unique into the lock. The
  * loser's INSERT hits the conflict, returns no row, and it does not send.
  *
- * A failed send releases the claim, so the next run retries it rather than
- * marking a person as emailed by an email that never left.
+ * ## Why a failure is written down instead of erased
+ *
+ * The first version deleted its claim when a send failed, which put the
+ * account back in exactly the state that made it eligible. Under one daily
+ * cron that was a retry a day. Under the five-minute runner it is 288 a day,
+ * per account, forever, for any failure that does not fix itself: an
+ * unverified sending domain, a rotated EMAIL_UNSUBSCRIBE_SECRET, a provider
+ * outage. Nothing counted the attempts, so nothing could ever give up, and
+ * `isEmailConfigured` only checks RESEND_API_KEY, so a whole class of
+ * permanent refusal passes the route's precondition and lands in that loop.
+ *
+ * So the row stays and records the failure. The conflict target does double
+ * duty: a fresh account inserts, and a previously failed one is re-taken by
+ * the DO UPDATE, but only once its backoff has elapsed and only while it is
+ * under RETRY_CEILING. A row held by another runner right now (unconfirmed,
+ * not failed) matches neither and is left alone, which is the same mutual
+ * exclusion the plain insert gave.
+ *
+ * The ceiling is the part that matters. A permanently broken configuration
+ * costs RETRY_CEILING attempts per account and then stops, leaving a row a
+ * person can see, rather than an unbounded loop against the provider.
  */
 async function claimAndSend(
   db: NonNullable<ReturnType<typeof getDb>>,
@@ -272,9 +382,17 @@ async function claimAndSend(
   content: LifecycleEmailContent
 ): Promise<SendOutcome> {
   const claim = (await db.execute(sql`
-    INSERT INTO lifecycle_emails (user_id, email_key)
-    VALUES (${userId}, ${emailKey})
-    ON CONFLICT (user_id, email_key) DO NOTHING
+    INSERT INTO lifecycle_emails (user_id, email_key, attempts)
+    VALUES (${userId}, ${emailKey}, 1)
+    ON CONFLICT (user_id, email_key) DO UPDATE
+      SET sent_at    = now(),
+          attempts   = lifecycle_emails.attempts + 1,
+          failed_at  = NULL,
+          last_error = NULL
+      WHERE lifecycle_emails.confirmed_at IS NULL
+        AND lifecycle_emails.failed_at IS NOT NULL
+        AND lifecycle_emails.attempts < ${RETRY_CEILING}
+        AND lifecycle_emails.failed_at < now() - ${RETRY_BACKOFF}
     RETURNING id
   `)) as unknown as { rows: Array<{ id: string }> };
 
@@ -292,7 +410,8 @@ async function claimAndSend(
   }
 
   await db.execute(sql`
-    DELETE FROM lifecycle_emails
+    UPDATE lifecycle_emails
+    SET failed_at = now(), last_error = ${result.error ?? 'unknown'}
     WHERE user_id = ${userId} AND email_key = ${emailKey}
   `);
   console.error(`welcome ${emailKey} failed for user ${userId}: ${result.error}`);
@@ -320,10 +439,10 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
       AND NOT EXISTS (
         SELECT 1 FROM lifecycle_emails le
         WHERE le.user_id = u.id AND le.email_key = ${first.key}
-          AND ${DELIVERED}
+          AND ${NOT_SENDABLE}
       )
     ORDER BY u.created_at
-    LIMIT ${MAX_SENDS_PER_RUN}
+    LIMIT ${FIRST_TOUCH_MAX_SENDS}
   `)) as unknown as { rows: Array<{ userId: string; email: string }> };
 
   const outcome: WelcomeRunOutcome = {
@@ -333,7 +452,12 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
     byKey: {},
   };
 
+  const startedAt = Date.now();
   for (const r of rows.rows) {
+    if (Date.now() - startedAt > RUN_BUDGET_MS) {
+      console.warn('welcome first-touch stopped on the run budget');
+      break;
+    }
     const result = await claimAndSend(
       db,
       r.userId,
@@ -361,26 +485,49 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
   await reclaimStaleClaims(db);
 
   /**
-   * One pass per email, lowest number first: a user appears once per run
-   * with their smallest pending email, so a missed cron day catches up one
-   * email per user per run instead of bunching three into one morning.
+   * One pass per email, lowest number first, and each pass demands that every
+   * earlier email was *delivered*.
+   *
+   * That second half is not decoration. While selection asked only whether a
+   * row existed, an undelivered welcome-1 still held the user on the first
+   * pass, so they could never reach the second. Once selection started asking
+   * whether the row was sendable, a welcome-1 that was backing off or
+   * exhausted stopped matching that pass, the user fell through to welcome-2,
+   * and they would have received the second email of a sequence whose first
+   * email never arrived. The hold has to be stated rather than inherited from
+   * the shape of another predicate.
+   *
+   * `delivered among the earlier keys = index` is the whole rule. At index 0
+   * the array is empty and the count is 0, so it is vacuously true; at index 3
+   * it demands welcome-1, welcome-2 and welcome-3 all confirmed. Exactly one
+   * index can satisfy it for a given user, which is what makes the pacing
+   * below a safety net rather than the mechanism.
    */
   const due: Array<{ userId: string; email: string; key: string }> = [];
-  for (const e of WELCOME_EMAILS) {
+  for (const [index, e] of WELCOME_EMAILS.entries()) {
+    const earlierKeys = WELCOME_EMAILS.slice(0, index).map((p) => p.key);
     const rows = (await db.execute(sql`
       SELECT u.id AS "userId", u.email
       FROM users u
       WHERE ${ELIGIBLE_USER}
         AND u.created_at <= now() - make_interval(days => ${e.day})
+        AND (
+          SELECT count(*) FROM lifecycle_emails prev
+          WHERE prev.user_id = u.id
+            AND prev.email_key = ANY(${sql.param(earlierKeys)}::text[])
+            AND prev.confirmed_at IS NOT NULL
+        ) = ${index}
         AND NOT EXISTS (
           SELECT 1 FROM lifecycle_emails le
           WHERE le.user_id = u.id AND le.email_key = ${e.key}
-            AND ${DELIVERED}
+            AND ${NOT_SENDABLE}
         )
       ORDER BY u.created_at
     `)) as unknown as { rows: Array<{ userId: string; email: string }> };
     for (const r of rows.rows) {
-      // Lowest pending email wins; a user already queued this run is skipped.
+      // Belt and braces: the predicate above already admits a user to at most
+      // one pass, so this can no longer fire. It stays because it is cheap and
+      // because the last two bugs here were both a user reaching two passes.
       if (!due.some((d) => d.userId === r.userId)) {
         due.push({ userId: r.userId, email: r.email, key: e.key });
       }
