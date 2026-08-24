@@ -14,6 +14,24 @@ export const IP_RATE_LIMITS = {
    * is exactly the behaviour it exists for.
    */
   '/api/reachability': { limit: 60, windowHours: 1 },
+  /**
+   * The MCP server, and only its keyless traffic.
+   *
+   * Every tool there passes the caller's own bearer key into a v1 handler,
+   * which meters it per key exactly as the REST surface does. What that leaves
+   * uncovered is the discovery handshake: `initialize` and `tools/list` reach
+   * no handler, deliberately, so a client with no key or an empty balance can
+   * still see what the server offers rather than meeting a 402 and concluding
+   * the server is broken.
+   *
+   * That is a real unauthenticated endpoint, so it gets a real bound. 120 an
+   * hour is generous for a handshake that a client performs once per session
+   * and mean for anything trying to use it as a free surface. A request
+   * carrying an Authorization header skips this entirely: it is already
+   * limited per key, and limiting it here as well would refuse a paying caller
+   * for sharing an address with a stranger.
+   */
+  '/api/mcp': { limit: 120, windowHours: 1 },
 } as const;
 
 export type RateLimitedEndpoint = keyof typeof IP_RATE_LIMITS;
@@ -74,7 +92,10 @@ export function getClientIp(request: NextRequest): string {
   // trusted proxy; the leftmost entries are caller-supplied and unsafe.
   const forwardedFor = request.headers.get('x-forwarded-for');
   if (forwardedFor) {
-    const hops = forwardedFor.split(',').map((h) => h.trim()).filter(Boolean);
+    const hops = forwardedFor
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean);
     if (hops.length) return hops[hops.length - 1];
   }
 
@@ -142,7 +163,9 @@ export async function checkIpRateLimit(
       limit: config.limit,
       remaining,
       resetAt,
-      retryAfter: allowed ? undefined : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+      retryAfter: allowed
+        ? undefined
+        : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
     };
   } catch (error) {
     // Fail open on errors but log them
@@ -214,7 +237,9 @@ export async function getIpRateLimitStatus(
 /**
  * Format rate limit headers for HTTP responses
  */
-export function formatRateLimitHeaders(result: IpRateLimitResult): Record<string, string> {
+export function formatRateLimitHeaders(
+  result: IpRateLimitResult
+): Record<string, string> {
   const headers: Record<string, string> = {
     'X-RateLimit-Limit': String(result.limit),
     'X-RateLimit-Remaining': String(result.remaining),
@@ -232,7 +257,9 @@ export function formatRateLimitHeaders(result: IpRateLimitResult): Record<string
  * Cleanup old IP rate limit buckets (call periodically via cron)
  * Keeps only recent buckets to prevent table bloat
  */
-export async function cleanupOldIpBuckets(olderThanHours: number = 24): Promise<number> {
+export async function cleanupOldIpBuckets(
+  olderThanHours: number = 24
+): Promise<number> {
   const db = getDb();
   if (!db) return 0;
 

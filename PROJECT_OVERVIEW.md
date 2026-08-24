@@ -312,6 +312,23 @@ Main page orchestrating:
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
+### MCP server (for agents)
+
+`app/api/mcp/route.ts` exposes five tools over those six endpoints at
+`https://walletlink.social/api/mcp`. It authenticates nothing and bills nothing:
+each tool builds a request carrying the caller's own bearer key and hands it to
+the v1 handler through `lib/mcp-call.ts`, and the handler keeps ownership of
+authentication, rate limiting and the credit debit. Doing either at the MCP
+layer would charge the caller twice for one tool call.
+
+Because the handler does the recording, `api_usage.endpoint` keeps the same six
+literals, so MCP traffic needs no new keys in `requests_by_endpoint`. Protocol
+chatter (`initialize`, `tools/list`) reaches no handler and is bounded by IP at
+120 an hour under `/api/mcp` in `lib/ip-rate-limiter.ts`, since it is the one
+path no key-based limit covers. Tool descriptions live under `app/`, so
+`scripts/check-design-language.mjs` greps their prose: the words it fires on are
+listed in a comment at the top of the route.
+
 `docs-site/openapi.yaml` is the machine-readable description of all six: request and response schemas, both authentication forms, every error code, and the rate-limit and staleness headers. It is what the MCP server, SDK generation and agent discovery are built on, so it has its own CI gate in `.github/workflows/docs-freshness.yml`: touching a route, a validator, a plan limit or the `sources` enum requires touching the spec, and touching the spec runs `redocly lint` over it.
 
 Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as the fname spec, because `social_graph.farcaster` holds both fnames and attached ENS names and the reverse lookup matches on the column. See the comment on `isValidFarcasterUsername` in `lib/api-auth.ts` for the measurement behind it.

@@ -141,6 +141,10 @@ lookups each stay one entry (`/v1/wallet/{address}`,
 holds at most one key per route, whatever the volume. The addresses and handles
 you looked up are not stored and never appear here.
 
+Calls made through the [MCP server](/mcp) appear under these same keys. The
+tools carry your key into the same handlers, so a tool call is recorded as the
+endpoint it actually used, and there is no separate MCP entry to reconcile.
+
 <Note>
   Requests made before 2026-08-22 were keyed by the concrete request path. That
   history has been rewritten to the templates, so a period that spans the change
