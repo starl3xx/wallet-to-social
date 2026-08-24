@@ -228,11 +228,18 @@ async function reclaimStaleClaims(
    * as an abandoned claim of ours, remove it, and let that campaign re-send to
    * accounts it had already mailed. A reclaim may only ever collect claims the
    * runner that reclaims could itself have taken.
+   *
+   * `sql.param(...)::text[]` and not a bare array. Drizzle expands a plain JS
+   * array into one placeholder per element, so `ANY($1, $2, ...)` reaches
+   * Postgres as "op ANY/ALL (array) requires array on right side" and the
+   * statement throws. This runs first in both crons with nothing catching it,
+   * so the bare form would have failed every run before a single send. It is
+   * the same binding lib/x-accounts.ts and lib/clanker.ts already use.
    */
   const reclaimed = (await db.execute(sql`
     DELETE FROM lifecycle_emails
     WHERE confirmed_at IS NULL
-      AND email_key = ANY(${WELCOME_EMAILS.map((e) => e.key)})
+      AND email_key = ANY(${sql.param(WELCOME_EMAILS.map((e) => e.key))}::text[])
       AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
     RETURNING id
   `)) as unknown as { rows: Array<{ id: string }> };

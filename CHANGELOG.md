@@ -61,6 +61,13 @@ All notable changes to walletlink.social. Newest first.
   now also writes `confirmed_at` explicitly, because a ledger where "delivered"
   is implicit in one writer and explicit in another survives right up until
   somebody widens a WHERE clause.
+- **The key scope binds as `sql.param(...)::text[]`, not a bare array.** Drizzle
+  expands a plain JS array into one placeholder per element, so
+  `ANY($1, $2, ...)` reaches Postgres as "op ANY/ALL (array) requires array on
+  right side". `reclaimStaleClaims` runs first in both crons with nothing
+  catching it, so the bare form would have thrown on every run before a single
+  send: the scoping fix above would have shipped as a total outage of the
+  sequence. Same binding `lib/x-accounts.ts` and `lib/clanker.ts` already use.
 - Migration: `scripts/migrate-lifecycle-claim.ts`, **run before deploy**. It
   backfills `confirmed_at = sent_at` on existing rows, which were written under
   the old send-then-insert order and are all real deliveries; without the
