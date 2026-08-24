@@ -210,6 +210,18 @@ function displayName(
   return fallback ?? lastResort;
 }
 
+/**
+ * A Warpcast permalink for one cast. Warpcast accepts a truncated hash, which
+ * is the form its own client links use.
+ */
+function castUrl(username: string | null, hash: unknown): string | null {
+  if (!username) return null;
+  const base = `https://warpcast.com/${username}`;
+  return typeof hash === 'string' && hash.startsWith('0x')
+    ? `${base}/${hash.slice(0, 10)}`
+    : base;
+}
+
 /** The public report URL, only where one actually exists. */
 function reportUrlFor(
   chain: SupportedChain | null,
@@ -412,9 +424,16 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
           ),
           chain,
           address,
-          sourceUrl: author?.username
-            ? `https://warpcast.com/${author.username}`
-            : null,
+          /**
+           * The cast, not the caster.
+           *
+           * This pointed at the author's profile, which leaves the operator to
+           * go and find the announcement they are meant to be replying to. The
+           * X lane links the tweet; this has to link the cast. Warpcast takes a
+           * short hash prefix, and the profile stays as the fallback for a cast
+           * that arrives without one.
+           */
+          sourceUrl: castUrl(author?.username ?? null, c.hash),
           reportUrl: reportUrlFor(chain, address, stats),
           handle: author?.username ?? null,
           postedAt: ts,

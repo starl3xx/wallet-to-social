@@ -37,6 +37,10 @@ All notable changes to walletlink.social. Newest first.
   lived inline in the X lane, so the Farcaster lane extracted an address and
   then drafted "NO NUMBER AVAILABLE" for contracts we hold and have published. A
   lane should not be able to forget how to look something up.
+- **The Farcaster lane links the cast, not the caster.** It pointed at the
+  author's profile, which leaves the operator to go and find the announcement
+  they are meant to be answering. The X lane links the tweet; this now links
+  the cast, with the profile as the fallback.
 - **One naming rule, shared.** The index lane rejected the seeder's `Unknown
   Token` placeholder from the start. Once the other lanes learned to resolve
   collections they began preferring the collection name over the poster, so a
