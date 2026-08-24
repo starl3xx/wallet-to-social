@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the welcome email stops arriving a day after the welcome)
+
+- **Welcome-1 now sends about five minutes after signup, not up to 24 hours
+  later.** The sequence ran on one daily cron at 15:00 UTC, so an account
+  created at 15:01 waited 23 hours and 59 minutes for the email that greets it.
+  New cron `/api/cron/welcome-first` at `*/5 * * * *` runs `welcome-1` only,
+  for accounts past `FIRST_TOUCH_DELAY_MINUTES` (5). Worst case is now about
+  ten minutes.
+- **The delay is deliberate, and zero would be worse.** The account row is
+  written at magic-link *verify*, so an inline send puts welcome-1 in the inbox
+  in the same second as the sign-in link, and the email the person needs
+  competes with the one they did not ask for. Five minutes clears the link and
+  is long enough that most people have run their first lookup, which is the
+  state welcome-1's copy assumes.
+- **Sends now claim before they send.** `lifecycle_emails` is unique on
+  (user, key), but the row was written *after* the send, so two runners racing
+  the same user delivered twice and inserted once: the constraint recorded the
+  race instead of preventing it. That was theoretical with one cron and real
+  with two, which overlap exactly at 15:00. `claimAndSend` inserts first and
+  sends only if it took the row; a failed send deletes the claim so the next
+  run retries rather than marking a person as emailed by an email that never
+  left.
+- **The daily runner keeps its day-0 pass** as the safety net, and both runners
+  now select through one shared `ELIGIBLE_USER` fragment so the cutoff,
+  opt-out, legacy-tier, whitelist and purchase exits cannot drift apart.
+- No schema change. No new table, so no `migrate-grant-readonly.ts` entry.
+
 ### 2026-08-24 (the sweep resumes instead of restarting, and stops leaving 580 MB behind)
 
 - **Reclaimed 580 MB.** `farcaster_sweep_seen_1786631580832` held 3,676,509 rows

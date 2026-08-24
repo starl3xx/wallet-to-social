@@ -453,6 +453,19 @@ every other call, one per wallet returned.
 
 ---
 
+## Recent Changes (2026-08-24)
+
+- **The welcome sequence has two runners.** `/api/cron/welcome-first`
+  (`*/5 * * * *`) sends `welcome-1` only, to accounts older than
+  `FIRST_TOUCH_DELAY_MINUTES` (5) in `lib/welcome-sequence.ts`.
+  `/api/cron/welcome-sequence` (15:00 UTC daily) owns days 2, 5, 9 and 14 and
+  keeps a day-0 pass as the safety net. Both select through the shared
+  `ELIGIBLE_USER` fragment and send through `claimAndSend`, which takes the
+  `lifecycle_emails` row before sending so the overlap at 15:00 cannot double
+  up. Enrollment stays automatic: an account created on or after
+  `SEQUENCE_START` (2026-08-23) is in unless it opted out, holds a legacy tier,
+  is whitelisted, or has bought a credit pack.
+
 ## Recent Changes (2026-08-22)
 
 - **Lifecycle email pipeline.** `users.email_opt_out` plus the

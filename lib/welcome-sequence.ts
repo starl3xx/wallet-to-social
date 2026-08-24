@@ -44,6 +44,18 @@ export const SEQUENCE_START = new Date('2026-08-23T00:00:00Z');
 /** Sends per run, a circuit breaker rather than a quota. */
 const MAX_SENDS_PER_RUN = 200;
 
+/**
+ * How long welcome-1 waits behind the magic link.
+ *
+ * Zero would be wrong. The account row is written at magic-link *verify*, so
+ * an inline send puts welcome-1 in the inbox in the same second as the
+ * sign-in link the person is still looking for, and the one email they need
+ * competes with the one they did not ask for. Five minutes clears the link,
+ * and it is long enough that most people have run their first lookup, which
+ * is the state welcome-1's copy assumes.
+ */
+export const FIRST_TOUCH_DELAY_MINUTES = 5;
+
 interface WelcomeEmail {
   key: string;
   /** Days after signup this email becomes due. */
@@ -137,6 +149,117 @@ export interface WelcomeRunOutcome {
   byKey: Record<string, number>;
 }
 
+/**
+ * Who the sequence may write to, as one fragment so the daily runner and the
+ * five-minute first-touch runner cannot drift apart. Every exit rule in the
+ * file header lives here: the cutoff, the opt-out, the legacy tiers, the
+ * whitelist and the purchase.
+ */
+const ELIGIBLE_USER = sql`
+  u.created_at >= ${SEQUENCE_START}
+  AND u.email_opt_out = false
+  AND u.tier NOT IN ('pro', 'unlimited')
+  AND NOT EXISTS (
+    SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
+  )
+  AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+`;
+
+type SendOutcome = 'sent' | 'claimed-elsewhere' | 'failed';
+
+/**
+ * Take the row, then send.
+ *
+ * Both runners select welcome-1, and at 15:00 UTC they select it in the same
+ * second. The unique on (user_id, email_key) already makes the *row*
+ * at-most-once, but the row was written after the send, so two runners racing
+ * delivered twice and inserted once: the constraint was recording the race,
+ * not preventing it. Inserting first turns that unique into the lock. The
+ * loser's INSERT hits the conflict, returns no row, and it does not send.
+ *
+ * A failed send releases the claim, so the next run retries it rather than
+ * marking a person as emailed by an email that never left.
+ */
+async function claimAndSend(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  userId: string,
+  email: string,
+  emailKey: string,
+  content: LifecycleEmailContent
+): Promise<SendOutcome> {
+  const claim = (await db.execute(sql`
+    INSERT INTO lifecycle_emails (user_id, email_key)
+    VALUES (${userId}, ${emailKey})
+    ON CONFLICT (user_id, email_key) DO NOTHING
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+
+  if (claim.rows.length === 0) return 'claimed-elsewhere';
+
+  const result = await sendLifecycleEmail(email, content);
+  if (result.success) return 'sent';
+
+  await db.execute(sql`
+    DELETE FROM lifecycle_emails
+    WHERE user_id = ${userId} AND email_key = ${emailKey}
+  `);
+  console.error(`welcome ${emailKey} failed for user ${userId}: ${result.error}`);
+  return 'failed';
+}
+
+/**
+ * Welcome-1 only, every five minutes, for accounts that cleared
+ * FIRST_TOUCH_DELAY_MINUTES. The daily runner still has a day-0 pass and is
+ * left in place as the safety net: if this route stops, the first email is
+ * late rather than lost, and claimAndSend keeps the overlap from doubling.
+ */
+export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
+  const db = getDb();
+  if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
+
+  const first = WELCOME_EMAILS[0];
+
+  const rows = (await db.execute(sql`
+    SELECT u.id AS "userId", u.email
+    FROM users u
+    WHERE ${ELIGIBLE_USER}
+      AND u.created_at <= now() - make_interval(mins => ${FIRST_TOUCH_DELAY_MINUTES})
+      AND NOT EXISTS (
+        SELECT 1 FROM lifecycle_emails le
+        WHERE le.user_id = u.id AND le.email_key = ${first.key}
+      )
+    ORDER BY u.created_at
+    LIMIT ${MAX_SENDS_PER_RUN}
+  `)) as unknown as { rows: Array<{ userId: string; email: string }> };
+
+  const outcome: WelcomeRunOutcome = {
+    due: rows.rows.length,
+    sent: 0,
+    failed: 0,
+    byKey: {},
+  };
+
+  for (const r of rows.rows) {
+    const result = await claimAndSend(
+      db,
+      r.userId,
+      r.email,
+      first.key,
+      first.content
+    );
+    if (result === 'sent') {
+      outcome.sent += 1;
+      outcome.byKey[first.key] = (outcome.byKey[first.key] ?? 0) + 1;
+    } else if (result === 'failed') {
+      outcome.failed += 1;
+    }
+    // Resend's default rate limit is 2 requests per second.
+    await new Promise((r) => setTimeout(r, 600));
+  }
+
+  return outcome;
+}
+
 export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
   const db = getDb();
   if (!db) return { due: 0, sent: 0, failed: 0, byKey: {} };
@@ -151,14 +274,8 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
     const rows = (await db.execute(sql`
       SELECT u.id AS "userId", u.email
       FROM users u
-      WHERE u.created_at >= ${SEQUENCE_START}
+      WHERE ${ELIGIBLE_USER}
         AND u.created_at <= now() - make_interval(days => ${e.day})
-        AND u.email_opt_out = false
-        AND u.tier NOT IN ('pro', 'unlimited')
-        AND NOT EXISTS (
-          SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
-        )
-        AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
         AND NOT EXISTS (
           SELECT 1 FROM lifecycle_emails le
           WHERE le.user_id = u.id AND le.email_key = ${e.key}
@@ -182,18 +299,12 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
 
   for (const d of due.slice(0, MAX_SENDS_PER_RUN)) {
     const email = WELCOME_EMAILS.find((e) => e.key === d.key)!;
-    const result = await sendLifecycleEmail(d.email, email.content);
-    if (result.success) {
-      await db.execute(sql`
-        INSERT INTO lifecycle_emails (user_id, email_key)
-        VALUES (${d.userId}, ${d.key})
-        ON CONFLICT (user_id, email_key) DO NOTHING
-      `);
+    const result = await claimAndSend(db, d.userId, d.email, d.key, email.content);
+    if (result === 'sent') {
       outcome.sent += 1;
       outcome.byKey[d.key] = (outcome.byKey[d.key] ?? 0) + 1;
-    } else {
+    } else if (result === 'failed') {
       outcome.failed += 1;
-      console.error(`welcome ${d.key} failed for user ${d.userId}: ${result.error}`);
     }
     // Resend's default rate limit is 2 requests per second.
     await new Promise((r) => setTimeout(r, 600));
