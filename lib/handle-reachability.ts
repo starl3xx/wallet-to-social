@@ -8,8 +8,8 @@
  * nothing in the protocol notices when somebody renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. It has checked 437,823 distinct handles, with none now left
- * unchecked in the table. Against the 446,329 distinct handles the index holds,
+ * 2026-08-18. It has checked 448,069 distinct handles, with none now left
+ * unchecked in the table. Against the 450,194 distinct handles the index holds,
  * that is 95.9% coverage, and **rising**.
  *
  * This paragraph used to end "and falling, because new handles arrive
@@ -21,7 +21,7 @@
  * The first pass, on 2026-08-17, did 417,872 in a single run. Not "all" of
  * them: the sweep leaves transport failures unrecorded so they retry, so its
  * result was never going to equal its target. The percentages below are shares
- * of the 437,823 that returned a state:
+ * of the 448,069 that returned a state:
  *
  *     live          298,087   69.6%
  *     suspended      88,440   20.6%
@@ -111,8 +111,9 @@ export const REACHABILITY_DETAIL: Record<Reachability, string> = {
 };
 
 /** True only where we checked and it reaches someone. Null where unchecked. */
-export const isReachable = (r: Reachability | null | undefined): boolean | null =>
-  r == null ? null : r === 'live';
+export const isReachable = (
+  r: Reachability | null | undefined
+): boolean | null => (r == null ? null : r === 'live');
 
 /**
  * Look up many handles at once.
@@ -190,7 +191,9 @@ export async function reachabilityForWallets(
 
   const usable = rows.filter(
     (r): r is { wallet: string; handle: string } =>
-      typeof r.wallet === 'string' && typeof r.handle === 'string' && r.handle.length > 0
+      typeof r.wallet === 'string' &&
+      typeof r.handle === 'string' &&
+      r.handle.length > 0
   );
   if (usable.length === 0) return out;
 
@@ -392,7 +395,11 @@ export function publicTwitterField(input: {
  * into the other.
  */
 export async function stampReachability(
-  results: Array<{ wallet?: string; twitter_handle?: string; twitter_reachability?: Reachability }>
+  results: Array<{
+    wallet?: string;
+    twitter_handle?: string;
+    twitter_reachability?: Reachability;
+  }>
 ): Promise<void> {
   try {
     /**
@@ -429,9 +436,13 @@ export async function stampReachability(
      */
     const handleOnly = results.filter((r) => !r.wallet && r.twitter_handle);
     if (handleOnly.length > 0) {
-      const byHandle = await reachabilityFor(handleOnly.map((r) => r.twitter_handle));
+      const byHandle = await reachabilityFor(
+        handleOnly.map((r) => r.twitter_handle)
+      );
       for (const r of handleOnly) {
-        const hit = byHandle.get(r.twitter_handle!.toLowerCase().replace(/^@/, ''));
+        const hit = byHandle.get(
+          r.twitter_handle!.toLowerCase().replace(/^@/, '')
+        );
         if (hit) r.twitter_reachability = hit.status;
       }
     }

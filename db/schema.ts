@@ -245,7 +245,10 @@ export const lifecycleEmails = pgTable(
     sentAt: timestamp('sent_at').defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex('lifecycle_emails_user_key_idx').on(table.userId, table.emailKey),
+    uniqueIndex('lifecycle_emails_user_key_idx').on(
+      table.userId,
+      table.emailKey
+    ),
   ]
 );
 
@@ -657,6 +660,144 @@ export type LookupJob = typeof lookupJobs.$inferSelect;
 export type NewLookupJob = typeof lookupJobs.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+/**
+ * The ingest tables, declared so the ORM knows they exist.
+ *
+ * ## Why they were missing, and why that mattered
+ *
+ * These seven were created by hand, by `scripts/migrate-*.ts`, and this file had
+ * never heard of them. `drizzle-kit push` diffs this file against the database
+ * and treats anything it cannot see as garbage, so on 2026-08-24 its plan opened
+ * with `DROP TABLE ... CASCADE` on all of them plus one more: **4.25 million
+ * rows, none of which are in the nightly backup.** `npm run db:push` is a
+ * documented command in three files. It now refuses; see
+ * `scripts/db-push-refuses.mjs`.
+ *
+ * ## They are read models
+ *
+ * Nothing here generates DDL, because no migration path in this repo runs
+ * generated DDL: schema changes are hand-written SQL in `scripts/migrate-*.ts`.
+ * These declarations exist so the tables are visible to the ORM and to anyone
+ * reading this file for the shape of the database. Column types were read out of
+ * the live database rather than copied from the migration scripts, so they
+ * describe what is actually there.
+ *
+ * **Two things are deliberately not reproduced**, and both are named here rather
+ * than left to look like oversights. Four of the indexes below are partial in
+ * the database (`x_accounts_user_id_idx` and `x_accounts_last_live_user_id_idx`
+ * are `WHERE ... IS NOT NULL`, `x_accounts_unreachable_idx` is
+ * `WHERE status <> 'live'`), and the predicate is omitted here. And
+ * `social_graph` carries two indexes this file still does not declare,
+ * `social_graph_twitter_lower_idx` (an expression index on
+ * `lower(twitter_handle)`) and `social_graph_twitter_user_id_idx`. Both are
+ * omissions of *predicate*, not of existence, so nothing at runtime depends on
+ * them: no migration path here generates DDL from this file. They would matter
+ * to `drizzle-kit push`, which is exactly why push refuses rather than being
+ * trusted to read this file correctly.
+ *
+ * ## The one that cannot be declared
+ *
+ * `farcaster_sweep_seen_1786631580832` holds 3.68M rows and 42% of the database
+ * by size. Its name carries a timestamp because `lib/farcaster-sweep.ts` creates
+ * it at runtime, so no static declaration can name it. Its un-suffixed twin
+ * below is the empty original. That pair is an abandoned swap and the largest
+ * reclaimable object here, but reclaiming it is storage cleanup rather than a
+ * schema fix, and it needs the sweep's own expectations checked first: the sweep
+ * restarts on 2026-09-01 and the empty twin means it currently has no dedupe
+ * memory at all.
+ *
+ * `user_id` on `x_accounts` is an **X platform id, not `users.id`**. Never join
+ * or cast it against one. The same is true of `last_live_user_id` here and of
+ * `social_graph.twitter_user_id`.
+ */
+export const xAccounts = pgTable(
+  'x_accounts',
+  {
+    handle: text('handle').primaryKey(),
+    userId: text('user_id'), // X platform id. NOT users.id.
+    displayName: text('display_name'),
+    followers: integer('followers'),
+    status: text('status').notNull(), // live | unavailable | not_found
+    unavailableReason: text('unavailable_reason'),
+    checkedAt: timestamp('checked_at').defaultNow().notNull(),
+    lastLiveUserId: text('last_live_user_id'), // X platform id. NOT users.id.
+  },
+  (table) => [
+    index('x_accounts_checked_at_idx').on(table.checkedAt),
+    index('x_accounts_user_id_idx').on(table.userId),
+    index('x_accounts_last_live_user_id_idx').on(table.lastLiveUserId),
+    index('x_accounts_unreachable_idx').on(table.status),
+  ]
+);
+
+export const walletHoldings = pgTable(
+  'wallet_holdings',
+  {
+    wallet: text('wallet').notNull(),
+    contract: text('contract').notNull(),
+    chain: text('chain').notNull(),
+    contractType: text('contract_type'),
+    firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
+    lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.wallet, table.contract, table.chain] }),
+    index('wallet_holdings_contract_idx').on(table.contract, table.chain),
+  ]
+);
+
+export const seededContracts = pgTable(
+  'seeded_contracts',
+  {
+    address: text('address').notNull(),
+    chain: text('chain').notNull(),
+    contractType: text('contract_type'),
+    name: text('name'),
+    symbol: text('symbol'),
+    holdersImported: integer('holders_imported').default(0).notNull(),
+    totalHolders: integer('total_holders'),
+    firstSeededAt: timestamp('first_seeded_at').defaultNow().notNull(),
+    lastSeededAt: timestamp('last_seeded_at').defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.address, table.chain] })]
+);
+
+/** Every sweep checkpoint and budget counter, in five jsonb rows. */
+export const ingestState = pgTable('ingest_state', {
+  name: text('name').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const xHandleAttempts = pgTable(
+  'x_handle_attempts',
+  {
+    handle: text('handle').primaryKey(),
+    attempts: integer('attempts').default(0).notNull(),
+    lastAttemptAt: timestamp('last_attempt_at').defaultNow().notNull(),
+    lastReason: text('last_reason'),
+  },
+  (table) => [
+    index('x_handle_attempts_last_attempt_idx').on(table.lastAttemptAt),
+  ]
+);
+
+export const clankerUnresolvedIds = pgTable(
+  'clanker_unresolved_ids',
+  {
+    identifier: text('identifier').primaryKey(),
+    attempts: integer('attempts').default(0).notNull(),
+    lastAttemptAt: timestamp('last_attempt_at').defaultNow().notNull(),
+    lastReason: text('last_reason'),
+  },
+  (table) => [index('clanker_unresolved_ids_attempts_idx').on(table.attempts)]
+);
+
+/** The empty original. The live one carries a runtime timestamp suffix; see above. */
+export const farcasterSweepSeen = pgTable('farcaster_sweep_seen', {
+  wallet: text('wallet').primaryKey(),
+});
+
 export type Whitelist = typeof whitelist.$inferSelect;
 export type NewWhitelist = typeof whitelist.$inferInsert;
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;

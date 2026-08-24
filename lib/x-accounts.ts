@@ -3,11 +3,11 @@
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
  * whenever they like without telling anyone. Measured across the whole index:
- * of 437,823 handles resolved, 30.3% reach nobody.
+ * of 448,069 handles resolved, 30.3% reach nobody.
  *
  * ## Why this is a table about handles, not a column on wallets
  *
- * 1,150,285 rows carry a handle, but there are only 446,329 distinct handles we
+ * 1,150,285 rows carry a handle, but there are only 450,194 distinct handles we
  * hold: 2.58 rows per handle. Resolving per row would pay 2.58 times over for
  * the same answer. More importantly, "does this string reach anyone" is a fact about the
  * string, and storing a fact about a string on a row about a wallet is how a
@@ -165,7 +165,9 @@ async function resolve(
     try {
       onRequest?.();
       const res = await fetch(
-        resolverUrl(`/twitter/user/info?userName=${encodeURIComponent(handle)}`),
+        resolverUrl(
+          `/twitter/user/info?userName=${encodeURIComponent(handle)}`
+        ),
         {
           headers: { 'x-api-key': key },
           /**
@@ -243,7 +245,9 @@ async function controlsPass(key: string): Promise<boolean> {
     resolve(LIVE_CONTROL, key),
     resolve(DEAD_CONTROL, key),
   ]);
-  return live?.status === 'live' && !!live.userId && dead?.status === 'not_found';
+  return (
+    live?.status === 'live' && !!live.userId && dead?.status === 'not_found'
+  );
 }
 
 /**
@@ -508,7 +512,9 @@ export async function sweepHandles(
   if (handles.length === 0) return progress;
 
   if (!(await controlsHold(key))) {
-    throw new Error('x-accounts sweep: controls failed before starting, refusing to run');
+    throw new Error(
+      'x-accounts sweep: controls failed before starting, refusing to run'
+    );
   }
 
   const queue = [...handles];
@@ -528,7 +534,9 @@ export async function sweepHandles(
    * the same commit that made it an error. Whether a stop is expected is a
    * property of the stop, not of how its sentence begins.
    */
-  const state: { stopped: { reason: string; planned: boolean } | null } = { stopped: null };
+  const state: { stopped: { reason: string; planned: boolean } | null } = {
+    stopped: null,
+  };
 
   /**
    * Record a stop. **An unplanned stop can never be lost.**
@@ -630,7 +638,10 @@ export async function sweepHandles(
         if (sinceControl >= controlEvery) {
           sinceControl = 0;
           if (!(await controlsHold(key))) {
-            recordStop(`controls failed after ${progress.checked} lookups`, false);
+            recordStop(
+              `controls failed after ${progress.checked} lookups`,
+              false
+            );
             return;
           }
           opts.onProgress?.({ ...progress });

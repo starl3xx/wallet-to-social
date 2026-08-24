@@ -77,7 +77,7 @@ export const FARCASTER_WALLETS = '4.7 million';
  * safe. Safe is not the same as true, so the check now also fails when a
  * ceiling claim falls too far behind, and the literal lives here.
  */
-export const X_HANDLES_RESOLVED = '437,823';
+export const X_HANDLES_RESOLVED = '448,069';
 
 /**
  * Distinct X handles the index holds. The denominator for the figure above.
@@ -85,7 +85,7 @@ export const X_HANDLES_RESOLVED = '437,823';
  * Also previously duplicated and also already divergent: 446,070 in one module
  * header, 446,043 in the docs, 446,329 in the database.
  */
-export const X_HANDLES_HELD = '446,329';
+export const X_HANDLES_HELD = '450,194';
 
 /**
  * Supported EVM chains, genuinely derived. The comment here used to say

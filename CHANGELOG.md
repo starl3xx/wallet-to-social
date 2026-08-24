@@ -2,6 +2,39 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (`npm run db:push` refuses, and the ingest tables become visible)
+
+- **`db:push` would have dropped eight tables holding 4.25M rows.** Measured
+  against production: `drizzle-kit push` produced a 118-statement plan, 58 of
+  them destructive, opening with `DROP TABLE ... CASCADE` on `x_accounts`
+  (448,069 rows), `wallet_holdings` (121,826),
+  `farcaster_sweep_seen_1786631580832` (3,676,509), `seeded_contracts`,
+  `ingest_state`, `x_handle_attempts`, `clanker_unresolved_ids` and
+  `farcaster_sweep_seen`. It also wanted to drop two `social_graph` indexes with
+  no re-create, which puts a live endpoint onto a sequential scan of 5.1M rows.
+  **None of the eight is in the nightly backup.** `ingest_state` is the smallest
+  and the worst to lose: its five jsonb rows are every sweep checkpoint and
+  budget counter, nine days before the X-handle sweep restarts.
+- The command was documented in CLAUDE.md, README.md and PROJECT_OVERVIEW.md,
+  and `push` only prompts on a TTY: in CI or with `--force` it does not ask. It
+  now refuses via `scripts/db-push-refuses.mjs`, which carries the measurement so
+  the refusal cannot be deleted as a mystery. The real command survives as
+  `db:push:unsafe` for a scratch database or a Neon branch.
+- **The seven declarable ingest tables are now in `db/schema.ts`** as read
+  models, with column types read out of the live database rather than copied from
+  the migration scripts. `farcaster_sweep_seen_1786631580832` cannot be declared,
+  because `lib/farcaster-sweep.ts` creates it at runtime with a timestamp suffix;
+  that is recorded in a comment instead. Four partial-index predicates and two
+  `social_graph` indexes are still not reproduced, and the comment says so rather
+  than leaving them to look like oversights.
+- **CLAUDE.md gains a "Schema changes" section**: hand-written SQL in
+  `scripts/migrate-*.ts` with the owner URL is the sanctioned path; `db:generate`
+  was abandoned in January and its journal has never matched the database; and
+  DDL must run against the **direct** endpoint, not the pooler, because Neon's
+  pooler keeps a bare `SET` on a shared backend across client connections.
+- **No database change.** Nothing in this entry mutates a row, a column or a
+  constraint. Rollback is `git revert`.
+
 ### 2026-08-23 (a guard that opens a browser)
 
 - **`scripts/check-control-height.mjs`**, the first guard here that can answer

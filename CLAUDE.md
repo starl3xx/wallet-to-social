@@ -9,7 +9,7 @@ npm run dev          # Start development server (localhost:3000)
 npm run build        # Production build
 npm run lint         # ESLint
 npm run format       # Prettier format all files
-npm run db:push      # Push schema changes to Neon database
+npm run db:push      # REFUSES. See "Schema changes" below.
 npm run db:generate  # Generate Drizzle migrations
 npm run db:studio    # Open Drizzle Studio GUI
 ```
@@ -40,6 +40,36 @@ This is a Next.js 16 App Router application that batch-resolves Ethereum wallet 
 - `social_graph` - Permanent storage of all wallets with discovered social accounts, indexed for querying
 - `credit_lots` - Purchased packs, spent FIFO by expiry (`granted`, `consumed`, `expires_at`)
 - `credit_ledger` - Every match debited, one row per job; also the rolling 30-day free window
+
+### Schema changes
+
+**Hand-written SQL in `scripts/migrate-*.ts`, run manually with the owner
+`DATABASE_URL`.** That is the only sanctioned path. Every one of those scripts is
+idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`) and ends
+with a verification query that exits non-zero if the object is absent. Follow the
+pattern.
+
+**`npm run db:push` refuses, deliberately.** Measured against production on
+2026-08-24, `drizzle-kit push` wanted to run 118 statements, 58 of them
+destructive, opening with `DROP TABLE ... CASCADE` on eight tables holding 4.25
+million rows, none of which are in the nightly backup. It also wanted to drop two
+`social_graph` indexes with no re-create, which puts a live endpoint onto a
+sequential scan of 5.1 million rows. It classes the drops as data-loss and
+prompts on a TTY; in CI or with `--force` it does not ask. The real command
+survives as `db:push:unsafe` for a scratch database or a Neon branch. The reason
+is kept in `scripts/db-push-refuses.mjs` so it cannot be deleted as a mystery.
+
+`db:generate` produced three migration files in January 2026 and was abandoned.
+There is no `db:migrate` script, the journal has never matched the database, and
+`db/migrations/` is a write-only artefact. Do not start trusting it without
+reconciling it first.
+
+**Run migrations against the direct endpoint, not the pooler.** `.env.local`'s
+`DATABASE_URL` is the pooler (`...-pooler...`), and Neon's pooler keeps a bare
+`SET` on a shared server backend across client connections: a migration that runs
+`SET lock_timeout` can leave it set on a backend the app then uses. Drop
+`-pooler` from the host for DDL, and use `SET LOCAL` inside an explicit
+transaction, never a bare `SET`.
 
 **A new table needs a grant before CI can read it.** Scheduled workflows connect
 as the `sweep_runner` role, not the owner, and a table created after the role

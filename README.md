@@ -50,7 +50,7 @@ The number most tools quote is the one that flatters them. Two numbers matter he
 
 The chain decides this more than the collection does: measured across 26 collections and 72,318 holders, Base runs 46.2% and Ethereum 16.6%, because Base is where Farcaster lives. Use your chain's figure, not an average.
 
-Having an account and reaching it are different claims. Of 437,823 X handles resolved, 69.6% are live, 20.6% suspended and 9.7% are names nobody holds. Every match carries that answer.
+Having an account and reaching it are different claims. Of 448,069 X handles resolved, 69.6% are live, 20.6% suspended and 9.7% are names nobody holds. Every match carries that answer.
 
 | Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                      |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,7 +168,7 @@ npx tsc --noEmit     # typecheck — run this, the build will not catch type err
 npm run lint         # ESLint
 npm run format       # Prettier
 
-npm run db:push      # push schema to Neon
+npm run db:push      # refuses; schema changes are hand-written SQL, see CLAUDE.md
 npm run db:studio    # Drizzle Studio
 ```
 
