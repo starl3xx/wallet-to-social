@@ -85,7 +85,7 @@ const MUTATIONS: Mutation[] = [
     name: 'last touch wins, so every login rewrites the acquisition source',
     file: 'lib/access.ts',
     from: '  if (existing) return existing;',
-    to: '  if (existing) {\n    await db.update(users).set({ origin: origin ?? null });\n    return existing;\n  }',
+    to: '  if (existing) {\n    await db.update(users).set({ acquisition: acquisition ?? null });\n    return existing;\n  }',
   },
   {
     name: 'the origin never travels with the token, so verify sees nothing',
