@@ -12,6 +12,7 @@ import {
   numeric,
   primaryKey,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // Cache individual wallet social lookups (24h TTL)
 export const walletCache = pgTable(
@@ -223,8 +224,27 @@ export const users = pgTable(
      * sign-in) ignores it, because that mail is the account working.
      */
     emailOptOut: boolean('email_opt_out').default(false).notNull(),
+    /**
+     * The wallet that paid, for an account created by the x402 rail.
+     * Lowercased, unique where present, NULL for every account that signed up
+     * with an email. This is the identity such an account actually has: there
+     * is no inbox behind `email`.
+     */
+    wallet: text('wallet'),
+    /**
+     * How this row came to exist. NULL means the magic-link signup, which is
+     * every account that predates the column. `'x402'` marks a row minted by
+     * an onchain payment, and several queries need to know: it is not a
+     * signup, it is not churn, and it must never be mailed.
+     */
+    origin: text('origin'),
   },
-  (table) => [index('users_email_idx').on(table.email)]
+  (table) => [
+    index('users_email_idx').on(table.email),
+    uniqueIndex('users_wallet_idx')
+      .on(table.wallet)
+      .where(sql`${table.wallet} IS NOT NULL`),
+  ]
 );
 
 /**
@@ -321,6 +341,26 @@ export const creditLots = pgTable(
      *  a price can change and this is the record of what was paid. */
     amountCents: integer('amount_cents').default(0).notNull(),
     stripePaymentId: text('stripe_payment_id'),
+    /**
+     * The onchain payment that bought this lot, as
+     * `<network>:<from>:<nonce>` from the EIP-3009 authorization the payer
+     * signed. NULL for a Stripe purchase or a hand grant.
+     *
+     * Deliberately not the transaction hash. On a facilitator timeout the hash
+     * is unknown, and a `settlement_pending` response can carry one for a
+     * transaction that was broadcast and never mined; the authorization is
+     * known before settlement is attempted, and USDC itself refuses to honour
+     * it twice.
+     *
+     * Deliberately not `stripe_payment_id` either. That column is read as
+     * "this was a card sale" by `scripts/relaunch-report.ts` and
+     * `lib/analytics.ts`, so an onchain reference in it would be counted as
+     * Stripe revenue by every query that looks.
+     */
+    settlementId: text('settlement_id'),
+    /** Which rail paid for this lot: `'stripe'`, `'x402'`, or NULL for a row
+     *  that predates the column. Never backfilled by guessing. */
+    rail: text('rail'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     /** Why a lot was granted by hand. Empty for a purchase. */
@@ -336,6 +376,15 @@ export const creditLots = pgTable(
      * `provisionPaidCheckout` already relies on the same guarantee for tiers.
      */
     uniqueIndex('credit_lots_stripe_payment_idx').on(table.stripePaymentId),
+    /**
+     * The same guarantee for the onchain rail. Partial rather than plain: a
+     * bare unique index would also work, since Postgres treats NULLs as
+     * distinct, but saying WHERE NOT NULL states the intent rather than
+     * relying on the reader knowing that rule.
+     */
+    uniqueIndex('credit_lots_settlement_idx')
+      .on(table.settlementId)
+      .where(sql`${table.settlementId} IS NOT NULL`),
   ]
 );
 

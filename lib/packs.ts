@@ -171,3 +171,53 @@ export const SUBMISSION_MULTIPLIER = 10;
  * without one. It is set at 75x the largest real job for that reason.
  */
 export const LEGACY_UNLIMITED_DAILY_WALLETS = 1_000_000;
+
+/**
+ * What the onchain rail sells, kept out of `PACKS` on purpose.
+ *
+ * `PACKS` is not just a price list. `PACK_IDS` drives the pricing grid, the
+ * upgrade modal, the schema.org offers in `app/layout.tsx`, `llms.txt`, the
+ * public price endpoint and nine comparison-page renders, and a fifth key
+ * would appear in all of them without anybody choosing to put it there. The
+ * Agent pack is priced for a machine that pays in USDC with no account, and
+ * showing it beside Trial on a pricing page is exactly the cannibalisation it
+ * has to avoid: it is a tenth the price of the cheapest card purchase.
+ *
+ * Separation is the gate. `app/api/checkout/route.ts` resolves a Stripe price
+ * from `PACKS[id]`, so an id that is not in `PACKS` cannot be bought with a
+ * card, and no filter has to be remembered anywhere. A surface that should
+ * advertise this pack imports it explicitly, which is one deliberate line
+ * rather than eight places agreeing not to show it.
+ */
+export type X402PackId = 'agent';
+
+export const X402_PACKS: Record<
+  X402PackId,
+  Omit<Pack, 'id' | 'priceEnvVar'> & { id: X402PackId }
+> = {
+  agent: {
+    id: 'agent',
+    name: 'Agent',
+    /**
+     * $1, and the point is the per-address number rather than the headline.
+     *
+     * 12 matches is about 50 resolvable addresses at the measured 23.7%
+     * rate, which is one full `/v1/batch` call: the smallest purchase that
+     * still lets a machine do a whole unit of work. At $0.0197 an address it
+     * undercuts the nearest comparable per-request wallet-profile service by
+     * roughly 2.5x, which is the entire reason this rail exists.
+     *
+     * It prices above Campaign per match, correctly, because it is
+     * zero-commitment, and below Trial per match, correctly, because it is
+     * far smaller.
+     */
+    priceCents: 100,
+    matches: 12,
+    fits: 'One batch call, no account',
+  },
+};
+
+/** Whether an id names something the onchain rail sells. */
+export function isX402PackId(value: string): value is X402PackId {
+  return Object.prototype.hasOwnProperty.call(X402_PACKS, value);
+}

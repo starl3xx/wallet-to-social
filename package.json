@@ -29,6 +29,8 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-virtual": "^3.13.18",
     "@vercel/analytics": "^1.6.1",
+    "@x402/core": "^2.23.0",
+    "@x402/evm": "^2.23.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.1",
@@ -45,6 +47,7 @@
     "sql.js": "^1.11.0",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
+    "viem": "^2.55.19",
     "zod": "^4.4.3"
   },
   "devDependencies": {
