@@ -63,16 +63,17 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 
 ## Features
 
-|                      |                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------- |
-| **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses      |
-| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain         |
-| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together           |
-| **Agent detection**  | 13,000+ known AI agent wallets flagged                                          |
-| **Reverse lookup**   | X handle or Farcaster username back to wallets                                  |
-| **Public API**       | Included with every pack, drawing the same credits; self-serve keys             |
-| **MCP server**       | Five tools at `/api/mcp`, same key and same balance; listed in the MCP registry |
-| **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import        |
+|                      |                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses                        |
+| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain                           |
+| **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together                             |
+| **Agent detection**  | 13,000+ known AI agent wallets flagged                                                            |
+| **Reverse lookup**   | X handle or Farcaster username back to wallets                                                    |
+| **Public API**       | Included with every pack, drawing the same credits; self-serve keys                               |
+| **MCP server**       | Five tools at `/api/mcp`, same key and same balance; listed in the MCP registry                   |
+| **Onchain rail**     | `$1` Agent pack for USDC on Base at `/api/x402/buy`, no account; key recovery by wallet signature |
+| **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import                          |
 
 ---
 
@@ -221,6 +222,16 @@ A call made with no match credits left returns `402` with code `NO_CREDITS`.
 | Legacy Unlimited | Startup   | 300/min | 50,000 | 200   |
 
 `lib/api-plans.ts` is the single source of truth for these numbers (`CREDIT_API_PLAN` for pack holders, `TIER_API_PLAN` for the two legacy accounts), and the rate limiter reads the same module.
+
+## Onchain rail (x402)
+
+`POST /api/x402/buy` sells a $1 Agent pack for USDC on Base with no account, no card and no email: pay, and the response carries a fresh API key. 12 matches, about 51 resolvable addresses at the measured rate, roughly $0.0198 an address. A pack rather than per-call pricing, because the `exact` scheme charges before anything resolves and this product is sold on misses being free.
+
+Off unless `X402_PAY_TO` is set. A payment rail with a default address is a rail that pays somebody else.
+
+The Agent pack lives in `X402_PACKS`, never `PACKS`, so `isPackId()` refuses it and it cannot be bought with a card or appear on the nine surfaces `PACK_IDS` drives. Payments are idempotent on the EIP-3009 authorization, not the transaction hash: the hash is unknown when a facilitator times out.
+
+`GET/POST /api/x402/recover` reissues a key to the wallet that paid, on a signed challenge. Signing is required because every field of a settled payment is public onchain, so nothing in a payment can prove who holds the wallet afterwards. Needs `X402_RECOVERY_SECRET`.
 
 ## MCP server
 

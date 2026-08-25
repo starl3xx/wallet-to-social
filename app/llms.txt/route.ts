@@ -15,6 +15,7 @@ import {
   CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
+import { X402_PACKS, MEASURED_MATCH_RATE } from '@/lib/packs';
 import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 
 export const runtime = 'nodejs';
@@ -63,6 +64,19 @@ export function GET(): Response {
       `${PACKS[id].name} $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches (${PACKS[id].fits.toLowerCase()})`
   ).join(', ');
   const api = API_PLANS[CREDIT_API_PLAN];
+  // Derived from lib/packs.ts like every other figure on this page, so the
+  // agent-facing copy cannot drift from what the rail actually charges.
+  const agent = X402_PACKS.agent;
+  const agentPrice = `$${(agent.priceCents / 100).toFixed(2)}`;
+  const agentMatches = agent.matches.toLocaleString();
+  const agentAddresses = Math.round(
+    agent.matches / MEASURED_MATCH_RATE
+  ).toLocaleString();
+  const agentPerAddress = (
+    agent.priceCents /
+    100 /
+    (agent.matches / MEASURED_MATCH_RATE)
+  ).toFixed(4);
   const perMinute = api.requestsPerMinute.toLocaleString();
   const perDay = api.requestsPerDay.toLocaleString();
   const perMonth = api.requestsPerMonth.toLocaleString();
@@ -164,6 +178,14 @@ Five tools: resolve one to ${batchSize} addresses to their social identities, fi
 
 Tool discovery needs no key: a client can connect and list the tools before buying anything. Calling a tool needs one. Keys are self-serve at https://walletlink.social for any account holding credits, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
 
+## For agents: buying credits with USDC, no account
+
+An agent can buy its own credits over x402, with no account, no card and no email. POST to https://walletlink.social/api/x402/buy and it answers 402 with a payment challenge; pay ${agentPrice} in USDC on Base and the response carries a fresh API key with ${agentMatches} match credits behind it. That is roughly ${agentAddresses} resolvable addresses at our measured rate, or one full batch call, at about $${agentPerAddress} an address.
+
+The credits are the same ones a card buys and are metered the same way, so an address that resolves to nobody still costs nothing. The key works on the whole REST API and on the MCP server.
+
+The key is shown once. If it is lost, sign a challenge with the wallet that paid at https://walletlink.social/api/x402/recover and a new one is issued against the same credits; the credits belong to the account rather than to the key. Signing is required because every field of a settled payment is public onchain, so a payment cannot prove who is holding the wallet afterwards.
+
 ## Product
 
 - [Wallet lookup](https://walletlink.social/): the app. Upload a holder list or a contract address, get the reachable people behind it, ranked, with the evidence on every row.
@@ -184,6 +206,7 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 - [Data quality](https://docs.walletlink.social/concepts/data-quality.md): evidence classes, the quality score, reachability states, and when a record goes stale.
 - [API reference](https://docs.walletlink.social/api-reference/introduction.md): base URL, authentication and conventions, then one page per endpoint.
 - [MCP server](https://docs.walletlink.social/mcp-server.md): five tools for agents, what each costs, and the config block for Claude and Cursor.
+- [Agent pack over x402](https://docs.walletlink.social/agent-pack.md): buy credits with USDC on Base, no account, and how to recover a lost key.
 - [OpenAPI description](https://docs.walletlink.social/openapi.yaml): the whole REST surface as OpenAPI 3.1, for SDK generation and tool discovery.
 - [Full docs for LLMs](https://docs.walletlink.social/llms-full.txt): the complete documentation in one file.
 
