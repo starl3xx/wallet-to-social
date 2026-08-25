@@ -2,6 +2,64 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-24 (the onchain rail)
+
+Step five of the sequence. `POST /api/x402/buy` sells a $1 Agent pack for USDC
+on Base, with no account, no card and no email. Off by default: without
+`X402_PAY_TO` the endpoint answers 503, because a payment rail with a default
+address is a rail that pays somebody else.
+
+- **A pack, never per call.** The `exact` scheme charges before anything has
+  resolved, which contradicts the one thing this product is sold on. The rail
+  sells credits, the credits are metered on matches exactly as a card purchase
+  is, and misses stay free.
+- **$1 buys 12 matches, about 51 resolvable addresses at the measured rate.**
+  That is $0.0198 an address, against $0.05 for the nearest comparable
+  per-request service, and one dollar is exactly one full `/v1/batch` call.
+- **The pack is deliberately not in `PACKS`.** `PACK_IDS` drives the pricing
+  grid, the upgrade modal, the schema.org offers, `llms.txt`, the public price
+  endpoint and nine comparison-page renders, so a fifth key would have appeared
+  in all of them. `X402_PACKS` keeps it out, and because
+  `app/api/checkout/route.ts` resolves a Stripe price through `isPackId()`,
+  `agent` cannot be bought with a card at all. The gate is structural rather
+  than a filter somebody has to remember.
+- **Payments are remembered by the authorization, not the transaction hash.**
+  The hash is unknown when a facilitator times out and can name an unmined
+  transaction on a `settlement_pending`, so keying on it would double-grant in
+  exactly the case the key exists to prevent. `credit_lots.settlement_id` holds
+  `<network>:<from>:<nonce>` from the EIP-3009 authorization, which is fixed
+  before settlement is attempted and which USDC itself refuses to honour twice.
+  A separate column from `stripe_payment_id`, because that one is read as "this
+  was a card sale" by two other queries.
+- **The EIP-712 domain is the detail that silently breaks everything.** The
+  first working version emitted `extra: {}`, which produces signatures that
+  cannot recover to the payer, so every payment is rejected for no visible
+  reason. Passing the price as money rather than as an explicit asset makes the
+  SDK fill the domain from its own table: `USD Coin` version `2` on Base
+  mainnet, and `USDC` on Base Sepolia, which is also how a testnet-verified
+  rail fails on mainnet.
+- **An x402 account gets no free allowance.** It cannot be created without a
+  settled payment, so there is no faucet at signup; the faucet would be on the
+  other side, where a spent lot falls back to 100 matches every 30 days for a
+  wallet that cost a dollar to create. `getBalance` withholds it for
+  `origin = 'x402'`.
+- **The account is real but unreachable, on purpose.** Credits hang off
+  `users.id` through five NOT NULL foreign keys, so a wallet that pays needs a
+  row. Its email is synthetic under `.invalid`, reserved by RFC 2606 and
+  guaranteed never to resolve, and `email_opt_out` is true from the moment the
+  row exists so every lifecycle send already skips it. `ON CONFLICT DO NOTHING`
+  plus a re-select rather than read-then-write, so two settlements from one
+  wallet cannot 500 a buyer who has already paid.
+- **One manual path, and it is loud.** Settle happens before the grant, because
+  granting first would hand out credits for a payment that might fail. A
+  database failure in between takes money without recording it, so that case
+  logs the settlement reference at error and answers 500 rather than returning
+  a key it did not create. The grant is idempotent on that same reference, so
+  it can be issued by hand and cannot be issued twice.
+- Verified against a production build: 503 unconfigured, a correct v2 challenge
+  configured, and all three malformed-payment paths refused before anything
+  settles.
+
 ### 2026-08-24 (two money bugs, found on the way to x402)
 
 Groundwork for the x402 rail, aimed at what the code actually does rather than

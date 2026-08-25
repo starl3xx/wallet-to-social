@@ -29,6 +29,8 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-virtual": "^3.13.18",
     "@vercel/analytics": "^1.6.1",
+    "@x402/core": "^2.23.0",
+    "@x402/evm": "^2.23.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.1",

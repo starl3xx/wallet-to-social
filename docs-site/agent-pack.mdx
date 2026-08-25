@@ -1,0 +1,90 @@
+---
+title: 'Agent pack (x402)'
+description: 'Buy match credits with USDC on Base. No account, no card, no email.'
+---
+
+An agent can buy its own credits. Pay $1 in USDC on Base and the response
+carries an API key with 12 match credits behind it.
+
+```
+POST https://walletlink.social/api/x402/buy
+```
+
+That is roughly 51 resolvable addresses at our measured rate, which is one full
+[`/v1/batch`](/api-reference/batch) call: the smallest purchase that is still a
+whole unit of work.
+
+## How it works
+
+The endpoint speaks [x402](https://x402.org). Post with no payment and it
+answers `402` with a `PAYMENT-REQUIRED` header describing what to pay:
+
+```json
+{
+  "scheme": "exact",
+  "network": "eip155:8453",
+  "amount": "1000000",
+  "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "payTo": "0x58a5…Fee9C",
+  "maxTimeoutSeconds": 120,
+  "extra": { "name": "USD Coin", "version": "2" }
+}
+```
+
+Sign it and post again with a `PAYMENT-SIGNATURE` header. Any x402 client does
+this for you. On success:
+
+```json
+{
+  "api_key": "wts_live_…",
+  "shown_once": true,
+  "matches_available": 12,
+  "pack": "Agent",
+  "newly_granted": true
+}
+```
+
+<Warning>
+  `shown_once` is literal. The key is stored only as a hash and there is no
+  email on the account to recover it through. Persist it before the process
+  exits.
+</Warning>
+
+## What you are buying
+
+The same match credits a card buys, metered the same way. **A wallet that
+resolves to nothing costs nothing**, so the pack stretches further on a list
+that matches well and is not wasted on one that does not. See
+[credits](/api-reference/introduction#credits).
+
+The key works on the whole [REST API](/api-reference/introduction) and on the
+[MCP server](/mcp-server).
+
+|                        |              |
+| ---------------------- | ------------ |
+| Price                  | $1.00 USDC   |
+| Matches                | 12           |
+| Per resolvable address | ~$0.0198     |
+| Network                | Base mainnet |
+| Credits last           | 12 months    |
+
+## Paying twice for the same thing
+
+You cannot. The pack is recorded against the EIP-3009 authorization you signed,
+not against the transaction hash, so replaying a payment returns the credits it
+already bought rather than charging again. A response with
+`"newly_granted": false` means exactly that: the key is fresh, the credits are
+the ones you already paid for.
+
+## No free allowance
+
+An account created this way does not get the free 100 matches per 30 days that
+an email signup does. That allowance exists to show a person their real match
+rate before they pay, and this account has already paid.
+
+## If something goes wrong
+
+A `500` with a `settlement` reference means the payment settled and the pack
+could not be recorded. Send that reference to
+[help@walletlink.social](mailto:help@walletlink.social) and it will be issued by
+hand; it cannot be issued twice.

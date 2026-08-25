@@ -23,7 +23,7 @@
           },
           {
             "group": "For agents",
-            "pages": ["mcp-server"]
+            "pages": ["mcp-server", "agent-pack"]
           },
           {
             "group": "Concepts",

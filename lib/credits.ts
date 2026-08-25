@@ -35,7 +35,9 @@ import {
   SUBMISSION_MULTIPLIER,
   LEGACY_UNLIMITED_DAILY_WALLETS,
   PACKS,
+  X402_PACKS,
   type PackId,
+  type X402PackId,
 } from '@/lib/packs';
 import type { UserTier } from '@/lib/access';
 
@@ -138,7 +140,33 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
     };
   }
 
-  // No live lots: the free rolling window applies.
+  /**
+   * No live lots. The free rolling window applies, unless this account only
+   * exists because a wallet paid.
+   *
+   * An x402 account cannot be created without a settled payment, so there is
+   * no faucet at signup. The faucet is on the other side: once the purchased
+   * lot is spent or expires, inheriting 100 matches per 30 days would mean $1
+   * once buys a free allowance for as long as the wallet cares to keep asking,
+   * and wallets are free to create. The free allowance exists to show a person
+   * their real match rate before they pay. This account has already paid.
+   */
+  const [account] = await db
+    .select({ origin: users.origin })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (account?.origin === 'x402') {
+    return {
+      available: 0,
+      freeUsedThisWindow: 0,
+      freeWindowResetsAt: null,
+      lots: [],
+      onFreeAllowance: false,
+    };
+  }
+
   const windowStart = new Date(
     now.getTime() - FREE_WINDOW_DAYS * 24 * 60 * 60 * 1000
   );
@@ -560,6 +588,55 @@ export async function grantPack(
      * Throwing means the webhook answers 500 and Stripe retries. `grantPack`
      * is idempotent, so a retry after recovery grants exactly once.
      */
+    throw error;
+  }
+}
+
+/**
+ * Grant an Agent pack against a settled onchain payment.
+ *
+ * The twin of `grantPack`, and separate from it for the same reason
+ * `settlement_id` is a separate column: an onchain sale must never be
+ * countable as a card sale. `rail` says which one paid, and `amountCents`
+ * records what was actually charged in cents rather than what the price list
+ * says, exactly as the Stripe path does.
+ *
+ * Idempotent on `settlementId`, which is the EIP-3009 authorization the payer
+ * signed (`<network>:<from>:<nonce>`) and not the transaction hash. The hash is
+ * unknown on a facilitator timeout and can name an unmined transaction on a
+ * `settlement_pending`, so keying on it would double-grant in exactly the case
+ * the key exists to cover. The authorization is fixed before settlement is
+ * attempted, and USDC refuses to honour it twice.
+ *
+ * Returns false only for "this settlement was already granted". Everything else
+ * throws, so a caller that has taken somebody's money finds out.
+ */
+export async function grantPackBySettlement(
+  userId: string,
+  pack: X402PackId,
+  settlementId: string,
+  amountCents: number
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) throw new Error('No database: cannot record a settled payment.');
+
+  const expiresAt = new Date(
+    Date.now() + CREDIT_LIFETIME_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  try {
+    await db.insert(creditLots).values({
+      userId,
+      granted: X402_PACKS[pack].matches,
+      pack,
+      amountCents,
+      settlementId,
+      rail: 'x402',
+      expiresAt,
+    });
+    return true;
+  } catch (error) {
+    if (isUniqueViolation(error)) return false;
     throw error;
   }
 }

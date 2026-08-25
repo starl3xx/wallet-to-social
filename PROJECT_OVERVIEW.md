@@ -312,6 +312,20 @@ Main page orchestrating:
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
+### Onchain rail (x402)
+
+`app/api/x402/buy/route.ts` sells a $1 Agent pack for USDC on Base with no
+account: pay, and the response carries a fresh API key. Off unless `X402_PAY_TO`
+is set. `lib/x402.ts` holds the protocol layer (`@x402/core` plus `@x402/evm`,
+no Next peer requirement so no framework upgrade), `lib/x402-account.ts` mints
+the wallet-keyed account, and `grantPackBySettlement` in `lib/credits.ts` is
+idempotent on `credit_lots.settlement_id`, which holds the EIP-3009
+authorization rather than the transaction hash.
+
+The Agent pack lives in `X402_PACKS`, never in `PACKS`, so it cannot reach
+Stripe checkout and cannot appear on the nine surfaces `PACK_IDS` drives.
+Accounts with `users.origin = 'x402'` get no free allowance.
+
 ### MCP server (for agents)
 
 `app/api/mcp/route.ts` exposes five tools over those six endpoints at
