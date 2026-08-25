@@ -1446,7 +1446,7 @@ export default function Home() {
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
           out.
         </h1>
-        <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
           <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
             Turn a wallet list into the{' '}
             <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
@@ -1482,7 +1482,14 @@ export default function Home() {
 
             Below `lg` they stack and nothing else changes: the figures keep
             their own row, the 16px gaps still fit three figures across a
-            390px phone, and the order is the same one the eye reads anyway. */}
+            390px phone, and the order is the same one the eye reads anyway.
+
+            The row's own gaps are 24 and 48, not the 20 and 40 this shipped
+            with for one commit. Those are not spacing steps, which the note
+            above already said in passing and the footer had already been
+            cleaned of once. There is now a `spacing-scale` rule in
+            `check-design-language.mjs`, because a constraint recorded only in
+            a comment three files away is one the next person re-breaks. */}
           {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
             100.5 + 92.1 = 273px, and two 48px gaps ask for 369px against the
             342px a 390px phone gives this column, so the row wrapped 2 + 1 and

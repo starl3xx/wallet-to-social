@@ -92,6 +92,19 @@ const RULES = [
     msg: 'One inset surface: bg-muted at full opacity. Drop the /NN.',
   },
   {
+    name: 'spacing-scale',
+    // Nine steps: 4, 8, 12, 16, 24, 32, 48, 64, 96px, which are Tailwind's
+    // 1/2/3/4/6/8/12/16/24. Anything else is an unnamed tenth value.
+    //
+    // Added after Bugbot found `gap-5` and `lg:gap-10` reintroduced into the
+    // hero. That pair had already been removed once, from the footer grid and
+    // the /vs proof strips, and the comment recording the earlier cleanup was
+    // three files away from the code that undid it. A rule nobody enforces is
+    // a rule that gets re-broken by whoever did not read that comment.
+    re: /(^|[\s"'])(?:[a-z0-9-]+:)*(?:gap|gap-x|gap-y|space-x|space-y)-(?!(?:0|1|2|3|4|6|8|12|16|24|px)(?=[\s"']|$))\d+(?=[\s"']|$)/,
+    msg: 'Spacing has nine steps: 4, 8, 12, 16, 24, 32, 48, 64, 96px. Use gap-1/2/3/4/6/8/12/16/24.',
+  },
+  {
     name: 'tracking-literal',
     // Tracking is bound to size through four tokens. A literal em or a
     // Tailwind step (`tracking-tight`, `tracking-wide`) is a fifth value.
@@ -179,6 +192,28 @@ const FIXTURES = {
       'text-muted-foreground',
       'bg-secondary text-secondary-foreground',
       'hover:border-accent-brand',
+    ],
+  },
+  'spacing-scale': {
+    bad: [
+      'gap-5',
+      'lg:gap-10',
+      'className="flex flex-col gap-7"',
+      'space-y-5',
+      'sm:gap-x-14',
+    ],
+    // `gap-16` and `gap-24` must survive: they start with the digits of
+    // `gap-1` and `gap-2`, which is exactly how a lookahead without its own
+    // boundary would eat them.
+    good: [
+      'gap-4',
+      'gap-6',
+      'sm:gap-x-12',
+      'gap-y-4',
+      'space-y-16',
+      'gap-24',
+      'gap-0',
+      'lg:gap-12',
     ],
   },
   'icon-library': {
