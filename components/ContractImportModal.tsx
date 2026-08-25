@@ -293,6 +293,17 @@ export function ContractImportModal({
                         clears 3:1, and `transition-control` for the product's
                         durations.
 
+                        `min-h-16`, not `h-16` (Bugbot, 2026-08-25). At three
+                        columns on a 320 or 360 phone "Robinhood Chain" wraps to
+                        two lines, and measured with the selected weight applied
+                        that is 64px of content in a 64px box: it fits, with
+                        nothing to spare. A minimum lets the tile grow instead
+                        of clipping if a longer name ever arrives. Rows then
+                        differ in height rather than matching, because
+                        `auto-rows-fr` cannot equalise them: `fr` distributes
+                        free space and a grid with auto height has none. A
+                        taller row is a worse look; a clipped label is a bug.
+
                         The selected tile is violet: selection is an
                         affordance, and this was the one control in the
                         product whose selection was foreground-on-muted,
@@ -302,7 +313,7 @@ export function ContractImportModal({
                         exists because Tailwind sorts `hover:` after
                         `peer-checked:`, so without it hovering the selected
                         tile painted it grey. */}
-                      <span className="flex h-16 flex-col items-center justify-center gap-2 rounded-lg border border-input px-2 text-center text-xs leading-tight transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                      <span className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-lg border border-input px-2 text-center text-xs leading-tight transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
                         <Mark className="h-6 w-6" />
                         {CHAIN_LABELS[c]}
                       </span>
