@@ -282,6 +282,12 @@ const MUTATIONS: Mutation[] = [
     to: '    .delete(apiMetrics)',
   },
   {
+    name: 'the entity is spelled out on the privacy policy instead of read from the constant',
+    file: 'app/privacy/page.tsx',
+    from: '          {LEGAL_ENTITY}. Write to <Mail /> about anything on this page; a',
+    to: '          Starl3xx Labs LLC. Write to <Mail /> about anything on this page; a',
+  },
+  {
     name: 'the privacy policy is dropped from the footer, so nobody can find it',
     file: 'components/ui/site-footer.tsx',
     from: '            <FooterLink href="/privacy">Privacy</FooterLink>\n',

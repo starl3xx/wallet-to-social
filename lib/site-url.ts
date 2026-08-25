@@ -40,6 +40,20 @@
 export const PRODUCTION_URL = 'https://walletlink.social';
 
 /**
+ * The legal entity behind the site.
+ *
+ * Here because it was in two places and got written a third time from memory,
+ * as "Starl3xx Labs", on the one page where the name is a legal claim rather
+ * than a footer credit. The footer and `llms.txt` had said "Starl3xx Labs LLC"
+ * all along: the correct value was in the repository and was not read.
+ *
+ * A name is exactly the kind of fact that looks too obvious to check, which is
+ * why it is the kind that drifts. One constant, three readers, and
+ * `scripts/check-invariants.ts` asserts none of them spells it out.
+ */
+export const LEGAL_ENTITY = 'Starl3xx Labs LLC';
+
+/**
  * Absolute origin for the current environment, with no trailing slash.
  *
  * Order matters: an explicit `NEXT_PUBLIC_URL` always wins so a deployment can

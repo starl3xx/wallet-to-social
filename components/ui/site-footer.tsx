@@ -3,6 +3,7 @@ import { ArrowSquareOut, GithubLogo } from '@phosphor-icons/react/dist/ssr';
 import { XMark, FarcasterMark, BrandLockup } from './brand-marks';
 import { Eyebrow } from './eyebrow';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LEGAL_ENTITY } from '@/lib/site-url';
 
 const REPO = 'https://github.com/starl3xx/wallet-to-social';
 
@@ -199,7 +200,9 @@ export function SiteFooter() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
           <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {/* The site is the product; the copyright is the company that owns it. */}
-            <span>© {new Date().getFullYear()} Starl3xx Labs LLC</span>
+            <span>
+              © {new Date().getFullYear()} {LEGAL_ENTITY}
+            </span>
             {/* A route handler, so a plain anchor rather than Link; it serves
                 text and exists to be found, by crawlers and by the people who
                 check for it. */}

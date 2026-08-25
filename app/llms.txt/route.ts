@@ -17,6 +17,7 @@ import {
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
 import { X402_PACKS, MEASURED_MATCH_RATE } from '@/lib/packs';
 import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
+import { LEGAL_ENTITY } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 export const revalidate = 86400;
@@ -258,7 +259,7 @@ The blog is the question-shaped half of the site. Every post is public, dated an
 
 ## Who runs it
 
-walletlink.social is operated by Starl3xx Labs LLC. The application is open source.
+walletlink.social is operated by ${LEGAL_ENTITY}. The application is open source.
 
 - [Source code](https://github.com/starl3xx/wallet-to-social): the repository behind the site and the API.
 - [Changelog](https://github.com/starl3xx/wallet-to-social/blob/main/CHANGELOG.md): what shipped, and when.
