@@ -5,6 +5,7 @@ import { PackPricing } from '@/components/PackPricing';
 import {
   PACKS,
   PACK_IDS,
+  X402_PACKS,
   MEASURED_MATCH_RATE,
   CREDIT_LIFETIME_DAYS,
   FREE_MATCHES_PER_WINDOW,
@@ -116,6 +117,21 @@ const FORMO_X402_LIST = LIST_SIZE * FORMO_X402_USDC_PER_REQUEST;
 
 const num = (n: number) => n.toLocaleString('en-US');
 const usd = (n: number) => `$${num(n)}`;
+
+/**
+ * What a dollar of the Agent pack costs per address, at the measured rate.
+ *
+ * Derived rather than written down, because both inputs already exist and a
+ * fourth copy of a price is a fourth thing to forget. It is the number this
+ * whole comparison turns on: Formo sells a single profile for a fixed
+ * {@link FORMO_X402_USDC_PER_REQUEST} whether or not it resolves, and this is
+ * the same purchase priced on what comes back.
+ */
+const AGENT_PER_ADDRESS =
+  X402_PACKS.agent.priceCents /
+  100 /
+  (X402_PACKS.agent.matches / MEASURED_MATCH_RATE);
+const AGENT_UNDERCUT = FORMO_X402_USDC_PER_REQUEST / AGENT_PER_ADDRESS;
 
 export default function FormoComparison() {
   return (
@@ -325,6 +341,37 @@ export default function FormoComparison() {
                       </span>
                     </td>
                   </tr>
+                  {/* Both sides take USDC on Base with no account, which is
+                      what makes this the one row that compares like with like.
+                      The difference is what the money buys: a fixed price per
+                      request against a price per address that resolved. */}
+                  <tr className="border-b">
+                    <td className="py-4 pr-4 font-medium">
+                      Pay in USDC, no account
+                    </td>
+                    <td className="py-4 px-4 bg-accent-brand-tint">
+                      <span className="flex items-start gap-2">
+                        <Check
+                          alt="Yes"
+                          role="img"
+                          aria-label="Yes"
+                          className="mt-0.5 h-4 w-4 flex-none text-attested"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          ({usd(X402_PACKS.agent.priceCents / 100)} for{' '}
+                          {X402_PACKS.agent.matches} matches, about $
+                          {AGENT_PER_ADDRESS.toFixed(4)} an address, and a
+                          wallet that resolves to nobody is free)
+                        </span>
+                      </span>
+                    </td>
+                    <td className="py-4 pl-4">
+                      <span className="text-xs text-muted-foreground">
+                        {usd(FORMO_X402_USDC_PER_REQUEST)} per address, charged
+                        whether or not it resolves
+                      </span>
+                    </td>
+                  </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">
                       Funnels, attribution, forms
@@ -394,7 +441,13 @@ export default function FormoComparison() {
                 The single-profile endpoint is sold per request over x402 on
                 Base at {num(FORMO_X402_USDC_PER_REQUEST)} USDC each, with no
                 account. The request is paid whether or not the address resolves
-                to anybody.
+                to anybody. We sell over x402 on Base too, and the difference is
+                that one: {usd(X402_PACKS.agent.priceCents / 100)} buys{' '}
+                {X402_PACKS.agent.matches} matches rather than{' '}
+                {X402_PACKS.agent.matches} lookups, so an address that resolves
+                to nobody costs nothing and the same dollar goes about{' '}
+                {AGENT_UNDERCUT.toFixed(1)}x further on a list that matches at
+                our measured rate.
               </li>
             </ul>
             <p className="text-muted-foreground">
