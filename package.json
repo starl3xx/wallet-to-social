@@ -47,6 +47,7 @@
     "sql.js": "^1.11.0",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
+    "viem": "^2.55.19",
     "zod": "^4.4.3"
   },
   "devDependencies": {

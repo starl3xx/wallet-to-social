@@ -26,10 +26,14 @@
  * somebody else.
  */
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { verifyTypedData } from 'viem';
 import { registerExactEvmScheme } from '@x402/evm/exact/server';
 
 /** Base mainnet, CAIP-2. Protocol v2 identifies networks this way. */
 export const BASE_MAINNET = 'eip155:8453';
+
+/** The same chain, as EIP-712 wants it. */
+export const BASE_CHAIN_ID = 8453;
 
 /**
  * USDC on Base mainnet, and its EIP-712 domain.
@@ -99,6 +103,85 @@ export function settlementIdFor(payload: unknown): string | null {
     typeof auth?.nonce === 'string' ? auth.nonce.toLowerCase() : null;
   if (!from || !nonce) return null;
   return `${BASE_MAINNET}:${from}:${nonce}`;
+}
+
+/**
+ * Whether the payload was actually signed by the address it names.
+ *
+ * This is the check that makes a replay safe to honour. `from` and `nonce`
+ * both appear in USDC's public `AuthorizationUsed` event, so anyone reading
+ * Base can rebuild the outer shape of a payload that names somebody else's
+ * settled payment. Possession of those two values proves nothing. Possession
+ * of a signature over them proves the private key.
+ *
+ * ECDSA only. A smart-contract wallet signs under EIP-1271, which needs an RPC
+ * call to the wallet, so a contract payer fails this check and falls through
+ * to the support path rather than being served. That is the safe direction to
+ * fail in: it refuses a real buyer rather than serving an impostor.
+ *
+ * Verified against the requirements we ourselves issued, never against values
+ * taken from the payload, so a caller cannot supply a domain that makes their
+ * own signature check out.
+ */
+export async function signedByPayer(
+  payload: unknown,
+  requirements: { asset: string; extra: Record<string, unknown> }
+): Promise<boolean> {
+  const p = payload as
+    | {
+        payload?: {
+          signature?: unknown;
+          authorization?: Record<string, unknown>;
+        };
+      }
+    | undefined;
+  const auth = p?.payload?.authorization;
+  const signature = p?.payload?.signature;
+  if (!auth || typeof signature !== 'string') return false;
+
+  const { name, version } = requirements.extra as {
+    name?: string;
+    version?: string;
+  };
+  if (!name || !version) return false;
+
+  const str = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
+
+  try {
+    return await verifyTypedData({
+      address: str(auth.from) as `0x${string}`,
+      domain: {
+        name,
+        version,
+        chainId: BASE_CHAIN_ID,
+        verifyingContract: requirements.asset as `0x${string}`,
+      },
+      types: {
+        TransferWithAuthorization: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'validAfter', type: 'uint256' },
+          { name: 'validBefore', type: 'uint256' },
+          { name: 'nonce', type: 'bytes32' },
+        ],
+      },
+      primaryType: 'TransferWithAuthorization',
+      message: {
+        from: str(auth.from) as `0x${string}`,
+        to: str(auth.to) as `0x${string}`,
+        value: BigInt(str(auth.value) || '0'),
+        validAfter: BigInt(str(auth.validAfter) || '0'),
+        validBefore: BigInt(str(auth.validBefore) || '0'),
+        nonce: str(auth.nonce) as `0x${string}`,
+      },
+      signature: signature as `0x${string}`,
+    });
+  } catch {
+    // A malformed signature, address or numeric field. Not signed by the
+    // payer as far as this rail is concerned.
+    return false;
+  }
 }
 
 /** The payer's address from a payload, for the account the pack belongs to. */

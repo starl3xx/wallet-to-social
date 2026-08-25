@@ -29,6 +29,7 @@ import {
   payToAddress,
   settlementIdFor,
   payerFrom,
+  signedByPayer,
   BASE_MAINNET,
 } from '@/lib/x402';
 import { X402_PACKS } from '@/lib/packs';
@@ -166,8 +167,33 @@ export async function POST(request: NextRequest) {
    * already bought either way, so an extra key buys nothing, but unbounded key
    * minting from a replayed payload is still not a thing to leave open.
    */
+  const accepted = requirements[0];
   const already = await lotForSettlement(settlementId);
   if (already) {
+    /**
+     * Prove the caller holds the payer's key before serving them.
+     *
+     * `from` and `nonce` both appear in USDC's public `AuthorizationUsed`
+     * event, so anyone reading Base can rebuild a payload naming somebody
+     * else's settled payment. The first version treated possession of those
+     * two values as proof and would have let a stranger mint keys on a paid
+     * account, spend its credits, and fill the key cap so the real buyer's own
+     * retry failed. A signature over them is the proof; the values are not.
+     *
+     * Checked against the requirements this server issued, never against a
+     * domain taken from the payload.
+     */
+    if (!(await signedByPayer(payload, accepted))) {
+      return NextResponse.json(
+        {
+          error:
+            'This payment has already been honoured, and the request is not signed by the wallet that made it.',
+          code: 'PAYMENT_INVALID',
+        },
+        { status: 403 }
+      );
+    }
+
     const reissued = await createApiKeyIfUnderCap(
       already.userId,
       `x402 ${payer.slice(0, 10)}`,
@@ -196,7 +222,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const accepted = requirements[0];
   const verification = await server.verifyPayment(
     payload as Parameters<typeof server.verifyPayment>[0],
     accepted
@@ -241,11 +266,32 @@ export async function POST(request: NextRequest) {
       CREDIT_API_PLAN,
       X402_MAX_KEYS
     );
-    if (!created || 'capReached' in created) {
-      throw new Error('Could not mint an API key.');
-    }
+    if (!created)
+      throw new Error('Could not reach the database to mint a key.');
 
+    /**
+     * Being at the key cap is not a failed purchase.
+     *
+     * The pack is recorded by this point and the money moved before that, so
+     * throwing here would answer `GRANT_FAILED` for a payment that succeeded
+     * and credits that exist. The account already holds three working keys;
+     * the honest answer is the balance and why there is no fourth.
+     */
     const balance = await getBalance(userId);
+    if ('capReached' in created) {
+      return NextResponse.json(
+        {
+          api_key: null,
+          key_cap_reached: true,
+          error: `The pack was added. This wallet already holds ${X402_MAX_KEYS} active keys, so no new one was issued; use an existing key, or revoke one and replay this payment.`,
+          matches_available: balance.available,
+          pack: PACK.name,
+          newly_granted: granted,
+          docs: 'https://docs.walletlink.social/agent-pack',
+        },
+        { status: 200, headers: { 'PAYMENT-RESPONSE': b64(settlement) } }
+      );
+    }
 
     return NextResponse.json(
       {

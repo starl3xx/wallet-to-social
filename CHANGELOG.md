@@ -61,6 +61,20 @@ address is a rail that pays somebody else.
   `newly_granted: false` reachable at all. A fresh key rather than the old one,
   because only its hash was ever stored, bounded at three active keys per
   account so a replayed payload cannot mint without limit.
+- **A replay has to prove it holds the payer's key.** `from` and `nonce` both
+  appear in USDC's public `AuthorizationUsed` event, so anyone reading Base can
+  rebuild a payload naming somebody else's settled payment. The first version of
+  the retry path treated possession of those two values as proof, which would
+  have let a stranger mint keys on a paid account, spend its credits, and fill
+  the key cap so the real buyer's own retry failed. It now verifies the EIP-712
+  signature against the requirements this server issued. ECDSA only: a
+  smart-contract wallet signs under EIP-1271 and falls through to the support
+  path, which refuses a real buyer rather than serving an impostor.
+- **The key cap no longer fails a purchase that already settled.** The pack is
+  recorded before the key is minted, so throwing at the cap answered
+  `GRANT_FAILED` for a payment that had succeeded and credits that existed. A
+  capped account now gets 200, the balance, and the reason there is no fourth
+  key.
 - **One manual path, and it is loud.** Settle happens before the grant, because
   granting first would hand out credits for a payment that might fail. A
   database failure in between takes money without recording it, so that case
