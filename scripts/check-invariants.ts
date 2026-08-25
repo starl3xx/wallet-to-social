@@ -801,6 +801,23 @@ async function main() {
       cleanup.includes('delete(analyticsEvents)')
     );
 
+    // The entity is a legal claim on this page and a credit in the footer, and
+    // it was written a third time from memory, wrongly, while the correct value
+    // sat in two files. One constant, and nobody spells it out.
+    const { LEGAL_ENTITY } = await import('@/lib/site-url');
+    const namesEntity = [
+      'app/privacy/page.tsx',
+      'components/ui/site-footer.tsx',
+      'app/llms.txt/route.ts',
+    ];
+    for (const file of namesEntity) {
+      const source = readFileSync(file, 'utf8');
+      ok(
+        `${file} reads LEGAL_ENTITY rather than spelling the entity out`,
+        source.includes('LEGAL_ENTITY') && !source.includes(LEGAL_ENTITY)
+      );
+    }
+
     // A policy nobody can reach is not published, and a directory submission
     // has to name a URL for it.
     const footer = readFileSync('components/ui/site-footer.tsx', 'utf8');

@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (one name for the entity)
+
+- **`LEGAL_ENTITY` in `lib/site-url.ts`**, read by the privacy policy, the
+  footer and `llms.txt`. The privacy policy had said "Starl3xx Labs", written
+  from memory, on the one page where the name is a legal claim rather than a
+  footer credit. The correct value, "Starl3xx Labs LLC", was already in the
+  repository in two places and was not read. A name looks too obvious to check,
+  which is why it is the kind of fact that drifts. An invariant asserts none of
+  the three spells it out, and a mutation proves the assertion catches it.
+
 ### 2026-08-25 (a privacy policy, and the cleanups that make it true)
 
 - **`/privacy`**, linked from the footer and in the sitemap. Required for a

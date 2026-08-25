@@ -28,6 +28,7 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 import { ANALYTICS_RETENTION_DAYS } from '@/app/api/cron/cleanup/route';
 import { NEGATIVE_RECHECK_DAYS } from '@/lib/social-graph';
+import { LEGAL_ENTITY } from '@/lib/site-url';
 import {
   MAGIC_LINK_DURATION_MINUTES,
   MAGIC_LINK_RETENTION_HOURS,
@@ -85,9 +86,9 @@ export default function PrivacyPage() {
           Privacy policy
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Last updated {UPDATED}. walletlink.social is operated by Starl3xx
-          Labs. Write to <Mail /> about anything on this page; a person reads
-          it.
+          Last updated {UPDATED}. walletlink.social is operated by{' '}
+          {LEGAL_ENTITY}. Write to <Mail /> about anything on this page; a
+          person reads it.
         </p>
 
         <Section id="short" title="The short version">
