@@ -334,6 +334,7 @@ const CLAIMS: Claim[] = [
       'components/ReachabilityClaim.tsx',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
+      'content/published/nine-things-to-build.md',
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
@@ -367,6 +368,7 @@ const CLAIMS: Claim[] = [
       'docs/AI-SEARCH.md',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
+      'content/published/nine-things-to-build.md',
     ],
     // "are suspended" joined the phrasings with the welcome sequence, whose
     // approved copy writes the split as a sentence.
@@ -391,6 +393,7 @@ const CLAIMS: Claim[] = [
       'docs/AI-SEARCH.md',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
+      'content/published/nine-things-to-build.md',
     ],
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
@@ -414,6 +417,7 @@ const CLAIMS: Claim[] = [
       'content/published/ai-agents-why-it-matters.md',
       'content/published/walletlink-vs-blaze.md',
       'content/published/walletlink-vs-addressable.md',
+      'content/published/nine-things-to-build.md',
     ],
     // Matches the constant declaration, the prose form "13,622+ ... agent",
     // and the comparison-table form where "agent" precedes the number

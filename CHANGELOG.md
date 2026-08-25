@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (a post about what the API is for)
+
+- **"Nine things to build with a wallet address, and the calls that do them"**,
+  queued for 27 August. Nine worked recipes: three that need only `curl`, three
+  that turn on the reachability field, and three that only became possible once
+  an agent could call the API itself (MCP in Claude, MCP in Claude Code, and an
+  agent buying its own credits over x402).
+- **Every response body in it is real.** A temporary key was minted against
+  production, each call was made, the output was pasted in, and the key was
+  revoked. An invented `meta` block in a post about an API is the kind of error
+  a reader finds before we do.
+- Four figures registered in `scripts/check-published-figures.ts`: the three
+  reachability shares and the agent count. The post states them in the phrasings
+  the existing patterns already match, so the scheduled sweep checks them like
+  every other published number.
+
 ### 2026-08-25 (one name for the entity)
 
 - **`LEGAL_ENTITY` in `lib/site-url.ts`**, read by the privacy policy, the
