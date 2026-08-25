@@ -243,14 +243,24 @@ async function main() {
       'the HMAC covers the wallet: two wallets give two different tokens',
       tokenFor(wallet, 1_000_000) !== tokenFor(stranger.address, 1_000_000)
     );
+    /**
+     * Correctly signed and correctly tokenised for its own future timestamp,
+     * so the `age < 0` branch is actually reached.
+     *
+     * The first version reused a live token and signature with a different
+     * `issuedAt`, which the HMAC refused first. It passed while the future-date
+     * refusal was deleted. That is the same mistake as the stale-challenge
+     * assertion made, in the assertion written immediately after it.
+     */
+    const futureAt = Date.now() + 60_000;
     ok(
-      'a challenge dated in the future is refused',
+      'a challenge dated in the future is refused, even correctly signed',
       !(
         await verifyRecovery({
           wallet,
-          issuedAt: Date.now() + 60_000,
-          token: ch.token,
-          signature: good,
+          issuedAt: futureAt,
+          token: tokenFor(wallet, futureAt),
+          signature: await sign(buyer, challengeMessage(wallet, futureAt)),
         })
       ).ok
     );

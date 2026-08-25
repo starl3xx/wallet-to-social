@@ -15,14 +15,19 @@ All notable changes to walletlink.social. Newest first.
   was in neither dump list. Each was checkable in seconds; none was checked
   twice. CI enforced button radius, palette, contrast and control height on
   every PR and nothing about the money path.
-- **`scripts/check-invariants-guard.ts` reintroduces nine real defects and
-  requires each to be caught.** It earned its place immediately: three of the
+- **`scripts/check-invariants-guard.ts` reintroduces ten real defects and
+  requires each to be caught.** It earned its place immediately: **four** of the
   first draft's assertions passed while the code they protected was deleted.
   The TTL assertion signed the wrong message, so the request was refused by the
   message binding and the TTL was never reached. The HMAC assertion recomputed
   the HMAC locally and so verified itself. The backup assertion used `[a-z_]+`,
   which cannot match a table name containing digits, and
-  `x402_recovery_redemptions` has three.
+  `x402_recovery_redemptions` has three. The fourth was found by review after
+  the first three were fixed: the future-date assertion reused a live token
+  with a different timestamp, so the HMAC refused it first and the `age < 0`
+  branch was never reached. It was the assertion written immediately after the
+  stale-challenge one, making the same mistake that had just been corrected
+  three lines above.
 - `issueChallenge` now takes an optional `issuedAt`, so a check can exercise it
   at a chosen moment rather than reimplementing what it is testing.
 - No test framework, no new dependency, no database and no secrets, so it runs

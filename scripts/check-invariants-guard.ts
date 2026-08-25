@@ -63,6 +63,12 @@ const MUTATIONS: Mutation[] = [
     to: 'if (false) {',
   },
   {
+    name: 'the future-date refusal is dropped',
+    file: 'lib/x402-recovery.ts',
+    from: 'if (!Number.isFinite(age) || age < 0 || age > CHALLENGE_TTL_MS) {',
+    to: 'if (!Number.isFinite(age) || age > CHALLENGE_TTL_MS) {',
+  },
+  {
     name: 'the challenge signature check is dropped',
     file: 'lib/x402-recovery.ts',
     from: "return valid ? { ok: true } : { ok: false, reason: 'bad_signature' };",
