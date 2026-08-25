@@ -593,6 +593,31 @@ export async function grantPack(
 }
 
 /**
+ * The lot a settled onchain payment already bought, if it bought one.
+ *
+ * Read before anything is verified or settled, because settlement is the step
+ * that cannot be repeated: the EIP-3009 authorization is spent onchain the
+ * first time, so a second `settlePayment` for the same payload fails. Without
+ * this lookup a caller who lost the response, or whose grant failed after the
+ * money moved, would retry into a settlement error and never reach the
+ * idempotent grant that exists to serve exactly them.
+ */
+export async function lotForSettlement(
+  settlementId: string
+): Promise<{ userId: string } | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const [lot] = await db
+    .select({ userId: creditLots.userId })
+    .from(creditLots)
+    .where(eq(creditLots.settlementId, settlementId))
+    .limit(1);
+
+  return lot ?? null;
+}
+
+/**
  * Grant an Agent pack against a settled onchain payment.
  *
  * The twin of `grantPack`, and separate from it for the same reason

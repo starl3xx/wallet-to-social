@@ -32,14 +32,26 @@ import {
   BASE_MAINNET,
 } from '@/lib/x402';
 import { X402_PACKS } from '@/lib/packs';
-import { grantPackBySettlement, getBalance } from '@/lib/credits';
+import {
+  grantPackBySettlement,
+  getBalance,
+  lotForSettlement,
+} from '@/lib/credits';
 import { getOrCreateWalletAccount } from '@/lib/x402-account';
-import { createApiKey } from '@/lib/api-keys';
+import { createApiKeyIfUnderCap } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 
 export const runtime = 'nodejs';
 
 const PACK = X402_PACKS.agent;
+
+/**
+ * Active keys one wallet account may hold.
+ *
+ * Low on purpose. Its only job is to bound key minting from a replayed
+ * payload; a buyer needs one key, and a second is a rotation.
+ */
+const X402_MAX_KEYS = 3;
 
 function b64(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
@@ -138,6 +150,52 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * Has this payment already been honoured?
+   *
+   * Asked before anything is verified or settled, because settlement is the
+   * one step that cannot be repeated: the authorization is spent onchain the
+   * first time, so a second `settlePayment` for the same payload fails. The
+   * first version went straight to settle, which meant a caller who lost the
+   * response retried into a settlement error and could never reach the
+   * idempotent grant that exists to serve exactly them. They had paid, and the
+   * only route to their key was a support thread.
+   *
+   * A fresh key rather than the old one, because only the hash of that was
+   * ever stored. The cap is what bounds a replay: the credits are the ones
+   * already bought either way, so an extra key buys nothing, but unbounded key
+   * minting from a replayed payload is still not a thing to leave open.
+   */
+  const already = await lotForSettlement(settlementId);
+  if (already) {
+    const reissued = await createApiKeyIfUnderCap(
+      already.userId,
+      `x402 ${payer.slice(0, 10)}`,
+      CREDIT_API_PLAN,
+      X402_MAX_KEYS
+    );
+    if (!reissued || 'capReached' in reissued) {
+      return NextResponse.json(
+        {
+          error: `This payment has already been honoured, and its account is at ${X402_MAX_KEYS} active keys. Contact help@walletlink.social with the settlement reference.`,
+          code: 'KEY_CAP_REACHED',
+          settlement: settlementId,
+        },
+        { status: 409 }
+      );
+    }
+    const balance = await getBalance(already.userId);
+    return NextResponse.json({
+      api_key: reissued.rawKey,
+      shown_once: true,
+      matches_available: balance.available,
+      pack: PACK.name,
+      // Already paid for. Nothing was charged this time.
+      newly_granted: false,
+      docs: 'https://docs.walletlink.social/agent-pack',
+    });
+  }
+
   const accepted = requirements[0];
   const verification = await server.verifyPayment(
     payload as Parameters<typeof server.verifyPayment>[0],
@@ -177,12 +235,15 @@ export async function POST(request: NextRequest) {
       PACK.priceCents
     );
 
-    const created = await createApiKey(
+    const created = await createApiKeyIfUnderCap(
       userId,
       `x402 ${payer.slice(0, 10)}`,
-      CREDIT_API_PLAN
+      CREDIT_API_PLAN,
+      X402_MAX_KEYS
     );
-    if (!created) throw new Error('Could not mint an API key.');
+    if (!created || 'capReached' in created) {
+      throw new Error('Could not mint an API key.');
+    }
 
     const balance = await getBalance(userId);
 
@@ -197,7 +258,7 @@ export async function POST(request: NextRequest) {
         // False means this authorization had already bought a pack. The key is
         // still fresh; the credits are the ones already paid for.
         newly_granted: granted,
-        docs: 'https://docs.walletlink.social/mcp-server',
+        docs: 'https://docs.walletlink.social/agent-pack',
       },
       {
         status: 200,

@@ -50,6 +50,17 @@ address is a rail that pays somebody else.
   row exists so every lifecycle send already skips it. `ON CONFLICT DO NOTHING`
   plus a re-select rather than read-then-write, so two settlements from one
   wallet cannot 500 a buyer who has already paid.
+- **A settled payment can be retried, which the first version could not do.**
+  Settlement is the one step that cannot be repeated: the EIP-3009
+  authorization is spent onchain the first time, so a second `settlePayment`
+  for the same payload fails. Going straight to settle meant a caller who lost
+  the response retried into a settlement error and never reached the idempotent
+  grant that exists to serve exactly them. They had paid, and the only route to
+  their key was a support thread. The settlement is now looked up before
+  anything is verified or settled, which is also what makes the documented
+  `newly_granted: false` reachable at all. A fresh key rather than the old one,
+  because only its hash was ever stored, bounded at three active keys per
+  account so a replayed payload cannot mint without limit.
 - **One manual path, and it is loud.** Settle happens before the grant, because
   granting first would hand out credits for a payment that might fail. A
   database failure in between takes money without recording it, so that case
