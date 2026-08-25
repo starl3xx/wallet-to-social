@@ -84,6 +84,7 @@ import {
   getPermissionStatus,
 } from '@/lib/notifications';
 import type { WalletSocialResult, LookupProgress } from '@/lib/types';
+import { asSourceList } from '@/lib/api-sources';
 
 type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
 
@@ -873,9 +874,21 @@ export default function Home() {
                   const key = r.wallet.toLowerCase();
                   const existing = resultMap.get(key);
                   if (existing) {
-                    // Merge sources
+                    // Merge sources.
+                    //
+                    // Through `asSourceList` on both sides, because spreading
+                    // this field is only safe once something has established
+                    // it is a list. A `source` column in an uploaded CSV used
+                    // to land here as a comma-joined string, and spreading a
+                    // string spreads its characters, so the merged set became
+                    // single letters with no error anywhere. The writer is
+                    // fixed in lib/job-processor.ts; a job that ran before
+                    // that fix can still be loaded from history.
                     const mergedSources = [
-                      ...new Set([...existing.source, ...r.source]),
+                      ...new Set([
+                        ...asSourceList(existing.source),
+                        ...asSourceList(r.source),
+                      ]),
                     ];
                     resultMap.set(key, {
                       ...existing,

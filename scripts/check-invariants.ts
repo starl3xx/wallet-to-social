@@ -32,6 +32,7 @@
  * Run: npx tsx scripts/check-invariants.ts
  */
 import { readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -742,6 +743,150 @@ async function main() {
     ok(
       'the cap is enforced only once a code has actually been issued',
       authorize.indexOf('enforceGrantCap(') > lost
+    );
+  }
+
+  // ------------------------------------------------- the source field shape
+  // `source` is typed `string[]`, and that type is a claim about JSON nobody
+  // validated. Our own CSV export writes it as a comma-joined string, a
+  // customer re-uploaded that file, and the string was merged straight over the
+  // array. Nothing threw where it happened: every later stage spreads the field,
+  // and spreading a string spreads its characters, so a job's provenance
+  // quietly became a list of letters. The admin viewer called `.map` and was
+  // the only surface loud enough to notice.
+  {
+    const { asSourceList, publicSources } = await import('@/lib/api-sources');
+
+    // The exact loop that broke: export joins, upload merges, pipeline spreads.
+    const joined = 'web3bio,neynar,cache';
+    ok(
+      'a comma-joined source string is recovered as its list',
+      JSON.stringify(asSourceList(joined)) ===
+        JSON.stringify(['web3bio', 'neynar', 'cache'])
+    );
+    // The bug's signature, asserted directly rather than described. Iterating
+    // the raw string yields 20 characters; through the coercion it yields 3.
+    ok(
+      'spreading a recovered source does NOT spread characters',
+      [...asSourceList(joined), 'graph'].length === 4 &&
+        [...joined, 'graph'].length === 21
+    );
+    ok(
+      'an array is passed through unchanged',
+      JSON.stringify(asSourceList(['a', 'b'])) === JSON.stringify(['a', 'b'])
+    );
+    for (const junk of [null, undefined, 42, {}, [1, 2]]) {
+      ok(
+        `a source of ${JSON.stringify(junk) ?? 'undefined'} becomes an empty list rather than throwing`,
+        Array.isArray(asSourceList(junk))
+      );
+    }
+    // publicSources iterated its argument directly, so a string walked
+    // characters, matched no source class and returned undefined: the evidence
+    // column vanished from a re-uploaded export with no error.
+    ok(
+      'publicSources reads a joined string rather than silently dropping it',
+      publicSources('farcaster,onchain') !== undefined
+    );
+    ok(
+      'publicSources still returns nothing for a genuinely empty source',
+      publicSources([]) === undefined && publicSources(null) === undefined
+    );
+
+    /**
+     * The writer, in every file that has one.
+     *
+     * The first version of this assertion named `lib/job-processor.ts` and
+     * checked only that. Review found a second copy of the same pipeline in
+     * `inngest/functions/wallet-lookup.ts`, with the same bug in two more
+     * object literals, on the path that every upload above the inline
+     * threshold takes. So the fix was in the less used branch and the
+     * assertion agreed with it.
+     *
+     * It discovers the sites now rather than naming them. A third copy of the
+     * pipeline is caught the day it is written, which is the only version of
+     * this check worth having.
+     */
+    const writers = execFileSync(
+      'grep',
+      [
+        '-rl',
+        '--include=*.ts',
+        '--include=*.tsx',
+        '\\.\\.\\.walletData',
+        'lib',
+        'app',
+        'inngest',
+      ],
+      { encoding: 'utf8' }
+    )
+      .split('\n')
+      .filter(Boolean);
+
+    ok(
+      `at least two pipelines spread walletData, and all were found (${writers.length})`,
+      writers.length >= 2
+    );
+
+    /**
+     * The object literal, whole.
+     *
+     * The first version of this loop sliced from the opening brace to
+     * `source: []` and skipped any literal where `walletData` was not in that
+     * slice. In the broken ordering the spread comes *after* the initializer,
+     * so the slice never contained it and the site was silently not checked:
+     * the assertion passed by matching nothing, on precisely the arrangement
+     * it exists to catch. The guard found that before it shipped.
+     *
+     * So the literal is read to its matching brace, and the ordering is
+     * compared inside it.
+     */
+    const objectLiteralAt = (source: string, from: number): string => {
+      let depth = 0;
+      for (let i = from; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') {
+          depth--;
+          if (depth === 0) return source.slice(from, i + 1);
+        }
+      }
+      return source.slice(from);
+    };
+
+    for (const file of writers) {
+      const source = readFileSync(file, 'utf8');
+      let searched = 0;
+      let sites = 0;
+      for (;;) {
+        const at = source.indexOf('source: [],', searched);
+        if (at === -1) break;
+        searched = at + 1;
+        const open = source.lastIndexOf('{', at);
+        const literal = objectLiteralAt(source, open);
+        const spread = literal.indexOf('...walletData');
+        if (spread === -1) continue;
+        sites++;
+        ok(
+          `${file}: uploaded columns are spread before the fields the pipeline owns (site ${sites})`,
+          spread < literal.indexOf('source: [],')
+        );
+      }
+      ok(`${file}: at least one initializer was checked`, sites > 0);
+
+      // A resumed job reloads rows written before that fix, so every entry
+      // point has to normalise or the next spread is back to characters.
+      ok(
+        `${file}: partial results are normalised when a job resumes`,
+        /partialResults[\s\S]{0,600}?asSourceList\(r\.source\)/.test(source)
+      );
+    }
+
+    // And the reader that crashed.
+    const admin = readFileSync('app/admin/page.tsx', 'utf8');
+    ok(
+      'the admin job viewer coerces before mapping over source',
+      admin.includes('asSourceList(result.source).map') &&
+        !admin.includes('result.source?.map')
     );
   }
 

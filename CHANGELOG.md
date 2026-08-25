@@ -2,6 +2,44 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (a CSV column that overwrote the pipeline)
+
+- **Fixed: opening a job in Admin > Jobs could take the whole page down** with
+  `source?.map is not a function`.
+- **The cause was upside-down precedence.** `lib/job-processor.ts` built each
+  result as `{ wallet, source: [], holdings, ...walletData }`, spreading the
+  uploaded CSV columns **last**, so a column name could overwrite a field the
+  pipeline owns. `source` is the one that bites: our own CSV export writes it as
+  a comma-joined string, so a customer who exported results and re-uploaded that
+  file replaced `string[]` with `"web3bio,neynar"`. `wallet` and `holdings` had
+  the same exposure.
+- **Nothing threw where it happened.** Every later stage does
+  `[...existing.source, 'cache']`, and spreading a string spreads its
+  characters, so that job's provenance quietly became a list of letters.
+  `source.includes('neynar')` kept returning true by substring match, and
+  `source.length === 1 && source[0] === 'none'` started reading a character
+  count. `publicSources` iterated the string, matched no class, and returned
+  `undefined`, so the evidence column silently vanished from the export. The
+  admin viewer called `.map` and was the only surface loud enough to notice.
+- **Measured before fixing:** 480,674 stored result rows held an array and 2
+  held a string, across one job and four saved lookups.
+- **Three changes.** The uploaded columns are spread first, so a column cannot
+  win a collision with a computed field. `asSourceList` in `lib/api-sources.ts`
+  recovers a joined string rather than discarding it, since that is the shape
+  that actually occurs. Both read paths coerce, so the rows already stored
+  render instead of crashing, and no customer data was rewritten to achieve it.
+- **Fixed in both pipelines.** Review caught that `inngest/functions/wallet-lookup.ts`
+  is a second copy with the same defect in two more object literals, and it is
+  the path every upload above the inline threshold takes: the first fix landed
+  in the less used branch. The assertion had agreed with it, because it named
+  `lib/job-processor.ts` and checked only that. It discovers the sites now, so
+  a third copy is caught the day it is written.
+- **22 new invariants and 9 new guard mutations**, taking both to 141 and 52.
+  The first mutation is this bug reintroduced verbatim. The guard also caught
+  the replacement assertion passing by matching nothing: it read only the text
+  before `source: []`, so the broken ordering, where the spread comes after,
+  skipped the check entirely.
+
 ### 2026-08-25 (a post about what the API is for)
 
 - **"Nine things to build with a wallet address, and the calls that do them"**,
