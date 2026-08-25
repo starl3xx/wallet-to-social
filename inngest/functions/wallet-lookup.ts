@@ -18,6 +18,7 @@ import {
   calculatePriorityScore,
 } from '@/lib/csv-parser';
 import type { WalletSocialResult } from '@/lib/types';
+import { asSourceList } from '@/lib/api-sources';
 
 // Process wallets in micro-batches for parallel execution
 const MICRO_BATCH_SIZE = 500;
@@ -106,7 +107,11 @@ export const walletLookup = inngest.createFunction(
         const partialResults = (job.partialResults ||
           []) as WalletSocialResult[];
         for (const r of partialResults) {
-          resultsMap.set(r.wallet, r);
+          // Normalised on the way in, for the same reason as the inline
+          // pipeline: a row written before the spread order below was
+          // corrected still carries `source` as a string, and this step runs
+          // on resume as well as on a first pass.
+          resultsMap.set(r.wallet, { ...r, source: asSourceList(r.source) });
         }
 
         // Detect holdings column
@@ -125,11 +130,16 @@ export const walletLookup = inngest.createFunction(
               holdings =
                 parseHoldingsValue(walletData[holdingsCol]) ?? undefined;
             }
+            // Uploaded columns first, then the fields this function owns.
+            // See lib/job-processor.ts for what spreading them last did: our
+            // own CSV export writes `source` as a comma-joined string, so a
+            // re-uploaded export replaced the array and every later
+            // `[...existing.source, 'cache']` spread it into characters.
             resultsMap.set(walletLower, {
+              ...walletData,
               wallet: walletLower,
               source: [],
               holdings,
-              ...walletData,
             });
           }
         }
@@ -225,11 +235,14 @@ export const walletLookup = inngest.createFunction(
                 holdings =
                   parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
               }
+              // Same precedence as the initializer above. Two copies of this
+              // object literal is why the fix had to be made twice; the
+              // invariant asserts both.
               batchResultsMap.set(walletLower, {
+                ...walletData,
                 wallet: walletLower,
                 source: [],
                 holdings,
-                ...walletData,
               });
             }
 

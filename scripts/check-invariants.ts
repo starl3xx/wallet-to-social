@@ -32,6 +32,7 @@
  * Run: npx tsx scripts/check-invariants.ts
  */
 import { readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -792,26 +793,93 @@ async function main() {
       publicSources([]) === undefined && publicSources(null) === undefined
     );
 
-    // The writer. Uploaded columns are spread FIRST so a column name cannot
-    // overwrite a field this function computed. `wallet` and `holdings` had the
-    // same exposure as `source`.
-    const processor = readFileSync('lib/job-processor.ts', 'utf8');
-    const init = processor.slice(
-      processor.indexOf('for (const wallet of walletsToProcess) {'),
-      processor.indexOf('const neynarApiKey')
-    );
+    /**
+     * The writer, in every file that has one.
+     *
+     * The first version of this assertion named `lib/job-processor.ts` and
+     * checked only that. Review found a second copy of the same pipeline in
+     * `inngest/functions/wallet-lookup.ts`, with the same bug in two more
+     * object literals, on the path that every upload above the inline
+     * threshold takes. So the fix was in the less used branch and the
+     * assertion agreed with it.
+     *
+     * It discovers the sites now rather than naming them. A third copy of the
+     * pipeline is caught the day it is written, which is the only version of
+     * this check worth having.
+     */
+    const writers = execFileSync(
+      'grep',
+      [
+        '-rl',
+        '--include=*.ts',
+        '--include=*.tsx',
+        '\\.\\.\\.walletData',
+        'lib',
+        'app',
+        'inngest',
+      ],
+      { encoding: 'utf8' }
+    )
+      .split('\n')
+      .filter(Boolean);
+
     ok(
-      'uploaded CSV columns are spread before the fields the pipeline owns',
-      init.indexOf('...walletData') !== -1 &&
-        init.indexOf('...walletData') < init.indexOf('source: []') &&
-        init.indexOf('...walletData') < init.indexOf('wallet: walletLower')
+      `at least two pipelines spread walletData, and all were found (${writers.length})`,
+      writers.length >= 2
     );
-    // A resumed job reloads rows written before that fix, so the entry point
-    // has to normalise too or the next spread is back to characters.
-    ok(
-      'partial results are normalised when a job resumes',
-      /partialResults[\s\S]{0,400}?asSourceList\(r\.source\)/.test(processor)
-    );
+
+    /**
+     * The object literal, whole.
+     *
+     * The first version of this loop sliced from the opening brace to
+     * `source: []` and skipped any literal where `walletData` was not in that
+     * slice. In the broken ordering the spread comes *after* the initializer,
+     * so the slice never contained it and the site was silently not checked:
+     * the assertion passed by matching nothing, on precisely the arrangement
+     * it exists to catch. The guard found that before it shipped.
+     *
+     * So the literal is read to its matching brace, and the ordering is
+     * compared inside it.
+     */
+    const objectLiteralAt = (source: string, from: number): string => {
+      let depth = 0;
+      for (let i = from; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') {
+          depth--;
+          if (depth === 0) return source.slice(from, i + 1);
+        }
+      }
+      return source.slice(from);
+    };
+
+    for (const file of writers) {
+      const source = readFileSync(file, 'utf8');
+      let searched = 0;
+      let sites = 0;
+      for (;;) {
+        const at = source.indexOf('source: [],', searched);
+        if (at === -1) break;
+        searched = at + 1;
+        const open = source.lastIndexOf('{', at);
+        const literal = objectLiteralAt(source, open);
+        const spread = literal.indexOf('...walletData');
+        if (spread === -1) continue;
+        sites++;
+        ok(
+          `${file}: uploaded columns are spread before the fields the pipeline owns (site ${sites})`,
+          spread < literal.indexOf('source: [],')
+        );
+      }
+      ok(`${file}: at least one initializer was checked`, sites > 0);
+
+      // A resumed job reloads rows written before that fix, so every entry
+      // point has to normalise or the next spread is back to characters.
+      ok(
+        `${file}: partial results are normalised when a job resumes`,
+        /partialResults[\s\S]{0,600}?asSourceList\(r\.source\)/.test(source)
+      );
+    }
 
     // And the reader that crashed.
     const admin = readFileSync('app/admin/page.tsx', 'utf8');

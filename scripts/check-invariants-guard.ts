@@ -264,6 +264,24 @@ const MUTATIONS: Mutation[] = [
     to: '          wallet: walletLower,\n          source: [],\n          holdings,\n          ...walletData,',
   },
   {
+    name: 'the Inngest pipeline overwrites owned fields again (Bugbot, 2026-08-25)',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '              ...walletData,\n              wallet: walletLower,\n              source: [],\n              holdings,',
+    to: '              wallet: walletLower,\n              source: [],\n              holdings,\n              ...walletData,',
+  },
+  {
+    name: 'the Inngest batch initializer overwrites owned fields again',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '                ...walletData,\n                wallet: walletLower,\n                source: [],\n                holdings,',
+    to: '                wallet: walletLower,\n                source: [],\n                holdings,\n                ...walletData,',
+  },
+  {
+    name: 'the Inngest path reloads its partial results without normalising them',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: 'resultsMap.set(r.wallet, { ...r, source: asSourceList(r.source) });',
+    to: 'resultsMap.set(r.wallet, r);',
+  },
+  {
     name: 'asSourceList stops recovering a joined string, so a re-uploaded export loses its evidence',
     file: 'lib/api-sources.ts',
     from: "  if (typeof value === 'string') {",

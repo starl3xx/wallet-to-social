@@ -28,8 +28,17 @@ All notable changes to walletlink.social. Newest first.
   recovers a joined string rather than discarding it, since that is the shape
   that actually occurs. Both read paths coerce, so the rows already stored
   render instead of crashing, and no customer data was rewritten to achieve it.
-- **16 new invariants and 6 new guard mutations**, taking both to 135 and 49.
-  The first mutation is this bug reintroduced verbatim.
+- **Fixed in both pipelines.** Review caught that `inngest/functions/wallet-lookup.ts`
+  is a second copy with the same defect in two more object literals, and it is
+  the path every upload above the inline threshold takes: the first fix landed
+  in the less used branch. The assertion had agreed with it, because it named
+  `lib/job-processor.ts` and checked only that. It discovers the sites now, so
+  a third copy is caught the day it is written.
+- **22 new invariants and 9 new guard mutations**, taking both to 141 and 52.
+  The first mutation is this bug reintroduced verbatim. The guard also caught
+  the replacement assertion passing by matching nothing: it read only the text
+  before `source: []`, so the broken ordering, where the spread comes after,
+  skipped the check entirely.
 
 ### 2026-08-25 (a post about what the API is for)
 
