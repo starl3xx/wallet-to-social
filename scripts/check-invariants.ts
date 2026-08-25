@@ -47,6 +47,15 @@ import {
   lockedReverseMessage,
   MISS_EXPLANATION,
 } from '../lib/reverse-access';
+import {
+  DIRECT,
+  firstTouchFrom,
+  ACQUISITION_MAX_LENGTH,
+  referrerHost,
+  safeAcquisition,
+  safeTag,
+  summariseOrigin,
+} from '../lib/first-touch';
 
 /**
  * Set before anything that reads it is called.
@@ -65,6 +74,25 @@ let checked = 0;
 function ok(claim: string, condition: boolean) {
   checked++;
   if (!condition) failures.push(claim);
+}
+
+/**
+ * Source with its comments removed.
+ *
+ * An assertion that "the signup path never writes `users.origin`" matched the
+ * comment explaining why it must not, which is the funniest possible way for a
+ * source-level check to fail and a completely real one: prose about a
+ * forbidden pattern contains the forbidden pattern. Rewording the comment to
+ * satisfy a regex would be fixing the test by damaging the explanation, so the
+ * regex reads code instead.
+ *
+ * Deliberately crude. It is not a parser and does not need to be: it runs over
+ * this repository's own source, where no string literal contains `*\/`.
+ */
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 async function main() {
@@ -1295,6 +1323,243 @@ async function main() {
     ok(
       'a missing session is not answered with 401',
       !/Sign in to use reverse lookup/.test(route)
+    );
+  }
+
+  // ------------------------------------------- Attribution: what we keep of it
+  // Recording where somebody came from means holding a string another site
+  // chose. The referrer is the dangerous one: other sites put search queries,
+  // private document paths and their own session tokens in the URLs they link
+  // from, and a full referrer would land all of it in our database under a
+  // column nobody thinks of as sensitive.
+  {
+    const SELF = 'walletlink.social';
+
+    // The attacker is another site's URL, trying to get its query string into
+    // our database by being linked from.
+    const leaky = [
+      'https://mail.google.com/mail/u/0/#inbox/FMfcgz?token=SECRETVALUE',
+      'https://example.com/reset-password?reset_token=abc123def456',
+      'https://search.example/?q=how+to+find+a+wallet+owner',
+      'https://user:hunter2@intranet.example.com/hr/salaries.pdf',
+    ];
+    for (const url of leaky) {
+      const host = referrerHost(url, SELF);
+      ok(
+        `a referrer carrying a secret keeps only its host (${host})`,
+        host !== null &&
+          !host.includes('?') &&
+          !host.includes('/') &&
+          !host.includes('#') &&
+          !host.includes('@') &&
+          !/secret|token|salaries|how\+to/i.test(host)
+      );
+    }
+
+    // Prove the gate can pass, or a function returning null always would
+    // satisfy every assertion above.
+    ok(
+      'a plain referrer yields its host',
+      referrerHost('https://warpcast.com/dwr/0x123', SELF) === 'warpcast.com'
+    );
+    ok(
+      'www is stripped so one site is one row',
+      referrerHost('https://www.warpcast.com/x', SELF) === 'warpcast.com'
+    );
+
+    // Our own pages are not an acquisition channel. Counting them would make
+    // the site its own biggest referrer within a day.
+    ok(
+      'a self-referral is not a source',
+      referrerHost(`https://${SELF}/pricing`, SELF) === null
+    );
+    ok(
+      'a self-referral is not a source with www either',
+      referrerHost(`https://www.${SELF}/pricing`, SELF) === null
+    );
+    for (const junk of ['', '   ', 'not a url', 'javascript:alert(1)']) {
+      ok(
+        `an unusable referrer (${JSON.stringify(junk)}) yields nothing`,
+        referrerHost(junk, SELF) === null
+      );
+    }
+
+    // Campaign tags arrive from the open internet and end up in a column, an
+    // admin table and a CSV.
+    ok(
+      'a tag carrying markup is reduced to its safe characters',
+      safeTag('<script>alert(1)</script>') === 'scriptalert1script'
+    );
+    ok(
+      'a tag carrying a quote cannot break out',
+      !(safeTag(`x' OR 1=1 --`) ?? '').includes("'")
+    );
+    ok(
+      'a tag is length bounded',
+      (safeTag('a'.repeat(500)) ?? '').length <= 64
+    );
+    ok(
+      'an empty tag is absent rather than blank',
+      safeTag('   ') === undefined
+    );
+
+    /**
+     * The whole summary is bounded, because it becomes one column value.
+     *
+     * The host here is long but *valid*. The first version used 300 characters,
+     * which fails the hostname check and drops out, so the referrer never
+     * reached the summary and the total sat under the bound on its own: the
+     * assertion passed with the final clamp deleted. Caught by the guard, which
+     * is the entire reason it exists.
+     */
+    const longHost = `${'a'.repeat(60)}.example.com`;
+    const monstrous = firstTouchFrom(
+      `?utm_source=${'s'.repeat(400)}&utm_medium=${'m'.repeat(400)}&utm_campaign=${'c'.repeat(400)}`,
+      `https://${longHost}/x`,
+      SELF
+    );
+    ok(
+      'the unclamped summary really would exceed the bound',
+      `utm:${'s'.repeat(64)}/${'m'.repeat(64)}/${'c'.repeat(64)}/via:${longHost}`
+        .length > ACQUISITION_MAX_LENGTH
+    );
+    ok(
+      'an absurd query cannot produce an unbounded origin',
+      summariseOrigin(monstrous).length <= ACQUISITION_MAX_LENGTH
+    );
+
+    // A visit that says nothing must say so, rather than producing an empty
+    // string that reads as a missing value.
+    ok(
+      'a bare visit is recorded as direct',
+      summariseOrigin(firstTouchFrom('', '', SELF)) === DIRECT
+    );
+    ok(
+      'a referred visit is not recorded as direct',
+      summariseOrigin(firstTouchFrom('', 'https://warpcast.com/x', SELF)) !==
+        DIRECT
+    );
+
+    // What the server accepts from a client is not what the client should have
+    // sent. This value arrives in a request body.
+    ok(
+      'a posted acquisition is sanitised, not trusted',
+      !(safeAcquisition("ref:x'; DROP TABLE users; --") ?? '').includes("'")
+    );
+    ok(
+      'a posted acquisition is length bounded',
+      (safeAcquisition('x'.repeat(5000)) ?? '').length <= ACQUISITION_MAX_LENGTH
+    );
+    ok(
+      'a non-string acquisition is refused',
+      safeAcquisition({ evil: true }) === null
+    );
+    ok(
+      'an empty acquisition is null rather than blank',
+      safeAcquisition('   ') === null
+    );
+    ok(
+      'a normal acquisition survives the sanitiser',
+      safeAcquisition('ref:relaunch-2026-08/via:warpcast.com') ===
+        'ref:relaunch-2026-08/via:warpcast.com'
+    );
+
+    /**
+     * First touch, not last.
+     *
+     * Every later sign-in arrives with whatever the browser holds now, so an
+     * update on an existing user would rewrite the acquisition source at every
+     * login and the column would converge on whatever people last clicked.
+     */
+    const access = readFileSync('lib/access.ts', 'utf8');
+    const fn = access.slice(
+      access.indexOf('export async function getOrCreateUser')
+    );
+    const body = withoutComments(fn.slice(0, fn.indexOf('\n}')));
+    ok(
+      'getOrCreateUser returns an existing row untouched',
+      /if \(existing\) return existing;/.test(body) &&
+        !/update\(users\)/.test(body)
+    );
+    ok(
+      'getOrCreateUser writes acquisition only on insert',
+      /\.insert\(users\)[\s\S]{0,400}acquisition:/.test(body)
+    );
+
+    /**
+     * Attribution must never reach `users.origin` (Bugbot, 2026-08-25, High).
+     *
+     * That column is a control flag, not a label: `getBalance` withholds the
+     * free allowance when it reads `'x402'` there. The first version of this
+     * feature stored first-touch attribution in it, because a query showing
+     * 139 nulls in 139 rows made it look like an unused field. Unused and
+     * unpopulated are different facts, and the schema comment said which one
+     * it was.
+     *
+     * Since the value arrives in a request body, sharing the column meant a
+     * posted `origin: "x402"` could mint a magic-link account that silently
+     * never receives its 100 free matches.
+     */
+    ok(
+      'the signup path never writes users.origin',
+      !/\borigin:/.test(body) &&
+        !/update\(users\)[\s\S]{0,200}\borigin:/.test(withoutComments(access))
+    );
+    const credits = readFileSync('lib/credits.ts', 'utf8');
+    ok(
+      'the free allowance still keys on users.origin, so the two are not one column',
+      /origin === 'x402'/.test(credits)
+    );
+    const schema = readFileSync('db/schema.ts', 'utf8');
+    ok(
+      'users carries both columns, separately',
+      /origin: text\('origin'\)/.test(schema) &&
+        /acquisition: text\('acquisition'\)/.test(schema)
+    );
+
+    /**
+     * Collecting a new category of data means saying so.
+     *
+     * The policy is live and enumerates what is held. A referring domain and a
+     * campaign tag are not covered by "page views and product events", and
+     * quietly widening collection under copy written before it is the failure
+     * this asserts against.
+     */
+    const policy = readFileSync('app/privacy/page.tsx', 'utf8');
+    ok(
+      'the privacy policy discloses where-you-came-from collection',
+      /Where you arrived from/.test(policy)
+    );
+    ok(
+      'the policy states that the full referring address is not kept',
+      /Never the full web address/.test(policy)
+    );
+
+    // The origin has to travel with the token, because the browser that asks
+    // for a sign-in link is routinely not the one that opens it.
+    const auth = readFileSync('lib/auth.ts', 'utf8');
+    /**
+     * Scoped to the values object, not a character window.
+     *
+     * The first version allowed 200 characters after `insert(magicLinkTokens)`
+     * and failed on correct code, because a comment inside the object pushed
+     * the field past the bound. A window that a comment can break is a window
+     * that will pass the day somebody moves the field further away, too.
+     */
+    const insertAt = auth.indexOf('insert(magicLinkTokens)');
+    const valuesObject =
+      insertAt >= 0 ? auth.slice(insertAt, auth.indexOf('});', insertAt)) : '';
+    ok(
+      'the magic link token records the acquisition',
+      valuesObject.includes('acquisition:')
+    );
+    ok(
+      'the magic link token does not carry a rail marker field',
+      !valuesObject.includes('origin:')
+    );
+    ok(
+      'verifying a token hands the acquisition back',
+      /acquisition: tokenRecord\.acquisition/.test(auth)
     );
   }
 

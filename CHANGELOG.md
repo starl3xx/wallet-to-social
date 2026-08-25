@@ -2,6 +2,51 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (three blind spots, closed)
+
+- **`/api/reverse` now emits an event.** The app's reverse lookup, the primary
+  action on the page that receives 91% of traffic, wrote no analytics at all, so
+  an engaged visitor and a bounce were the same row. It is fired from the client
+  so the event carries a session id, which the server-side lookup events do not,
+  and it records `locked` so the free half of the endpoint can be told apart
+  from the paid one.
+- **`users.acquisition` holds where an account came from.** It is written on
+  insert only: first touch, not last. An update on an existing user would rewrite the acquisition
+  source at every login and the column would converge on whatever people last
+  clicked.
+- **Not `users.origin`.** That column says which rail minted the row, and
+  `getBalance` reads `'x402'` there to withhold the free allowance. A query
+  showing 139 nulls in 139 rows made it look unused; unused and unpopulated are
+  different facts, and the schema comment said which one it was. Sharing the
+  column would have let a posted `origin: "x402"` mint a magic-link account that
+  silently never receives its 100 free matches (found by Bugbot, High).
+- **The attribution travels with the magic link token**
+  (`magic_link_tokens.acquisition`,
+  `scripts/migrate-first-touch.ts`). The browser that knows the first touch is
+  the one that typed the email; the browser that creates the user row is
+  whichever opens the mail, routinely a webmail preview or a link scanner.
+  Reading it at verify time would have credited a share of every campaign to
+  Gmail, which is worse than null because it looks like data.
+- **First touch is captured once per browser** (`lib/first-touch.ts`): the
+  referring host, `?ref=`, and the three UTM parameters, reduced to one
+  groupable string. Stored in `localStorage`, never overwritten.
+- **The referring host, never the referring URL.** Other sites put search terms,
+  private document paths and their own session tokens in the addresses they link
+  from. `referrerHost` reads `hostname` and discards everything else, and the
+  invariants push URLs carrying a reset token and a search query through it. A
+  self-referral returns null, or the site becomes its own biggest traffic source
+  within a day.
+- **The privacy policy says so**, because a referring domain and a campaign tag
+  are not covered by "page views and product events".
+- 69 assertions and 10 mutations, 233 and 82. One of them strips comments
+  before reading source, because the assertion that the signup path never writes
+  `users.origin` matched the comment explaining why it must not. The guard caught one of the new
+  assertions passing while the code it protected was deleted: the "absurd query
+  cannot produce an unbounded origin" case used a 300-character host, which
+  fails the hostname check and drops out, so the total never approached the
+  bound. The input is now long and valid, and a second assertion proves the
+  unclamped string really would exceed it.
+
 ### 2026-08-25 (the gate fired before the answer)
 
 - **The reverse lookup on the homepage now answers everybody.** A caller

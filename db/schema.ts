@@ -238,6 +238,22 @@ export const users = pgTable(
      * signup, it is not churn, and it must never be mailed.
      */
     origin: text('origin'),
+    /**
+     * Where the person came from, which is a different question to `origin`.
+     *
+     * `origin` says which rail minted the row and is read as a control flag:
+     * `getBalance` withholds the free allowance when it is `'x402'`. This says
+     * which cast, campaign or site brought somebody, and is read only by
+     * humans asking whether a campaign worked.
+     *
+     * Keeping them apart is not tidiness. Attribution arrives in a request
+     * body, so sharing the column would let a posted `'x402'` mint a
+     * magic-link account that silently never receives its free matches.
+     *
+     * Written on insert only. First touch, not last: an update at each sign-in
+     * would rewrite the acquisition source every time somebody logged in.
+     */
+    acquisition: text('acquisition'),
   },
   (table) => [
     index('users_email_idx').on(table.email),
@@ -545,6 +561,21 @@ export const magicLinkTokens = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
     usedAt: timestamp('used_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    /**
+     * Where the browser that asked for this link came from.
+     *
+     * It rides with the token because the two halves of a sign-in happen in
+     * different browsers more often than is comfortable: the first touch is in
+     * the localStorage of whatever typed the email, and the row is created by
+     * whatever opens the mail, which is routinely a webmail preview or a link
+     * scanner. Reading it at verify time would credit a share of every
+     * campaign to Gmail. See `lib/first-touch.ts`.
+     *
+     * Named `acquisition`, not `origin`, and the distinction is load bearing.
+     * `users.origin` means which rail created an account, and `getBalance`
+     * reads `'x402'` there to withhold the free allowance.
+     */
+    acquisition: text('acquisition'),
   },
   (table) => [
     index('magic_link_tokens_email_idx').on(table.email),

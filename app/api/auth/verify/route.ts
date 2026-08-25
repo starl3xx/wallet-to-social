@@ -63,10 +63,12 @@ export async function GET(request: NextRequest) {
       return redirectWithError(verifyResult.error);
     }
 
-    const { email } = verifyResult;
+    const { email, acquisition } = verifyResult;
 
-    // Get or create the user
-    const user = await getOrCreateUser(email);
+    // Get or create the user. `acquisition` was recorded by the browser that
+    // asked for the link and is written only when the row is new. It is not
+    // `users.origin`, which says which rail minted the row.
+    const user = await getOrCreateUser(email, acquisition);
 
     // Create a session
     const userAgent = request.headers.get('user-agent') || undefined;

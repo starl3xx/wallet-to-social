@@ -18,6 +18,7 @@ import {
   CheckCircle as CheckCircle2,
   ArrowLeft,
 } from '@phosphor-icons/react';
+import { originTag } from '@/lib/first-touch';
 
 interface AuthModalProps {
   open: boolean;
@@ -69,7 +70,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       const response = await fetch('/api/auth/send-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, origin: originTag() }),
       });
 
       const data = await response.json();

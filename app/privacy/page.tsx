@@ -136,6 +136,16 @@ export default function PrivacyPage() {
             made, so rate limits and credits can be counted.
           </p>
           <p>
+            <span className="text-foreground">Where you arrived from.</span>{' '}
+            Recorded once per browser, the first time you land: the{' '}
+            <em>domain</em> of the site that linked you, and any campaign tag on
+            the address you followed. Never the full web address you came from,
+            because those routinely carry other people&rsquo;s search terms and
+            session tokens, which we do not want and do not keep. If you create
+            an account, that one short value is stored with it so we can tell
+            which campaigns brought people. It is never updated afterwards.
+          </p>
+          <p>
             <span className="text-foreground">Technical data.</span> Your IP
             address, held only as a counter against an hourly bucket so an
             endpoint cannot be scraped, and the browser string attached to a

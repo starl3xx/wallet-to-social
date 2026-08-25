@@ -208,7 +208,10 @@ export async function effectiveTierForUserId(
 /**
  * Get or create a user by email
  */
-export async function getOrCreateUser(email: string) {
+export async function getOrCreateUser(
+  email: string,
+  acquisition?: string | null
+) {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
@@ -221,12 +224,29 @@ export async function getOrCreateUser(email: string) {
     .where(eq(users.email, normalizedEmail))
     .limit(1);
 
+  /**
+   * An existing user keeps the origin they were acquired with.
+   *
+   * First touch, not last, and this is the line that enforces it. Every later
+   * sign-in arrives with whatever the browser happens to hold now, so an
+   * update here would rewrite the acquisition source on every login and the
+   * column would slowly converge on `direct` for everybody. Returning early
+   * without touching it is the whole guarantee.
+   */
   if (existing) return existing;
 
   // Create new user
   const [newUser] = await db
     .insert(users)
-    .values({ email: normalizedEmail })
+    /**
+     * `acquisition`, never `origin`.
+     *
+     * `users.origin` says which rail minted the row and `getBalance` reads
+     * `'x402'` there to withhold the free allowance. Writing attribution into
+     * it would mean a posted `origin: "x402"` could mint a magic-link account
+     * that silently never receives its 100 free matches.
+     */
+    .values({ email: normalizedEmail, acquisition: acquisition ?? null })
     .returning();
 
   return newUser;
