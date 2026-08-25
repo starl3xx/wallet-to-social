@@ -10,12 +10,18 @@ All notable changes to walletlink.social. Newest first.
   so the event carries a session id, which the server-side lookup events do not,
   and it records `locked` so the free half of the endpoint can be told apart
   from the paid one.
-- **`users.origin` finally holds something.** The column has existed since the
-  table did and had 139 rows and 139 nulls. It is written on insert only: first
-  touch, not last. An update on an existing user would rewrite the acquisition
+- **`users.acquisition` holds where an account came from.** It is written on
+  insert only: first touch, not last. An update on an existing user would rewrite the acquisition
   source at every login and the column would converge on whatever people last
   clicked.
-- **The origin travels with the magic link token** (`magic_link_tokens.origin`,
+- **Not `users.origin`.** That column says which rail minted the row, and
+  `getBalance` reads `'x402'` there to withhold the free allowance. A query
+  showing 139 nulls in 139 rows made it look unused; unused and unpopulated are
+  different facts, and the schema comment said which one it was. Sharing the
+  column would have let a posted `origin: "x402"` mint a magic-link account that
+  silently never receives its 100 free matches (found by Bugbot, High).
+- **The attribution travels with the magic link token**
+  (`magic_link_tokens.acquisition`,
   `scripts/migrate-first-touch.ts`). The browser that knows the first touch is
   the one that typed the email; the browser that creates the user row is
   whichever opens the mail, routinely a webmail preview or a link scanner.
@@ -32,7 +38,9 @@ All notable changes to walletlink.social. Newest first.
   within a day.
 - **The privacy policy says so**, because a referring domain and a campaign tag
   are not covered by "page views and product events".
-- 65 assertions and 8 mutations, 229 and 80. The guard caught one of the new
+- 69 assertions and 10 mutations, 233 and 82. One of them strips comments
+  before reading source, because the assertion that the signup path never writes
+  `users.origin` matched the comment explaining why it must not. The guard caught one of the new
   assertions passing while the code it protected was deleted: the "absurd query
   cannot produce an unbounded origin" case used a 300-character host, which
   fails the hostname check and drops out, so the total never approached the

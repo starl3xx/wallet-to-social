@@ -50,9 +50,9 @@ import {
 import {
   DIRECT,
   firstTouchFrom,
-  ORIGIN_MAX_LENGTH,
+  ACQUISITION_MAX_LENGTH,
   referrerHost,
-  safeOrigin,
+  safeAcquisition,
   safeTag,
   summariseOrigin,
 } from '../lib/first-touch';
@@ -74,6 +74,25 @@ let checked = 0;
 function ok(claim: string, condition: boolean) {
   checked++;
   if (!condition) failures.push(claim);
+}
+
+/**
+ * Source with its comments removed.
+ *
+ * An assertion that "the signup path never writes `users.origin`" matched the
+ * comment explaining why it must not, which is the funniest possible way for a
+ * source-level check to fail and a completely real one: prose about a
+ * forbidden pattern contains the forbidden pattern. Rewording the comment to
+ * satisfy a regex would be fixing the test by damaging the explanation, so the
+ * regex reads code instead.
+ *
+ * Deliberately crude. It is not a parser and does not need to be: it runs over
+ * this repository's own source, where no string literal contains `*\/`.
+ */
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 async function main() {
@@ -1402,11 +1421,11 @@ async function main() {
     ok(
       'the unclamped summary really would exceed the bound',
       `utm:${'s'.repeat(64)}/${'m'.repeat(64)}/${'c'.repeat(64)}/via:${longHost}`
-        .length > ORIGIN_MAX_LENGTH
+        .length > ACQUISITION_MAX_LENGTH
     );
     ok(
       'an absurd query cannot produce an unbounded origin',
-      summariseOrigin(monstrous).length <= ORIGIN_MAX_LENGTH
+      summariseOrigin(monstrous).length <= ACQUISITION_MAX_LENGTH
     );
 
     // A visit that says nothing must say so, rather than producing an empty
@@ -1424,18 +1443,24 @@ async function main() {
     // What the server accepts from a client is not what the client should have
     // sent. This value arrives in a request body.
     ok(
-      'a posted origin is sanitised, not trusted',
-      !(safeOrigin("ref:x'; DROP TABLE users; --") ?? '').includes("'")
+      'a posted acquisition is sanitised, not trusted',
+      !(safeAcquisition("ref:x'; DROP TABLE users; --") ?? '').includes("'")
     );
     ok(
-      'a posted origin is length bounded',
-      (safeOrigin('x'.repeat(5000)) ?? '').length <= ORIGIN_MAX_LENGTH
+      'a posted acquisition is length bounded',
+      (safeAcquisition('x'.repeat(5000)) ?? '').length <= ACQUISITION_MAX_LENGTH
     );
-    ok('a non-string origin is refused', safeOrigin({ evil: true }) === null);
-    ok('an empty origin is null rather than blank', safeOrigin('   ') === null);
     ok(
-      'a normal origin survives the sanitiser',
-      safeOrigin('ref:relaunch-2026-08/via:warpcast.com') ===
+      'a non-string acquisition is refused',
+      safeAcquisition({ evil: true }) === null
+    );
+    ok(
+      'an empty acquisition is null rather than blank',
+      safeAcquisition('   ') === null
+    );
+    ok(
+      'a normal acquisition survives the sanitiser',
+      safeAcquisition('ref:relaunch-2026-08/via:warpcast.com') ===
         'ref:relaunch-2026-08/via:warpcast.com'
     );
 
@@ -1450,15 +1475,46 @@ async function main() {
     const fn = access.slice(
       access.indexOf('export async function getOrCreateUser')
     );
-    const body = fn.slice(0, fn.indexOf('\n}'));
+    const body = withoutComments(fn.slice(0, fn.indexOf('\n}')));
     ok(
       'getOrCreateUser returns an existing row untouched',
       /if \(existing\) return existing;/.test(body) &&
         !/update\(users\)/.test(body)
     );
     ok(
-      'getOrCreateUser writes origin only on insert',
-      /\.insert\(users\)[\s\S]{0,120}origin/.test(body)
+      'getOrCreateUser writes acquisition only on insert',
+      /\.insert\(users\)[\s\S]{0,400}acquisition:/.test(body)
+    );
+
+    /**
+     * Attribution must never reach `users.origin` (Bugbot, 2026-08-25, High).
+     *
+     * That column is a control flag, not a label: `getBalance` withholds the
+     * free allowance when it reads `'x402'` there. The first version of this
+     * feature stored first-touch attribution in it, because a query showing
+     * 139 nulls in 139 rows made it look like an unused field. Unused and
+     * unpopulated are different facts, and the schema comment said which one
+     * it was.
+     *
+     * Since the value arrives in a request body, sharing the column meant a
+     * posted `origin: "x402"` could mint a magic-link account that silently
+     * never receives its 100 free matches.
+     */
+    ok(
+      'the signup path never writes users.origin',
+      !/\borigin:/.test(body) &&
+        !/update\(users\)[\s\S]{0,200}\borigin:/.test(withoutComments(access))
+    );
+    const credits = readFileSync('lib/credits.ts', 'utf8');
+    ok(
+      'the free allowance still keys on users.origin, so the two are not one column',
+      /origin === 'x402'/.test(credits)
+    );
+    const schema = readFileSync('db/schema.ts', 'utf8');
+    ok(
+      'users carries both columns, separately',
+      /origin: text\('origin'\)/.test(schema) &&
+        /acquisition: text\('acquisition'\)/.test(schema)
     );
 
     /**
@@ -1494,12 +1550,16 @@ async function main() {
     const valuesObject =
       insertAt >= 0 ? auth.slice(insertAt, auth.indexOf('});', insertAt)) : '';
     ok(
-      'the magic link token records the origin',
-      valuesObject.includes('origin:')
+      'the magic link token records the acquisition',
+      valuesObject.includes('acquisition:')
     );
     ok(
-      'verifying a token hands the origin back',
-      /return \{ email: tokenRecord\.email, origin:/.test(auth)
+      'the magic link token does not carry a rail marker field',
+      !valuesObject.includes('origin:')
+    );
+    ok(
+      'verifying a token hands the acquisition back',
+      /acquisition: tokenRecord\.acquisition/.test(auth)
     );
   }
 

@@ -572,9 +572,11 @@ the packs instead (fixed 2026-08-21).
 
 **Attribution is first touch, recorded once per browser** (`lib/first-touch.ts`).
 The referring host, `?ref=` and the three UTM parameters are reduced to one
-groupable string in `users.origin`, written on insert only so a later sign-in
-cannot rewrite where an account came from. The value rides on
-`magic_link_tokens.origin` because the browser holding the first touch is the one
+groupable string in `users.acquisition`, written on insert only so a later
+sign-in cannot rewrite where an account came from. **Not `users.origin`**, which
+says which rail minted the row and whose `'x402'` value `getBalance` reads to
+withhold the free allowance. The value rides on `magic_link_tokens.acquisition`
+because the browser holding the first touch is the one
 that requested the link, not necessarily the one that opens it. Only the referring
 **host** is kept, never the full referrer URL.
 

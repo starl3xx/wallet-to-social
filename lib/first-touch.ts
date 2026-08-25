@@ -28,14 +28,22 @@
  * The value is written once and never overwritten. Someone who arrives from a
  * cast, leaves, and returns by typing the address a week later was acquired by
  * the cast; recording "direct" at signup would credit the wrong thing and there
- * would be no way to notice. `users.origin` is likewise set on insert only.
+ * would be no way to notice. `users.acquisition` is likewise set on insert only.
+ *
+ * ## Not `users.origin`
+ *
+ * That column already means something: which rail minted the account, where
+ * `'x402'` is read by `getBalance` to withhold the free allowance. A query
+ * showing it held 139 nulls in 139 rows made it look unused, and unused and
+ * unpopulated are different facts. Sharing it would have let a posted
+ * `origin: "x402"` mint a magic-link account with no free matches.
  */
 
 /** Campaign tags are short. Anything longer is not a campaign name. */
 export const TAG_MAX_LENGTH = 64;
 
 /** The whole summary, bounded so it cannot become a place to store text. */
-export const ORIGIN_MAX_LENGTH = 200;
+export const ACQUISITION_MAX_LENGTH = 200;
 
 /** What a visit with no referrer and no tags is called. */
 export const DIRECT = 'direct';
@@ -131,7 +139,7 @@ export function firstTouchFrom(
 }
 
 /**
- * One short string for `users.origin`.
+ * One short string for `users.acquisition`.
  *
  * Ordered by how much the arrival tells us, most explicit first. A link we
  * tagged ourselves beats UTM parameters, which beat a referring host, which
@@ -162,7 +170,7 @@ export function summariseOrigin(touch: FirstTouch): string {
   // Clamped rather than trusted. Every component above is already bounded, so
   // this can only fire if one of them stops being, which is exactly when a
   // length bound earns its place.
-  return summary.slice(0, ORIGIN_MAX_LENGTH);
+  return summary.slice(0, ACQUISITION_MAX_LENGTH);
 }
 
 /**
@@ -258,14 +266,19 @@ export function captureFirstTouch(): FirstTouch | null {
  * function is what produced the string it received: this arrives in a request
  * body and anyone can post anything. Same alphabet as a tag plus the two
  * separators the summary format uses, and the same length bound.
+ *
+ * It lands in `users.acquisition` and never in `users.origin`, which is the
+ * column that decides whether an account gets the free allowance. That
+ * separation is structural, so this function does not need to know the rail
+ * names; the invariants check that it stays structural.
  */
-export function safeOrigin(raw: unknown): string | null {
+export function safeAcquisition(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const cleaned = raw
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._:/-]/g, '')
-    .slice(0, ORIGIN_MAX_LENGTH);
+    .slice(0, ACQUISITION_MAX_LENGTH);
   return cleaned.length > 0 ? cleaned : null;
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateMagicLinkToken, isAllowedReturnPath } from '@/lib/auth';
-import { safeOrigin } from '@/lib/first-touch';
+import { safeAcquisition } from '@/lib/first-touch';
 import { sendMagicLink, isEmailConfigured } from '@/lib/email';
 
 export const runtime = 'nodejs';
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     const body: SendMagicLinkRequest = await request.json();
     const { email } = body;
-    const origin = safeOrigin(body.origin);
+    const acquisition = safeAcquisition(body.origin);
     const returnPath = isAllowedReturnPath(body.next ?? null)
       ? body.next
       : undefined;
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate magic link token (rate limited in lib/auth.ts)
-    const tokenResult = await generateMagicLinkToken(email, origin);
+    const tokenResult = await generateMagicLinkToken(email, acquisition);
 
     if ('error' in tokenResult) {
       // Rate limit error returns 429

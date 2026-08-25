@@ -60,14 +60,26 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the origin summary loses its length bound',
     file: 'lib/first-touch.ts',
-    from: '  return summary.slice(0, ORIGIN_MAX_LENGTH);',
+    from: '  return summary.slice(0, ACQUISITION_MAX_LENGTH);',
     to: '  return summary;',
   },
   {
-    name: 'a posted origin is trusted as sent',
+    name: 'a posted acquisition is trusted as sent',
     file: 'lib/first-touch.ts',
-    from: "    .replace(/[^a-z0-9._:/-]/g, '')\n    .slice(0, ORIGIN_MAX_LENGTH);",
-    to: '    .slice(0, ORIGIN_MAX_LENGTH);',
+    from: "    .replace(/[^a-z0-9._:/-]/g, '')\n    .slice(0, ACQUISITION_MAX_LENGTH);",
+    to: '    .slice(0, ACQUISITION_MAX_LENGTH);',
+  },
+  {
+    name: 'attribution is written into the x402 rail column (Bugbot, 2026-08-25)',
+    file: 'lib/access.ts',
+    from: '.values({ email: normalizedEmail, acquisition: acquisition ?? null })',
+    to: '.values({ email: normalizedEmail, origin: acquisition ?? null })',
+  },
+  {
+    name: 'the free allowance stops keying on the rail column',
+    file: 'lib/credits.ts',
+    from: "if (account?.origin === 'x402') {",
+    to: 'if (false) {',
   },
   {
     name: 'last touch wins, so every login rewrites the acquisition source',
@@ -78,7 +90,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the origin never travels with the token, so verify sees nothing',
     file: 'lib/auth.ts',
-    from: '      origin: origin ? origin.slice(0, ORIGIN_MAX_LENGTH) : null,',
+    from: '      acquisition: acquisition\n        ? acquisition.slice(0, ACQUISITION_MAX_LENGTH)\n        : null,',
     to: '',
   },
 

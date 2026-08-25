@@ -208,7 +208,10 @@ export async function effectiveTierForUserId(
 /**
  * Get or create a user by email
  */
-export async function getOrCreateUser(email: string, origin?: string | null) {
+export async function getOrCreateUser(
+  email: string,
+  acquisition?: string | null
+) {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
@@ -235,7 +238,15 @@ export async function getOrCreateUser(email: string, origin?: string | null) {
   // Create new user
   const [newUser] = await db
     .insert(users)
-    .values({ email: normalizedEmail, origin: origin ?? null })
+    /**
+     * `acquisition`, never `origin`.
+     *
+     * `users.origin` says which rail minted the row and `getBalance` reads
+     * `'x402'` there to withhold the free allowance. Writing attribution into
+     * it would mean a posted `origin: "x402"` could mint a magic-link account
+     * that silently never receives its 100 free matches.
+     */
+    .values({ email: normalizedEmail, acquisition: acquisition ?? null })
     .returning();
 
   return newUser;
