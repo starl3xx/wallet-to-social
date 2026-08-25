@@ -33,6 +33,25 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'a chain tile takes a label that cannot fit its control',
+    file: 'lib/chains.ts',
+    from: "  robinhood: 'Robinhood',\n};",
+    to: "  robinhood: 'Robinhood Chain',\n};",
+  },
+  {
+    name: 'the tile bound is widened until nothing can fail it',
+    file: 'lib/chains.ts',
+    from: 'export const TILE_LABEL_MAX_CHARS = 10;',
+    to: 'export const TILE_LABEL_MAX_CHARS = 99;',
+  },
+  {
+    name: 'the full chain name is shortened at the source instead of at the tile',
+    file: 'lib/chains.ts',
+    from: "  robinhood: 'Robinhood Chain',\n  arbitrum:",
+    to: "  robinhood: 'Robinhood',\n  arbitrum:",
+  },
+
+  {
     name: 'attribution is collected without the policy saying so',
     file: 'app/privacy/page.tsx',
     from: 'Where you arrived from.',

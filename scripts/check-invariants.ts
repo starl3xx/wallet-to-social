@@ -42,6 +42,12 @@ import {
   parseExclusions,
 } from './concierge-filters';
 import {
+  CHAIN_LABELS,
+  CHAIN_TILE_LABELS,
+  SUPPORTED_CHAINS,
+  TILE_LABEL_MAX_CHARS,
+} from '../lib/chains';
+import {
   ADDRESS_SHAPE,
   lockedReverseBody,
   lockedReverseMessage,
@@ -1560,6 +1566,47 @@ async function main() {
     ok(
       'verifying a token hands the acquisition back',
       /acquisition: tokenRecord\.acquisition/.test(auth)
+    );
+  }
+
+  // ------------------------------------- Chain tiles: a control cannot grow
+  // The network picker is a grid of `h-control` tiles, 34px, three across in a
+  // modal. "Robinhood Chain" needed a little more than the ~103px of text a
+  // tile gives, wrapped to two lines and broke out of the one height every
+  // control in this product shares. `control-height` renders three pages and
+  // this modal is not one of them, so nothing caught it.
+  {
+    for (const chain of SUPPORTED_CHAINS) {
+      const tile = CHAIN_TILE_LABELS[chain];
+      ok(
+        `${chain} has a tile label`,
+        typeof tile === 'string' && tile.length > 0
+      );
+      ok(
+        `${chain}'s tile label fits a control (${tile?.length} chars)`,
+        (tile?.length ?? 99) <= TILE_LABEL_MAX_CHARS
+      );
+      ok(
+        `${chain} still has a full label for surfaces with room`,
+        typeof CHAIN_LABELS[chain] === 'string' &&
+          CHAIN_LABELS[chain].length > 0
+      );
+    }
+
+    // The shortening is for the tile only. Everywhere with room keeps the name.
+    ok(
+      'the full chain name is not shortened at the source',
+      CHAIN_LABELS.robinhood === 'Robinhood Chain'
+    );
+    ok(
+      'the tile label is the one that was shortened',
+      CHAIN_TILE_LABELS.robinhood === 'Robinhood'
+    );
+
+    // Prove the bound can fail, or a max of 99 would satisfy every assertion.
+    ok(
+      'the full name would fail the tile bound',
+      CHAIN_LABELS.robinhood.length > TILE_LABEL_MAX_CHARS
     );
   }
 
