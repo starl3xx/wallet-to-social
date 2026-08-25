@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (saying the rail exists)
+
+The onchain rail went live and nothing pointed at it but its own docs page.
+
+- **`/vs/formo` gains the row the rail was built for.** Both sides now take
+  USDC on Base with no account, which makes it the one row comparing like with
+  like. The difference is what the money buys: Formo charges a fixed $0.05 per
+  address whether or not it resolves, and the Agent pack is $1 for 12
+  **matches**, about $0.0198 an address, with a wallet that resolves to nobody
+  costing nothing. Roughly 2.5x further on a list that matches at our measured
+  rate. Both figures are derived from `lib/packs.ts` rather than written down,
+  so the copy cannot drift from what the rail charges.
+- **`llms.txt` gains a section**, which matters more than the rest: it is the
+  surface an agent actually reads, and an agent is who the rail is for. Price,
+  what a dollar buys, that misses are free, and how to recover a lost key.
+- **README** gains a feature row and a section on the design.
+- **The pricing UI is deliberately untouched.** `PackPricing` and
+  `UpgradeModal` say nothing about the Agent pack, because a $1 pack shown
+  beside a $29 Trial is the cannibalisation that keeping it out of `PACKS`
+  exists to prevent. A surface that should advertise it imports `X402_PACKS`
+  explicitly.
+
 ### 2026-08-25 (key recovery, which the payment could never provide)
 
 `GET /api/x402/recover?wallet=…` issues a challenge; signing it with the wallet
