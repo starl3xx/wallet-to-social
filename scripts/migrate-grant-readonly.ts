@@ -38,6 +38,10 @@ const READ_ONLY_TABLES = [
   // CLAUDE.md note describes, caught the way it says it will be: later, in CI,
   // on a run that was green on the machine that wrote it.
   'known_agents',
+  // Added 2026-08-25 with the recovery endpoint. Written by the app rather
+  // than by a sweep, but it is in the nightly dump list for the same reason
+  // credit_lots is: it is evidence about who was issued what.
+  'x402_recovery_redemptions',
 ];
 
 /**

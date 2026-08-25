@@ -21,13 +21,24 @@
  * own secret rather than a reuse, so rotating it invalidates only recovery
  * challenges.
  *
- * The window is deliberately short. A signed challenge is worth something to an
- * attacker only inside it, and only if they can also read the reply carrying
- * the key, which means they are already reading the response they would be
- * stealing.
+ * ## Single use, because short is not enough
+ *
+ * The first version relied on the five-minute window alone, reasoning that an
+ * attacker would also need to read the reply carrying the key. That was wrong.
+ * A replayer sends the captured request from their own connection and receives
+ * their own key in their own response; the victim's reply never comes into it.
+ * With the three-key cap they can also fill it and lock the buyer out of the
+ * recovery they were trying to use.
+ *
+ * So a redeemed challenge is recorded and refused thereafter. The insert
+ * happens before a key is minted and the primary key decides the race, so two
+ * simultaneous redemptions of one challenge produce one key rather than two.
  */
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { verifyMessage } from 'viem';
+import { eq, lt } from 'drizzle-orm';
+import { getDb } from '@/db';
+import { x402RecoveryRedemptions } from '@/db/schema';
 
 /** How long a challenge stays signable. */
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -130,4 +141,64 @@ export async function verifyRecovery(input: {
     // Malformed signature or address.
     return { ok: false, reason: 'bad_signature' };
   }
+}
+
+/**
+ * Spend a challenge, or report that it was already spent.
+ *
+ * Insert-first rather than check-then-insert. A read followed by a write leaves
+ * a window where two redemptions of the same challenge both find nothing and
+ * both proceed, which is exactly the race a replayer creates on purpose. The
+ * primary key decides it instead, so one of them gets a key and the other is
+ * told the truth.
+ *
+ * Called only after a signature has verified, so this cannot be grown by an
+ * unauthenticated caller.
+ */
+export async function consumeChallenge(
+  token: string,
+  wallet: string,
+  issuedAt: number
+): Promise<boolean> {
+  const db = getDb();
+  // No database is not "already spent". Refuse rather than mint a key that
+  // nothing can record having handed out.
+  if (!db) return false;
+
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+
+  try {
+    await db.insert(x402RecoveryRedemptions).values({
+      tokenHash,
+      wallet: wallet.toLowerCase(),
+      expiresAt: new Date(issuedAt + CHALLENGE_TTL_MS),
+    });
+  } catch {
+    // The only constraint here is the primary key, so a failure is a replay.
+    return false;
+  }
+
+  /**
+   * Opportunistic sweep. A redemption matters only until the challenge it
+   * spent would have expired anyway, and doing it here keeps the table from
+   * needing a cron of its own for a handful of rows a day.
+   */
+  db.delete(x402RecoveryRedemptions)
+    .where(lt(x402RecoveryRedemptions.expiresAt, new Date()))
+    .catch(() => {});
+
+  return true;
+}
+
+/** Whether a challenge has already been spent. Reads, never writes. */
+export async function challengeSpent(token: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return true;
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  const [row] = await db
+    .select({ tokenHash: x402RecoveryRedemptions.tokenHash })
+    .from(x402RecoveryRedemptions)
+    .where(eq(x402RecoveryRedemptions.tokenHash, tokenHash))
+    .limit(1);
+  return Boolean(row);
 }

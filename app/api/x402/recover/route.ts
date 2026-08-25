@@ -16,6 +16,7 @@ import { isAddress } from 'viem';
 import {
   issueChallenge,
   verifyRecovery,
+  consumeChallenge,
   CHALLENGE_TTL_MS,
 } from '@/lib/x402-recovery';
 import { createApiKeyIfUnderCap } from '@/lib/api-keys';
@@ -170,6 +171,28 @@ export async function POST(request: NextRequest) {
         code: 'PROOF_REJECTED',
       },
       { status: 403 }
+    );
+  }
+
+  /**
+   * Spend the challenge before anything is issued against it.
+   *
+   * A valid signature is not enough on its own: the redeem request travels
+   * over the wire, and anyone who captures it can send it again from their own
+   * connection and receive their own key. They never need the victim's reply.
+   * The five-minute window narrows that, it does not close it.
+   *
+   * Insert-first, so the primary key decides a race between two simultaneous
+   * redemptions rather than a read that both of them pass.
+   */
+  if (!(await consumeChallenge(token, wallet, issuedAt))) {
+    return NextResponse.json(
+      {
+        error:
+          'That challenge has already been used. Request a fresh one and sign it within five minutes.',
+        code: 'CHALLENGE_SPENT',
+      },
+      { status: 409 }
     );
   }
 
