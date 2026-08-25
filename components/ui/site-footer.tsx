@@ -167,6 +167,7 @@ export function SiteFooter() {
             <FooterLink href={`${REPO}/blob/main/CHANGELOG.md`} external>
               Changelog
             </FooterLink>
+            <FooterLink href="/privacy">Privacy</FooterLink>
             <FooterLink href="mailto:help@walletlink.social">
               help@walletlink.social
             </FooterLink>

@@ -45,6 +45,17 @@ const READ_ONLY_TABLES = [
   // written, so a nightly dump would restore a day-old list of expired hashes.
   // An earlier version of this comment claimed the opposite and was wrong.
   'x402_recovery_redemptions',
+  // Added 2026-08-25 with the MCP server's OAuth flow.
+  //
+  // Read-only only, and deliberately absent from BACKUP_TABLES. A grant is a
+  // live credential rather than a record: restoring one from last night would
+  // resurrect a connection somebody revoked this morning, which is the exact
+  // opposite of what a person expects a disconnect button to have done. The
+  // authorization requests expire in half an hour and the client rows are
+  // re-registered or re-fetched on demand, so neither is worth a dump either.
+  'oauth_clients',
+  'oauth_grants',
+  'oauth_authorization_requests',
 ];
 
 /**

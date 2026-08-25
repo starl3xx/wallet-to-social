@@ -71,7 +71,7 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 | **Agent detection**  | 13,000+ known AI agent wallets flagged                                                            |
 | **Reverse lookup**   | X handle or Farcaster username back to wallets                                                    |
 | **Public API**       | Included with every pack, drawing the same credits; self-serve keys                               |
-| **MCP server**       | Five tools at `/api/mcp`, same key and same balance; listed in the MCP registry                   |
+| **MCP server**       | Five tools at `/api/mcp`, OAuth or the same key, same balance; listed in the MCP registry         |
 | **Onchain rail**     | `$1` Agent pack for USDC on Base at `/api/x402/buy`, no account; key recovery by wallet signature |
 | **Exports**          | Full CSV sorted by priority, or a plain handle list for an X list import                          |
 
@@ -235,9 +235,23 @@ The Agent pack lives in `X402_PACKS`, never `PACKS`, so `isPackId()` refuses it 
 
 ## MCP server
 
-`https://walletlink.social/api/mcp`, five tools over the same six endpoints. Remote, no OAuth, and the same bearer key and same balance as the REST API. Listed in the official MCP registry as `social.walletlink/wallet-identity`, verified by DNS rather than by GitHub, so the namespace is the domain.
+`https://walletlink.social/api/mcp`, five tools over the same six endpoints. Remote, on the same balance as the REST API. Listed in the official MCP registry as `social.walletlink/wallet-identity`, verified by DNS rather than by GitHub, so the namespace is the domain.
 
-It authenticates nothing and bills nothing of its own: each tool carries the caller's key into the v1 handler, which already owns authentication, rate limiting and the debit. Doing either at the MCP layer would charge twice for one tool call. `app/api/mcp/route.ts` says why at length.
+### Two ways in
+
+A bearer key, which is what a server you run yourself should use, and an OAuth 2.1 connection, which is what a client with a person behind it should use.
+
+The OAuth half is a full authorization server, not a delegation: `/.well-known/oauth-protected-resource` (RFC 9728) names the issuer, `/.well-known/oauth-authorization-server` (RFC 8414) names the endpoints, and both are rewrites in `next.config.ts` because the App Router will not route a directory whose name begins with a dot. Clients register through client ID metadata documents or dynamic registration (RFC 7591); both are public clients, so PKCE with `S256` is required and no secret is issued. The consent screen is `/oauth/authorize`.
+
+**The access token is an `api_keys` row.** That is the design rather than a shortcut: metering, the three rate-limit windows, the balance check and the usage ledger all key off that table, and a second credential type would have needed a second copy of every one of them, which is where the meter starts disagreeing with itself. What an access token needs was already columns there. `expires_at` bounds it to an hour, `revoked_at` ends it, and the one new column, `oauth_grant_id`, is what tells it from a key somebody pasted into a config file. The consequence, written down rather than implied: an access token also authenticates a plain REST call, because it is the same credential type. The five tools are the six endpoints, so there is nothing on one surface that is not on the other.
+
+Refusing has to happen at the transport. A tool call with no credential, or with an expired or revoked token, answers 401 with `WWW-Authenticate`; a 200 carrying a tool error is read by a client as a tool that failed, so no token is refreshed and nobody is offered a way to connect. A mistyped bearer key is deliberately not treated that way: it reaches the API and comes back as readable text, which is what somebody who has just pasted one needs.
+
+Refresh tokens rotate, and the value each one replaced is kept. Presenting the replaced one is proof of a leak rather than a bad string, because the real client already exchanged it, and that revokes the whole grant. A replayed authorization code does the same.
+
+### It bills nothing of its own
+
+Each tool carries the caller's credential into the v1 handler, which already owns authentication, rate limiting and the debit. Doing either at the MCP layer would charge twice for one tool call. `app/api/mcp/route.ts` says why at length.
 
 Discovery answers without a key, so a client can list the tools before buying anything. That is the one unauthenticated surface, and it is bounded by IP rather than by key.
 

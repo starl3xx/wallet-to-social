@@ -47,9 +47,10 @@ function purchaseCopy(packName: string, matches: number): MagicLinkCopy {
  */
 export async function sendMagicLink(
   email: string,
-  token: string
+  token: string,
+  returnPath?: string
 ): Promise<{ success: boolean; error?: string }> {
-  return sendLinkEmail(email, token, SIGN_IN_COPY);
+  return sendLinkEmail(email, token, SIGN_IN_COPY, returnPath);
 }
 
 /**
@@ -67,7 +68,8 @@ export async function sendPurchaseSignInLink(
 async function sendLinkEmail(
   email: string,
   token: string,
-  copy: MagicLinkCopy
+  copy: MagicLinkCopy,
+  returnPath?: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!resend) {
     console.error('Resend not configured - RESEND_API_KEY missing');
@@ -76,7 +78,14 @@ async function sendLinkEmail(
 
   // Resolved per call rather than at module load: a module-level constant is
   // captured when the lambda cold-starts, which hides any later env change.
-  const magicLink = `${getSiteUrl()}/api/auth/verify?token=${token}`;
+  //
+  // `next` is present only when a caller passed a path that
+  // `isAllowedReturnPath` accepted, and `/api/auth/verify` checks it again
+  // before acting on it. Two checks rather than one because the value survives
+  // a round trip through a mailbox, and only the check on the way back is the
+  // one an attacker has to get past.
+  const next = returnPath ? `&next=${encodeURIComponent(returnPath)}` : '';
+  const magicLink = `${getSiteUrl()}/api/auth/verify?token=${token}${next}`;
 
   try {
     const { error } = await resend.emails.send({

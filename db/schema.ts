@@ -623,11 +623,29 @@ export const apiKeys = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     expiresAt: timestamp('expires_at'),
     revokedAt: timestamp('revoked_at'),
+
+    /**
+     * Set when this key is an OAuth access token rather than a key a person
+     * created and copied.
+     *
+     * An OAuth access token for the MCP server is an `api_keys` row. That is
+     * the whole design: metering, the three rate-limit windows, the credit
+     * balance check and the usage ledger all key off this table, and a second
+     * credential type would need a second copy of every one of them. The
+     * differences an access token needs are already columns here: `expires_at`
+     * bounds its life, `revoked_at` ends it, and this points at the consent
+     * that created it.
+     *
+     * Null for every key made in the dashboard, which is what tells the two
+     * apart. `lib/oauth/grants.ts` owns everything that sets it.
+     */
+    oauthGrantId: uuid('oauth_grant_id'),
   },
   (table) => [
     index('api_keys_user_id_idx').on(table.userId),
     index('api_keys_key_idx').on(table.key),
     index('api_keys_is_active_idx').on(table.isActive),
+    index('api_keys_oauth_grant_idx').on(table.oauthGrantId),
   ]
 );
 
@@ -935,3 +953,151 @@ export type SocialGraphHistory = typeof socialGraphHistory.$inferSelect;
 export type NewSocialGraphHistory = typeof socialGraphHistory.$inferInsert;
 export type KnownAgent = typeof knownAgents.$inferSelect;
 export type NewKnownAgent = typeof knownAgents.$inferInsert;
+
+/**
+ * OAuth 2.1 clients, for the MCP server's authorization server.
+ *
+ * Two kinds of client land in this table and they are not the same thing.
+ *
+ * A **dynamically registered** client (RFC 7591) posts its metadata to
+ * `/api/oauth/register` and we mint an opaque `client_id` for it. Nothing about
+ * it is verifiable: the name and the redirect URIs are whatever the caller
+ * typed. `is_cimd` is false for these.
+ *
+ * A **Client ID Metadata Document** client presents an HTTPS URL as its
+ * `client_id`, and that URL serves the metadata. The document is still
+ * self-asserted, but the URL is not: it is a host somebody had to control to
+ * serve the document, so it is the only thing on a consent screen worth
+ * showing. Rows with `is_cimd` true are a fetch cache, refreshed on expiry, and
+ * `client_id` is the URL itself.
+ *
+ * The distinction matters at exactly one place, the consent screen, where a
+ * CIMD client is identified by its host and a DCR client is identified as
+ * unverified. See `lib/oauth/clients.ts`.
+ */
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    clientId: text('client_id').primaryKey(),
+    clientName: text('client_name'),
+    clientUri: text('client_uri'),
+    logoUri: text('logo_uri'),
+    redirectUris: jsonb('redirect_uris').notNull().$type<string[]>(),
+    grantTypes: jsonb('grant_types').notNull().$type<string[]>(),
+    // Every client here is public: Claude authenticates as `none` under both
+    // CIMD and DCR, and we issue no secrets, so there is no secret to store.
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method')
+      .default('none')
+      .notNull(),
+    scope: text('scope'),
+    isCimd: boolean('is_cimd').default(false).notNull(),
+    // Only meaningful for CIMD rows: when the cached document goes stale.
+    fetchedAt: timestamp('fetched_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('oauth_clients_is_cimd_idx').on(table.isCimd)]
+);
+
+/**
+ * One authorization request, from the moment it arrives to the moment its code
+ * is spent.
+ *
+ * It is a single row rather than two tables because a pending request and an
+ * issued code are the same request at two ages, and splitting them invites the
+ * bug where a code exists with no record of what was consented to.
+ *
+ * The row is created before the user is known, which is what makes the sign-in
+ * detour safe. `/oauth/authorize` validates the whole request, writes it here,
+ * and thereafter refers to it only by this opaque id. Nothing the client sent
+ * travels through the magic-link round trip, so there is no attacker-supplied
+ * URL for the sign-in flow to redirect to. See `app/api/auth/verify/route.ts`.
+ *
+ * `code_hash` is null until consent. After consent it holds the SHA-256 of the
+ * authorization code, and `consumed_at` is stamped the first time that code is
+ * exchanged. A second exchange finds `consumed_at` set and, per OAuth 2.1,
+ * revokes the grant that the first exchange created.
+ */
+export const oauthAuthorizationRequests = pgTable(
+  'oauth_authorization_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: text('client_id').notNull(),
+    redirectUri: text('redirect_uri').notNull(),
+    // PKCE is required, so this is not nullable. S256 only; `plain` is refused
+    // at the endpoint rather than stored and checked later.
+    codeChallenge: text('code_challenge').notNull(),
+    scope: text('scope').notNull(),
+    // RFC 8707. Recorded so the token response can be checked against what the
+    // client actually asked to reach.
+    resource: text('resource'),
+    state: text('state'),
+    // Null until the user consents.
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash'),
+    codeExpiresAt: timestamp('code_expires_at'),
+    consumedAt: timestamp('consumed_at'),
+    grantId: uuid('grant_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('oauth_authorization_requests_code_hash_idx').on(
+      table.codeHash
+    ),
+    index('oauth_authorization_requests_expires_idx').on(table.expiresAt),
+    index('oauth_authorization_requests_user_idx').on(table.userId),
+  ]
+);
+
+/**
+ * One consented grant: this user let this client reach this resource.
+ *
+ * The access token is not here. It is an `api_keys` row carrying this grant's
+ * id, which is what makes an OAuth call meter, rate limit and bill through the
+ * same path as every other key, with no second implementation of any of it.
+ *
+ * The refresh token is here, and it rotates. `refresh_token_hash` is the one
+ * that works; `previous_refresh_token_hash` is the one it replaced, kept for a
+ * single purpose: presenting it is proof that a refresh token leaked, because
+ * the legitimate client already exchanged it and holds the successor. OAuth 2.1
+ * says to revoke the whole grant on that signal, and this column is what lets
+ * us tell that case from an ordinary bad string.
+ */
+export const oauthGrants = pgTable(
+  'oauth_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull(),
+    // Denormalized so a revoked or re-registered client cannot change what the
+    // user's connected-apps list says they agreed to.
+    clientLabel: text('client_label').notNull(),
+    scope: text('scope').notNull(),
+    resource: text('resource'),
+    refreshTokenHash: text('refresh_token_hash'),
+    previousRefreshTokenHash: text('previous_refresh_token_hash'),
+    refreshExpiresAt: timestamp('refresh_expires_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    lastUsedAt: timestamp('last_used_at'),
+    revokedAt: timestamp('revoked_at'),
+    revokedReason: text('revoked_reason'),
+  },
+  (table) => [
+    index('oauth_grants_user_idx').on(table.userId),
+    uniqueIndex('oauth_grants_refresh_hash_idx').on(table.refreshTokenHash),
+    index('oauth_grants_prev_refresh_hash_idx').on(
+      table.previousRefreshTokenHash
+    ),
+  ]
+);
+
+export type OauthClient = typeof oauthClients.$inferSelect;
+export type NewOauthClient = typeof oauthClients.$inferInsert;
+export type OauthAuthorizationRequest =
+  typeof oauthAuthorizationRequests.$inferSelect;
+export type NewOauthAuthorizationRequest =
+  typeof oauthAuthorizationRequests.$inferInsert;
+export type OauthGrant = typeof oauthGrants.$inferSelect;
+export type NewOauthGrant = typeof oauthGrants.$inferInsert;

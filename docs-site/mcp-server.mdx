@@ -4,14 +4,50 @@ description: 'Five tools that let an agent resolve wallets to social identities,
 ---
 
 An agent can call walletlink.social directly, without a human first reading this
-reference. The server is remote, needs no OAuth, and authenticates with the same
-key the REST API uses.
+reference. The server is remote, and takes either an OAuth connection or the
+same key the REST API uses.
 
 ```
 https://walletlink.social/api/mcp
 ```
 
 ## Connect
+
+### Sign in, from a client that supports OAuth
+
+Add the URL above as a connector and the client does the rest. There is no key
+to create, copy or paste: the first tool call opens a consent screen, you sign
+in with your email, approve, and the call continues where it left off.
+
+This is the shortest path in Claude, Claude Code and anything else that follows
+the MCP authorization specification, and it is the one to prefer. A connection
+carries no long-lived secret anywhere: access is a token that lasts an hour and
+renews itself, and disconnecting is immediate.
+
+The server registers clients two ways, so nothing needs arranging in advance:
+
+- **Client ID metadata documents**, which is what Claude and Claude Code use
+- **Dynamic client registration** ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)),
+  at `https://walletlink.social/api/oauth/register`, for clients that do not
+  publish a metadata document
+
+Both register as public clients, so PKCE with `S256` is required and no client
+secret is issued. Discovery starts at
+[`/.well-known/oauth-protected-resource`](https://walletlink.social/.well-known/oauth-protected-resource).
+
+<Note>
+  A connection can spend match credits, so it is worth knowing what it can
+  reach. It can resolve wallets in both directions and read your credit balance.
+  It cannot see your saved lookups, your billing details or your email address,
+  and it cannot buy credits or change anything about your account.
+</Note>
+
+### Disconnect
+
+**Account menu > API keys > Connected applications**, then Disconnect. It takes
+effect on the next call, not at the end of the hour: the access token is
+revoked along with the connection, and the refresh token that would have renewed
+it stops working at the same moment.
 
 ### One click, from the app
 
@@ -70,10 +106,23 @@ header, exactly as it does for the REST API.
 Keys are self-serve from the account menu for any account holding credits.
 
 <Note>
-  Discovery works without a key. A client can connect and list the tools with no
-  `Authorization` header at all, so you can see what is on offer before buying
-  anything. Calling a tool needs a key.
+  Discovery works without a credential. A client can connect and list the tools
+  with no `Authorization` header at all, so you can see what is on offer before
+  buying anything. Calling a tool needs one.
 </Note>
+
+### Which to use
+
+|                     | OAuth                             | API key                              |
+| ------------------- | --------------------------------- | ------------------------------------ |
+| Set up              | Sign in when first asked          | Create a key, paste it into a config |
+| Lives for           | An hour, renewed automatically    | Until you revoke it                  |
+| Stored where        | In the client, refreshed          | Wherever you pasted it               |
+| Ends it             | Disconnect, from your account     | Revoke, from your account            |
+| Also works for REST | Yes, though there is no reason to | Yes                                  |
+
+An OAuth connection is better for a person using a client. A key is better for
+a server you run yourself, where there is no browser to sign in with.
 
 ## The five tools
 
@@ -153,6 +202,17 @@ if you would rather generate a client than install a server.
 A failed call comes back as a tool error with a readable message, never as a
 transport failure, so the session survives and the agent can tell you what went
 wrong. Out of credits reads as "No credits left. Buy a pack to continue."
+
+Authentication is the exception, and deliberately. A tool call arriving with no
+credential, or with an OAuth access token that has expired or been revoked, is
+refused with HTTP 401 and a `WWW-Authenticate` header rather than a tool error.
+A client reads that as a signal to refresh its token or ask you to sign in, and
+then retries the same call; a tool error would be handed to the model as text
+and the turn would move on with nothing fixed.
+
+A mistyped API key is not treated that way. It reaches the API and comes back as
+a tool error saying the key is invalid, which is what somebody who has just
+pasted one needs to read.
 
 ## Limits
 

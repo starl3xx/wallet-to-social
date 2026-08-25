@@ -1,11 +1,29 @@
 import { createHash, randomBytes } from 'crypto';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
 import { API_PLANS } from '@/lib/api-plans';
 
 // Key format: wts_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (32 random chars)
 const KEY_PREFIX = 'wts_live_';
+
+/**
+ * The other prefix this function accepts.
+ *
+ * An OAuth access token for the MCP server is an `api_keys` row, so it arrives
+ * here and must pass the format check. It is a separate prefix rather than a
+ * `wts_live_` key so that a log line, a support ticket or a key list says which
+ * kind of credential it is without a database read.
+ *
+ * Written out rather than imported from `lib/oauth/grants.ts`: that module
+ * imports `hashApiKey` from here, and a cycle between the credential format and
+ * the credential mint is the kind of thing that resolves to `undefined` at run
+ * time and turns this check into `rawKey.startsWith(undefined)`.
+ * `scripts/check-invariants.ts` asserts the two constants agree.
+ */
+const OAUTH_KEY_PREFIX = 'wts_mcp_';
+
+export const ACCEPTED_KEY_PREFIXES = [KEY_PREFIX, OAUTH_KEY_PREFIX];
 const KEY_LENGTH = 32;
 
 /**
@@ -102,11 +120,22 @@ export async function createApiKeyIfUnderCap(
   if (!key) return null;
 
   // 2. Self-heal: revoke this key if it is beyond the cap by rank order.
+  //
+  // `oauth_grant_id IS NULL` excludes OAuth access tokens from the ranking,
+  // and it is not tidiness. Without it, connecting Claude mints a grant key,
+  // that key counts toward this cap, and the next dashboard key the user makes
+  // ranks past the cap and revokes itself. Worse the other way round: a user at
+  // the cap who connects a client has an access token minted that outranks
+  // nothing, while their own keys stay put, so the count is wrong in whichever
+  // direction happens to hurt. Grants are capped separately, in
+  // `lib/oauth/grants.ts`, because they are a different thing being limited for
+  // a different reason.
   const healed = (await db.execute(sql`
     WITH ranked AS (
       SELECT id, row_number() OVER (ORDER BY created_at, id) AS rn
       FROM api_keys
       WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL
+        AND oauth_grant_id IS NULL
     )
     UPDATE api_keys
     SET is_active = false, revoked_at = now()
@@ -133,7 +162,7 @@ export async function validateApiKey(
   if (!db) return null;
 
   // Quick format check
-  if (!rawKey.startsWith(KEY_PREFIX)) {
+  if (!ACCEPTED_KEY_PREFIXES.some((prefix) => rawKey.startsWith(prefix))) {
     return null;
   }
 
@@ -257,7 +286,14 @@ export async function rotateApiKey(
 }
 
 /**
- * Lists all API keys for a user (without exposing the actual key hash)
+ * Lists the API keys a user made, without exposing the hash.
+ *
+ * OAuth access tokens are excluded. They are `api_keys` rows, but they are not
+ * keys anyone created or can copy: they last an hour, they rotate on refresh,
+ * and revoking one from a key list would only cause the client to mint another
+ * on its next refresh, which reads as a revoke button that does not work. The
+ * thing a person wants to revoke is the grant, and that is listed and revoked
+ * as a connected application.
  */
 export async function listApiKeys(userId: string): Promise<ApiKey[]> {
   const db = getDb();
@@ -266,7 +302,7 @@ export async function listApiKeys(userId: string): Promise<ApiKey[]> {
   return db
     .select()
     .from(apiKeys)
-    .where(eq(apiKeys.userId, userId))
+    .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.oauthGrantId)))
     .orderBy(apiKeys.createdAt);
 }
 

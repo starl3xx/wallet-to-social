@@ -3,7 +3,7 @@
   "name": "social.walletlink/wallet-identity",
   "title": "walletlink.social",
   "description": "Resolve wallet addresses to X and Farcaster accounts, and back again.",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "websiteUrl": "https://docs.walletlink.social/mcp-server",
   "repository": {
     "url": "https://github.com/starl3xx/wallet-to-social",
@@ -16,8 +16,8 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer wts_live_... An API key from https://walletlink.social, self-serve for any account holding credits. Tool discovery works without one; calling a tool needs it.",
-          "isRequired": true,
+          "description": "Bearer wts_live_... An API key from https://walletlink.social, self-serve for any account holding credits. Not needed by a client that supports OAuth: this server is an OAuth 2.1 resource, and a tool call with no credential answers 401 naming its protected resource metadata. Tool discovery needs neither.",
+          "isRequired": false,
           "isSecret": true
         }
       ]

@@ -172,11 +172,15 @@ Full request and response shapes, every error code and the exact header semantic
 
 ## For agents: the MCP server
 
-There is a remote MCP server at https://walletlink.social/api/mcp, so an agent can resolve wallets without a person first reading an API reference. Streamable HTTP, no OAuth, authenticated with the same bearer key as the REST API and drawing the same credits. It is listed in the official MCP registry as social.walletlink/wallet-identity, verified by DNS.
+There is a remote MCP server at https://walletlink.social/api/mcp, so an agent can resolve wallets without a person first reading an API reference. Streamable HTTP, drawing the same credits as everything else. It is listed in the official MCP registry as social.walletlink/wallet-identity, verified by DNS.
 
 Five tools: resolve one to ${batchSize} addresses to their social identities, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The last two are free on both meters. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
 
-Tool discovery needs no key: a client can connect and list the tools before buying anything. Calling a tool needs one. Keys are self-serve at https://walletlink.social for any account holding credits, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
+Two ways to authenticate. OAuth 2.1, which is what a client with a person behind it should use: add the URL, and the first tool call opens a consent screen rather than asking for a key. The server is an OAuth resource server, discovery starts at https://walletlink.social/.well-known/oauth-protected-resource, and it registers clients through both client ID metadata documents and dynamic client registration at https://walletlink.social/api/oauth/register. Every client is public, so PKCE with S256 is required and no client secret is issued. Access tokens last an hour and refresh themselves; a person ends a connection from their account and it stops on the next call.
+
+Or the same bearer key the REST API uses, which is the better answer for a server with no browser to sign in from. Keys are self-serve at https://walletlink.social for any account holding credits, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
+
+Tool discovery needs neither: a client can connect and list the tools before buying anything. Calling a tool with no credential answers 401 with a WWW-Authenticate header naming the protected resource metadata, which is the signal to start the flow, rather than a tool error a model would read out and move past.
 
 ## For agents: buying credits with USDC, no account
 

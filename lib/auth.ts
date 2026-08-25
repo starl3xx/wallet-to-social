@@ -9,6 +9,20 @@ const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 // Magic link duration: 15 minutes
 const MAGIC_LINK_DURATION_MS = 15 * 60 * 1000;
 
+/**
+ * The same two durations in the units a person reads, exported because
+ * `app/privacy/page.tsx` states both and a number written twice drifts.
+ *
+ * They are genuinely different things and the policy says so: a sign-in link
+ * *works* for fifteen minutes, and the row recording it is *deleted* a day
+ * later by `app/api/cron/cleanup/route.ts`. Conflating the two would tell a
+ * reader their link lasts a day.
+ */
+export const SESSION_DURATION_DAYS = SESSION_DURATION_MS / 86_400_000;
+export const MAGIC_LINK_DURATION_MINUTES = MAGIC_LINK_DURATION_MS / 60_000;
+/** What `cleanupExpiredAuth` below uses as its magic-link cutoff. */
+export const MAGIC_LINK_RETENTION_HOURS = 24;
+
 // Rate limit: 5 requests per email per hour
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -271,8 +285,10 @@ export async function cleanupExpiredAuth(): Promise<{
       .where(lt(authSessions.expiresAt, now))
       .returning();
 
-    // Delete expired or used magic link tokens older than 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Delete expired or used magic link tokens older than the retention window
+    const oneDayAgo = new Date(
+      Date.now() - MAGIC_LINK_RETENTION_HOURS * 60 * 60 * 1000
+    );
     const deletedTokens = await db
       .delete(magicLinkTokens)
       .where(lt(magicLinkTokens.createdAt, oneDayAgo))
@@ -286,6 +302,32 @@ export async function cleanupExpiredAuth(): Promise<{
     console.error('Error cleaning up expired auth:', error);
     return { sessionsDeleted: 0, tokensDeleted: 0 };
   }
+}
+
+/**
+ * The only destination a sign-in link may return to other than the home page.
+ *
+ * A magic link that carries a caller-supplied return path is an open redirect
+ * with a stamp of authenticity on it, so this is not a sanitiser: it is an
+ * allowlist of one shape. A path matches only if it is the OAuth consent
+ * screen carrying one opaque request id, and that id was minted by
+ * `createAuthorizationRequest` before the link was ever sent.
+ *
+ * Nothing an OAuth client supplied travels through the mail round trip. The
+ * client's `redirect_uri`, `state` and `client_id` are all in the row this id
+ * names, written and validated before the email was composed, so tampering
+ * with the link can only ever produce a different request id: either one that
+ * does not exist, or somebody else's, which the consent screen then refuses
+ * because it belongs to a different pending flow.
+ *
+ * Both ends check. `send-magic-link` checks before it composes the mail and
+ * `verify` checks again before it redirects, because only the second check is
+ * the one an attacker has to get past.
+ */
+const RETURN_PATH = /^\/oauth\/authorize\?req=[A-Za-z0-9-]{36}$/;
+
+export function isAllowedReturnPath(path: string | null): boolean {
+  return typeof path === 'string' && RETURN_PATH.test(path);
 }
 
 // Cookie configuration

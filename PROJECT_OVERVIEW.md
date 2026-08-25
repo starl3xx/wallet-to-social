@@ -186,10 +186,21 @@ Export to CSV or Twitter list
 | Table                   | Purpose                                                                                                          |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `api_plans`             | Rate-limit plans (developer/startup/enterprise). Seeded, never sold on their own; a pack holder gets `developer` |
-| `api_keys`              | External API keys with SHA-256 hashing                                                                           |
+| `api_keys`              | External API keys with SHA-256 hashing. A row with `oauth_grant_id` set is an OAuth access token, not a key      |
 | `api_usage`             | Per-request usage tracking                                                                                       |
 | `rate_limit_buckets`    | Sliding window rate limiting                                                                                     |
 | `ip_rate_limit_buckets` | IP-based rate limiting for unauthenticated endpoints (hourly buckets)                                            |
+
+### OAuth Tables
+
+Live credentials rather than records: read-only for CI, and deliberately absent
+from the nightly dump.
+
+| Table                          | Purpose                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `oauth_clients`                | Registered clients, and a fetch cache for client ID metadata documents (`is_cimd` tells them apart)           |
+| `oauth_authorization_requests` | One row per request, from arrival through consent to spent code. `consumed_at` is what makes a replay visible |
+| `oauth_grants`                 | One consent. Holds the rotating refresh token and the one it replaced, which is how a leak is recognised      |
 
 ### Analytics Tables
 
@@ -329,11 +340,11 @@ Accounts with `users.origin = 'x402'` get no free allowance.
 ### MCP server (for agents)
 
 `app/api/mcp/route.ts` exposes five tools over those six endpoints at
-`https://walletlink.social/api/mcp`. It authenticates nothing and bills nothing:
-each tool builds a request carrying the caller's own bearer key and hands it to
-the v1 handler through `lib/mcp-call.ts`, and the handler keeps ownership of
-authentication, rate limiting and the credit debit. Doing either at the MCP
-layer would charge the caller twice for one tool call.
+`https://walletlink.social/api/mcp`. It bills nothing of its own: each tool
+builds a request carrying the caller's credential and hands it to the v1 handler
+through `lib/mcp-call.ts`, and the handler keeps ownership of authentication,
+rate limiting and the credit debit. Doing either at the MCP layer would charge
+the caller twice for one tool call.
 
 Because the handler does the recording, `api_usage.endpoint` keeps the same six
 literals, so MCP traffic needs no new keys in `requests_by_endpoint`. Protocol
@@ -342,6 +353,74 @@ chatter (`initialize`, `tools/list`) reaches no handler and is bounded by IP at
 path no key-based limit covers. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
+
+### Privacy policy and retention
+
+`app/privacy/page.tsx` is the published policy, at `/privacy`, linked from the
+footer and the sitemap. Two rules govern it and both are enforced:
+
+**Every period it states is one the code enforces.** `app/api/cron/cleanup/route.ts`
+runs daily and owns all of them. Writing the policy is what surfaced that
+`cleanupExpiredAuth`, `cleanupOldIpBuckets` and `cleanupAuthorizationRequests`
+existed with **no caller**, so sessions, spent sign-in tokens and hourly IP
+buckets had accumulated since each table was created. Analytics events had no
+expiry at all and now have 400 days, the longest a browser will hold a
+first-party identifier under the Chrome cap.
+
+**The figures are imported, never restated.** The page reads `CACHE_TTL_DAYS`,
+`ANALYTICS_RETENTION_DAYS`, `IP_BUCKET_RETENTION_HOURS`, `SESSION_DURATION_DAYS`,
+`MAGIC_LINK_DURATION_MINUTES`, `MAGIC_LINK_RETENTION_HOURS` and
+`NEGATIVE_RECHECK_DAYS`. `scripts/check-invariants.ts` asserts each is read as a
+constant rather than written as a digit, that each cleanup is actually called,
+and that the job is scheduled in `vercel.json`.
+
+Processors are named by role. Identity sources are a category rather than a
+list, which GDPR article 13(1)(e) permits and which keeps the CLAUDE.md rule
+about never naming a data provider intact.
+
+### OAuth 2.1 for the MCP server
+
+Anthropic's software directory requires OAuth for an authenticated remote MCP
+server (policy section 5.D), and a static bearer key does not satisfy it. The
+whole authorization server is in this repo; nothing is delegated.
+
+| File                                      | Holds                                                         |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `lib/oauth/metadata.ts`                   | Both discovery documents, the scope, the 401 challenge string |
+| `lib/oauth/clients.ts`                    | Metadata-document fetch and validation, redirect URI matching |
+| `lib/oauth/requests.ts`                   | One authorization request from arrival to spent code, PKCE    |
+| `lib/oauth/grants.ts`                     | Consent, access tokens, refresh rotation, revocation          |
+| `app/oauth/authorize/`                    | Validation and the consent screen                             |
+| `app/api/oauth/{token,register,revoke,…}` | Token exchange, RFC 7591 registration, RFC 7009 revocation    |
+| `app/api/oauth/metadata/*`                | The two documents, reached through `next.config.ts` rewrites  |
+
+Four things worth knowing before touching any of it:
+
+**The access token is an `api_keys` row**, carrying `oauth_grant_id`. Metering,
+the three rate-limit windows, the balance check and the usage ledger all key off
+that table, so this is the only shape that avoids a second copy of each. It
+follows that an access token also authenticates a REST call: the five tools are
+the six endpoints, so the two surfaces reach the same data on the same balance,
+and `lib/oauth/grants.ts` says so rather than implying a boundary.
+
+**The discovery documents are rewrites, not routes.** The App Router does not
+route a directory whose name starts with a dot, silently: an `app/.well-known/`
+route compiles and is absent from the build. Confirmed by building it.
+
+**Refusal is a 401, never a tool error.** A 200 carrying `isError` is read by a
+client as a tool that failed, so no token is refreshed and nobody is offered a
+connection. A mistyped bearer key is the deliberate exception.
+
+**The sign-in detour carries nothing a client supplied.** `/oauth/authorize`
+validates and stores the request first, then refers to it by an opaque id, so
+the magic-link round trip has no attacker-controlled URL to carry.
+`isAllowedReturnPath` in `lib/auth.ts` accepts that one shape and no other.
+
+Three tables (`oauth_clients`, `oauth_grants`, `oauth_authorization_requests`)
+plus `api_keys.oauth_grant_id`, applied by `scripts/migrate-mcp-oauth.ts`. All
+three are in `READ_ONLY_TABLES` and deliberately not in `BACKUP_TABLES`: a grant
+is a live credential, and restoring one from last night would resurrect a
+connection somebody revoked this morning.
 
 `server.json` at the repo root is the registry manifest. The server is published
 to the official MCP registry as `social.walletlink/wallet-identity` (reverse-DNS

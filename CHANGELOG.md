@@ -2,6 +2,107 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (a privacy policy, and the cleanups that make it true)
+
+- **`/privacy`**, linked from the footer and in the sitemap. Required for a
+  directory submission, which rejects a missing one outright, and overdue on
+  its own: the site collected email addresses, payments, lookups and IP
+  addresses and said nothing anywhere about any of it.
+- **Every retention period it states is one the code enforces.** Writing it
+  turned up the reason it could not have been written honestly before: three
+  cleanup functions existed and **nothing called any of them**, so sessions,
+  spent sign-in tokens and hourly IP buckets had accumulated since the day each
+  table was made. `app/api/cron/cleanup/route.ts` runs daily and calls all
+  three, and adds an expiry to analytics events, which had none at all despite
+  each row carrying a browser identifier and sometimes an email address.
+- **The numbers are read out of the constants, never restated.** The policy
+  imports `CACHE_TTL_DAYS`, `ANALYTICS_RETENTION_DAYS`, `SESSION_DURATION_DAYS`
+  and four more, so the published figure and the code that enforces it cannot
+  disagree. An invariant asserts each one is read rather than written as a
+  digit, and a mutation proves the assertion catches it.
+- **The section worth reading twice is "Addresses you look up".** It says
+  plainly that a resolved mapping joins a permanent index and answers other
+  people's lookups, and equally plainly that nothing about _who looked it up_
+  is ever shared. That is how the product works, and a policy that left it
+  implied would be the most misleading thing on the page.
+- **A removal route for people in the index**, who may be in it having never
+  used the service. No proof of ownership is asked for, because the alternative
+  is demanding more information from a stranger than we already hold on them.
+- **Processors are named by role**, except identity sources, which are a
+  category. That is what GDPR article 13(1)(e) permits, and it keeps the
+  sourcing rule in CLAUDE.md intact.
+
+### 2026-08-25 (OAuth for the MCP server)
+
+- **The MCP server is an OAuth 2.1 resource server.** Add
+  `https://walletlink.social/api/mcp` to a client that supports it and the first
+  tool call opens a consent screen: no key to create, copy or paste. The bearer
+  key still works and every existing installation is untouched.
+- **Why.** Anthropic's software directory policy, section 5.D, requires OAuth
+  for an authenticated remote MCP server. A static bearer key does not satisfy
+  it whatever else is true of the server, so a directory listing was blocked on
+  this and on nothing else.
+- **The whole authorization server is in this repo.** RFC 9728 protected
+  resource metadata, RFC 8414 authorization server metadata, RFC 7591 dynamic
+  registration, RFC 7009 revocation, client ID metadata documents, RFC 9207
+  issuer identification, and PKCE with `S256` required rather than offered.
+  Every client is public and no client secret is issued.
+- **The access token is an `api_keys` row.** Metering, the three rate-limit
+  windows, the balance check and the usage ledger all key off that table, so
+  anything else would have meant a second copy of each, which is where a meter
+  starts disagreeing with itself. `expires_at` bounds a token to an hour,
+  `revoked_at` ends it, and one new column, `oauth_grant_id`, tells it from a
+  key somebody pasted into a config. The consequence is written down rather
+  than implied: an access token also authenticates a REST call, because the
+  five tools are the six endpoints and there is nothing on one surface that is
+  not on the other.
+- **Refusal is a 401, never a tool error.** A 200 carrying `isError` is read by
+  a client as a tool that failed: the model is handed the text and the turn
+  moves on, no token is refreshed, nobody is offered a connection. A mistyped
+  bearer key is the deliberate exception, because that person needs to read
+  "your key is invalid" and has no connection to repair.
+- **The discovery documents are rewrites in `next.config.ts`, not routes.** The
+  App Router does not route a directory whose name begins with a dot, and does
+  not say so: an `app/.well-known/` route compiles, emits no warning, and is
+  absent from the build. Found by building it and reading the route list.
+- **The sign-in detour carries nothing a client supplied.** `/oauth/authorize`
+  validates and stores the request first, then refers to it by an opaque id, so
+  the magic-link round trip has no attacker-controlled URL to carry.
+- **Refresh tokens rotate and the replaced value is kept.** Presenting it is
+  proof of a leak rather than a bad string, since the real client already
+  exchanged it, and that revokes the grant. A replayed authorization code does
+  the same.
+- **Connected applications** are listed and revocable from the API keys modal,
+  and not gated on holding credits: an account on the free allowance can
+  connect a client, so it must be able to disconnect one.
+- **The key cap no longer counts access tokens.** Without the exclusion,
+  connecting a client would push a dashboard key past the cap and revoke a
+  credential somebody was using.
+- **The exchange validates before it spends.** Review caught the first version
+  consuming the authorization code and checking `client_id`, `redirect_uri` and
+  PKCE afterwards. A single attempt with a wrong verifier therefore burned the
+  code and made the real client's retry look like a replay, which revoked the
+  grant: anybody who could see a code could destroy the connection behind it
+  while holding nothing else. Two smaller ones alongside it: `redirect_uri` is
+  now required on the exchange rather than compared only when supplied, since
+  the authorization request always carries one and comparing it optionally is
+  the same as not comparing it; and a consent that loses a double-click race
+  revokes the grant it just wrote, which was otherwise holding a slot in the
+  per-account cap and pushing a live connection out of it.
+- **A failed exchange no longer misreports itself.** Review found two more in
+  the same place. A code near its expiry was judged by the Node clock in
+  `loadCode` and by Postgres's in the consume, so an ordinary first exchange
+  arriving a moment late failed the second and was read as a replay, which
+  revoked the connection it was trying to establish. And because expiry was
+  checked before `consumed_at` was visible, a replay that arrived after the
+  window reported as merely expired and revoked nothing, which is the case
+  replay detection exists for. One clock decides now, and `consumeCode` returns
+  four outcomes rather than a boolean, because a boolean forced the caller to
+  guess and it guessed wrong in both directions.
+- **97 new invariants and 33 new guard mutations**, taking both to 119 and 43.
+  Every claim above that says an attacker cannot do something is an assertion
+  that tries it, and every assertion is proved to catch a real deletion.
+
 ### 2026-08-25 (the guard that tries the attack)
 
 - **`scripts/check-invariants.ts`**, 22 adversarial assertions, run on every

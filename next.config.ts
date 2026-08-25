@@ -20,6 +20,38 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  /**
+   * The OAuth discovery documents, at the paths the specifications name.
+   *
+   * They are rewrites rather than routes because the App Router will not route
+   * a segment whose directory name begins with a dot. An `app/.well-known/`
+   * route compiles, emits no warning, and is absent from the build output:
+   * confirmed by building it and reading the route list, not by reading a
+   * changelog. A 404 on `/.well-known/oauth-protected-resource` presents to a
+   * client as "could not reach the MCP server", with the authorization server
+   * never seeing a single request, so this is worth the indirection.
+   *
+   * Both protected-resource paths are here. RFC 9728 puts the document at the
+   * root, and a client that lost the `resource_metadata` pointer from our 401
+   * probes the path-suffixed form first, so a rewrite that covered only one
+   * would work until the day the header went missing.
+   */
+  async rewrites() {
+    return [
+      {
+        source: '/.well-known/oauth-protected-resource',
+        destination: '/api/oauth/metadata/protected-resource',
+      },
+      {
+        source: '/.well-known/oauth-protected-resource/api/mcp',
+        destination: '/api/oauth/metadata/protected-resource',
+      },
+      {
+        source: '/.well-known/oauth-authorization-server',
+        destination: '/api/oauth/metadata/authorization-server',
+      },
+    ];
+  },
   experimental: {
     /**
      * Next.js optimizes barrel imports for a built-in list of packages, and

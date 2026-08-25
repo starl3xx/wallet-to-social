@@ -16,7 +16,9 @@ const STALE_AFTER_DAYS = 30;
 // re-checking. Wallets rarely gain a first social profile week to week, and a
 // wrong negative self-heals at the window boundary, so a month is a reasonable
 // trade between API spend and freshness.
-const NEGATIVE_RECHECK_DAYS = 30;
+// Exported because `app/privacy/page.tsx` states this period to the public, and
+// a number written twice is a number that drifts.
+export const NEGATIVE_RECHECK_DAYS = 30;
 
 // Retry configuration for robust writes
 const DEFAULT_MAX_RETRIES = 3;

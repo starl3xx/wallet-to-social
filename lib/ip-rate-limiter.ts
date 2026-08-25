@@ -52,6 +52,27 @@ export const IP_RATE_LIMITS = {
    * far less than is useful for grinding signatures at an address.
    */
   '/api/x402': { limit: 30, windowHours: 1 },
+  /**
+   * Dynamic client registration, which is an unauthenticated write.
+   *
+   * RFC 7591 is a table anybody may insert into by design, so the bound is
+   * what stops it becoming a place to store arbitrary strings for free. Ten an
+   * hour is far more than any real client needs: a client registers once and
+   * then reuses its `client_id` forever, and Claude does not register at all
+   * when it can read a metadata document instead, which it can here.
+   */
+  '/api/oauth/register': { limit: 10, windowHours: 1 },
+  /**
+   * The token endpoint, bounded per address because the credential it checks
+   * is not a key we issued to the caller.
+   *
+   * An authorization code is guessable only at 2^256, so this is not what
+   * stops a code being brute forced. It is what stops the endpoint being a
+   * free oracle: every failure here reads a row and returns a distinguishable
+   * error, and the refresh-reuse path writes. 120 an hour comfortably clears a
+   * client refreshing hourly on several devices.
+   */
+  '/api/oauth/token': { limit: 120, windowHours: 1 },
 } as const;
 
 export type RateLimitedEndpoint = keyof typeof IP_RATE_LIMITS;
