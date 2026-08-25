@@ -160,10 +160,10 @@ export async function issueCode(
 
 export type LoadedCode =
   | { ok: true; row: typeof oauthAuthorizationRequests.$inferSelect }
-  | { ok: false; reason: 'unknown' | 'expired' };
+  | { ok: false };
 
 /**
- * Read a code's row without spending it.
+ * Read a code's row. It does not judge the row.
  *
  * Split from the consume below, and the split is the whole point. The first
  * version consumed first and validated afterwards, which meant a single
@@ -173,17 +173,20 @@ export type LoadedCode =
  * spending it with garbage PKCE: the checks meant to prove the caller was the
  * right client ran after the damage.
  *
- * So: read, validate against this row, and only then consume. A caller who
- * fails any check has spent nothing and revoked nothing.
+ * Deliberately no expiry check here, and that is the second thing this got
+ * wrong. Checking it here read the Node clock while the consume below reads
+ * Postgres's, so a code near its boundary could pass one and fail the other,
+ * and a failed consume was being read as a replay: an ordinary first exchange
+ * arriving a moment late was answered by revoking the connection. It also hid
+ * `consumed_at` behind the expiry, so a replay that arrived after the window
+ * was reported as "expired" and revoked nothing, which is the case replay
+ * detection exists for.
  *
- * `consumed_at` is returned rather than filtered on, because a row that is
- * already consumed is not simply absent: it is the case that has to be told
- * apart from an unknown code, and only after the caller's credentials have
- * been checked.
+ * One clock decides, and it is Postgres's, in `consumeCode`.
  */
 export async function loadCode(code: string): Promise<LoadedCode> {
   const db = getDb();
-  if (!db) return { ok: false, reason: 'unknown' };
+  if (!db) return { ok: false };
 
   const [row] = await db
     .select()
@@ -191,41 +194,61 @@ export async function loadCode(code: string): Promise<LoadedCode> {
     .where(eq(oauthAuthorizationRequests.codeHash, sha256(code)))
     .limit(1);
 
-  if (!row) return { ok: false, reason: 'unknown' };
-  if (!row.codeExpiresAt || row.codeExpiresAt.getTime() <= Date.now()) {
-    return { ok: false, reason: 'expired' };
-  }
-  return { ok: true, row };
+  return row ? { ok: true, row } : { ok: false };
 }
+
+/**
+ * What happened when we tried to spend a code.
+ *
+ * Four outcomes rather than a boolean, because two of them mean "no" for
+ * completely different reasons and only one of them justifies revoking a
+ * grant. A boolean forced the caller to guess, and it guessed wrong in both
+ * directions.
+ */
+export type ConsumeResult = 'consumed' | 'replayed' | 'expired' | 'unknown';
 
 /**
  * Spend a code, once.
  *
- * A conditional UPDATE, so two exchanges racing produce exactly one winner.
- * `false` means somebody else got there first, which by the time this is
- * called means they also passed every check the caller just passed: this
- * function is only reached with a correct `client_id`, `redirect_uri` and
- * PKCE verifier. That is what makes a `false` here evidence of a code in two
- * places rather than a client fumbling its own request, and therefore what
- * makes revoking the grant the right answer rather than an overreaction.
+ * The UPDATE is conditional, so two exchanges racing produce exactly one
+ * winner and the loser learns why by reading the row back. `replayed` is
+ * checked before `expired` on that read: a code that was spent and has since
+ * gone past its window is still a code in two places, and reporting it as
+ * merely expired would let a late replay pass without revoking anything.
+ *
+ * By the time this is called the caller has already proved it holds the right
+ * `client_id`, `redirect_uri` and PKCE verifier. That is what makes `replayed`
+ * worth revoking a grant over rather than an overreaction to a client fumbling
+ * its own request.
  */
-export async function consumeCode(code: string): Promise<boolean> {
+export async function consumeCode(code: string): Promise<ConsumeResult> {
   const db = getDb();
-  if (!db) return false;
+  if (!db) return 'unknown';
+  const hash = sha256(code);
 
   const consumed = await db
     .update(oauthAuthorizationRequests)
     .set({ consumedAt: new Date() })
     .where(
       and(
-        eq(oauthAuthorizationRequests.codeHash, sha256(code)),
+        eq(oauthAuthorizationRequests.codeHash, hash),
         isNull(oauthAuthorizationRequests.consumedAt),
         sql`${oauthAuthorizationRequests.codeExpiresAt} > now()`
       )
     )
     .returning();
 
-  return consumed.length === 1;
+  if (consumed.length === 1) return 'consumed';
+
+  const [existing] = await db
+    .select()
+    .from(oauthAuthorizationRequests)
+    .where(eq(oauthAuthorizationRequests.codeHash, hash))
+    .limit(1);
+
+  if (!existing) return 'unknown';
+  if (existing.consumedAt) return 'replayed';
+  return 'expired';
 }
 
 /** Housekeeping for the cron that already prunes sessions and magic links. */

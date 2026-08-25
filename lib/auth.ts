@@ -9,6 +9,20 @@ const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 // Magic link duration: 15 minutes
 const MAGIC_LINK_DURATION_MS = 15 * 60 * 1000;
 
+/**
+ * The same two durations in the units a person reads, exported because
+ * `app/privacy/page.tsx` states both and a number written twice drifts.
+ *
+ * They are genuinely different things and the policy says so: a sign-in link
+ * *works* for fifteen minutes, and the row recording it is *deleted* a day
+ * later by `app/api/cron/cleanup/route.ts`. Conflating the two would tell a
+ * reader their link lasts a day.
+ */
+export const SESSION_DURATION_DAYS = SESSION_DURATION_MS / 86_400_000;
+export const MAGIC_LINK_DURATION_MINUTES = MAGIC_LINK_DURATION_MS / 60_000;
+/** What `cleanupExpiredAuth` below uses as its magic-link cutoff. */
+export const MAGIC_LINK_RETENTION_HOURS = 24;
+
 // Rate limit: 5 requests per email per hour
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -271,8 +285,10 @@ export async function cleanupExpiredAuth(): Promise<{
       .where(lt(authSessions.expiresAt, now))
       .returning();
 
-    // Delete expired or used magic link tokens older than 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Delete expired or used magic link tokens older than the retention window
+    const oneDayAgo = new Date(
+      Date.now() - MAGIC_LINK_RETENTION_HOURS * 60 * 60 * 1000
+    );
     const deletedTokens = await db
       .delete(magicLinkTokens)
       .where(lt(magicLinkTokens.createdAt, oneDayAgo))

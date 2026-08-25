@@ -354,6 +354,30 @@ path no key-based limit covers. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
 
+### Privacy policy and retention
+
+`app/privacy/page.tsx` is the published policy, at `/privacy`, linked from the
+footer and the sitemap. Two rules govern it and both are enforced:
+
+**Every period it states is one the code enforces.** `app/api/cron/cleanup/route.ts`
+runs daily and owns all of them. Writing the policy is what surfaced that
+`cleanupExpiredAuth`, `cleanupOldIpBuckets` and `cleanupAuthorizationRequests`
+existed with **no caller**, so sessions, spent sign-in tokens and hourly IP
+buckets had accumulated since each table was created. Analytics events had no
+expiry at all and now have 400 days, the longest a browser will hold a
+first-party identifier under the Chrome cap.
+
+**The figures are imported, never restated.** The page reads `CACHE_TTL_DAYS`,
+`ANALYTICS_RETENTION_DAYS`, `IP_BUCKET_RETENTION_HOURS`, `SESSION_DURATION_DAYS`,
+`MAGIC_LINK_DURATION_MINUTES`, `MAGIC_LINK_RETENTION_HOURS` and
+`NEGATIVE_RECHECK_DAYS`. `scripts/check-invariants.ts` asserts each is read as a
+constant rather than written as a digit, that each cleanup is actually called,
+and that the job is scheduled in `vercel.json`.
+
+Processors are named by role. Identity sources are a category rather than a
+list, which GDPR article 13(1)(e) permits and which keeps the CLAUDE.md rule
+about never naming a data provider intact.
+
 ### OAuth 2.1 for the MCP server
 
 Anthropic's software directory requires OAuth for an authenticated remote MCP

@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (a privacy policy, and the cleanups that make it true)
+
+- **`/privacy`**, linked from the footer and in the sitemap. Required for a
+  directory submission, which rejects a missing one outright, and overdue on
+  its own: the site collected email addresses, payments, lookups and IP
+  addresses and said nothing anywhere about any of it.
+- **Every retention period it states is one the code enforces.** Writing it
+  turned up the reason it could not have been written honestly before: three
+  cleanup functions existed and **nothing called any of them**, so sessions,
+  spent sign-in tokens and hourly IP buckets had accumulated since the day each
+  table was made. `app/api/cron/cleanup/route.ts` runs daily and calls all
+  three, and adds an expiry to analytics events, which had none at all despite
+  each row carrying a browser identifier and sometimes an email address.
+- **The numbers are read out of the constants, never restated.** The policy
+  imports `CACHE_TTL_DAYS`, `ANALYTICS_RETENTION_DAYS`, `SESSION_DURATION_DAYS`
+  and four more, so the published figure and the code that enforces it cannot
+  disagree. An invariant asserts each one is read rather than written as a
+  digit, and a mutation proves the assertion catches it.
+- **The section worth reading twice is "Addresses you look up".** It says
+  plainly that a resolved mapping joins a permanent index and answers other
+  people's lookups, and equally plainly that nothing about _who looked it up_
+  is ever shared. That is how the product works, and a policy that left it
+  implied would be the most misleading thing on the page.
+- **A removal route for people in the index**, who may be in it having never
+  used the service. No proof of ownership is asked for, because the alternative
+  is demanding more information from a stranger than we already hold on them.
+- **Processors are named by role**, except identity sources, which are a
+  category. That is what GDPR article 13(1)(e) permits, and it keeps the
+  sourcing rule in CLAUDE.md intact.
+
 ### 2026-08-25 (OAuth for the MCP server)
 
 - **The MCP server is an OAuth 2.1 resource server.** Add
@@ -59,7 +89,17 @@ All notable changes to walletlink.social. Newest first.
   the same as not comparing it; and a consent that loses a double-click race
   revokes the grant it just wrote, which was otherwise holding a slot in the
   per-account cap and pushing a live connection out of it.
-- **79 new invariants and 25 new guard mutations**, taking both to 101 and 35.
+- **A failed exchange no longer misreports itself.** Review found two more in
+  the same place. A code near its expiry was judged by the Node clock in
+  `loadCode` and by Postgres's in the consume, so an ordinary first exchange
+  arriving a moment late failed the second and was read as a replay, which
+  revoked the connection it was trying to establish. And because expiry was
+  checked before `consumed_at` was visible, a replay that arrived after the
+  window reported as merely expired and revoked nothing, which is the case
+  replay detection exists for. One clock decides now, and `consumeCode` returns
+  four outcomes rather than a boolean, because a boolean forced the caller to
+  guess and it guessed wrong in both directions.
+- **97 new invariants and 33 new guard mutations**, taking both to 119 and 43.
   Every claim above that says an attacker cannot do something is an assertion
   that tries it, and every assertion is proved to catch a real deletion.
 

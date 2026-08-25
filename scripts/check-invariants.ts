@@ -665,6 +665,46 @@ async function main() {
       at('revokeGrant(') !== -1 && at('await consumeCode(') < at('revokeGrant(')
     );
 
+    // A failed consume has three causes and only one of them is a replay.
+    // Reading it as a boolean revoked the grant of any first exchange that
+    // arrived a moment past the window, and let a replay that arrived late
+    // pass without revoking anything.
+    ok(
+      'only a replay revokes, not every failure to spend the code',
+      body.includes("spent === 'replayed'") &&
+        body.indexOf("spent === 'replayed'") < at('revokeGrant(')
+    );
+    ok(
+      'an expired code is answered without revoking anything',
+      body.includes("spent !== 'consumed'") &&
+        body.indexOf('revokeGrant(') < body.indexOf("spent !== 'consumed'")
+    );
+
+    // Two clocks decided this before: the Node clock in `loadCode` and
+    // Postgres's in the UPDATE. A code near its boundary passed one and failed
+    // the other, and the disagreement was read as a replay.
+    const requests = readFileSync('lib/oauth/requests.ts', 'utf8');
+    const loadBody = requests.slice(
+      requests.indexOf('export async function loadCode'),
+      requests.indexOf('export type ConsumeResult')
+    );
+    ok(
+      'loadCode judges no expiry, so one clock decides',
+      loadBody.length > 0 &&
+        !loadBody.includes('Date.now()') &&
+        !loadBody.includes('codeExpiresAt')
+    );
+    // And the replay branch has to be read before the expiry branch, or a code
+    // that was spent and has since aged out reports as merely expired.
+    const consumeBody = requests.slice(
+      requests.indexOf('export async function consumeCode')
+    );
+    ok(
+      'a spent code reports as replayed even once it has aged out',
+      consumeBody.indexOf("return 'replayed'") <
+        consumeBody.indexOf("return 'expired'")
+    );
+
     // RFC 6749 section 4.1.3 requires `redirect_uri` on the exchange whenever
     // the authorization request carried one, and ours always does. Comparing
     // it only when the caller chose to send it made the binding optional at
@@ -703,6 +743,73 @@ async function main() {
       'the cap is enforced only once a code has actually been issued',
       authorize.indexOf('enforceGrantCap(') > lost
     );
+  }
+
+  // ------------------------------------------------- the privacy policy
+  // Every retention period the policy states has to be one the code enforces.
+  // A policy naming a period nothing deletes on is a claim with nothing able to
+  // contradict it, which is the shape of defect this whole file exists for, and
+  // this one is published rather than buried in a comment.
+  {
+    const privacy = readFileSync('app/privacy/page.tsx', 'utf8');
+    const cleanup = readFileSync('app/api/cron/cleanup/route.ts', 'utf8');
+    const vercel = readFileSync('vercel.json', 'utf8');
+
+    // Read out of the constants, never written as digits. If somebody replaces
+    // `{CACHE_TTL_DAYS}` with `7`, the policy and the cache can drift apart
+    // silently and a reader has no way to know which is true.
+    for (const constant of [
+      'CACHE_TTL_DAYS',
+      'ANALYTICS_RETENTION_DAYS',
+      'IP_BUCKET_RETENTION_HOURS',
+      'SESSION_DURATION_DAYS',
+      'MAGIC_LINK_DURATION_MINUTES',
+      'MAGIC_LINK_RETENTION_HOURS',
+      'NEGATIVE_RECHECK_DAYS',
+    ]) {
+      ok(
+        `the privacy policy reads ${constant} rather than restating the number`,
+        privacy.includes(`{${constant}}`) || privacy.includes(`\${${constant}}`)
+      );
+    }
+
+    // The three cleanups existed for months with nothing calling them, which is
+    // how the policy came to need writing before any of these periods were real.
+    // Below the imports, so an import that survives a deleted call does not
+    // satisfy this. The first version searched the whole file and passed while
+    // the call had been replaced with a literal; the guard caught it.
+    const cleanupBody = cleanup.slice(cleanup.indexOf('async function run('));
+    for (const fn of [
+      'cleanupExpiredAuth',
+      'cleanupOldIpBuckets',
+      'cleanupAuthorizationRequests',
+    ]) {
+      ok(
+        `${fn} is actually called by the cleanup job`,
+        cleanupBody.includes(`${fn}(`)
+      );
+    }
+    // The exact JSON value, not a substring of it. `/api/cron/cleanup` is a
+    // prefix of `/api/cron/cleanup-disabled`, so the substring test passed
+    // against a renamed and therefore unscheduled job. Also caught by the guard.
+    ok(
+      'the cleanup job is scheduled, not merely written',
+      vercel.includes('"path": "/api/cron/cleanup"')
+    );
+    ok(
+      'analytics events have an expiry at all',
+      cleanup.includes('delete(analyticsEvents)')
+    );
+
+    // A policy nobody can reach is not published, and a directory submission
+    // has to name a URL for it.
+    const footer = readFileSync('components/ui/site-footer.tsx', 'utf8');
+    const sitemap = readFileSync('app/sitemap.ts', 'utf8');
+    ok(
+      'the privacy policy is linked from the footer',
+      footer.includes('/privacy')
+    );
+    ok('the privacy policy is in the sitemap', sitemap.includes('/privacy'));
   }
 
   // ------------------------------------------- OAuth: what a restore contains

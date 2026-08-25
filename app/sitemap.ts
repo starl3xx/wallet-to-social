@@ -90,6 +90,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.7,
     },
+    {
+      // Low priority, but present: a policy nobody can find is not published,
+      // and a directory listing has to name a reachable URL for it.
+      url: `${baseUrl}/privacy`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
     ...blogEntries,
     {
       // The hub over the per-collection reports; the reports themselves

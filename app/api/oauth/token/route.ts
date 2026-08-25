@@ -130,10 +130,7 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
 
   const loaded = await loadCode(code);
   if (!loaded.ok) {
-    return oauthError(
-      'invalid_grant',
-      'The authorization code is unknown or has expired.'
-    );
+    return oauthError('invalid_grant', 'The authorization code is unknown.');
   }
   const row = loaded.row;
 
@@ -191,7 +188,9 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
    * verifier, the client id and the redirect. Only now does spending it mean
    * anything, and only now does failing to spend it mean anything either.
    */
-  if (!(await consumeCode(code))) {
+  const spent = await consumeCode(code);
+
+  if (spent === 'replayed') {
     /**
      * The code was already spent, by somebody who also passed every check
      * above. That is a code in two places, which OAuth 2.1 answers by revoking
@@ -206,6 +205,23 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     return oauthError(
       'invalid_grant',
       'This authorization code has already been used. The connection it created has been revoked; start a new one.'
+    );
+  }
+
+  if (spent !== 'consumed') {
+    /**
+     * Expired, or gone between the read and the write. Neither is a replay and
+     * neither revokes anything.
+     *
+     * Telling this apart from a replay is the whole reason `consumeCode`
+     * returns four outcomes instead of a boolean. A boolean made every failure
+     * a replay, so a first exchange arriving a moment past the window was
+     * answered by revoking the connection it was trying to establish, and the
+     * only clock that could disagree with itself was the one deciding.
+     */
+    return oauthError(
+      'invalid_grant',
+      'The authorization code has expired. Start a new connection.'
     );
   }
 
