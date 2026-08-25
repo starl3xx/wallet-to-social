@@ -45,7 +45,7 @@ const FarcasterDMModal = dynamic(() =>
   }))
 );
 import { getUserId } from '@/lib/user-id';
-import { Analytics } from '@/lib/client-analytics';
+import { Analytics, getSessionId } from '@/lib/client-analytics';
 import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
@@ -683,6 +683,7 @@ export default function Home() {
           historyName: submittedName,
           ...scanDepthOptions(scanDepth),
           userId: getUserId(),
+          sessionId: getSessionId(),
           email: userEmail || undefined,
           inputSource,
           sourceContract:
@@ -1286,6 +1287,7 @@ export default function Home() {
             saveToHistory: false, // Don't save - we'll merge
             ...scanDepthOptions(scanDepth),
             userId: getUserId(),
+            sessionId: getSessionId(),
             email: userEmail || undefined,
           }),
         });

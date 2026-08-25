@@ -1600,6 +1600,109 @@ async function main() {
     ok('six plates and six clips are rounded, twelve in all', plates === 12);
   }
 
+  // -------------------------------- The funnel: a lookup belongs to a visit
+  // Every lookup_started and lookup_completed row in the table, 1,597 of them,
+  // had no session_id, because both are emitted server-side and nothing told
+  // the server which visit it was serving. That is the join the funnel needs,
+  // and without it "how many arrivals ran a lookup" is unanswerable.
+  {
+    const route = withoutComments(
+      readFileSync('app/api/jobs/route.ts', 'utf8')
+    );
+    const processor = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+
+    ok(
+      // The pattern must be applied to the incoming value, not merely present
+      // somewhere in the file.
+      'the job route validates the session id before using it',
+      /\.test\(\s*sessionId\s*\)/.test(route)
+    );
+    ok(
+      'lookup_started carries the session',
+      /trackEvent\('lookup_started',[\s\S]{0,200}?sessionId:/.test(route)
+    );
+    ok(
+      /**
+       * Scoped to the createJob argument, not a character window.
+       *
+       * A 900-character window after `createJob(` reached past the call and
+       * into the `trackEvent('lookup_started')` below it, so deleting the
+       * option entirely still matched the event's own `sessionId:` and the
+       * assertion passed over the deletion. Caught by the guard.
+       */
+      'the session is stored on the job, not only used for one event',
+      (() => {
+        const at = route.indexOf('createJob(');
+        const args = at >= 0 ? route.slice(at, route.indexOf('});', at)) : '';
+        return (
+          args.includes('sessionId:') &&
+          /insert\(lookupJobs\)[\s\S]{0,300}?sessionId:/.test(processor)
+        );
+      })()
+    );
+    /**
+     * Both emitters, counted rather than pattern-matched.
+     *
+     * The second fires only on a partial social-graph write, which is exactly
+     * the path nobody exercises by hand, so "one of them has it" is not good
+     * enough. Counting is also immune to how far apart the two lines drift: a
+     * fixed-width window around `trackEvent` failed on correct code the moment
+     * a field was added above the one it was looking for.
+     */
+    const emitters = (processor.match(/trackEvent\('lookup_completed'/g) ?? [])
+      .length;
+    const carried = (processor.match(/sessionId: job\.sessionId/g) ?? [])
+      .length;
+    ok(
+      `every lookup_completed emitter reads the session off the job (${carried}/${emitters})`,
+      emitters >= 2 && carried === emitters
+    );
+    ok(
+      'the worker takes the session from the row, not from options',
+      !/sessionId: options\.sessionId ?\?\?/.test(processor)
+    );
+
+    // --------------------------------------------- A sale is booked once
+    // `payment_completed` had fired once in the lifetime of the table: the only
+    // emitter was on the retired tier path, so every credit pack ever sold was
+    // invisible to the one query that asks whether anybody buys anything.
+    const credits = withoutComments(readFileSync('lib/credits.ts', 'utf8'));
+    ok(
+      'the Stripe pack grant books the sale',
+      /stripePaymentId,[\s\S]{0,120}?bookSale\(/.test(credits)
+    );
+    ok(
+      'the onchain pack grant books the sale',
+      /rail: 'x402',[\s\S]{0,140}?bookSale\(/.test(credits)
+    );
+    // `await bookSale(`, not `bookSale(`: the latter matches the function's own
+    // declaration, which sits above both grants, so the comparison was against
+    // the definition rather than a call and failed on correct code.
+    ok(
+      'the sale is booked after the insert, so a failed grant books nothing',
+      credits.indexOf('insert(creditLots)') < credits.indexOf('await bookSale(')
+    );
+    ok(
+      'a duplicate webhook cannot book a second sale',
+      /isUniqueViolation\(error\)\) return false/.test(credits)
+    );
+    ok(
+      'a hand-issued credit is not counted as a sale',
+      !/pack: 'grant',[\s\S]{0,200}?bookSale\(/.test(credits)
+    );
+    ok(
+      // Counted, not matched. `/await bookSale\(/` passed while the other
+      // rail's await was deleted, and one floating promise is exactly the
+      // defect: a serverless runtime may discard it when the handler returns.
+      `every sale event is awaited (${(credits.match(/await bookSale\(/g) ?? []).length}/${(credits.match(/(?<!async function )bookSale\(/g) ?? []).length})`,
+      (credits.match(/await bookSale\(/g) ?? []).length ===
+        (credits.match(/(?<!async function )bookSale\(/g) ?? []).length &&
+        (credits.match(/await bookSale\(/g) ?? []).length >= 2
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

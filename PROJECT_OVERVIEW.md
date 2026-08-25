@@ -570,6 +570,21 @@ The `api_plans` rows are rate-limit plans, not products. Their `priceMonthly` va
 API plans were considered; none was ever sold, and `/api/developer/plans` now publishes
 the packs instead (fixed 2026-08-21).
 
+**A lookup belongs to a visit** (`lookup_jobs.session_id`). The browser sends its
+session id with the job, `/api/jobs` validates it as a UUID before use, and it is
+stored on the row so `lookup_completed`, emitted minutes later by a worker, can
+carry the same session as `lookup_started`. Null means no visit behind it: the
+seed cron and the public API both create jobs and neither has a browser.
+
+**A sale is booked where credits are granted** (`bookSale` in `lib/credits.ts`),
+on both the Stripe and x402 rails, awaited and only on the branch that wrote.
+`provisionPaidAccess` books the legacy tier purchase for the same reason. A
+hand-issued credit is not a sale.
+
+**The funnel reports sessions and engaged sessions.** Engaged means more than one
+event, or one that is not a pageview. Both are shown, because the gap between
+them is the finding rather than noise to be filtered out.
+
 **Attribution is first touch, recorded once per browser** (`lib/first-touch.ts`).
 The referring host, `?ref=` and the three UTM parameters are reduced to one
 groupable string in `users.acquisition`, written on insert only so a later

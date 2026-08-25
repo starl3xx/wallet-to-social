@@ -27,6 +27,11 @@ interface JobRequest {
   includeENS?: boolean;
   fastMode?: boolean;
   userId?: string;
+  /**
+   * The browser session, so a lookup can be joined to the visit that started
+   * it. Validated as a UUID before it is used: this is a request body.
+   */
+  sessionId?: string;
   email?: string;
   wallet?: string;
   inputSource?: 'file_upload' | 'text_input' | 'contract_import' | 'api';
@@ -81,11 +86,28 @@ export async function POST(request: NextRequest) {
       includeENS = false,
       fastMode = false,
       userId,
+      sessionId,
       email,
       wallet,
       inputSource,
       sourceContract,
     } = body;
+
+    /**
+     * The browser session, so the lookup can be joined to the visit.
+     *
+     * Sanitised rather than trusted: it arrives in a request body and lands in
+     * a column the funnel groups by. `crypto.randomUUID()` is what the client
+     * writes, so anything that is not a UUID is not one of ours and is dropped
+     * rather than stored.
+     */
+    const browserSession =
+      typeof sessionId === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        sessionId
+      )
+        ? sessionId
+        : undefined;
 
     if (!wallets || wallets.length === 0) {
       return NextResponse.json(
@@ -166,6 +188,7 @@ export async function POST(request: NextRequest) {
 
       if (!verdict.allowed) {
         trackEvent('limit_hit', {
+          sessionId: browserSession,
           userId: session.user.email,
           metadata: {
             tier: access.tier,
@@ -229,6 +252,7 @@ export async function POST(request: NextRequest) {
     if (wallets.length > effectiveLimit) {
       // Track limit hit event
       trackEvent('limit_hit', {
+        sessionId: browserSession,
         userId: email || userId,
         metadata: {
           tier: access.tier,
@@ -288,6 +312,7 @@ export async function POST(request: NextRequest) {
       saveToHistory,
       historyName,
       userId: effectiveUserId,
+      sessionId: browserSession,
       // Only a signed-in account can be debited; see JobOptions.meteredUserId.
       meteredUserId: session.user?.id,
       tier: access.tier,
@@ -310,6 +335,7 @@ export async function POST(request: NextRequest) {
     // Track lookup started event
     trackEvent('lookup_started', {
       userId: effectiveUserId || email,
+      sessionId: browserSession,
       metadata: {
         jobId,
         walletCount: wallets.length,

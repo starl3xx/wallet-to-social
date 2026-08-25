@@ -47,6 +47,39 @@ All notable changes to walletlink.social. Newest first.
   bound. The input is now long and valid, and a second assertion proves the
   unclamped string really would exceed it.
 
+### 2026-08-25 (a lookup now belongs to a visit, and a sale is recorded)
+
+- **`lookup_started` and `lookup_completed` carry a session.** All 1,597 of them
+  had none: both are emitted server-side and nothing told the server which visit
+  it was serving, so the funnel could not answer "how many arrivals ran a
+  lookup", which is the most useful question about this product. The browser
+  sends its session id, `/api/jobs` validates it as a UUID before use, and it is
+  stored on the job (`lookup_jobs.session_id`) because the completion is emitted
+  minutes later by a worker that has only the row.
+- **`payment_completed` was not broken, it was on the retired path.** Its only
+  emitter sat inside the legacy tier purchase, which two accounts ever made, so
+  it had fired exactly once in the lifetime of the table while every credit pack
+  ever sold went unrecorded. Both live rails now book the sale where the credits
+  are granted, awaited rather than floating, and only on the branch that
+  actually wrote, so a repeated webhook or a replayed settlement cannot book a
+  second sale. A hand-issued credit is not a sale and stays silent.
+- **The funnel reports sessions and engaged sessions, both.** A session is
+  engaged if it did more than arrive once: two events, or one that is not a
+  pageview. Measured over the last 30 days that is 201 of 1,487, 13.5%.
+  Reporting only the raw count makes the product look fifteen times worse at
+  converting than it is; reporting only the engaged count quietly discards
+  traffic somebody paid for. It is deliberately a statement about what a session
+  did, not a verdict on what it was.
+- **A failed funnel query now says so.** The catch returns a fully populated
+  object of zeros, so a broken query and a quiet week render identically. That
+  is not hypothetical: a `db.execute` result read as an array instead of
+  `{ rows }` threw, and the funnel reported zero of everything while the
+  database held 1,487 sessions. The panel now shows that the numbers were
+  invented rather than measured.
+- 20 assertions and 7 mutations, 253 and 92. The guard caught three of the new
+  assertions passing while the code they protected was deleted, and one of the
+  new mutations having no teeth.
+
 ### 2026-08-25 (the gate fired before the answer)
 
 - **The reverse lookup on the homepage now answers everybody.** A caller

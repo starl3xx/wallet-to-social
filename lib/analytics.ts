@@ -409,8 +409,36 @@ export async function getUserFunnel(
   /** Top checkout failure reasons in the window, most frequent first. */
   checkoutFailureReasons: Array<{ reason: string; count: number }>;
   paymentCompleted: number;
+  /** Every distinct browser session in the window, automated ones included. */
+  sessions: number;
+  /**
+   * Sessions that did something.
+   *
+   * Reported beside `sessions` rather than replacing it, because the gap
+   * between the two is itself the finding. On 24 and 25 August a QR auction
+   * sent 1,321 sessions at the site and 1,220 of them recorded a single event
+   * and never came back within the same second: no second pageview, no scroll
+   * into anything measured, nothing. Dividing conversions by that number says
+   * the product converts at a fifteenth of its real rate, and dividing by this
+   * one silently discards traffic somebody paid for. Both numbers, always.
+   */
+  engagedSessions: number;
+  /**
+   * False when the query failed and every number below is a zero this function
+   * invented rather than measured.
+   *
+   * The catch returns a fully-populated object of zeros, which renders as a
+   * real answer: a quiet week and a broken query look identical on the panel.
+   * That was not hypothetical. A `db.execute` result read as an array instead
+   * of `{ rows }` threw, and the funnel reported 0 page views, 0 lookups and 0
+   * payments while the database held 1,487 sessions.
+   */
+  ok: boolean;
 }> {
   const empty = {
+    ok: false,
+    sessions: 0,
+    engagedSessions: 0,
     pageViews: 0,
     csvUploads: 0,
     lookupsStarted: 0,
@@ -464,7 +492,47 @@ export async function getUserFunnel(
       .orderBy(desc(count()))
       .limit(5)) as Array<{ reason: string; count: number }>;
 
+    /**
+     * A session is engaged if it did more than arrive once.
+     *
+     * Two events of any kind, or one event that is not a pageview. That admits
+     * somebody who landed, opened the upgrade modal and left, and excludes the
+     * single-hit sessions that make up 91% of a link-auction spike.
+     *
+     * Deliberately not a bot verdict. This says what a session did, which is
+     * checkable, rather than what it was, which is not: a crawler that fetches
+     * two pages counts as engaged here and a real person who read the homepage
+     * and closed the tab does not. It is a floor on genuine interest, not a
+     * headcount.
+     */
+    const sessionResult = (await db.execute(sql`
+      SELECT
+        count(*)::int AS sessions,
+        count(*) FILTER (
+          WHERE events > 1 OR non_page_views > 0
+        )::int AS engaged
+      FROM (
+        SELECT
+          session_id,
+          count(*) AS events,
+          count(*) FILTER (WHERE event_type <> 'page_view') AS non_page_views
+        FROM analytics_events
+        WHERE session_id IS NOT NULL
+          AND created_at >= ${startDate}
+          AND created_at <= ${endDate}
+        GROUP BY session_id
+      ) s
+    `)) as unknown as { rows: Array<{ sessions: number; engaged: number }> };
+    // `db.execute` hands back `{ rows }` on this driver, not an array. Reading
+    // it as an array yielded undefined, the destructure threw, and the whole
+    // funnel fell through to its zeroed fallback: every number on the admin
+    // panel would have read 0 while looking like a real answer.
+    const sessionRow = sessionResult.rows?.[0];
+
     return {
+      ok: true,
+      sessions: sessionRow?.sessions ?? 0,
+      engagedSessions: sessionRow?.engaged ?? 0,
       pageViews: counts.get('page_view') ?? 0,
       csvUploads: counts.get('csv_upload') ?? 0,
       lookupsStarted: counts.get('lookup_started') ?? 0,

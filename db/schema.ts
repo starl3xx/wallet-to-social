@@ -165,6 +165,15 @@ export const lookupJobs = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     status: text('status').notNull().default('pending'), // pending | processing | completed | failed
     userId: text('user_id'), // localStorage ID until profiles exist
+    /**
+     * The browser session that started this job, when a browser did.
+     *
+     * Carried on the row because `lookup_started` is emitted by the request
+     * handler, which has it, and `lookup_completed` by a worker minutes later,
+     * which has only the job. Null means no visit behind it: the seed cron and
+     * the public API both create jobs and neither has a session.
+     */
+    sessionId: text('session_id'),
     wallets: jsonb('wallets').notNull().$type<string[]>(), // full wallet list as JSONB array
     originalData: jsonb('original_data'), // CSV extra columns
     options: jsonb('options').notNull(), // {includeENS, saveToHistory, historyName}

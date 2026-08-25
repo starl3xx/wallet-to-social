@@ -26,6 +26,7 @@
  * `balance()` floors at zero so an overspent account is simply out of credits.
  */
 import { getDb } from '@/db';
+import { trackEvent } from '@/lib/analytics';
 import { creditLots, creditLedger, users } from '@/db/schema';
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import {
@@ -549,6 +550,40 @@ export function isUniqueViolation(error: unknown): boolean {
  * Returns false ONLY for "this payment was already granted". Everything else
  * throws, so the webhook answers non-2xx and Stripe retries.
  */
+/**
+ * Book the sale where the credits are granted.
+ *
+ * The same decision `provisionPaidAccess` records in `lib/access.ts`: booked
+ * here rather than at the call sites, so a grant cannot happen without the
+ * sale being recorded. There it covers the legacy tier purchase, which two
+ * accounts ever made; this covers the product actually being sold.
+ *
+ * That gap is why `payment_completed` had fired exactly once in the lifetime
+ * of the table. The event existed, the funnel read it, and the only code
+ * emitting it was on the retired path, so every credit pack ever bought was
+ * invisible to the one query that asks whether anybody buys anything.
+ *
+ * Awaited, not floating. A serverless runtime is free to discard a promise the
+ * handler did not wait for, which is how the payment_intent path came to record
+ * nothing at all.
+ *
+ * Only on the branch that actually wrote. A repeat webhook or a replayed
+ * settlement returns false above without reaching here, so a retry cannot book
+ * a second sale for one payment.
+ */
+async function bookSale(
+  userId: string,
+  pack: string,
+  amountCents: number,
+  rail: 'stripe' | 'x402',
+  reference: string
+): Promise<void> {
+  await trackEvent('payment_completed', {
+    userId,
+    metadata: { pack, amountCents, rail, reference },
+  });
+}
+
 export async function grantPack(
   userId: string,
   pack: PackId,
@@ -571,6 +606,7 @@ export async function grantPack(
       stripePaymentId,
       expiresAt,
     });
+    await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);
     return true;
   } catch (error) {
     if (isUniqueViolation(error)) return false;
@@ -659,6 +695,7 @@ export async function grantPackBySettlement(
       rail: 'x402',
       expiresAt,
     });
+    await bookSale(userId, pack, amountCents, 'x402', settlementId);
     return true;
   } catch (error) {
     if (isUniqueViolation(error)) return false;

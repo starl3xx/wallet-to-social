@@ -31,6 +31,15 @@ import { asSourceList } from '@/lib/api-sources';
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
 
 export interface JobOptions {
+  /**
+   * The browser session that started this job, when a browser did.
+   *
+   * Stored on the row so `lookup_completed`, emitted minutes later by a worker
+   * that has only the job, can carry the same session as `lookup_started`.
+   * Undefined for the seed cron and the public API, which have no visit behind
+   * them.
+   */
+  sessionId?: string;
   includeENS?: boolean;
   fastMode?: boolean;
   saveToHistory?: boolean;
@@ -903,6 +912,10 @@ async function finalizeJobWithResults(
     if (writeResult.failed > 0) {
       trackEvent('lookup_completed', {
         userId: options.userId || job.userId || undefined,
+        // The job row, not `options`: a resumed chunk is processed by a worker
+        // whose options came off the row anyway, and the row is the only copy
+        // that survives the queue.
+        sessionId: job.sessionId ?? undefined,
         metadata: {
           jobId: job.id,
           eventSubtype: 'social_graph_write_failed',
@@ -983,6 +996,7 @@ async function finalizeJobWithResults(
 
   trackEvent('lookup_completed', {
     userId: options.userId || job.userId || undefined,
+    sessionId: job.sessionId ?? undefined,
     metadata: {
       jobId: job.id,
       walletCount: job.wallets.length,
@@ -1027,6 +1041,7 @@ export async function createJob(
       originalData,
       options,
       userId: options.userId,
+      sessionId: options.sessionId,
     })
     .returning();
 
