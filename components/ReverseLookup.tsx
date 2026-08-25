@@ -279,7 +279,7 @@ export function ReverseLookup({
           handle it belongs to, and the upgrade beside it rather than in front
           of it. */}
       {lockedCount && (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted p-4">
           <div className="flex items-baseline gap-2">
             <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
               {lockedCount.total.toLocaleString()}
