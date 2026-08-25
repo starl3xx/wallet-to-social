@@ -35,6 +35,7 @@ import { readFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
+import { freshCastTime, FUTURE_SKEW_MS } from './concierge-freshness';
 
 /**
  * Set before anything that reads it is called.
@@ -992,6 +993,76 @@ async function main() {
       ok(`${table} is readable by CI`, readOnly.includes(`'${table}'`));
       ok(`${table} is NOT in the nightly dump`, !backup.includes(`'${table}'`));
     }
+  }
+
+  // -------------------------------------- Concierge: what reaches a shortlist
+  // The daily brief exists to be replied to, so a candidate on it is a candidate
+  // somebody will publicly answer. The Warpcast search endpoint takes no date
+  // parameter and ranks by relevance: the lane shipped returning casts from
+  // February 2024 next to ones from that morning, and the comment saying the
+  // lane was "live announcements" was the only thing standing in the way.
+  {
+    const now = new Date('2026-08-25T12:00:00Z');
+    const day = 24 * 60 * 60 * 1000;
+    const maxAge = 7;
+
+    // The attacker is a stale cast trying to reach a human's reply box.
+    ok(
+      'a cast from 2024 is refused',
+      freshCastTime(new Date('2024-02-07T05:33:00Z').getTime(), now, maxAge) ===
+        null
+    );
+    ok(
+      'a cast one day past the window is refused',
+      freshCastTime(now.getTime() - (maxAge + 1) * day, now, maxAge) === null
+    );
+
+    // An absent or renamed field must not read as fresh. This is the shape the
+    // gate is most likely to meet in production, because the endpoint is
+    // undocumented and may rename `timestamp` without notice.
+    for (const [label, raw] of [
+      ['absent', undefined],
+      ['null', null],
+      ['a string', '1738906380000'],
+      ['NaN', Number.NaN],
+      ['Infinity', Number.POSITIVE_INFINITY],
+    ] as Array<[string, unknown]>) {
+      ok(
+        `a timestamp that is ${label} is refused`,
+        freshCastTime(raw, now, maxAge) === null
+      );
+    }
+
+    // A far-future timestamp is worse than a stale one: it sorts to the top of
+    // a recency ranking and stays there every day until somebody notices.
+    ok(
+      'a cast dated a year ahead is refused',
+      freshCastTime(now.getTime() + 365 * day, now, maxAge) === null
+    );
+    ok(
+      'a cast just inside the skew allowance is kept',
+      freshCastTime(now.getTime() + FUTURE_SKEW_MS / 2, now, maxAge) !== null
+    );
+
+    // Prove the gate can pass, or every assertion above is satisfied by a
+    // function that returns null unconditionally.
+    const fresh = now.getTime() - day;
+    ok(
+      'a cast from yesterday is kept, and keeps its own time',
+      freshCastTime(fresh, now, maxAge)?.getTime() === fresh
+    );
+
+    // The lane has to actually call it. An exported predicate nothing invokes
+    // is a test of itself.
+    const lane = readFileSync('scripts/concierge-signals.ts', 'utf8');
+    ok(
+      'the Farcaster lane routes its timestamp through the gate',
+      /freshCastTime\(\s*c\.timestamp/.test(lane)
+    );
+    ok(
+      'the Farcaster lane drops what the gate refuses',
+      /freshCastTime\([^)]*\);\s*if \(!ts\) \{[\s\S]{0,80}?continue;/.test(lane)
+    );
   }
 
   if (!failures.length) {

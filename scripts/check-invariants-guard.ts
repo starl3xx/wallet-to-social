@@ -33,6 +33,43 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'the Farcaster lane stops filtering by age (shipped, found 2026-08-25)',
+    file: 'scripts/concierge-signals.ts',
+    from: 'const ts = freshCastTime(c.timestamp, now, FARCASTER_MAX_AGE_DAYS);',
+    to: "const ts =\n          typeof c.timestamp === 'number' ? new Date(c.timestamp) : null;",
+  },
+  {
+    name: 'the lane keeps calling the gate but ignores the refusal',
+    file: 'scripts/concierge-signals.ts',
+    from: 'if (!ts) {\n          stale += 1;\n          continue;\n        }',
+    to: 'if (!ts) {\n          stale += 1;\n        }',
+  },
+  {
+    name: 'a missing timestamp reads as fresh',
+    file: 'scripts/concierge-freshness.ts',
+    from: "if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;",
+    to: "if (typeof raw !== 'number') return now.getTime();",
+  },
+  {
+    name: 'the age window is compared the wrong way round',
+    file: 'scripts/concierge-freshness.ts',
+    from: 'if (age > maxAgeDays * 24 * 60 * 60 * 1000) return null;',
+    to: 'if (age < maxAgeDays * 24 * 60 * 60 * 1000) return null;',
+  },
+  {
+    name: 'a far-future timestamp is accepted',
+    file: 'scripts/concierge-freshness.ts',
+    from: 'if (age < -FUTURE_SKEW_MS) return null;',
+    to: 'if (false) return null;',
+  },
+  {
+    name: 'the gate refuses everything, so every refusal assertion passes',
+    file: 'scripts/concierge-freshness.ts',
+    from: '  return new Date(raw);',
+    to: '  return null;',
+  },
+
+  {
     name: 'the naive Drizzle code check (shipped, found 2026-08-25)',
     file: 'lib/credits.ts',
     from: "if ((e as { code?: unknown }).code === '23505') return true;",

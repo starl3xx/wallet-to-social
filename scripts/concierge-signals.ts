@@ -58,11 +58,30 @@ import {
   type HolderCollection,
 } from '../lib/holder-pages';
 import { SUPPORTED_CHAINS, type SupportedChain } from '../lib/chains';
+import { freshCastTime } from './concierge-freshness';
 
 const SITE = 'https://walletlink.social';
 
 /** Printed shortlist size. The plan asks for three touches a weekday. */
 const DEFAULT_LIMIT = 3;
+
+/**
+ * How old a cast may be before the Farcaster lane drops it.
+ *
+ * The X lane is anchored to `since:<yesterday>` because twitterapi.io takes a
+ * date in the query. The Warpcast search endpoint takes no such parameter and
+ * ranks by relevance, so it happily returns a snapshot announcement from
+ * February 2024 alongside one from this morning. Replying to those is worse
+ * than replying to nothing.
+ *
+ * Seven days rather than one, measured rather than picked: across the three
+ * search terms the endpoint returned 60 casts, of which 4 were inside a day, 21
+ * inside a week, 41 inside a month, and 19 were older than six months. A
+ * 24-hour gate to match the X lane leaves 4 candidates before scoring, which is
+ * too thin to survive dedupe on a quiet day. A week is the smallest window that
+ * keeps the lane alive while still excluding every stale one.
+ */
+const FARCASTER_MAX_AGE_DAYS = 7;
 
 /**
  * Chains ranked by how strong the opening number is, best first.
@@ -399,9 +418,10 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
  * prospects. This endpoint is undocumented and may change without notice, so it
  * is wrapped and its failure is never fatal to the run.
  */
-async function fromFarcaster(limit: number): Promise<Candidate[]> {
+async function fromFarcaster(limit: number, now: Date): Promise<Candidate[]> {
   const terms = ['snapshot', 'allowlist', 'airdrop for holders'];
   const out: Candidate[] = [];
+  let stale = 0;
   for (const q of terms) {
     try {
       const url = new URL('https://api.farcaster.xyz/v2/search-casts');
@@ -420,8 +440,11 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
           | { username?: string; followerCount?: number }
           | undefined;
         const text = String(c.text ?? '').replace(/\s+/g, ' ');
-        const ts =
-          typeof c.timestamp === 'number' ? new Date(c.timestamp) : null;
+        const ts = freshCastTime(c.timestamp, now, FARCASTER_MAX_AGE_DAYS);
+        if (!ts) {
+          stale += 1;
+          continue;
+        }
         const address = text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
         const { chain, collection, stats } = await resolveContract(address);
         out.push({
@@ -459,6 +482,11 @@ async function fromFarcaster(limit: number): Promise<Candidate[]> {
         `  farcaster lane error: ${e instanceof Error ? e.message : e}`
       );
     }
+  }
+  if (stale > 0) {
+    console.warn(
+      `  farcaster lane: dropped ${stale} cast(s) older than ${FARCASTER_MAX_AGE_DAYS}d`
+    );
   }
   return out;
 }
@@ -547,7 +575,15 @@ async function main() {
 
   const source = arg('source', 'index');
   const limit = Number(arg('limit', String(DEFAULT_LIMIT)));
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  /**
+   * One clock for the whole run.
+   *
+   * The X lane's `since:` string and the Farcaster lane's age gate are two
+   * windows onto the same question, and reading `Date.now()` separately for
+   * each lets a slow index lane put them on different days.
+   */
+  const startedAt = new Date();
+  const since = new Date(startedAt.getTime() - 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
 
@@ -564,7 +600,7 @@ async function main() {
     candidates.push(...(await fromX(limit, since)));
   }
   if (source === 'farcaster' || source === 'all') {
-    candidates.push(...(await fromFarcaster(limit)));
+    candidates.push(...(await fromFarcaster(limit, startedAt)));
   }
 
   if (candidates.length === 0) {
