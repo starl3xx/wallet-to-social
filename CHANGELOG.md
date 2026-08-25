@@ -2,6 +2,41 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (the gate fired before the answer)
+
+- **The reverse lookup on the homepage now answers everybody.** A caller
+  without credits gets the count of wallets carrying the handle; the addresses
+  still need a pack. Previously the panel opened the pricing modal on click,
+  before any request was sent, so the first thing a stranger saw after typing a
+  handle was a price and nothing else.
+- **The rule is not new, only newly applied.** `/api/reachability` has always
+  published that count for free and keyless, and `/check` explains the split to
+  the reader in those words: how many wallets carry a handle is free, which ones
+  is the product. `/api/reverse` was the one surface that implemented neither
+  half.
+- **Signing in was never the thing that unlocked it.** The server gate is
+  `hasPaidAccess`, so an account changed nothing. The endpoint no longer answers
+  a missing or expired cookie with 401: anonymous is a caller, not an error, and
+  it was refusing strangers a disclosure the keyless endpoint hands out freely.
+- **What prompted it.** In the two days after the QR auction, 57 sessions hit
+  that gate having been shown nothing, and 37 created an account trying to get
+  past it. Every reverse-lookup paywall hit in the database is from those two
+  days.
+- **The locked branch returns before the row query runs.** Withholding the
+  addresses in the response is not enough on its own: a version that read every
+  wallet and then declined to print them would have the same response shape and
+  hold the addresses in memory. `lib/reverse-access.ts` builds the locked body
+  and cannot be handed rows at all.
+- **The free branch is bounded per address**, at the same limit and for the same
+  reason as `/api/reachability`: one indexed read, capped so the count cannot be
+  used to enumerate the index.
+- **The panel says which half is free before the button is pressed**, and links
+  `/check` for the no-account version. It was reachable from nowhere on the page
+  that receives most of the traffic.
+- 29 assertions and 6 mutations, 193 and 69. Two mutations cover the shapes that
+  hide this rather than cause it: a locked body that leaks one address as a
+  taste, and a limiter that is registered but never called.
+
 ### 2026-08-25 (a CSV column that overwrote the pipeline)
 
 - **Fixed: opening a job in Admin > Jobs could take the whole page down** with

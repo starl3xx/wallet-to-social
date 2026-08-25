@@ -41,6 +41,11 @@ import {
   isExcluded,
   parseExclusions,
 } from './concierge-filters';
+import {
+  ADDRESS_SHAPE,
+  lockedReverseBody,
+  lockedReverseMessage,
+} from '../lib/reverse-access';
 
 /**
  * Set before anything that reads it is called.
@@ -1148,6 +1153,109 @@ async function main() {
         /const ranked = fresh\.slice\(0, limit\)/.test(lane)
       );
     }
+  }
+
+  // ------------------------------------ Reverse lookup: what a free caller gets
+  // The count is free and the addresses are paid. That split is published in
+  // prose on /check and in /api/reachability, and until now the app's own
+  // reverse lookup implemented neither half: it answered a stranger with a
+  // price and nothing else. Opening it up is only safe if the free branch
+  // cannot be talked into returning a wallet.
+  {
+    // The attacker is a caller with no credits, trying to get one address out.
+    for (const total of [0, 1, 99, 100, 240, 1_000_000]) {
+      const body = lockedReverseBody('twitter', 'vitalikbuterin', total);
+      const wire = JSON.stringify(body);
+      ok(
+        `a locked body for ${total} wallets carries no address`,
+        !ADDRESS_SHAPE.test(wire)
+      );
+      ok(
+        `a locked body for ${total} wallets returns no rows`,
+        body.results.length === 0 && body.meta.returned_count === 0
+      );
+      ok(
+        `a locked body for ${total} wallets still reports the count`,
+        body.meta.total_count === total
+      );
+    }
+
+    // The count is the free half, so it has to survive. A function that zeroed
+    // everything would pass every assertion above.
+    ok(
+      'the count is not silently zeroed',
+      lockedReverseBody('farcaster', 'dwr', 240).meta.total_count === 240
+    );
+
+    // A negative count can only come from a bug, and it renders as "-1 wallets".
+    ok(
+      'a negative count floors at zero',
+      lockedReverseBody('twitter', 'x', -5).meta.total_count === 0
+    );
+
+    // The copy must not promise addresses it will not deliver.
+    for (const total of [0, 3]) {
+      const msg = lockedReverseMessage(total, 'twitter');
+      ok(
+        `the locked message for ${total} carries no address`,
+        !ADDRESS_SHAPE.test(msg)
+      );
+    }
+
+    /**
+     * The body is only half the guarantee.
+     *
+     * A route that read every wallet and then declined to print them would
+     * satisfy every assertion above while holding the addresses in memory, one
+     * stray log line from disclosure. The locked return has to come before the
+     * query that selects them.
+     */
+    const route = readFileSync('app/api/reverse/route.ts', 'utf8');
+    const lockedReturn = route.indexOf(
+      'return NextResponse.json(lockedReverseBody'
+    );
+    const rowQuery = route.indexOf('.limit(MAX_RESULTS)');
+    const countQuery = route.indexOf('COUNT(*)::int');
+    ok(
+      'the route has a locked return at all',
+      lockedReturn > 0 && rowQuery > 0 && countQuery > 0
+    );
+    ok(
+      'the locked branch returns before the row query runs',
+      lockedReturn < rowQuery
+    );
+    ok(
+      'the locked branch runs after the count, so it has a count to report',
+      countQuery < lockedReturn
+    );
+    ok(
+      'the locked branch is guarded by entitlement, not by session',
+      /if \(!entitled\) \{\s*return NextResponse\.json\(lockedReverseBody/.test(
+        route
+      )
+    );
+
+    // The free branch is bounded per address, or the count becomes a way to
+    // enumerate the index one handle at a time.
+    const limits = readFileSync('lib/ip-rate-limiter.ts', 'utf8');
+    ok(
+      "'/api/reverse' has an IP rate limit",
+      /'\/api\/reverse':\s*\{\s*limit:/.test(limits)
+    );
+    ok(
+      'the unentitled branch actually calls the limiter',
+      /if \(!entitled\) \{[\s\S]{0,400}?checkIpRateLimit\([\s\S]{0,80}?'\/api\/reverse'\)/.test(
+        route
+      )
+    );
+
+    // Signing in is not what unlocks this, and the endpoint must not go back
+    // to refusing anonymous callers the count that /api/reachability gives
+    // them with no cookie at all.
+    ok(
+      'a missing session is not answered with 401',
+      !/Sign in to use reverse lookup/.test(route)
+    );
   }
 
   if (!failures.length) {

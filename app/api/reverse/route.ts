@@ -8,6 +8,12 @@ import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
 import { publicSources } from '@/lib/api-sources';
 import { saveLookup } from '@/lib/history';
+import { lockedReverseBody } from '@/lib/reverse-access';
+import {
+  checkIpRateLimit,
+  formatRateLimitHeaders,
+  getClientIp,
+} from '@/lib/ip-rate-limiter';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -23,6 +29,25 @@ export const runtime = 'nodejs';
  * Same 100-row cap as the public endpoint, deliberately. If the two disagreed,
  * a customer comparing the UI against their own integration would find
  * different answers to the same question.
+ *
+ * ## What a caller without credits gets
+ *
+ * The count, and not the addresses. This used to answer them with 401 or 403
+ * and nothing else, so the first thing a stranger did on the busiest page on
+ * the site was type a handle and receive a price. In the two days after the QR
+ * auction sent traffic here, 57 sessions hit that gate having been shown
+ * nothing at all, and 37 of them created an account trying to get past it. An
+ * account does not get past it: the gate is `hasPaidAccess`.
+ *
+ * The rule itself is not new. `/api/reachability` has always published the
+ * count for free, keyless, to anyone, and withheld the addresses; `/check`
+ * explains that split to the reader in those words. This endpoint was the one
+ * surface that never applied it. See `lib/reverse-access.ts`.
+ *
+ * The locked branch must return before the row query runs. Returning a body
+ * with no addresses in it is not enough on its own: a version that read every
+ * wallet and then declined to print them would satisfy the response shape and
+ * still have done the work, one `console.log` away from disclosure.
  */
 const MAX_RESULTS = 100;
 
@@ -38,36 +63,24 @@ const VALID_TWITTER = /^@?[a-zA-Z0-9_]{1,15}$/;
 const VALID_FARCASTER = /^[a-zA-Z0-9_.-]{1,32}$/;
 
 export async function POST(request: NextRequest) {
+  /**
+   * A missing or expired cookie is an anonymous caller, not an error.
+   *
+   * This returned 401 for both, which put a sign-in wall in front of a count
+   * that `/api/reachability` hands to strangers with no cookie at all. The two
+   * doors disagreeing about the same disclosure is the bug, not the absence of
+   * a session.
+   */
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json(
-      { error: 'Sign in to use reverse lookup' },
-      { status: 401 }
-    );
-  }
-
-  const session = await validateSession(token);
-  if (!session.user) {
-    return NextResponse.json(
-      { error: 'Invalid or expired session' },
-      { status: 401 }
-    );
-  }
+  const session = token ? await validateSession(token) : { user: null };
+  const user = session.user ?? null;
 
   // Reverse lookup is included in every pack. A pack buyer keeps tier 'free',
   // so this cannot be a tier check: see hasPaidAccess.
-  const access = await getUserAccess(session.user.email);
-  if (!(await hasPaidAccess(session.user.id, access.tier))) {
-    return NextResponse.json(
-      {
-        error: 'Reverse lookup needs credits. Buy a pack to unlock it.',
-        upgradeRequired: true,
-        tier: access.tier,
-      },
-      { status: 403 }
-    );
-  }
+  const entitled = user
+    ? await hasPaidAccess(user.id, (await getUserAccess(user.email)).tier)
+    : false;
 
   let body: { platform?: string; handle?: string };
   try {
@@ -115,6 +128,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * The free branch is bounded per address; the paid branch is bounded by the
+   * credits it spends.
+   *
+   * Same limit and same reasoning as `/api/reachability`, because it is the
+   * same disclosure at the same cost: one indexed read of a table we already
+   * hold. The bound exists to stop the count being used to enumerate the
+   * index, not to ration anything scarce.
+   */
+  if (!entitled) {
+    const rate = await checkIpRateLimit(getClientIp(request), '/api/reverse');
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            'That is a lot of handles. Try again within the hour, or use credits.',
+          retryAfter: rate.retryAfter,
+        },
+        { status: 429, headers: formatRateLimitHeaders(rate) }
+      );
+    }
+  }
+
   const column =
     platform === 'twitter' ? socialGraph.twitterHandle : socialGraph.farcaster;
 
@@ -123,6 +159,20 @@ export async function POST(request: NextRequest) {
     .from(socialGraph)
     .where(eq(column, handle));
   const totalCount = countRow?.count ?? 0;
+
+  /**
+   * Everything a caller without credits gets, and the last statement they
+   * reach. The row query below reads wallet addresses; it must not run for
+   * them at all.
+   *
+   * 200 rather than 403. This is a complete, useful answer to the question
+   * they asked, and the client needs to render it rather than treat it as a
+   * failure. `upgradeRequired` is still set so the existing paywall branch
+   * keeps working.
+   */
+  if (!entitled) {
+    return NextResponse.json(lockedReverseBody(platform, handle, totalCount));
+  }
 
   const rows = await db
     .select({
@@ -188,18 +238,19 @@ export async function POST(request: NextRequest) {
   // list like any other: worth reloading, renaming and exporting later, and
   // there is no reason it should be the one kind that vanishes on refresh.
   //
-  // Keyed on session.user.id because that is what /api/history filters by. The
+  // Keyed on the user id because that is what /api/history filters by. The
   // localStorage id used elsewhere would save a row the owner could never see.
+  //
+  // The `user &&` reads as redundant, because `entitled` is false whenever
+  // there is no user and this line is past the locked return. It is kept
+  // because that reasoning lives in two places at once: the day someone lets
+  // an unauthenticated caller be entitled, this writes history rows keyed to
+  // nobody rather than throwing.
   let lookupId: string | null = null;
-  if (results.length > 0) {
+  if (results.length > 0 && user) {
     const label = `Wallets for ${platform === 'twitter' ? '@' : ''}${handle}`;
     try {
-      lookupId = await saveLookup(
-        results,
-        label,
-        session.user.id,
-        'reverse_lookup'
-      );
+      lookupId = await saveLookup(results, label, user.id, 'reverse_lookup');
     } catch (err) {
       // A history write must never cost the caller their results.
       console.error('Failed to save reverse lookup to history:', err);

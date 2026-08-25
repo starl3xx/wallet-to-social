@@ -33,6 +33,43 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'the locked branch returns rows it sliced instead of never reading them',
+    file: 'app/api/reverse/route.ts',
+    from: '  if (!entitled) {\n    return NextResponse.json(lockedReverseBody(platform, handle, totalCount));\n  }',
+    to: '',
+  },
+  {
+    name: 'the free branch loses its rate limit, so the count enumerates the index',
+    file: 'lib/ip-rate-limiter.ts',
+    from: "  '/api/reverse': { limit: 60, windowHours: 1 },",
+    to: '',
+  },
+  {
+    name: 'the limiter is registered but the route stops calling it',
+    file: 'app/api/reverse/route.ts',
+    from: "const rate = await checkIpRateLimit(getClientIp(request), '/api/reverse');",
+    to: 'const rate = { allowed: true, retryAfter: 0 };',
+  },
+  {
+    name: 'a locked body leaks one address as a taste',
+    file: 'lib/reverse-access.ts',
+    from: '    results: [],',
+    to: "    results: ['0x699727f9e01a822efdcf7333073f0461e5914b4e'] as never[],",
+  },
+  {
+    name: 'the count is zeroed, so the free half stops being worth anything',
+    file: 'lib/reverse-access.ts',
+    from: '      total_count: Math.max(0, Math.trunc(totalCount) || 0),',
+    to: '      total_count: 0,',
+  },
+  {
+    name: 'the endpoint goes back to refusing anonymous callers',
+    file: 'app/api/reverse/route.ts',
+    from: '  const session = token ? await validateSession(token) : { user: null };',
+    to: "  if (!token) return NextResponse.json({ error: 'Sign in to use reverse lookup' }, { status: 401 });\n  const session = await validateSession(token);",
+  },
+
+  {
     name: 'the exclusion list stops normalising case, so a contract slips back in',
     file: 'scripts/concierge-filters.ts',
     from: "const key = raw.trim().toLowerCase().replace(/^@+/, '');",

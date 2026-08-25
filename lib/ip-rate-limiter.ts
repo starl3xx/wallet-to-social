@@ -15,6 +15,16 @@ export const IP_RATE_LIMITS = {
    */
   '/api/reachability': { limit: 60, windowHours: 1 },
   /**
+   * The reverse lookup's free branch, which discloses exactly what
+   * `/api/reachability` discloses: how many wallets carry a handle, never
+   * which ones. Same cost, same disclosure, same bound.
+   *
+   * Only unentitled callers land here. A caller spending credits is already
+   * bounded by the credits, and charging them an address-shaped limit as well
+   * would refuse a paying customer for sharing an office with a stranger.
+   */
+  '/api/reverse': { limit: 60, windowHours: 1 },
+  /**
    * The MCP server, and only its keyless traffic.
    *
    * Every tool there passes the caller's own bearer key into a v1 handler,

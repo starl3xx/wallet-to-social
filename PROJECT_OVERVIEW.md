@@ -574,6 +574,15 @@ the packs instead (fixed 2026-08-21).
 the accumulated graph can answer and a CSV export cannot. It draws match credits like
 every other call, one per wallet returned.
 
+**The app's own door onto it discloses in two halves** (`app/api/reverse/route.ts`,
+`lib/reverse-access.ts`). The **count** of wallets carrying a handle is free, keyless
+and available to an anonymous caller, bounded per address at the `/api/reachability`
+limit because it is the same disclosure at the same cost. The **addresses** need
+`hasPaidAccess`. The locked branch returns before the row query runs, so an unentitled
+caller's request never reads a wallet at all rather than reading them and declining to
+print them. This is the same split `/check` publishes in prose; the public
+`/v1/reverse/*` endpoints are unaffected and remain key-authenticated and metered.
+
 ---
 
 ## Recent Changes (2026-08-24)

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,6 +14,7 @@ import { InlineError } from '@/components/ui/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Segmented } from '@/components/ui/segmented';
+import { lockedReverseMessage } from '@/lib/reverse-access';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';
@@ -54,22 +56,36 @@ export function ReverseLookup({
     handle: string;
     platform: Platform;
   } | null>(null);
+  /**
+   * The answer a caller without credits is entitled to: how many wallets carry
+   * the handle, never which ones.
+   *
+   * Pinned to the queried platform for the same reason `empty` is. Flipping
+   * the toggle after a locked answer would otherwise relabel an X count as a
+   * Farcaster one, which is a wrong number rather than a stale one.
+   */
+  const [lockedCount, setLockedCount] = useState<{
+    handle: string;
+    platform: Platform;
+    total: number;
+  } | null>(null);
 
   const submit = useCallback(async () => {
     const value = handle.trim();
     if (!value || loading) return;
 
-    // Locked accounts still get to press the button. Bouncing them here, with
-    // the thing they typed still on screen, converts better than hiding the
-    // feature and is the same pattern as the locked contract-import card.
-    if (locked) {
-      onUpgradeClick?.('reverse');
-      return;
-    }
-
+    /**
+     * A locked account presses the button and gets a real answer.
+     *
+     * This used to open the pricing modal here, before the request was sent,
+     * so the first thing a stranger saw after typing a handle was a price and
+     * nothing else. The server now answers everyone with the count and
+     * withholds only the addresses, so there is nothing left to bounce.
+     */
     setLoading(true);
     setError(null);
     setEmpty(null);
+    setLockedCount(null);
     try {
       const res = await fetch('/api/reverse', {
         method: 'POST',
@@ -82,11 +98,22 @@ export function ReverseLookup({
         onSignInRequired?.();
         return;
       }
+      // Kept as a fallback. The server answers a locked caller with 200 and a
+      // count now, so this only fires if an older deploy is still serving.
       if (res.status === 403 && data.upgradeRequired) {
         onUpgradeClick?.('reverse');
         return;
       }
       if (!res.ok) throw new Error(data.error || 'Lookup failed');
+
+      if (data.locked) {
+        setLockedCount({
+          handle: data.meta.handle,
+          platform,
+          total: data.meta.total_count ?? 0,
+        });
+        return;
+      }
 
       if (!data.results?.length) {
         setEmpty({ handle: value.replace(/^@/, ''), platform });
@@ -108,15 +135,7 @@ export function ReverseLookup({
     } finally {
       setLoading(false);
     }
-  }, [
-    handle,
-    loading,
-    locked,
-    platform,
-    onResults,
-    onUpgradeClick,
-    onSignInRequired,
-  ]);
+  }, [handle, loading, platform, onResults, onUpgradeClick, onSignInRequired]);
 
   return (
     /* A Card, the one top-level panel, at the card padding. It was a
@@ -144,8 +163,35 @@ export function ReverseLookup({
             the shape CardDescription gives a Card. It was a lowercase fragment
             right-aligned in the title row and hidden below sm, so a phone got
             the heading alone. */}
+        {/* Change 03 on the optimisation plan: say what the free half is
+            before the button is pressed, not after. A locked visitor used to
+            learn the split by hitting it. */}
         <p className="text-sm text-muted-foreground">
-          Find the wallets behind any account.
+          Find the wallets behind any account.{' '}
+          {locked ? (
+            <>
+              Free: how many wallets carry a handle. Credits: which ones. You
+              can also{' '}
+              <Link
+                href="/check"
+                className="text-accent-brand underline underline-offset-4"
+              >
+                check a handle&rsquo;s reach
+              </Link>{' '}
+              without an account.
+            </>
+          ) : (
+            <>
+              Or{' '}
+              <Link
+                href="/check"
+                className="text-accent-brand underline underline-offset-4"
+              >
+                check whether a handle still reaches anybody
+              </Link>
+              .
+            </>
+          )}
         </p>
       </div>
 
@@ -188,6 +234,7 @@ export function ReverseLookup({
             // The previous miss describes a handle the user is no longer asking
             // about, so drop it rather than leave it hanging under a new query.
             if (empty) setEmpty(null);
+            if (lockedCount) setLockedCount(null);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit();
@@ -226,6 +273,38 @@ export function ReverseLookup({
       </div>
 
       {error && <InlineError>{error}</InlineError>}
+
+      {/* The answer a locked caller is entitled to. It is a real answer, so it
+          is rendered as one rather than as a failed attempt: the count, the
+          handle it belongs to, and the upgrade beside it rather than in front
+          of it. */}
+      {lockedCount && (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
+              {lockedCount.total.toLocaleString()}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {lockedCount.total === 1 ? 'wallet' : 'wallets'} for{' '}
+              <span className="font-medium text-foreground">
+                {lockedCount.platform === 'twitter' ? '@' : ''}
+                {lockedCount.handle}
+              </span>
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {lockedReverseMessage(lockedCount.total, lockedCount.platform)}
+          </p>
+          {lockedCount.total > 0 && (
+            <div>
+              <Button size="sm" onClick={() => onUpgradeClick?.('reverse')}>
+                <Wallet className="h-4 w-4" aria-hidden />
+                See which wallets
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {empty && (
         <p className="text-sm text-muted-foreground">
