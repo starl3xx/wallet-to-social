@@ -625,6 +625,86 @@ async function main() {
     );
   }
 
+  // --------------------------------------------- OAuth: the exchange ordering
+  // The first version of the token endpoint consumed the code and validated
+  // afterwards. A single attempt with a wrong verifier therefore burned the
+  // code AND made the real client's retry look like a replay, which revoked
+  // the grant: anybody who could see a code could destroy the connection
+  // behind it while holding nothing else. The order is the fix, so the order
+  // is what is asserted.
+  {
+    const token = readFileSync('app/api/oauth/token/route.ts', 'utf8');
+    const body = token.slice(
+      token.indexOf('async function exchangeCode'),
+      token.indexOf('async function exchangeRefresh')
+    );
+    const at = (needle: string) => body.indexOf(needle);
+
+    ok(
+      'the exchange reads the code before spending it',
+      at('await loadCode(') !== -1 &&
+        at('await consumeCode(') !== -1 &&
+        at('await loadCode(') < at('await consumeCode(')
+    );
+    ok(
+      'the client binding is checked before the code is spent',
+      at('row.clientId !== clientId') !== -1 &&
+        at('row.clientId !== clientId') < at('await consumeCode(')
+    );
+    ok(
+      'the redirect binding is checked before the code is spent',
+      at('redirectUri !== row.redirectUri') !== -1 &&
+        at('redirectUri !== row.redirectUri') < at('await consumeCode(')
+    );
+    ok(
+      'PKCE is checked before the code is spent',
+      at('pkceMatches(') !== -1 && at('pkceMatches(') < at('await consumeCode(')
+    );
+    ok(
+      'nothing is revoked before the caller has proved it is the right client',
+      at('revokeGrant(') !== -1 && at('await consumeCode(') < at('revokeGrant(')
+    );
+
+    // RFC 6749 section 4.1.3 requires `redirect_uri` on the exchange whenever
+    // the authorization request carried one, and ours always does. Comparing
+    // it only when the caller chose to send it made the binding optional at
+    // the attacker's discretion, which is the same as not having it.
+    ok(
+      'redirect_uri is required on the exchange, not compared only when supplied',
+      body.includes('if (!redirectUri)') &&
+        !/redirectUri !== null &&/.test(body)
+    );
+  }
+
+  // ------------------------------------------------- OAuth: the grant cap
+  // Two Approve clicks: only one can issue a code, and the loser's grant has
+  // to go with it. Left behind it holds a slot in the per-account cap and
+  // pushes the oldest live connection out, so a double click on one screen
+  // disconnects a client somewhere else.
+  {
+    const grants = readFileSync('lib/oauth/grants.ts', 'utf8');
+    const createBody = grants.slice(
+      grants.indexOf('export async function createGrant'),
+      grants.indexOf('export async function enforceGrantCap')
+    );
+    ok(
+      'createGrant does not prune, so a consent that never issued a code cannot revoke one that did',
+      createBody.length > 0 && !createBody.includes('pruneGrants(')
+    );
+
+    const authorize = readFileSync('app/api/oauth/authorize/route.ts', 'utf8');
+    const lost = authorize.indexOf('if (!code) {');
+    const revoked = authorize.indexOf('revokeGrant(');
+    ok(
+      'an approval that loses the race revokes the grant it just wrote',
+      lost !== -1 && revoked !== -1 && lost < revoked
+    );
+    ok(
+      'the cap is enforced only once a code has actually been issued',
+      authorize.indexOf('enforceGrantCap(') > lost
+    );
+  }
+
   // ------------------------------------------- OAuth: what a restore contains
   // A grant is a live credential, not a record. Restoring one from last night
   // would resurrect a connection somebody revoked this morning, which is the

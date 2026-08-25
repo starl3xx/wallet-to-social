@@ -166,10 +166,21 @@ export async function createGrant(input: {
       resource: input.resource,
     })
     .returning();
-  if (!grant) return null;
+  return grant ?? null;
+}
 
-  await pruneGrants(input.userId);
-  return grant;
+/**
+ * Bring an account back under the grant cap.
+ *
+ * Called after a code has been issued, never inside `createGrant`. Pruning at
+ * creation time meant a consent that lost its race, two Approve clicks where
+ * only one can win, still counted: the spare grant existed for the moment it
+ * took to discover it had no code, and pruning ran in that moment, so an
+ * approval nobody completed could revoke a connection somebody was using.
+ * Ranking after the winner is known cannot do that.
+ */
+export async function enforceGrantCap(userId: string): Promise<void> {
+  await pruneGrants(userId);
 }
 
 /**

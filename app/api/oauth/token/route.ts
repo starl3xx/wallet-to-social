@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
-import { pkceMatches, redeemCode } from '@/lib/oauth/requests';
+import { consumeCode, loadCode, pkceMatches } from '@/lib/oauth/requests';
 import {
   issueInitialTokens,
   refreshGrant,
@@ -85,6 +85,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 }
 
+/**
+ * Exchange an authorization code.
+ *
+ * The order is load, validate, consume, and it is not the order this was first
+ * written in. Consuming first meant a single attempt with a wrong verifier
+ * burned the code and made the real client's retry look like a replay, which
+ * revoked the grant: anybody who could see a code could destroy the connection
+ * behind it without holding anything else. Nothing below spends or revokes
+ * until the caller has proved it is the client the code was issued to.
+ */
 async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
   const code = form.get('code');
   const verifier = form.get('code_verifier');
@@ -101,38 +111,31 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
       'code_verifier is required. This server issues codes to public clients only, so every exchange must complete the PKCE challenge.'
     );
   }
+  if (!redirectUri) {
+    /**
+     * Required, because the authorization request always carried one.
+     *
+     * RFC 6749 section 4.1.3 makes `redirect_uri` mandatory on the exchange
+     * whenever it was present on the authorization request, and ours is
+     * present on every one. Comparing it only when the caller chose to send it
+     * made the binding optional at the attacker's discretion, which is the
+     * same as not having it: a stolen code plus a stolen verifier was
+     * redeemable without ever proving which callback the code belonged to.
+     */
+    return oauthError(
+      'invalid_request',
+      'redirect_uri is required, and must be the one the authorization request used.'
+    );
+  }
 
-  const redemption = await redeemCode(code);
-
-  if (!redemption.ok) {
-    if (redemption.reason === 'replayed') {
-      /**
-       * Somebody holds a copy of a code the real client already spent.
-       *
-       * OAuth 2.1 says to revoke everything that code produced, and it is
-       * right: the legitimate exchange already happened, so this attempt is
-       * either an attacker with a stolen code or a client that has lost track
-       * of its own state. Both are answered by making the tokens worthless and
-       * requiring a fresh consent.
-       *
-       * The revoke runs before the error is written, so a caller cannot use
-       * the response as a signal to race the revocation.
-       */
-      if (redemption.grantId) {
-        await revokeGrant(redemption.grantId, 'authorization code replayed');
-      }
-      return oauthError(
-        'invalid_grant',
-        'This authorization code has already been used. The connection it created has been revoked; start a new one.'
-      );
-    }
+  const loaded = await loadCode(code);
+  if (!loaded.ok) {
     return oauthError(
       'invalid_grant',
       'The authorization code is unknown or has expired.'
     );
   }
-
-  const row = redemption.row;
+  const row = loaded.row;
 
   /**
    * The code is bound to the client it was issued to.
@@ -148,12 +151,7 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     );
   }
 
-  /**
-   * And to the redirect it was sent to. RFC 6749 section 4.1.3 requires the
-   * comparison whenever the authorization request carried a redirect_uri, and
-   * ours always does.
-   */
-  if (redirectUri !== null && redirectUri !== row.redirectUri) {
+  if (redirectUri !== row.redirectUri) {
     return oauthError(
       'invalid_grant',
       'redirect_uri does not match the one this code was issued for.'
@@ -185,6 +183,29 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     return oauthError(
       'invalid_grant',
       'This authorization code has no consent attached to it.'
+    );
+  }
+
+  /**
+   * Everything above passed, so whoever is calling holds the code, the
+   * verifier, the client id and the redirect. Only now does spending it mean
+   * anything, and only now does failing to spend it mean anything either.
+   */
+  if (!(await consumeCode(code))) {
+    /**
+     * The code was already spent, by somebody who also passed every check
+     * above. That is a code in two places, which OAuth 2.1 answers by revoking
+     * everything the code produced: the legitimate exchange has already
+     * happened, so this attempt is either a stolen code or a client that has
+     * lost track of its own state, and both are answered the same way.
+     *
+     * The revoke runs before the error is written, so the response cannot be
+     * used as a signal to race it.
+     */
+    await revokeGrant(row.grantId, 'authorization code replayed');
+    return oauthError(
+      'invalid_grant',
+      'This authorization code has already been used. The connection it created has been revoked; start a new one.'
     );
   }
 

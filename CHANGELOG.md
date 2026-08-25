@@ -48,7 +48,18 @@ All notable changes to walletlink.social. Newest first.
 - **The key cap no longer counts access tokens.** Without the exclusion,
   connecting a client would push a dashboard key past the cap and revoke a
   credential somebody was using.
-- **70 new invariants and 19 new guard mutations**, taking both to 92 and 29.
+- **The exchange validates before it spends.** Review caught the first version
+  consuming the authorization code and checking `client_id`, `redirect_uri` and
+  PKCE afterwards. A single attempt with a wrong verifier therefore burned the
+  code and made the real client's retry look like a replay, which revoked the
+  grant: anybody who could see a code could destroy the connection behind it
+  while holding nothing else. Two smaller ones alongside it: `redirect_uri` is
+  now required on the exchange rather than compared only when supplied, since
+  the authorization request always carries one and comparing it optionally is
+  the same as not comparing it; and a consent that loses a double-click race
+  revokes the grant it just wrote, which was otherwise holding a slot in the
+  per-account cap and pushing a live connection out of it.
+- **79 new invariants and 25 new guard mutations**, taking both to 101 and 35.
   Every claim above that says an attacker cannot do something is an assertion
   that tries it, and every assertion is proved to catch a real deletion.
 

@@ -158,57 +158,74 @@ export async function issueCode(
   return updated.length === 1 ? code : null;
 }
 
-export type CodeRedemption =
+export type LoadedCode =
   | { ok: true; row: typeof oauthAuthorizationRequests.$inferSelect }
-  | { ok: false; reason: 'unknown' | 'expired' }
-  | { ok: false; reason: 'replayed'; grantId: string | null };
+  | { ok: false; reason: 'unknown' | 'expired' };
 
 /**
- * Spend a code, once, and report a second attempt as a second attempt.
+ * Read a code's row without spending it.
  *
- * The consume is a conditional UPDATE, so concurrency cannot produce two
- * successful exchanges of one code. When it updates nothing there are three
- * possibilities and they are not equivalent:
+ * Split from the consume below, and the split is the whole point. The first
+ * version consumed first and validated afterwards, which meant a single
+ * exchange with a wrong `code_verifier` burned the code *and* made the real
+ * client's retry look like a replay, which revoked the grant. Anybody who
+ * could see a code could therefore destroy the connection it belonged to by
+ * spending it with garbage PKCE: the checks meant to prove the caller was the
+ * right client ran after the damage.
  *
- *   - no such code: an ordinary bad request
- *   - the code expired unspent: an ordinary bad request
- *   - the code was already spent: somebody has a copy of a code the real
- *     client already redeemed
+ * So: read, validate against this row, and only then consume. A caller who
+ * fails any check has spent nothing and revoked nothing.
  *
- * Only the third is evidence of theft, and OAuth 2.1 says to revoke everything
- * that code produced. Distinguishing it needs the row, which is why the failure
- * path reads it rather than returning a single flat error.
+ * `consumed_at` is returned rather than filtered on, because a row that is
+ * already consumed is not simply absent: it is the case that has to be told
+ * apart from an unknown code, and only after the caller's credentials have
+ * been checked.
  */
-export async function redeemCode(code: string): Promise<CodeRedemption> {
+export async function loadCode(code: string): Promise<LoadedCode> {
   const db = getDb();
   if (!db) return { ok: false, reason: 'unknown' };
-  const hash = sha256(code);
+
+  const [row] = await db
+    .select()
+    .from(oauthAuthorizationRequests)
+    .where(eq(oauthAuthorizationRequests.codeHash, sha256(code)))
+    .limit(1);
+
+  if (!row) return { ok: false, reason: 'unknown' };
+  if (!row.codeExpiresAt || row.codeExpiresAt.getTime() <= Date.now()) {
+    return { ok: false, reason: 'expired' };
+  }
+  return { ok: true, row };
+}
+
+/**
+ * Spend a code, once.
+ *
+ * A conditional UPDATE, so two exchanges racing produce exactly one winner.
+ * `false` means somebody else got there first, which by the time this is
+ * called means they also passed every check the caller just passed: this
+ * function is only reached with a correct `client_id`, `redirect_uri` and
+ * PKCE verifier. That is what makes a `false` here evidence of a code in two
+ * places rather than a client fumbling its own request, and therefore what
+ * makes revoking the grant the right answer rather than an overreaction.
+ */
+export async function consumeCode(code: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
 
   const consumed = await db
     .update(oauthAuthorizationRequests)
     .set({ consumedAt: new Date() })
     .where(
       and(
-        eq(oauthAuthorizationRequests.codeHash, hash),
+        eq(oauthAuthorizationRequests.codeHash, sha256(code)),
         isNull(oauthAuthorizationRequests.consumedAt),
         sql`${oauthAuthorizationRequests.codeExpiresAt} > now()`
       )
     )
     .returning();
 
-  if (consumed.length === 1) return { ok: true, row: consumed[0] };
-
-  const [existing] = await db
-    .select()
-    .from(oauthAuthorizationRequests)
-    .where(eq(oauthAuthorizationRequests.codeHash, hash))
-    .limit(1);
-
-  if (!existing) return { ok: false, reason: 'unknown' };
-  if (existing.consumedAt) {
-    return { ok: false, reason: 'replayed', grantId: existing.grantId };
-  }
-  return { ok: false, reason: 'expired' };
+  return consumed.length === 1;
 }
 
 /** Housekeeping for the cron that already prunes sessions and magic links. */

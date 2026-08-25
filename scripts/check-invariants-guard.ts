@@ -204,6 +204,42 @@ const MUTATIONS: Mutation[] = [
     to: "  'credit_ledger',\n  'oauth_grants',\n];",
   },
   {
+    name: 'the code is spent before the exchange is validated (Bugbot, 2026-08-25)',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  const loaded = await loadCode(code);',
+    to: '  await consumeCode(code);\n  const loaded = await loadCode(code);',
+  },
+  {
+    name: 'the PKCE check is dropped from the exchange',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (!pkceMatches(verifier, row.codeChallenge)) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'the client binding is dropped from the exchange',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (row.clientId !== clientId) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'redirect_uri is compared only when the caller supplies it (Bugbot, 2026-08-25)',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (redirectUri !== row.redirectUri) {',
+    to: '  if (redirectUri !== null && redirectUri !== row.redirectUri) {',
+  },
+  {
+    name: 'createGrant prunes again, so a lost approval revokes a live connection (Bugbot, 2026-08-25)',
+    file: 'lib/oauth/grants.ts',
+    from: '  return grant ?? null;',
+    to: '  if (grant) await pruneGrants(input.userId);\n  return grant ?? null;',
+  },
+  {
+    name: 'a lost approval leaves its grant behind, holding a slot in the cap',
+    file: 'app/api/oauth/authorize/route.ts',
+    from: "    await revokeGrant(grant.id, 'approval lost its race');\n",
+    to: '',
+  },
+  {
     name: 'a grant table is dropped from READ_ONLY_TABLES, so CI cannot read it',
     file: 'scripts/migrate-grant-readonly.ts',
     from: "  'oauth_grants',\n  'oauth_authorization_requests',",

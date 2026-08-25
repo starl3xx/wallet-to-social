@@ -22,7 +22,7 @@ import { cookies } from 'next/headers';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getOrCreateUser } from '@/lib/access';
 import { loadPendingRequest, issueCode } from '@/lib/oauth/requests';
-import { createGrant } from '@/lib/oauth/grants';
+import { createGrant, enforceGrantCap, revokeGrant } from '@/lib/oauth/grants';
 import { resolveClient, redirectUriAllowed } from '@/lib/oauth/clients';
 import { issuer } from '@/lib/oauth/metadata';
 
@@ -115,11 +115,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const code = await issueCode(pending.id, account.id, grant.id);
   if (!code) {
-    // The request was answered between the load above and this update, which
-    // means somebody clicked twice. One approval, one code: the second attempt
-    // is told to start over rather than handed a second working code.
+    /**
+     * The request was answered between the load above and this update, which
+     * means somebody clicked twice. One approval, one code: the second attempt
+     * is told to start over rather than handed a second working code.
+     *
+     * The grant this attempt just wrote has to go with it. Left behind it is a
+     * consent that never issued anything, holding a slot in the per-account cap
+     * and pushing the oldest live connection out of it: a double click on one
+     * screen would disconnect a client somewhere else.
+     */
+    await revokeGrant(grant.id, 'approval lost its race');
     return fail('This authorization request was already answered.', 409);
   }
+
+  // Only now, with a winner known, is the account's grant list the real one.
+  await enforceGrantCap(account.id);
 
   return NextResponse.json({
     redirect: clientRedirect(pending.redirectUri, {
