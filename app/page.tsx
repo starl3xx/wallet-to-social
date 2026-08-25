@@ -1433,7 +1433,7 @@ export default function Home() {
           rule of its own: that rule stopped at the container edge while the
           shell's ran edge to edge on every other page, and the shell's is the
           one that stays. */}
-      <div className="mb-8">
+      <div className="mb-8 border-b border-border pb-6">
         {/* The same opening as every other page: a display h1 with the one
             emphasis span, a 300-weight lede, then the proof row as Figures.
             This was the only page without the signature, a muted 14px line
@@ -1446,21 +1446,44 @@ export default function Home() {
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
           out.
         </h1>
-        <p className="mt-4 max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-          Turn a wallet list into the{' '}
-          <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
-          Farcaster accounts behind it.
-        </p>
-        {/* The proof row, the same three figures the /vs pages set as
+        <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+          <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
+            Turn a wallet list into the{' '}
+            <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
+            Farcaster accounts behind it.
+          </p>
+          {/* The proof row, the same three figures the /vs pages set as
             Figure. They were 12px spans on one line with middots between
             them, and on a phone the middot dangled at the end of line one;
             flex-wrap with gaps needs no separator. The green mark sits on
             the measured claim, coverage, as it does on the /vs proof strip
             (`Figure attested` on the same 100%); the count is context. No
             pulse: a pulse says the system is running, and Recent wins
-            already carries that one below. Gaps 48/16, pt 16: the /vs row's
-            40/20/20 are not spacing steps. */}
-        {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
+            already carries that one below. Gaps 48/16: the /vs row's
+            40/20/20 are not spacing steps.
+
+            Two things changed here, and the rule is the one that mattered. It
+            sat on this element as a `border-t`, directly above the figures and
+            below the lede, which put a full-width hairline between two halves
+            of one thought and gave three 12px labels the same opening weight
+            as the h1. The block read as a statistics panel that happened to
+            sit under a headline. The rule now closes the hero on the wrapper,
+            so the h1, the lede and the figures are one group and the hairline
+            marks the boundary that was always meant to be marked: hero from
+            dropzone.
+
+            Then the row itself. The h1 is capped at 17ch and the lede at 46ch,
+            so above `lg` the right half of the hero was empty while the
+            figures sat alone on their own line beneath. They now share that
+            line, aligned on `items-end` so the labels sit on the lede's
+            baseline rather than floating. It reclaims 54px above the fold,
+            which on this page is the difference between the dropzone starting
+            at 306px and at 262px.
+
+            Below `lg` they stack and nothing else changes: the figures keep
+            their own row, the 16px gaps still fit three figures across a
+            390px phone, and the order is the same one the eye reads anyway. */}
+          {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
             100.5 + 92.1 = 273px, and two 48px gaps ask for 369px against the
             342px a 390px phone gives this column, so the row wrapped 2 + 1 and
             cost 137px instead of 69px: more than the h1 and the lede together,
@@ -1470,14 +1493,15 @@ export default function Home() {
             Above `sm` nothing changes. The figure strings are live, so a wider
             index number puts 360 back on two rows; that is the graceful end of
             this, not a break. */}
-        <dl className="mt-6 flex flex-wrap gap-x-4 gap-y-4 border-t border-border pt-4 sm:gap-x-12">
-          <Figure
-            value={indexedWallets ?? INDEXED_WALLETS}
-            label="wallets indexed"
-          />
-          <Figure value="100%" label="Farcaster coverage" attested />
-          <Figure value={KNOWN_AGENTS_SHORT} label="AI agents flagged" />
-        </dl>
+          <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-12 lg:shrink-0">
+            <Figure
+              value={indexedWallets ?? INDEXED_WALLETS}
+              label="wallets indexed"
+            />
+            <Figure value="100%" label="Farcaster coverage" attested />
+            <Figure value={KNOWN_AGENTS_SHORT} label="AI agents flagged" />
+          </dl>
+        </div>
       </div>
 
       {/* Add Addresses Modal */}
