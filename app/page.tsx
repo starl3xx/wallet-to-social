@@ -1512,7 +1512,16 @@ export default function Home() {
             Above `sm` nothing changes. The figure strings are live, so a wider
             index number puts 360 back on two rows; that is the graceful end of
             this, not a break. */}
-          <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-12 lg:shrink-0">
+          {/* `lg:flex-nowrap` is what makes the row's `items-baseline` work.
+              A flex container that is allowed to wrap has no first baseline to
+              offer: the spec says a multi-line container synthesises one from
+              its border box, so the lede was being aligned to this element's
+              box rather than to the baseline of "4.8M" inside it, and the
+              figures sat a few pixels high with no margin to blame. At `lg`
+              the three figures fit on one line anyway, so forbidding the wrap
+              costs nothing and hands back a real baseline. Below `lg` the row
+              is `flex-col` and none of this applies. */}
+          <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-12 lg:shrink-0 lg:flex-nowrap">
             <Figure
               value={indexedWallets ?? INDEXED_WALLETS}
               label="wallets indexed"

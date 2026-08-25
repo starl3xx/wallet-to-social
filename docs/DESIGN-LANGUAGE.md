@@ -401,6 +401,13 @@ The step is at the measured failure, not at a round number, and 360px is also
 the narrowest phone still in general use. **A grid of buttons needs one more
 step than a grid of text.**
 
+**One named exception to the control height: the network picker tile.** The
+importer's chain tiles are 64px, not `h-control`'s 34px, because they carry the
+network's mark above its name and 34px has room for neither. That height is what
+let "Robinhood Chain" wrap out of its own box and, for one release, be shortened
+to "Robinhood" to fit. The exception is the tile only; every other control in
+that modal is still 34px.
+
 Spacing comes from nine steps only: 4, 8, 12, 16, 24, 32, 48, 64, 96px. Page
 padding `py-16`, section gap `space-y-16`, card padding `p-6`, stack inside a card
 `space-y-4`.

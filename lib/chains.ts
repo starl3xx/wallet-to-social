@@ -53,21 +53,6 @@ export const CHAIN_LABELS: Record<SupportedChain, string> = {
  * Arbitrum and Optimism, the shorter name loses nothing: it is the same width
  * class as its neighbours, which is why they fit and it did not.
  */
-/**
- * The widest a tile label may be, in characters.
- *
- * A proxy for width, and an honest one only because every label here is title
- * case in one typeface at one size: "BNB Chain" is nine and fits, "Robinhood
- * Chain" is fifteen and does not. It is a tripwire for the next chain somebody
- * adds, not a layout engine. The real check is looking at it.
- */
-export const TILE_LABEL_MAX_CHARS = 10;
-
-export const CHAIN_TILE_LABELS: Record<SupportedChain, string> = {
-  ...CHAIN_LABELS,
-  robinhood: 'Robinhood',
-};
-
 export const SUPPORTED_CHAINS = Object.keys(CHAIN_IDS) as SupportedChain[];
 
 /**

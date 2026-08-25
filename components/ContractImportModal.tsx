@@ -20,9 +20,9 @@ import {
 import type { ContractType } from '@/lib/contract-holders';
 // Imported from lib/chains (not lib/contract-holders) so ethers stays out of the
 // client bundle — contract-holders imports ethers at module scope.
+import { CHAIN_MARKS } from '@/components/ui/chain-marks';
 import {
   CHAIN_LABELS,
-  CHAIN_TILE_LABELS,
   SUPPORTED_CHAINS,
   ERC20_SUPPORTED_CHAINS,
   type SupportedChain,
@@ -272,22 +272,26 @@ export function ContractImportModal({
                   announces position. Reimplementing that with roving tabindex
                   is easy to get subtly wrong, and getting it wrong is worse
                   than the plain radios this replaces. */}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {SUPPORTED_CHAINS.map((c) => (
-                  <label key={c} className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="chain"
-                      value={c}
-                      checked={chain === c}
-                      onChange={() => setChain(c)}
-                      className="peer sr-only"
-                    />
-                    {/* A tile you can select is a control: `h-control`, so
-                        it resolves to the 34px every control in a row shares
-                        (`py-2` on 14px text made it 36 beside 34px buttons),
-                        `border-input` so its edge clears 3:1, and
-                        `transition-control` for the product's durations.
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {SUPPORTED_CHAINS.map((c) => {
+                  const Mark = CHAIN_MARKS[c];
+                  return (
+                    <label key={c} className="cursor-pointer">
+                      <input
+                        type="radio"
+                        name="chain"
+                        value={c}
+                        checked={chain === c}
+                        onChange={() => setChain(c)}
+                        className="peer sr-only"
+                      />
+                      {/* A named exception to the 34px control height, recorded
+                        in docs/DESIGN-LANGUAGE.md. A 64px tile carries the
+                        network's mark above its name; at `h-control` there is
+                        room for neither, which is how "Robinhood Chain" came to
+                        wrap out of its own box. `border-input` so its edge
+                        clears 3:1, and `transition-control` for the product's
+                        durations.
 
                         The selected tile is violet: selection is an
                         affordance, and this was the one control in the
@@ -298,14 +302,13 @@ export function ContractImportModal({
                         exists because Tailwind sorts `hover:` after
                         `peer-checked:`, so without it hovering the selected
                         tile painted it grey. */}
-                    <span className="flex h-control items-center justify-center rounded-lg border border-input px-3 text-sm transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
-                      {/* The tile label, which is the full name for every
-                          chain except Robinhood Chain: see CHAIN_TILE_LABELS.
-                          A fixed-height control cannot take a name that wraps. */}
-                      {CHAIN_TILE_LABELS[c]}
-                    </span>
-                  </label>
-                ))}
+                      <span className="flex h-16 flex-col items-center justify-center gap-2 rounded-lg border border-input px-2 text-center text-xs leading-tight transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                        <Mark className="h-6 w-6" />
+                        {CHAIN_LABELS[c]}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
               {!ERC20_SUPPORTED_CHAINS.includes(chain) && (
                 <p className="text-xs text-muted-foreground">

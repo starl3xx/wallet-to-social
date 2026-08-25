@@ -33,22 +33,22 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
-    name: 'a chain tile takes a label that cannot fit its control',
-    file: 'lib/chains.ts',
-    from: "  robinhood: 'Robinhood',\n};",
-    to: "  robinhood: 'Robinhood Chain',\n};",
+    name: 'a chain loses its mark, so the tile renders empty',
+    file: 'components/ui/chain-marks.tsx',
+    from: '  robinhood: RobinhoodMark,',
+    to: '',
   },
   {
-    name: 'the tile bound is widened until nothing can fail it',
-    file: 'lib/chains.ts',
-    from: 'export const TILE_LABEL_MAX_CHARS = 10;',
-    to: 'export const TILE_LABEL_MAX_CHARS = 99;',
+    name: 'the Base mark is put on a plate and rounded like the others',
+    file: 'components/ui/chain-marks.tsx',
+    from: '      <path\n        fill="#00F"',
+    to: '      <rect width="24" height="24" rx="6" fill="#00F" />\n      <path\n        fill="#00F"',
   },
   {
-    name: 'the full chain name is shortened at the source instead of at the tile',
-    file: 'lib/chains.ts',
-    from: "  robinhood: 'Robinhood Chain',\n  arbitrum:",
-    to: "  robinhood: 'Robinhood',\n  arbitrum:",
+    name: 'a plate is rounded but its clip is not, so the mark spills the corners',
+    file: 'components/ui/chain-marks.tsx',
+    from: '        <clipPath id={`arbitrum-one__a-${uid}`}>\n          <rect width="24" height="24" rx="6" />',
+    to: '        <clipPath id={`arbitrum-one__a-${uid}`}>\n          <rect width="24" height="24" />',
   },
 
   {

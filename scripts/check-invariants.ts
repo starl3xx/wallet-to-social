@@ -35,18 +35,13 @@ import { readFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
+import { SUPPORTED_CHAINS } from '../lib/chains';
 import {
   freshCastTime,
   FUTURE_SKEW_MS,
   isExcluded,
   parseExclusions,
 } from './concierge-filters';
-import {
-  CHAIN_LABELS,
-  CHAIN_TILE_LABELS,
-  SUPPORTED_CHAINS,
-  TILE_LABEL_MAX_CHARS,
-} from '../lib/chains';
 import {
   ADDRESS_SHAPE,
   lockedReverseBody,
@@ -1569,45 +1564,40 @@ async function main() {
     );
   }
 
-  // ------------------------------------- Chain tiles: a control cannot grow
-  // The network picker is a grid of `h-control` tiles, 34px, three across in a
-  // modal. "Robinhood Chain" needed a little more than the ~103px of text a
-  // tile gives, wrapped to two lines and broke out of the one height every
-  // control in this product shares. `control-height` renders three pages and
-  // this modal is not one of them, so nothing caught it.
+  // ------------------------------------------ Chain marks: one per chain
+  // The picker renders a mark per network. TypeScript already requires
+  // CHAIN_MARKS to be a full Record<SupportedChain, ...>, so a chain added
+  // without one fails to compile. This is the runtime half of the same claim,
+  // because a mark that is present but undefined renders an empty tile nobody
+  // notices until somebody screenshots the modal.
   {
+    const marks = readFileSync('components/ui/chain-marks.tsx', 'utf8');
     for (const chain of SUPPORTED_CHAINS) {
-      const tile = CHAIN_TILE_LABELS[chain];
       ok(
-        `${chain} has a tile label`,
-        typeof tile === 'string' && tile.length > 0
-      );
-      ok(
-        `${chain}'s tile label fits a control (${tile?.length} chars)`,
-        (tile?.length ?? 99) <= TILE_LABEL_MAX_CHARS
-      );
-      ok(
-        `${chain} still has a full label for surfaces with room`,
-        typeof CHAIN_LABELS[chain] === 'string' &&
-          CHAIN_LABELS[chain].length > 0
+        `${chain} has a mark in CHAIN_MARKS`,
+        new RegExp(`\\b${chain}:\\s*\\w+Mark,`).test(marks)
       );
     }
 
-    // The shortening is for the tile only. Everywhere with room keeps the name.
+    /**
+     * Base is the one mark deliberately left alone.
+     *
+     * Its primary logo is a solid blue square (brand.base.org), so it already
+     * carries its own corners. The icon set ships it knocked out of a blue
+     * plate in white, which inverts the one mark that already had the right
+     * silhouette, and rounding a plate it does not need would be rounding the
+     * logo itself.
+     */
+    const baseFn = marks.slice(marks.indexOf('export function BaseMark'));
     ok(
-      'the full chain name is not shortened at the source',
-      CHAIN_LABELS.robinhood === 'Robinhood Chain'
-    );
-    ok(
-      'the tile label is the one that was shortened',
-      CHAIN_TILE_LABELS.robinhood === 'Robinhood'
+      'the Base mark sits on no plate and is not rounded',
+      !baseFn.slice(0, baseFn.indexOf('\n}')).includes('rx=')
     );
 
-    // Prove the bound can fail, or a max of 99 would satisfy every assertion.
-    ok(
-      'the full name would fail the tile bound',
-      CHAIN_LABELS.robinhood.length > TILE_LABEL_MAX_CHARS
-    );
+    // Every other mark's plate and its clip are rounded together. Rounding the
+    // plate alone leaves the mark painting back into the corners just cut.
+    const plates = (marks.match(/rx="6"/g) ?? []).length;
+    ok('six plates and six clips are rounded, twelve in all', plates === 12);
   }
 
   if (!failures.length) {
