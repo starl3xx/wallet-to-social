@@ -38,6 +38,36 @@ export const CHAIN_LABELS: Record<SupportedChain, string> = {
   bsc: 'BNB Chain',
 };
 
+/**
+ * Labels for a control that cannot grow to fit them.
+ *
+ * The network picker in the contract importer is a grid of `h-control` tiles,
+ * 34px, three across inside a modal. That leaves roughly 103px of text per
+ * tile, and "Robinhood Chain" needs a little more, so it wrapped to two lines
+ * and broke out of the one height every control in this product shares.
+ *
+ * Only the tile is shortened. `CHAIN_LABELS` stays the full name everywhere it
+ * has room, including the importer's own result panel two hundred lines below
+ * the picker, which already carries a comment about not rendering the raw
+ * `robinhood` value. Inside a group whose legend reads "Network", beside
+ * Arbitrum and Optimism, the shorter name loses nothing: it is the same width
+ * class as its neighbours, which is why they fit and it did not.
+ */
+/**
+ * The widest a tile label may be, in characters.
+ *
+ * A proxy for width, and an honest one only because every label here is title
+ * case in one typeface at one size: "BNB Chain" is nine and fits, "Robinhood
+ * Chain" is fifteen and does not. It is a tripwire for the next chain somebody
+ * adds, not a layout engine. The real check is looking at it.
+ */
+export const TILE_LABEL_MAX_CHARS = 10;
+
+export const CHAIN_TILE_LABELS: Record<SupportedChain, string> = {
+  ...CHAIN_LABELS,
+  robinhood: 'Robinhood',
+};
+
 export const SUPPORTED_CHAINS = Object.keys(CHAIN_IDS) as SupportedChain[];
 
 /**

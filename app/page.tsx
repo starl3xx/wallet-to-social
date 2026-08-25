@@ -1446,7 +1446,7 @@ export default function Home() {
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
           out.
         </h1>
-        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+        <div className="mt-3 flex flex-col gap-6 lg:flex-row lg:items-baseline lg:justify-between lg:gap-12">
           <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
             Turn a wallet list into the{' '}
             <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
@@ -1475,8 +1475,17 @@ export default function Home() {
             Then the row itself. The h1 is capped at 17ch and the lede at 46ch,
             so above `lg` the right half of the hero was empty while the
             figures sat alone on their own line beneath. They now share that
-            line, aligned on `items-end` so the labels sit on the lede's
-            baseline rather than floating. It reclaims 54px above the fold,
+            line, aligned on `items-baseline` so the lede sits on the same
+            baseline as the figure values.
+
+            That alignment was `items-end` for one commit and it was wrong. The
+            figures block is the taller of the two children, so ending the row
+            pushed the lede to the bottom of a box the figures had sized,
+            opening about 19px above it that no margin accounted for and that
+            no amount of tuning `mt-` would have found. The lede is a dek: it
+            belongs under the headline, not floating in the middle of the row
+            beside it. Baseline puts it there and pulls the figures up with
+            it. It reclaims 54px above the fold,
             which on this page is the difference between the dropzone starting
             at 306px and at 262px.
 
@@ -1798,7 +1807,7 @@ export default function Home() {
                 {/* How long against how thorough */}
                 <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
                   <Eyebrow className="sm:pt-2.5">Scan depth</Eyebrow>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Segmented<ScanDepth>
                       ariaLabel="Scan depth"
                       value={scanDepth}
@@ -1836,7 +1845,7 @@ export default function Home() {
                 {/* Keep it, and under what name */}
                 <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
                   <Eyebrow className="sm:pt-2.5">History</Eyebrow>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <label
                         htmlFor="saveHistory"

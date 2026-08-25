@@ -134,7 +134,7 @@ export function Segmented<T extends string>({
           onKeyDown={(e) => onKeyDown(e, i)}
           onClick={() => onChange(o.value)}
           className={cn(
-            'segmented-option relative z-10 flex h-full flex-1 basis-0 items-center justify-center gap-1.5 rounded-full',
+            'segmented-option relative z-10 flex h-full flex-1 basis-0 items-center justify-center gap-2 rounded-full',
             'px-3 text-sm font-medium',
             // The ring Button and Input draw, from the one string, so the
             // segment beside a button lights up the same way it does.

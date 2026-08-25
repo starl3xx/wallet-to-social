@@ -312,7 +312,7 @@ export function UpgradeModal({
                         `font-medium`, which is the weight of the button label
                         directly beneath it, so price and button read at one
                         weight. */}
-                    <div className="mt-1 flex items-baseline gap-1.5">
+                    <div className="mt-1 flex items-baseline gap-2">
                       <span className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
                         {price(pack.priceCents)}
                       </span>
@@ -322,7 +322,7 @@ export function UpgradeModal({
                     </div>
                   </div>
 
-                  <div className="space-y-0.5 text-sm">
+                  <div className="space-y-1 text-sm">
                     <p className="font-medium tabular-nums">
                       {pack.matches.toLocaleString()} matches
                     </p>
@@ -387,7 +387,7 @@ export function UpgradeModal({
               mode that read as a smudge rather than a surface. */}
           <div className="flex-none rounded-lg bg-muted p-4">
             <p className="mb-2 text-sm font-medium">Every pack includes</p>
-            <ul className="grid gap-x-6 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+            <ul className="grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
               {INCLUDED.map((item) => (
                 <li key={item.key} className="flex items-center gap-2">
                   <Check className="h-4 w-4 flex-none text-attested" />

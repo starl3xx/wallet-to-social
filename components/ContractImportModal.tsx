@@ -22,6 +22,7 @@ import type { ContractType } from '@/lib/contract-holders';
 // client bundle — contract-holders imports ethers at module scope.
 import {
   CHAIN_LABELS,
+  CHAIN_TILE_LABELS,
   SUPPORTED_CHAINS,
   ERC20_SUPPORTED_CHAINS,
   type SupportedChain,
@@ -298,7 +299,10 @@ export function ContractImportModal({
                         `peer-checked:`, so without it hovering the selected
                         tile painted it grey. */}
                     <span className="flex h-control items-center justify-center rounded-lg border border-input px-3 text-sm transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
-                      {CHAIN_LABELS[c]}
+                      {/* The tile label, which is the full name for every
+                          chain except Robinhood Chain: see CHAIN_TILE_LABELS.
+                          A fixed-height control cannot take a name that wraps. */}
+                      {CHAIN_TILE_LABELS[c]}
                     </span>
                   </label>
                 ))}

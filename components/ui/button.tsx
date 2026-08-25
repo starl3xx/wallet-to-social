@@ -66,7 +66,7 @@ const buttonVariants = cva(
       },
       size: {
         default: 'h-control px-5 has-[>svg]:px-4',
-        sm: 'h-control gap-1.5 px-4 has-[>svg]:px-3',
+        sm: 'h-control gap-2 px-4 has-[>svg]:px-3',
         icon: 'size-control',
         /**
          * The same box as `icon`. The name is kept because seven admin rows and
