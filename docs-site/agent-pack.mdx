@@ -45,9 +45,10 @@ this for you. On success:
 ```
 
 <Warning>
-  `shown_once` is literal, and there is currently **no recovery**. The key is
-  stored only as a hash, there is no email on the account, and replaying the
-  payment will not reissue it. Persist it before the process exits.
+  `shown_once` is literal. The key is stored only as a hash, so nobody can
+  produce the original again, including us. Persist it before the process exits.
+  If you lose it, [recover a new one](#lost-your-key) by signing with the wallet
+  that paid.
 </Warning>
 
 ## What you are buying
@@ -88,6 +89,33 @@ not exist yet.
 An account created this way does not get the free 100 matches per 30 days that
 an email signup does. That allowance exists to show a person their real match
 rate before they pay, and this account has already paid.
+
+## Lost your key
+
+Sign a challenge with the wallet that paid, and a new key is issued against the
+same credits.
+
+```bash
+# 1. Ask for a challenge
+curl "https://walletlink.social/api/x402/recover?wallet=0xYOURWALLET"
+```
+
+That returns a `message`, an `issued_at`, a `token` and five minutes to use
+them. Sign `message` with `personal_sign`, then:
+
+```bash
+# 2. Redeem it
+curl -X POST https://walletlink.social/api/x402/recover   -H "Content-Type: application/json"   -d '{"wallet":"0xYOURWALLET","issued_at":…,"token":"…","signature":"0x…"}'
+```
+
+The credits are untouched: they belong to the account, not to the key. Up to
+three active keys per wallet; revoke one before issuing a fourth.
+
+**Why signing is required, and why replaying your payment is not enough.** Once
+a payment settles, every field of it is public: the authorization is in USDC's
+`AuthorizationUsed` event and the signature over it is in the settlement
+transaction's calldata. Anyone reading Base could present those. Only a
+challenge issued now, signed now, shows that you still hold the wallet.
 
 ## If something goes wrong
 
