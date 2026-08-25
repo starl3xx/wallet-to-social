@@ -58,7 +58,11 @@ import {
   type HolderCollection,
 } from '../lib/holder-pages';
 import { SUPPORTED_CHAINS, type SupportedChain } from '../lib/chains';
-import { freshCastTime } from './concierge-freshness';
+import {
+  freshCastTime,
+  isExcluded,
+  parseExclusions,
+} from './concierge-filters';
 
 const SITE = 'https://walletlink.social';
 
@@ -576,6 +580,15 @@ async function main() {
   const source = arg('source', 'index');
   const limit = Number(arg('limit', String(DEFAULT_LIMIT)));
   /**
+   * Prospects an earlier run already wrote up, as contracts or handles.
+   *
+   * The index lane ranks 54 collections by a score that does not change between
+   * runs, so without this it prints the same three teams every day for ever and
+   * a daily brief is worth reading exactly once. The caller owns the memory:
+   * this script keeps no state and writes nothing.
+   */
+  const excluded = parseExclusions(arg('exclude', ''));
+  /**
    * One clock for the whole run.
    *
    * The X lane's `since:` string and the Farcaster lane's age gate are two
@@ -663,7 +676,38 @@ async function main() {
     if (merged) aliasOf.set(merged, key);
   }
 
-  const ranked = [...best.values()].slice(0, limit);
+  /**
+   * Exclude after dedupe, not before.
+   *
+   * A candidate arriving from two lanes merges into one entry that carries both
+   * a contract and a handle, and either may be the identity the exclusion list
+   * holds. Filtering the raw candidates would drop the copy that matched and
+   * keep the copy that did not.
+   */
+  const fresh = [...best.values()].filter((c) => !isExcluded(c, excluded));
+  const held = best.size - fresh.length;
+  if (held > 0) {
+    console.log(`${held} candidate(s) held back as already written up\n`);
+  }
+  const ranked = fresh.slice(0, limit);
+
+  /**
+   * Held everything back is not the same as found nothing.
+   *
+   * The index lane holds 54 collections and a weekday brief takes three, so a
+   * caller passing every prior brief's picks exhausts it in about eighteen
+   * working days. Without this the lane just prints an empty section, which
+   * reads as "nothing is happening" rather than "you have talked to all of
+   * them".
+   */
+  if (ranked.length === 0) {
+    console.log(
+      `Every candidate was held back as already written up (${best.size} of ${best.size}).`
+    );
+    console.log(
+      'Nothing is wrong. Shorten the exclusion list to come round again.\n'
+    );
+  }
 
   console.log(
     `${candidates.length} candidate(s), ${best.size} after dedupe, showing top ${ranked.length}\n`

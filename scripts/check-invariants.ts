@@ -35,7 +35,12 @@ import { readFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
-import { freshCastTime, FUTURE_SKEW_MS } from './concierge-freshness';
+import {
+  freshCastTime,
+  FUTURE_SKEW_MS,
+  isExcluded,
+  parseExclusions,
+} from './concierge-filters';
 
 /**
  * Set before anything that reads it is called.
@@ -1063,6 +1068,86 @@ async function main() {
       'the Farcaster lane drops what the gate refuses',
       /freshCastTime\([^)]*\);\s*if \(!ts\) \{[\s\S]{0,80}?continue;/.test(lane)
     );
+    // The exclusion list is what stops a daily brief repeating itself. The
+    // index lane ranks 54 collections by a score that does not move between
+    // runs, so with no memory it prints the same three teams every morning.
+    // A miss here is silent: it looks exactly like a prospect nobody listed.
+    {
+      const seen = parseExclusions(
+        '0x699727F9E01A822EFDCF7333073F0461E5914B4E, @Warplets ,Kemonokaki,,'
+      );
+
+      ok('empty entries never become keys', seen.size === 3);
+
+      // The attacker is a prospect already written up, trying for a second
+      // slot by changing case, padding, or which identity it arrives under.
+      ok(
+        'a contract in the list is excluded whatever its case',
+        isExcluded(
+          { address: '0x699727f9e01a822efdcf7333073f0461e5914b4e' },
+          seen
+        )
+      );
+      ok(
+        'a handle in the list is excluded without its @',
+        isExcluded({ handle: 'warplets' }, seen)
+      );
+      ok(
+        'a handle in the list is excluded with its @',
+        isExcluded({ handle: '@WARPLETS' }, seen)
+      );
+      ok(
+        'a collection name in the list is excluded',
+        isExcluded({ name: ' kemonokaki ' }, seen)
+      );
+      ok(
+        'one matching identity is enough when the others differ',
+        isExcluded(
+          { address: '0xdeadbeef', handle: null, name: 'Kemonokaki' },
+          seen
+        )
+      );
+
+      // Prove it can pass, or a function excluding everything satisfies all of
+      // the above and the brief silently comes back empty every day.
+      ok(
+        'a prospect not in the list is kept',
+        !isExcluded(
+          { address: '0xabc', handle: 'someoneelse', name: 'Lil Bangers' },
+          seen
+        )
+      );
+      ok(
+        'an empty list excludes nothing',
+        !isExcluded({ address: '0xabc', name: 'Anything' }, new Set())
+      );
+
+      // A candidate with no identity at all must not collide with a blank key.
+      ok(
+        'a candidate with no identity is never excluded',
+        !isExcluded({ address: null, handle: null, name: null }, seen) &&
+          !isExcluded({}, parseExclusions(',  ,@,'))
+      );
+
+      // Exclusion has to happen after the lanes are merged. A candidate that
+      // arrives twice merges into one entry carrying both a contract and a
+      // handle, and either may be the identity the list holds; filtering the
+      // raw candidates drops the copy that matched and keeps the one that did
+      // not.
+      const lane = readFileSync('scripts/concierge-signals.ts', 'utf8');
+      const afterDedupe = lane.indexOf('const fresh = [...best.values()]');
+      ok(
+        'exclusion runs on the deduped set, not the raw candidates',
+        afterDedupe > lane.indexOf('const best = new Map') &&
+          /best\.values\(\)\]\.filter\(\(c\) => !isExcluded\(c, excluded\)\)/.test(
+            lane
+          )
+      );
+      ok(
+        'the shortlist is sliced from the filtered set',
+        /const ranked = fresh\.slice\(0, limit\)/.test(lane)
+      );
+    }
   }
 
   if (!failures.length) {
