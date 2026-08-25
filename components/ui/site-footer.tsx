@@ -63,11 +63,16 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        {/* Every gap here is a spacing step. The grid was gap-10 (40px), the
-            phone theme toggle mt-5 (20px), the bottom row mt-10 pt-5
-            (40/20px) and the column links gap-2.5 (10px): five values the
+        {/* Every gap here is a spacing step. The grid was `gap-10` (40px), the
+            phone theme toggle `mt-5` (20px), the bottom row `mt-10 pt-5`
+            (40/20px) and the column links `gap-2.5` (10px): five values the
             nine-step scale does not have, each replaced with its nearest
-            step (48, 16, 48/16, 12). */}
+            step (48, 16, 48/16, 12).
+
+            The backticks are load bearing, not decoration. `spacing-scale` in
+            `check-design-language.mjs` reads prose as readily as markup, and
+            backtick is kept out of its lead-in set so a comment can name the
+            class it is explaining. This note tripped its own rule. */}
         <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.9fr_1fr_1.1fr_1.2fr]">
           <div>
             {/* The same object as the header's, at the phone-header size. It
@@ -264,7 +269,7 @@ function FooterLink({
   external?: boolean;
 }) {
   const className =
-    'transition-control inline-flex items-center gap-1.5 text-sm text-foreground/80 hover:text-accent-brand';
+    'transition-control inline-flex items-center gap-2 text-sm text-foreground/80 hover:text-accent-brand';
   if (external) {
     return (
       <a

@@ -1798,7 +1798,7 @@ export default function Home() {
                 {/* How long against how thorough */}
                 <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
                   <Eyebrow className="sm:pt-2.5">Scan depth</Eyebrow>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Segmented<ScanDepth>
                       ariaLabel="Scan depth"
                       value={scanDepth}
@@ -1836,7 +1836,7 @@ export default function Home() {
                 {/* Keep it, and under what name */}
                 <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
                   <Eyebrow className="sm:pt-2.5">History</Eyebrow>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <label
                         htmlFor="saveHistory"

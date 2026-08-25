@@ -408,6 +408,23 @@ padding `py-16`, section gap `space-y-16`, card padding `p-6`, stack inside a ca
 **Flex `gap` and child `margin` both control spacing and silently add.** One or the
 other owns it, never both.
 
+`spacing-scale` in `check-design-language.mjs` enforces this on `gap`, `gap-x`,
+`gap-y`, `space-x` and `space-y`, integers and half steps alike. The half steps
+are the point: the first version of the rule matched integers only, reported
+clean, and was missing nineteen live values (`gap-1.5` fourteen times,
+`space-y-0.5` three, `gap-2.5` twice). Those are now on the scale, mostly at 8px,
+which is what the majority of icon-to-label gaps in the tree already use.
+
+**Padding and margin are not covered, deliberately.** They carry 95 fractional
+values of which 82 are `mt-0.5`, a 2px nudge that sits an icon on a text
+baseline. That is optical alignment rather than layout spacing, and it wants its
+own answer rather than being swept up by a rule written for gaps.
+
+Name a class inside a comment in backticks. The guard keeps backtick out of its
+lead-in set precisely so prose can quote the class it explains; an unquoted one
+is read as markup, which is how the footer's own note about this cleanup ended
+up failing the rule it was describing.
+
 ---
 
 ## Dialogs

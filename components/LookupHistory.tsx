@@ -249,7 +249,7 @@ export const LookupHistory = memo(function LookupHistory({
                     them. This said "Twitter" while the hero, the reverse
                     lookup segment and the footer all showed the X mark. The
                     marks are named, because here they stand in for the word. */}
-                <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                   <span>{formatDate(lookup.createdAt)}</span>
                   <span aria-hidden="true">·</span>
                   <span className="inline-flex items-center gap-1 tabular-nums">

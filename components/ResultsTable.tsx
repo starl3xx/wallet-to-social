@@ -86,7 +86,7 @@ const TwitterCell = memo(function TwitterCell({
   const primary =
     reach && reach !== 'live' ? (
       <span
-        className="inline-flex items-center gap-1.5 text-caution"
+        className="inline-flex items-center gap-2 text-caution"
         title={REACHABILITY_DETAIL[reach]}
       >
         <WarningCircle className="h-3 w-3" weight="fill" aria-hidden />
@@ -859,14 +859,19 @@ export const ResultsTable = memo(function ResultsTable({
     /* The bars are foreground, not violet: a priority score is a computed
        figure, neither an affordance nor an attested fact, and violet on it
        said "you can act on this". The score is a table figure, so it takes
-       the figure cut, 500 tabular. The bars own their own `gap-0.5` and the
-       outer row its `gap-2`; a margin on the figure was adding to the gap. */
+       the figure cut, 500 tabular. The bars own their own `gap-1` and the
+       outer row its `gap-2`; a margin on the figure was adding to the gap.
+
+       That bar gap was `gap-0.5`, 2px, which is not one of the nine spacing
+       steps. At 4px the five 4px bars read as a segmented meter rather than a
+       block with hairlines through it, and the cell grows by 8px in a column
+       nowhere near its width. */
     return (
       <div
         className="flex items-center gap-2 cursor-help"
         title={`Priority: ${formatPriorityScore(score)} (Based on holdings × follower reach)`}
       >
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}

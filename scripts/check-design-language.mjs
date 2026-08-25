@@ -92,6 +92,28 @@ const RULES = [
     msg: 'One inset surface: bg-muted at full opacity. Drop the /NN.',
   },
   {
+    name: 'spacing-scale',
+    /**
+     * Nine steps: 4, 8, 12, 16, 24, 32, 48, 64, 96px, which are Tailwind's
+     * 1/2/3/4/6/8/12/16/24. Anything else is an unnamed tenth value.
+     *
+     * The first draft of this matched only integer suffixes and so walked
+     * straight past `gap-1.5` and `space-y-0.5`, of which the tree held
+     * nineteen. It would have shipped announcing that spacing was enforced
+     * while missing most of what breaks it, which is how three earlier guards
+     * in this repository reported clean over live violations. The fractional
+     * branch below is the whole reason this rule is worth having.
+     *
+     * Scoped to `gap` and `space-`, deliberately, and not to padding or
+     * margin. Those carry 95 fractional values of which 82 are `mt-0.5`, a 2px
+     * optical nudge used to sit an icon on a text baseline. That is a
+     * different question to layout spacing and it deserves its own answer
+     * rather than being swept up by a regex written for gaps.
+     */
+    re: /(^|[\s"'])(?:[a-z0-9-]+:)*(?:gap|gap-x|gap-y|space-x|space-y)-(?!(?:0|1|2|3|4|6|8|12|16|24|px)(?=[\s"']|$))\d+(?:\.\d+)?(?=[\s"']|$)/,
+    msg: 'Spacing has nine steps: 4, 8, 12, 16, 24, 32, 48, 64, 96px. Use gap-1/2/3/4/6/8/12/16/24.',
+  },
+  {
     name: 'tracking-literal',
     // Tracking is bound to size through four tokens. A literal em or a
     // Tailwind step (`tracking-tight`, `tracking-wide`) is a fifth value.
@@ -179,6 +201,36 @@ const FIXTURES = {
       'text-muted-foreground',
       'bg-secondary text-secondary-foreground',
       'hover:border-accent-brand',
+    ],
+  },
+  'spacing-scale': {
+    bad: [
+      'gap-5',
+      'lg:gap-10',
+      'className="flex flex-col gap-7"',
+      'space-y-5',
+      'sm:gap-x-14',
+      // The half steps the first draft missed. 6px, 2px, 10px, 14px.
+      'gap-1.5',
+      'space-y-0.5',
+      'gap-2.5',
+      'sm:gap-x-3.5',
+    ],
+    // `gap-16` and `gap-24` must survive: they open with the digits of `gap-1`
+    // and `gap-2`, which is exactly how a lookahead without its own boundary
+    // eats them. `mt-0.5` must survive too, because this rule is not about
+    // margin.
+    good: [
+      'gap-4',
+      'gap-6',
+      'sm:gap-x-12',
+      'gap-y-4',
+      'space-y-16',
+      'gap-24',
+      'gap-0',
+      'lg:gap-12',
+      'mt-0.5',
+      'px-2.5',
     ],
   },
   'icon-library': {
