@@ -12,16 +12,19 @@
  * account, a replayer can also fill the cap and lock the buyer out of the
  * recovery they were trying to use.
  *
- * The token hash rather than the token: this table is in the nightly dump, and
- * a dump that carries live credentials is a credential store nobody meant to
- * build. The hash is enough to recognise a replay.
+ * The token hash rather than the token: a table of live credentials is a
+ * credential store whether or not anything ever copies it. The hash is enough
+ * to recognise a replay.
  *
  * Rows are written only after a signature has already verified, so an
- * unauthenticated caller cannot grow this table.
+ * unauthenticated caller cannot grow this table, and every row is worthless
+ * five minutes after it is written.
+ *
+ * NOT a backup table, for that reason: a nightly dump of it would restore
+ * nothing but hashes that expired the previous day. It goes in
+ * READ_ONLY_TABLES so CI can read it, and nowhere near BACKUP_TABLES.
  *
  * DATABASE_URL: the owner role, and the direct endpoint rather than the pooler.
- * New table, so it also needs an entry in scripts/migrate-grant-readonly.ts,
- * which this migration does not do for you.
  */
 
 import { neon } from '@neondatabase/serverless';
