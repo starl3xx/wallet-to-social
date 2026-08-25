@@ -1487,9 +1487,12 @@ export default function Home() {
             The row's own gaps are 24 and 48, not the 20 and 40 this shipped
             with for one commit. Those are not spacing steps, which the note
             above already said in passing and the footer had already been
-            cleaned of once. There is now a `spacing-scale` rule in
-            `check-design-language.mjs`, because a constraint recorded only in
-            a comment three files away is one the next person re-breaks. */}
+            cleaned of once. Nothing enforces that yet: a `spacing-scale` rule
+            was written for `check-design-language.mjs` and withdrawn, because
+            it turned out the tree already holds 19 fractional gaps (14 at 1.5,
+            3 at 0.5, 2 at 2.5) that are equally off the scale, and rounding
+            each of them is a judgement per site rather than a rename. That is
+            its own change. */}
           {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
             100.5 + 92.1 = 273px, and two 48px gaps ask for 369px against the
             342px a 390px phone gives this column, so the row wrapped 2 + 1 and
