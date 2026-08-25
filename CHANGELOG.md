@@ -5,7 +5,7 @@ All notable changes to walletlink.social. Newest first.
 ### 2026-08-25 (a post about what the API is for)
 
 - **"Nine things to build with a wallet address, and the calls that do them"**,
-  queued for 27 August. Nine worked recipes: three that need only `curl`, three
+  published 25 August. Nine worked recipes: three that need only `curl`, three
   that turn on the reachability field, and three that only became possible once
   an agent could call the API itself (MCP in Claude, MCP in Claude Code, and an
   agent buying its own credits over x402).

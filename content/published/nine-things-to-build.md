@@ -2,7 +2,7 @@
 title: 'Nine things to build with a wallet address, and the calls that do them'
 meta_description: 'Nine worked recipes for turning Ethereum addresses into people: holder outreach, airdrop screening, list auditing, and three that only work once an agent can call the API itself.'
 published: true
-publish_date: '2026-08-27'
+publish_date: '2026-08-25'
 ---
 
 # Nine things to build with a wallet address, and the calls that do them
