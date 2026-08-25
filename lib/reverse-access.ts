@@ -90,6 +90,29 @@ export function lockedReverseBody(
 }
 
 /**
+ * Why a handle came back with nothing, which is a different answer per network.
+ *
+ * The two are not interchangeable and the product is sold on the distinction.
+ * Farcaster coverage is complete, so a miss there is a fact about the account:
+ * it genuinely has no addresses attached. X handles are only known when the
+ * owner published the link, so a miss there is a fact about our coverage and
+ * says nothing about the account.
+ *
+ * The first version of `lockedReverseMessage` gave both networks the coverage
+ * explanation, which told every locked Farcaster caller the opposite of what
+ * the empty state a paying caller sees tells them. Conflating the two is the
+ * exact failure the empty-state copy in `ReverseLookup.tsx` was written to
+ * prevent, and it reached review because the locked path was new copy written
+ * beside the old rather than from it.
+ */
+export const MISS_EXPLANATION: Record<ReversePlatform, string> = {
+  farcaster:
+    'Farcaster coverage is complete, so this account genuinely has no addresses attached.',
+  twitter:
+    'X handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.',
+};
+
+/**
  * Copy for the locked state, kept beside the rule it describes.
  *
  * Change 03 on the plan was "decide what the free allowance covers and say so".
@@ -102,7 +125,7 @@ export function lockedReverseMessage(
 ): string {
   const network = platform === 'twitter' ? 'X' : 'Farcaster';
   if (totalCount === 0) {
-    return `No wallet in the index carries this ${network} handle. That is a fact about our coverage, not about the account.`;
+    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;
   }
   const noun = totalCount === 1 ? 'wallet' : 'wallets';
   return `${totalCount.toLocaleString()} ${noun} in the index carry this ${network} handle. Credits show you which ones.`;

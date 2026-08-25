@@ -33,6 +33,25 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'both networks get the coverage excuse again (Bugbot, 2026-08-25)',
+    file: 'lib/reverse-access.ts',
+    from: '    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
+    to: '    return `No wallet in the index carries this ${network} handle. That is a fact about our coverage, not about the account.`;',
+  },
+  {
+    name: 'the two networks swap their miss explanations',
+    file: 'lib/reverse-access.ts',
+    from: '    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
+    to: "    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform === 'twitter' ? 'farcaster' : 'twitter']}`;",
+  },
+  {
+    name: 'the empty state goes back to its own copy of the Farcaster sentence',
+    file: 'components/ReverseLookup.tsx',
+    from: '            MISS_EXPLANATION.farcaster',
+    to: "            'Farcaster coverage is complete, so this account genuinely has no addresses attached.'",
+  },
+
+  {
     name: 'the locked branch returns rows it sliced instead of never reading them',
     file: 'app/api/reverse/route.ts',
     from: '  if (!entitled) {\n    return NextResponse.json(lockedReverseBody(platform, handle, totalCount));\n  }',

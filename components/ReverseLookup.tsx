@@ -14,7 +14,7 @@ import { InlineError } from '@/components/ui/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Segmented } from '@/components/ui/segmented';
-import { lockedReverseMessage } from '@/lib/reverse-access';
+import { lockedReverseMessage, MISS_EXPLANATION } from '@/lib/reverse-access';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';
@@ -314,13 +314,16 @@ export function ReverseLookup({
             {empty.handle}
           </span>
           .{' '}
+          {/* Both branches read the shared explanations, so the free locked
+              answer and this paid empty state cannot drift into telling the two
+              networks' stories the wrong way round. The X branch swaps the
+              leading letter for the mark and renders the identical sentence. */}
           {empty.platform === 'farcaster' ? (
-            'Farcaster coverage is complete, so this account genuinely has no addresses attached.'
+            MISS_EXPLANATION.farcaster
           ) : (
             <>
-              <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />{' '}
-              handles are only known when the owner published the link, so this
-              is an absence of evidence rather than evidence of absence.
+              <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />
+              {MISS_EXPLANATION.twitter.replace(/^X/, '')}
             </>
           )}
         </p>

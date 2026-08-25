@@ -45,6 +45,7 @@ import {
   ADDRESS_SHAPE,
   lockedReverseBody,
   lockedReverseMessage,
+  MISS_EXPLANATION,
 } from '../lib/reverse-access';
 
 /**
@@ -1201,6 +1202,45 @@ async function main() {
         !ADDRESS_SHAPE.test(msg)
       );
     }
+
+    /**
+     * A miss means opposite things on the two networks, and the product is
+     * sold on the difference.
+     *
+     * Farcaster coverage is complete, so nothing there is a fact about the
+     * account. An X handle is known only when its owner published the link, so
+     * nothing there is a fact about the account. The first version of the
+     * locked copy gave both networks the coverage explanation, which told
+     * every locked Farcaster caller the opposite of what a paying caller is
+     * told about the same handle (Bugbot, 2026-08-25).
+     */
+    const fcMiss = lockedReverseMessage(0, 'farcaster');
+    const xMiss = lockedReverseMessage(0, 'twitter');
+    ok('the two networks get different miss explanations', fcMiss !== xMiss);
+    ok(
+      'a Farcaster miss is explained as a fact about the account',
+      fcMiss.includes(MISS_EXPLANATION.farcaster) &&
+        !fcMiss.includes(MISS_EXPLANATION.twitter)
+    );
+    ok(
+      'an X miss is explained as a gap in our evidence',
+      xMiss.includes(MISS_EXPLANATION.twitter) &&
+        !xMiss.includes(MISS_EXPLANATION.farcaster)
+    );
+    ok(
+      'neither miss explanation claims completeness for X',
+      !MISS_EXPLANATION.twitter.includes('complete')
+    );
+
+    // The paid empty state and the free locked answer must tell one story.
+    // They were separate string literals, which is how they disagreed.
+    const panel = readFileSync('components/ReverseLookup.tsx', 'utf8');
+    ok(
+      'the empty state reads the shared explanations rather than its own copy',
+      panel.includes('MISS_EXPLANATION.farcaster') &&
+        panel.includes('MISS_EXPLANATION.twitter') &&
+        !panel.includes('Farcaster coverage is complete, so this account')
+    );
 
     /**
      * The body is only half the guarantee.
