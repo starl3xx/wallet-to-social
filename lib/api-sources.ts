@@ -138,13 +138,45 @@ const SOURCE_ORDER: PublicSource[] = [
  * Deduplicates, drops anything unrecognized, and returns undefined rather
  * than an empty array so callers can omit the field entirely.
  */
-export function publicSources(
-  sources: string[] | null | undefined
-): PublicSource[] | undefined {
-  if (!sources || sources.length === 0) return undefined;
+/**
+ * Coerce whatever is in a `source` field into the list it was supposed to be.
+ *
+ * The field is typed `string[]` and that type is a claim about JSON, which is
+ * not a thing a type can check. It was wrong in production: our own CSV export
+ * writes `source` as a comma-joined string, and a customer who exported results
+ * and re-uploaded that file had the string merged straight over the array by
+ * `lib/job-processor.ts`. 480,674 stored result rows held an array; two held a
+ * string, and the only surface that noticed called `.map` and crashed.
+ *
+ * A string is the shape that actually occurs, so it is the shape that is
+ * recovered rather than discarded: splitting on the comma gives back exactly
+ * what the export joined. Anything else becomes an empty list, which every
+ * caller already handles.
+ *
+ * Iterating a string is the specific trap this exists to close. `for (const s
+ * of "web3bio,neynar")` walks characters, and so does `[...existing.source]`,
+ * so the bug's signature is a provenance list made of single letters rather
+ * than an exception anybody would see.
+ */
+export function asSourceList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string');
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+export function publicSources(sources: unknown): PublicSource[] | undefined {
+  const list = asSourceList(sources);
+  if (list.length === 0) return undefined;
 
   const classes = new Set<PublicSource>();
-  for (const source of sources) {
+  for (const source of list) {
     const mapped = SOURCE_CLASSES[source];
     if (mapped) classes.add(mapped);
   }

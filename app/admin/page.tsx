@@ -41,6 +41,7 @@ import {
   ArrowCounterClockwise as RotateCcw,
   ArrowSquareOut,
 } from '@phosphor-icons/react';
+import { asSourceList } from '@/lib/api-sources';
 import {
   ExecutivePulse,
   UserBehavior,
@@ -152,6 +153,14 @@ interface WalletResult {
   farcaster_url?: string;
   ens_name?: string;
   fc_followers?: number;
+  /**
+   * Typed as the list it is supposed to be, read through `asSourceList`.
+   *
+   * The type is a claim about JSON that arrived over the wire, so it is not
+   * enforced anywhere. `unknown` would be more honest and would make every
+   * reader deal with it; the narrower type plus one coercion at the single
+   * render site is the smaller change and says the same thing.
+   */
   source?: string[];
 }
 
@@ -1030,7 +1039,16 @@ export default function AdminPage() {
                       <div className="flex gap-1 flex-wrap">
                         {/* `title`: a marker such as farcaster_sweep is
                             longer than the 12ch a badge shows. */}
-                        {result.source?.map((s) => (
+                        {/* `asSourceList`, not `.map`. The field is typed
+                            `string[]` and that type is a claim about JSON
+                            nothing validated: two stored rows held the
+                            comma-joined string our own CSV export writes,
+                            re-uploaded by a customer, and this line threw
+                            `source?.map is not a function` and took the whole
+                            page down with it. The writer is fixed in
+                            lib/job-processor.ts; this is what makes the rows
+                            already in the database readable. */}
+                        {asSourceList(result.source).map((s) => (
                           <Badge key={s} tone="muted" title={s}>
                             {s}
                           </Badge>

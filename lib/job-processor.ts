@@ -25,6 +25,7 @@ import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 import type { UserTier } from '@/lib/access';
+import { asSourceList } from '@/lib/api-sources';
 
 // Process up to this many wallets per cron invocation
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
@@ -161,7 +162,11 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     const results = new Map<string, WalletSocialResult>();
     const partialResults = (job.partialResults || []) as WalletSocialResult[];
     for (const r of partialResults) {
-      results.set(r.wallet, r);
+      // Normalised on the way in, because a row written before the spread
+      // order above was corrected still carries a string here, and this job
+      // may be a resume rather than a first run. Without it, the very next
+      // `[...existing.source, 'cache']` spreads that string into characters.
+      results.set(r.wallet, { ...r, source: asSourceList(r.source) });
     }
 
     // Detect holdings column
@@ -182,11 +187,36 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             parseHoldingsValue(walletData[holdingsColumn]) ?? undefined;
         }
 
+        /**
+         * The uploaded columns first, then the fields we own.
+         *
+         * This was the other way round, and a column name could therefore
+         * overwrite a field the pipeline depends on. `source` is the one that
+         * bites: our own CSV export writes it as a comma-joined string
+         * (`ExportButton.tsx`), so a customer who exported results and
+         * re-uploaded that file replaced `string[]` with `"web3bio,neynar"`.
+         *
+         * Nothing then threw. Every later stage does `[...existing.source,
+         * 'cache']`, and spreading a string spreads its characters, so the
+         * provenance for that job quietly became a list of letters.
+         * `source.includes('neynar')` kept returning true by substring match,
+         * and `source.length === 1 && source[0] === 'none'` started reading a
+         * character count. The only surface loud enough to notice was the
+         * admin job viewer, which calls `.map` and crashed.
+         *
+         * `wallet` and `holdings` had the same exposure: a `wallet` column
+         * would have replaced the lowercased key everything else looks up by,
+         * and a `holdings` column would have put the raw cell back over the
+         * parsed number.
+         *
+         * Uploaded columns are still carried through for export. They simply
+         * no longer win a collision with a field this function computed.
+         */
         results.set(walletLower, {
+          ...walletData,
           wallet: walletLower,
           source: [],
           holdings,
-          ...walletData,
         });
       }
     }

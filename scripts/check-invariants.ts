@@ -745,6 +745,83 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------- the source field shape
+  // `source` is typed `string[]`, and that type is a claim about JSON nobody
+  // validated. Our own CSV export writes it as a comma-joined string, a
+  // customer re-uploaded that file, and the string was merged straight over the
+  // array. Nothing threw where it happened: every later stage spreads the field,
+  // and spreading a string spreads its characters, so a job's provenance
+  // quietly became a list of letters. The admin viewer called `.map` and was
+  // the only surface loud enough to notice.
+  {
+    const { asSourceList, publicSources } = await import('@/lib/api-sources');
+
+    // The exact loop that broke: export joins, upload merges, pipeline spreads.
+    const joined = 'web3bio,neynar,cache';
+    ok(
+      'a comma-joined source string is recovered as its list',
+      JSON.stringify(asSourceList(joined)) ===
+        JSON.stringify(['web3bio', 'neynar', 'cache'])
+    );
+    // The bug's signature, asserted directly rather than described. Iterating
+    // the raw string yields 20 characters; through the coercion it yields 3.
+    ok(
+      'spreading a recovered source does NOT spread characters',
+      [...asSourceList(joined), 'graph'].length === 4 &&
+        [...joined, 'graph'].length === 21
+    );
+    ok(
+      'an array is passed through unchanged',
+      JSON.stringify(asSourceList(['a', 'b'])) === JSON.stringify(['a', 'b'])
+    );
+    for (const junk of [null, undefined, 42, {}, [1, 2]]) {
+      ok(
+        `a source of ${JSON.stringify(junk) ?? 'undefined'} becomes an empty list rather than throwing`,
+        Array.isArray(asSourceList(junk))
+      );
+    }
+    // publicSources iterated its argument directly, so a string walked
+    // characters, matched no source class and returned undefined: the evidence
+    // column vanished from a re-uploaded export with no error.
+    ok(
+      'publicSources reads a joined string rather than silently dropping it',
+      publicSources('farcaster,onchain') !== undefined
+    );
+    ok(
+      'publicSources still returns nothing for a genuinely empty source',
+      publicSources([]) === undefined && publicSources(null) === undefined
+    );
+
+    // The writer. Uploaded columns are spread FIRST so a column name cannot
+    // overwrite a field this function computed. `wallet` and `holdings` had the
+    // same exposure as `source`.
+    const processor = readFileSync('lib/job-processor.ts', 'utf8');
+    const init = processor.slice(
+      processor.indexOf('for (const wallet of walletsToProcess) {'),
+      processor.indexOf('const neynarApiKey')
+    );
+    ok(
+      'uploaded CSV columns are spread before the fields the pipeline owns',
+      init.indexOf('...walletData') !== -1 &&
+        init.indexOf('...walletData') < init.indexOf('source: []') &&
+        init.indexOf('...walletData') < init.indexOf('wallet: walletLower')
+    );
+    // A resumed job reloads rows written before that fix, so the entry point
+    // has to normalise too or the next spread is back to characters.
+    ok(
+      'partial results are normalised when a job resumes',
+      /partialResults[\s\S]{0,400}?asSourceList\(r\.source\)/.test(processor)
+    );
+
+    // And the reader that crashed.
+    const admin = readFileSync('app/admin/page.tsx', 'utf8');
+    ok(
+      'the admin job viewer coerces before mapping over source',
+      admin.includes('asSourceList(result.source).map') &&
+        !admin.includes('result.source?.map')
+    );
+  }
+
   // ------------------------------------------------- the privacy policy
   // Every retention period the policy states has to be one the code enforces.
   // A policy naming a period nothing deletes on is a claim with nothing able to
