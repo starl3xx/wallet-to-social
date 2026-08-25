@@ -532,7 +532,7 @@ async function drawDown(userId: string, matches: number): Promise<void> {
  * The chain is walked rather than read one level down, because a future driver
  * or pool wrapper is free to add another layer.
  */
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
   for (let e = error; e; e = (e as { cause?: unknown }).cause) {
     if ((e as { code?: unknown }).code === '23505') return true;
   }

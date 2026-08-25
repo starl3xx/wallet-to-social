@@ -80,11 +80,21 @@ export interface Challenge {
   expiresAt: string;
 }
 
-/** A challenge for this wallet, or null when the secret is unset. */
-export function issueChallenge(wallet: string): Challenge | null {
+/**
+ * A challenge for this wallet, or null when the secret is unset.
+ *
+ * `issuedAt` is a parameter so a check can exercise this function at a chosen
+ * moment rather than reimplementing the HMAC to do it. A guard that recomputes
+ * what it is testing verifies only itself: an earlier version of
+ * `scripts/check-invariants.ts` did exactly that and passed while the HMAC's
+ * coverage of the timestamp was deleted.
+ */
+export function issueChallenge(
+  wallet: string,
+  issuedAt: number = Date.now()
+): Challenge | null {
   const key = secret();
   if (!key) return null;
-  const issuedAt = Date.now();
   return {
     message: challengeMessage(wallet, issuedAt),
     issuedAt,
