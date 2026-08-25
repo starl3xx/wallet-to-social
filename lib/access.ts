@@ -208,7 +208,7 @@ export async function effectiveTierForUserId(
 /**
  * Get or create a user by email
  */
-export async function getOrCreateUser(email: string) {
+export async function getOrCreateUser(email: string, origin?: string | null) {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
@@ -221,12 +221,21 @@ export async function getOrCreateUser(email: string) {
     .where(eq(users.email, normalizedEmail))
     .limit(1);
 
+  /**
+   * An existing user keeps the origin they were acquired with.
+   *
+   * First touch, not last, and this is the line that enforces it. Every later
+   * sign-in arrives with whatever the browser happens to hold now, so an
+   * update here would rewrite the acquisition source on every login and the
+   * column would slowly converge on `direct` for everybody. Returning early
+   * without touching it is the whole guarantee.
+   */
   if (existing) return existing;
 
   // Create new user
   const [newUser] = await db
     .insert(users)
-    .values({ email: normalizedEmail })
+    .values({ email: normalizedEmail, origin: origin ?? null })
     .returning();
 
   return newUser;

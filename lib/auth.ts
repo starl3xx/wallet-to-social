@@ -2,6 +2,7 @@ import { getDb } from '@/db';
 import { authSessions, magicLinkTokens, users } from '@/db/schema';
 import { eq, and, isNull, lt, gt } from 'drizzle-orm';
 import { createHash, randomBytes } from 'crypto';
+import { ORIGIN_MAX_LENGTH } from '@/lib/first-touch';
 
 // Session duration: 30 days
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -46,7 +47,8 @@ function generateToken(): string {
  * Returns the raw token (to be sent in email) and stores hash in DB
  */
 export async function generateMagicLinkToken(
-  email: string
+  email: string,
+  origin?: string | null
 ): Promise<{ token: string } | { error: string }> {
   const db = getDb();
   if (!db) {
@@ -82,6 +84,10 @@ export async function generateMagicLinkToken(
       email: normalizedEmail,
       tokenHash,
       expiresAt,
+      // Clamped here as well as at the caller. This is the last point before
+      // it becomes a row, and a length bound at the boundary is worth more
+      // than one further up that a second caller can skip.
+      origin: origin ? origin.slice(0, ORIGIN_MAX_LENGTH) : null,
     });
 
     return { token };
@@ -97,7 +103,7 @@ export async function generateMagicLinkToken(
  */
 export async function verifyMagicLinkToken(
   token: string
-): Promise<{ email: string } | { error: string }> {
+): Promise<{ email: string; origin: string | null } | { error: string }> {
   const db = getDb();
   if (!db) {
     return { error: 'Database not configured' };
@@ -129,7 +135,7 @@ export async function verifyMagicLinkToken(
       .set({ usedAt: new Date() })
       .where(eq(magicLinkTokens.id, tokenRecord.id));
 
-    return { email: tokenRecord.email };
+    return { email: tokenRecord.email, origin: tokenRecord.origin ?? null };
   } catch (error) {
     console.error('Error verifying magic link token:', error);
     return { error: 'Failed to verify sign-in link' };

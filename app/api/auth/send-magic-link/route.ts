@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateMagicLinkToken, isAllowedReturnPath } from '@/lib/auth';
+import { safeOrigin } from '@/lib/first-touch';
 import { sendMagicLink, isEmailConfigured } from '@/lib/email';
 
 export const runtime = 'nodejs';
 
 interface SendMagicLinkRequest {
   email: string;
+  /**
+   * Where this browser first arrived from, as one short groupable string.
+   *
+   * Sent by the client because only the client has it: it lives in the
+   * localStorage of whatever typed the email. Sanitised and clamped again on
+   * arrival, since it is a value from the open internet on its way to a column.
+   */
+  origin?: string;
   /**
    * Where to land after signing in, and the only value here that is not the
    * user's own typing.
@@ -29,6 +38,7 @@ export async function POST(request: NextRequest) {
 
     const body: SendMagicLinkRequest = await request.json();
     const { email } = body;
+    const origin = safeOrigin(body.origin);
     const returnPath = isAllowedReturnPath(body.next ?? null)
       ? body.next
       : undefined;
@@ -51,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate magic link token (rate limited in lib/auth.ts)
-    const tokenResult = await generateMagicLinkToken(email);
+    const tokenResult = await generateMagicLinkToken(email, origin);
 
     if ('error' in tokenResult) {
       // Rate limit error returns 429

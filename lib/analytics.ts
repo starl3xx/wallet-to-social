@@ -28,6 +28,10 @@ export type AnalyticsEventType =
   | 'checkout_failed'
   | 'payment_completed'
   | 'limit_hit'
+  // The app's reverse lookup, fired client-side so it carries a session id.
+  // `locked` separates a caller who got the count from one who got the
+  // wallets, which is the only way to tell whether the free half converts.
+  | 'reverse_lookup'
   | 'user_registered'
   | 'contract_import_blocked'
   | 'contract_import_success'

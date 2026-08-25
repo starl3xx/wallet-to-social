@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Segmented } from '@/components/ui/segmented';
 import { lockedReverseMessage, MISS_EXPLANATION } from '@/lib/reverse-access';
+import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
 
 type Platform = 'twitter' | 'farcaster';
@@ -107,13 +108,13 @@ export function ReverseLookup({
       if (!res.ok) throw new Error(data.error || 'Lookup failed');
 
       if (data.locked) {
-        setLockedCount({
-          handle: data.meta.handle,
-          platform,
-          total: data.meta.total_count ?? 0,
-        });
+        const total = data.meta.total_count ?? 0;
+        Analytics.reverseLookup(platform, true, total);
+        setLockedCount({ handle: data.meta.handle, platform, total });
         return;
       }
+
+      Analytics.reverseLookup(platform, false, data.meta?.total_count ?? 0);
 
       if (!data.results?.length) {
         setEmpty({ handle: value.replace(/^@/, ''), platform });

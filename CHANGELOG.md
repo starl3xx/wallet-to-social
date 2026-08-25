@@ -2,6 +2,43 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (three blind spots, closed)
+
+- **`/api/reverse` now emits an event.** The app's reverse lookup, the primary
+  action on the page that receives 91% of traffic, wrote no analytics at all, so
+  an engaged visitor and a bounce were the same row. It is fired from the client
+  so the event carries a session id, which the server-side lookup events do not,
+  and it records `locked` so the free half of the endpoint can be told apart
+  from the paid one.
+- **`users.origin` finally holds something.** The column has existed since the
+  table did and had 139 rows and 139 nulls. It is written on insert only: first
+  touch, not last. An update on an existing user would rewrite the acquisition
+  source at every login and the column would converge on whatever people last
+  clicked.
+- **The origin travels with the magic link token** (`magic_link_tokens.origin`,
+  `scripts/migrate-first-touch.ts`). The browser that knows the first touch is
+  the one that typed the email; the browser that creates the user row is
+  whichever opens the mail, routinely a webmail preview or a link scanner.
+  Reading it at verify time would have credited a share of every campaign to
+  Gmail, which is worse than null because it looks like data.
+- **First touch is captured once per browser** (`lib/first-touch.ts`): the
+  referring host, `?ref=`, and the three UTM parameters, reduced to one
+  groupable string. Stored in `localStorage`, never overwritten.
+- **The referring host, never the referring URL.** Other sites put search terms,
+  private document paths and their own session tokens in the addresses they link
+  from. `referrerHost` reads `hostname` and discards everything else, and the
+  invariants push URLs carrying a reset token and a search query through it. A
+  self-referral returns null, or the site becomes its own biggest traffic source
+  within a day.
+- **The privacy policy says so**, because a referring domain and a campaign tag
+  are not covered by "page views and product events".
+- 65 assertions and 8 mutations, 229 and 80. The guard caught one of the new
+  assertions passing while the code it protected was deleted: the "absurd query
+  cannot produce an unbounded origin" case used a 300-character host, which
+  fails the hostname check and drops out, so the total never approached the
+  bound. The input is now long and valid, and a second assertion proves the
+  unclamped string really would exceed it.
+
 ### 2026-08-25 (the gate fired before the answer)
 
 - **The reverse lookup on the homepage now answers everybody.** A caller

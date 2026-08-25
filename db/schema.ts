@@ -545,6 +545,17 @@ export const magicLinkTokens = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
     usedAt: timestamp('used_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    /**
+     * Where the browser that asked for this link came from.
+     *
+     * It rides with the token because the two halves of a sign-in happen in
+     * different browsers more often than is comfortable: the first touch is in
+     * the localStorage of whatever typed the email, and the row is created by
+     * whatever opens the mail, which is routinely a webmail preview or a link
+     * scanner. Reading it at verify time would credit a share of every
+     * campaign to Gmail. See `lib/first-touch.ts`.
+     */
+    origin: text('origin'),
   },
   (table) => [
     index('magic_link_tokens_email_idx').on(table.email),

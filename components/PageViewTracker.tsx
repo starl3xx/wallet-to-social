@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { Analytics } from '@/lib/client-analytics';
+import { captureFirstTouch, summariseOrigin } from '@/lib/first-touch';
 
 /**
  * Records a `page_view` for the admin funnel.
@@ -45,6 +46,8 @@ export function PageViewTracker() {
    * inflated by the framework.
    */
   const lastPath = useRef<string | null>(null);
+  /** Only the first view of a visit carries the attribution. */
+  const firstView = useRef(true);
 
   useEffect(() => {
     if (!pathname || lastPath.current === pathname) return;
@@ -56,7 +59,24 @@ export function PageViewTracker() {
     // the hook would force a Suspense boundary in the root layout for a
     // value only read inside an effect, where window is already real.
     const ref = new URLSearchParams(window.location.search).get('ref');
-    Analytics.pageView(pathname, ref);
+
+    /**
+     * Recorded once per browser, on whatever page they happen to land on.
+     *
+     * It lives here rather than on the homepage because arrivals on `/vs/*`,
+     * `/check` and the blog are arrivals, and the one this had to catch was a
+     * QR auction pointing at the bare domain: 1,321 sessions and 37 signups
+     * with nothing in the database to say where any of them came from.
+     *
+     * The value is attached to the first page view only. Sending it on every
+     * view would triple the size of the busiest event in the table to restate
+     * a constant.
+     */
+    const touch = firstView.current ? captureFirstTouch() : null;
+    firstView.current = false;
+    const origin = touch ? summariseOrigin(touch) : undefined;
+
+    Analytics.pageView(pathname, ref, origin);
   }, [pathname]);
 
   return null;

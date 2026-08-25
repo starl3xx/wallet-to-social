@@ -24,6 +24,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Input } from '@/components/ui/input';
+import { originTag } from '@/lib/first-touch';
 
 export function ConsentScreen({
   requestId,
@@ -85,6 +86,7 @@ export function ConsentScreen({
           // The one return path the verifier accepts, and it names this
           // request rather than describing where to go.
           next: `/oauth/authorize?req=${requestId}`,
+          origin: originTag(),
         }),
       });
       const data = (await response.json()) as { error?: string };

@@ -33,6 +33,56 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'attribution is collected without the policy saying so',
+    file: 'app/privacy/page.tsx',
+    from: 'Where you arrived from.',
+    to: 'How you found us.',
+  },
+
+  {
+    name: 'the referrer is stored whole, query string and all',
+    file: 'lib/first-touch.ts',
+    from: '    host = new URL(referrer).hostname.toLowerCase();',
+    to: '    host = referrer.toLowerCase();',
+  },
+  {
+    name: 'a self-referral counts as an acquisition',
+    file: 'lib/first-touch.ts',
+    from: '  if (bare === self) return null;',
+    to: '  if (false) return null;',
+  },
+  {
+    name: 'campaign tags stop being sanitised',
+    file: 'lib/first-touch.ts',
+    from: "    .replace(/[^a-z0-9._-]/g, '')\n    .slice(0, TAG_MAX_LENGTH);",
+    to: '    .slice(0, TAG_MAX_LENGTH);',
+  },
+  {
+    name: 'the origin summary loses its length bound',
+    file: 'lib/first-touch.ts',
+    from: '  return summary.slice(0, ORIGIN_MAX_LENGTH);',
+    to: '  return summary;',
+  },
+  {
+    name: 'a posted origin is trusted as sent',
+    file: 'lib/first-touch.ts',
+    from: "    .replace(/[^a-z0-9._:/-]/g, '')\n    .slice(0, ORIGIN_MAX_LENGTH);",
+    to: '    .slice(0, ORIGIN_MAX_LENGTH);',
+  },
+  {
+    name: 'last touch wins, so every login rewrites the acquisition source',
+    file: 'lib/access.ts',
+    from: '  if (existing) return existing;',
+    to: '  if (existing) {\n    await db.update(users).set({ origin: origin ?? null });\n    return existing;\n  }',
+  },
+  {
+    name: 'the origin never travels with the token, so verify sees nothing',
+    file: 'lib/auth.ts',
+    from: '      origin: origin ? origin.slice(0, ORIGIN_MAX_LENGTH) : null,',
+    to: '',
+  },
+
+  {
     name: 'both networks get the coverage excuse again (Bugbot, 2026-08-25)',
     file: 'lib/reverse-access.ts',
     from: '    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;',

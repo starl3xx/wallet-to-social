@@ -68,10 +68,40 @@ export async function trackClientEvent(
 
 // Convenience functions for common events
 export const Analytics = {
-  // `ref` is the campaign tag from a ?ref= query param, when one is present:
-  // the join between "we sent a link" and "somebody arrived through it".
-  pageView: (path: string, ref?: string | null) =>
-    trackClientEvent('page_view', ref ? { path, ref } : { path }),
+  /**
+   * `ref` is the campaign tag from a ?ref= query param, when one is present:
+   * the join between "we sent a link" and "somebody arrived through it".
+   *
+   * `origin` is the wider answer and is sent on the first view of a visit
+   * only: the referring host, or the UTM parameters, or the ref tag, reduced
+   * to one groupable string. See `lib/first-touch.ts`. It was added because
+   * `ref` alone answers nothing about a link somebody else posted, and the QR
+   * auction that sent the site its biggest day pointed at the bare domain.
+   */
+  pageView: (path: string, ref?: string | null, origin?: string) =>
+    trackClientEvent('page_view', {
+      path,
+      ...(ref ? { ref } : {}),
+      ...(origin ? { origin } : {}),
+    }),
+
+  /**
+   * A reverse lookup, and whether it was answered or gated.
+   *
+   * `/api/reverse` wrote no analytics at all, which made the primary action on
+   * the busiest page invisible: an engaged visitor and a bounce were the same
+   * row. `locked` is the field that matters, because the free half of this
+   * endpoint is new and nobody yet knows what share of callers it satisfies.
+   *
+   * Fired from the client rather than the route so the event carries a session
+   * id. The server-side lookup events have none, and that is exactly why the
+   * funnel cannot join a visit to the thing the visitor did.
+   */
+  reverseLookup: (
+    platform: 'twitter' | 'farcaster',
+    locked: boolean,
+    totalCount: number
+  ) => trackClientEvent('reverse_lookup', { platform, locked, totalCount }),
 
   csvUpload: (fileSize: number, rowCount: number) =>
     trackClientEvent('csv_upload', { fileSize, rowCount }),
