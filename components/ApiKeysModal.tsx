@@ -97,6 +97,13 @@ function formatDate(iso?: string) {
   });
 }
 
+interface Connection {
+  id: string;
+  label: string;
+  connected_at: string;
+  last_used_at: string | null;
+}
+
 export function ApiKeysModal({
   open,
   onOpenChange,
@@ -119,6 +126,21 @@ export function ApiKeysModal({
   // Separate from `copied`: one flag would tick the check on both buttons at
   // once, which reads as "both are on your clipboard" and only one is.
   const [copiedCommand, setCopiedCommand] = useState(false);
+
+  /**
+   * Applications connected through OAuth, which are not keys and are not
+   * listed with them.
+   *
+   * A connection is a consent: it renews its own access token every hour, so
+   * revoking the token it currently holds would achieve nothing, and the thing
+   * a person means to end is the connection. `lib/api-keys.ts` keeps grant keys
+   * out of the key list for the same reason.
+   */
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState<string | null>(
+    null
+  );
 
   // The one and only time the raw key exists in the client. Deliberately not
   // persisted anywhere: no localStorage, no history entry, and cleared when the
@@ -157,6 +179,49 @@ export function ApiKeysModal({
     if (open && hasApiAccess) loadKeys();
   }, [open, hasApiAccess, loadKeys]);
 
+  /**
+   * Loaded whenever the modal opens, and not gated on API access.
+   *
+   * Somebody on the free allowance can connect a client, and somebody whose
+   * credits ran out still needs to be able to cut one off. Gating this on the
+   * same condition as key creation would hide the disconnect button from
+   * exactly the accounts most likely to want it.
+   */
+  const loadConnections = useCallback(async () => {
+    try {
+      const res = await fetch('/api/oauth/connections');
+      if (!res.ok) return;
+      const data = await res.json();
+      setConnections(data.connections ?? []);
+    } catch {
+      // A connection list that fails to load is not worth an error banner over
+      // the key management this modal is mostly for.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) loadConnections();
+  }, [open, loadConnections]);
+
+  const handleDisconnect = useCallback(async (id: string) => {
+    setDisconnectingId(id);
+    try {
+      const res = await fetch(`/api/oauth/connections?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Could not disconnect it');
+      }
+      setConnections((current) => current.filter((c) => c.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not disconnect it');
+    } finally {
+      setDisconnectingId(null);
+      setConfirmDisconnectId(null);
+    }
+  }, []);
+
   const handleClose = useCallback(() => {
     // Refuse to close while a key is being minted. The server creates it
     // regardless of what the client does, and it is returned exactly once, so
@@ -168,6 +233,10 @@ export function ApiKeysModal({
     setNewKeyName('');
     setError(null);
     setConfirmRevokeId(null);
+    // The same reason as the copy flags below: a confirmation left armed here
+    // survives the close, so the next open shows a Disconnect button already
+    // waiting to be pressed against a connection nobody just chose.
+    setConfirmDisconnectId(null);
     // Both copy flags, not just the first. Each is cleared by a two-second
     // timer, so one left set here survives the close and greets the next
     // reveal card with a tick against a clipboard that holds nothing. Adding a
@@ -498,6 +567,74 @@ export function ApiKeysModal({
                   : 'Name it after where it runs, so a leaked key is easy to trace. Up to 10 active keys.'}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Connected applications.
+            Outside the API-access branch above, because a free-allowance
+            account can connect a client and must be able to disconnect one.
+            Absent entirely when there is nothing connected, so it costs the
+            common case nothing. */}
+        {connections.length > 0 && (
+          <div className="mt-4 space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">Connected applications</p>
+            <p className="text-xs text-muted-foreground">
+              Each one can resolve wallets and spend your match credits.
+              Disconnecting is immediate.
+            </p>
+            <ul className="space-y-2">
+              {connections.map((connection) => (
+                <li
+                  key={connection.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {connection.label}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Connected {formatDate(connection.connected_at)}
+                      {connection.last_used_at
+                        ? ` · last used ${formatDate(connection.last_used_at)}`
+                        : ' · never used'}
+                    </p>
+                  </div>
+                  {confirmDisconnectId === connection.id ? (
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={disconnectingId === connection.id}
+                        onClick={() => handleDisconnect(connection.id)}
+                      >
+                        {disconnectingId === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Disconnect'
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmDisconnectId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-shrink-0"
+                      onClick={() => setConfirmDisconnectId(connection.id)}
+                      aria-label={`Disconnect ${connection.label}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </ModalContent>

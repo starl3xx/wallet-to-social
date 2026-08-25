@@ -92,6 +92,123 @@ const MUTATIONS: Mutation[] = [
     from: "  'credit_ledger',\n];",
     to: "  'credit_ledger',\n  'x402_recovery_redemptions',\n];",
   },
+
+  // --- the MCP server's OAuth flow ----------------------------------------
+
+  {
+    name: 'the redirect check compares origins, so any path on a declared host works',
+    file: 'lib/oauth/clients.ts',
+    from: '      have.pathname === want.pathname',
+    to: '      true',
+  },
+  {
+    name: 'a loopback redirect matches any other loopback redirect',
+    file: 'lib/oauth/clients.ts',
+    from: '  if (declared.includes(requested)) return true;',
+    to: '  if (declared.includes(requested) || isLoopbackRedirect(requested)) return true;',
+  },
+  {
+    name: 'the sign-in return path accepts a protocol-relative URL',
+    file: 'lib/auth.ts',
+    from: 'const RETURN_PATH = /^\\/oauth\\/authorize\\?req=[A-Za-z0-9-]{36}$/;',
+    to: 'const RETURN_PATH = /oauth\\/authorize/;',
+  },
+  {
+    name: 'the metadata stops advertising client_id metadata documents, silently forcing registration on every connection',
+    file: 'lib/oauth/metadata.ts',
+    from: '    client_id_metadata_document_supported: true,',
+    to: '    client_id_metadata_document_supported: false,',
+  },
+  {
+    name: 'the token endpoint advertises client_secret_basic, which no client here can use',
+    file: 'lib/oauth/metadata.ts',
+    from: "    token_endpoint_auth_methods_supported: ['none'],",
+    to: "    token_endpoint_auth_methods_supported: ['client_secret_basic'],",
+  },
+  {
+    name: 'the plain PKCE method is advertised alongside S256',
+    file: 'lib/oauth/metadata.ts',
+    from: "    code_challenge_methods_supported: ['S256'],",
+    to: "    code_challenge_methods_supported: ['S256', 'plain'],",
+  },
+  {
+    name: 'the 401 points at a metadata path that has no rewrite',
+    file: 'lib/oauth/metadata.ts',
+    from: '    `resource_metadata="${getSiteUrl()}/.well-known/oauth-protected-resource/api/mcp"`',
+    to: '    `resource_metadata="${getSiteUrl()}/.well-known/oauth-protected-resource/mcp"`',
+  },
+  {
+    name: 'the PKCE transform stops hashing, so the challenge is the verifier',
+    file: 'lib/oauth/requests.ts',
+    from: "  return createHash('sha256').update(verifier).digest('base64url');",
+    to: '  return verifier;',
+  },
+  {
+    name: 'the PKCE comparison always succeeds',
+    file: 'lib/oauth/requests.ts',
+    from: '  return timingSafeEqual(computed, stored);',
+    to: '  return true;',
+  },
+  {
+    name: 'the client_id host check stops refusing link-local, reaching cloud metadata',
+    file: 'lib/oauth/clients.ts',
+    from: '  if (a === 169 && b === 254) return true;',
+    to: '  if (false) return true;',
+  },
+  {
+    name: 'the client_id host check refuses 172.15 and 172.32 as well, an off-by-one on the private block',
+    file: 'lib/oauth/clients.ts',
+    from: '  if (a === 172 && b >= 16 && b <= 31) return true;',
+    to: '  if (a === 172) return true;',
+  },
+  {
+    name: 'a mixed batch skips the credential challenge by appending a handshake method',
+    file: 'lib/mcp-gate.ts',
+    from: '  return methods.some((method) => METERED_METHODS.has(method));',
+    to: '  return methods.every((method) => METERED_METHODS.has(method));',
+  },
+  {
+    name: 'a mixed batch skips the IP limit by appending a tool call',
+    file: 'lib/mcp-gate.ts',
+    from: '  return methods.every((method) => METERED_METHODS.has(method));',
+    to: '  return methods.some((method) => METERED_METHODS.has(method));',
+  },
+  {
+    name: 'the OAuth access-token prefix drifts from the one validateApiKey accepts',
+    file: 'lib/oauth/grants.ts',
+    from: "export const ACCESS_TOKEN_PREFIX = 'wts_mcp_';",
+    to: "export const ACCESS_TOKEN_PREFIX = 'wts_oauth_';",
+  },
+  {
+    name: 'the key cap counts OAuth access tokens, revoking a dashboard key on connect',
+    file: 'lib/api-keys.ts',
+    from: '        AND oauth_grant_id IS NULL\n',
+    to: '',
+  },
+  {
+    name: 'the key list shows OAuth access tokens, offering a revoke button that achieves nothing',
+    file: 'lib/api-keys.ts',
+    from: '.where(and(eq(apiKeys.userId, userId), isNull(apiKeys.oauthGrantId)))',
+    to: '.where(eq(apiKeys.userId, userId))',
+  },
+  {
+    name: "the session cookie becomes sameSite none, removing the consent screen's only CSRF defence",
+    file: 'lib/auth.ts',
+    from: "  sameSite: 'lax' as const,",
+    to: "  sameSite: 'none' as const,",
+  },
+  {
+    name: 'a grant table joins the nightly dump, so a restore resurrects a revoked connection',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'credit_ledger',\n];",
+    to: "  'credit_ledger',\n  'oauth_grants',\n];",
+  },
+  {
+    name: 'a grant table is dropped from READ_ONLY_TABLES, so CI cannot read it',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'oauth_grants',\n  'oauth_authorization_requests',",
+    to: "  'oauth_authorization_requests',",
+  },
 ];
 
 function invariantsPass(): boolean {

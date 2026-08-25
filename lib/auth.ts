@@ -288,6 +288,32 @@ export async function cleanupExpiredAuth(): Promise<{
   }
 }
 
+/**
+ * The only destination a sign-in link may return to other than the home page.
+ *
+ * A magic link that carries a caller-supplied return path is an open redirect
+ * with a stamp of authenticity on it, so this is not a sanitiser: it is an
+ * allowlist of one shape. A path matches only if it is the OAuth consent
+ * screen carrying one opaque request id, and that id was minted by
+ * `createAuthorizationRequest` before the link was ever sent.
+ *
+ * Nothing an OAuth client supplied travels through the mail round trip. The
+ * client's `redirect_uri`, `state` and `client_id` are all in the row this id
+ * names, written and validated before the email was composed, so tampering
+ * with the link can only ever produce a different request id: either one that
+ * does not exist, or somebody else's, which the consent screen then refuses
+ * because it belongs to a different pending flow.
+ *
+ * Both ends check. `send-magic-link` checks before it composes the mail and
+ * `verify` checks again before it redirects, because only the second check is
+ * the one an attacker has to get past.
+ */
+const RETURN_PATH = /^\/oauth\/authorize\?req=[A-Za-z0-9-]{36}$/;
+
+export function isAllowedReturnPath(path: string | null): boolean {
+  return typeof path === 'string' && RETURN_PATH.test(path);
+}
+
 // Cookie configuration
 export const SESSION_COOKIE_NAME = 'wts_session';
 

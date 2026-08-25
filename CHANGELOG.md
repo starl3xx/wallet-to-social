@@ -2,6 +2,56 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (OAuth for the MCP server)
+
+- **The MCP server is an OAuth 2.1 resource server.** Add
+  `https://walletlink.social/api/mcp` to a client that supports it and the first
+  tool call opens a consent screen: no key to create, copy or paste. The bearer
+  key still works and every existing installation is untouched.
+- **Why.** Anthropic's software directory policy, section 5.D, requires OAuth
+  for an authenticated remote MCP server. A static bearer key does not satisfy
+  it whatever else is true of the server, so a directory listing was blocked on
+  this and on nothing else.
+- **The whole authorization server is in this repo.** RFC 9728 protected
+  resource metadata, RFC 8414 authorization server metadata, RFC 7591 dynamic
+  registration, RFC 7009 revocation, client ID metadata documents, RFC 9207
+  issuer identification, and PKCE with `S256` required rather than offered.
+  Every client is public and no client secret is issued.
+- **The access token is an `api_keys` row.** Metering, the three rate-limit
+  windows, the balance check and the usage ledger all key off that table, so
+  anything else would have meant a second copy of each, which is where a meter
+  starts disagreeing with itself. `expires_at` bounds a token to an hour,
+  `revoked_at` ends it, and one new column, `oauth_grant_id`, tells it from a
+  key somebody pasted into a config. The consequence is written down rather
+  than implied: an access token also authenticates a REST call, because the
+  five tools are the six endpoints and there is nothing on one surface that is
+  not on the other.
+- **Refusal is a 401, never a tool error.** A 200 carrying `isError` is read by
+  a client as a tool that failed: the model is handed the text and the turn
+  moves on, no token is refreshed, nobody is offered a connection. A mistyped
+  bearer key is the deliberate exception, because that person needs to read
+  "your key is invalid" and has no connection to repair.
+- **The discovery documents are rewrites in `next.config.ts`, not routes.** The
+  App Router does not route a directory whose name begins with a dot, and does
+  not say so: an `app/.well-known/` route compiles, emits no warning, and is
+  absent from the build. Found by building it and reading the route list.
+- **The sign-in detour carries nothing a client supplied.** `/oauth/authorize`
+  validates and stores the request first, then refers to it by an opaque id, so
+  the magic-link round trip has no attacker-controlled URL to carry.
+- **Refresh tokens rotate and the replaced value is kept.** Presenting it is
+  proof of a leak rather than a bad string, since the real client already
+  exchanged it, and that revokes the grant. A replayed authorization code does
+  the same.
+- **Connected applications** are listed and revocable from the API keys modal,
+  and not gated on holding credits: an account on the free allowance can
+  connect a client, so it must be able to disconnect one.
+- **The key cap no longer counts access tokens.** Without the exclusion,
+  connecting a client would push a dashboard key past the cap and revoke a
+  credential somebody was using.
+- **70 new invariants and 19 new guard mutations**, taking both to 92 and 29.
+  Every claim above that says an attacker cannot do something is an assertion
+  that tries it, and every assertion is proved to catch a real deletion.
+
 ### 2026-08-25 (the guard that tries the attack)
 
 - **`scripts/check-invariants.ts`**, 22 adversarial assertions, run on every

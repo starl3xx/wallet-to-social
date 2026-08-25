@@ -295,6 +295,356 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------------- OAuth: redirects
+  // `redirectUriAllowed` is the single check standing between an authorization
+  // code and whoever asked for it. Every case below is the attacker's.
+  {
+    const { redirectUriAllowed } = await import('@/lib/oauth/clients');
+    const declared = [
+      'https://claude.ai/api/mcp/auth_callback',
+      'http://localhost/callback',
+      'http://127.0.0.1/callback',
+    ];
+
+    ok(
+      'a redirect the client never declared is refused',
+      !redirectUriAllowed('https://evil.example.com/steal', declared)
+    );
+    ok(
+      'a declared https redirect is allowed, so the check above is not vacuous',
+      redirectUriAllowed('https://claude.ai/api/mcp/auth_callback', declared)
+    );
+    ok(
+      'a loopback redirect matches with the port ignored, which native clients need',
+      redirectUriAllowed('http://127.0.0.1:51837/callback', declared)
+    );
+    // The port is the only free component. A version that compared origins, or
+    // that matched any loopback URI against any other, would send the code to
+    // a path the client never named.
+    ok(
+      'a loopback redirect on another PATH is refused',
+      !redirectUriAllowed('http://127.0.0.1:51837/evil', declared)
+    );
+    ok(
+      'a loopback redirect on another HOST is refused',
+      !redirectUriAllowed('http://169.254.169.254/callback', declared)
+    );
+    ok(
+      'an https URI is not matched port-agnostically against a declared https URI',
+      !redirectUriAllowed(
+        'https://claude.ai:8443/api/mcp/auth_callback',
+        declared
+      )
+    );
+    ok(
+      'a subdomain of a declared host is refused',
+      !redirectUriAllowed(
+        'https://claude.ai.evil.example.com/api/mcp/auth_callback',
+        declared
+      )
+    );
+  }
+
+  // --------------------------------------------------- OAuth: the return path
+  // The one value that survives a round trip through a mailbox. If this widens,
+  // a sign-in link becomes an open redirect carrying our own authenticity.
+  {
+    const { isAllowedReturnPath } = await import('@/lib/auth');
+    const good = '/oauth/authorize?req=77dbc899-4894-4489-9816-46103a94ebd1';
+
+    ok(
+      'the consent path with one request id is accepted, so the checks below are not vacuous',
+      isAllowedReturnPath(good)
+    );
+    for (const hostile of [
+      'https://evil.example.com',
+      '//evil.example.com',
+      '/\\evil.example.com',
+      'http://walletlink.social.evil.example.com',
+      '/oauth/authorize?req=77dbc899-4894-4489-9816-46103a94ebd1&next=https://evil.example.com',
+      '/oauth/authorize?req=../../../admin',
+      '/admin',
+      '/oauth/authorize',
+      good + '#@evil.example.com',
+    ]) {
+      ok(
+        `the sign-in return path refuses ${hostile}`,
+        !isAllowedReturnPath(hostile)
+      );
+    }
+  }
+
+  // ---------------------------------------------------------- OAuth: metadata
+  {
+    process.env.NEXT_PUBLIC_URL = 'https://walletlink.social';
+    const {
+      authorizationServerMetadata,
+      protectedResourceMetadata,
+      wwwAuthenticate,
+      MCP_SCOPE,
+      OFFLINE_SCOPE,
+    } = await import('@/lib/oauth/metadata');
+    const as = authorizationServerMetadata();
+    const prm = protectedResourceMetadata();
+
+    // Claude picks metadata documents only when BOTH are advertised, and falls
+    // back to registering a fresh client per connection when either is missing.
+    // The failure is silent: connections still work, and the client table grows
+    // by one row per connection forever.
+    ok(
+      'the metadata advertises client_id_metadata_document_supported',
+      as.client_id_metadata_document_supported === true
+    );
+    ok(
+      'the metadata advertises "none" as a token endpoint auth method',
+      (as.token_endpoint_auth_methods_supported as string[]).includes('none')
+    );
+    ok(
+      'S256 is the only PKCE method advertised, so "plain" cannot be negotiated',
+      JSON.stringify(as.code_challenge_methods_supported) ===
+        JSON.stringify(['S256'])
+    );
+    // RFC 9207. A client that records our issuer and compares it on the way
+    // back cannot be talked into sending its code somewhere else, but only if
+    // we tell it we send the parameter.
+    ok(
+      'the metadata advertises that authorization responses carry iss',
+      as.authorization_response_iss_parameter_supported === true
+    );
+    // The MCP specification: a refresh token is not something the resource
+    // requires, so advertising it here would produce an over-broad consent.
+    ok(
+      'offline_access is offered by the authorization server',
+      (as.scopes_supported as string[]).includes(OFFLINE_SCOPE)
+    );
+    ok(
+      'offline_access is NOT advertised as a scope the resource requires',
+      !(prm.scopes_supported as string[]).includes(OFFLINE_SCOPE)
+    );
+    ok(
+      'the resource identifier carries the MCP path, not the bare origin',
+      prm.resource === 'https://walletlink.social/api/mcp'
+    );
+    ok(
+      'the 401 challenge names the scope, so a client cannot ask for more',
+      wwwAuthenticate().includes(`scope="${MCP_SCOPE}"`)
+    );
+
+    // The 401 points a client at a path that only exists because of a rewrite,
+    // because the App Router will not serve a `.well-known` directory. Rename
+    // the rewrite and every connection breaks with "could not reach the MCP
+    // server", the authorization server never seeing a request.
+    const config = readFileSync('next.config.ts', 'utf8');
+    const pointer = wwwAuthenticate().match(/resource_metadata="([^"]+)"/)?.[1];
+    const path = pointer ? new URL(pointer).pathname : '';
+    ok(
+      `the resource_metadata path (${path}) has a rewrite in next.config.ts`,
+      !!path && config.includes(`source: '${path}'`)
+    );
+    ok(
+      'the root protected-resource path also has a rewrite, for clients that probe',
+      config.includes("source: '/.well-known/oauth-protected-resource'")
+    );
+    ok(
+      'the authorization server metadata path has a rewrite',
+      config.includes("source: '/.well-known/oauth-authorization-server'")
+    );
+  }
+
+  // -------------------------------------------------------------- OAuth: PKCE
+  // A known-answer test from RFC 7636 appendix B, deliberately not a value this
+  // repo computed. Deriving the challenge with the same function under test
+  // would verify only that the function agrees with itself, which is exactly
+  // how the first version of the HMAC assertion in this file passed while the
+  // property it claimed to cover had been deleted.
+  {
+    const { s256Challenge, pkceMatches } = await import('@/lib/oauth/requests');
+    const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+    const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+    ok(
+      'the PKCE transform matches the RFC 7636 appendix B fixture',
+      s256Challenge(VERIFIER) === CHALLENGE
+    );
+    ok(
+      'the right verifier matches its challenge, so the refusals below are not vacuous',
+      pkceMatches(VERIFIER, CHALLENGE)
+    );
+    ok(
+      'a wrong verifier is refused',
+      !pkceMatches('not-the-verifier-not-the-verifier-not-x', CHALLENGE)
+    );
+    ok(
+      'the verifier is not accepted in place of its own challenge',
+      !pkceMatches(VERIFIER, VERIFIER)
+    );
+    ok('an empty verifier is refused', !pkceMatches('', CHALLENGE));
+  }
+
+  // ------------------------------------------------- OAuth: the CIMD fetch
+  // The `client_id` URL is supplied by whoever starts a flow, and we fetch it.
+  // Every range below has to stay refused or that fetch is a working request
+  // forgery, and nothing about the flow would look different.
+  {
+    const { isPrivateAddress } = await import('@/lib/oauth/clients');
+    const privateV4 = [
+      '127.0.0.1',
+      '10.0.0.1',
+      '172.16.0.1',
+      '172.31.255.255',
+      '192.168.1.1',
+      '169.254.169.254',
+      '100.64.0.1',
+      '0.0.0.0',
+    ];
+    for (const address of privateV4) {
+      ok(
+        `${address} is refused as a client_id host`,
+        isPrivateAddress(address, 4)
+      );
+    }
+    ok(
+      'a public v4 address is allowed, so the refusals above are not vacuous',
+      !isPrivateAddress('104.18.32.7', 4)
+    );
+    for (const address of ['::1', 'fe80::1', 'fd00::1', '::ffff:127.0.0.1']) {
+      ok(
+        `${address} is refused as a client_id host`,
+        isPrivateAddress(address, 6)
+      );
+    }
+    ok(
+      'a public v6 address is allowed',
+      !isPrivateAddress('2606:4700:4700::1111', 6)
+    );
+    // 172.15 and 172.32 sit either side of the private block. A check written
+    // as `a === 172` would refuse them, which is wrong in the safe direction
+    // and would hide a real off-by-one in the other.
+    ok('172.15.0.1 is public', !isPrivateAddress('172.15.0.1', 4));
+    ok('172.32.0.1 is public', !isPrivateAddress('172.32.0.1', 4));
+  }
+
+  // ---------------------------------------------------------- OAuth: the gate
+  // The two predicates are opposite quantifiers and a mixed batch is the case
+  // that separates them. Both answers must be the safe one.
+  {
+    const { isMetered, callsATool } = await import('@/lib/mcp-gate');
+    const toolCall =
+      '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}';
+    const list = '{"jsonrpc":"2.0","id":2,"method":"tools/list"}';
+    const mixed = `[${list},${toolCall}]`;
+
+    ok('a lone tools/call is metered', isMetered(toolCall));
+    ok(
+      'a lone tools/list is not metered, so it meets the IP limit',
+      !isMetered(list)
+    );
+    ok(
+      'a batch mixing a handshake with a tool call is NOT treated as metered',
+      !isMetered(mixed)
+    );
+    ok(
+      'a batch mixing a handshake with a tool call IS challenged for a credential',
+      callsATool(mixed)
+    );
+    ok('a lone handshake is not challenged', !callsATool(list));
+    ok(
+      'an unknown method is bounded by the IP limit',
+      !isMetered('{"method":"x/y"}')
+    );
+    ok(
+      'a body that is not JSON is bounded by the IP limit',
+      !isMetered('not json')
+    );
+    ok('an empty batch is bounded by the IP limit', !isMetered('[]'));
+  }
+
+  // ----------------------------------------------- OAuth: the credential shape
+  {
+    const { ACCEPTED_KEY_PREFIXES } = await import('@/lib/api-keys');
+    const { ACCESS_TOKEN_PREFIX } = await import('@/lib/oauth/grants');
+
+    // The two are written out separately to avoid an import cycle between the
+    // credential format and the credential mint, and a cycle there resolves to
+    // `undefined` at run time, turning the format check into
+    // `startsWith(undefined)`. They must therefore be asserted to agree.
+    ok(
+      'validateApiKey accepts the prefix the OAuth mint actually issues',
+      ACCEPTED_KEY_PREFIXES.includes(ACCESS_TOKEN_PREFIX)
+    );
+    ok(
+      'the dashboard key prefix is still accepted, so existing installs keep working',
+      ACCEPTED_KEY_PREFIXES.includes('wts_live_')
+    );
+    // Neither may be a prefix of the other, or the format check stops being
+    // able to say which kind of credential arrived, and so does a log line.
+    // Read out of the array rather than compared against the literal, because
+    // TypeScript folds a literal comparison to a constant and an assertion that
+    // cannot fail at run time is not an assertion.
+    const [live, oauth] = ACCEPTED_KEY_PREFIXES;
+    ok(
+      'neither credential prefix is a prefix of the other',
+      !live.startsWith(oauth) && !oauth.startsWith(live)
+    );
+
+    // An OAuth access token must not be ranked against the account's own keys.
+    // Without the exclusion, connecting a client pushes a dashboard key past
+    // the cap and revokes a credential somebody is actively using.
+    const keys = readFileSync('lib/api-keys.ts', 'utf8');
+    // From the CTE to the UPDATE it feeds, rather than to the first closing
+    // paren: the subquery contains a window function, so a lazy `\)` stops
+    // inside `row_number() OVER (...)` and the match excludes the WHERE clause
+    // this is about. That version of the regex passed against correct code and
+    // would have passed against the bug too.
+    const ranked =
+      keys.match(/WITH ranked AS \(([\s\S]*?)UPDATE api_keys/)?.[1] ?? '';
+    ok(
+      'the key cap ranks only keys a person made, not OAuth access tokens',
+      ranked.includes('oauth_grant_id IS NULL')
+    );
+    ok(
+      'the key list hides OAuth access tokens, which nobody can copy or usefully revoke',
+      /listApiKeys[\s\S]*?isNull\(apiKeys\.oauthGrantId\)/.test(keys)
+    );
+  }
+
+  // -------------------------------------------------- OAuth: the CSRF argument
+  // `/api/oauth/authorize` carries no CSRF token and says so, on the grounds
+  // that the session cookie is not attached to a cross-site POST. That is only
+  // true while the cookie says so.
+  {
+    const { SESSION_COOKIE_OPTIONS } = await import('@/lib/auth');
+    ok(
+      "the session cookie is sameSite lax or stricter, which is the consent screen's CSRF defence",
+      SESSION_COOKIE_OPTIONS.sameSite === 'lax' ||
+        SESSION_COOKIE_OPTIONS.sameSite === 'strict'
+    );
+    ok(
+      'the session cookie is httpOnly, so a token cannot be read out of the page',
+      SESSION_COOKIE_OPTIONS.httpOnly === true
+    );
+  }
+
+  // ------------------------------------------- OAuth: what a restore contains
+  // A grant is a live credential, not a record. Restoring one from last night
+  // would resurrect a connection somebody revoked this morning, which is the
+  // opposite of what a disconnect button is understood to have done.
+  {
+    const grants = readFileSync('scripts/migrate-grant-readonly.ts', 'utf8');
+    const readOnly =
+      grants.match(/const READ_ONLY_TABLES = \[([\s\S]*?)\]/)?.[1] ?? '';
+    const backup =
+      grants.match(/const BACKUP_TABLES = \[([\s\S]*?)\]/)?.[1] ?? '';
+    for (const table of [
+      'oauth_clients',
+      'oauth_grants',
+      'oauth_authorization_requests',
+    ]) {
+      ok(`${table} is readable by CI`, readOnly.includes(`'${table}'`));
+      ok(`${table} is NOT in the nightly dump`, !backup.includes(`'${table}'`));
+    }
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

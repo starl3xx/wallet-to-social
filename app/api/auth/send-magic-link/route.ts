@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateMagicLinkToken } from '@/lib/auth';
+import { generateMagicLinkToken, isAllowedReturnPath } from '@/lib/auth';
 import { sendMagicLink, isEmailConfigured } from '@/lib/email';
 
 export const runtime = 'nodejs';
 
 interface SendMagicLinkRequest {
   email: string;
+  /**
+   * Where to land after signing in, and the only value here that is not the
+   * user's own typing.
+   *
+   * Accepted only when `isAllowedReturnPath` recognises it, which it does for
+   * exactly one shape: the OAuth consent screen carrying one opaque request id.
+   * Anything else is dropped silently rather than refused, because a caller
+   * that sent a bad `next` still wants their sign-in link.
+   */
+  next?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -19,6 +29,9 @@ export async function POST(request: NextRequest) {
 
     const body: SendMagicLinkRequest = await request.json();
     const { email } = body;
+    const returnPath = isAllowedReturnPath(body.next ?? null)
+      ? body.next
+      : undefined;
 
     // Validate email format
     if (!email || !email.includes('@') || email.length > 254) {
@@ -49,7 +62,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Send the magic link email
-    const emailResult = await sendMagicLink(email, tokenResult.token);
+    const emailResult = await sendMagicLink(
+      email,
+      tokenResult.token,
+      returnPath
+    );
 
     if (!emailResult.success) {
       return NextResponse.json(

@@ -19,6 +19,21 @@
  * Anonymous discovery is therefore unmetered against any key, which is what
  * the IP limit below is for.
  *
+ * ## Two ways to present a credential
+ *
+ * A `wts_live_` key in an `Authorization` header, which is what the docs
+ * describe and what every existing installation uses, and an OAuth access
+ * token obtained through `/oauth/authorize`. Both are `api_keys` rows, so both
+ * reach the same meter by the same path; see `lib/oauth/grants.ts`.
+ *
+ * The one thing this layer must do about OAuth is refuse at the transport, not
+ * in a tool result. `guarded` below answers 401 with a `WWW-Authenticate`
+ * header when a tool call arrives with no credential or a dead one, because a
+ * 200 carrying `isError: true` is read by a client as a tool that failed: the
+ * model is handed the text and the turn moves on, no token is refreshed, and
+ * nobody is offered a way to connect. Only a 401 makes a client run the flow
+ * and retry the same call.
+ *
  * ## A note for whoever edits the tool descriptions
  *
  * `scripts/check-design-language.mjs` walks `app/` and greps every line that is
@@ -45,6 +60,9 @@ import { GET as reverseTwitterGet } from '@/app/api/v1/reverse/twitter/[handle]/
 import { GET as reverseFarcasterGet } from '@/app/api/v1/reverse/farcaster/[username]/route';
 import { GET as statsGet } from '@/app/api/v1/stats/route';
 import { GET as usageGet } from '@/app/api/v1/usage/route';
+import { looksLikeAccessToken, validateAccessToken } from '@/lib/oauth/grants';
+import { wwwAuthenticate } from '@/lib/oauth/metadata';
+import { callsATool, isMetered } from '@/lib/mcp-gate';
 
 export const runtime = 'nodejs';
 
@@ -479,48 +497,82 @@ const handler = createMcpHandler(
   }
 );
 
-/**
- * The only JSON-RPC methods that reach something which meters.
- *
- * An allowlist of the metered side, deliberately, because the first version
- * allowlisted the other side and that was the wrong way round. It named the
- * handshake methods and bounded those, so every method it had not thought of,
- * `resources/read`, `prompts/get`, `notifications/cancelled` and any string a
- * caller invented, fell through to the unbounded branch. The MCP layer refuses
- * all of those, which means they reach no meter at all, which is exactly the
- * surface the limit exists to cover.
- *
- * Listing what is metered cannot fail that way. A method missing from this set
- * is bounded, which is the safe direction, and adding one is a deliberate act
- * by somebody who has checked that it reaches a handler that charges for it.
- */
-const METERED_METHODS = new Set(['tools/call']);
+function bearerFrom(request: NextRequest): string | null {
+  const header = request.headers.get('authorization');
+  if (!header) return null;
+  return header.startsWith('Bearer ') ? header.slice(7) : header;
+}
 
 /**
- * Whether every call in this body reaches a per-key meter.
+ * The 401 that starts, or restarts, an OAuth connection.
  *
- * `every`, not `some`. A batch of ninety-nine `tools/list` calls with one
- * `tools/call` appended would otherwise buy the whole batch a free pass, and
- * the appended call costs an attacker nothing when the key is junk. A mixed
- * batch is therefore bounded, which costs a real client one count out of 120
- * an hour and costs that attacker the entire budget.
- *
- * A body that is not JSON, or carries no method, is not metered either: it is
- * refused before it reaches a handler, so it belongs on the bounded side.
+ * The status is the protocol signal and the body is advisory, so the body is
+ * written for whoever ends up reading a log rather than for a parser.
  */
-function isMetered(raw: string): boolean {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return false;
+function challenge(
+  error: 'invalid_token' | undefined,
+  description: string
+): NextResponse {
+  return NextResponse.json(
+    { error: error ?? 'invalid_request', error_description: description },
+    {
+      status: 401,
+      headers: { 'WWW-Authenticate': wwwAuthenticate(error, description) },
+    }
+  );
+}
+
+/**
+ * Decide whether this tool call may proceed, before the MCP layer sees it.
+ *
+ * Three outcomes, and the third is the one that took a rewrite to get right.
+ *
+ * **No credential at all.** Challenge. This is the lazy-authentication shape:
+ * `initialize` and `tools/list` still answer anonymously, so a client can
+ * connect and see the tools, and the challenge arrives only when one is
+ * actually called. A client that supports OAuth turns this into a consent
+ * prompt; one that does not shows the description, which names the header.
+ *
+ * **An OAuth access token that no longer works.** Challenge, with
+ * `error="invalid_token"`. An access token lasts an hour, so this is the
+ * ordinary case, not the exceptional one, and it is the whole reason the
+ * refusal has to be a 401: a client refreshes reactively on this status and
+ * retries the same call. Answered as a tool error instead, the connection
+ * would appear to work and every call would fail an hour after it was made.
+ *
+ * **Anything else.** Pass it through. A `wts_live_` key, valid or mistyped,
+ * belongs to somebody who copied it out of the dashboard and has no OAuth
+ * connection to repair; challenging them would answer a typo with a consent
+ * screen. The v1 handler tells them their key is wrong, in words, which is
+ * what they need to read.
+ */
+async function gate(
+  body: string,
+  request: NextRequest
+): Promise<NextResponse | null> {
+  if (!callsATool(body)) return null;
+
+  const bearer = bearerFrom(request);
+  if (!bearer) {
+    return challenge(
+      undefined,
+      'This tool needs a walletlink.social account. Connect one, or set an Authorization header carrying an API key.'
+    );
   }
-  const calls = Array.isArray(parsed) ? parsed : [parsed];
-  if (calls.length === 0) return false;
-  return calls.every((call) => {
-    const method = asObject(call)?.method;
-    return typeof method === 'string' && METERED_METHODS.has(method);
-  });
+
+  if (!looksLikeAccessToken(bearer)) return null;
+
+  const check = await validateAccessToken(bearer);
+  if (check.ok) return null;
+
+  return challenge(
+    'invalid_token',
+    check.reason === 'expired'
+      ? 'This access token has expired. Refresh it.'
+      : check.reason === 'revoked'
+        ? 'This connection was revoked. Connect again.'
+        : 'This access token is not recognised.'
+  );
 }
 
 /**
@@ -555,6 +607,11 @@ async function guarded(request: NextRequest): Promise<Response> {
     // can only be drained a single time.
     body = await request.text();
     metered = isMetered(body);
+
+    // Before the IP limit, so a client whose token expired is told to refresh
+    // rather than told it is sending too many requests.
+    const refusal = await gate(body, request);
+    if (refusal) return refusal;
   }
 
   if (!metered) {
