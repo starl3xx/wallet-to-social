@@ -1,0 +1,47 @@
+name: invariants
+
+# The claims this codebase makes about what an attacker cannot do.
+#
+# On 2026-08-24 and 25, four defects reached review with the same shape: a
+# comment asserting a security property, and nothing anywhere that could
+# contradict it. Meanwhile CI enforced button radius, palette, contrast and
+# control height on every pull request, and enforced nothing about the money
+# path.
+#
+# Two jobs, and the order matters. `guard` runs first and reintroduces defects
+# that were really in this codebase, asserting that `invariants` catches each
+# one. A guard verified only against passing code proves nothing, and this repo
+# has had three guards report clean over live violations.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Mutates files in the checkout and restores them. Safe here because the
+      # runner's tree is thrown away, and the script restores in a `finally`
+      # regardless.
+      - name: The invariants guard catches what it claims
+        run: npx tsx scripts/check-invariants-guard.ts
+
+  invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # No database, no network, no secrets: this must run on a fork's PR.
+      - name: Security invariants still hold
+        run: npx tsx scripts/check-invariants.ts

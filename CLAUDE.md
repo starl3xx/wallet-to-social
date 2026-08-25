@@ -128,6 +128,39 @@ them with a space will turn that delimiter into a phantom space and report a
 bug that no reader can see. Verify against the rendered page, not against a
 regex over the markup.
 
+## Security invariants
+
+**A comment asserting that an attacker cannot do something is a claim, and it
+belongs in `scripts/check-invariants.ts` as an assertion that tries it.**
+
+On 2026-08-24 and 25, four defects reached review with the same shape: a
+confident justification with nothing anywhere that could contradict it.
+
+| the comment said                              | the truth                                                 |
+| --------------------------------------------- | --------------------------------------------------------- |
+| possession of the payment payload is proof    | every field of a settled payment is public onchain        |
+| a replayer also needs to read the reply       | they replay from their own socket and get their own reply |
+| an Authorization header means this is metered | `Bearer hunter2` is not a key                             |
+| this table is in the nightly dump             | it was in neither dump list                               |
+
+Each was checkable in seconds. None was checked twice, because the repo
+enforced button radius and palette on every PR and nothing about the money
+path.
+
+Two rules when adding to that file:
+
+- **Assert the refusal, not the success.** A happy-path test would have passed
+  on all four of those days.
+- **Go through the code, never around it.** An assertion that recomputes what
+  it is testing verifies only itself. That is not hypothetical: the first
+  version of the HMAC assertion did exactly that and passed while the HMAC's
+  coverage of the timestamp was deleted.
+
+`scripts/check-invariants-guard.ts` reintroduces nine real defects and requires
+each to be caught, because a guard verified only against passing code proves
+nothing, and this repo has had three guards report clean over live violations.
+Run it after touching either file.
+
 ## Documentation Updates
 
 **Always update documentation when making commits:**

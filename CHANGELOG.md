@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (the guard that tries the attack)
+
+- **`scripts/check-invariants.ts`**, 22 adversarial assertions, run on every
+  PR. Each one is an attacker doing the thing a comment claims is impossible.
+- **Why.** Four defects reached review on 24 and 25 August with the same shape:
+  a comment asserting a security property, and nothing that could contradict
+  it. "Possession of the payload is proof", when every field of a settled
+  payment is public onchain. "A replayer also needs the reply", when they
+  replay from their own socket. "A header means this is metered", when
+  `Bearer hunter2` is not a key. "This table is in the nightly dump", when it
+  was in neither dump list. Each was checkable in seconds; none was checked
+  twice. CI enforced button radius, palette, contrast and control height on
+  every PR and nothing about the money path.
+- **`scripts/check-invariants-guard.ts` reintroduces nine real defects and
+  requires each to be caught.** It earned its place immediately: three of the
+  first draft's assertions passed while the code they protected was deleted.
+  The TTL assertion signed the wrong message, so the request was refused by the
+  message binding and the TTL was never reached. The HMAC assertion recomputed
+  the HMAC locally and so verified itself. The backup assertion used `[a-z_]+`,
+  which cannot match a table name containing digits, and
+  `x402_recovery_redemptions` has three.
+- `issueChallenge` now takes an optional `issuedAt`, so a check can exercise it
+  at a chosen moment rather than reimplementing what it is testing.
+- No test framework, no new dependency, no database and no secrets, so it runs
+  on a fork's pull request.
+
 ### 2026-08-25 (key recovery, which the payment could never provide)
 
 `GET /api/x402/recover?wallet=…` issues a challenge; signing it with the wallet
