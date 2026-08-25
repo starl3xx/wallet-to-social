@@ -29,7 +29,6 @@ import {
   payToAddress,
   settlementIdFor,
   payerFrom,
-  signedByPayer,
   BASE_MAINNET,
 } from '@/lib/x402';
 import { X402_PACKS } from '@/lib/packs';
@@ -168,56 +167,43 @@ export async function POST(request: NextRequest) {
    * minting from a replayed payload is still not a thing to leave open.
    */
   const accepted = requirements[0];
+  /**
+   * Has this payment already been honoured?
+   *
+   * Asked before anything is verified or settled, because settlement is the one
+   * step that cannot be repeated: the authorization is spent onchain the first
+   * time, so a second `settlePayment` for the same payload fails. Without this,
+   * a caller who lost the response retried into a settlement error rather than
+   * being told what they already own.
+   *
+   * ## No key is issued here, and no version of this check could safely issue
+   * one
+   *
+   * Two earlier attempts tried. The first matched on `from` and `nonce`, which
+   * are both in USDC's public `AuthorizationUsed` event. The second verified
+   * the EIP-3009 signature, which the facilitator submits as
+   * `transferWithAuthorization` calldata, so it is public too. Once a payment
+   * settles, every field of it is on a public chain: there is nothing in a
+   * payment payload that can prove who is holding the wallet now.
+   *
+   * Proving that needs a challenge the server issued and the wallet signed,
+   * which is a recovery endpoint and not this one. So this branch reports what
+   * the payment bought and mints nothing. It is idempotent, it cannot be
+   * charged twice, and there is no key here for a stranger to take.
+   */
   const already = await lotForSettlement(settlementId);
   if (already) {
-    /**
-     * Prove the caller holds the payer's key before serving them.
-     *
-     * `from` and `nonce` both appear in USDC's public `AuthorizationUsed`
-     * event, so anyone reading Base can rebuild a payload naming somebody
-     * else's settled payment. The first version treated possession of those
-     * two values as proof and would have let a stranger mint keys on a paid
-     * account, spend its credits, and fill the key cap so the real buyer's own
-     * retry failed. A signature over them is the proof; the values are not.
-     *
-     * Checked against the requirements this server issued, never against a
-     * domain taken from the payload.
-     */
-    if (!(await signedByPayer(payload, accepted))) {
-      return NextResponse.json(
-        {
-          error:
-            'This payment has already been honoured, and the request is not signed by the wallet that made it.',
-          code: 'PAYMENT_INVALID',
-        },
-        { status: 403 }
-      );
-    }
-
-    const reissued = await createApiKeyIfUnderCap(
-      already.userId,
-      `x402 ${payer.slice(0, 10)}`,
-      CREDIT_API_PLAN,
-      X402_MAX_KEYS
-    );
-    if (!reissued || 'capReached' in reissued) {
-      return NextResponse.json(
-        {
-          error: `This payment has already been honoured, and its account is at ${X402_MAX_KEYS} active keys. Contact help@walletlink.social with the settlement reference.`,
-          code: 'KEY_CAP_REACHED',
-          settlement: settlementId,
-        },
-        { status: 409 }
-      );
-    }
     const balance = await getBalance(already.userId);
     return NextResponse.json({
-      api_key: reissued.rawKey,
-      shown_once: true,
-      matches_available: balance.available,
-      pack: PACK.name,
+      api_key: null,
       // Already paid for. Nothing was charged this time.
       newly_granted: false,
+      matches_available: balance.available,
+      pack: PACK.name,
+      error:
+        'This payment has already been honoured. Its key was shown once and cannot be reissued from the payment, because every field of a settled payment is public. Contact help@walletlink.social with the settlement reference.',
+      code: 'ALREADY_HONOURED',
+      settlement: settlementId,
       docs: 'https://docs.walletlink.social/agent-pack',
     });
   }

@@ -61,15 +61,17 @@ address is a rail that pays somebody else.
   `newly_granted: false` reachable at all. A fresh key rather than the old one,
   because only its hash was ever stored, bounded at three active keys per
   account so a replayed payload cannot mint without limit.
-- **A replay has to prove it holds the payer's key.** `from` and `nonce` both
-  appear in USDC's public `AuthorizationUsed` event, so anyone reading Base can
-  rebuild a payload naming somebody else's settled payment. The first version of
-  the retry path treated possession of those two values as proof, which would
-  have let a stranger mint keys on a paid account, spend its credits, and fill
-  the key cap so the real buyer's own retry failed. It now verifies the EIP-712
-  signature against the requirements this server issued. ECDSA only: a
-  smart-contract wallet signs under EIP-1271 and falls through to the support
-  path, which refuses a real buyer rather than serving an impostor.
+- **A replay reports, and mints nothing.** Two attempts at reissuing a key to a
+  returning payer were both wrong in the same way. The first matched on `from`
+  and `nonce`, which are in USDC's public `AuthorizationUsed` event. The second
+  verified the EIP-3009 signature, which the facilitator submits as
+  `transferWithAuthorization` calldata, so it is public too. **Once a payment
+  settles, every field of it is on a public chain**, and nothing in a payment
+  payload can prove who holds the wallet afterwards. Proving that needs a
+  challenge this server issued, which is a recovery endpoint and not this one.
+  The replay branch now returns the balance and the settlement reference, and
+  `signedByPayer` was deleted rather than left as a security helper that
+  secures nothing.
 - **The key cap no longer fails a purchase that already settled.** The pack is
   recorded before the key is minted, so throwing at the cap answered
   `GRANT_FAILED` for a payment that had succeeded and credits that existed. A

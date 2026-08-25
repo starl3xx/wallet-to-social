@@ -45,9 +45,9 @@ this for you. On success:
 ```
 
 <Warning>
-  `shown_once` is literal. The key is stored only as a hash and there is no
-  email on the account to recover it through. Persist it before the process
-  exits.
+  `shown_once` is literal, and there is currently **no recovery**. The key is
+  stored only as a hash, there is no email on the account, and replaying the
+  payment will not reissue it. Persist it before the process exits.
 </Warning>
 
 ## What you are buying
@@ -71,10 +71,17 @@ The key works on the whole [REST API](/api-reference/introduction) and on the
 ## Paying twice for the same thing
 
 You cannot. The pack is recorded against the EIP-3009 authorization you signed,
-not against the transaction hash, so replaying a payment returns the credits it
+not against the transaction hash, so replaying a payment reports the credits it
 already bought rather than charging again. A response with
-`"newly_granted": false` means exactly that: the key is fresh, the credits are
-the ones you already paid for.
+`"newly_granted": false` means exactly that.
+
+**A replay does not return a key.** Once a payment settles, every field of it is
+public: the authorization is in USDC's `AuthorizationUsed` event and the
+signature is in the settlement transaction's calldata. Nothing in a payment can
+prove who is holding the wallet afterwards, so serving a key to anyone who
+presents one would serve anyone who reads the chain. Proving current control of
+a wallet needs a challenge this server issued, which is a recovery flow and does
+not exist yet.
 
 ## No free allowance
 
