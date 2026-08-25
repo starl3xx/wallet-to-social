@@ -552,6 +552,34 @@ export const magicLinkTokens = pgTable(
   ]
 );
 
+/**
+ * One row per redeemed key-recovery challenge, so a challenge is single-use.
+ *
+ * The challenge is a stateless HMAC and needs no storage to verify. What needs
+ * storing is that it has been spent: without it, anyone who sees a redeem
+ * request can replay it from their own connection inside the five-minute
+ * window and receive their own key, without ever reading the victim's reply.
+ *
+ * The hash rather than the token, because a table of live credentials is a
+ * credential store whether or not anything ever copies it. The hash is enough
+ * to recognise a replay.
+ *
+ * Deliberately NOT in the nightly dump. Every row is worthless five minutes
+ * after it is written, so a restore would carry nothing but expired hashes.
+ */
+export const x402RecoveryRedemptions = pgTable(
+  'x402_recovery_redemptions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    wallet: text('wallet').notNull(),
+    redeemedAt: timestamp('redeemed_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => [
+    index('x402_recovery_redemptions_expires_idx').on(table.expiresAt),
+  ]
+);
+
 // ============================================================================
 // Public API Infrastructure
 // ============================================================================

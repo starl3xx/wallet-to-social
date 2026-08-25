@@ -42,6 +42,16 @@ export const IP_RATE_LIMITS = {
    * thought of through unbounded.
    */
   '/api/mcp': { limit: 120, windowHours: 1 },
+  /**
+   * The onchain rail's unauthenticated surface: the key-recovery challenge and
+   * the signature that redeems it.
+   *
+   * Not the buy endpoint, which is bounded by the fact that every call costs a
+   * real USDC payment. Recovery costs nothing to ask for, so it gets a bound of
+   * its own: 30 an hour is far more than a person who has lost a key needs and
+   * far less than is useful for grinding signatures at an address.
+   */
+  '/api/x402': { limit: 30, windowHours: 1 },
 } as const;
 
 export type RateLimitedEndpoint = keyof typeof IP_RATE_LIMITS;

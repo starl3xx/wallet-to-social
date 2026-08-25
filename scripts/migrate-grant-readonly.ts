@@ -38,6 +38,13 @@ const READ_ONLY_TABLES = [
   // CLAUDE.md note describes, caught the way it says it will be: later, in CI,
   // on a run that was green on the machine that wrote it.
   'known_agents',
+  // Added 2026-08-25 with the recovery endpoint, so CI can read it.
+  //
+  // Read-only only. It is deliberately absent from BACKUP_TABLES below: every
+  // row is a spent challenge that was worthless five minutes after it was
+  // written, so a nightly dump would restore a day-old list of expired hashes.
+  // An earlier version of this comment claimed the opposite and was wrong.
+  'x402_recovery_redemptions',
 ];
 
 /**

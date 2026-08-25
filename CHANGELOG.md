@@ -2,6 +2,56 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-25 (key recovery, which the payment could never provide)
+
+`GET /api/x402/recover?wallet=…` issues a challenge; signing it with the wallet
+that paid returns a new API key against the same credits. Off unless
+`X402_RECOVERY_SECRET` is set.
+
+- **This is the endpoint three failed attempts inside `/buy` were reaching
+  for.** Each tried to serve a key to a returning payer from the payment
+  payload: first on `from` and `nonce`, then on the EIP-3009 signature over
+  them. All are published when the payment settles, the first two in USDC's
+  `AuthorizationUsed` event and the third in the settlement transaction's
+  calldata. **Nothing a caller can copy from a settled payment distinguishes
+  the buyer from anyone reading Base.** Proving current control needs a value
+  the wallet could not have seen in advance, which is a challenge this server
+  issued.
+- **The challenge carries no database row; the redemption does.** Verifying it
+  is a stateless HMAC over the wallet and the moment, the same shape
+  `unsubscribeUrl` already uses, under its own secret so rotating it
+  invalidates only recovery challenges.
+- **A short window is not single use, and the first version confused the two.**
+  It relied on five minutes, reasoning that a replayer would also need to read
+  the reply carrying the key. They do not: they send the captured request from
+  their own connection and receive their own key in their own response. With
+  the three-key cap they could also fill it and lock the buyer out of the
+  recovery they were trying to use. `x402_recovery_redemptions` records a spent
+  challenge, insert-first so the primary key decides a race rather than a read
+  both redemptions pass. Verified: the buyer's redemption returns a key, an
+  immediate replay returns 409, and two simultaneous redemptions of one
+  challenge produce exactly one key.
+- **The message is written to be read in a wallet**, because that is where it
+  is shown: it says what it authorises, says no funds move, and names the
+  wallet and the moment, so a signature captured for one purpose cannot be
+  presented for another.
+- **A challenge is issued for any wallet, whether or not it ever bought.**
+  Refusing early would make the endpoint a free oracle for which wallets hold
+  credits. Whether an account exists is answered after a signature proves who
+  is asking.
+- **The key is minted, not recovered.** Only a hash was ever stored, so the
+  original cannot be produced by anyone including us. The credits are
+  untouched: they belong to the account rather than to the key.
+- Scoped to `origin = 'x402'`, so a signature can never open an account created
+  some other way if `users.wallet` is ever written by something else. Bounded
+  at 30 requests an hour per IP under a new `/api/x402` key, since asking for a
+  challenge costs nothing.
+- Verified against a production build with a seeded account: an unsigned
+  request, a different wallet's signature, a forged token, a tampered
+  `issued_at`, an expired challenge and a wallet with no account are all
+  refused with one message and no key; the real buyer signing a live challenge
+  is served.
+
 ### 2026-08-24 (the onchain rail)
 
 Step five of the sequence. `POST /api/x402/buy` sells a $1 Agent pack for USDC
