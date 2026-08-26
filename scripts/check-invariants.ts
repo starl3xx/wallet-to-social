@@ -151,10 +151,13 @@ async function main() {
   }
 
   // ----------------------------------------------------------- the pack ladder
-  // Four properties that were true by inspection for a year and became load
-  // bearing the day a fifth rung was added below Trial (2026-08-26). None of
-  // them is enforced by a type, and every one of them is a wrong price rather
-  // than a crash: the surfaces read PACKS and render whatever is there.
+  // Four properties that have been true by inspection since the packs were
+  // written, and that nothing checks. They are load bearing the moment a rung
+  // is added, reordered or repriced: three call sites find a pack by walking
+  // PACK_IDS until one is big enough, and `/pricing` plus six comparison pages
+  // publish PACK_IDS[0] as the entry price. None is enforced by a type, and
+  // every one is a wrong price rather than a crash, because the surfaces read
+  // PACKS and render whatever is there.
   {
     const { PACKS, PACK_IDS } = await import('@/lib/packs');
     const perMatch = (id: (typeof PACK_IDS)[number]) =>
@@ -219,29 +222,11 @@ async function main() {
         PACK_IDS.length
     );
 
-    // `starter` was a tier before it was a pack. The tier was retired on
-    // 2026-08-12 and never purchased, and the pack arrived on 2026-08-26 under
-    // the same string, which now appears on both sides of `PaidTier | PackId`.
-    // Nothing in the checkout confuses them today, because `normalizeTier`
-    // recognises exactly two values and the webhook reads `metadata.pack`
-    // through `isPackId`. This asserts that, rather than trusting it: a pack id
-    // read as a tier would grant an entitlement nobody paid for, and a retired
-    // tier read as a pack would sell one.
-    const { normalizeTier } = await import('@/lib/access');
-    const { isPackId: packIdGate } = await import('@/lib/packs');
-    ok(
-      'no pack id is readable as a tier',
-      PACK_IDS.every((id) => normalizeTier(id) === 'free')
-    );
-    ok(
-      'no legacy tier is readable as a pack',
-      !packIdGate('pro') && !packIdGate('unlimited') && !packIdGate('free')
-    );
-
-    // The day-14 email is the sequence's only ask, and it named Trial by hand
-    // until Starter went in below it. An email that sells a rung which stopped
-    // being the entry is not a crash and not a wrong price: it is a working
-    // link to the wrong shelf, and nothing else in the repo can see it.
+    // The day-14 email is the sequence's only ask, and it named Trial by hand.
+    // That is right today and right by coincidence: Trial is the first key, not
+    // the named one. Put a cheaper rung underneath and the email sells the
+    // second one. It is not a crash and not a wrong price, it is a working link
+    // to the wrong shelf, and nothing else in the repo can see it.
     const { WELCOME_EMAILS } = await import('@/lib/welcome-sequence');
     const sales = WELCOME_EMAILS[WELCOME_EMAILS.length - 1];
     const entry = PACKS[PACK_IDS[0]];

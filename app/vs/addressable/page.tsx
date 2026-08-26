@@ -2,12 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import {
-  PACKS,
-  PACK_IDS,
-  FREE_MATCHES_PER_WINDOW,
-  FREE_WINDOW_DAYS,
-} from '@/lib/packs';
+import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import {
@@ -33,7 +28,8 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: 'walletlink.social vs Addressable: which is right for you?',
-    description: `Compare wallet-to-social lookup tools. Credit packs from $${PACKS[PACK_IDS[0]].priceCents / 100}, no subscription, against enterprise pricing that starts near $1,000/month. See which is right for your crypto marketing needs.`,
+    description:
+      'Compare wallet-to-social lookup tools. Credit packs from $29, no subscription, against enterprise pricing that starts near $1,000/month. See which is right for your crypto marketing needs.',
     type: 'article',
     url: 'https://walletlink.social/vs/addressable',
     siteName: 'walletlink.social',
@@ -148,12 +144,8 @@ export default function AddressableComparison() {
                 label="have an X or Farcaster account"
                 attested
               />
-              {/* The cheapest rung, read off the ladder rather than named:
-                  this said `PACKS.trial` while Trial happened to be the floor,
-                  and a fifth pack below it would have left the figure quietly
-                  wrong on six pages at once. */}
               <Figure
-                value={`$${PACKS[PACK_IDS[0]].priceCents / 100}`}
+                value={`$${PACKS.trial.priceCents / 100}`}
                 label="to start, no subscription"
               />
             </dl>
@@ -217,7 +209,7 @@ export default function AddressableComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        ${PACKS[PACK_IDS[0]].priceCents / 100} - $
+                        ${PACKS.trial.priceCents / 100} - $
                         {PACKS.index.priceCents / 100}
                       </span>{' '}
                       one-time

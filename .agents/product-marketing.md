@@ -11,7 +11,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **What it does:** walletlink.social resolves Ethereum wallet addresses to the X and Farcaster accounts of their owners, against a 4.8 million wallet identity index. Upload a holder list (CSV, contract address, or paste) and get back reachable people, ranked by holdings times follower reach, exportable as CSV or an X list. It also runs backwards: an X handle or Farcaster username returns the wallets attached to that person.
 **Product category:** wallet-to-social resolution; the shelf buyers search is "token holder outreach" and "wallet to Twitter".
 **Product type:** self-serve SaaS web app plus a REST API (API access comes with every pack, same credits).
-**Business model:** one-time credit packs, metered in matches (a wallet resolved to an X or Farcaster account; misses cost nothing). No subscriptions. Free is 100 matches per rolling 30 days. Credits last 12 months. Packs: Starter $10 / 75 matches, Trial $29 / 250, Campaign $99 / 1,500, Scale $299 / 6,000, Index $899 / 25,000.
+**Business model:** one-time credit packs, metered in matches (a wallet resolved to an X or Farcaster account; misses cost nothing). No subscriptions. Free is 100 matches per rolling 30 days. Credits last 12 months. Packs: Trial $29 / 250 matches, Campaign $99 / 1,500, Scale $299 / 6,000, Index $899 / 25,000.
 **Refund policy (decided 2026-08-22): no guarantees and no refunds.** The risk reversal is the free allowance (prove your match rate before paying) plus misses costing nothing. State the policy plainly when asked; never propose guarantee or refund offers.
 
 ## Target Audience
@@ -114,14 +114,13 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 ## Goals
 
 **Business goal:** first paying customers; the dataset is the moat, revenue proves the wedge.
-**Conversion action:** buy a credit pack (most plausibly Starter $10 after a free lookup shows real matches; it is the rung added because nobody ever crossed the $29 step).
+**Conversion action:** buy a credit pack (most plausibly Trial $29 after a free lookup shows real matches).
 **Current metrics (2026-08-22):** ~100 signups, 0 paid, traffic is the bottleneck; last human lookup 2026-07-30.
 
 ## Changelog
 
 _Newest first. One line per revision: what changed and why._
 
-- v4 (2026-08-26): Starter ($10 / 75 matches) added as the floor of the ladder, because nobody ever crossed the $29 step; the conversion action moves to it, and Trial is now a month of lists rather than one list.
 - v3 (2026-08-22) — Purged the uncited ~2.5% industry-average / 9x claim from coverage, objections and metrics; comparisons now use measured figures or stay qualitative.
 - v2 (2026-08-22) — Recorded Jake's refund decision: no guarantees, no refunds; the free allowance plus free misses is the risk reversal.
 - v1 (2026-08-22) — Initial context, auto-drafted from README, lib/public-figures.ts, lib/packs.ts, and the /vs pages. Gaps flagged: verbatim customer language, testimonials.

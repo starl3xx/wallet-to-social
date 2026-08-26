@@ -91,7 +91,7 @@ Wallet to Twitter Lookup | Addressable Alternative | walletlink.social
 ### Meta Description (155 chars max)
 
 ```
-Turn wallet addresses into Twitter & Farcaster profiles. No sales calls, no subscriptions. Packs from $10, pay only for matches. Upload CSV, get socials.
+Turn wallet addresses into Twitter & Farcaster profiles. No sales calls, no subscriptions. Packs from $29, pay only for matches. Upload CSV, get socials.
 ```
 
 ### Open Graph
@@ -125,7 +125,7 @@ description: "Find Twitter & Farcaster profiles from Ethereum wallet addresses. 
 
 **2. One Price, Credits That Last a Year**
 
-> Packs from $10 (75 matches) to $899 (25,000 matches). You pay for matches, never for wallets that resolve to nothing. Every pack includes all seven chains, uncapped export and API access. Credits last 12 months. No monthly fees. No enterprise contracts.
+> Packs from $29 (250 matches) to $899 (25,000 matches). You pay for matches, never for wallets that resolve to nothing. Every pack includes all seven chains, uncapped export and API access. Credits last 12 months. No monthly fees. No enterprise contracts.
 
 **3. All Major Sources**
 
@@ -150,7 +150,7 @@ Display RecentWins component showing:
 |               | walletlink.social                      | Addressable               |
 | ------------- | -------------------------------------- | ------------------------- |
 | **Focus**     | Wallet → Social only                   | Full marketing suite      |
-| **Pricing**   | $10 - $899 one-time, priced in matches | $1000s/month subscription |
+| **Pricing**   | $29 - $899 one-time, priced in matches | $1000s/month subscription |
 | **Access**    | Instant, self-serve                    | Sales calls required      |
 | **Setup**     | Upload CSV, done                       | Onboarding process        |
 | **Contracts** | None                                   | Enterprise agreements     |
@@ -236,7 +236,7 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
    - API access: included with every walletlink.social pack, drawing the same credits
 
 6. **Pricing Comparison**
-   - walletlink: $10 / $29 / $99 / $299 / $899 one-time, priced in matches; API access on every pack
+   - walletlink: $29 / $99 / $299 / $899 one-time, priced in matches; API access on every pack
    - Addressable: Custom pricing, typically $1K+/month
    - ROI calculation example
 
@@ -301,10 +301,10 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
   "operatingSystem": "Web",
   "offers": {
     "@type": "AggregateOffer",
-    "lowPrice": "10",
+    "lowPrice": "29",
     "highPrice": "899",
     "priceCurrency": "USD",
-    "offerCount": 5
+    "offerCount": 4
   },
   "description": "Turn wallet addresses into Twitter & Farcaster profiles"
 }

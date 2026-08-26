@@ -191,12 +191,8 @@ export default function FormoComparison() {
                 label="have an X or Farcaster account"
                 attested
               />
-              {/* The cheapest rung, read off the ladder rather than named:
-                  this said `PACKS.trial` while Trial happened to be the floor,
-                  and a fifth pack below it would have left the figure quietly
-                  wrong on six pages at once. */}
               <Figure
-                value={`$${PACKS[PACK_IDS[0]].priceCents / 100}`}
+                value={`$${PACKS.trial.priceCents / 100}`}
                 label="once, no subscription"
               />
             </dl>

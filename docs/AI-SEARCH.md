@@ -75,22 +75,14 @@ below, which the corpus alone does not:
    wrong spelling. Keep it if you rewrite the prompt.
 
 6. **Pricing, and it overrides the corpus for the same reason rule 5 does.**
-   Credit packs priced in matches: free 100 every 30 days, then $10/75,
-   $29/250, $99/1,500, $299/6,000, $899/25,000, one-time, credits expiring
-   after 12 months. Misses are free, which is the whole position and has to be
-   said whenever price comes up. Never quote Pro, Unlimited, $249, $49, $420 or
-   any per-lookup wallet cap as available today; Pro and Unlimited are closed
-   legacy tiers, and saying so is better than pretending they never existed.
-   The numbers come from `lib/packs.ts`; if that file changes, the prompt
-   changes with it.
-
-   **This paragraph is a copy of the prompt, not the prompt.** The live text is
-   `system_prompt_ai_search`, set on each of the two instances named at the top
-   of this file (`walletlink-docs` and `walletlink-site`), and nothing in this
-   repository deploys it. Editing here changes what the next person reads and
-   not one word of what a prospect is told, so a price change is two edits out
-   there plus this one. The $10 Starter rung was added to the ladder on
-   2026-08-26.
+   Credit packs priced in matches: free 100 every 30 days, then $29/250,
+   $99/1,500, $299/6,000, $899/25,000, one-time, credits expiring after 12
+   months. Misses are free, which is the whole position and has to be said
+   whenever price comes up. Never quote Pro, Unlimited, $249, $49, $420 or any
+   per-lookup wallet cap as available today; Pro and Unlimited are closed legacy
+   tiers, and saying so is better than pretending they never existed. The
+   numbers come from `lib/packs.ts`; if that file changes, the prompt changes
+   with it.
 
    This rule exists because rule 2 was not enough. Rule 2 forbids stating a
    price that is not in the context, and the context still holds the retired
@@ -113,10 +105,9 @@ The first two were verified against the live endpoint after setup:
 
 Re-verified 2026-08-21 after adding rule 6, along with a third:
 
-- _"How much does walletlink cost? What are the plans?"_ → the pack ladder in
-  matches, five rows as it stood that day, misses-are-free stated first,
-  one-time and the 12-month expiry both named, and no mention of the retired
-  tiers. Starter makes it six; that answer has not been re-verified since.
+- _"How much does walletlink cost? What are the plans?"_ → the five-row pack
+  ladder in matches, misses-are-free stated first, one-time and the 12-month
+  expiry both named, and no mention of the retired tiers.
 
 **Re-run all three questions after any change to the prompt, the model or the
 indexed corpus.** They are the regression test for the only failure mode here

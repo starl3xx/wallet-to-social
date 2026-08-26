@@ -92,7 +92,7 @@ Cookie fits best in step 1. walletlink fits best in step 3. They are not competi
 
 Cookie operates on a freemium model with a utility token ($COOKIE) for premium features. Pricing scales with usage and access level.
 
-walletlink uses a one-time payment model. The free tier covers 100 matches in every rolling 30-day window. Packs range from $10 to $899, priced in matches rather than wallets, and credits last 12 months from purchase. No subscriptions.
+walletlink uses a one-time payment model. The free tier covers 100 matches in every rolling 30-day window. Packs range from $29 to $899, priced in matches rather than wallets, and credits last 12 months from purchase. No subscriptions.
 
 Both approaches have merits. Cookie’s model fits ongoing research workflows. walletlink’s model fits project teams that need resolution in bursts (pre-airdrop, pre-governance vote, quarterly community analysis).
 

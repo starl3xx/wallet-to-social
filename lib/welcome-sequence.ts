@@ -44,8 +44,7 @@ import {
  * today: `lib/public-figures.ts` for the index, `lib/packs.ts` for anything
  * priced. welcome-5 reads `PACKS[PACK_IDS[0]]` rather than naming a rung, so
  * the only sales email in the sequence cannot go on asking for a rung that
- * stopped being the entry, which is exactly what happened when Starter landed
- * underneath Trial on 2026-08-26.
+ * stopped being the entry.
  *
  * ## Who is enrolled
  *
@@ -137,17 +136,18 @@ const SITE = 'https://walletlink.social';
 /**
  * The cheapest rung, read off the ladder rather than named.
  *
- * welcome-5 is the sequence's only ask, and it asked for Trial from the day it
- * was written. On 2026-08-26 Trial stopped being the entry: Starter arrived
- * underneath it at a third of the price, and Trial's own `fits` moved from
- * "One list, once" to "A month of lists" to say so. An email built on
- * `PACKS.trial` would have kept asking a first-time buyer for the second rung,
- * silently, with nothing failing.
+ * welcome-5 is the sequence's only ask, and it named `PACKS.trial` by hand from
+ * the day it was written. That is correct today and correct only by
+ * coincidence: it is right because Trial happens to be the first key, not
+ * because anything made it so. Put a cheaper rung underneath and the only sales
+ * email in the sequence goes on asking a first-time buyer for the second rung,
+ * silently, with nothing failing and no diff touching this file.
  *
  * `PACK_IDS[0]` is the entry by construction (`PACK_IDS` is the key order of
  * `PACKS`, cheapest first), so the ask follows the ladder wherever it moves.
  * Every number welcome-5 prints comes from here: the price, the match count
- * and the name in the button.
+ * and the name in the button. `scripts/check-invariants.ts` asserts the email
+ * still names that rung.
  */
 const ENTRY_PACK = PACKS[PACK_IDS[0]];
 

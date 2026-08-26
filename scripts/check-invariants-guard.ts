@@ -384,39 +384,39 @@ const MUTATIONS: Mutation[] = [
   },
   {
     // Every one of these four is a price that renders correctly, sells
-    // correctly and is wrong. They exist because the ladder gained a rung below
-    // Trial on 2026-08-26, which turned four properties nobody had written down
-    // into load-bearing ones.
+    // correctly and is wrong. They exist because three call sites find a pack
+    // by walking PACK_IDS, and seven pages publish PACK_IDS[0] as the entry
+    // price, on four properties nobody had written down.
     name: 'the cheapest pack undercuts the next rung per match',
     file: 'lib/packs.ts',
-    from: '    priceCents: 1000,\n    matches: 75,',
-    to: '    priceCents: 800,\n    matches: 75,',
+    from: '    priceCents: 2900,\n    matches: 250,',
+    to: '    priceCents: 1500,\n    matches: 250,',
   },
   {
     name: 'the pack every surface calls the entry price is not the cheapest',
     file: 'lib/packs.ts',
-    from: '    priceCents: 1000,\n    matches: 75,',
-    to: '    priceCents: 3000,\n    matches: 75,',
+    from: '    priceCents: 2900,\n    matches: 250,',
+    to: '    priceCents: 10000,\n    matches: 250,',
   },
   {
     name: 'PACK_IDS stops ascending, so the pack finder recommends too large a pack',
     file: 'lib/packs.ts',
-    from: "    matches: 75,\n    fits: 'One list, once',",
-    to: "    matches: 300,\n    fits: 'One list, once',",
+    from: '    matches: 250,\n    // ~1,055 wallets',
+    to: '    matches: 2000,\n    // ~1,055 wallets',
   },
   {
     name: 'two packs resolve to the same Stripe price (the env var copy-paste)',
     file: 'lib/packs.ts',
-    from: "    priceEnvVar: 'STRIPE_PRICE_PACK_STARTER',",
-    to: "    priceEnvVar: 'STRIPE_PRICE_PACK_TRIAL',",
+    from: "    priceEnvVar: 'STRIPE_PRICE_PACK_TRIAL',",
+    to: "    priceEnvVar: 'STRIPE_PRICE_PACK_CAMPAIGN',",
   },
   {
-    // The defect that was live from the moment Starter landed until the copy
-    // was reconciled: a working email, a working link, and the wrong shelf.
+    // A working email, a working link, and the wrong shelf. Nothing else in
+    // the repo can see it, which is why it is asserted rather than reviewed.
     name: 'the sales email goes back to naming a rung by hand',
     file: 'lib/welcome-sequence.ts',
     from: 'const ENTRY_PACK = PACKS[PACK_IDS[0]];',
-    to: 'const ENTRY_PACK = PACKS.trial;',
+    to: 'const ENTRY_PACK = PACKS.index;',
   },
 
   // --- the starter collection ---------------------------------------------

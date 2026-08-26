@@ -149,4 +149,4 @@ The projects already using this methodology report 30-40% less airdrop waste com
 
 **Filter your airdrop list before you distribute.**
 
-[walletlink.social](https://walletlink.social) resolves wallet addresses to verified social profiles, letting you separate real community members from noise. One-time pricing starts at $10 for 75 matches, about 300 wallets at our measured rate. You only pay for the wallets we resolve.
+[walletlink.social](https://walletlink.social) resolves wallet addresses to verified social profiles, letting you separate real community members from noise. One-time pricing starts at $29 for 250 matches, about 1,000 wallets at our measured rate. You only pay for the wallets we resolve.

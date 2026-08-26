@@ -25,7 +25,7 @@ This difference in scope drives most of the other differences.
 | ------------- | ----------------------------------------------- | ---------------------------- |
 | Pricing model | One-time payment                                | Monthly subscription         |
 | Entry price   | Free (100 matches per rolling 30 days)          | Custom (sales call required) |
-| Mid-range     | $10 to $99 one-time (75 to 1,500 matches)       | ~$1,000-3,000/mo (estimated) |
+| Mid-range     | $29 to $99 one-time (250 to 1,500 matches)      | ~$1,000-3,000/mo (estimated) |
 | High-end      | $299 to $899 one-time (6,000 to 25,000 matches) | Enterprise pricing           |
 | Sales process | Self-serve                                      | Demo call required           |
 | Commitment    | None                                            | Annual contracts typical     |
@@ -54,7 +54,7 @@ Which model is better depends entirely on your use case.
 
 **You don’t want a sales call.** Some teams want to evaluate the tool before talking to anyone. Our free tier (100 matches in every rolling 30-day window) lets you test match rates on your actual data in under two minutes.
 
-**Budget is a constraint.** A $10 one-time payment for 75 matches (roughly 300 wallets at our measured rate) is accessible to early-stage projects, small DAOs, and individual researchers. Not everyone has enterprise marketing budgets.
+**Budget is a constraint.** A $29 one-time payment for 250 matches (roughly 1,000 wallets at our measured rate) is accessible to early-stage projects, small DAOs, and individual researchers. Not everyone has enterprise marketing budgets.
 
 **You want to own the data outright.** You get a CSV download with all matched profiles. No platform lock-in, no need to maintain a subscription to access your results.
 

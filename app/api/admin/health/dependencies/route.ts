@@ -253,9 +253,8 @@ export async function GET(request: NextRequest) {
       'Sign-in links, including the one after a purchase, are not sent.',
       'critical'
     ),
-    // The five pack prices are read from `lib/packs.ts` rather than listed
-    // here, so a pack added there cannot be forgotten here: Starter arrived in
-    // August 2026 and needed no edit on this line. The retired
+    // The four pack prices are read from `lib/packs.ts` rather than listed
+    // here, so a pack added there cannot be forgotten here. The retired
     // STRIPE_PRICE_PRO and STRIPE_PRICE_UNLIMITED variables are deliberately
     // not checked: nothing can be bought against them, and `isStripeConfigured`
     // in lib/stripe.ts records why a check on them took pack checkout down.

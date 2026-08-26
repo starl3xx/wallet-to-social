@@ -40,8 +40,8 @@ canonical text, mirrored in `lib/welcome-sequence.ts`).
 
 **Emails 1, 4 and 5 were rewritten on 2026-08-26 and are not separately
 approved.** Email 4 was rewritten against the reverse-lookup gate that shipped
-on 2026-08-25, email 5 against the Starter rung that landed on 2026-08-26, and
-email 1 gained one clause naming what the free allowance does not cover. Emails
+on 2026-08-25, email 5 was moved off a hardcoded rung onto `PACKS[PACK_IDS[0]]`,
+and email 1 gained one clause naming what the free allowance does not cover. Emails
 2 and 3 are unchanged and stand as approved. Nothing had been sent under the
 old email 4: `SEQUENCE_START` is 2026-08-23 and day 9 falls on 2026-09-01, so
 the first cohort reaches it after this change. Email 5's first send is
@@ -113,11 +113,10 @@ that quietly disappears from the record reads as one that was met.
 Signups convert at zero today, and every signup already gave us the one
 contact field we hold (`users.email`). A signup-to-first-purchase sequence is
 the cheapest conversion lever the product has: it needs no new traffic. The
-sequence teaches the three facts a buyer needs before a $10 decision (what a
+sequence teaches the three facts a buyer needs before a $29 decision (what a
 match is, what their chain yields, what reachability means), then asks once.
-The decision was a $29 one until 2026-08-26, when Starter became the entry
-rung; the ask moved with it, because the email reads the cheapest rung out of
-`lib/packs.ts` instead of naming one.
+The ask reads the cheapest rung out of `lib/packs.ts` rather than naming one, so
+it follows the ladder if a cheaper rung ever appears underneath Trial.
 
 ## Shape
 
@@ -131,7 +130,7 @@ two legacy accounts and whitelisted accounts.
 | 2   | 2          | Set chain expectations honestly | What your chain says about your match rate  |
 | 3   | 5          | Differentiate on reachability   | A handle that reaches nobody is not a match |
 | 4   | 9          | The free half of reverse lookup | How many wallets are behind that handle?    |
-| 5   | 14         | The ask                         | 75 matches, once: $10                       |
+| 5   | 14         | The ask                         | 250 matches, once: $29                      |
 
 The numbers in that table are the values the constants hold today (100 from
 `FREE_MATCHES_PER_WINDOW`, 75 and $10 from `PACKS[PACK_IDS[0]]`). The code
@@ -226,25 +225,26 @@ partnership or an allowlist starts from. Priority was dropped rather than
 reworded: it is credit-gated (`column-priority`), the ordering it drives is
 already stated in email 1, and one email does one job.
 
-### Email 5, day 14: 75 matches, once: $10
+### Email 5, day 14: 250 matches, once: $29
 
 If walletlink.social showed you real matches, here’s the price:
 
-The Starter pack is $10, once. It covers 75 matches (one list, once), and misses are still free. No subscription; credits last 12 months.
+The Trial pack is $29, once. It covers 250 matches (one list, once), and misses are still free. No subscription; credits last 12 months.
 
 Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all seven chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they do not hold more product.
 
 If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.
 
-[Buy the Starter pack]
+[Buy the Trial pack]
 
 You won’t get another sales email from us after this one.
 
-Rewritten 2026-08-26 for the same reason, one rung lower. Starter arrived under
-Trial at $10 for 75 matches and took Trial's "One list, once" description with
-it. Every figure above, and the pack name in the button, comes from
-`PACKS[PACK_IDS[0]]`, so this email asks for whatever the entry rung is rather
-than for the rung that was the entry when it was written. The feature paragraph
+Rewritten 2026-08-26, though the rendered text is unchanged. It named
+`PACKS.trial` by hand, which is right today and right by coincidence: Trial is
+the first key, not the named one. Every figure above, and the pack name in the
+button, now comes from `PACKS[PACK_IDS[0]]`, so this email asks for whatever the
+entry rung is rather than for the rung that was the entry when it was written.
+`scripts/check-invariants.ts` asserts it still names that rung. The feature paragraph
 is why the smallest pack is the right ask: `hasPaidAccess` is binary, so the
 cheapest pack opens exactly what the largest one opens. The footnote promise
 holds, because there is no email 6.

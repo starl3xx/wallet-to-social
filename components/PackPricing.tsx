@@ -55,20 +55,13 @@ export function PackPricing() {
           figure. Not the `Figure` component itself, because that puts the
           caption under the figure and a price sheet names the pack above it.
 
-          Six tiles, Free plus the five packs, so the grid steps two then
-          three and stops there. Six divides evenly by both, which is the
-          whole reason for those two numbers: neither step leaves a tile alone
-          on the last row. Below `xs` this stacked all six one per row, about
-          700px of scroll on a phone for a strip that reads in one glance
-          two-across. A tile's label wraps and the tile grows, so the grid of
-          text can step at `xs` (360px) where a grid of controls could not.
-
-          There is no six-across step, and that is a measurement rather than a
-          preference: this panel sits inside a reading column, so it never gets
-          wider than about 720px, and six columns there put 106px on a tile.
-          "100 matches in a rolling 30-day window" needs more than that. Three
-          columns hold 229px at the same width. */}
-      <div className="grid grid-cols-2 gap-4 text-sm xs:grid-cols-3">
+          Five tiles step two, three, five across. Below `sm` this stacked the
+          five packs one per row, about 600px of scroll on a phone for a strip
+          that reads in one glance two-across. A tile's label wraps and the
+          tile grows, so the grid of text can step at `xs` (360px) where a
+          grid of controls could not; `sm` brings the fifth column in at the
+          width the reading column already gives it. */}
+      <div className="grid grid-cols-2 gap-4 text-sm xs:grid-cols-3 sm:grid-cols-5">
         <div>
           <p className="text-muted-foreground">Free</p>
           <p className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
@@ -92,16 +85,20 @@ export function PackPricing() {
         ))}
       </div>
 
-      {/* Only features a free account really does not have. "Uncapped CSV
-          export" stood here and was wrong: `ExportButton` gates the X list on
-          `entitled` and hands everyone the CSV, every column of it, so the one
-          item most likely to be read as the reason to pay was the one item that
-          was already free. Check the gate before adding to this list. */}
+      {/* Only features a free account really does not have. This said "uncapped
+          CSV export" and "X reachability on every match", and neither is gated:
+          `ExportButton` branches only the X list on `entitled`, and
+          `stampReachability` runs on every result set. The two items most
+          likely to be read as the reason to pay were the two that were already
+          free. What IS gated on the results is `priority_score` and
+          `fc_followers`, which `job-processor` sets to undefined when
+          `paidData` is false, so they are missing from the free CSV as well as
+          from the table. Read the gate before adding a line here. */}
       <p className="mt-4 text-sm text-muted-foreground">
         Every pack carries all {CHAIN_COUNT_WORD} chains, the X list export, the
-        wallet addresses behind a handle, contract import, API and MCP access on
-        the same credits, and Farcaster DMs. Credits last{' '}
-        {CREDIT_LIFETIME_MONTHS} months. No subscription.
+        wallet addresses behind a handle, priority score and follower counts,
+        contract import, API and MCP access on the same credits, and Farcaster
+        DMs. Credits last {CREDIT_LIFETIME_MONTHS} months. No subscription.
       </p>
     </div>
   );
