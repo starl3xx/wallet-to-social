@@ -56,6 +56,25 @@ export function getDb():
 }
 
 /**
+ * Whether the driver `getDb()` returns can run `db.transaction()`.
+ *
+ * `neon-http` cannot: it throws "No transactions support in neon-http driver"
+ * at call time, not at build time, so a transaction is a runtime dependency on
+ * an environment variable. `lib/social-graph.ts` took that dependency without
+ * declaring it, and on 2026-08-22 six lookups recorded a failed index write in
+ * `lookup_jobs.social_graph_write_errors` with exactly that message.
+ *
+ * Derived from the same condition the driver choice above uses, and exported
+ * rather than re-tested by callers, so the two cannot drift into disagreeing
+ * about which driver is live. A caller that needs atomicity should ask, and
+ * carry a path that still writes when the answer is no: losing atomicity is
+ * recoverable, and writing nothing is not.
+ */
+export function supportsTransactions(): boolean {
+  return process.env.USE_CONNECTION_POOLING === 'true';
+}
+
+/**
  * Cleanup function for graceful shutdown
  * Call this when the process is terminating
  */

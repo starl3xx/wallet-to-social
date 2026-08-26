@@ -2,6 +2,88 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-26 (the index write was losing wallets quietly)
+
+Two defects on the one path that persists what a lookup found. Both were
+recorded against real jobs in `lookup_jobs.social_graph_write_errors`, and 7 of
+the 77 jobs in the last fortnight ended with `social_graph_write_status =
+'failed'`. Neither is visible from the outside: the lookup completes, the user
+gets their results, and the index simply does not gain the row.
+
+- **`source` was taken on trust at the write boundary.** The field is typed
+  `string[]`, and that type is a claim about data we did not create: our own CSV
+  export writes it comma-joined, so a customer re-uploading an export sends a
+  string back. `asSourceList` already existed for exactly this and was applied
+  on the resume path and both display paths; the write path, the one that
+  persists, was the one that never got it. It now normalises once, at the top,
+  before anything reads the field.
+- **It failed two ways on the same input, and the loud one was the lucky one.**
+  `isTwitterVerified(r.source ?? [])` threw `.some is not a function` and killed
+  the batch. `mergeSources` took the same value and spread a string into single
+  characters, storing a provenance list of `['w','e','b','3',…]` with nothing
+  raised. `?? []` was never the right guard: it defends against null, and null
+  was not the shape that occurs.
+- **`db.transaction()` was called unconditionally**, and `neon-http` answers
+  that with a throw at call time rather than at build time. So the entire index
+  write depended on `USE_CONNECTION_POOLING=true` being set. Production sets it
+  and was unaffected; every other environment failed every write, and
+  `.env.example` never mentioned the variable. `db/index.ts` now exports
+  `supportsTransactions()` next to the driver choice, so the capability cannot
+  drift from the driver, and the write degrades to sequential statements rather
+  than throwing.
+- **Losing atomicity here is the right trade, which is worth stating.** Every
+  statement on this path is idempotent: the upsert is `onConflictDoUpdate` keyed
+  on the wallet, and the history rows are append-only. An interrupted run leaves
+  a prefix written, which the next lookup of those wallets re-derives. A throw
+  leaves nothing written and costs the whole batch to the same interruption.
+- **Both were classified as transient and retried three times**, at one and two
+  seconds of backoff, on writes that could not have succeeded on any attempt.
+  Neither message contains a word the classifier looked for. A `TypeError` is
+  now permanent by definition: it is raised by this code reaching into a value
+  of the wrong shape, so it is a statement about the program, not the
+  connection. The driver's refusal is matched on the capability wording rather
+  than on the driver's name, so it survives a driver swap.
+- **The fallback had a regression of its own, caught in review.** Without a
+  rollback, a retry restarted the whole batch, and the upsert is idempotent in
+  every column but one: `lookup_count` is `lookup_count + 1`, so every row the
+  failed attempt had already committed counted a second lookup that never
+  happened. That number is not cosmetic. It promotes a row to quality `medium`
+  past 3, pulls it into the hot set `refresh-stale` rebuilds past 5, and orders
+  the refresh queue. The retry now carries a cursor and resumes, and the cursor
+  exists only where the driver cannot roll back, since a transactional retry
+  that skipped committed work would lose it (found by Bugbot, Medium).
+- **The classifier's first version was worse than the bug it fixed**, and that
+  was caught in review too. It made every `TypeError` permanent. Node rejects a
+  network failure as `TypeError: fetch failed`, and `neon-http` issues every
+  query through `fetch`, so the rule stopped retrying exactly the transient
+  faults the retry exists for, on the driver it exists for. It now matches the
+  shape complaint (`is not a function`, `is not iterable`, `Cannot read
+properties of`) rather than the type. Measured, because the two are the same
+  class and only the message tells them apart: the network one carries a
+  `cause` and reads `fetch failed`; the shape one carries none and names the
+  value (found by Bugbot, Medium).
+- **The assertion covering that case was passing over it.** It built a plain
+  `Error('fetch failed')`, which is not an instance of `TypeError`, so it never
+  reached the branch under test. It now constructs the error the way Node does,
+  `cause` included. The guard separately caught a mutation still anchored to
+  the single-line condition that had been rewritten, and therefore protecting
+  nothing.
+- **A committed prefix was still reported as a total loss.** `succeeded: 0` was
+  true while every attempt ran in a transaction, because a failure rolled the
+  whole thing back. The resume cursor ended that, and the exhausted-retry
+  return was not updated with it: a run that wrote 900 of 1,000 wallets and
+  then lost the connection recorded `'failed'` and logged "persist completely
+  failed", which sends anyone reading it looking for a write that did happen.
+  `job-processor` already had the right `'partial'` branch and simply could not
+  reach it. It now reports what committed (found by Bugbot, Medium).
+- Thirteen assertions and ten mutations, 295 and 120. The classifier is asserted
+  against the two real failures by value, and separately asserted **not** to
+  have been widened into always-true, which is how a set of refusal assertions
+  passes while protecting nothing.
+
+Not fixed here: the 7 jobs whose writes failed. Their wallets are all in the
+graph today, arriving by another path, so there is nothing to replay.
+
 ### 2026-08-26 (somewhere to go, and copy that matches the gates)
 
 Two changes that share one shape: the product had already opened a door and had

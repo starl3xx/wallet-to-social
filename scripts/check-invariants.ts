@@ -237,6 +237,147 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------ the index write path
+  // Two defects that each silently lost a wallet's identity rather than
+  // failing loudly, both recorded against real jobs in
+  // `lookup_jobs.social_graph_write_errors`, and a third that retried both.
+  {
+    const { isNonTransientError } = await import('@/lib/social-graph');
+    const { asSourceList } = await import('@/lib/api-sources');
+    const { supportsTransactions } = await import('@/db');
+
+    // A bug in this process is never fixed by asking the database again. Both
+    // real failures are asserted by their actual value: the TypeError raised
+    // by calling `.some` on a string, and the driver's own refusal text.
+    let typeErr: Error;
+    try {
+      ('web3bio,neynar' as unknown as string[]).some((s) => s === 'ens');
+      typeErr = new Error('did not throw');
+    } catch (e) {
+      typeErr = e as Error;
+    }
+    ok(
+      'the TypeError from a non-array source is not retried',
+      typeErr instanceof TypeError && isNonTransientError(typeErr)
+    );
+    ok(
+      'a driver with no transaction support is not retried',
+      isNonTransientError(
+        new Error('No transactions support in neon-http driver')
+      )
+    );
+    // Proves the classifier has not been widened into always-true, which is
+    // the way a refusal assertion passes while protecting nothing.
+    ok(
+      'a genuinely transient error is still retried',
+      !isNonTransientError(new Error('connection reset by peer')) &&
+        !isNonTransientError(new Error('fetch failed'))
+    );
+
+    /**
+     * The case above was written as a plain `Error` and therefore proved
+     * nothing about the real one.
+     *
+     * Node rejects a network failure as `TypeError: fetch failed`, and
+     * `neon-http` runs every query through `fetch`, so the first version of
+     * this classifier stopped retrying precisely the faults the retry exists
+     * for. The assertion missed it because a plain `Error('fetch failed')` is
+     * not an instance of `TypeError`, so it never reached the branch under
+     * test: the wrong constructor made a passing assertion out of a real
+     * regression (Bugbot, PR #201).
+     *
+     * Constructed the way Node constructs it, cause included.
+     */
+    const networkTypeError = new TypeError('fetch failed');
+    (networkTypeError as { cause?: unknown }).cause = new Error('ECONNRESET');
+    ok(
+      'a network failure is retried even though Node raises it as a TypeError',
+      networkTypeError instanceof TypeError &&
+        !isNonTransientError(networkTypeError)
+    );
+
+    // The write path is the one surface that persists, so it is the one that
+    // must not take `source` on trust. Asserted through the helper, on the
+    // shape our own CSV export really produces.
+    ok(
+      'a joined source string is recovered rather than iterated as characters',
+      JSON.stringify(asSourceList('web3bio,neynar')) ===
+        JSON.stringify(['web3bio', 'neynar']) &&
+        [...asSourceList('web3bio,neynar')].length === 2
+    );
+
+    const graphSrc = withoutComments(
+      readFileSync('lib/social-graph.ts', 'utf8')
+    );
+    // Normalisation must happen before anything reads the field, so the guard
+    // is asserted to precede the merge and the verification helpers rather
+    // than merely to exist somewhere in the file.
+    const normalise = 'source: asSourceList(r.source),';
+    ok(
+      'the write path normalises source before it merges or verifies it',
+      graphSrc.includes(normalise) &&
+        graphSrc.indexOf(normalise) <
+          graphSrc.indexOf('mergeSources(r.source') &&
+        graphSrc.indexOf(normalise) < graphSrc.indexOf('isTwitterVerified(')
+    );
+
+    // `db.transaction()` throws on neon-http at call time, so an unconditional
+    // call makes the whole index write depend on an environment variable.
+    ok(
+      'the index write never calls transaction() without asking the driver first',
+      graphSrc.includes('if (supportsTransactions()) {') &&
+        graphSrc.indexOf('supportsTransactions()') <
+          graphSrc.indexOf('db.transaction(')
+    );
+    ok(
+      'there is a path that still writes when the driver has no transaction',
+      graphSrc.includes('return await writeAll(db);')
+    );
+
+    // Without a rollback, a retry that restarts re-runs `lookup_count + 1` on
+    // every row the failed attempt already committed. That number sets the
+    // quality tier past 3 and the refresh-stale hot set past 5, so inflating
+    // it promotes wallets that were written once (Bugbot, PR #201, Medium).
+    ok(
+      'a retry without a transaction resumes rather than restarting',
+      graphSrc.includes('for (let i = progress?.rowsCommitted ?? 0;')
+    );
+    // The cursor must be the inverse of the rollback: carried only where there
+    // is none, or a transactional retry skips work it never wrote.
+    ok(
+      'the resume cursor exists only when the driver cannot roll back',
+      /supportsTransactions\(\)\s*\?\s*undefined\s*:\s*\{\s*rowsCommitted: 0/.test(
+        graphSrc
+      )
+    );
+    // Advanced after the statement returns, never before, or a batch that
+    // threw is skipped on the retry and those wallets are lost.
+    ok(
+      'the cursor advances only after the write it records',
+      graphSrc.indexOf(
+        'if (progress) progress.rowsCommitted = i + batch.length;'
+      ) > graphSrc.indexOf('.onConflictDoUpdate(')
+    );
+    // A committed prefix survives a failure once there is no rollback, so
+    // reporting the whole batch as failed is a false statement about the index
+    // and it makes job-processor's 'partial' branch unreachable for this case
+    // (Bugbot, PR #201, Medium).
+    ok(
+      'an exhausted retry reports what committed rather than zero',
+      !/succeeded: 0,\s*\n\s*failed: validResults\.length,/.test(graphSrc) &&
+        /succeeded: committed,\s*\n\s*failed: validResults\.length - committed,/.test(
+          graphSrc
+        )
+    );
+    // The capability is read from the driver module rather than re-tested, or
+    // the two drift and the gate starts describing a driver that is not live.
+    ok(
+      'the transaction capability is not re-derived from the env var locally',
+      !graphSrc.includes('USE_CONNECTION_POOLING') &&
+        typeof supportsTransactions() === 'boolean'
+    );
+  }
+
   // ------------------------------------------------- the starter collection
   // The first action supplies the wallet list, which is the one thing the paid
   // contract importer charges for. Everything here asserts that it can only

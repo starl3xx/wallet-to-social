@@ -658,6 +658,76 @@ const MUTATIONS: Mutation[] = [
     to: 'resultsMap.set(r.wallet, r);',
   },
   {
+    // The 2026-08-25 job's actual failure: `.some is not a function`, thrown
+    // from the write path because nothing normalised `source` before reading it.
+    name: 'the index write takes source on trust, so a joined string reaches .some',
+    file: 'lib/social-graph.ts',
+    from: '    source: asSourceList(r.source),',
+    to: '    source: r.source,',
+  },
+  {
+    name: 'the index write calls transaction() without asking the driver, as it did on 2026-08-22',
+    file: 'lib/social-graph.ts',
+    from: '  if (supportsTransactions()) {\n    return await db.transaction(async (tx) => writeAll(tx));\n  }\n  return await writeAll(db);',
+    to: '  return await db.transaction(async (tx) => writeAll(tx));',
+  },
+  {
+    name: 'the transaction capability is re-derived locally instead of read from the driver module',
+    file: 'lib/social-graph.ts',
+    from: '  if (supportsTransactions()) {',
+    to: "  if (process.env.USE_CONNECTION_POOLING === 'true') {",
+  },
+  {
+    name: 'a TypeError from this process is retried three times against the database',
+    file: 'lib/social-graph.ts',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
+    to: '',
+  },
+  {
+    // The regression Bugbot caught in the first version of the classifier:
+    // `neon-http` runs every query through `fetch`, and Node rejects a network
+    // failure as `TypeError: fetch failed`, so the broad rule stopped retrying
+    // the faults the retry exists for.
+    name: 'every TypeError is called permanent, so a failed fetch is never retried',
+    file: 'lib/social-graph.ts',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
+    to: '  if (error instanceof TypeError) return true;',
+  },
+  {
+    name: 'the driver refusing transactions is treated as a transient fault',
+    file: 'lib/social-graph.ts',
+    from: "  if (message.includes('no transactions support')) return true;",
+    to: '',
+  },
+  {
+    // The way a set of refusal assertions passes while protecting nothing.
+    name: 'the retry classifier is widened until every error looks permanent',
+    file: 'lib/social-graph.ts',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
+    to: '  return true;',
+  },
+  {
+    // The regression Bugbot caught in the fallback added by PR #201.
+    name: 'a retry without a transaction restarts, double-counting lookup_count',
+    file: 'lib/social-graph.ts',
+    from: 'for (let i = progress?.rowsCommitted ?? 0; i < rows.length; i += 100) {',
+    to: 'for (let i = 0; i < rows.length; i += 100) {',
+  },
+  {
+    // A run that wrote 900 of 1,000 wallets and then lost the connection
+    // recorded 'failed' and logged "persist completely failed".
+    name: 'an exhausted retry reports a committed prefix as a total loss',
+    file: 'lib/social-graph.ts',
+    from: '    succeeded: committed,\n    failed: validResults.length - committed,',
+    to: '    succeeded: 0,\n    failed: validResults.length,',
+  },
+  {
+    name: 'the resume cursor is carried even where the driver rolls back, so a retry skips work',
+    file: 'lib/social-graph.ts',
+    from: '  const progress: WriteProgress | undefined = supportsTransactions()\n    ? undefined\n    : { rowsCommitted: 0, auditCommitted: 0 };',
+    to: '  const progress: WriteProgress | undefined = {\n    rowsCommitted: 0,\n    auditCommitted: 0,\n  };',
+  },
+  {
     name: 'asSourceList stops recovering a joined string, so a re-uploaded export loses its evidence',
     file: 'lib/api-sources.ts',
     from: "  if (typeof value === 'string') {",
