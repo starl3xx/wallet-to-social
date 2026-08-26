@@ -33,6 +33,54 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'an unreached wallet is cached as empty (Bugbot, 2026-08-25, High)',
+    file: 'lib/job-processor.ts',
+    from: '            if (apiFailedWallets.has(wl)) return null;\n',
+    to: '',
+  },
+  {
+    // A real reorder, not an extra copy. The first version of this mutation
+    // added a second check after the branch and left the first in place, so the
+    // code stayed correct and the guard reported it undetected: a mutation that
+    // introduces no defect proves nothing about the assertion above it.
+    name: 'the unreached check runs after the branch that caches the negative',
+    file: 'lib/job-processor.ts',
+    from: '            if (apiFailedWallets.has(wl)) return null;\n            const r = results.get(wl)!;',
+    to: '            const r = results.get(wl)!;\n            if (apiFailedWallets.has(wl) && r.source.length > 0) return null;',
+  },
+
+  {
+    name: 'the deadline skips wallets without recording them as unreached',
+    file: 'lib/web3bio.ts',
+    from: '        errorCount++;\n        opts?.failedWallets?.add(wallet.toLowerCase());\n      }\n      break;',
+    to: '      }\n      break;',
+  },
+  {
+    name: 'a truncated batch is reported as an upstream failure',
+    file: 'lib/web3bio.ts',
+    from: '      abandonedAt !== null\n        ? `deadline: stopped at ${abandonedAt} of ${wallets.length} after ${latencyMs}ms`\n        : errorCount > 0',
+    to: '      errorCount > 0',
+  },
+  {
+    name: 'the per-request timeout goes back to fifteen seconds',
+    file: 'lib/web3bio.ts',
+    from: 'const API_TIMEOUT_MS = 6000;',
+    to: 'const API_TIMEOUT_MS = 15000;',
+  },
+  {
+    name: 'the deadline stops scaling with the work',
+    file: 'lib/web3bio.ts',
+    from: '  return Math.max(MIN_BATCH_DEADLINE_MS, waves * WAVE_BUDGET_MS);',
+    to: '  return MIN_BATCH_DEADLINE_MS;',
+  },
+  {
+    name: 'the ceiling is widened until it can never bind',
+    file: 'lib/web3bio.ts',
+    from: 'const WAVE_BUDGET_MS = 4000;',
+    to: 'const WAVE_BUDGET_MS = 40000;',
+  },
+
+  {
     name: 'lookup_started loses its session, so the funnel cannot join a visit',
     file: 'app/api/jobs/route.ts',
     from: "    trackEvent('lookup_started', {\n      userId: effectiveUserId || email,\n      sessionId: browserSession,",

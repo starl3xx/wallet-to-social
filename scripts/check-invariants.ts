@@ -37,6 +37,11 @@ import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
 import { SUPPORTED_CHAINS } from '../lib/chains';
 import {
+  API_TIMEOUT_MS,
+  batchDeadlineMs,
+  MIN_BATCH_DEADLINE_MS,
+} from '../lib/web3bio';
+import {
   freshCastTime,
   FUTURE_SKEW_MS,
   isExcluded,
@@ -1700,6 +1705,128 @@ async function main() {
       (credits.match(/await bookSale\(/g) ?? []).length ===
         (credits.match(/(?<!async function )bookSale\(/g) ?? []).length &&
         (credits.match(/await bookSale\(/g) ?? []).length >= 2
+    );
+  }
+
+  // ------------------------- The slow source: a ceiling, and what it must not do
+  // 13 August: 30 of 33 batches failed, median 229 seconds, roughly half of
+  // every batch unreached. A failing request waited the full 15s timeout and
+  // waves run in series, so a 19-wave batch spent five minutes producing
+  // nothing. The timeout is now 6s and the batch has a deadline.
+  {
+    // The ceiling has to clear a healthy batch or it truncates real work.
+    // Measured over 208 healthy batches: worst was 83,716ms at 2,999 wallets.
+    ok(
+      'the deadline clears the worst healthy batch ever measured',
+      batchDeadlineMs(2999) > 83_716
+    );
+    ok(
+      'the deadline would have cut 13 August short',
+      batchDeadlineMs(1867) < 229_064
+    );
+    // It scales with the work, because waves run in series.
+    ok(
+      'a bigger batch gets a bigger ceiling',
+      batchDeadlineMs(3000) > batchDeadlineMs(300)
+    );
+    ok(
+      'a handful of wallets is not cut off by arithmetic',
+      batchDeadlineMs(1) >= 30_000 && batchDeadlineMs(0) >= 30_000
+    );
+    /**
+     * The per-request timeout, and the one relationship that must hold.
+     *
+     * A single wave's worst case is one request's timeout, so the floor has to
+     * leave room for at least one whole wave. If the timeout ever exceeded the
+     * floor, a small batch could be abandoned before its only wave finished
+     * and would return nothing while reporting wallets as unreached.
+     */
+    ok(
+      'the floor always permits one full wave',
+      API_TIMEOUT_MS < MIN_BATCH_DEADLINE_MS
+    );
+    // Above the worst healthy wave measured (2,790ms), and below the 15s that
+    // made 13 August cost five minutes a batch.
+    ok(
+      'the request timeout clears the worst healthy wave with room',
+      API_TIMEOUT_MS >= 2 * 2790
+    );
+    ok(
+      'the request timeout is no longer the fifteen seconds that cost the outage',
+      API_TIMEOUT_MS < 15_000
+    );
+
+    // Prove it can bind at all, or a ceiling of Infinity passes everything.
+    ok(
+      'the ceiling is finite and bounded',
+      Number.isFinite(batchDeadlineMs(100_000)) &&
+        batchDeadlineMs(2999) < 300_000
+    );
+
+    /**
+     * The part that is not about speed.
+     *
+     * A wallet the deadline gave up on must look like "not checked", never like
+     * "checked, has nothing". The pipeline persists a negative only when a run
+     * completed without API failures and then trusts it for 30 days, so a
+     * silent drop here would write a false negative into the graph that no
+     * later lookup would correct.
+     */
+    const w3b = withoutComments(readFileSync('lib/web3bio.ts', 'utf8'));
+    const bail = w3b.slice(w3b.indexOf('if (Date.now() >= deadline)'));
+    const bailBlock = bail.slice(0, bail.indexOf('break;'));
+    ok(
+      'every wallet the deadline skips is recorded as failed',
+      /failedWallets\?\.add\(/.test(bailBlock) &&
+        /wallets\.slice\(i\)/.test(bailBlock)
+    );
+    ok(
+      'the skipped wallets also count as errors, so the batch is not reported clean',
+      /errorCount\+\+/.test(bailBlock)
+    );
+    /**
+     * Both negatives, not just the long one (Bugbot, 2026-08-25, High).
+     *
+     * A wallet nobody reached must not be written as "checked, has nothing" on
+     * either path. `apiFailedWallets` blocked the 30-day graph negative and not
+     * the 7-day cache one: a skipped wallet has no socials and no source, so it
+     * fell into the `['none']` branch and was cached as a negative that later
+     * lookups trusted, skipping the APIs entirely. Guarding only the graph
+     * looked complete because it is the negative anybody thinks about.
+     */
+    const jp = withoutComments(readFileSync('lib/job-processor.ts', 'utf8'));
+    const cacheAt = jp.indexOf('const walletsToCache');
+    const cacheBlock = jp.slice(
+      cacheAt,
+      jp.indexOf('cacheWalletResults', cacheAt)
+    );
+    ok(
+      'an unreached wallet is never cached as a negative',
+      /apiFailedWallets\.has\([a-z]+\)\)\s*return null;/.test(cacheBlock)
+    );
+    ok(
+      'the unreached check runs before the none branch that would cache it',
+      cacheBlock.indexOf('apiFailedWallets.has') <
+        cacheBlock.indexOf("source: ['none']")
+    );
+    // Prove the none branch still exists, or the assertion above passes
+    // against code that simply stopped caching negatives at all.
+    ok(
+      'genuine negatives are still cached',
+      cacheBlock.includes("source: ['none']")
+    );
+
+    // A truncated batch and an upstream failure are different events.
+    ok(
+      'a batch that ran out of time says so rather than blaming the upstream',
+      /abandonedAt !== null[\s\S]{0,120}?deadline: stopped at/.test(w3b)
+    );
+    // The deadline is checked between waves, not inside one: a wave in flight
+    // is already bounded, and abandoning it discards answers already paid for.
+    ok(
+      'the deadline is checked before a wave starts',
+      w3b.indexOf('if (Date.now() >= deadline)') <
+        w3b.indexOf('const batch = wallets.slice(i, i + MAX_CONCURRENT)')
     );
   }
 
