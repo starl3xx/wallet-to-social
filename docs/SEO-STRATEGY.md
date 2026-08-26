@@ -138,7 +138,9 @@ description: "Find Twitter & Farcaster profiles from Ethereum wallet addresses. 
 Display RecentWins component showing:
 
 - Wallet count processed
-- Match rate (e.g., "22% - 9x industry avg")
+- Match rate, on its own or against our own measured figures. Never against a
+  numeric industry average: the "9x avg" comparison that stood here cited no
+  source and was purged from every public surface on 2026-08-22 (CLAUDE.md).
 - Twitter/Farcaster breakdown
 
 ### Comparison Section (fold 2)

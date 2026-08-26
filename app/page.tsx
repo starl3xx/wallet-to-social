@@ -10,6 +10,10 @@ import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { LookupHistory } from '@/components/LookupHistory';
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
+import {
+  StarterCollections,
+  type StarterRun,
+} from '@/components/StarterCollections';
 import { RecentWins } from '@/components/RecentWins';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
@@ -54,6 +58,10 @@ import {
   type SupportedChain,
 } from '@/lib/chains';
 import { parseContractDeepLink } from '@/lib/contract-deep-link';
+import {
+  parseStarterParam,
+  STARTER_WALLET_CAP,
+} from '@/lib/starter-collections';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
@@ -322,6 +330,21 @@ export default function Home() {
 
   // Restore jobId from localStorage on mount
   useEffect(() => {
+    /**
+     * A `?collection=` arrival submits its own job, and this effect must not
+     * race it.
+     *
+     * This effect is declared first, so React flushes it first, and it reads
+     * `currentJobId` before `runStarterCollection` clears it. Both then drive
+     * the same `state`, `results` and `jobId`, and whichever resolves last
+     * wins: the visitor who followed a link to run a collection gets last
+     * week's lookup instead, or watches the right job while the poller follows
+     * the wrong one. The parameter is still on the URL here, because the
+     * starter effect below has not called `replaceState` yet, and the test is
+     * the same one it uses so the two cannot disagree about what an arrival is.
+     */
+    if (window.location.search.includes('collection=')) return;
+
     const savedJobId = localStorage.getItem('currentJobId');
     if (savedJobId) {
       // Check if job still exists and get its status
@@ -612,6 +635,64 @@ export default function Home() {
     }
   }, []);
 
+  /**
+   * The one place a job is submitted.
+   *
+   * Two things start a lookup now: a list the person brought, and a collection
+   * we supplied. They post the same body to the same route and get the same
+   * three refusals back, so the refusals are handled once, here. What differs
+   * is where the view returns to afterwards, which is why this reports a
+   * refusal rather than deciding the state itself.
+   */
+  const submitJob = useCallback(
+    async (
+      body: Record<string, unknown>
+    ): Promise<
+      | {
+          ok: true;
+          jobId: string;
+          walletCount: number;
+          collectionName?: string;
+        }
+      | { ok: false }
+    > => {
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Credits needed. `upgradeRequired` is the field name the server still
+        // uses; what it opens is the buy-credits modal.
+        if (errorData.upgradeRequired) {
+          handleOpenUpgradeModal('submit-blocked');
+          return { ok: false };
+        }
+        // Handle rate limit response
+        if (response.status === 429) {
+          setRateLimitMessage(
+            errorData.error ||
+              `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window.`
+          );
+          setShowAuthModal(true);
+          return { ok: false };
+        }
+        throw new Error(errorData.error || `HTTP error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        ok: true,
+        jobId: data.jobId,
+        walletCount: data.walletCount,
+        collectionName: data.collectionName,
+      };
+    },
+    [handleOpenUpgradeModal]
+  );
+
   const startLookup = useCallback(async () => {
     // The same per-lookup rule the server applies, checked before the upload.
     // The caution banner above the button already says why and what to do;
@@ -673,48 +754,28 @@ export default function Home() {
 
     try {
       // Submit job to queue
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wallets,
-          originalData,
-          saveToHistory,
-          historyName: submittedName,
-          ...scanDepthOptions(scanDepth),
-          userId: getUserId(),
-          sessionId: getSessionId(),
-          email: userEmail || undefined,
-          inputSource,
-          sourceContract:
-            inputSource === 'contract_import' ? sourceContract : undefined,
-        }),
+      const submitted = await submitJob({
+        wallets,
+        originalData,
+        saveToHistory,
+        historyName: submittedName,
+        ...scanDepthOptions(scanDepth),
+        userId: getUserId(),
+        sessionId: getSessionId(),
+        email: userEmail || undefined,
+        inputSource,
+        sourceContract:
+          inputSource === 'contract_import' ? sourceContract : undefined,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        // Credits needed. `upgradeRequired` is the field name the server still
-        // uses; what it opens is the buy-credits modal.
-        if (errorData.upgradeRequired) {
-          handleOpenUpgradeModal('submit-blocked');
-          setState('ready');
-          return;
-        }
-        // Handle rate limit response
-        if (response.status === 429) {
-          setRateLimitMessage(
-            errorData.error ||
-              `Rate limit exceeded. Sign in for ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window.`
-          );
-          setShowAuthModal(true);
-          setState('ready');
-          return;
-        }
-        throw new Error(errorData.error || `HTTP error: ${response.status}`);
+      // Refused, and already explained by the modal submitJob opened. Back to
+      // the list, which is still loaded and still submittable once it is not.
+      if (!submitted.ok) {
+        setState('ready');
+        return;
       }
 
-      const { jobId: newJobId } = await response.json();
-      setJobId(newJobId);
+      setJobId(submitted.jobId);
       setProgress((prev) => ({
         ...prev,
         message: 'Job queued - processing will start shortly...',
@@ -746,7 +807,117 @@ export default function Home() {
     handleOpenUpgradeModal,
     inputSource,
     sourceContract,
+    submitJob,
   ]);
+
+  /**
+   * The first action for somebody who has brought nothing.
+   *
+   * The wallet list is the only part we supply: the server expands the
+   * collection and then runs it through the same rate limit, the same meter
+   * and the same per-lookup cap as an uploaded file, and it comes back on the
+   * one polling loop below like every other job. That is the whole feature.
+   *
+   * The name is taken from the response rather than the click, because a
+   * `?collection=` link carries an address and no name.
+   */
+  const runStarterCollection = useCallback(
+    async (collection: StarterRun) => {
+      if (collection.name) {
+        submittedNameRef.current = `Holders of ${collection.name}`;
+      }
+
+      setState('processing');
+      setResults([]);
+      setCacheHits(0);
+      setMergeWarning(null);
+      setJobId(null);
+      setDisplayedProcessed(0);
+      setStartTime(Date.now());
+      setProgress({
+        // The cap, until the response says how many holders the collection
+        // actually had. It is the ceiling, so the bar can only ever shorten.
+        total: STARTER_WALLET_CAP,
+        processed: 0,
+        twitterFound: 0,
+        farcasterFound: 0,
+        status: 'processing',
+        message: 'Submitting job...',
+      });
+
+      try {
+        const submitted = await submitJob({
+          collection: { chain: collection.chain, address: collection.address },
+          saveToHistory,
+          ...scanDepthOptions(scanDepth),
+          userId: getUserId(),
+          sessionId: getSessionId(),
+          email: userEmail || undefined,
+        });
+
+        // Back to the front page, not to 'ready': there is no list on this
+        // side of the click for a ready panel to be ready with.
+        if (!submitted.ok) {
+          setState('upload');
+          return;
+        }
+
+        if (submitted.collectionName) {
+          submittedNameRef.current = `Holders of ${submitted.collectionName}`;
+        }
+        setJobId(submitted.jobId);
+        setProgress((prev) => ({
+          ...prev,
+          total: submitted.walletCount,
+          message: 'Job queued - processing will start shortly...',
+        }));
+      } catch (err) {
+        console.error('Starter collection submission error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to submit job');
+        setProgress((prev) => ({ ...prev, status: 'error' }));
+        setState('error');
+      }
+    },
+    [submitJob, saveToHistory, scanDepth, userEmail]
+  );
+
+  /**
+   * `/?collection=base:0x…` runs that collection on arrival.
+   *
+   * A separate parameter from `?contract=`, deliberately. That one opens the
+   * paid importer, and routes a visitor without credits to the buy-credits
+   * modal; this one must not, because a link that promises a first action and
+   * delivers a price is worse than no link. It is also why this acts on mount
+   * instead of waiting for the session and the balance the way the contract
+   * link does: there is no entitlement question here to wait for the answer to.
+   *
+   * Read once and the URL cleared first, as the contract link is, so a refresh
+   * cannot replay the run and the parameter does not travel with a shared URL.
+   */
+  const starterLinkRead = useRef(false);
+
+  useEffect(() => {
+    if (starterLinkRead.current) return;
+    starterLinkRead.current = true;
+
+    const search = window.location.search;
+    if (!search.includes('collection=')) return;
+
+    window.history.replaceState({}, '', window.location.pathname);
+
+    const link = parseStarterParam(
+      new URLSearchParams(search).get('collection')
+    );
+    // Null covers every rejection, as the contract link's parse does: there is
+    // nothing useful to say to somebody who arrived on a URL they did not type.
+    if (!link) return;
+
+    runStarterCollection({
+      chain: link.chain,
+      address: link.address,
+      name: '',
+    });
+  }, [runStarterCollection]);
 
   // Adaptive polling interval (starts at 2s, increases to 5s if no progress)
   const pollIntervalRef = useRef(2000);
@@ -1660,6 +1831,14 @@ export default function Home() {
                 </Card>
               )}
             </div>
+
+            {/* The fourth way in, and the only one that asks for nothing.
+                  It sits with the three input methods rather than lower down
+                  with the proof, because it is an alternative to bringing a
+                  file: a signed-in account with no history saw an empty page
+                  and had to go and find data before it could find out what
+                  this does. */}
+            <StarterCollections onRun={runStarterCollection} />
 
             {/* The other direction. Featured on the front page rather than
                   buried, because it is the differentiator and it was previously

@@ -13,10 +13,10 @@ import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
  * everyone carrying that data carries the same dead third without knowing which
  * third. We resolved all of it and report the answer per record.
  *
- * ## Why this is a component and not five paragraphs
+ * ## Why this is a component and not six paragraphs
  *
- * It belongs on all five comparison pages and it contains numbers. Five copies
- * would be five places to update and four places to forget, which is the exact
+ * It belongs on all six comparison pages and it contains numbers. Six copies
+ * would be six places to update and five places to forget, which is the exact
  * failure that had the homepage saying 4.8M while the docs said 4.9M. The
  * figures come from `lib/public-figures.ts` for the same reason.
  *

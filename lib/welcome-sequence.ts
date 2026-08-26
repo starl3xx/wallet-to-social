@@ -8,6 +8,7 @@ import {
 } from '@/lib/public-figures';
 import {
   PACKS,
+  PACK_IDS,
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
   CREDIT_LIFETIME_MONTHS,
@@ -21,6 +22,29 @@ import {
  * lifecycle template). One email, one job, one CTA; email 5 is the only ask,
  * and its footnote promise ("no more sales email after this one") is kept by
  * the schedule itself: there is no email 6.
+ *
+ * ## Every sentence has to be true for the account it is sent to
+ *
+ * Rewritten on 2026-08-26, before a single welcome-4 went out (the first
+ * cohort reaches day 9 on 2026-09-01). The reverse-lookup gate moved on
+ * 2026-08-25: a caller with no credits now gets the wallet **count** and not
+ * the addresses. The copy that sells that feature was written against the old
+ * gate and was never reread, so welcome-4 offered a free reader two features
+ * they cannot use and a button labelled "Run a free lookup" with nothing free
+ * behind it. Nobody shipped a lie; a gate moved and one email stayed still.
+ *
+ * The rule that follows from it: a sequence email may only describe what its
+ * reader can do. Every account here is on the free allowance by construction,
+ * because the purchase rule in ELIGIBLE_USER exits anyone who bought. So a
+ * credit-gated feature may be named as what credits buy (welcome-5's job) or
+ * as the paid half of a split whose free half is the point (welcome-4's), and
+ * never as something the reader is invited to go and try.
+ *
+ * Copy in this file is bound to the constants, not to the numbers they hold
+ * today: `lib/public-figures.ts` for the index, `lib/packs.ts` for anything
+ * priced. welcome-5 reads `PACKS[PACK_IDS[0]]` rather than naming a rung, so
+ * the only sales email in the sequence cannot go on asking for a rung that
+ * stopped being the entry.
  *
  * ## Who is enrolled
  *
@@ -109,6 +133,27 @@ interface WelcomeEmail {
 
 const SITE = 'https://walletlink.social';
 
+/**
+ * The cheapest rung, read off the ladder rather than named.
+ *
+ * welcome-5 is the sequence's only ask, and it named `PACKS.trial` by hand from
+ * the day it was written. That is correct today and correct only by
+ * coincidence: it is right because Trial happens to be the first key, not
+ * because anything made it so. Put a cheaper rung underneath and the only sales
+ * email in the sequence goes on asking a first-time buyer for the second rung,
+ * silently, with nothing failing and no diff touching this file.
+ *
+ * `PACK_IDS[0]` is the entry by construction (`PACK_IDS` is the key order of
+ * `PACKS`, cheapest first), so the ask follows the ladder wherever it moves.
+ * Every number welcome-5 prints comes from here: the price, the match count
+ * and the name in the button. `scripts/check-invariants.ts` asserts the email
+ * still names that rung.
+ */
+const ENTRY_PACK = PACKS[PACK_IDS[0]];
+
+/** Dollars, for copy. Cents are the stored unit so Stripe can be compared. */
+const ENTRY_PACK_PRICE = ENTRY_PACK.priceCents / 100;
+
 export const WELCOME_EMAILS: WelcomeEmail[] = [
   {
     key: 'welcome-1',
@@ -117,8 +162,24 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       subject: `Your first ${FREE_MATCHES_PER_WINDOW} matches are free`,
       paragraphs: [
         'Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.',
-        `Paste a contract address, or upload a CSV of wallets. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
-        `You have ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance.`,
+        // "Paste a contract address" led this sentence until 2026-08-26, and
+        // contract import is credit-gated (`contractLocked={!entitled}`): the
+        // first instruction in the first email was the one thing the reader
+        // could not do. Upload and paste are the free paths, so they lead.
+        `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+        // The last sentence is the boundary, and it belongs here rather than in
+        // a later email. The allowance is a match count, `hasPaidAccess` is
+        // binary, and an email that states only the first one lets a reader
+        // infer that 100 free matches means 100 matches' worth of product.
+        // Naming the paid half once, plainly, in the email that explains the
+        // free half is cheaper than four later emails working around it.
+        //
+        // The CSV export is deliberately NOT in this list. `ExportButton` gates
+        // the X list on `entitled` and hands everyone the CSV, every column of
+        // it, so an earlier draft of this sentence saying "the exports" sold a
+        // free feature as a paid one. Read the gate before naming a feature
+        // here: two of the five in this sentence were wrong on the first pass.
+        `You have ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance. The CSV export is yours either way, every row of it. What credits add is the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle.`,
       ],
       button: { label: 'Run a lookup', url: SITE },
       footnote: 'If anything is unclear, just reply to this email!',
@@ -155,32 +216,65 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
     },
   },
   {
+    /**
+     * The count is the email, and the addresses are the ask.
+     *
+     * The old draft sold reverse lookup and the priority column to an account
+     * that could open neither, then labelled the button "Run a free lookup".
+     * The subject asked "does that handle already hold your token?", which is
+     * an address question: the reader could not answer it, and the fourth
+     * paragraph half-admitted as much.
+     *
+     * The rewrite is the split `lib/reverse-access.ts` already ships and
+     * `ReverseLookup.tsx` already prints above the input: free tells you how
+     * many wallets carry a handle, credits tell you which ones. That count is
+     * not a teaser. It is one indexed read we hand to strangers with no cookie
+     * at all, and it answers the question a partnership or an allowlist
+     * actually starts from.
+     *
+     * Priority is gone rather than reworded. It is credit-gated in
+     * `ResultsTable.tsx` (`column-priority`), the ordering it drives is
+     * already stated in welcome-1, and one email does one job.
+     */
     key: 'welcome-4',
     day: 9,
     content: {
-      subject: 'Does that handle already hold your token?',
+      subject: 'How many wallets are behind that handle?',
       paragraphs: [
-        'Two things people miss on the first lookup.',
-        '**Reverse lookup**. Give it an X handle or a Farcaster username and it returns the wallets attached to that person. Useful before a partnership, an allowlist, or an airdrop: does this person already hold your token?',
-        '**Priority**. Every result is ranked by holdings times follower reach, so the whale with an audience sits at the top of your list, not row 4,000.',
-        `Both come with any credit pack, on all ${CHAIN_COUNT_WORD} chains.`,
+        'A lookup runs in both directions, and the second direction is the one people miss.',
+        `**Reverse lookup**. Type an X handle or a Farcaster username and we tell you how many wallets in the index carry it. That count is free: it spends no credits and none of your ${FREE_MATCHES_PER_WINDOW} free matches.`,
+        'The number on its own is a real answer. Before a partnership, an allowlist or an airdrop, whether a person is attached to any wallet we hold, and to how many, is most of what you wanted to know. **Which** wallets, address by address, is the part credits buy.',
       ],
-      button: { label: 'Run a free lookup', url: SITE },
+      button: { label: 'Look up a handle', url: SITE },
       footnote:
         'You are getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
     },
   },
   {
+    /**
+     * The one ask, aimed at the rung a first purchase is actually made on.
+     *
+     * Every figure comes from ENTRY_PACK, so this email asks for whatever the
+     * cheapest rung is rather than for the rung that was cheapest the day it
+     * was written. The feature sentence is the reason the smallest pack is the
+     * right ask: `hasPaidAccess` is binary, so the cheapest pack opens exactly
+     * what the largest one opens, and the rungs differ only in how many
+     * matches they hold.
+     */
     key: 'welcome-5',
     day: 14,
     content: {
-      subject: `${PACKS.trial.matches} matches, once: $${PACKS.trial.priceCents / 100}`,
+      subject: `${ENTRY_PACK.matches} matches, once: $${ENTRY_PACK_PRICE}`,
       paragraphs: [
         'If walletlink.social showed you real matches, here’s the price:',
-        `The ${PACKS.trial.name} pack is $${PACKS.trial.priceCents / 100}, once. It covers ${PACKS.trial.matches} matches, and misses are still free. No subscription; credits last ${CREDIT_LIFETIME_MONTHS} months. Every pack includes the full CSV export, the X list export, reverse lookup, priority ranking, deep scan with onchain ENS, and API access on the same credits.`,
+        `The ${ENTRY_PACK.name} pack is $${ENTRY_PACK_PRICE}, once. It covers ${ENTRY_PACK.matches} matches (${ENTRY_PACK.fits.toLowerCase()}), and misses are still free. No subscription; credits last ${CREDIT_LIFETIME_MONTHS} months.`,
+        `Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all ${CHAIN_COUNT_WORD} chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they do not hold more product.`,
         'If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.',
       ],
-      button: { label: 'Buy the Trial pack', url: `${SITE}/pricing` },
+      button: {
+        label: `Buy the ${ENTRY_PACK.name} pack`,
+        url: `${SITE}/pricing`,
+      },
       footnote: 'You won’t get another sales email from us after this one.',
     },
   },

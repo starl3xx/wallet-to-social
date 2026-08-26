@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
+import { getStarterWallets } from '@/lib/starter-collections';
 import { inngest } from '@/inngest/client';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
@@ -20,7 +21,14 @@ const INLINE_PROCESSING_THRESHOLD = 10;
 export const runtime = 'nodejs';
 
 interface JobRequest {
-  wallets: string[];
+  wallets?: string[];
+  /**
+   * In place of `wallets`: one of our own seeded collections, expanded here.
+   *
+   * It exists so a visitor who has brought nothing still has a first action.
+   * The list is the only part we supply; see the expansion below.
+   */
+  collection?: { chain: string; address: string };
   originalData?: Record<string, Record<string, string>>;
   saveToHistory?: boolean;
   historyName?: string;
@@ -35,7 +43,12 @@ interface JobRequest {
   email?: string;
   wallet?: string;
   inputSource?: 'file_upload' | 'text_input' | 'contract_import' | 'api';
-  /** Set for a contract import, so the job records WHAT was looked up. */
+  /**
+   * Set for a contract import, so the job records WHAT was looked up.
+   *
+   * Not read for a `collection` run: that one is filled in from the seeded
+   * row, because the body's account of what it asked for is not evidence.
+   */
   sourceContract?: {
     contractAddress: string;
     chain: string;
@@ -79,7 +92,7 @@ export async function POST(request: NextRequest) {
   try {
     const body: JobRequest = await request.json();
     const {
-      wallets,
+      collection,
       originalData = {},
       saveToHistory = false,
       historyName,
@@ -108,6 +121,37 @@ export async function POST(request: NextRequest) {
       )
         ? sessionId
         : undefined;
+
+    /**
+     * A collection stands in for a list of wallets, and is expanded here.
+     *
+     * Here, at the top, so that everything below sees an ordinary lookup: the
+     * IP rate limit, `canSubmit`, the per-lookup ceiling, the credit meter and
+     * the analytics all apply to a starter run exactly as they apply to an
+     * uploaded file. That is the point of it. The only thing this branch does
+     * is supply the list, so there is deliberately no new gate, no separate
+     * allowance and no way in that skips the meter.
+     *
+     * `getStarterWallets` refuses anything that is not a row in
+     * `seeded_contracts`, before it reads a wallet. Without that this would be
+     * a free bypass of the paid contract importer for any contract on any
+     * chain (lib/starter-collections.ts).
+     */
+    const starter = collection
+      ? await getStarterWallets(collection.chain, collection.address)
+      : null;
+
+    if (collection && !starter) {
+      return NextResponse.json(
+        {
+          error:
+            'We do not hold a holder list for that collection. Pick one from the homepage, or import a contract.',
+        },
+        { status: 404 }
+      );
+    }
+
+    const wallets = starter ? starter.wallets : body.wallets;
 
     if (!wallets || wallets.length === 0) {
       return NextResponse.json(
@@ -310,7 +354,9 @@ export async function POST(request: NextRequest) {
       includeENS: includeENS && (access.canUseENS || creditsCoverThisLookup),
       fastMode,
       saveToHistory,
-      historyName,
+      // The client cannot name a starter run, because the name belongs to the
+      // seeded row rather than to anything the caller sent.
+      historyName: starter ? `Holders of ${starter.name}` : historyName,
       userId: effectiveUserId,
       sessionId: browserSession,
       // Only a signed-in account can be debited; see JobOptions.meteredUserId.
@@ -320,10 +366,19 @@ export async function POST(request: NextRequest) {
       paidData: legacyTierIsUnmetered(access.tier) || creditsCoverThisLookup,
       canUseNeynar: access.canUseNeynar,
       canUseENS: access.canUseENS || creditsCoverThisLookup,
-      inputSource,
+      // Set here rather than taken from the body, so the funnel can tell the
+      // action that needed nothing from the one that needed a contract.
+      inputSource: starter ? 'starter_collection' : inputSource,
       // Recorded so the admin Jobs table can name the contract behind a lookup.
-      // Only meaningful for a contract import; undefined for an upload.
-      sourceContract,
+      // Only meaningful for a contract import or a starter run; undefined for
+      // an upload.
+      sourceContract: starter
+        ? {
+            contractAddress: starter.address,
+            chain: starter.chain,
+            tokenName: starter.name,
+          }
+        : sourceContract,
     });
 
     // Lifetime usage record. It gates nothing now that Starter's quota is gone,
@@ -380,6 +435,9 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       walletCount: wallets.length,
       message: 'Job queued for processing',
+      // Only a starter run has a name the client did not already have: a
+      // ?collection= link carries an address, not a collection's name.
+      ...(starter ? { collectionName: starter.name } : {}),
     });
   } catch (error) {
     // Log the real error server-side; return a generic message. This route is

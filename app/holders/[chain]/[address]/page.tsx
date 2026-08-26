@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Warning } from '@phosphor-icons/react/dist/ssr';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import {
+  buildStarterHref,
+  STARTER_WALLET_CAP,
+} from '@/lib/starter-collections';
+import {
   listHolderCollections,
   getHolderCollection,
   getHolderStats,
@@ -253,18 +257,30 @@ export default async function HolderPage({ params }: Props) {
 
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
-            Run this on your own list
+            Run this collection, or your own list
           </h2>
           <p className="mb-6 text-muted-foreground">
-            Paste any contract address or upload a CSV and get the people behind
-            the wallets, ranked by holdings times reach. Free covers{' '}
-            {FREE_MATCHES_PER_WINDOW} matches in a rolling {FREE_WINDOW_DAYS}
-            -day window, and a wallet we cannot resolve costs nothing.
+            The button below runs {collection.name} itself, on up to{' '}
+            {STARTER_WALLET_CAP} of the holders measured above: we hold the
+            list, so there is nothing to upload. Or bring your own wallets, by
+            upload or paste, and get the people behind them ranked by holdings
+            times reach. Free covers {FREE_MATCHES_PER_WINDOW} matches in a
+            rolling {FREE_WINDOW_DAYS}-day window, and a wallet we cannot
+            resolve costs nothing.
           </p>
           <div className="flex flex-wrap gap-3">
+            {/* Carries the collection the reader has just read about. It used
+                to be a bare link to the homepage, which dropped it and asked
+                them to go and find a list of their own.
+
+                buildStarterHref, not buildContractDeepLink: that one targets
+                the paid importer and would meet a reader without credits with
+                a price. */}
             <Button asChild>
-              <Link href="/">
-                Run a lookup
+              <Link
+                href={buildStarterHref(collection.chain, collection.address)}
+              >
+                Run these holders
                 <ArrowRight aria-hidden />
               </Link>
             </Button>

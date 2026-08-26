@@ -167,7 +167,7 @@ const faqSchema = {
       name: 'How much does walletlink.social cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes all ${CHAIN_COUNT_WORD} chains, uncapped CSV export, API access, reverse lookup from a handle to its wallets, deep scan with onchain ENS, and X reachability on every match. All packs are one-time payments, not subscriptions, and credits last ${CREDIT_LIFETIME_MONTHS} months.`,
+        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes contract import on all ${CHAIN_COUNT_WORD} chains, the X list export, the wallet addresses behind a handle, priority score and follower counts, deep scan with onchain ENS, and API and MCP access on the same credits. The CSV export and X reachability are not gated: a free lookup exports every row it produced. All packs are one-time payments, not subscriptions, and credits last ${CREDIT_LIFETIME_MONTHS} months.`,
       },
     },
     {

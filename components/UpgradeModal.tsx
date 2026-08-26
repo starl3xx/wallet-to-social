@@ -101,14 +101,26 @@ const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
 /**
  * What every pack includes, said once below the cards. Keyed because one
  * item carries the platform mark and so is not a string.
+ *
+ * Only things a free account really does not have. Two entries here were free
+ * until 2026-08-26: "Full CSV export, never capped", which `ExportButton`
+ * gates on nothing at all, and "X reachability on every match", which
+ * `stampReachability` writes for every result set. Selling the free half of
+ * the product from inside the buy-credits modal is the worst place in the app
+ * to get this wrong. Read the gate before adding a line.
+ *
+ * What IS gated on the export is the X list button, and what is gated on the
+ * results is `priority_score` and `fc_followers`: `job-processor` sets both to
+ * undefined when `paidData` is false, so they are missing from the free CSV as
+ * well as from the table.
  */
 const INCLUDED: { key: string; label: React.ReactNode }[] = [
   { key: 'chains', label: `All ${CHAIN_COUNT_WORD} chains` },
-  { key: 'csv', label: 'Full CSV export, never capped' },
+  { key: 'columns', label: 'Priority score and follower counts' },
   { key: 'api', label: 'API and MCP server, drawing the same credits' },
   { key: 'reverse', label: 'Reverse lookup: handle → wallets' },
   { key: 'ens', label: 'Deep scan with onchain ENS' },
-  { key: 'x', label: <>{X_IN_COPY} reachability on every match</> },
+  { key: 'x', label: <>{X_IN_COPY} list export, reachable handles only</> },
   { key: 'contract', label: 'Import from a contract address' },
   { key: 'dms', label: 'Farcaster DMs to matched holders' },
   { key: 'expiry', label: `Credits last ${CREDIT_LIFETIME_MONTHS} months` },

@@ -10,10 +10,10 @@ import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 /**
  * Our price list, on the comparison pages.
  *
- * ## Why this is a component and not five pricing blocks
+ * ## Why this is a component and not six pricing blocks
  *
- * The same reason as `ReachabilityClaim`: it belongs on all five `/vs/` pages
- * and it contains numbers. Five copies would be five places to update and four
+ * The same reason as `ReachabilityClaim`: it belongs on all six `/vs/` pages
+ * and it contains numbers. Six copies would be six places to update and five
  * places to forget, which is the exact failure that had the homepage saying
  * 4.8M while the docs said 4.9M.
  *
@@ -85,11 +85,20 @@ export function PackPricing() {
         ))}
       </div>
 
+      {/* Only features a free account really does not have. This said "uncapped
+          CSV export" and "X reachability on every match", and neither is gated:
+          `ExportButton` branches only the X list on `entitled`, and
+          `stampReachability` runs on every result set. The two items most
+          likely to be read as the reason to pay were the two that were already
+          free. What IS gated on the results is `priority_score` and
+          `fc_followers`, which `job-processor` sets to undefined when
+          `paidData` is false, so they are missing from the free CSV as well as
+          from the table. Read the gate before adding a line here. */}
       <p className="mt-4 text-sm text-muted-foreground">
-        Every pack carries all {CHAIN_COUNT_WORD} chains, uncapped CSV export,
-        API and MCP access on the same credits, reverse lookup, Farcaster DMs,
-        and X reachability on every match. Credits last {CREDIT_LIFETIME_MONTHS}{' '}
-        months. No subscription.
+        Every pack carries all {CHAIN_COUNT_WORD} chains, the X list export, the
+        wallet addresses behind a handle, priority score and follower counts,
+        contract import, API and MCP access on the same credits, and Farcaster
+        DMs. Credits last {CREDIT_LIFETIME_MONTHS} months. No subscription.
       </p>
     </div>
   );

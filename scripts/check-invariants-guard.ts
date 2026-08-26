@@ -383,6 +383,86 @@ const MUTATIONS: Mutation[] = [
     to: "export const PACKS: Record<string, Pack> = { agent: { id: 'agent' as PackId, name: 'Agent', priceCents: 100, matches: 12, fits: 'x', priceEnvVar: 'X' },",
   },
   {
+    // Every one of these four is a price that renders correctly, sells
+    // correctly and is wrong. They exist because three call sites find a pack
+    // by walking PACK_IDS, and seven pages publish PACK_IDS[0] as the entry
+    // price, on four properties nobody had written down.
+    name: 'the cheapest pack undercuts the next rung per match',
+    file: 'lib/packs.ts',
+    from: '    priceCents: 2900,\n    matches: 250,',
+    to: '    priceCents: 1500,\n    matches: 250,',
+  },
+  {
+    name: 'the pack every surface calls the entry price is not the cheapest',
+    file: 'lib/packs.ts',
+    from: '    priceCents: 2900,\n    matches: 250,',
+    to: '    priceCents: 10000,\n    matches: 250,',
+  },
+  {
+    name: 'PACK_IDS stops ascending, so the pack finder recommends too large a pack',
+    file: 'lib/packs.ts',
+    from: '    matches: 250,\n    // ~1,055 wallets',
+    to: '    matches: 2000,\n    // ~1,055 wallets',
+  },
+  {
+    name: 'two packs resolve to the same Stripe price (the env var copy-paste)',
+    file: 'lib/packs.ts',
+    from: "    priceEnvVar: 'STRIPE_PRICE_PACK_TRIAL',",
+    to: "    priceEnvVar: 'STRIPE_PRICE_PACK_CAMPAIGN',",
+  },
+  {
+    // A working email, a working link, and the wrong shelf. Nothing else in
+    // the repo can see it, which is why it is asserted rather than reviewed.
+    name: 'the sales email goes back to naming a rung by hand',
+    file: 'lib/welcome-sequence.ts',
+    from: 'const ENTRY_PACK = PACKS[PACK_IDS[0]];',
+    to: 'const ENTRY_PACK = PACKS.index;',
+  },
+
+  // --- the starter collection ---------------------------------------------
+
+  {
+    name: 'the starter link accepts any chain, not only a supported one',
+    file: 'lib/starter-collections.ts',
+    from: 'if (!SUPPORTED_CHAINS.includes(chain as SupportedChain)) return null;',
+    to: '',
+  },
+  {
+    name: 'the starter link accepts a malformed address',
+    file: 'lib/starter-collections.ts',
+    from: 'if (!/^0x[a-fA-F0-9]{40}$/.test(rawAddress)) return null;',
+    to: '',
+  },
+  {
+    // Not a reorder: the gate is removed outright, which is the form the naive
+    // index comparison used to pass over, because indexOf answers -1 for an
+    // identifier that is gone and -1 sorts before everything.
+    name: 'the seeded-contract gate is dropped, so any contract can be expanded',
+    file: 'lib/starter-collections.ts',
+    from: '  const collection = await getHolderCollection(link.chain, link.address);\n  if (!collection) return null;',
+    to: '  const collection = { name: link.address, symbol: null, address: link.address };',
+  },
+  {
+    name: 'a starter run is sized to take the whole free allowance',
+    file: 'lib/starter-collections.ts',
+    from: 'export const STARTER_WALLET_CAP = Math.round(FREE_MATCHES_PER_WINDOW / 4);',
+    to: 'export const STARTER_WALLET_CAP = FREE_MATCHES_PER_WINDOW;',
+  },
+  {
+    // The mutation the first version of that assertion passed over: the call
+    // stays, only the refusal goes, and `collection?.` keeps it compiling.
+    name: 'the seeded-contract lookup is kept but its refusal is deleted',
+    file: 'lib/starter-collections.ts',
+    from: '  const collection = await getHolderCollection(link.chain, link.address);\n  if (!collection) return null;',
+    to: '  const collection = await getHolderCollection(link.chain, link.address);',
+  },
+  {
+    name: 'a collection run takes the caller’s wallets instead of the seeded list',
+    file: 'app/api/jobs/route.ts',
+    from: 'const wallets = starter ? starter.wallets : body.wallets;',
+    to: 'const wallets = body.wallets ?? starter?.wallets;',
+  },
+  {
     name: 'BACKUP_TABLES diverges from the pg_dump list',
     file: 'scripts/migrate-grant-readonly.ts',
     from: "  'credit_ledger',\n];",

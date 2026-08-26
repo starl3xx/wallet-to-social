@@ -2,6 +2,103 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-26 (somewhere to go, and copy that matches the gates)
+
+Two changes that share one shape: the product had already opened a door and had
+not told anyone, or was charging for a door that was never shut.
+
+**A first action that needs nothing.**
+
+- Every way into this product asked the visitor to bring a CSV, a contract
+  address or a handle, and a signed-in account with no history saw nothing at
+  all: `LookupHistory` renders `null` at zero rows. Fifteen of 139 accounts have
+  ever run a saved lookup. The homepage now offers three of our own seeded
+  collections (`lib/starter-collections.ts`, `components/StarterCollections.tsx`,
+  `GET /api/starter-collections`), and a press runs 25 of one's holders.
+- **What it saves is the import, not the resolution.** The holder lists are
+  already in `wallet_holdings`, so nobody uploads one and nobody pays for a
+  contract import. The wallets are then resolved like any other list: the seed
+  cron writes the holdings whether or not it had the budget to resolve them, and
+  a mean of 71 wallets in a 100-wallet sample have never been checked. A first
+  draft of this said the run "costs no external API call at all", which is the
+  confident-and-unchecked shape the invariants file exists for.
+- **`POST /api/jobs` takes `{ collection }` in place of `{ wallets }`**, expanded
+  at the top of the handler so the IP limit, `canSubmit`, the per-lookup ceiling,
+  the credit meter and the analytics all see an ordinary lookup. No new gate, no
+  separate allowance, no way in that skips the meter. `input_source` is
+  `starter_collection`, set server-side, so the funnel can tell the action that
+  needed nothing from the one that needed a contract.
+- **A collection that is not seeded is refused before a wallet is read.** Without
+  that this is an unmetered import of anybody's holders, on any chain, at our
+  expense.
+- **Capped at a quarter of the free allowance.** The cap is the worst case,
+  because every wallet in a sample might match, and the panel offers the MOST
+  reachable collections it can find, which is the opposite end of the
+  distribution `MEASURED_MATCH_RATE` describes. Measured, the three cards resolve
+  85, 25 and 35 of their first 100 wallets, so a 100-wallet cap would have spent
+  85 of the 100 free matches on one press.
+- **The holder report's CTA carries its collection**, and no longer offers
+  "paste any contract address", which is credit-gated.
+- **The route no longer answers when it fails.** It caught a database error and
+  returned an empty list with a 200; the response is the cache entry, so one
+  transient error was stored as a successful empty answer and the cards stayed
+  hidden for an hour. It throws now, like `/holders` and its
+  `generateStaticParams`, which read the same corpus (found by Bugbot, Medium).
+
+**The lifecycle copy, reconciled with the gate it sells.**
+
+- The reverse-lookup gate moved on 2026-08-25 (#191) and nothing reread the copy
+  underneath it. **welcome-4**, first send 1 September, sold reverse lookup and
+  priority ranking, both credit-gated, under a button reading "Run a free
+  lookup". It now sells the split the product ships: free tells you how many
+  wallets carry a handle, credits tell you which ones, under a CTA a free account
+  can press. Nothing had gone out under the old text.
+- **welcome-1's first instruction was the one thing the reader could not do.** It
+  opened with "Paste a contract address"; contract import is credit-gated.
+- **welcome-5 reads `PACKS[PACK_IDS[0]]`** instead of naming Trial by hand. Trial
+  is the entry rung today by coincidence, not by construction: it is the first
+  key, not the named one, and a cheaper rung underneath would leave the only
+  sales email in the sequence selling the second one.
+- `docs/EMAIL-SEQUENCE.md` matches the code again, and gains the rule that
+  produced this: **a gate change is a copy change**.
+
+**Nine surfaces were selling things that are free.**
+
+- `ExportButton` branches only the X list on `entitled`; the CSV button has no
+  gate at all, and `stampReachability` writes X reachability for every result
+  set. Both were listed as pack features in the buy-credits modal, in
+  `PackPricing` on `/pricing` and six comparison pages, in the schema.org FAQ
+  answer that ships in every page's head, in `/llms.txt`, in the published docs,
+  in `PROJECT_OVERVIEW.md` and in two lifecycle emails. It is welcome-4's defect
+  pointing the other way: copy written from what the product was assumed to
+  charge for instead of from the gate.
+- **The line is on the fields, not the file.** `job-processor` sets
+  `priority_score` and `fc_followers` to undefined whenever `paidData` is false,
+  so those two columns are blank in a free CSV as well as locked in the table. A
+  first pass at the docs fix asserted the opposite, from reading the export code
+  without reading the processor that fills it.
+
+**Guards.**
+
+- Fourteen assertions and eleven mutations, 282 and 110. Four of the mutations hold
+  the pack ladder (per-match price only ever falls, `PACK_IDS[0]` really is the
+  cheapest, the ascending finder cannot recommend too large a pack, no two packs
+  share a Stripe price variable), one holds the sales email to the entry rung,
+  and the rest hold the starter path.
+- **Three of the new assertions could pass over the thing they protect**, and
+  each was found by writing the mutation rather than by reading the assertion.
+  Two used a bare `indexOf`, which answers -1 for an identifier that is not there
+  at all, so a deleted gate sorted before everything and satisfied both. The
+  third asserted that `getHolderCollection(` precedes `wallet_holdings`, which
+  stays true when the lookup is kept for its name and only `if (!collection)
+return null;` is deleted: that compiles under `collection?.` and expands any
+  contract on any chain. The refusal is the middle term now.
+- **`scripts/check-invariants-guard.ts` does not survive being killed.** It
+  restores each mutation in a `finally`, which SIGTERM skips, so a run cancelled
+  at a timeout left a real defect (#189, uploaded CSV columns overwriting
+  pipeline fields) sitting in the working tree. It takes over two minutes: let it
+  finish, and do not run it while anything else is editing the files it mutates.
+
 ### 2026-08-25 (three blind spots, closed)
 
 - **`/api/reverse` now emits an event.** The app's reverse lookup, the primary
