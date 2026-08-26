@@ -658,6 +658,45 @@ const MUTATIONS: Mutation[] = [
     to: 'resultsMap.set(r.wallet, r);',
   },
   {
+    // The 2026-08-25 job's actual failure: `.some is not a function`, thrown
+    // from the write path because nothing normalised `source` before reading it.
+    name: 'the index write takes source on trust, so a joined string reaches .some',
+    file: 'lib/social-graph.ts',
+    from: '    source: asSourceList(r.source),',
+    to: '    source: r.source,',
+  },
+  {
+    name: 'the index write calls transaction() without asking the driver, as it did on 2026-08-22',
+    file: 'lib/social-graph.ts',
+    from: '  if (supportsTransactions()) {\n    return await db.transaction(async (tx) => writeAll(tx));\n  }\n  return await writeAll(db);',
+    to: '  return await db.transaction(async (tx) => writeAll(tx));',
+  },
+  {
+    name: 'the transaction capability is re-derived locally instead of read from the driver module',
+    file: 'lib/social-graph.ts',
+    from: '  if (supportsTransactions()) {',
+    to: "  if (process.env.USE_CONNECTION_POOLING === 'true') {",
+  },
+  {
+    name: 'a TypeError from this process is retried three times against the database',
+    file: 'lib/social-graph.ts',
+    from: '  if (error instanceof TypeError) return true;',
+    to: '',
+  },
+  {
+    name: 'the driver refusing transactions is treated as a transient fault',
+    file: 'lib/social-graph.ts',
+    from: "  if (message.includes('no transactions support')) return true;",
+    to: '',
+  },
+  {
+    // The way a set of refusal assertions passes while protecting nothing.
+    name: 'the retry classifier is widened until every error looks permanent',
+    file: 'lib/social-graph.ts',
+    from: '  if (error instanceof TypeError) return true;',
+    to: '  return true;',
+  },
+  {
     name: 'asSourceList stops recovering a joined string, so a re-uploaded export loses its evidence',
     file: 'lib/api-sources.ts',
     from: "  if (typeof value === 'string') {",

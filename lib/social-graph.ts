@@ -1,5 +1,6 @@
 import {
   getDb,
+  supportsTransactions,
   socialGraph,
   socialGraphHistory,
   type SocialGraph,
@@ -7,6 +8,7 @@ import {
   type NewSocialGraphHistory,
 } from '@/db';
 import { inArray, sql, gt, lt, and, or, isNotNull } from 'drizzle-orm';
+import { asSourceList } from '@/lib/api-sources';
 import type { WalletSocialResult } from './types';
 
 // Default staleness period in days
@@ -270,8 +272,28 @@ export async function upsertSocialGraphWithRetry(
 /**
  * Check if an error is non-transient (shouldn't retry)
  */
-function isNonTransientError(error: Error): boolean {
+export function isNonTransientError(error: Error): boolean {
+  /**
+   * A bug in this process is never fixed by asking the database again.
+   *
+   * Both defects fixed on 2026-08-26 were classified as transient by the list
+   * below and retried three times each, at one and two seconds of backoff, on
+   * writes that could not have succeeded on any attempt: a `TypeError` from
+   * `.some` on a string, and the neon-http driver refusing `transaction()`.
+   * Neither message contains any of the words this function looks for.
+   *
+   * `TypeError` is the load-bearing half. It is raised by this code reaching
+   * into a value of the wrong shape, so it is a statement about the program
+   * rather than about the connection, and no amount of waiting changes it.
+   */
+  if (error instanceof TypeError) return true;
+
   const message = error.message.toLowerCase();
+  // A driver that does not implement something will not implement it in a
+  // second. Matched on the capability wording rather than on the driver name,
+  // so it holds if the driver is swapped.
+  if (message.includes('no transactions support')) return true;
+
   // Schema errors, constraint violations, etc. won't be fixed by retry
   return (
     message.includes('column') ||
@@ -283,14 +305,50 @@ function isNonTransientError(error: Error): boolean {
 }
 
 /**
- * Upsert social graph data using a database transaction
- * Ensures all-or-nothing write semantics for data integrity
+ * What the batch writer needs from whatever it is handed.
+ *
+ * Structural on purpose, and narrowed to `insert` alone: a transaction and the
+ * connection itself agree on that method and on little else, and naming the
+ * one capability used keeps the two callers below interchangeable without
+ * either of them being cast.
+ */
+type TransactionLike = Pick<NonNullable<ReturnType<typeof getDb>>, 'insert'>;
+
+/**
+ * Upsert social graph data, atomically where the driver allows it
+ * (see `supportsTransactions`)
  */
 async function upsertSocialGraphWithTransaction(
-  validResults: WalletSocialResult[]
+  rawResults: WalletSocialResult[]
 ): Promise<number> {
   const db = getDb();
   if (!db) return 0;
+
+  /**
+   * `source` is normalised here, once, before anything reads it.
+   *
+   * The field is typed `string[]` and that type is a claim about data we did
+   * not create: our own CSV export writes `source` as a comma-joined string,
+   * and a customer who re-uploads that export sends the string back. Every
+   * other surface already defends against it (`lib/job-processor.ts` on the
+   * resume path, `app/page.tsx` and the admin table on the display paths); the
+   * write path was the one that did not, and it is the path that persists.
+   *
+   * It failed two different ways on the same input, which is why the guard is
+   * here rather than at each use. `isTwitterVerified(r.source ?? [])` threw
+   * `.some is not a function` and killed the whole batch, recorded against a
+   * real job on 2026-08-25. `mergeSources` failed more quietly on the same
+   * value: `...(newSources ?? [])` spreads a string into single characters, so
+   * a provenance list becomes `['w','e','b','3',…]` and is stored that way.
+   * The loud one is the lucky case.
+   *
+   * `?? []` was never the right guard: it defends against null, and null was
+   * not the shape that occurs.
+   */
+  const validResults: WalletSocialResult[] = rawResults.map((r) => ({
+    ...r,
+    source: asSourceList(r.source),
+  }));
 
   const wallets = validResults.map((r) => r.wallet.toLowerCase());
 
@@ -305,8 +363,15 @@ async function upsertSocialGraphWithTransaction(
   // Prepare upsert rows and audit records
   const { rows, auditRecords } = prepareUpsertData(validResults, existingMap);
 
-  // Use transaction for atomicity
-  return await db.transaction(async (tx) => {
+  /**
+   * The writes, run against whichever executor the caller has: a transaction
+   * where the driver has one, the connection itself where it does not.
+   *
+   * Extracted so the two paths cannot diverge. The alternative was to write the
+   * batch loop twice, and a second copy of an upsert with twenty-two conflict
+   * clauses is a guarantee that one of them will drift.
+   */
+  const writeAll = async (tx: TransactionLike): Promise<number> => {
     let upserted = 0;
 
     // Upsert in batches of 100
@@ -358,7 +423,7 @@ async function upsertSocialGraphWithTransaction(
       upserted += batch.length;
     }
 
-    // Insert audit records in same transaction
+    // Insert audit records alongside the rows they describe
     if (auditRecords.length > 0) {
       // Batch audit records too
       for (let i = 0; i < auditRecords.length; i += 100) {
@@ -368,7 +433,31 @@ async function upsertSocialGraphWithTransaction(
     }
 
     return upserted;
-  });
+  };
+
+  /**
+   * Atomicity where the driver offers it, and the writes either way.
+   *
+   * This called `db.transaction()` unconditionally, which `neon-http` answers
+   * with a throw rather than a fallback, so on any environment that does not
+   * set `USE_CONNECTION_POOLING=true` every index write failed. Production sets
+   * it and is unaffected; a local run, a preview, or a fresh deploy did not,
+   * and `.env.example` never mentioned it, so the failure was invisible until
+   * it showed up in `lookup_jobs.social_graph_write_errors`.
+   *
+   * Dropping to sequential writes is the right degradation, and it is worth
+   * saying why rather than treating it as a compromise. Every statement here is
+   * idempotent: the upsert is `onConflictDoUpdate` keyed on the wallet, and the
+   * history rows are append-only. So a run interrupted halfway leaves a
+   * prefix of the batch written, which the next lookup of those wallets
+   * re-derives and re-writes. Against that, a throw leaves nothing written and
+   * the same interruption costs the whole batch. Partial progress on an
+   * idempotent write beats no progress.
+   */
+  if (supportsTransactions()) {
+    return await db.transaction(async (tx) => writeAll(tx));
+  }
+  return await writeAll(db);
 }
 
 /**

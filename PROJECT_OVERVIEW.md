@@ -135,7 +135,7 @@ wallet-to-social/
 │   ├── access.ts             # Legacy tiers, whitelist, per-lookup limits
 │   ├── stripe.ts             # Stripe checkout (tier and pack sessions)
 │   ├── cache.ts              # 7-day wallet cache
-│   ├── social-graph.ts       # Permanent social data storage
+│   ├── social-graph.ts       # Permanent social data storage (normalises source; see below)
 │   ├── analytics.ts          # Event tracking
 │   ├── ip-rate-limiter.ts    # IP-based rate limiting for UI endpoints
 │   └── dashboard-analytics.ts # Admin dashboard metrics
@@ -286,6 +286,14 @@ The first action for a visitor who has brought nothing. Reads the seed corpus (`
 - `parseStarterParam` / `buildStarterHref`: the `?collection=<chain>:<address>` link, deliberately a different parameter from `?contract=`, which sends an account with no credits to the buy-credits modal
 
 It is **not** free of upstream calls. The seed cron writes holdings whether or not it had the budget to resolve them, so a mean of 71 wallets in a 100-wallet sample have never been checked and are resolved live, exactly as an uploaded list would be. `POST /api/jobs` takes `{ collection }` in place of `{ wallets }` and expands it at the top of the handler, so the IP limit, `canSubmit`, the per-lookup ceiling, the credit meter and the analytics all apply as they do to an upload. `input_source` is `starter_collection`, set server-side.
+
+### `lib/social-graph.ts`
+
+The index write: the one path that persists what a lookup found, so its failures are invisible to the user and permanent to us.
+
+- **`source` is normalised at the boundary** with `asSourceList`, before anything reads it. The field is typed `string[]`, but our own CSV export writes it comma-joined, so a re-uploaded export sends a string back. Untreated it fails twice on the same value: `.some` throws, and spreading it stores a provenance list of single characters.
+- **`db.transaction()` is called only when `supportsTransactions()` says the driver has one.** `neon-http` does not, and throws at call time, so an unconditional call makes the whole write depend on `USE_CONNECTION_POOLING`. Without it the write runs the same statements sequentially: every one is idempotent (`onConflictDoUpdate` on the wallet, append-only history), so a partial write is re-derived by the next lookup, while a throw costs the whole batch.
+- **`isNonTransientError` treats a `TypeError` as permanent**, because it is a statement about this program rather than about the connection, and no retry changes it. Both 2026-08 defects were retried three times before this.
 
 ### `lib/credits.ts`
 
@@ -506,7 +514,7 @@ RESEND_API_KEY=...
 # Optional
 INNGEST_EVENT_KEY=...                    # For faster processing
 INNGEST_SIGNING_KEY=...
-USE_CONNECTION_POOLING=true              # Neon pooler
+USE_CONNECTION_POOLING=true              # Neon pooler; also the only driver with transactions
 ADMIN_EMAILS=admin@example.com           # Comma-separated
 X_RESOLVER_API_BASE=...                  # X account resolver origin (see lib/x-resolver.ts)
 X_RESOLVER_API_KEY=...

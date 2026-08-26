@@ -2,6 +2,55 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-26 (the index write was losing wallets quietly)
+
+Two defects on the one path that persists what a lookup found. Both were
+recorded against real jobs in `lookup_jobs.social_graph_write_errors`, and 7 of
+the 77 jobs in the last fortnight ended with `social_graph_write_status =
+'failed'`. Neither is visible from the outside: the lookup completes, the user
+gets their results, and the index simply does not gain the row.
+
+- **`source` was taken on trust at the write boundary.** The field is typed
+  `string[]`, and that type is a claim about data we did not create: our own CSV
+  export writes it comma-joined, so a customer re-uploading an export sends a
+  string back. `asSourceList` already existed for exactly this and was applied
+  on the resume path and both display paths; the write path, the one that
+  persists, was the one that never got it. It now normalises once, at the top,
+  before anything reads the field.
+- **It failed two ways on the same input, and the loud one was the lucky one.**
+  `isTwitterVerified(r.source ?? [])` threw `.some is not a function` and killed
+  the batch. `mergeSources` took the same value and spread a string into single
+  characters, storing a provenance list of `['w','e','b','3',…]` with nothing
+  raised. `?? []` was never the right guard: it defends against null, and null
+  was not the shape that occurs.
+- **`db.transaction()` was called unconditionally**, and `neon-http` answers
+  that with a throw at call time rather than at build time. So the entire index
+  write depended on `USE_CONNECTION_POOLING=true` being set. Production sets it
+  and was unaffected; every other environment failed every write, and
+  `.env.example` never mentioned the variable. `db/index.ts` now exports
+  `supportsTransactions()` next to the driver choice, so the capability cannot
+  drift from the driver, and the write degrades to sequential statements rather
+  than throwing.
+- **Losing atomicity here is the right trade, which is worth stating.** Every
+  statement on this path is idempotent: the upsert is `onConflictDoUpdate` keyed
+  on the wallet, and the history rows are append-only. An interrupted run leaves
+  a prefix written, which the next lookup of those wallets re-derives. A throw
+  leaves nothing written and costs the whole batch to the same interruption.
+- **Both were classified as transient and retried three times**, at one and two
+  seconds of backoff, on writes that could not have succeeded on any attempt.
+  Neither message contains a word the classifier looked for. A `TypeError` is
+  now permanent by definition: it is raised by this code reaching into a value
+  of the wrong shape, so it is a statement about the program, not the
+  connection. The driver's refusal is matched on the capability wording rather
+  than on the driver's name, so it survives a driver swap.
+- Eight assertions and six mutations, 290 and 116. The classifier is asserted
+  against the two real failures by value, and separately asserted **not** to
+  have been widened into always-true, which is how a set of refusal assertions
+  passes while protecting nothing.
+
+Not fixed here: the 7 jobs whose writes failed. Their wallets are all in the
+graph today, arriving by another path, so there is nothing to replay.
+
 ### 2026-08-26 (somewhere to go, and copy that matches the gates)
 
 Two changes that share one shape: the product had already opened a door and had

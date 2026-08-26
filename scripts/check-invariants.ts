@@ -237,6 +237,89 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------ the index write path
+  // Two defects that each silently lost a wallet's identity rather than
+  // failing loudly, both recorded against real jobs in
+  // `lookup_jobs.social_graph_write_errors`, and a third that retried both.
+  {
+    const { isNonTransientError } = await import('@/lib/social-graph');
+    const { asSourceList } = await import('@/lib/api-sources');
+    const { supportsTransactions } = await import('@/db');
+
+    // A bug in this process is never fixed by asking the database again. Both
+    // real failures are asserted by their actual value: the TypeError raised
+    // by calling `.some` on a string, and the driver's own refusal text.
+    let typeErr: Error;
+    try {
+      ('web3bio,neynar' as unknown as string[]).some((s) => s === 'ens');
+      typeErr = new Error('did not throw');
+    } catch (e) {
+      typeErr = e as Error;
+    }
+    ok(
+      'the TypeError from a non-array source is not retried',
+      typeErr instanceof TypeError && isNonTransientError(typeErr)
+    );
+    ok(
+      'a driver with no transaction support is not retried',
+      isNonTransientError(
+        new Error('No transactions support in neon-http driver')
+      )
+    );
+    // Proves the classifier has not been widened into always-true, which is
+    // the way a refusal assertion passes while protecting nothing.
+    ok(
+      'a genuinely transient error is still retried',
+      !isNonTransientError(new Error('connection reset by peer')) &&
+        !isNonTransientError(new Error('fetch failed'))
+    );
+
+    // The write path is the one surface that persists, so it is the one that
+    // must not take `source` on trust. Asserted through the helper, on the
+    // shape our own CSV export really produces.
+    ok(
+      'a joined source string is recovered rather than iterated as characters',
+      JSON.stringify(asSourceList('web3bio,neynar')) ===
+        JSON.stringify(['web3bio', 'neynar']) &&
+        [...asSourceList('web3bio,neynar')].length === 2
+    );
+
+    const graphSrc = withoutComments(
+      readFileSync('lib/social-graph.ts', 'utf8')
+    );
+    // Normalisation must happen before anything reads the field, so the guard
+    // is asserted to precede the merge and the verification helpers rather
+    // than merely to exist somewhere in the file.
+    const normalise = 'source: asSourceList(r.source),';
+    ok(
+      'the write path normalises source before it merges or verifies it',
+      graphSrc.includes(normalise) &&
+        graphSrc.indexOf(normalise) <
+          graphSrc.indexOf('mergeSources(r.source') &&
+        graphSrc.indexOf(normalise) < graphSrc.indexOf('isTwitterVerified(')
+    );
+
+    // `db.transaction()` throws on neon-http at call time, so an unconditional
+    // call makes the whole index write depend on an environment variable.
+    ok(
+      'the index write never calls transaction() without asking the driver first',
+      graphSrc.includes('if (supportsTransactions()) {') &&
+        graphSrc.indexOf('supportsTransactions()') <
+          graphSrc.indexOf('db.transaction(')
+    );
+    ok(
+      'there is a path that still writes when the driver has no transaction',
+      graphSrc.includes('return await writeAll(db);')
+    );
+    // The capability is read from the driver module rather than re-tested, or
+    // the two drift and the gate starts describing a driver that is not live.
+    ok(
+      'the transaction capability is not re-derived from the env var locally',
+      !graphSrc.includes('USE_CONNECTION_POOLING') &&
+        typeof supportsTransactions() === 'boolean'
+    );
+  }
+
   // ------------------------------------------------- the starter collection
   // The first action supplies the wallet list, which is the one thing the paid
   // contract importer charges for. Everything here asserts that it can only
