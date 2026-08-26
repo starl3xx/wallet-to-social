@@ -1448,7 +1448,7 @@ export default function Home() {
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
           out.
         </h1>
-        <div className="mt-3 flex flex-col gap-6 lg:flex-row lg:items-baseline lg:justify-between lg:gap-12">
+        <div className="mt-3 flex flex-col gap-6 lg:-mt-2 lg:flex-row lg:items-baseline-last lg:justify-between lg:gap-12">
           <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
             Turn a wallet list into the{' '}
             <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
@@ -1480,14 +1480,24 @@ export default function Home() {
             line, aligned on `items-baseline` so the lede sits on the same
             baseline as the figure values.
 
-            That alignment was `items-end` for one commit and it was wrong. The
-            figures block is the taller of the two children, so ending the row
-            pushed the lede to the bottom of a box the figures had sized,
-            opening about 19px above it that no margin accounted for and that
-            no amount of tuning `mt-` would have found. The lede is a dek: it
-            belongs under the headline, not floating in the middle of the row
-            beside it. Baseline puts it there and pulls the figures up with
-            it. It reclaims 54px above the fold,
+            `items-baseline-last`, not `items-baseline`, and the difference is
+            the whole of it. The figures block is two lines and the lede is one,
+            so aligning FIRST baselines puts the lede level with the values and
+            strands it at the top with the labels hanging beneath: a strip of
+            empty space under the lede, beside two lines of text. Aligning LAST
+            baselines puts it on the label line, which is what reads as level.
+
+            That costs 31px of downward drift, because the last baseline is a
+            line lower than the first, and `lg:-mt-2` is what pays it back. The
+            eight pixels are not a nudge to taste: they are the most that can be
+            returned before the values close on the headline, measured at 1440
+            against absolute page positions rather than judged from a crop.
+
+            Two earlier attempts are worth recording so they are not tried
+            again. `items-end` pushed the lede to the bottom of a box the
+            figures had sized, opening 19px above it that belonged to no margin.
+            `items-baseline` then aligned it to the values, which is what was
+            asked for literally and is exactly what leaves the empty strip. It reclaims 54px above the fold,
             which on this page is the difference between the dropzone starting
             at 306px and at 262px.
 
