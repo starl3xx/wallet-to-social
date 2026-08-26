@@ -30,7 +30,43 @@ export interface Web3BioResult {
 
 const RATE_LIMIT_DELAY = 10; // ms between batches
 const MAX_CONCURRENT = 100; // Zero 429s at 50 over 30 days — safe to double
-const API_TIMEOUT_MS = 15000; // 15 second timeout to prevent hanging requests
+
+/**
+ * Per-request timeout, cut from 15s to 6s on measurement.
+ *
+ * A wallet that has not answered in six seconds is not going to. Across 208
+ * healthy batches the slowest wave of 100 took 2.79s (83.7s over 30 waves), so
+ * six is more than double the worst wave ever observed and eight times the
+ * typical one.
+ *
+ * The old 15s was not costing anything while the upstream was healthy, because
+ * healthy requests finish in well under a second. It cost everything on 13
+ * August, when roughly half of every batch failed: a failing request waits the
+ * full timeout, waves run one after another, and a 1,867-wallet batch is 19
+ * waves. That is where the 229s median for that day came from, and 60% of it
+ * was this constant.
+ */
+export const API_TIMEOUT_MS = 6000;
+
+/**
+ * How long a whole batch may take before it gives up and returns what it has.
+ *
+ * A budget per wave rather than a flat number, because a batch is
+ * `ceil(n / MAX_CONCURRENT)` waves run in series and a legitimate 3,000-wallet
+ * batch cannot be held to the same clock as a 200-wallet one.
+ *
+ * Four seconds a wave against a measured worst healthy wave of 2.79s. For the
+ * largest batch seen (2,999 wallets, 30 waves) that is a 120s ceiling over an
+ * 83.7s worst case, and it would have cut 13 August's median from 229s to 120s.
+ * The floor exists so a handful of wallets is never cut off by arithmetic.
+ */
+const WAVE_BUDGET_MS = 4000;
+export const MIN_BATCH_DEADLINE_MS = 30_000;
+
+export function batchDeadlineMs(walletCount: number): number {
+  const waves = Math.ceil(Math.max(0, walletCount) / MAX_CONCURRENT);
+  return Math.max(MIN_BATCH_DEADLINE_MS, waves * WAVE_BUDGET_MS);
+}
 
 /**
  * Creates an AbortController with a timeout
@@ -177,9 +213,33 @@ export async function batchFetchWeb3Bio(
   let found = 0;
   const startTime = Date.now();
   let errorCount = 0;
+  const deadline = startTime + batchDeadlineMs(wallets.length);
+  let abandonedAt: number | null = null;
 
   // Process in batches with rate limiting
   for (let i = 0; i < wallets.length; i += MAX_CONCURRENT) {
+    /**
+     * Stop starting waves once the budget is spent.
+     *
+     * Checked between waves rather than inside one: a wave already in flight is
+     * bounded by API_TIMEOUT_MS and abandoning it would throw away answers
+     * already paid for.
+     *
+     * Every wallet not reached is recorded as failed, which is the part that
+     * matters beyond speed. The pipeline persists a negative only when the full
+     * run completed without API failures, so a wallet this gives up on must
+     * look like "not checked" and not like "checked, has nothing". Dropping it
+     * silently would write a false negative that the graph trusts for 30 days.
+     */
+    if (Date.now() >= deadline) {
+      abandonedAt = i;
+      for (const wallet of wallets.slice(i)) {
+        errorCount++;
+        opts?.failedWallets?.add(wallet.toLowerCase());
+      }
+      break;
+    }
+
     const batch = wallets.slice(i, i + MAX_CONCURRENT);
 
     const batchPromises = batch.map(async (wallet) => {
@@ -214,10 +274,23 @@ export async function batchFetchWeb3Bio(
 
   // Track API metrics for the batch
   const latencyMs = Date.now() - startTime;
+  /**
+   * A batch that ran out of time says so.
+   *
+   * "1,023 requests failed" and "gave up after 120s with 1,023 unreached" are
+   * different events with the same count, and only one of them is a decision
+   * this code made. Reading a truncated batch as an upstream failure is how a
+   * deliberate ceiling turns into a phantom outage on the dashboard.
+   */
   trackApiCall('web3bio', {
     latencyMs,
     statusCode: errorCount > 0 ? 500 : 200,
-    errorMessage: errorCount > 0 ? `${errorCount} requests failed` : undefined,
+    errorMessage:
+      abandonedAt !== null
+        ? `deadline: stopped at ${abandonedAt} of ${wallets.length} after ${latencyMs}ms`
+        : errorCount > 0
+          ? `${errorCount} requests failed`
+          : undefined,
     walletCount: wallets.length,
     jobId,
   });

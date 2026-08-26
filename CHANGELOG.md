@@ -47,6 +47,30 @@ All notable changes to walletlink.social. Newest first.
   bound. The input is now long and valid, and a second assertion proves the
   unclamped string really would exceed it.
 
+### 2026-08-25 (the slow source gets a ceiling)
+
+- **The per-request timeout is 6s, down from 15s.** A wallet that has not
+  answered in six seconds is not going to: across 208 healthy batches the
+  slowest wave of 100 took 2.79s, so six is more than double the worst ever
+  observed. The old 15s cost nothing while the upstream was healthy and
+  everything when it was not.
+- **A batch now has a deadline**, `max(30s, waves × 4s)`, and returns what it
+  has when the budget is spent. Measured against the worst healthy batch (83.7s
+  at 2,999 wallets) and against 13 August's median of 229s, which it would have
+  cut to 120s.
+- **Every wallet the deadline skips is recorded as unreached**, which matters
+  more than the speed. The pipeline persists a negative only when a run
+  completed without API failures and then trusts it for 30 days, so a silently
+  dropped wallet would write a false "checked, has nothing" that no later lookup
+  would correct.
+- **A truncated batch says so** rather than reporting an upstream failure. The
+  two produce the same count and only one of them is a decision this code made.
+- **The 14% failure rate was one day, not a rate.** 30 of the 35 failures in the
+  last month happened on 13 August, when roughly half of every batch went
+  unreached; since 17 August there have been three. The earlier reading averaged
+  a single incident across a month and reported it as steady state.
+- 12 assertions and 5 mutations, 265 and 97.
+
 ### 2026-08-25 (a lookup now belongs to a visit, and a sale is recorded)
 
 - **`lookup_started` and `lookup_completed` carry a session.** All 1,597 of them
