@@ -86,6 +86,15 @@ had not told anyone, or had not put anything behind it.
   pointing the other way: copy written from what the product was assumed to
   charge for instead of from the gate. Nine surfaces now name only features a
   free account really does not have, each checked one item at a time.
+- **The starter route stopped answering when it fails.** It caught a database
+  error and returned an empty list with a 200, on the reasoning that an empty
+  list renders nothing and the rest of the page still works. That is true of one
+  request and false of this route: the response is the cache entry, so a single
+  transient error during a revalidation was stored as a successful empty answer
+  and the cards stayed hidden for every visitor for an hour. It throws now, the
+  same as `/holders` and its `generateStaticParams`, which read the same corpus
+  and catch nothing either: loud at build time, and on revalidation Next keeps
+  serving the last good answer (found by Bugbot, Medium).
 - **The line is drawn on the fields, not on the file.** `job-processor` sets
   `priority_score` and `fc_followers` to undefined whenever `paidData` is false,
   so those two columns are blank in a free CSV as well as locked in the table.

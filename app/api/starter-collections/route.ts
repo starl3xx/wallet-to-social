@@ -21,16 +21,23 @@ export const revalidate = 3600;
 export const dynamic = 'force-static';
 
 export async function GET() {
-  try {
-    const collections = await listStarterCollections(3);
-    return NextResponse.json({ collections, walletCap: STARTER_WALLET_CAP });
-  } catch (error) {
-    // An empty list renders nothing, which is the honest failure: the rest of
-    // the page still offers every way in that needs the visitor to bring data.
-    console.error('Starter collections fetch error:', error);
-    return NextResponse.json({
-      collections: [],
-      walletCap: STARTER_WALLET_CAP,
-    });
-  }
+  /**
+   * A failure must not be answered, because an answer here is kept for an hour.
+   *
+   * This caught the error and returned an empty list with a 200, reasoning that
+   * an empty list renders nothing and the page still works. That reasoning is
+   * right about one request and wrong about this route: the response IS the
+   * cache entry, so one transient database error during a revalidation was
+   * stored as a successful empty answer and the cards stayed hidden for every
+   * visitor until the next regeneration an hour later (found by Bugbot,
+   * Medium).
+   *
+   * Throwing is the behaviour that wants: at build time it fails loudly, the
+   * same as `/holders` and its `generateStaticParams`, which read the same
+   * corpus and catch nothing either; during a revalidation Next keeps serving
+   * the last good answer and tries again, which is exactly the outcome the
+   * catch was reaching for and did not get.
+   */
+  const collections = await listStarterCollections(3);
+  return NextResponse.json({ collections, walletCap: STARTER_WALLET_CAP });
 }
