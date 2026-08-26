@@ -680,8 +680,18 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a TypeError from this process is retried three times against the database',
     file: 'lib/social-graph.ts',
-    from: '  if (error instanceof TypeError) return true;',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
     to: '',
+  },
+  {
+    // The regression Bugbot caught in the first version of the classifier:
+    // `neon-http` runs every query through `fetch`, and Node rejects a network
+    // failure as `TypeError: fetch failed`, so the broad rule stopped retrying
+    // the faults the retry exists for.
+    name: 'every TypeError is called permanent, so a failed fetch is never retried',
+    file: 'lib/social-graph.ts',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
+    to: '  if (error instanceof TypeError) return true;',
   },
   {
     name: 'the driver refusing transactions is treated as a transient fault',
@@ -693,7 +703,7 @@ const MUTATIONS: Mutation[] = [
     // The way a set of refusal assertions passes while protecting nothing.
     name: 'the retry classifier is widened until every error looks permanent',
     file: 'lib/social-graph.ts',
-    from: '  if (error instanceof TypeError) return true;',
+    from: '  if (\n    error instanceof TypeError &&\n    /is not a function|is not iterable|Cannot read properties of/.test(\n      error.message\n    )\n  ) {\n    return true;\n  }',
     to: '  return true;',
   },
   {

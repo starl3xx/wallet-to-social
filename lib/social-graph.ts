@@ -297,11 +297,32 @@ export function isNonTransientError(error: Error): boolean {
    * `.some` on a string, and the neon-http driver refusing `transaction()`.
    * Neither message contains any of the words this function looks for.
    *
-   * `TypeError` is the load-bearing half. It is raised by this code reaching
-   * into a value of the wrong shape, so it is a statement about the program
-   * rather than about the connection, and no amount of waiting changes it.
+   * **Matched on the shape complaint, not on `TypeError`.** The first version
+   * of this returned true for every `TypeError`, which is wrong in the
+   * direction that matters most here: Node's `fetch` rejects a network failure
+   * as `TypeError: fetch failed`, and `neon-http` issues every query through
+   * `fetch`. So a blanket rule would have stopped retrying exactly the
+   * transient faults this retry exists for, on the driver it exists for
+   * (Bugbot, PR #201, Medium).
+   *
+   * Measured rather than assumed, because the two are the same class and only
+   * the message tells them apart:
+   *
+   *   network:  TypeError "fetch failed"                  cause: set
+   *   shape:    TypeError "\"a,b\".some is not a function"  cause: absent
+   *
+   * The signatures below are V8's wording for reaching into a value that is
+   * not the shape the code expects. That is a statement about this program,
+   * and no amount of waiting changes it.
    */
-  if (error instanceof TypeError) return true;
+  if (
+    error instanceof TypeError &&
+    /is not a function|is not iterable|Cannot read properties of/.test(
+      error.message
+    )
+  ) {
+    return true;
+  }
 
   const message = error.message.toLowerCase();
   // A driver that does not implement something will not implement it in a

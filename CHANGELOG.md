@@ -52,7 +52,23 @@ gets their results, and the index simply does not gain the row.
   the refresh queue. The retry now carries a cursor and resumes, and the cursor
   exists only where the driver cannot roll back, since a transactional retry
   that skipped committed work would lose it (found by Bugbot, Medium).
-- Eleven assertions and eight mutations, 293 and 118. The classifier is asserted
+- **The classifier's first version was worse than the bug it fixed**, and that
+  was caught in review too. It made every `TypeError` permanent. Node rejects a
+  network failure as `TypeError: fetch failed`, and `neon-http` issues every
+  query through `fetch`, so the rule stopped retrying exactly the transient
+  faults the retry exists for, on the driver it exists for. It now matches the
+  shape complaint (`is not a function`, `is not iterable`, `Cannot read
+properties of`) rather than the type. Measured, because the two are the same
+  class and only the message tells them apart: the network one carries a
+  `cause` and reads `fetch failed`; the shape one carries none and names the
+  value (found by Bugbot, Medium).
+- **The assertion covering that case was passing over it.** It built a plain
+  `Error('fetch failed')`, which is not an instance of `TypeError`, so it never
+  reached the branch under test. It now constructs the error the way Node does,
+  `cause` included. The guard separately caught a mutation still anchored to
+  the single-line condition that had been rewritten, and therefore protecting
+  nothing.
+- Twelve assertions and nine mutations, 294 and 119. The classifier is asserted
   against the two real failures by value, and separately asserted **not** to
   have been widened into always-true, which is how a set of refusal assertions
   passes while protecting nothing.

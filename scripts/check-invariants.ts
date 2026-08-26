@@ -274,6 +274,28 @@ async function main() {
         !isNonTransientError(new Error('fetch failed'))
     );
 
+    /**
+     * The case above was written as a plain `Error` and therefore proved
+     * nothing about the real one.
+     *
+     * Node rejects a network failure as `TypeError: fetch failed`, and
+     * `neon-http` runs every query through `fetch`, so the first version of
+     * this classifier stopped retrying precisely the faults the retry exists
+     * for. The assertion missed it because a plain `Error('fetch failed')` is
+     * not an instance of `TypeError`, so it never reached the branch under
+     * test: the wrong constructor made a passing assertion out of a real
+     * regression (Bugbot, PR #201).
+     *
+     * Constructed the way Node constructs it, cause included.
+     */
+    const networkTypeError = new TypeError('fetch failed');
+    (networkTypeError as { cause?: unknown }).cause = new Error('ECONNRESET');
+    ok(
+      'a network failure is retried even though Node raises it as a TypeError',
+      networkTypeError instanceof TypeError &&
+        !isNonTransientError(networkTypeError)
+    );
+
     // The write path is the one surface that persists, so it is the one that
     // must not take `source` on trust. Asserted through the helper, on the
     // shape our own CSV export really produces.
