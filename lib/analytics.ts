@@ -11,6 +11,38 @@ import {
 } from '@/db';
 import { sql, eq, and, gte, lte, desc, count, avg } from 'drizzle-orm';
 
+/**
+ * A window bound, as the naive-UTC literal the timestamp columns actually hold.
+ *
+ * Interpolating a JS `Date` into a raw `sql` template does not do this. Drizzle
+ * hands the driver a local-offset string, so a machine at UTC-5 sends
+ * `2026-08-26T14:07:29.664-05:00`; `analytics_events.created_at` is `timestamp
+ * without time zone` holding UTC, so Postgres discards the offset and compares
+ * against the wall-clock half. The window silently ends five hours early.
+ *
+ * Measured on 2026-08-26 over a 30-day window: the Drizzle query builder
+ * counted 3,739 events, the same window through a raw `sql` template counted
+ * 3,645, and this helper counted 3,739. The 94 missing rows were the whole of
+ * that day, which is the part anybody looking at a funnel cares most about.
+ *
+ * Production runs in UTC, where the offset is zero and the bug does not bite,
+ * which is exactly why it survived: it is invisible on the only machine nobody
+ * questions, and it makes every local verification of these queries lie. The
+ * pre-existing session count in `getUserFunnel` had it too.
+ *
+ * The `::timestamp` cast at each call site is not decoration. Without it the
+ * parameter arrives untyped and the coercion depends on context.
+ *
+ * Exported only so `scripts/check-invariants.ts` can call it. The first version
+ * of that assertion checked the call sites and not this body, and the guard
+ * duly replaced the body with `String(d)` and went undetected: an assertion
+ * that every caller uses the helper says nothing about whether the helper is
+ * right.
+ */
+export function utcBound(d: Date): string {
+  return d.toISOString().replace('T', ' ').replace('Z', '');
+}
+
 // Event types for tracking user behavior
 export type AnalyticsEventType =
   | 'page_view'
@@ -401,6 +433,12 @@ export async function getUserFunnel(
   lookupsCompleted: number;
   exportsClicked: number;
   historySaved: number;
+  /**
+   * Accounts created in the window. Fired from `getOrCreateUser` since
+   * 2026-08-26; every window before that reads 0 because nothing emitted it,
+   * not because nobody signed up.
+   */
+  usersRegistered: number;
   upgradeModalViewed: number;
   checkoutStarted: number;
   /** Reached Stripe: the redirect fired. Tracked since 2026-08-15. */
@@ -409,20 +447,24 @@ export async function getUserFunnel(
   /** Top checkout failure reasons in the window, most frequent first. */
   checkoutFailureReasons: Array<{ reason: string; count: number }>;
   paymentCompleted: number;
-  /** Every distinct browser session in the window, automated ones included. */
-  sessions: number;
   /**
-   * Sessions that did something.
+   * Payments split by the rail that took the money.
    *
-   * Reported beside `sessions` rather than replacing it, because the gap
-   * between the two is itself the finding. On 24 and 25 August a QR auction
-   * sent 1,321 sessions at the site and 1,220 of them recorded a single event
-   * and never came back within the same second: no second pageview, no scroll
-   * into anything measured, nothing. Dividing conversions by that number says
-   * the product converts at a fifteenth of its real rate, and dividing by this
-   * one silently discards traffic somebody paid for. Both numbers, always.
+   * The onchain rail does not pass through the buy-credits modal or a Stripe
+   * redirect: `/api/x402/buy` grants the pack directly. So every x402 sale
+   * lands on the last step of the funnel having skipped the three above it, and
+   * without this split the steps look broken rather than bypassed. Legacy tier
+   * sales carry no `rail` at all and appear as `(unknown)`.
    */
-  engagedSessions: number;
+  paymentsByRail: Array<{ rail: string; count: number }>;
+  /*
+   * `sessions` and `engagedSessions` were here, computed by a second grouping
+   * of the whole event table on every call. `getSessionFunnel` computes both
+   * from the grouping it was already doing, so this one ran the same query for
+   * the same two numbers and nothing read them once the panes were merged. Two
+   * definitions of "engaged" in one file is the thing this change exists to
+   * remove.
+   */
   /**
    * False when the query failed and every number below is a zero this function
    * invented rather than measured.
@@ -437,20 +479,20 @@ export async function getUserFunnel(
 }> {
   const empty = {
     ok: false,
-    sessions: 0,
-    engagedSessions: 0,
     pageViews: 0,
     csvUploads: 0,
     lookupsStarted: 0,
     lookupsCompleted: 0,
     exportsClicked: 0,
     historySaved: 0,
+    usersRegistered: 0,
     upgradeModalViewed: 0,
     checkoutStarted: 0,
     checkoutRedirected: 0,
     checkoutFailed: 0,
     checkoutFailureReasons: [],
     paymentCompleted: 0,
+    paymentsByRail: [],
   };
   const db = getDb();
   if (!db) return empty;
@@ -492,62 +534,353 @@ export async function getUserFunnel(
       .orderBy(desc(count()))
       .limit(5)) as Array<{ reason: string; count: number }>;
 
-    /**
-     * A session is engaged if it did more than arrive once.
-     *
-     * Two events of any kind, or one event that is not a pageview. That admits
-     * somebody who landed, opened the upgrade modal and left, and excludes the
-     * single-hit sessions that make up 91% of a link-auction spike.
-     *
-     * Deliberately not a bot verdict. This says what a session did, which is
-     * checkable, rather than what it was, which is not: a crawler that fetches
-     * two pages counts as engaged here and a real person who read the homepage
-     * and closed the tab does not. It is a floor on genuine interest, not a
-     * headcount.
-     */
-    const sessionResult = (await db.execute(sql`
-      SELECT
-        count(*)::int AS sessions,
-        count(*) FILTER (
-          WHERE events > 1 OR non_page_views > 0
-        )::int AS engaged
-      FROM (
-        SELECT
-          session_id,
-          count(*) AS events,
-          count(*) FILTER (WHERE event_type <> 'page_view') AS non_page_views
-        FROM analytics_events
-        WHERE session_id IS NOT NULL
-          AND created_at >= ${startDate}
-          AND created_at <= ${endDate}
-        GROUP BY session_id
-      ) s
-    `)) as unknown as { rows: Array<{ sessions: number; engaged: number }> };
-    // `db.execute` hands back `{ rows }` on this driver, not an array. Reading
-    // it as an array yielded undefined, the destructure threw, and the whole
-    // funnel fell through to its zeroed fallback: every number on the admin
-    // panel would have read 0 while looking like a real answer.
-    const sessionRow = sessionResult.rows?.[0];
+    const paymentsByRail = (await db
+      .select({
+        rail: sql<string>`coalesce(${analyticsEvents.metadata}->>'rail', '(unknown)')`,
+        count: count(),
+      })
+      .from(analyticsEvents)
+      .where(
+        and(
+          eq(analyticsEvents.eventType, 'payment_completed'),
+          gte(analyticsEvents.createdAt, startDate),
+          lte(analyticsEvents.createdAt, endDate)
+        )
+      )
+      .groupBy(sql`1`)
+      .orderBy(desc(count()))) as Array<{ rail: string; count: number }>;
+
+    // The session and engaged-session counts used to be a third query here,
+    // grouping the whole event table again for two numbers `getSessionFunnel`
+    // already produces from the grouping it has to do anyway.
 
     return {
       ok: true,
-      sessions: sessionRow?.sessions ?? 0,
-      engagedSessions: sessionRow?.engaged ?? 0,
       pageViews: counts.get('page_view') ?? 0,
       csvUploads: counts.get('csv_upload') ?? 0,
       lookupsStarted: counts.get('lookup_started') ?? 0,
       lookupsCompleted: counts.get('lookup_completed') ?? 0,
       exportsClicked: counts.get('export_clicked') ?? 0,
       historySaved: counts.get('history_saved') ?? 0,
+      usersRegistered: counts.get('user_registered') ?? 0,
       upgradeModalViewed: counts.get('upgrade_modal_viewed') ?? 0,
       checkoutStarted: counts.get('checkout_started') ?? 0,
       checkoutRedirected: counts.get('checkout_redirected') ?? 0,
       checkoutFailed: counts.get('checkout_failed') ?? 0,
       checkoutFailureReasons: reasons,
       paymentCompleted: counts.get('payment_completed') ?? 0,
+      paymentsByRail,
     };
   } catch (error) {
     console.error('User funnel error:', error);
+    return empty;
+  }
+}
+
+/**
+ * The two conversion rates, named, because "conversion rate" alone named three.
+ *
+ * Until this existed the panel showed three different numbers under one word:
+ * the Pulse tile divided payments by lookups started over 7 days, the Revenue
+ * pane divided payments by pricing views over 30 days, and the Behavior funnel
+ * divided every step by page views over 7. The Pulse tile linked to the Revenue
+ * pane, so the one journey a reader was invited to take moved between two
+ * definitions without saying so.
+ *
+ * Two rates, and both are worth having. `lookupToPaid` is the business rate: of
+ * everyone who used the product, how many paid. `pricingToPaid` is the checkout
+ * rate: of everyone who was actually asked, how many did. A change in the first
+ * with no change in the second is a top-of-funnel story, and the panel could
+ * not previously tell those apart.
+ *
+ * `null`, never zero, when the denominator is zero. A rate that cannot be
+ * computed has to say so: the same rule the funnel already applies to page
+ * views, for the same reason.
+ */
+export function conversionRates(funnel: {
+  paymentCompleted: number;
+  upgradeModalViewed: number;
+  lookupsStarted: number;
+}): { pricingToPaid: number | null; lookupToPaid: number | null } {
+  return {
+    pricingToPaid:
+      funnel.upgradeModalViewed > 0
+        ? (funnel.paymentCompleted / funnel.upgradeModalViewed) * 100
+        : null,
+    lookupToPaid:
+      funnel.lookupsStarted > 0
+        ? (funnel.paymentCompleted / funnel.lookupsStarted) * 100
+        : null,
+  };
+}
+
+/**
+ * One session that reached each step, rather than one count per event type.
+ *
+ * `getUserFunnel` above counts events: `COUNT(*) GROUP BY event_type` over the
+ * window. That answers "how many times did this happen", which is not what a
+ * funnel is for and cannot answer "what share of visitors got this far": one
+ * person who opened the pricing modal six times is six, and the steps are free
+ * to rise as you read downwards. This counts distinct sessions instead, so
+ * every step is a number of people and a ratio between two steps means
+ * something.
+ *
+ * Both are kept. The event counts are the honest answer to "how much did this
+ * happen", which the paywall work needs; this is the honest answer to "how many
+ * got through", which the event counts cannot give.
+ *
+ * ## Where the sessions come from
+ *
+ * `analytics_events.session_id` is written by the browser for client events and
+ * carried into the server-side lookup events through `lookup_jobs.session_id`,
+ * so a visit and the lookup it ran are the same session id. Two events are not:
+ *
+ * - `payment_completed` fires from the Stripe webhook, which has no browser and
+ *   no session. It is joined back by `user_id`, which both sides set to the
+ *   account email. That works only for a session that was signed in, so `paid`
+ *   is a floor.
+ * - `user_registered` fires on the magic-link callback, which is frequently a
+ *   different browser from the one that asked for the link. It is reported
+ *   beside the funnel rather than inside it for that reason.
+ */
+export interface SessionFunnel {
+  /** False when the query failed and every count below is an invented zero. */
+  ok: boolean;
+  /** Every distinct browser session in the window, automated ones included. */
+  sessions: number;
+  /**
+   * Sessions that did more than arrive once: two events of any kind, or one
+   * event that is not a pageview.
+   *
+   * Reported beside `sessions` rather than replacing it, because the gap
+   * between the two is itself the finding. On 24 and 25 August a QR auction
+   * sent 1,321 sessions at the site and 1,220 of them recorded a single event
+   * and never came back within the same second: no second pageview, no scroll
+   * into anything measured, nothing. Dividing conversions by that number says
+   * the product converts at a fifteenth of its real rate, and dividing by this
+   * one silently discards traffic somebody paid for. Both numbers, always.
+   *
+   * Deliberately not a bot verdict. It says what a session did, which is
+   * checkable, rather than what it was, which is not: a crawler that fetches
+   * two pages counts as engaged and a real person who read the homepage and
+   * closed the tab does not. A floor on genuine interest, not a headcount.
+   */
+  engaged: number;
+  ranLookup: number;
+  gotResults: number;
+  hitWall: number;
+  sawPricing: number;
+  startedCheckout: number;
+  reachedStripe: number;
+  paid: number;
+  /** Sessions with no `user_id` on any event: nobody we can join to an account. */
+  anonymous: number;
+}
+
+export async function getSessionFunnel(
+  startDate: Date,
+  endDate: Date
+): Promise<SessionFunnel> {
+  const empty: SessionFunnel = {
+    ok: false,
+    sessions: 0,
+    engaged: 0,
+    ranLookup: 0,
+    gotResults: 0,
+    hitWall: 0,
+    sawPricing: 0,
+    startedCheckout: 0,
+    reachedStripe: 0,
+    paid: 0,
+    anonymous: 0,
+  };
+  const db = getDb();
+  if (!db) return empty;
+
+  try {
+    /**
+     * The money tail is forced monotone; the top of the funnel is not.
+     *
+     * `components/UpgradeModal.tsx` is the only surface that starts a Stripe
+     * checkout, so a session that started one did see the pricing, whether or
+     * not its `upgrade_modal_viewed` reached us. OR-ing each step with the ones
+     * below it states that, and stops a lost beacon from drawing a funnel that
+     * widens at the bottom.
+     *
+     * The same trick would be a lie further up. Pricing is reachable from the
+     * marketing pages without running anything, so a session can see it having
+     * never run a lookup, and crediting it with one would invent usage. Those
+     * steps are reported as measured, which means `sawPricing` may legitimately
+     * exceed `gotResults`.
+     *
+     * The onchain rail is the known exception: `/api/x402/buy` grants a pack
+     * with no modal and no Stripe redirect, so an x402 buyer lands in `paid`
+     * having genuinely skipped the three steps above it.
+     */
+    const result = (await db.execute(sql`
+      WITH s AS (
+        SELECT
+          session_id,
+          count(*) AS events,
+          count(*) FILTER (WHERE event_type <> 'page_view') AS non_page_views,
+          max(user_id) AS user_id,
+          bool_or(event_type = 'lookup_started') AS ran_lookup,
+          bool_or(
+            event_type = 'lookup_completed'
+            AND metadata->>'eventSubtype' IS NULL
+          ) AS got_results,
+          bool_or(event_type = 'limit_hit') AS hit_wall,
+          bool_or(event_type = 'upgrade_modal_viewed') AS saw_pricing,
+          bool_or(event_type = 'checkout_started') AS started_checkout,
+          bool_or(event_type = 'checkout_redirected') AS reached_stripe
+        FROM analytics_events
+        WHERE session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+        GROUP BY session_id
+      ),
+      paid_users AS (
+        SELECT DISTINCT user_id
+        FROM analytics_events
+        WHERE event_type = 'payment_completed'
+          AND user_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+      ),
+      f AS (
+        SELECT
+          s.*,
+          -- Intent AND outcome, not outcome alone.
+          --
+          -- A payment carries no session, so the only join is the account
+          -- email, and "every session belonging to somebody who paid this
+          -- month" is not a conversion: measured on 2026-08-26 that read 20
+          -- paid sessions against a single payment event, because one buyer
+          -- had visited twenty times. Requiring the session to have reached
+          -- checkout as well makes the bottom step mean what the step above it
+          -- means, at the cost of missing a buyer whose checkout events were
+          -- all lost. started_checkout is in the test alongside reached_stripe
+          -- so a dropped redirect beacon does not lose a real sale.
+          --
+          -- An onchain sale has neither event and is never counted here. The
+          -- rail split on the event funnel is where those are visible.
+          (
+            s.user_id IS NOT NULL
+            AND p.user_id IS NOT NULL
+            AND (s.started_checkout OR s.reached_stripe)
+          ) AS paid
+        FROM s LEFT JOIN paid_users p ON p.user_id = s.user_id
+      )
+      -- Every alias is double-quoted. Postgres folds an unquoted identifier to
+      -- lower case, so AS ranLookup comes back as ranlookup and AS ran_lookup
+      -- as ran_lookup: either way the property the interface promises is
+      -- undefined at the call site, with no type error, because the row is
+      -- cast rather than checked. The first version of this query was written
+      -- unquoted and six steps of the pane would have rendered blank.
+      SELECT
+        count(*)::int AS "sessions",
+        count(*) FILTER (WHERE events > 1 OR non_page_views > 0)::int AS "engaged",
+        count(*) FILTER (WHERE ran_lookup)::int AS "ranLookup",
+        count(*) FILTER (WHERE got_results)::int AS "gotResults",
+        count(*) FILTER (WHERE hit_wall)::int AS "hitWall",
+        count(*) FILTER (
+          WHERE saw_pricing OR started_checkout OR reached_stripe
+        )::int AS "sawPricing",
+        count(*) FILTER (
+          WHERE started_checkout OR reached_stripe
+        )::int AS "startedCheckout",
+        count(*) FILTER (WHERE reached_stripe OR paid)::int AS "reachedStripe",
+        count(*) FILTER (WHERE paid)::int AS "paid",
+        count(*) FILTER (WHERE user_id IS NULL)::int AS "anonymous"
+      FROM f
+    `)) as unknown as {
+      rows: Array<Omit<SessionFunnel, 'ok'>>;
+    };
+
+    const row = result.rows?.[0];
+    if (!row) return empty;
+    return { ok: true, ...row };
+  } catch (error) {
+    console.error('Session funnel error:', error);
+    return empty;
+  }
+}
+
+/**
+ * The gates, and what happened at each one.
+ *
+ * Every event here was already being written and read by nothing. Four of them
+ * are the only record of a person meeting a limit, which is the moment the
+ * product asks to be paid for, so the panel that exists to explain conversion
+ * had no view of the thing it is explaining.
+ *
+ * `reverse_lookup.locked` is the sharpest of them: the endpoint answers a count
+ * for free and withholds the wallets, and the field says which half the caller
+ * got. Nothing has ever asked what share of callers the free half satisfies.
+ */
+export interface GateMetrics {
+  ok: boolean;
+  /** Reverse lookups answered in full. */
+  reverseUnlocked: number;
+  /** Reverse lookups that returned a count and withheld the wallets. */
+  reverseLocked: number;
+  /** Distinct sessions that met the locked half at least once. */
+  reverseLockedSessions: number;
+  /** Free-allowance refusals, and the people who met one. */
+  limitHits: number;
+  limitHitSessions: number;
+  contractImportBlocked: number;
+  contractImportSuccess: number;
+}
+
+export async function getGateMetrics(
+  startDate: Date,
+  endDate: Date
+): Promise<GateMetrics> {
+  const empty: GateMetrics = {
+    ok: false,
+    reverseUnlocked: 0,
+    reverseLocked: 0,
+    reverseLockedSessions: 0,
+    limitHits: 0,
+    limitHitSessions: 0,
+    contractImportBlocked: 0,
+    contractImportSuccess: 0,
+  };
+  const db = getDb();
+  if (!db) return empty;
+
+  try {
+    const result = (await db.execute(sql`
+      SELECT
+        count(*) FILTER (
+          WHERE event_type = 'reverse_lookup' AND metadata->>'locked' = 'false'
+        )::int AS "reverseUnlocked",
+        count(*) FILTER (
+          WHERE event_type = 'reverse_lookup' AND metadata->>'locked' = 'true'
+        )::int AS "reverseLocked",
+        count(DISTINCT session_id) FILTER (
+          WHERE event_type = 'reverse_lookup' AND metadata->>'locked' = 'true'
+        )::int AS "reverseLockedSessions",
+        count(*) FILTER (WHERE event_type = 'limit_hit')::int AS "limitHits",
+        count(DISTINCT session_id) FILTER (
+          WHERE event_type = 'limit_hit'
+        )::int AS "limitHitSessions",
+        count(*) FILTER (
+          WHERE event_type = 'contract_import_blocked'
+        )::int AS "contractImportBlocked",
+        count(*) FILTER (
+          WHERE event_type = 'contract_import_success'
+        )::int AS "contractImportSuccess"
+      FROM analytics_events
+      WHERE created_at >= ${utcBound(startDate)}::timestamp AND created_at <= ${utcBound(endDate)}::timestamp
+    `)) as unknown as { rows: Array<Omit<GateMetrics, 'ok'>> };
+
+    const row = result.rows?.[0];
+    if (!row) return empty;
+    return { ok: true, ...row };
+  } catch (error) {
+    console.error('Gate metrics error:', error);
     return empty;
   }
 }
@@ -604,14 +937,12 @@ export async function getPaywallTriggers(
  */
 const NOT_A_HEARTBEAT = sql`${analyticsEvents.metadata}->>'eventSubtype' IS NULL`;
 
-/** In-memory counterpart, for the queries that filter after fetching. */
-function isHeartbeat(metadata: unknown): boolean {
-  return (
-    typeof metadata === 'object' &&
-    metadata !== null &&
-    'eventSubtype' in (metadata as Record<string, unknown>)
-  );
-}
+/*
+ * There was an in-memory counterpart here, `isHeartbeat`, for the one query
+ * that fetched rows and filtered them in Node. That query is now aggregated in
+ * Postgres like every other, so the predicate above is the only definition of
+ * a heartbeat and cannot drift from a second one.
+ */
 
 /**
  * Lifecycle email state: sends by email key, and the opt-out count.
@@ -660,7 +991,8 @@ export async function getUserCohorts(): Promise<
     definition: string;
     count: number;
     avgLookups: number;
-    conversionRate: number;
+    /** `null` where a conversion rate is not a meaningful thing to compute. */
+    conversionRate: number | null;
   }>
 > {
   const db = getDb();
@@ -674,6 +1006,11 @@ export async function getUserCohorts(): Promise<
         lookupCount: sql<number>`COUNT(CASE WHEN event_type = 'lookup_completed' THEN 1 END)`,
         hasExport: sql<number>`MAX(CASE WHEN event_type = 'export_clicked' THEN 1 ELSE 0 END)`,
         hasPaid: sql<number>`MAX(CASE WHEN event_type = 'payment_completed' THEN 1 ELSE 0 END)`,
+        // The cohort below has always been *labelled* "hit limit" and has never
+        // tested for one. `limit_hit` has been written since the free window
+        // existed and read by nothing, so the fix was to ask the column that
+        // was already there rather than to soften the label.
+        hasLimitHit: sql<number>`MAX(CASE WHEN event_type = 'limit_hit' THEN 1 ELSE 0 END)`,
       })
       .from(analyticsEvents)
       .where(sql`user_id IS NOT NULL`)
@@ -685,11 +1022,19 @@ export async function getUserCohorts(): Promise<
     let tireKickerCount = 0;
     let tireKickerPaid = 0;
     let almostConvertedCount = 0;
+    let hitTheWallCount = 0;
 
     for (const user of powerUsers) {
       const lookups = Number(user.lookupCount);
       const hasExport = Number(user.hasExport) > 0;
       const hasPaid = Number(user.hasPaid) > 0;
+      const hasLimitHit = Number(user.hasLimitHit) > 0;
+
+      // Counted outside the chain below on purpose. Meeting the paywall and
+      // not buying is the single most actionable state an account can be in,
+      // and the `else if` ladder would have hidden most of it behind whichever
+      // earlier arm happened to match first.
+      if (hasLimitHit && !hasPaid) hitTheWallCount++;
 
       if (lookups >= 5 && hasExport) {
         powerUserCount++;
@@ -727,7 +1072,7 @@ export async function getUserCohorts(): Promise<
 
     return [
       {
-        name: 'Power Users',
+        name: 'Power users',
         definition: '5+ lookups, exports regularly',
         count: powerUserCount,
         avgLookups: powerUserCount > 0 ? powerUserLookups / powerUserCount : 0,
@@ -735,7 +1080,7 @@ export async function getUserCohorts(): Promise<
           powerUserCount > 0 ? (powerUserPaid / powerUserCount) * 100 : 0,
       },
       {
-        name: 'Tire Kickers',
+        name: 'Tire kickers',
         definition: '1 lookup, no export',
         count: tireKickerCount,
         avgLookups: 1,
@@ -743,18 +1088,31 @@ export async function getUserCohorts(): Promise<
           tireKickerCount > 0 ? (tireKickerPaid / tireKickerCount) * 100 : 0,
       },
       {
-        name: 'Almost Converted',
-        definition: '3+ lookups, hit limit, didn’t pay',
+        name: 'Almost converted',
+        // What the code tests, which is not what this row claimed for months.
+        // The limit is now its own cohort below, where it can be counted
+        // honestly instead of asserted in a caption.
+        definition: '3+ lookups, never paid',
         count: almostConvertedCount,
         avgLookups: 3,
-        conversionRate: 0,
+        conversionRate: null,
       },
       {
-        name: 'Churned Paid',
+        name: 'Hit the free wall',
+        definition: 'Refused by the free allowance, never paid',
+        count: hitTheWallCount,
+        avgLookups: 0,
+        conversionRate: null,
+      },
+      {
+        name: 'Churned paid',
         definition: 'Paid but no activity in 30d',
         count: churnedResult[0]?.count ?? 0,
         avgLookups: 0,
-        conversionRate: 100,
+        // Was 100, which rendered as a 100% conversion rate and read as the
+        // best-performing cohort on the panel. Everyone here has paid by
+        // definition, so the column has nothing to say about them.
+        conversionRate: null,
       },
     ];
   } catch (error) {
@@ -914,7 +1272,13 @@ export async function getExecutivePulse(): Promise<{
   lookupsTrend: number[];
   activeUsers7d: number;
   activeUsersTrend: 'up' | 'down' | 'flat';
-  conversionRate: number;
+  /**
+   * Payments over pricing views, 7 days, `null` when nobody saw pricing.
+   *
+   * Named rather than called "conversion rate", and the same definition the
+   * funnel and the revenue pane use. See `conversionRates`.
+   */
+  pricingToPaid: number | null;
   revenueMTD: number;
   revenueVsLastMonth: number;
   errorRate: number;
@@ -928,7 +1292,7 @@ export async function getExecutivePulse(): Promise<{
       lookupsTrend: [],
       activeUsers7d: 0,
       activeUsersTrend: 'flat',
-      conversionRate: 0,
+      pricingToPaid: null,
       revenueMTD: 0,
       revenueVsLastMonth: 0,
       errorRate: 0,
@@ -979,12 +1343,9 @@ export async function getExecutivePulse(): Promise<{
           ? 'down'
           : 'flat';
 
-    // Conversion rate (this week)
+    // Conversion (this week), through the one shared definition.
     const funnel = await getUserFunnel(sevenDaysAgo, now);
-    const conversionRate =
-      funnel.lookupsStarted > 0
-        ? (funnel.paymentCompleted / funnel.lookupsStarted) * 100
-        : 0;
+    const { pricingToPaid } = conversionRates(funnel);
 
     // Revenue MTD
     const mtdStats = await getDailyStatsRange(monthStart, now);
@@ -1035,7 +1396,8 @@ export async function getExecutivePulse(): Promise<{
       lookupsTrend,
       activeUsers7d,
       activeUsersTrend,
-      conversionRate: Math.round(conversionRate * 100) / 100,
+      pricingToPaid:
+        pricingToPaid === null ? null : Math.round(pricingToPaid * 100) / 100,
       revenueMTD,
       revenueVsLastMonth: Math.round(revenueVsLastMonth),
       errorRate: Math.round(errorRate * 100) / 100,
@@ -1049,7 +1411,7 @@ export async function getExecutivePulse(): Promise<{
       lookupsTrend: [],
       activeUsers7d: 0,
       activeUsersTrend: 'flat',
-      conversionRate: 0,
+      pricingToPaid: null,
       revenueMTD: 0,
       revenueVsLastMonth: 0,
       errorRate: 0,
@@ -1081,66 +1443,96 @@ export async function getFeatureAdoption(
     };
 
   try {
-    const events = await db
-      .select()
-      .from(analyticsEvents)
-      .where(
-        and(
-          gte(analyticsEvents.createdAt, startDate),
-          lte(analyticsEvents.createdAt, endDate)
+    /**
+     * Aggregated in Postgres, not in Node.
+     *
+     * This was `db.select().from(analyticsEvents)` over the whole window,
+     * every column of every row, then eight passes of `Array.filter` over the
+     * result. It is correct and it does not scale: the pane asks for 30 days,
+     * the table already holds millions of rows across the product's history,
+     * and the cost of a page load here grows with total traffic rather than
+     * with the size of the answer, which is twelve numbers.
+     *
+     * The heartbeat predicate moves with it. It was applied to the two
+     * `lookup_completed` filters and skipped on `export_clicked`, so the
+     * denominator excluded cron rows and one numerator did not.
+     */
+    const result = (await db.execute(sql`
+      SELECT
+        count(*) FILTER (
+          WHERE event_type = 'lookup_completed'
+            AND metadata->>'eventSubtype' IS NULL
+        )::int AS "totalLookups",
+        count(*) FILTER (
+          WHERE event_type = 'lookup_completed'
+            AND metadata->>'eventSubtype' IS NULL
+            AND metadata->>'includeENS' = 'true'
+        )::int AS "ensLookups",
+        count(*) FILTER (WHERE event_type = 'history_saved')::int AS "historySaves",
+        count(*) FILTER (WHERE event_type = 'export_clicked')::int AS "exports",
+        count(*) FILTER (
+          WHERE event_type = 'export_clicked' AND metadata->>'format' = 'csv'
+        )::int AS "csvExports",
+        count(*) FILTER (
+          WHERE event_type = 'export_clicked' AND metadata->>'format' = 'twitter'
+        )::int AS "twitterExports",
+        coalesce(avg((metadata->>'walletCount')::numeric) FILTER (
+          WHERE event_type = 'lookup_started'
+            AND coalesce(metadata->>'tier', 'free') = 'free'
+        ), 0)::float AS "avgFree",
+        coalesce(avg((metadata->>'walletCount')::numeric) FILTER (
+          WHERE event_type = 'lookup_started' AND metadata->>'tier' = 'pro'
+        ), 0)::float AS "avgPro",
+        coalesce(avg((metadata->>'walletCount')::numeric) FILTER (
+          WHERE event_type = 'lookup_started' AND metadata->>'tier' = 'unlimited'
+        ), 0)::float AS "avgUnlimited"
+      FROM analytics_events
+      WHERE created_at >= ${utcBound(startDate)}::timestamp
+        AND created_at <= ${utcBound(endDate)}::timestamp
+        -- A lookup_started with no walletCount would make ::numeric throw and
+        -- take the whole pane down with it, so the cast only sees digits.
+        AND (
+          event_type <> 'lookup_started'
+          OR metadata->>'walletCount' ~ '^[0-9]+$'
         )
-      );
-
-    const totalLookups = events.filter(
-      (e) => e.eventType === 'lookup_completed' && !isHeartbeat(e.metadata)
-    ).length;
-    const ensLookups = events.filter(
-      (e) =>
-        e.eventType === 'lookup_completed' &&
-        !isHeartbeat(e.metadata) &&
-        (e.metadata as Record<string, unknown>)?.includeENS === true
-    ).length;
-    const historySaves = events.filter(
-      (e) => e.eventType === 'history_saved'
-    ).length;
-    const exports = events.filter((e) => e.eventType === 'export_clicked');
-    const csvExports = exports.filter(
-      (e) => (e.metadata as Record<string, unknown>)?.format === 'csv'
-    ).length;
-    const twitterExports = exports.filter(
-      (e) => (e.metadata as Record<string, unknown>)?.format === 'twitter'
-    ).length;
-
-    // Calculate average lookup sizes by tier
-    const lookupsByTier: Record<string, number[]> = {
-      free: [],
-      pro: [],
-      unlimited: [],
+    `)) as unknown as {
+      rows: Array<{
+        totalLookups: number;
+        ensLookups: number;
+        historySaves: number;
+        exports: number;
+        csvExports: number;
+        twitterExports: number;
+        avgFree: number;
+        avgPro: number;
+        avgUnlimited: number;
+      }>;
     };
-    for (const event of events) {
-      if (event.eventType === 'lookup_started') {
-        const metadata = event.metadata as Record<string, unknown>;
-        const tier = (metadata?.tier as string) ?? 'free';
-        const walletCount = (metadata?.walletCount as number) ?? 0;
-        if (lookupsByTier[tier]) {
-          lookupsByTier[tier].push(walletCount);
-        }
-      }
+
+    const row = result.rows?.[0];
+    if (!row) {
+      return {
+        ensLookupRate: 0,
+        historySaveRate: 0,
+        exportRate: 0,
+        exportFormats: { csv: 0, twitter: 0 },
+        avgLookupSize: { free: 0, pro: 0, unlimited: 0 },
+      };
     }
 
-    const avgSize = (arr: number[]) =>
-      arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+    const totalLookups = row.totalLookups;
+    const rate = (n: number) =>
+      totalLookups > 0 ? (n / totalLookups) * 100 : 0;
 
     return {
-      ensLookupRate: totalLookups > 0 ? (ensLookups / totalLookups) * 100 : 0,
-      historySaveRate:
-        totalLookups > 0 ? (historySaves / totalLookups) * 100 : 0,
-      exportRate: totalLookups > 0 ? (exports.length / totalLookups) * 100 : 0,
-      exportFormats: { csv: csvExports, twitter: twitterExports },
+      ensLookupRate: rate(row.ensLookups),
+      historySaveRate: rate(row.historySaves),
+      exportRate: rate(row.exports),
+      exportFormats: { csv: row.csvExports, twitter: row.twitterExports },
       avgLookupSize: {
-        free: Math.round(avgSize(lookupsByTier.free)),
-        pro: Math.round(avgSize(lookupsByTier.pro)),
-        unlimited: Math.round(avgSize(lookupsByTier.unlimited)),
+        free: Math.round(row.avgFree),
+        pro: Math.round(row.avgPro),
+        unlimited: Math.round(row.avgUnlimited),
       },
     };
   } catch (error) {

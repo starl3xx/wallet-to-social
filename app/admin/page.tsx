@@ -44,7 +44,7 @@ import {
 import { asSourceList } from '@/lib/api-sources';
 import {
   ExecutivePulse,
-  UserBehavior,
+  FunnelPane,
   GrowthRetention,
   RevenueDashboard,
   SystemHealth,
@@ -331,14 +331,15 @@ export default function AdminPage() {
   useEffect(() => {
     if (authState !== 'authenticated') return;
 
+    // Records holds both lists, so opening it loads both. They were two
+    // destinations and one of them was always the wrong guess: a job and the
+    // saved lookup it produced are the same run seen twice.
     switch (activeTab) {
-      case 'jobs':
+      case 'records':
         if (jobs.length === 0) fetchJobs();
-        break;
-      case 'history':
         if (historyEntries.length === 0) fetchHistory();
         break;
-      case 'users':
+      case 'accounts':
         if (usersList.length === 0) fetchUsers();
         break;
     }
@@ -1303,15 +1304,15 @@ export default function AdminPage() {
     </Card>
   );
 
-  // Handle metric click from pulse dashboard. Through selectTab for the same
-  // reason the tab buttons are: this navigates, so it has to close an open
-  // account or the jump would appear to do nothing.
-  const handleMetricClick = (metric: string) => {
-    if (metric === 'jobs') selectTab('jobs');
-    else if (metric === 'behavior') selectTab('behavior');
-    else if (metric === 'revenue') selectTab('revenue');
-    else if (metric === 'health') selectTab('health');
-  };
+  /*
+   * The pulse tiles navigate through `selectTab` directly now.
+   *
+   * There was a `handleMetricClick(metric: string)` here that matched four
+   * string literals and silently did nothing for anything else. It took a
+   * `string`, so the tab rename in this change would have compiled cleanly and
+   * left two tiles inert at runtime. `AdminTab` makes that a type error at the
+   * call site instead.
+   */
 
   // Main admin view
   return (
@@ -1368,14 +1369,11 @@ export default function AdminPage() {
           {/* Tab content - Analytics */}
           {activeTab === 'pulse' && (
             <div className="space-y-6">
-              <ExecutivePulse
-                password={password}
-                onMetricClick={handleMetricClick}
-              />
+              <ExecutivePulse password={password} onMetricClick={selectTab} />
               <UniversalSearch password={password} />
             </div>
           )}
-          {activeTab === 'behavior' && <UserBehavior password={password} />}
+          {activeTab === 'funnel' && <FunnelPane password={password} />}
           {activeTab === 'growth' && <GrowthRetention password={password} />}
           {activeTab === 'revenue' && <RevenueDashboard password={password} />}
           {activeTab === 'health' && (
@@ -1393,18 +1391,44 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Tab content - Operations */}
-          {activeTab === 'whitelist' && renderWhitelistTab()}
-          {activeTab === 'dashboard' && <LookupDashboard password={password} />}
-          {activeTab === 'conflicts' && <HandleConflicts password={password} />}
-          {activeTab === 'jobs' && renderJobsTab()}
-          {activeTab === 'history' && renderHistoryTab()}
-          {activeTab === 'users' && renderUsersTab()}
+          {/* Tab content - Operations.
+
+              Four destinations, each holding the panes that answer one
+              question. They were eight, and four of the pairs below sat under
+              separate nav buttons answering the same thing from two places.
+              Composed here rather than merged inside the panes: each pane still
+              owns its own fetch, its own error and its own heading, so this is
+              a change to where they are read, not to what they measure. */}
           {activeTab === 'usage' && (
-            <UsageMeter password={password} onAccountClick={setOpenAccount} />
+            <div className="space-y-6">
+              {/* Both count lookups and wallets over a period. The first does
+                  it for the system, the second per account, and reading one
+                  without the other was how "we are busy" and "one account is
+                  busy" got confused. */}
+              <LookupDashboard password={password} />
+              <UsageMeter password={password} onAccountClick={setOpenAccount} />
+            </div>
           )}
-          {activeTab === 'enrichment' && (
-            <WalletEnrichment password={password} />
+          {activeTab === 'records' && (
+            <div className="space-y-6">
+              {renderJobsTab()}
+              {renderHistoryTab()}
+            </div>
+          )}
+          {activeTab === 'accounts' && (
+            <div className="space-y-6">
+              {renderUsersTab()}
+              {/* A whitelist entry is an entitlement on an account, so it
+                  belongs beside the accounts rather than in a destination of
+                  its own. */}
+              {renderWhitelistTab()}
+            </div>
+          )}
+          {activeTab === 'data' && (
+            <div className="space-y-6">
+              <WalletEnrichment password={password} />
+              <HandleConflicts password={password} />
+            </div>
           )}
         </>
       )}

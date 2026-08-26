@@ -101,8 +101,39 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the partial-write completion stops carrying the session',
     file: 'lib/job-processor.ts',
-    from: '        sessionId: job.sessionId ?? undefined,',
-    to: '',
+    // Anchored on the comment above it, not on the line alone. `history_saved`
+    // now emits the same line at the same indentation a few dozen lines up, so
+    // the bare anchor matched twice and the guard reported SETUP rather than
+    // testing anything. A mutation that cannot be applied protects nothing, and
+    // it fails loudly here precisely so it cannot quietly stop protecting.
+    from:
+      '        // that survives the queue.\n' +
+      '        sessionId: job.sessionId ?? undefined,',
+    to: '        // that survives the queue.',
+  },
+  {
+    name: 'history_saved stops being emitted, so the save rate reads 0% again',
+    file: 'lib/job-processor.ts',
+    from: "      trackEvent('history_saved', {",
+    to: '      const unusedTrack = () => ({',
+  },
+  {
+    name: 'the signup event fires on every sign-in, not only on account creation',
+    file: 'lib/access.ts',
+    from: '  if (existing) return existing;',
+    to: '  if (existing) {\n  }',
+  },
+  {
+    name: 'a raw-SQL window bound goes back to the local-offset Date',
+    file: 'lib/analytics.ts',
+    from: "return d.toISOString().replace('T', ' ').replace('Z', '');",
+    to: 'return String(d);',
+  },
+  {
+    name: 'a session-funnel alias loses its quotes and folds to lower case',
+    file: 'lib/analytics.ts',
+    from: 'count(*) FILTER (WHERE ran_lookup)::int AS "ranLookup",',
+    to: 'count(*) FILTER (WHERE ran_lookup)::int AS ranLookup,',
   },
   {
     name: 'the Stripe pack grant stops booking the sale',

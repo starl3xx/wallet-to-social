@@ -123,6 +123,8 @@ wallet-to-social/
 │   ├── AccessBanner.tsx      # Header chip, Buy credits button, account menu
 │   ├── LookupHistory.tsx     # Saved lookups sidebar
 │   └── admin/
+│       ├── AdminNav.tsx         # The nine destinations, two groups
+│       ├── FunnelPane.tsx       # The one funnel: sessions, events, gates, rates
 │       └── LookupDashboard.tsx  # Usage metrics & analytics dashboard
 ├── lib/
 │   ├── job-processor.ts      # Core lookup processing logic
@@ -477,14 +479,24 @@ Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as t
 
 ### Admin
 
-| Endpoint                  | Purpose                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `/api/admin/dashboard`    | Usage metrics, match analytics, performance stats (supports `?period=today\|week\|month`) |
-| `/api/admin/users`        | User management                                                                           |
-| `/api/admin/jobs`         | Job management                                                                            |
-| `/api/admin/whitelist`    | Whitelist management                                                                      |
-| `/api/admin/social-graph` | Manual wallet enrichment                                                                  |
-| `/api/admin/conflicts`    | The handle conflict queue with reachability on both sides, and the resolved counts        |
+| Endpoint                       | Purpose                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `/api/admin/dashboard`         | Usage metrics, match analytics, performance stats (supports `?period=today\|week\|month`) |
+| `/api/admin/analytics/journey` | The whole funnel over one window: sessions, events, gates, paywall triggers, both rates   |
+| `/api/admin/users`             | User management                                                                           |
+| `/api/admin/jobs`              | Job management                                                                            |
+| `/api/admin/whitelist`         | Whitelist management                                                                      |
+| `/api/admin/social-graph`      | Manual wallet enrichment                                                                  |
+| `/api/admin/conflicts`         | The handle conflict queue with reachability on both sides, and the resolved counts        |
+
+`journey` replaced `analytics/funnel` and `analytics/paywall`, which the panel
+called separately at two different window lengths and drew as two funnels with
+two denominators. One window, chosen once by the reader, is the point of it.
+
+**The panel has nine destinations, in two groups** (`components/admin/AdminNav.tsx`).
+Analytics: Pulse, Funnel, Growth, Revenue, Health. Operations: Usage, Records,
+Accounts, Data. It had thirteen, and four of the pairs answered the same question
+from two places; the mapping is in the nav's own comment and in CHANGELOG.
 
 ---
 
@@ -624,6 +636,26 @@ hand-issued credit is not a sale.
 **The funnel reports sessions and engaged sessions.** Engaged means more than one
 event, or one that is not a pageview. Both are shown, because the gap between
 them is the finding rather than noise to be filtered out.
+
+**There are two funnels and they are not interchangeable.** `getSessionFunnel`
+counts distinct sessions that reached each step, so a ratio between two of its
+steps is a ratio between two groups of people; `getUserFunnel` counts events, so
+one visitor opening the pricing modal six times is six. The session funnel forces
+the money tail to fall (the buy-credits modal is the only way into a Stripe
+checkout) and leaves the steps above it as measured, so "saw pricing" may exceed
+"got results". `payment_completed` has no session, so "paid" is joined by account
+email _and_ requires the session to have reached checkout; without that second
+test it counts every visit a buyer ever made.
+
+**There is one definition of conversion**, `conversionRates` in `lib/analytics.ts`,
+returning `pricingToPaid` and `lookupToPaid`. Both are `null`, never 0, when the
+denominator is zero. Three panes previously computed three different rates and
+called all of them "conversion rate".
+
+**A raw-SQL window bound goes through `utcBound`.** The timestamp columns are
+`timestamp without time zone` holding UTC, and interpolating a JS `Date` into a
+`sql` template sends a local-offset string whose offset Postgres then discards.
+Production is UTC so it never bit there, which is exactly why it needed asserting.
 
 **Attribution is first touch, recorded once per browser** (`lib/first-touch.ts`).
 The referring host, `?ref=` and the three UTM parameters are reduced to one

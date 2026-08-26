@@ -6,35 +6,27 @@ import {
   Gauge,
   ChartBar as BarChart3,
   ChartLineUp,
-  MagnifyingGlass,
   TrendUp as TrendingUp,
   CurrencyDollar as DollarSign,
   Wrench,
-  Sparkle as Sparkles,
   Briefcase,
-  ClockCounterClockwise as History,
   Users,
   // `PencilSimple`, not `Pencil`: they are different glyphs, and the page was
   // rendering this one.
   PencilSimple as Pencil,
-  WarningCircle,
   type Icon,
 } from '@phosphor-icons/react';
 
 export type AdminTab =
   | 'pulse'
-  | 'behavior'
+  | 'funnel'
   | 'growth'
   | 'revenue'
   | 'health'
   | 'usage'
-  | 'whitelist'
-  | 'dashboard'
-  | 'jobs'
-  | 'history'
-  | 'users'
-  | 'enrichment'
-  | 'conflicts';
+  | 'records'
+  | 'accounts'
+  | 'data';
 
 interface NavItem {
   value: AdminTab;
@@ -43,38 +35,46 @@ interface NavItem {
 }
 
 /**
- * Two groups, thirteen destinations. Previously written out longhand in the
- * page as `Button` elements, in two `flex … overflow-x-auto` strips.
+ * Two groups, nine destinations, one question each.
+ *
+ * It was thirteen, and the problem was never the count: four pairs answered
+ * the same question in two places, so the panel's own navigation could not tell
+ * you where an answer lived.
+ *
+ * | was                          | is       | why                                                    |
+ * | ---------------------------- | -------- | ------------------------------------------------------ |
+ * | Behavior + Revenue           | Funnel   | both drew a funnel, over different windows and bases    |
+ * | Behavior (rest) + Growth     | Growth   | cohorts, retention and adoption are one question        |
+ * | Lookups + Usage              | Usage    | both counted lookups and wallets by period              |
+ * | Jobs + Saved lookups         | Records  | two lists of the same runs                              |
+ * | Users + Whitelist            | Accounts | a whitelist grant is an entitlement on an account       |
+ * | Enrichment + Conflicts       | Data     | both are social-graph quality work                      |
  *
  * Each label is the words the pane puts in its own heading, and each icon
- * serves one destination. Both had drifted: "Dashboard" opened a pane headed
- * "Usage metrics" inside a page whose h1 is "Admin dashboard", and `Gauge`
- * stood for both Pulse and Usage while `ChartBar` stood for both Behavior and
- * Dashboard, so the icon told you nothing the label had not.
+ * serves one destination. Both had drifted before: "Dashboard" opened a pane
+ * headed "Usage metrics" inside a page whose h1 is "Admin dashboard", and
+ * `Gauge` stood for two destinations while `ChartBar` stood for two more, so
+ * the icon told you nothing the label had not.
  *
- * The strips were the defect. The design language is explicit that a content
- * strip never scrolls sideways and reflows as a responsive grid, with
- * `overflow-x-auto` reserved for a genuine data table. A sideways scrollbar
- * hides destinations behind a gesture people do not know is available, and on a
- * narrow screen it hid half of them.
+ * The grid never scrolls sideways. The design language is explicit that a
+ * content strip reflows as a responsive grid, with `overflow-x-auto` reserved
+ * for a genuine data table: a sideways scrollbar hides destinations behind a
+ * gesture people do not know is available, and on a narrow screen it hid half
+ * of them.
  */
 const ANALYTICS: NavItem[] = [
   { value: 'pulse', label: 'Pulse', icon: Gauge },
-  { value: 'behavior', label: 'Behavior', icon: BarChart3 },
+  { value: 'funnel', label: 'Funnel', icon: BarChart3 },
   { value: 'growth', label: 'Growth', icon: TrendingUp },
   { value: 'revenue', label: 'Revenue', icon: DollarSign },
   { value: 'health', label: 'Health', icon: Wrench },
 ];
 
 const OPERATIONS: NavItem[] = [
-  { value: 'whitelist', label: 'Whitelist', icon: Sparkles },
-  { value: 'dashboard', label: 'Lookups', icon: MagnifyingGlass },
-  { value: 'jobs', label: 'Jobs', icon: Briefcase },
-  { value: 'history', label: 'Saved lookups', icon: History },
-  { value: 'users', label: 'Users', icon: Users },
   { value: 'usage', label: 'Usage', icon: ChartLineUp },
-  { value: 'enrichment', label: 'Enrichment', icon: Pencil },
-  { value: 'conflicts', label: 'Conflicts', icon: WarningCircle },
+  { value: 'records', label: 'Records', icon: Briefcase },
+  { value: 'accounts', label: 'Accounts', icon: Users },
+  { value: 'data', label: 'Data', icon: Pencil },
 ];
 
 function NavGroup({
@@ -104,12 +104,13 @@ function NavGroup({
       {/* Reflows rather than scrolls, and steps in exactly the places the Pulse
           tile grid beneath it does, so the two read as one rhythm.
 
-          One step the tiles do not have: a single column below `xs`. A tile's
-          label wraps, a Button's does not, so at a 320px screen the two-across
-          cell is 132px and "Saved lookups" needs 138 and spilled out of the
-          pill. Measured with the real typeface; at 360px the cell is 152px and
-          every label fits. */}
-      <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          Two columns from `xs` rather than one. The single-column step existed
+          for "Saved lookups", which at a 320px screen needed 138px inside a
+          132px cell and spilled out of the pill; the longest label is now
+          "Accounts" and fits at every step. `lg:grid-cols-5` fills the row
+          exactly for the five analytics destinations and leaves the four
+          operations ones at their natural width rather than stretched. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
         {items.map((item) => {
           const Icon = item.icon;
           const current = active === item.value;

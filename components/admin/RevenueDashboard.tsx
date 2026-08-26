@@ -15,24 +15,25 @@ import {
 import { ArrowsClockwise as RefreshCw } from '@phosphor-icons/react';
 import { PACKS, isPackId } from '@/lib/packs';
 import { StatTile } from './Stat';
-import { FunnelStep } from './FunnelStep';
 import { RefreshButton } from './RefreshButton';
 import { Empty, Loading } from './PaneState';
 
-interface FunnelData {
-  pageViews: number;
-  csvUploads: number;
-  lookupsStarted: number;
-  lookupsCompleted: number;
-  upgradeModalViewed: number;
-  checkoutStarted: number;
-  /** Reached Stripe. Tracked since 2026-08-15; older windows undercount. */
-  checkoutRedirected: number;
-  checkoutFailed: number;
-  checkoutFailureReasons: Array<{ reason: string; count: number }>;
-  paymentCompleted: number;
-}
-
+/**
+ * Money, and nothing else.
+ *
+ * There was a conversion funnel on this pane, over 30 days, dividing payments
+ * by pricing views. The behaviour pane drew a second one over 7 days dividing
+ * every step by page views, four steps appeared on both with different numbers,
+ * and the Pulse tile labelled "Conversion rate" linked here while showing the
+ * other definition. All of it now lives on the Funnel tab, over one window the
+ * reader chooses, with the two rates named rather than both called conversion.
+ *
+ * What is left here is the only thing this pane was ever the authority on:
+ * what Stripe actually took, net of refunds. That is deliberately a different
+ * number from the booked revenue on Pulse and Growth, which sums
+ * `daily_stats.revenue_cents` and knows nothing about a refund. Each surface
+ * says which it is.
+ */
 interface Totals {
   grossCents: number;
   refundedCents: number;
@@ -99,7 +100,6 @@ const money = (cents: number) =>
   });
 
 export function RevenueDashboard({ password }: RevenueDashboardProps) {
-  const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [revenue, setRevenue] = useState<RevenueData | null>(null);
   const [paidUsers, setPaidUsers] = useState<UserEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,23 +111,20 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
 
     try {
       const headers = { 'x-admin-password': password };
-      const [funnelRes, revenueRes, usersRes] = await Promise.all([
-        fetch('/api/admin/analytics/funnel?days=30', { headers }),
+      const [revenueRes, usersRes] = await Promise.all([
         fetch('/api/admin/revenue', { headers }),
         fetch('/api/admin/users', { headers }),
       ]);
 
-      if (!funnelRes.ok || !revenueRes.ok || !usersRes.ok) {
+      if (!revenueRes.ok || !usersRes.ok) {
         throw new Error('Failed to fetch revenue data');
       }
 
-      const [funnelData, revenueData, usersData] = await Promise.all([
-        funnelRes.json(),
+      const [revenueData, usersData] = await Promise.all([
         revenueRes.json(),
         usersRes.json(),
       ]);
 
-      setFunnel(funnelData);
       setRevenue(revenueData);
       setPaidUsers(usersData.users.filter((u: UserEntry) => u.tier !== 'free'));
     } catch (err) {
@@ -172,11 +169,6 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
     })
     .filter((u): u is UserEntry & { paidFor: string | null } => u !== null);
 
-  const conversionRate =
-    funnel && funnel.upgradeModalViewed > 0
-      ? (funnel.paymentCompleted / funnel.upgradeModalViewed) * 100
-      : 0;
-
   /**
    * Conversions by product, named. `byProduct` is keyed on the pack id (or a
    * legacy tier), so each pack can be counted rather than inferred as the
@@ -193,7 +185,7 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
           : `${n} ${product}`
     );
 
-  if (loading && !funnel) {
+  if (loading && !revenue) {
     return <Loading />;
   }
 
@@ -264,63 +256,6 @@ export function RevenueDashboard({ password }: RevenueDashboardProps) {
           note="access beyond what was paid for"
         />
       </div>
-
-      {/* Conversion funnel. A grid that wraps to two across on a phone; it
-          was one flex row of four steps and three carets that could only
-          squeeze. */}
-      {funnel && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Conversion funnel (30 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              <FunnelStep label="Lookups" count={funnel.lookupsStarted} />
-              <FunnelStep
-                label="Saw pricing"
-                count={funnel.upgradeModalViewed}
-              />
-              <FunnelStep
-                label="Started checkout"
-                count={funnel.checkoutStarted}
-              />
-              {/* checkout_redirected exists to split "reached Stripe" from
-                  "errored before Stripe"; it has been write-only since it
-                  shipped, which defeated its purpose. Tracked since
-                  2026-08-15, so older windows undercount this step. */}
-              <FunnelStep
-                label="Reached Stripe"
-                count={funnel.checkoutRedirected}
-              />
-              {/* A completed payment is a real outcome, so it is green. */}
-              <FunnelStep
-                label="Completed"
-                count={funnel.paymentCompleted}
-                valueClassName="text-attested"
-              />
-            </div>
-            <div className="mt-4 pt-4 border-t text-center">
-              <span className="text-sm text-muted-foreground">
-                Saw pricing to completed:{' '}
-                <span className="font-medium text-foreground tabular-nums">
-                  {conversionRate.toFixed(1)}%
-                </span>
-              </span>
-            </div>
-            {funnel.checkoutFailed > 0 && (
-              <p className="mt-2 text-center text-sm text-caution">
-                {funnel.checkoutFailed} checkout
-                {funnel.checkoutFailed === 1 ? ' failure' : ' failures'}:{' '}
-                {funnel.checkoutFailureReasons
-                  .map((r) => `${r.reason} (${r.count})`)
-                  .join(', ')}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Actual payments, straight from Stripe. */}
       <Card>
