@@ -714,6 +714,14 @@ const MUTATIONS: Mutation[] = [
     to: 'for (let i = 0; i < rows.length; i += 100) {',
   },
   {
+    // A run that wrote 900 of 1,000 wallets and then lost the connection
+    // recorded 'failed' and logged "persist completely failed".
+    name: 'an exhausted retry reports a committed prefix as a total loss',
+    file: 'lib/social-graph.ts',
+    from: '    succeeded: committed,\n    failed: validResults.length - committed,',
+    to: '    succeeded: 0,\n    failed: validResults.length,',
+  },
+  {
     name: 'the resume cursor is carried even where the driver rolls back, so a retry skips work',
     file: 'lib/social-graph.ts',
     from: '  const progress: WriteProgress | undefined = supportsTransactions()\n    ? undefined\n    : { rowsCommitted: 0, auditCommitted: 0 };',

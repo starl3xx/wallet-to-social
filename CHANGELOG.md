@@ -68,7 +68,15 @@ properties of`) rather than the type. Measured, because the two are the same
   `cause` included. The guard separately caught a mutation still anchored to
   the single-line condition that had been rewritten, and therefore protecting
   nothing.
-- Twelve assertions and nine mutations, 294 and 119. The classifier is asserted
+- **A committed prefix was still reported as a total loss.** `succeeded: 0` was
+  true while every attempt ran in a transaction, because a failure rolled the
+  whole thing back. The resume cursor ended that, and the exhausted-retry
+  return was not updated with it: a run that wrote 900 of 1,000 wallets and
+  then lost the connection recorded `'failed'` and logged "persist completely
+  failed", which sends anyone reading it looking for a write that did happen.
+  `job-processor` already had the right `'partial'` branch and simply could not
+  reach it. It now reports what committed (found by Bugbot, Medium).
+- Thirteen assertions and ten mutations, 295 and 120. The classifier is asserted
   against the two real failures by value, and separately asserted **not** to
   have been widened into always-true, which is how a set of refusal assertions
   passes while protecting nothing.

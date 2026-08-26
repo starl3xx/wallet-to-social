@@ -276,10 +276,29 @@ export async function upsertSocialGraphWithRetry(
     }
   }
 
-  // All retries failed
+  /**
+   * All attempts failed, and some of the work may still be in the table.
+   *
+   * `succeeded: 0` was true while every attempt ran inside a transaction: a
+   * failure rolled the whole thing back, so nothing was written and every
+   * wallet had genuinely failed. The resume cursor above ends that. On the
+   * driver without transactions a committed prefix survives the failure, and
+   * reporting it as a total loss is now a false statement about the index.
+   *
+   * It is not a cosmetic count. `lib/job-processor.ts` reads exactly this to
+   * choose between `'partial'` and `'failed'` on the job, and its `'partial'`
+   * branch was unreachable for this case: a run that wrote 900 of 1,000
+   * wallets and then lost the connection recorded `'failed'` and logged
+   * "persist completely failed", which sends anyone reading it looking for a
+   * write that did happen.
+   *
+   * `rows` is built one-to-one from `validResults`, so a committed row count
+   * is a committed wallet count and the subtraction is exact.
+   */
+  const committed = progress?.rowsCommitted ?? 0;
   return {
-    succeeded: 0,
-    failed: validResults.length,
+    succeeded: committed,
+    failed: validResults.length - committed,
     errors: [lastError?.message || 'Unknown error after retries'],
   };
 }

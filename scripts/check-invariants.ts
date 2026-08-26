@@ -358,6 +358,17 @@ async function main() {
         'if (progress) progress.rowsCommitted = i + batch.length;'
       ) > graphSrc.indexOf('.onConflictDoUpdate(')
     );
+    // A committed prefix survives a failure once there is no rollback, so
+    // reporting the whole batch as failed is a false statement about the index
+    // and it makes job-processor's 'partial' branch unreachable for this case
+    // (Bugbot, PR #201, Medium).
+    ok(
+      'an exhausted retry reports what committed rather than zero',
+      !/succeeded: 0,\s*\n\s*failed: validResults\.length,/.test(graphSrc) &&
+        /succeeded: committed,\s*\n\s*failed: validResults\.length - committed,/.test(
+          graphSrc
+        )
+    );
     // The capability is read from the driver module rather than re-tested, or
     // the two drift and the gate starts describing a driver that is not live.
     ok(
