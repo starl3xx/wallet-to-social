@@ -132,9 +132,12 @@ two legacy accounts and whitelisted accounts.
 | 4   | 9          | The free half of reverse lookup | How many wallets are behind that handle?    |
 | 5   | 14         | The ask                         | 250 matches, once: $29                      |
 
-The numbers in that table are the values the constants hold today (100 from
-`FREE_MATCHES_PER_WINDOW`, 75 and $10 from `PACKS[PACK_IDS[0]]`). The code
-prints whatever the constant holds; this table is a snapshot of it.
+The numbers in that table are rendered, not written: the allowance comes from
+`FREE_MATCHES_PER_WINDOW` and email 5's figures from `PACKS[PACK_IDS[0]]`. The
+code prints whatever those constants hold, so the table is a snapshot and the
+constants are the source. The values are deliberately not restated here. This
+caption named a pair that `PACK_IDS[0]` did not hold, two lines under a table
+showing the pair it did, which is the drift the caption exists to warn about.
 
 One email, one job, one CTA. CTAs 1 to 4 land on the homepage, which carries
 both the lookup and the reverse-lookup panel; CTA 5 lands on `/pricing`.
