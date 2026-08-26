@@ -43,7 +43,16 @@ gets their results, and the index simply does not gain the row.
   of the wrong shape, so it is a statement about the program, not the
   connection. The driver's refusal is matched on the capability wording rather
   than on the driver's name, so it survives a driver swap.
-- Eight assertions and six mutations, 290 and 116. The classifier is asserted
+- **The fallback had a regression of its own, caught in review.** Without a
+  rollback, a retry restarted the whole batch, and the upsert is idempotent in
+  every column but one: `lookup_count` is `lookup_count + 1`, so every row the
+  failed attempt had already committed counted a second lookup that never
+  happened. That number is not cosmetic. It promotes a row to quality `medium`
+  past 3, pulls it into the hot set `refresh-stale` rebuilds past 5, and orders
+  the refresh queue. The retry now carries a cursor and resumes, and the cursor
+  exists only where the driver cannot roll back, since a transactional retry
+  that skipped committed work would lose it (found by Bugbot, Medium).
+- Eleven assertions and eight mutations, 293 and 118. The classifier is asserted
   against the two real failures by value, and separately asserted **not** to
   have been widened into always-true, which is how a set of refusal assertions
   passes while protecting nothing.

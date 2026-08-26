@@ -697,6 +697,19 @@ const MUTATIONS: Mutation[] = [
     to: '  return true;',
   },
   {
+    // The regression Bugbot caught in the fallback added by PR #201.
+    name: 'a retry without a transaction restarts, double-counting lookup_count',
+    file: 'lib/social-graph.ts',
+    from: 'for (let i = progress?.rowsCommitted ?? 0; i < rows.length; i += 100) {',
+    to: 'for (let i = 0; i < rows.length; i += 100) {',
+  },
+  {
+    name: 'the resume cursor is carried even where the driver rolls back, so a retry skips work',
+    file: 'lib/social-graph.ts',
+    from: '  const progress: WriteProgress | undefined = supportsTransactions()\n    ? undefined\n    : { rowsCommitted: 0, auditCommitted: 0 };',
+    to: '  const progress: WriteProgress | undefined = {\n    rowsCommitted: 0,\n    auditCommitted: 0,\n  };',
+  },
+  {
     name: 'asSourceList stops recovering a joined string, so a re-uploaded export loses its evidence',
     file: 'lib/api-sources.ts',
     from: "  if (typeof value === 'string') {",

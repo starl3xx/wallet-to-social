@@ -311,6 +311,31 @@ async function main() {
       'there is a path that still writes when the driver has no transaction',
       graphSrc.includes('return await writeAll(db);')
     );
+
+    // Without a rollback, a retry that restarts re-runs `lookup_count + 1` on
+    // every row the failed attempt already committed. That number sets the
+    // quality tier past 3 and the refresh-stale hot set past 5, so inflating
+    // it promotes wallets that were written once (Bugbot, PR #201, Medium).
+    ok(
+      'a retry without a transaction resumes rather than restarting',
+      graphSrc.includes('for (let i = progress?.rowsCommitted ?? 0;')
+    );
+    // The cursor must be the inverse of the rollback: carried only where there
+    // is none, or a transactional retry skips work it never wrote.
+    ok(
+      'the resume cursor exists only when the driver cannot roll back',
+      /supportsTransactions\(\)\s*\?\s*undefined\s*:\s*\{\s*rowsCommitted: 0/.test(
+        graphSrc
+      )
+    );
+    // Advanced after the statement returns, never before, or a batch that
+    // threw is skipped on the retry and those wallets are lost.
+    ok(
+      'the cursor advances only after the write it records',
+      graphSrc.indexOf(
+        'if (progress) progress.rowsCommitted = i + batch.length;'
+      ) > graphSrc.indexOf('.onConflictDoUpdate(')
+    );
     // The capability is read from the driver module rather than re-tested, or
     // the two drift and the gate starts describing a driver that is not live.
     ok(

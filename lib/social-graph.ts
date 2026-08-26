@@ -235,9 +235,24 @@ export async function upsertSocialGraphWithRetry(
 
   let lastError: Error | null = null;
 
+  /**
+   * A cursor, and only where restarting would be wrong.
+   *
+   * With a transaction a failed attempt rolls back, so the next attempt must
+   * start from zero and passing a cursor would skip real work. Without one the
+   * committed batches survive the failure, and re-running them counts a second
+   * lookup that never happened against every row in them.
+   */
+  const progress: WriteProgress | undefined = supportsTransactions()
+    ? undefined
+    : { rowsCommitted: 0, auditCommitted: 0 };
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const count = await upsertSocialGraphWithTransaction(validResults);
+      const count = await upsertSocialGraphWithTransaction(
+        validResults,
+        progress
+      );
       return { succeeded: count, failed: 0, errors: [] };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -315,11 +330,31 @@ export function isNonTransientError(error: Error): boolean {
 type TransactionLike = Pick<NonNullable<ReturnType<typeof getDb>>, 'insert'>;
 
 /**
+ * How far a non-transactional write got, carried across retry attempts.
+ *
+ * Only the driver without transactions needs this. Where a transaction exists,
+ * a failed attempt rolls back and restarting from zero is exactly right; where
+ * one does not, the committed batches are still there, and re-running them is
+ * not free. The upsert is idempotent in every column but one: `lookup_count`
+ * is `lookup_count + 1`, so a re-run counts a second lookup that never
+ * happened. That number is not cosmetic. It promotes a row to quality
+ * `medium` past 3 (`shouldRefreshRecord`), pulls it into the hot set the
+ * refresh-stale cron rebuilds past 5, and orders the refresh queue.
+ *
+ * Found by Bugbot on PR #201, against the fallback added in the same PR.
+ */
+interface WriteProgress {
+  rowsCommitted: number;
+  auditCommitted: number;
+}
+
+/**
  * Upsert social graph data, atomically where the driver allows it
  * (see `supportsTransactions`)
  */
 async function upsertSocialGraphWithTransaction(
-  rawResults: WalletSocialResult[]
+  rawResults: WalletSocialResult[],
+  progress?: WriteProgress
 ): Promise<number> {
   const db = getDb();
   if (!db) return 0;
@@ -372,10 +407,16 @@ async function upsertSocialGraphWithTransaction(
    * clauses is a guarantee that one of them will drift.
    */
   const writeAll = async (tx: TransactionLike): Promise<number> => {
-    let upserted = 0;
+    // Seeded with what an earlier attempt already committed, because those
+    // rows are in the table and did succeed. Counting only this attempt's
+    // batches would under-report `succeeded` on the job exactly when a retry
+    // rescued the write, which reads as data loss that did not happen.
+    let upserted = progress?.rowsCommitted ?? 0;
 
-    // Upsert in batches of 100
-    for (let i = 0; i < rows.length; i += 100) {
+    // Upsert in batches of 100, resuming past whatever a previous attempt
+    // already committed. Without a transaction those batches are still in the
+    // table, and re-running one bumps `lookup_count` a second time.
+    for (let i = progress?.rowsCommitted ?? 0; i < rows.length; i += 100) {
       const batch = rows.slice(i, i + 100);
 
       await tx
@@ -421,14 +462,23 @@ async function upsertSocialGraphWithTransaction(
         });
 
       upserted += batch.length;
+      // Recorded only after the statement returns, so a batch that threw is
+      // retried and one that committed is not.
+      if (progress) progress.rowsCommitted = i + batch.length;
     }
 
-    // Insert audit records alongside the rows they describe
+    // Insert audit records alongside the rows they describe. These are
+    // append-only, so a re-run duplicates history rather than corrupting a
+    // counter, but the cursor is kept for both so the two stay in step.
     if (auditRecords.length > 0) {
-      // Batch audit records too
-      for (let i = 0; i < auditRecords.length; i += 100) {
+      for (
+        let i = progress?.auditCommitted ?? 0;
+        i < auditRecords.length;
+        i += 100
+      ) {
         const auditBatch = auditRecords.slice(i, i + 100);
         await tx.insert(socialGraphHistory).values(auditBatch);
+        if (progress) progress.auditCommitted = i + auditBatch.length;
       }
     }
 
