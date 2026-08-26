@@ -990,7 +990,12 @@ export async function getUserCohorts(): Promise<
     name: string;
     definition: string;
     count: number;
-    avgLookups: number;
+    /**
+     * `null` where the average is not a measurement this query can make: an
+     * empty cohort, or one assembled from a table that carries no lookups.
+     * Never 0, which the panel renders as a measured zero.
+     */
+    avgLookups: number | null;
     /** `null` where a conversion rate is not a meaningful thing to compute. */
     conversionRate: number | null;
   }>
@@ -1022,7 +1027,9 @@ export async function getUserCohorts(): Promise<
     let tireKickerCount = 0;
     let tireKickerPaid = 0;
     let almostConvertedCount = 0;
+    let almostConvertedLookups = 0;
     let hitTheWallCount = 0;
+    let hitTheWallLookups = 0;
 
     for (const user of powerUsers) {
       const lookups = Number(user.lookupCount);
@@ -1034,7 +1041,10 @@ export async function getUserCohorts(): Promise<
       // not buying is the single most actionable state an account can be in,
       // and the `else if` ladder would have hidden most of it behind whichever
       // earlier arm happened to match first.
-      if (hasLimitHit && !hasPaid) hitTheWallCount++;
+      if (hasLimitHit && !hasPaid) {
+        hitTheWallCount++;
+        hitTheWallLookups += lookups;
+      }
 
       if (lookups >= 5 && hasExport) {
         powerUserCount++;
@@ -1045,8 +1055,25 @@ export async function getUserCohorts(): Promise<
         if (hasPaid) tireKickerPaid++;
       } else if (lookups >= 3 && !hasPaid) {
         almostConvertedCount++;
+        almostConvertedLookups += lookups;
       }
     }
+
+    /**
+     * Every average is summed, never asserted from the definition.
+     *
+     * Three of these rows used to state a constant in the average column, and
+     * the column is labelled "Avg lookups" so the table rendered each of them
+     * as a measurement. "Almost converted" is defined as `>= 3` and reported
+     * exactly 3, which is a floor wearing a mean's label; "Hit the free wall"
+     * reported 0 for accounts that by definition ran enough lookups to exhaust
+     * an allowance (Bugbot, 2026-08-26); "Churned paid" reported 0 for accounts
+     * this query never sees, because they come from a different table below.
+     *
+     * A cohort with no members has no average, and `null` says so. Zero is a
+     * measurement, and it was the wrong one.
+     */
+    const mean = (total: number, n: number) => (n > 0 ? total / n : null);
 
     // Churned paid users (paid but no activity in 30 days). "Paid" is a legacy
     // tier or a bought lot; a pack never sets `tier`, so the tier test alone
@@ -1075,17 +1102,20 @@ export async function getUserCohorts(): Promise<
         name: 'Power users',
         definition: '5+ lookups, exports regularly',
         count: powerUserCount,
-        avgLookups: powerUserCount > 0 ? powerUserLookups / powerUserCount : 0,
+        avgLookups: mean(powerUserLookups, powerUserCount),
         conversionRate:
-          powerUserCount > 0 ? (powerUserPaid / powerUserCount) * 100 : 0,
+          powerUserCount > 0 ? (powerUserPaid / powerUserCount) * 100 : null,
       },
       {
         name: 'Tire kickers',
         definition: '1 lookup, no export',
         count: tireKickerCount,
-        avgLookups: 1,
+        // The one constant that is not an assertion: this cohort is defined as
+        // `lookups === 1`, so the mean of its members is 1 exactly. Still null
+        // when there are no members, because the mean of nothing is not 1.
+        avgLookups: tireKickerCount > 0 ? 1 : null,
         conversionRate:
-          tireKickerCount > 0 ? (tireKickerPaid / tireKickerCount) * 100 : 0,
+          tireKickerCount > 0 ? (tireKickerPaid / tireKickerCount) * 100 : null,
       },
       {
         name: 'Almost converted',
@@ -1094,21 +1124,24 @@ export async function getUserCohorts(): Promise<
         // honestly instead of asserted in a caption.
         definition: '3+ lookups, never paid',
         count: almostConvertedCount,
-        avgLookups: 3,
+        avgLookups: mean(almostConvertedLookups, almostConvertedCount),
         conversionRate: null,
       },
       {
         name: 'Hit the free wall',
         definition: 'Refused by the free allowance, never paid',
         count: hitTheWallCount,
-        avgLookups: 0,
+        avgLookups: mean(hitTheWallLookups, hitTheWallCount),
         conversionRate: null,
       },
       {
         name: 'Churned paid',
         definition: 'Paid but no activity in 30d',
         count: churnedResult[0]?.count ?? 0,
-        avgLookups: 0,
+        // Counted from `users` by the query above, which carries no event
+        // history, so this cohort's lookup count is not merely zero: it is not
+        // known here at all.
+        avgLookups: null,
         // Was 100, which rendered as a 100% conversion rate and read as the
         // best-performing cohort on the panel. Everyone here has paid by
         // definition, so the column has nothing to say about them.

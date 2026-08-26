@@ -2117,6 +2117,67 @@ async function main() {
       );
 
       /**
+       * A cohort's average is summed, never asserted from its definition.
+       *
+       * Three rows stated a constant in a column headed "Avg lookups", so the
+       * table rendered each as a measurement: "Almost converted" reported
+       * exactly 3, which is its own floor; "Hit the free wall" reported 0 for
+       * accounts defined by having exhausted an allowance (Bugbot, 2026-08-26);
+       * "Churned paid" reported 0 for accounts that query never sees.
+       *
+       * Read off the source rather than by calling it, because the cohorts need
+       * a database and this file must run without one. The three accumulators
+       * are what make the averages real, so their absence is the defect.
+       */
+      const cohorts = code.slice(
+        code.indexOf('export async function getUserCohorts'),
+        code.indexOf('export async function getRetentionCohorts')
+      );
+      ok(
+        'every cohort average is divided from an accumulated total',
+        /hitTheWallLookups \+= lookups/.test(cohorts) &&
+          /almostConvertedLookups \+= lookups/.test(cohorts) &&
+          /powerUserLookups \+= lookups/.test(cohorts)
+      );
+      /**
+       * No bare number, not merely no zero.
+       *
+       * The first version of this forbade `avgLookups: 0` specifically, and the
+       * guard duly replaced an accumulator with `avgLookups: 3` and went
+       * undetected: forbidding the one wrong constant that was there leaves
+       * every other wrong constant available. The accumulator assertion above
+       * did not catch it either, because a mutation that stops *reading* an
+       * accumulator leaves the `+=` line perfectly intact.
+       *
+       * So the rule is what the column means rather than what it once said: an
+       * average is divided from a total, or it is `null`. `Tire kickers` is the
+       * one cohort defined as exactly one lookup, and it still has to say
+       * `null` for the empty case, so it satisfies this too.
+       */
+      const averages = cohorts.match(/avgLookups:[^\n]*/g) ?? [];
+      ok(
+        `every cohort average is a division or a null (${averages.length} cohorts)`,
+        averages.length >= 5 &&
+          averages.every((a) => a.includes('mean(') || a.includes('null'))
+      );
+      ok(
+        'the average check rejects a bare literal, so it can fail',
+        !['avgLookups: 3,'].every(
+          (a) => a.includes('mean(') || a.includes('null')
+        )
+      );
+      ok(
+        'the empty-cohort average is null, so the mean of nothing is not a number',
+        /n > 0 \? total \/ n : null/.test(cohorts)
+      );
+      ok(
+        'the pane renders an unmeasurable cell rather than a figure',
+        /avgLookups === null/.test(
+          readFileSync('components/admin/GrowthRetention.tsx', 'utf8')
+        )
+      );
+
+      /**
        * One definition of conversion, and no invented denominator.
        *
        * There were three rates under the word "conversion" on three panes, and

@@ -42,9 +42,27 @@ interface CohortData {
   name: string;
   definition: string;
   count: number;
-  avgLookups: number;
+  /** `null` where the average is not something this query can measure. */
+  avgLookups: number | null;
   /** `null` where a conversion rate is not a meaningful thing to compute. */
   conversionRate: number | null;
+}
+
+/**
+ * A cell with nothing to measure reads as a hyphen, never as a number.
+ *
+ * The same mark the retention and payments tables already use for an absent
+ * cell. Both numeric columns in the cohort table need it: "Hit the free wall"
+ * reported `avgLookups: 0` for accounts defined by having exhausted an
+ * allowance, and the column header says "Avg lookups", so the table presented
+ * that zero as a measurement.
+ */
+function NotMeasured({ reason }: { reason: string }) {
+  return (
+    <span className="text-muted-foreground" title={reason}>
+      -
+    </span>
+  );
 }
 
 interface FeatureData {
@@ -361,23 +379,19 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
                       {cohort.count}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      {cohort.avgLookups.toFixed(1)}
+                      {cohort.avgLookups === null ? (
+                        <NotMeasured reason="No lookup history is available for this cohort" />
+                      ) : (
+                        cohort.avgLookups.toFixed(1)
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      {/* A hyphen where the rate is not a meaningful thing to
-                          compute, never a number, and the same mark the
-                          retention table and the payments table already use for
-                          an absent cell. "Churned paid" used to carry a
-                          hardcoded 100, which rendered as the best-converting
-                          cohort on the panel; everyone in it has paid by
-                          definition, so the column has nothing to say. */}
+                      {/* "Churned paid" used to carry a hardcoded 100, which
+                          rendered as the best-converting cohort on the panel;
+                          everyone in it has paid by definition, so the column
+                          has nothing to say. */}
                       {cohort.conversionRate === null ? (
-                        <span
-                          className="text-muted-foreground"
-                          title="A conversion rate does not apply to this cohort"
-                        >
-                          -
-                        </span>
+                        <NotMeasured reason="A conversion rate does not apply to this cohort" />
                       ) : (
                         /* Three tiers, two colours. A high rate is a measured
                            good outcome, so green; a low one is worth a look, so

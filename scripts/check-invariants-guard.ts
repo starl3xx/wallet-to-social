@@ -130,6 +130,24 @@ const MUTATIONS: Mutation[] = [
     to: 'return String(d);',
   },
   {
+    name: 'the wall cohort reports a zero average for accounts that ran lookups (Bugbot, 2026-08-26)',
+    file: 'lib/analytics.ts',
+    from: 'avgLookups: mean(hitTheWallLookups, hitTheWallCount),',
+    to: 'avgLookups: 0,',
+  },
+  {
+    name: 'a cohort average goes back to being asserted from its own definition',
+    file: 'lib/analytics.ts',
+    from: 'avgLookups: mean(almostConvertedLookups, almostConvertedCount),',
+    to: 'avgLookups: 3,',
+  },
+  {
+    name: 'the mean of an empty cohort becomes 0 instead of unmeasured',
+    file: 'lib/analytics.ts',
+    from: 'const mean = (total: number, n: number) => (n > 0 ? total / n : null);',
+    to: 'const mean = (total: number, n: number) => (n > 0 ? total / n : 0);',
+  },
+  {
     name: 'a session-funnel alias loses its quotes and folds to lower case',
     file: 'lib/analytics.ts',
     from: 'count(*) FILTER (WHERE ran_lookup)::int AS "ranLookup",',
