@@ -18,6 +18,12 @@ import { RefreshButton } from './RefreshButton';
 import { Empty, Loading } from './PaneState';
 
 interface FunnelData {
+  /** False when the query failed and every count below is an invented zero. */
+  ok?: boolean;
+  /** Distinct browser sessions, automated traffic included. */
+  sessions: number;
+  /** Sessions that did more than arrive once. See getUserFunnel. */
+  engagedSessions: number;
   pageViews: number;
   csvUploads: number;
   lookupsStarted: number;
@@ -166,8 +172,36 @@ export function UserBehavior({ password }: UserBehaviorProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {funnel?.ok === false && (
+            <p className="mb-4 text-sm text-caution">
+              The funnel query failed, so every count below is a zero this panel
+              produced rather than measured. Check the server log for
+              &ldquo;User funnel error&rdquo;.
+            </p>
+          )}
           {funnel && (
             <div className="grid grid-cols-3 gap-4 md:grid-cols-6">
+              {/* Sessions first, and both of them. The gap between the two
+                  is the finding: a link auction sent 1,321 sessions at this
+                  site in two days and 1,220 recorded a single event and
+                  nothing else. Showing only the raw count makes the product
+                  look fifteen times worse at converting than it is; showing
+                  only the engaged count quietly discards traffic somebody
+                  paid for. */}
+              <FunnelStep
+                label="Sessions"
+                count={funnel.sessions}
+                rate={funnel.sessions ? 100 : null}
+              />
+              <FunnelStep
+                label="Engaged"
+                count={funnel.engagedSessions}
+                rate={
+                  funnel.sessions
+                    ? (funnel.engagedSessions / funnel.sessions) * 100
+                    : null
+                }
+              />
               <FunnelStep
                 label="Page views"
                 count={funnel.pageViews}

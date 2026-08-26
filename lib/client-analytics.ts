@@ -4,8 +4,14 @@ import type { AnalyticsEventType } from './analytics';
 import type { PaidTier } from '@/lib/access';
 import type { PackId } from '@/lib/packs';
 
-// Get or create a session ID for tracking
-function getSessionId(): string {
+/**
+ * The browser session id, created on first use.
+ *
+ * Exported because the job endpoints need to send it: a lookup is the one
+ * event this product cares most about and it is emitted server-side, so the
+ * only way it carries a session is for the browser to hand one over.
+ */
+export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
 
   let sessionId = sessionStorage.getItem('analytics_session_id');

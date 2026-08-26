@@ -33,6 +33,49 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'lookup_started loses its session, so the funnel cannot join a visit',
+    file: 'app/api/jobs/route.ts',
+    from: "    trackEvent('lookup_started', {\n      userId: effectiveUserId || email,\n      sessionId: browserSession,",
+    to: "    trackEvent('lookup_started', {\n      userId: effectiveUserId || email,",
+  },
+  {
+    name: 'the session is used for one event but never stored on the job',
+    file: 'app/api/jobs/route.ts',
+    from: '      sessionId: browserSession,\n      // Only a signed-in account can be debited; see JobOptions.meteredUserId.',
+    to: '      // Only a signed-in account can be debited; see JobOptions.meteredUserId.',
+  },
+  {
+    name: 'a posted session id is trusted instead of validated',
+    file: 'app/api/jobs/route.ts',
+    from: '.test(\n        sessionId\n      )',
+    to: '.test(String(Math.random()))',
+  },
+  {
+    name: 'the partial-write completion stops carrying the session',
+    file: 'lib/job-processor.ts',
+    from: '        sessionId: job.sessionId ?? undefined,',
+    to: '',
+  },
+  {
+    name: 'the Stripe pack grant stops booking the sale',
+    file: 'lib/credits.ts',
+    from: "    await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);\n",
+    to: '',
+  },
+  {
+    name: 'the onchain pack grant stops booking the sale',
+    file: 'lib/credits.ts',
+    from: "    await bookSale(userId, pack, amountCents, 'x402', settlementId);\n",
+    to: '',
+  },
+  {
+    name: 'the sale is left floating, so a serverless runtime may discard it',
+    file: 'lib/credits.ts',
+    from: "    await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);",
+    to: "    bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);",
+  },
+
+  {
     name: 'a chain loses its mark, so the tile renders empty',
     file: 'components/ui/chain-marks.tsx',
     from: '  robinhood: RobinhoodMark,',
