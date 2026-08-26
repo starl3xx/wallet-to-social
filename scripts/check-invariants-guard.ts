@@ -33,6 +33,23 @@ interface Mutation {
 
 const MUTATIONS: Mutation[] = [
   {
+    name: 'an unreached wallet is cached as empty (Bugbot, 2026-08-25, High)',
+    file: 'lib/job-processor.ts',
+    from: '            if (apiFailedWallets.has(wl)) return null;\n',
+    to: '',
+  },
+  {
+    // A real reorder, not an extra copy. The first version of this mutation
+    // added a second check after the branch and left the first in place, so the
+    // code stayed correct and the guard reported it undetected: a mutation that
+    // introduces no defect proves nothing about the assertion above it.
+    name: 'the unreached check runs after the branch that caches the negative',
+    file: 'lib/job-processor.ts',
+    from: '            if (apiFailedWallets.has(wl)) return null;\n            const r = results.get(wl)!;',
+    to: '            const r = results.get(wl)!;\n            if (apiFailedWallets.has(wl) && r.source.length > 0) return null;',
+  },
+
+  {
     name: 'the deadline skips wallets without recording them as unreached',
     file: 'lib/web3bio.ts',
     from: '        errorCount++;\n        opts?.failedWallets?.add(wallet.toLowerCase());\n      }\n      break;',

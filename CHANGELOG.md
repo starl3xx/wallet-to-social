@@ -69,7 +69,13 @@ All notable changes to walletlink.social. Newest first.
   last month happened on 13 August, when roughly half of every batch went
   unreached; since 17 August there have been three. The earlier reading averaged
   a single incident across a month and reported it as steady state.
-- 12 assertions and 5 mutations, 265 and 97.
+- **The cache was the other half of it, and it was missed.** `failedWallets`
+  blocks the 30-day graph negative, and an unreached wallet still fell into the
+  `['none']` branch of the 7-day `wallet_cache` write: cached as "checked, has
+  nothing", read by later lookups, which then skipped the APIs entirely. Same
+  failure the deadline exists to prevent, on the shorter of the two TTLs, which
+  is why guarding only the graph looked complete. Found by Bugbot, High.
+- 15 assertions and 7 mutations, 268 and 99.
 
 ### 2026-08-25 (a lookup now belongs to a visit, and a sale is recorded)
 

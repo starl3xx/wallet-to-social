@@ -1784,6 +1784,38 @@ async function main() {
       'the skipped wallets also count as errors, so the batch is not reported clean',
       /errorCount\+\+/.test(bailBlock)
     );
+    /**
+     * Both negatives, not just the long one (Bugbot, 2026-08-25, High).
+     *
+     * A wallet nobody reached must not be written as "checked, has nothing" on
+     * either path. `apiFailedWallets` blocked the 30-day graph negative and not
+     * the 7-day cache one: a skipped wallet has no socials and no source, so it
+     * fell into the `['none']` branch and was cached as a negative that later
+     * lookups trusted, skipping the APIs entirely. Guarding only the graph
+     * looked complete because it is the negative anybody thinks about.
+     */
+    const jp = withoutComments(readFileSync('lib/job-processor.ts', 'utf8'));
+    const cacheAt = jp.indexOf('const walletsToCache');
+    const cacheBlock = jp.slice(
+      cacheAt,
+      jp.indexOf('cacheWalletResults', cacheAt)
+    );
+    ok(
+      'an unreached wallet is never cached as a negative',
+      /apiFailedWallets\.has\([a-z]+\)\)\s*return null;/.test(cacheBlock)
+    );
+    ok(
+      'the unreached check runs before the none branch that would cache it',
+      cacheBlock.indexOf('apiFailedWallets.has') <
+        cacheBlock.indexOf("source: ['none']")
+    );
+    // Prove the none branch still exists, or the assertion above passes
+    // against code that simply stopped caching negatives at all.
+    ok(
+      'genuine negatives are still cached',
+      cacheBlock.includes("source: ['none']")
+    );
+
     // A truncated batch and an upstream failure are different events.
     ok(
       'a batch that ran out of time says so rather than blaming the upstream',

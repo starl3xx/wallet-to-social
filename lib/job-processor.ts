@@ -547,7 +547,25 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       try {
         const walletsToCache = uncachedWallets
           .map((w) => {
-            const r = results.get(w.toLowerCase())!;
+            const wl = w.toLowerCase();
+            /**
+             * A wallet nobody reached is not a wallet with nothing (Bugbot,
+             * 2026-08-25, High).
+             *
+             * `apiFailedWallets` already blocks the 30-day graph negative, and
+             * the deadline adds every wallet it skips to it. It did not block
+             * this one: a skipped wallet has no socials and no source, falls
+             * into the `['none']` branch below, and is cached as "checked, has
+             * nothing" for seven days. Later lookups read that and skip the
+             * APIs, so the false negative outlives the incident that caused it
+             * and no retry corrects it.
+             *
+             * Same failure the deadline was written to avoid, on the shorter
+             * of the two TTLs, which is why guarding only the graph looked
+             * complete.
+             */
+            if (apiFailedWallets.has(wl)) return null;
+            const r = results.get(wl)!;
             if (r.source.includes('cache')) return null;
             const hasSocial =
               r.twitter_handle ||
