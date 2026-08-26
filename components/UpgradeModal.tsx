@@ -16,6 +16,7 @@ import { XMark } from '@/components/ui/brand-marks';
 import {
   Check,
   CircleNotch as Loader2,
+  Drop,
   Lightning,
   Rocket,
   TrendUp,
@@ -62,27 +63,45 @@ function approxWallets(matches: number): string {
  * The pack marked when nothing about the buyer's list is known.
  *
  * There is always exactly one, because "one primary action per view, stated at
- * a different scale" needs something to be primary. With four outline buttons
+ * a different scale" needs something to be primary. With five outline buttons
  * and no mark, the modal asked a question instead of making a recommendation.
  *
- * Campaign rather than Trial: it keeps the $99 headline five comparison pages
- * already carry, and it is the rung that covers a real launch.
+ * **Starter, and it moved here from Campaign when Starter arrived.** This
+ * branch is the no-wallet-count branch: nothing was uploaded, so the modal was
+ * opened by a feature gate rather than by a file too big to run. That person
+ * wants the reverse-lookup column, the export or the contract import, and
+ * `hasPaidAccess` is binary, so the smallest rung opens exactly as much as the
+ * largest one. Recommending $99 to somebody who has bought nothing prices the
+ * key at the volume, and the volume is the part they cannot yet estimate.
+ *
+ * The ladder makes this safe rather than merely kind. Every rung is cheaper per
+ * match than the one below it, so a Starter buyer who needs more is never
+ * trapped: stepping up is the cheaper way to get more, by construction. The
+ * measured history is the other half of the argument: paid credit lots, all
+ * time, zero, against a $29 floor. A recommendation nobody takes converts at
+ * the same rate whatever number is printed on it.
  */
-const DEFAULT_SUGGESTION: PackId = 'campaign';
+const DEFAULT_SUGGESTION: PackId = 'starter';
 
 /**
  * One icon per pack, in a tinted enclosure.
  *
  * A pack card carries four short lines and nothing else, because the features
- * are shared and stating them four times would imply a difference that does not
- * exist. That left the cards thin. An icon gives each one something to lead
+ * are shared and stating them once per card would imply a difference that does
+ * not exist. That left the cards thin. An icon gives each one something to lead
  * with, which is what the two-tier modal this replaces had and what it was
  * missing.
+ *
+ * They read as one size ladder: a drop, a bolt, a launch, a rising line, a
+ * stack. Starter takes `Drop` because it is the smallest amount of the same
+ * thing rather than a different kind of thing, and because a single filled
+ * shape is still legible at 16px where a busier mark is not.
  *
  * The enclosure matters: per the affordance table an icon inside one reads as a
  * control, and an icon beside bare text reads as identification. These identify.
  */
 const PACK_ICON: Record<PackId, typeof Lightning> = {
+  starter: Drop,
   trial: Lightning,
   campaign: Rocket,
   scale: TrendUp,
@@ -101,14 +120,26 @@ const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
 /**
  * What every pack includes, said once below the cards. Keyed because one
  * item carries the platform mark and so is not a string.
+ *
+ * Only things a free account really does not have. Two entries here were free
+ * until 2026-08-26: "Full CSV export, never capped", which `ExportButton`
+ * gates on nothing at all, and "X reachability on every match", which
+ * `stampReachability` writes for every result set. Selling the free half of
+ * the product from inside the buy-credits modal is the worst place in the
+ * app to get this wrong. Read the gate before adding a line.
+ *
+ * What IS gated on the export is the X list button, and what is gated on the
+ * results is `priority_score` and `fc_followers`: `job-processor` sets both to
+ * undefined when `paidData` is false, so they are missing from the free CSV as
+ * well as from the table.
  */
 const INCLUDED: { key: string; label: React.ReactNode }[] = [
   { key: 'chains', label: `All ${CHAIN_COUNT_WORD} chains` },
-  { key: 'csv', label: 'Full CSV export, never capped' },
+  { key: 'columns', label: 'Priority score and follower counts' },
   { key: 'api', label: 'API and MCP server, drawing the same credits' },
   { key: 'reverse', label: 'Reverse lookup: handle → wallets' },
   { key: 'ens', label: 'Deep scan with onchain ENS' },
-  { key: 'x', label: <>{X_IN_COPY} reachability on every match</> },
+  { key: 'x', label: <>{X_IN_COPY} list export, reachable handles only</> },
   { key: 'contract', label: 'Import from a contract address' },
   { key: 'dms', label: 'Farcaster DMs to matched holders' },
   { key: 'expiry', label: `Credits last ${CREDIT_LIFETIME_MONTHS} months` },
@@ -194,6 +225,10 @@ export function UpgradeModal({
    * is the wrong recommendation however well it matches their spend. Falls
    * through to the largest pack, which is the honest answer when nothing fits:
    * buy the biggest and run it in two passes.
+   *
+   * `find` takes the first hit, so this is correct only while `PACK_IDS` runs
+   * smallest first. It does, Starter included, and `scripts/check-invariants.ts`
+   * asserts the match counts ascend.
    */
   const suggested: PackId = walletCount
     ? (PACK_IDS.find(
@@ -256,15 +291,26 @@ export function UpgradeModal({
             {error && <InlineError>{error}</InlineError>}
           </div>
 
-          {/* Four packs. One column on a phone, two from `sm`, four from `lg`,
-              because four cards at tablet width leave each one too narrow to
-              hold a price and a match count on separate lines.
+          {/* Five packs. One column on a phone, two from `sm`, three from `md`,
+              five from `lg`. The step at `md` is what five cards need that four
+              did not: two columns leave a single card alone on the last row,
+              and three divides five as 3 + 2, which is the smaller orphan.
+
+              Five across only at `lg`, where the modal is at its 5xl cap and
+              the body's `p-6` leaves 976px: five cards and four 12px gaps put
+              186px on each, against the 131px that four columns would have at
+              the `sm` viewport where the modal is 608px wide, which is what
+              made four-at-`sm` too narrow to hold a price and a match count on
+              separate lines. A ladder is read along one line, so the full row
+              is worth the width it takes, and it is the row the ladder was
+              designed to be read as: cheapest first, each rung cheaper per
+              match than the last.
 
               No `overflow-y-auto` here. It made this grid a clipping context,
               and the badge that sits above the suggested card's top edge was
               cut in half by it. The modal body already scrolls, which is where
               scrolling belongs; `pt-3` is the room the badge needs. */}
-          <div className="grid gap-3 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 pt-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             {PACK_IDS.map((id) => {
               const pack = PACKS[id];
               const isSuggested = suggested === id;
@@ -372,8 +418,8 @@ export function UpgradeModal({
           </div>
 
           {/* Said once, below the cards, rather than repeated as a feature
-              bullet on all four. Every pack carries every one of these, so
-              listing them per card would be four identical lists and would
+              bullet on all five. Every pack carries every one of these, so
+              listing them per card would be five identical lists and would
               imply a difference between the rungs that does not exist.
 
               The check is `attested`, the one green, at UI scale with no disc.

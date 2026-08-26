@@ -2,6 +2,123 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-26 (somewhere to go, and something to buy)
+
+Three changes that share one shape: the product had already opened the door and
+had not told anyone, or had not put anything behind it.
+
+- **A first action that needs nothing** (`lib/starter-collections.ts`,
+  `components/StarterCollections.tsx`, `GET /api/starter-collections`). Every
+  way into this product asked the visitor to bring a CSV, a contract address or
+  a handle, and a signed-in account with no history saw an empty screen:
+  `LookupHistory` renders `null` at zero rows. Fifteen of 139 accounts have ever
+  run a saved lookup. The homepage now offers three of our own seeded
+  collections and runs 100 holders of one on a press.
+- **What it saves is the import, not the resolution.** The holder lists are
+  already in `wallet_holdings`, so nobody has to upload one and nobody pays for
+  a contract import. The wallets are then resolved like any other list: the seed
+  cron writes the holdings whether or not it had the budget to resolve them, and
+  a mean of 71 wallets in a 100-wallet sample have never been checked. A first
+  draft of this said the run "costs no external API call at all", which was the
+  same confident-and-unchecked shape the invariants file exists for; the meter
+  is what makes this safe to offer to an account with no credits, not an absence
+  of cost.
+- **A run is capped at a quarter of the free allowance, not all of it.** The
+  cap is the worst case, because every wallet in a sample might match, and the
+  panel offers the MOST reachable collections it can find, which is the opposite
+  end of the distribution `MEASURED_MATCH_RATE` describes. Measured, the three
+  cards resolve 85, 25 and 35 of their first 100 wallets, so the original
+  100-wallet cap would have spent 85 of the 100 free matches on one press. It is
+  25 now, which leaves a whole median list to try your own data on.
+- **`POST /api/jobs` takes `{ collection }` in place of `{ wallets }`**, expanded
+  at the top of the handler so the IP limit, `canSubmit`, the per-lookup ceiling,
+  the credit meter and the analytics all see an ordinary lookup. No new gate, no
+  separate allowance, no way in that skips the meter. `input_source` is
+  `starter_collection`, set server-side, so the funnel can tell the action that
+  needed nothing from the one that needed a contract.
+- **A collection that is not seeded is refused before a wallet is read.**
+  Without that this is an unmetered import of anybody's holders, on any chain, at
+  our expense. The cap is `FREE_MATCHES_PER_WINDOW`, tied to the allowance rather
+  than to the per-lookup ceiling, which is five times larger and would leave a
+  first-time visitor nothing to try next.
+- **The holder report's CTA carries its collection.** It was a bare link to the
+  homepage, dropping the collection the reader had just read about at the door.
+- **A $10 pack, 75 matches, and it is the entry rung.** Free ends at 100 matches
+  and the next thing to buy cost $29. Paid credit lots, all time: zero. 75 is the
+  modal single job (the median real list is 300 wallets, which is 71 matches at
+  the measured rate), the same derivation Trial uses one rung up for the modal
+  person-month. $10 rather than $9 because 75 matches at Trial's per-match price
+  is $8.70: a $9 rung would sit within a cent of Trial and teach a buyer nothing.
+- **Trial's `fits` moved from "One list, once" to "A month of lists".** That
+  sentence describes Starter now, and Trial was never one list.
+- **Every surface that meant "the cheapest thing you can buy" now reads
+  `PACKS[PACK_IDS[0]]`** rather than naming Trial: six comparison pages, the
+  pricing metadata, the price ranges. One of them was a table row headed
+  "Cheapest option with X matching", which a fifth pack made false by
+  construction.
+- **The buy-credits modal suggests Starter by default**, where it suggested
+  Campaign. That branch only runs when no wallet count is known, which means a
+  feature gate opened the modal rather than a file. `hasPaidAccess` is binary, so
+  the smallest rung unlocks exactly what the largest does; recommending $99 to
+  somebody who has bought nothing prices the key at the volume, and the volume is
+  the part they cannot yet estimate.
+- **welcome-4 was about to sell two paid features to free readers.** The gate
+  fix shipped on 25 August (#191) and nothing reconciled the copy under it: the
+  email's two selling points, reverse lookup and priority ranking, are both
+  credit-gated, and the button beneath them read "Run a free lookup". It now
+  sells the split the product actually ships, free tells you how many wallets
+  carry a handle and credits tell you which ones, under a CTA a free account can
+  press. First send was 1 September, so nobody received the old one.
+- **welcome-1's first instruction was the one thing the reader could not do.**
+  It opened with "Paste a contract address, or upload a CSV"; contract import is
+  credit-gated. Upload and paste lead now, and the paid set is named once,
+  plainly, instead of being left to inference.
+- **welcome-5 reads `PACKS[PACK_IDS[0]]`.** The sequence's only ask named Trial
+  by hand, so the day Starter landed the only sales email was pointing at the
+  second rung with nothing failing.
+- **The CSV export was being sold, and it was already free.** `ExportButton`
+  branches only the X list on `entitled`; the CSV button has no gate at all. So
+  does X reachability, which `stampReachability` writes for every result set.
+  Both were nonetheless listed as pack features in the buy-credits modal, in
+  `PackPricing` on `/pricing` and six comparison pages, in the schema.org FAQ
+  answer that ships in every page's head, in `/llms.txt`, in the published docs,
+  in `PROJECT_OVERVIEW.md` and in two lifecycle emails. It is welcome-4's defect
+  pointing the other way: copy written from what the product was assumed to
+  charge for instead of from the gate. Nine surfaces now name only features a
+  free account really does not have, each checked one item at a time.
+- **The line is drawn on the fields, not on the file.** `job-processor` sets
+  `priority_score` and `fc_followers` to undefined whenever `paidData` is false,
+  so those two columns are blank in a free CSV as well as locked in the table.
+  A first pass at the docs fix asserted the opposite, that priority score "is in
+  the CSV on every plan", which was written from the export code without reading
+  the processor that fills it. Both halves are stated separately now, on every
+  surface that mentions either.
+- **Sixteen assertions and eleven mutations, 284 and 110.** Four of the
+  mutations hold the pack ladder (per-match price only ever falls, `PACK_IDS[0]`
+  really is the cheapest, the ascending finder cannot recommend too large a
+  pack, no two packs share a Stripe price variable), one holds the sales email
+  to the entry rung, two hold `starter` apart from the retired tier of the same
+  name, and the rest hold the starter path.
+- **Three of the new assertions could pass over the thing they protect**, and
+  each was found by writing the mutation rather than by reading the assertion.
+  Two used a bare `indexOf` comparison, which answers -1 for an identifier that
+  is not there at all, so a deleted gate sorted before everything and satisfied
+  both. The third asserted that `getHolderCollection(` precedes
+  `wallet_holdings`, which stays true when the lookup is kept for its name and
+  only `if (!collection) return null;` is deleted: that compiles under
+  `collection?.` and expands any contract on any chain. The refusal is the
+  middle term now.
+- **`npx tsx scripts/check-invariants-guard.ts` does not survive being killed.**
+  It restores each mutation in a `finally`, which SIGTERM skips, and a run
+  cancelled at a timeout left a real defect (uploaded CSV columns overwriting
+  pipeline fields, #189) sitting in the working tree. Let it finish.
+
+Not shipped with this: the live Stripe price for Starter.
+`STRIPE_PRICE_PACK_STARTER` is in `.env.example` and the admin health endpoint
+derives its required list from `PACK_IDS`, so Payments reports critical until the
+value is set in each environment. Until then `/api/checkout` answers that pack
+with an error the buyer reads verbatim.
+
 ### 2026-08-25 (three blind spots, closed)
 
 - **`/api/reverse` now emits an event.** The app's reverse lookup, the primary

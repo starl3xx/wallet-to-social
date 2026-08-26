@@ -84,7 +84,8 @@ Credit packs, bought once and metered in **matches**. A match is a wallet resolv
 | Pack     | Price | Matches                 | Fits                            |
 | -------- | ----- | ----------------------- | ------------------------------- |
 | Free     | $0    | 100 per rolling 30 days | Trying it on a real list        |
-| Trial    | $29   | 250                     | One list, once                  |
+| Starter  | $10   | 75                      | One list, once                  |
+| Trial    | $29   | 250                     | A month of lists                |
 | Campaign | $99   | 1,500                   | A launch or an airdrop          |
 | Scale    | $299  | 6,000                   | Several lists, or one large one |
 | Index    | $899  | 25,000                  | Agencies and repeat work        |

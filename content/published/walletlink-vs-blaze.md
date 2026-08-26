@@ -58,6 +58,7 @@ The pricing models reflected the different product philosophies.
 | Pack     | Matches                 | Price         |
 | -------- | ----------------------- | ------------- |
 | Free     | 100 per rolling 30 days | $0            |
+| Starter  | 75                      | $10 one-time  |
 | Trial    | 250                     | $29 one-time  |
 | Campaign | 1,500                   | $99 one-time  |
 | Scale    | 6,000                   | $299 one-time |

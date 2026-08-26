@@ -19,7 +19,13 @@ export type InputSource =
   | 'contract_import'
   | 'reverse_lookup'
   | 'api'
-  | 'seed_cron';
+  | 'seed_cron'
+  // A collection we supplied the wallet list for, so a visitor with no data
+  // of their own still has a first action. Told apart from contract_import
+  // because that one is a paid import of a contract the caller chose, and
+  // conflating them would make the funnel unable to say which of the two
+  // earns an account (lib/starter-collections.ts).
+  | 'starter_collection';
 
 export async function saveLookup(
   results: WalletSocialResult[],

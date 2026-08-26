@@ -30,14 +30,32 @@ figure below is quoted against matches rather than wallets submitted.
 | Pack     | Price | Matches                 | Notes                                       |
 | -------- | ----- | ----------------------- | ------------------------------------------- |
 | Free     | $0    | 100 per rolling 30 days | Cumulative and account-wide, not per lookup |
-| Trial    | $29   | 250                     | One list, once                              |
+| Starter  | $10   | 75                      | One list, once                              |
+| Trial    | $29   | 250                     | A month of lists                            |
 | Campaign | $99   | 1,500                   | A launch or an airdrop                      |
 | Scale    | $299  | 6,000                   | Several lists, or one large one             |
 | Index    | $899  | 25,000                  | Agencies and repeat work                    |
 
-Every pack carries all seven chains, uncapped CSV export, API access on the same
-credits, reverse lookup, deep scan with onchain ENS, and X reachability on every
-match. One-time payments, not subscriptions. Credits last 12 months.
+Every pack carries all seven chains, the X list export, the wallet addresses
+behind a handle, contract import, Farcaster DMs, priority score and follower
+counts, deep scan with onchain ENS, and API and MCP access on the same credits.
+One-time payments, not subscriptions. Credits last 12 months.
+
+**What is free is free.** The CSV export is not gated at all (`ExportButton`
+branches only the X list on `entitled`), and neither is X reachability
+(`stampReachability` runs on every result set), the per-row evidence, or the
+wallet count behind a handle. This paragraph sold "uncapped CSV export" as a
+pack feature until 2026-08-26, and so did the buy-credits modal, `PackPricing`
+on `/pricing` and six comparison pages, the schema.org FAQ answer in every
+page's head, `/llms.txt`, the published docs and two lifecycle emails.
+
+**The gate is on the fields, not on the file.** `lib/job-processor.ts` sets
+`priority_score` and `fc_followers` to `undefined` for every row when
+`options.paidData` is false, so a free CSV has those two headers and blank
+cells beneath them. Both halves have to be said, and the first correction of
+the paragraph above got this wrong in the other direction by claiming the score
+was in the free CSV. Read `ExportButton` **and** `job-processor` before writing
+that something is or is not included.
 
 The prices live in `lib/packs.ts` and nowhere else: the modal, the checkout, the
 comparison pages and the schema.org offers all read them, so they cannot
@@ -49,7 +67,7 @@ keep exactly what they bought, permanently. `unlimited` carries one condition,
 an anti-enumeration ceiling of 1,000,000 wallets in a rolling 24 hours, which is
 75x the largest job anyone has ever run.
 
-**Starter was retired 2026-08-12.** It is no longer purchasable and no longer exists in code: `normalizeTier()` maps it to `free`. It was never purchased, so no account is affected.
+**The Starter _tier_ was retired 2026-08-12, and the Starter _pack_ is a different thing.** The tier is no longer purchasable and no longer exists in code: `normalizeTier()` recognises only `pro` and `unlimited`, so `'starter'` maps to `free`. It was never purchased, so no account is affected. The pack of the same name arrived on 2026-08-26 and is the entry rung in the table above. The string therefore appears on both sides of `PaidTier | PackId`, and nothing confuses them: the checkout resolves a price through `isPackId`, the webhook reads `metadata.pack` and reads `metadata.tier` only off historical payments. `scripts/check-invariants.ts` asserts both directions rather than leaving it to this paragraph.
 
 ### User Flow
 
@@ -86,6 +104,7 @@ wallet-to-social/
 │   │   ├── airstack/
 │   │   ├── blaze/
 │   │   ├── cookie3/          # `/vs/cookie` 308s here (see next.config.ts)
+│   │   ├── formo/
 │   │   └── holder/
 │   └── api/
 │       ├── jobs/             # Job queue endpoints
@@ -99,7 +118,8 @@ wallet-to-social/
 ├── components/
 │   ├── FileUpload.tsx        # CSV/Excel upload dropzone
 │   ├── ResultsTable.tsx      # Virtualized results table
-│   ├── UpgradeModal.tsx      # Checkout modal: the four pack cards, reads lib/packs.ts
+│   ├── UpgradeModal.tsx      # Checkout modal: one card per pack, reads lib/packs.ts
+│   ├── StarterCollections.tsx # First action: run a seeded collection, brings nothing
 │   ├── PackPricing.tsx       # Pack ladder on the /vs pages, reads lib/packs.ts
 │   ├── AccessBanner.tsx      # Header chip, Buy credits button, account menu
 │   ├── LookupHistory.tsx     # Saved lookups sidebar
@@ -111,6 +131,7 @@ wallet-to-social/
 │   ├── neynar.ts             # Neynar API client (Farcaster)
 │   ├── ens.ts                # ENS onchain lookups
 │   ├── packs.ts              # The pack ladder: prices, free window, guards
+│   ├── starter-collections.ts # Seed corpus as a first action; seeded contracts only
 │   ├── credits.ts            # The match ledger: balance, canSubmit, charge
 │   ├── access.ts             # Legacy tiers, whitelist, per-lookup limits
 │   ├── stripe.ts             # Stripe checkout (tier and pack sessions)
@@ -256,6 +277,17 @@ The core processing engine. Key functions:
 
 What is sold, in one place. `PACKS` (id, price in cents, matches, `priceEnvVar`), `CREDIT_LIFETIME_DAYS` (365), `FREE_MATCHES_PER_WINDOW` (100) and `FREE_WINDOW_DAYS` (30), `SUBMISSION_MULTIPLIER` (10), `LEGACY_UNLIMITED_DAILY_WALLETS` (1,000,000) and `MEASURED_MATCH_RATE` (0.237, display only, never billing). The file's comments record why each number is what it is.
 
+### `lib/starter-collections.ts`
+
+The first action for a visitor who has brought nothing. Reads the seed corpus (`seeded_contracts` and `wallet_holdings`, whose DDL is in `scripts/migrate-seed-tables.ts` and which are absent from `db/schema.ts`), so a run costs no external API call at all.
+
+- `listStarterCollections(limit)`: composed over `listHolderCollections()` so the homepage cards and the `/holders` hub cannot disagree about the listing floor
+- `getStarterWallets(chain, address)`: the wallets behind one collection, `STARTER_WALLET_CAP` of them. **Refuses anything that is not a row in `seeded_contracts`, before reading a wallet**, or this is a free bypass of the paid contract importer for any contract on any chain
+- `STARTER_WALLET_CAP` is a quarter of `FREE_MATCHES_PER_WINDOW`. The wallet count is the worst-case spend, since every wallet in the sample might match, and the panel offers the **most** reachable collections it can find, so `MEASURED_MATCH_RATE` is the wrong estimator for it: the top card resolves 85 of its first 100 wallets. A demonstration may cost a quarter of the allowance; `scripts/check-invariants.ts` holds the ratio
+- `parseStarterParam` / `buildStarterHref`: the `?collection=<chain>:<address>` link, deliberately a different parameter from `?contract=`, which sends an account with no credits to the buy-credits modal
+
+`POST /api/jobs` takes `{ collection }` in place of `{ wallets }` and expands it at the top of the handler, so the IP limit, `canSubmit`, the per-lookup ceiling, the credit meter and the analytics all apply to a starter run exactly as they apply to an upload. `input_source` is `starter_collection`, set server-side.
+
 ### `lib/credits.ts`
 
 The meter:
@@ -300,15 +332,16 @@ Main page orchestrating:
 
 ### User-Facing
 
-| Endpoint                    | Method     | Purpose                    |
-| --------------------------- | ---------- | -------------------------- |
-| `/api/jobs`                 | POST       | Create new lookup job      |
-| `/api/jobs/[id]`            | GET        | Get job status/results     |
-| `/api/history`              | GET/POST   | List/save lookup history   |
-| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup |
-| `/api/checkout`             | POST       | Create Stripe checkout     |
-| `/api/auth/send-magic-link` | POST       | Send login email           |
-| `/api/auth/verify`          | GET        | Verify magic link token    |
+| Endpoint                    | Method     | Purpose                               |
+| --------------------------- | ---------- | ------------------------------------- |
+| `/api/jobs`                 | POST       | Create new lookup job                 |
+| `/api/jobs/[id]`            | GET        | Get job status/results                |
+| `/api/starter-collections`  | GET        | Collections offered as a first action |
+| `/api/history`              | GET/POST   | List/save lookup history              |
+| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup            |
+| `/api/checkout`             | POST       | Create Stripe checkout                |
+| `/api/auth/send-magic-link` | POST       | Send login email                      |
+| `/api/auth/verify`          | GET        | Verify magic link token               |
 
 ### Public API (for external developers)
 
@@ -462,6 +495,7 @@ ALCHEMY_KEY=...                          # ENS onchain lookups
 # Stripe
 STRIPE_SECRET_KEY=...
 STRIPE_WEBHOOK_SECRET=...
+STRIPE_PRICE_PACK_STARTER=price_xxx      # $10, 75 matches
 STRIPE_PRICE_PACK_TRIAL=price_xxx        # $29, 250 matches
 STRIPE_PRICE_PACK_CAMPAIGN=price_xxx     # $99, 1,500 matches
 STRIPE_PRICE_PACK_SCALE=price_xxx        # $299, 6,000 matches
@@ -511,9 +545,11 @@ CONFLICT_RECHECK_CREDITS=300             # Resolver credits the daily conflict r
 
 ### Adding a new pack
 
-1. Add the entry to `PACKS` in `lib/packs.ts` with its price, match count and `priceEnvVar`
-2. Create the one-off Stripe price and set that env var
-3. Nothing else: the pricing modal, the checkout, the comparison pages (`PackPricing.tsx`) and the schema.org offers in `app/layout.tsx` all read `PACKS`
+1. Add the entry to `PACKS` in `lib/packs.ts` with its price, match count and `priceEnvVar`, in ladder position: the key order **is** the display order, and three call sites find a pack by walking `PACK_IDS` until one is big enough
+2. Create the one-off Stripe price and set that env var in every environment. `scripts/create-test-packs.ts` makes the test-mode price; the live one is made by hand. Until it is set, `/api/checkout` answers that pack with a 500 the buyer reads verbatim, and the admin health page reports Payments critical
+3. Run `npx tsx scripts/check-invariants.ts`. It asserts the ladder only ever gets cheaper per match, that `PACK_IDS[0]` really is the cheapest, that the ascending finder still works and that no two packs share a Stripe price variable
+4. Sweep the surfaces that do **not** derive. Most read `PACKS`, but adding the fifth pack on 2026-08-26 still touched twenty files: the two grids hardcode a column count, six `/vs` pages and four blog posts name a price in prose, and the published table in `docs-site/app/lookups.mdx`, the README, `docs/AI-SEARCH.md` and `.agents/product-marketing.md` are all hand-written. This step used to read "nothing else", which was wrong every time it was followed
+5. Set `system_prompt_ai_search` on both Cloudflare AI Search instances, which is outside this repo (`docs/AI-SEARCH.md`)
 
 ### Adding a new data source
 
@@ -668,8 +704,10 @@ print them. This is the same split `/check` publishes in prose; the public
 
 ## Recent Changes (2026-08-21)
 
-- **Credit packs replace tiers.** Four packs in `lib/packs.ts`: `trial` ($29, 250
-  matches), `campaign` ($99, 1,500), `scale` ($299, 6,000), `index` ($899, 25,000).
+- **Credit packs replace tiers.** Five packs in `lib/packs.ts`: `starter` ($10, 75
+  matches, added 2026-08-26), `trial` ($29, 250), `campaign` ($99, 1,500),
+  `scale` ($299, 6,000), `index` ($899, 25,000). The key order is the ladder, and
+  `PACK_IDS[0]` is what every surface calls the entry price.
   One-time Stripe checkout (`mode: 'payment'`, `createPackCheckoutSession`), granted as
   a `credit_lots` row. A purchase never changes `users.tier`.
 - **The unit is a match**: a wallet resolved to an X handle or a Farcaster account.

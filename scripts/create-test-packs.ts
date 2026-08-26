@@ -1,5 +1,5 @@
 /**
- * Create the four pack prices in Stripe TEST mode.
+ * Create the five pack prices in Stripe TEST mode.
  *
  * Usage: npx tsx --env-file=.env.local scripts/create-test-packs.ts
  *
@@ -8,7 +8,7 @@
  * key is what the app and `check-stripe-packs.ts` need, and swapping it back
  * and forth to run this is how the wrong one ends up in place afterwards.
  *
- * ## Why a script rather than four visits to the dashboard
+ * ## Why a script rather than five visits to the dashboard
  *
  * The amounts come from `lib/packs.ts`, so they cannot be mistyped, and the
  * prices cannot be created as recurring by a mis-click. Both are mistakes that

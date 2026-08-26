@@ -2,7 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { PACKS, FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import {
+  PACKS,
+  PACK_IDS,
+  FREE_MATCHES_PER_WINDOW,
+  FREE_WINDOW_DAYS,
+} from '@/lib/packs';
 import { Button } from '@/components/ui/button';
 import { Figure } from '@/components/ui/figure';
 import {
@@ -147,8 +152,12 @@ export default function AirstackComparison() {
                 label="have an X or Farcaster account"
                 attested
               />
+              {/* The cheapest rung, read off the ladder rather than named:
+                  this said `PACKS.trial` while Trial happened to be the floor,
+                  and a fifth pack below it would have left the figure quietly
+                  wrong on six pages at once. */}
               <Figure
-                value={`$${PACKS.trial.priceCents / 100}`}
+                value={`$${PACKS[PACK_IDS[0]].priceCents / 100}`}
                 label="to start, no subscription"
               />
             </dl>
@@ -304,7 +313,7 @@ export default function AirstackComparison() {
                     <td className="py-4 pr-4 font-medium">Pricing</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
                       <span className="font-semibold text-accent-brand">
-                        ${PACKS.trial.priceCents / 100} - $
+                        ${PACKS[PACK_IDS[0]].priceCents / 100} - $
                         {PACKS.index.priceCents / 100}
                       </span>{' '}
                       one-time, API included
@@ -381,8 +390,8 @@ export default function AirstackComparison() {
                   <Check className="h-4 w-4 mt-0.5 text-accent-brand flex-shrink-0" />
                   <span>
                     Grab an API key, included with every pack from $
-                    {PACKS.trial.priceCents / 100}, drawing the same credits as
-                    the app
+                    {PACKS[PACK_IDS[0]].priceCents / 100}, drawing the same
+                    credits as the app
                   </span>
                 </li>
                 <li className="flex items-start gap-2">

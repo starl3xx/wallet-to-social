@@ -150,6 +150,209 @@ async function main() {
     );
   }
 
+  // ----------------------------------------------------------- the pack ladder
+  // Four properties that were true by inspection for a year and became load
+  // bearing the day a fifth rung was added below Trial (2026-08-26). None of
+  // them is enforced by a type, and every one of them is a wrong price rather
+  // than a crash: the surfaces read PACKS and render whatever is there.
+  {
+    const { PACKS, PACK_IDS } = await import('@/lib/packs');
+    const perMatch = (id: (typeof PACK_IDS)[number]) =>
+      PACKS[id].priceCents / PACKS[id].matches;
+
+    // A buyer must never be punished for stepping up. If a small pack were
+    // cheaper per match than a large one, the way to buy the large amount
+    // would be to buy the small pack repeatedly, and we would have priced our
+    // own ladder out of existence. Stated per match rather than as that
+    // arbitrage on purpose: the repeat-purchase form rounds up, so it is the
+    // weaker of the two and passes over inversions this one catches.
+    ok(
+      'no pack is cheaper per match than a larger one',
+      PACK_IDS.every((id, i) =>
+        PACK_IDS.slice(i + 1).every(
+          (bigger) =>
+            PACKS[bigger].matches > PACKS[id].matches &&
+            perMatch(bigger) < perMatch(id)
+        )
+      )
+    );
+
+    // `app/pricing/page.tsx` advertises "Packs from $X" as PACK_IDS[0], and six
+    // comparison pages render the same entry as their "to start" figure. A pack
+    // inserted anywhere but first makes every one of those pages quote a floor
+    // that is not the floor, with nothing failing.
+    ok(
+      'no pack is cheaper than the one every surface calls the entry price',
+      PACK_IDS.every(
+        (id) => PACKS[id].priceCents >= PACKS[PACK_IDS[0]].priceCents
+      )
+    );
+
+    // Three call sites pick a pack with `PACK_IDS.find(p => …matches >= n)`,
+    // which is only correct while PACK_IDS ascends. Asserted through that exact
+    // expression rather than by re-sorting the list, so a broken order fails
+    // here the same way it would fail the buyer: the finder is made to answer,
+    // and its answer is compared with the true minimum.
+    ok(
+      'the ascending pack finder cannot return a larger pack than one that fits',
+      PACK_IDS.every((id) => {
+        // One below the rung, so the answer is that rung and not the one under
+        // it. Asking for a rung's exact size would be satisfied by an
+        // off-by-one that a real caller's arbitrary wallet count would not be.
+        const target = PACKS[id].matches - 1;
+        const found = PACK_IDS.find((p) => PACKS[p].matches >= target);
+        const fitting = PACK_IDS.filter((p) => PACKS[p].matches >= target);
+        const smallest = fitting.reduce((best, p) =>
+          PACKS[p].matches < PACKS[best].matches ? p : best
+        );
+        return found === smallest;
+      })
+    );
+
+    // The env var is written by hand per pack and is never derived from the id,
+    // so two packs can name the same Stripe price with nothing to notice it.
+    // That failure charges the buyer one pack's price and grants another's
+    // matches, and both halves look correct in their own log line.
+    ok(
+      'no two packs resolve to the same Stripe price variable',
+      new Set(PACK_IDS.map((id) => PACKS[id].priceEnvVar)).size ===
+        PACK_IDS.length
+    );
+
+    // `starter` was a tier before it was a pack. The tier was retired on
+    // 2026-08-12 and never purchased, and the pack arrived on 2026-08-26 under
+    // the same string, which now appears on both sides of `PaidTier | PackId`.
+    // Nothing in the checkout confuses them today, because `normalizeTier`
+    // recognises exactly two values and the webhook reads `metadata.pack`
+    // through `isPackId`. This asserts that, rather than trusting it: a pack id
+    // read as a tier would grant an entitlement nobody paid for, and a retired
+    // tier read as a pack would sell one.
+    const { normalizeTier } = await import('@/lib/access');
+    const { isPackId: packIdGate } = await import('@/lib/packs');
+    ok(
+      'no pack id is readable as a tier',
+      PACK_IDS.every((id) => normalizeTier(id) === 'free')
+    );
+    ok(
+      'no legacy tier is readable as a pack',
+      !packIdGate('pro') && !packIdGate('unlimited') && !packIdGate('free')
+    );
+
+    // The day-14 email is the sequence's only ask, and it named Trial by hand
+    // until Starter went in below it. An email that sells a rung which stopped
+    // being the entry is not a crash and not a wrong price: it is a working
+    // link to the wrong shelf, and nothing else in the repo can see it.
+    const { WELCOME_EMAILS } = await import('@/lib/welcome-sequence');
+    const sales = WELCOME_EMAILS[WELCOME_EMAILS.length - 1];
+    const entry = PACKS[PACK_IDS[0]];
+    ok(
+      'the sales email cannot name a rung that is no longer the entry',
+      sales.content.subject.includes(String(entry.matches)) &&
+        (sales.content.button?.label ?? '').includes(entry.name)
+    );
+  }
+
+  // ------------------------------------------------- the starter collection
+  // The first action supplies the wallet list, which is the one thing the paid
+  // contract importer charges for. Everything here asserts that it can only
+  // ever supply OUR list: a caller who can name any contract has turned a free
+  // action into an unmetered import of somebody else's holders.
+  {
+    const {
+      parseStarterParam,
+      buildStarterHref,
+      STARTER_WALLET_CAP,
+      STARTER_ALLOWANCE_SHARE,
+    } = await import('@/lib/starter-collections');
+    const { FREE_MATCHES_PER_WINDOW } = await import('@/lib/packs');
+
+    ok(
+      'a starter link naming an unsupported chain is refused',
+      parseStarterParam('solana:0x1111111111111111111111111111111111111111') ===
+        null
+    );
+    ok(
+      'a starter link naming a malformed address is refused',
+      parseStarterParam('base:0xdeadbeef') === null &&
+        parseStarterParam('base:not-an-address') === null
+    );
+    ok(
+      'a starter link carrying a third segment is refused',
+      parseStarterParam(
+        'base:0x1111111111111111111111111111111111111111:extra'
+      ) === null
+    );
+    // Proves the three refusals above are not passing by refusing everything,
+    // which is the failure mode a set of negative assertions invites.
+    ok(
+      'a well-formed starter link is read, and its address normalised',
+      parseStarterParam('BASE:0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
+        ?.address === '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    );
+    // `?contract=` sends an account with no credits to the buy-credits modal.
+    // A first action that landed there would be the bug it exists to fix.
+    ok(
+      'the starter link never builds the paid importer’s parameter',
+      !buildStarterHref(
+        'base',
+        '0x1111111111111111111111111111111111111111'
+      ).includes('contract=')
+    );
+    // The wallet count IS the worst-case spend, because every wallet in the
+    // sample might match. Asserted as the share rather than as a number, since
+    // the defect it guards is somebody making the sample bigger for a better
+    // demonstration and taking the whole allowance with it.
+    ok(
+      'a starter run cannot spend more than a quarter of the free allowance',
+      STARTER_WALLET_CAP <= FREE_MATCHES_PER_WINDOW / 4 &&
+        STARTER_ALLOWANCE_SHARE <= 0.25
+    );
+
+    // Read out of the source, because both are orderings rather than values and
+    // neither can be observed without a database. Comments are stripped first:
+    // the prose above each one names the very identifier being searched for.
+    const starterSrc = withoutComments(
+      readFileSync('lib/starter-collections.ts', 'utf8')
+    );
+    // `before` rather than a bare index comparison, because indexOf answers -1
+    // for something that is not there at all, and -1 comes before everything.
+    // A deleted gate would have satisfied the naive form of both of these.
+    const before = (src: string, first: string, second: string) => {
+      const a = src.indexOf(first);
+      const b = src.indexOf(second);
+      return a !== -1 && b !== -1 && a < b;
+    };
+    // The refusal itself, not the call that feeds it. Asserting only that
+    // `getHolderCollection(` precedes `wallet_holdings` passed over the real
+    // defect: keeping the lookup for its name and deleting `if (!collection)
+    // return null;` compiles under `collection?.`, leaves both tokens in the
+    // same order, and expands any contract on any chain. The refusal has to be
+    // the middle term.
+    const STARTER_GATE = 'if (!collection) return null;';
+    ok(
+      'the seeded-row gate runs before any holder wallet is read',
+      before(starterSrc, 'getHolderCollection(', STARTER_GATE) &&
+        before(starterSrc, STARTER_GATE, 'wallet_holdings')
+    );
+
+    const jobsSrc = withoutComments(
+      readFileSync('app/api/jobs/route.ts', 'utf8')
+    );
+    ok(
+      'a collection is expanded before the credit meter sees the job',
+      before(jobsSrc, 'getStarterWallets(', 'canSubmit(')
+    );
+    // A body carrying both a collection and a list of wallets must run ours.
+    // Taking theirs would record a seeded contract against a job that never
+    // touched it, which is a lie in the funnel and in the admin table.
+    ok(
+      'a caller cannot substitute their own wallets for a collection’s',
+      /const wallets = starter \? starter\.wallets : body\.wallets;/.test(
+        jobsSrc
+      )
+    );
+  }
+
   // ------------------------------------------------------ x402 settlement id
   // A payment that cannot be made idempotent must be refused rather than
   // settled, so the id is required to be derivable before anything moves.
