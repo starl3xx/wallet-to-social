@@ -19,6 +19,7 @@ import {
 } from '@/lib/csv-parser';
 import type { WalletSocialResult } from '@/lib/types';
 import { asSourceList } from '@/lib/api-sources';
+import { trackEvent } from '@/lib/analytics';
 
 // Process wallets in micro-batches for parallel execution
 const MICRO_BATCH_SIZE = 500;
@@ -434,7 +435,25 @@ export const walletLookup = inngest.createFunction(
       // Save to history if requested
       if (options.saveToHistory) {
         try {
-          await saveLookup(allResults, options.historyName, options.userId);
+          const lookupId = await saveLookup(
+            allResults,
+            options.historyName,
+            options.userId
+          );
+
+          // Both pipelines emit this, for the reason CHANGELOG records twice:
+          // a fix applied to `lib/job-processor.ts` alone leaves this file
+          // running the old behaviour, and this one is registered in
+          // `app/api/inngest/route.ts` and therefore live.
+          trackEvent('history_saved', {
+            userId: options.userId,
+            sessionId: job.sessionId ?? undefined,
+            metadata: {
+              jobId,
+              lookupId,
+              walletCount: allResults.length,
+            },
+          });
         } catch (error) {
           console.error('History save error:', error);
         }

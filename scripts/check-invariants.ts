@@ -1977,26 +1977,273 @@ async function main() {
       })()
     );
     /**
-     * Both emitters, counted rather than pattern-matched.
+     * Every emitter, checked inside its own call rather than by counting the
+     * file.
      *
-     * The second fires only on a partial social-graph write, which is exactly
-     * the path nobody exercises by hand, so "one of them has it" is not good
-     * enough. Counting is also immune to how far apart the two lines drift: a
-     * fixed-width window around `trackEvent` failed on correct code the moment
-     * a field was added above the one it was looking for.
+     * The second `lookup_completed` fires only on a partial social-graph write,
+     * which is exactly the path nobody exercises by hand, so "one of them has
+     * it" is not good enough. This was a pair of counts compared for equality,
+     * which held only while `sessionId: job.sessionId` appeared nowhere else:
+     * adding the `history_saved` emitter made the totals 3 and 2 and failed the
+     * assertion over entirely correct code. Splitting on the call and asking
+     * each one separately is immune both to that and to how far apart the
+     * fields drift inside a call.
      */
-    const emitters = (processor.match(/trackEvent\('lookup_completed'/g) ?? [])
-      .length;
-    const carried = (processor.match(/sessionId: job\.sessionId/g) ?? [])
-      .length;
+    const emitterBodies = processor
+      .split("trackEvent('")
+      .slice(1)
+      .map((s) => ({
+        event: s.slice(0, s.indexOf("'")),
+        body: s.slice(0, 400),
+      }));
+    const sessionCarriers = ['lookup_completed', 'history_saved'];
+    for (const event of sessionCarriers) {
+      const bodies = emitterBodies.filter((e) => e.event === event);
+      ok(
+        `every ${event} emitter reads the session off the job (${bodies.length} found)`,
+        bodies.length >= 1 &&
+          bodies.every((b) => b.body.includes('sessionId: job.sessionId'))
+      );
+    }
     ok(
-      `every lookup_completed emitter reads the session off the job (${carried}/${emitters})`,
-      emitters >= 2 && carried === emitters
+      'both lookup_completed emitters are still present',
+      emitterBodies.filter((e) => e.event === 'lookup_completed').length >= 2
+    );
+    /**
+     * The save rate is a rate over an event nothing emitted.
+     *
+     * `history_saved` and `Analytics.historySaved` both existed from January
+     * and neither was ever called, so the funnel step and the "History save
+     * rate" stat were structural zeros for seven months. Asserted in both
+     * pipelines, because `app/api/inngest/route.ts` registers the second one
+     * and a fix applied to only the first leaves it running the old behaviour.
+     */
+    ok(
+      'the job processor emits history_saved when a save succeeds',
+      /saveLookup\([\s\S]{0,400}?trackEvent\('history_saved'/.test(processor)
+    );
+    ok(
+      'the inngest pipeline emits it too',
+      /saveLookup\([\s\S]{0,400}?trackEvent\('history_saved'/.test(
+        readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
+      )
     );
     ok(
       'the worker takes the session from the row, not from options',
       !/sessionId: options\.sessionId ?\?\?/.test(processor)
     );
+
+    // ------------------------------------------------- Analytics query shape
+    {
+      const analytics = readFileSync('lib/analytics.ts', 'utf8');
+      /**
+       * SQL comments too, not only JavaScript ones.
+       *
+       * `withoutComments` strips `//` and block comments, and the SQL in this
+       * file is inside template literals where a comment starts with `--`. The
+       * alias check below failed on its first run against entirely correct
+       * code, because the SQL comment *explaining* that an alias must not be
+       * unquoted camelCase contains an unquoted camelCase alias. Same trap the
+       * signup-origin assertion fell into, one comment syntax further down.
+       */
+      const code = withoutComments(analytics).replace(/--[^\n]*/g, '');
+
+      /**
+       * A window bound in raw SQL must be a UTC literal, not a JS Date.
+       *
+       * Drizzle sends a `Date` parameter as a local-offset string, and these
+       * columns are `timestamp without time zone` holding UTC, so Postgres
+       * discards the offset and the window ends however many hours early the
+       * running machine is behind UTC. Production is UTC and never sees it,
+       * which is why it had to be asserted rather than noticed: it silently
+       * deleted the current day from every local reading of these queries.
+       */
+      const nakedBound = /created_at\s*[<>]=\s*\$\{(startDate|endDate)\}/;
+      ok(
+        'no raw-SQL window bound interpolates a JS Date directly',
+        !nakedBound.test(code)
+      );
+      ok(
+        'the naked-bound pattern matches the form it forbids, so the check above can fail',
+        nakedBound.test('WHERE created_at >= ${startDate} AND x')
+      );
+      ok(
+        'the raw-SQL bounds go through the UTC helper',
+        /created_at\s*>=\s*\$\{utcBound\(startDate\)\}::timestamp/.test(code) &&
+          /created_at\s*<=\s*\$\{utcBound\(endDate\)\}::timestamp/.test(code)
+      );
+      {
+        /**
+         * The helper's own output, not merely the fact that callers use it.
+         *
+         * This block first asserted only that every call site went through
+         * `utcBound`, and the guard replaced the function body with
+         * `String(d)` and passed. Both halves are needed: the call sites, so
+         * nobody bypasses it, and this, so it is worth going through.
+         *
+         * A fixed UTC instant, so the assertion means the same thing on this
+         * laptop at UTC-5 and in CI at UTC. Under `String(d)` it fails in both.
+         */
+        const { utcBound, getSessionFunnel } = await import('@/lib/analytics');
+        const d = new Date(Date.UTC(2026, 7, 26, 19, 7, 29, 664));
+        ok(
+          'a window bound renders as the UTC wall clock, with no offset',
+          utcBound(d) === '2026-08-26 19:07:29.664'
+        );
+        ok(
+          'and it is not the local-time rendering, which is what was being sent',
+          utcBound(d) !== String(d) && !/GMT|[+-]\d{2}:\d{2}$/.test(utcBound(d))
+        );
+        ok(
+          'the session funnel is exported and callable',
+          typeof getSessionFunnel === 'function'
+        );
+      }
+
+      /**
+       * An unquoted camelCase alias is folded to lower case by Postgres.
+       *
+       * The row is cast to an interface rather than validated, so a folded
+       * alias yields `undefined` for a property TypeScript swears is a number,
+       * with no error anywhere. The first draft of the session funnel shipped
+       * six of them and would have rendered six blank steps.
+       */
+      const foldedAlias = /\bAS\s+(?!")[a-z_]*[A-Z][A-Za-z_]*/;
+      ok('no raw-SQL alias is unquoted camelCase', !foldedAlias.test(code));
+      ok(
+        'the folded-alias pattern matches the form it forbids',
+        foldedAlias.test('count(*)::int AS ranLookup,') &&
+          !foldedAlias.test('count(*)::int AS "ranLookup",')
+      );
+
+      /**
+       * A cohort's average is summed, never asserted from its definition.
+       *
+       * Three rows stated a constant in a column headed "Avg lookups", so the
+       * table rendered each as a measurement: "Almost converted" reported
+       * exactly 3, which is its own floor; "Hit the free wall" reported 0 for
+       * accounts defined by having exhausted an allowance (Bugbot, 2026-08-26);
+       * "Churned paid" reported 0 for accounts that query never sees.
+       *
+       * Read off the source rather than by calling it, because the cohorts need
+       * a database and this file must run without one. The three accumulators
+       * are what make the averages real, so their absence is the defect.
+       */
+      const cohorts = code.slice(
+        code.indexOf('export async function getUserCohorts'),
+        code.indexOf('export async function getRetentionCohorts')
+      );
+      ok(
+        'every cohort average is divided from an accumulated total',
+        /hitTheWallLookups \+= lookups/.test(cohorts) &&
+          /almostConvertedLookups \+= lookups/.test(cohorts) &&
+          /powerUserLookups \+= lookups/.test(cohorts)
+      );
+      /**
+       * No bare number, not merely no zero.
+       *
+       * The first version of this forbade `avgLookups: 0` specifically, and the
+       * guard duly replaced an accumulator with `avgLookups: 3` and went
+       * undetected: forbidding the one wrong constant that was there leaves
+       * every other wrong constant available. The accumulator assertion above
+       * did not catch it either, because a mutation that stops *reading* an
+       * accumulator leaves the `+=` line perfectly intact.
+       *
+       * So the rule is what the column means rather than what it once said: an
+       * average is divided from a total, or it is `null`. `Tire kickers` is the
+       * one cohort defined as exactly one lookup, and it still has to say
+       * `null` for the empty case, so it satisfies this too.
+       */
+      const averages = cohorts.match(/avgLookups:[^\n]*/g) ?? [];
+      ok(
+        `every cohort average is a division or a null (${averages.length} cohorts)`,
+        averages.length >= 5 &&
+          averages.every((a) => a.includes('mean(') || a.includes('null'))
+      );
+      ok(
+        'the average check rejects a bare literal, so it can fail',
+        !['avgLookups: 3,'].every(
+          (a) => a.includes('mean(') || a.includes('null')
+        )
+      );
+      ok(
+        'the empty-cohort average is null, so the mean of nothing is not a number',
+        /n > 0 \? total \/ n : null/.test(cohorts)
+      );
+      ok(
+        'the pane renders an unmeasurable cell rather than a figure',
+        /avgLookups === null/.test(
+          readFileSync('components/admin/GrowthRetention.tsx', 'utf8')
+        )
+      );
+
+      /**
+       * One definition of conversion, and no invented denominator.
+       *
+       * There were three rates under the word "conversion" on three panes, and
+       * the Pulse tile linked to a pane that computed a different one. Zero is
+       * not the answer to "what share of nobody converted".
+       */
+      const { conversionRates } = await import('@/lib/analytics');
+      const noDenominator = conversionRates({
+        paymentCompleted: 0,
+        upgradeModalViewed: 0,
+        lookupsStarted: 0,
+      });
+      ok(
+        'a zero denominator yields null, never 0%',
+        noDenominator.pricingToPaid === null &&
+          noDenominator.lookupToPaid === null
+      );
+      const real = conversionRates({
+        paymentCompleted: 5,
+        upgradeModalViewed: 100,
+        lookupsStarted: 50,
+      });
+      ok(
+        'the two rates are computed from their own denominators',
+        real.pricingToPaid === 5 && real.lookupToPaid === 10
+      );
+      /**
+       * Scoped to the pulse function, not the file.
+       *
+       * The first version tested the whole file for the absence of
+       * `paymentCompleted / funnel.lookupsStarted` and failed, because
+       * `conversionRates` itself is the one place that division belongs. An
+       * assertion that forbids a formula everywhere forbids its definition.
+       */
+      const pulse = code.slice(
+        code.indexOf('export async function getExecutivePulse')
+      );
+      ok(
+        'the pulse reads the shared helper rather than dividing again',
+        /conversionRates\(funnel\)/.test(pulse) &&
+          !/paymentCompleted \/ funnel\./.test(pulse)
+      );
+    }
+
+    // ------------------------------------------------------- Signup tracking
+    {
+      const access = readFileSync('lib/access.ts', 'utf8');
+      const code = withoutComments(access);
+      /**
+       * `user_registered` was declared in January and emitted by nothing, so
+       * the funnel had no account step at all. It must fire once per account,
+       * which means the existing-user early return has to come first: without
+       * it, every sign-in would record a new signup and the step would report
+       * logins.
+       */
+      ok(
+        'account creation emits user_registered',
+        /trackEvent\('user_registered'/.test(code)
+      );
+      ok(
+        'it fires only on the create branch, after the existing-user return',
+        code.indexOf('if (existing) return existing;') > 0 &&
+          code.indexOf('if (existing) return existing;') <
+            code.indexOf("trackEvent('user_registered'")
+      );
+    }
 
     // --------------------------------------------- A sale is booked once
     // `payment_completed` had fired once in the lifetime of the table: the only

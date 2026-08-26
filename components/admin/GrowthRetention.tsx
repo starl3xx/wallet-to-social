@@ -38,14 +38,61 @@ interface EmailStatus {
   optOuts: number;
 }
 
+interface CohortData {
+  name: string;
+  definition: string;
+  count: number;
+  /** `null` where the average is not something this query can measure. */
+  avgLookups: number | null;
+  /** `null` where a conversion rate is not a meaningful thing to compute. */
+  conversionRate: number | null;
+}
+
+/**
+ * A cell with nothing to measure reads as a hyphen, never as a number.
+ *
+ * The same mark the retention and payments tables already use for an absent
+ * cell. Both numeric columns in the cohort table need it: "Hit the free wall"
+ * reported `avgLookups: 0` for accounts defined by having exhausted an
+ * allowance, and the column header says "Avg lookups", so the table presented
+ * that zero as a measurement.
+ */
+function NotMeasured({ reason }: { reason: string }) {
+  return (
+    <span className="text-muted-foreground" title={reason}>
+      -
+    </span>
+  );
+}
+
+interface FeatureData {
+  ensLookupRate: number;
+  historySaveRate: number;
+  exportRate: number;
+  exportFormats: { csv: number; twitter: number };
+  avgLookupSize: { free: number; pro: number; unlimited: number };
+}
+
 interface GrowthRetentionProps {
   password: string;
 }
 
+/**
+ * Who came, who came back, and what they used.
+ *
+ * The behaviour pane's cohorts and feature adoption moved here, because they
+ * were answering this pane's question from a second destination: "how many
+ * accounts are power users" and "what % of users returned in week 2" are the
+ * same subject, and the panel asked the reader to hold them in two tabs. The
+ * funnel that pane also drew is now the Funnel tab, which is the other half of
+ * the split.
+ */
 export function GrowthRetention({ password }: GrowthRetentionProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [retention, setRetention] = useState<RetentionCohort[]>([]);
   const [email, setEmail] = useState<EmailStatus | null>(null);
+  const [cohorts, setCohorts] = useState<CohortData[]>([]);
+  const [features, setFeatures] = useState<FeatureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,31 +101,40 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
     setError(null);
 
     try {
-      const [statsRes, retentionRes, emailRes] = await Promise.all([
-        fetch('/api/admin/analytics/aggregate?days=30', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/analytics/retention?weeks=6', {
-          headers: { 'x-admin-password': password },
-        }),
-        fetch('/api/admin/email', {
-          headers: { 'x-admin-password': password },
-        }),
-      ]);
+      const headers = { 'x-admin-password': password };
+      const [statsRes, retentionRes, emailRes, cohortsRes, featuresRes] =
+        await Promise.all([
+          fetch('/api/admin/analytics/aggregate?days=30', { headers }),
+          fetch('/api/admin/analytics/retention?weeks=6', { headers }),
+          fetch('/api/admin/email', { headers }),
+          fetch('/api/admin/analytics/cohorts', { headers }),
+          fetch('/api/admin/analytics/features?days=30', { headers }),
+        ]);
 
-      if (!statsRes.ok || !retentionRes.ok || !emailRes.ok) {
+      if (
+        !statsRes.ok ||
+        !retentionRes.ok ||
+        !emailRes.ok ||
+        !cohortsRes.ok ||
+        !featuresRes.ok
+      ) {
         throw new Error('Failed to fetch growth data');
       }
 
-      const [statsData, retentionData, emailData] = await Promise.all([
-        statsRes.json(),
-        retentionRes.json(),
-        emailRes.json(),
-      ]);
+      const [statsData, retentionData, emailData, cohortsData, featuresData] =
+        await Promise.all([
+          statsRes.json(),
+          retentionRes.json(),
+          emailRes.json(),
+          cohortsRes.json(),
+          featuresRes.json(),
+        ]);
 
       setDailyStats(statsData);
       setRetention(retentionData);
       setEmail(emailData);
+      setCohorts(cohortsData);
+      setFeatures(featuresData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -287,6 +343,142 @@ export function GrowthRetention({ password }: GrowthRetentionProps) {
             Each row shows what % of users from that cohort week returned in
             subsequent weeks.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Behaviour cohorts. Every account falls in at most one of the first
+          three; "Hit the free wall" is counted separately, because meeting the
+          paywall and not buying is the most actionable state an account can be
+          in and an `else if` ladder would have hidden most of it. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Behavior cohorts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {cohorts.length === 0 ? (
+            <Empty>No cohort data available yet</Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cohort</TableHead>
+                  <TableHead>Definition</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                  <TableHead className="text-right">Avg lookups</TableHead>
+                  <TableHead className="text-right">Conversion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cohorts.map((cohort) => (
+                  <TableRow key={cohort.name}>
+                    <TableCell className="font-medium">{cohort.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {cohort.definition}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {cohort.count}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {cohort.avgLookups === null ? (
+                        <NotMeasured reason="No lookup history is available for this cohort" />
+                      ) : (
+                        cohort.avgLookups.toFixed(1)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {/* "Churned paid" used to carry a hardcoded 100, which
+                          rendered as the best-converting cohort on the panel;
+                          everyone in it has paid by definition, so the column
+                          has nothing to say. */}
+                      {cohort.conversionRate === null ? (
+                        <NotMeasured reason="A conversion rate does not apply to this cohort" />
+                      ) : (
+                        /* Three tiers, two colours. A high rate is a measured
+                           good outcome, so green; a low one is worth a look, so
+                           caution; the middle is just a number. Not
+                           destructive at the bottom: that is for failed jobs
+                           and for revoking and deleting, and a quiet cohort is
+                           neither. */
+                        <span
+                          className={
+                            cohort.conversionRate > 50
+                              ? 'text-attested'
+                              : cohort.conversionRate > 10
+                                ? undefined
+                                : 'text-caution'
+                          }
+                        >
+                          {cohort.conversionRate.toFixed(0)}%
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Feature adoption */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Feature adoption (30 days)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {features && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Stat
+                label="ENS lookup rate"
+                value={`${features.ensLookupRate.toFixed(0)}%`}
+              />
+              {/* Read 0% from January until 2026-08-26, because nothing ever
+                  emitted `history_saved`. Both lookup pipelines emit it now,
+                  from the point the save actually succeeds, so a window that
+                  straddles that date under-reports. */}
+              <Stat
+                label="History save rate"
+                value={`${features.historySaveRate.toFixed(0)}%`}
+              />
+              <Stat
+                label="Export rate"
+                value={`${features.exportRate.toFixed(0)}%`}
+              />
+              <Stat
+                label="Export formats"
+                value={
+                  <span className="text-sm font-normal tracking-[var(--tracking-body)]">
+                    CSV {features.exportFormats.csv} · X list{' '}
+                    {features.exportFormats.twitter}
+                  </span>
+                }
+              />
+            </div>
+          )}
+
+          {features && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="mb-2 text-xs text-muted-foreground">
+                Average lookup size by tier
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Stat
+                  label="Free"
+                  value={features.avgLookupSize.free.toLocaleString()}
+                />
+                <Stat
+                  label="Pro"
+                  value={features.avgLookupSize.pro.toLocaleString()}
+                />
+                <Stat
+                  label="Unlimited"
+                  value={features.avgLookupSize.unlimited.toLocaleString()}
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

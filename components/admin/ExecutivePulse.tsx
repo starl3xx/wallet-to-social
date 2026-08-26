@@ -7,6 +7,7 @@ import { Sparkline } from './Sparkline';
 import { StatTile } from './Stat';
 import { RefreshButton } from './RefreshButton';
 import { Loading } from './PaneState';
+import type { AdminTab } from './AdminNav';
 import {
   ArrowsClockwise as RefreshCw,
   TrendUp as TrendingUp,
@@ -19,7 +20,8 @@ interface PulseData {
   lookupsTrend: number[];
   activeUsers7d: number;
   activeUsersTrend: 'up' | 'down' | 'flat';
-  conversionRate: number;
+  /** Payments over pricing views, 7 days. `null` when nobody saw pricing. */
+  pricingToPaid: number | null;
   revenueMTD: number;
   revenueVsLastMonth: number;
   errorRate: number;
@@ -29,7 +31,13 @@ interface PulseData {
 
 interface ExecutivePulseProps {
   password: string;
-  onMetricClick?: (metric: string) => void;
+  /**
+   * `AdminTab`, not `string`. The page used to match the incoming value against
+   * four string literals and do nothing for anything else, so renaming a
+   * destination compiled cleanly and left the tile inert. A tab that no longer
+   * exists is now a type error here, at the tile that names it.
+   */
+  onMetricClick?: (tab: AdminTab) => void;
 }
 
 export function ExecutivePulse({
@@ -150,8 +158,8 @@ export function ExecutivePulse({
         >
           {onMetricClick && (
             <CardActivator
-              label="Lookups today: open the jobs tab"
-              onClick={() => onMetricClick('jobs')}
+              label="Lookups today: open the records tab"
+              onClick={() => onMetricClick('records')}
             />
           )}
         </StatTile>
@@ -164,28 +172,43 @@ export function ExecutivePulse({
         >
           {onMetricClick && (
             <CardActivator
-              label="Active users: open the behaviour tab"
-              onClick={() => onMetricClick('behavior')}
+              label="Active users: open the growth tab"
+              onClick={() => onMetricClick('growth')}
             />
           )}
         </StatTile>
 
+        {/* Named, and pointed at the pane that computes it.
+            This tile said "Conversion rate" and divided payments by lookups,
+            while the revenue pane it linked to divided payments by pricing
+            views: one word over two definitions, and the link was the one
+            journey that put them side by side. Both panes now read the same
+            helper, and the tile says which of the two rates it is. */}
         <StatTile
           className={tile}
-          label="Conversion rate"
-          value={`${data.conversionRate.toFixed(1)}%`}
+          label="Pricing → paid"
+          value={
+            data.pricingToPaid === null
+              ? 'n/a'
+              : `${data.pricingToPaid.toFixed(1)}%`
+          }
         >
           {onMetricClick && (
             <CardActivator
-              label="Conversion rate: open the revenue tab"
-              onClick={() => onMetricClick('revenue')}
+              label="Pricing to paid: open the funnel tab"
+              onClick={() => onMetricClick('funnel')}
             />
           )}
         </StatTile>
 
         <StatTile
           className={tile}
-          label="Revenue (MTD)"
+          /* "Booked", not net. This reads `daily_stats.revenue_cents`, which
+             sums what was charged and knows nothing about refunds; the revenue
+             pane reads Stripe and is net of them. The two are allowed to
+             differ, so each says which it is rather than both saying
+             "revenue". */
+          label="Revenue (MTD, booked)"
           value={`$${data.revenueMTD.toLocaleString()}`}
           aside={
             <span
@@ -248,8 +271,8 @@ export function ExecutivePulse({
         >
           {onMetricClick && (
             <CardActivator
-              label="Queue depth: open the jobs tab"
-              onClick={() => onMetricClick('jobs')}
+              label="Queue depth: open the records tab"
+              onClick={() => onMetricClick('records')}
             />
           )}
         </StatTile>

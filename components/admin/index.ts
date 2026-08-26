@@ -1,5 +1,5 @@
 export { ExecutivePulse } from './ExecutivePulse';
-export { UserBehavior } from './UserBehavior';
+export { FunnelPane } from './FunnelPane';
 export { GrowthRetention } from './GrowthRetention';
 export { RevenueDashboard } from './RevenueDashboard';
 export { SystemHealth } from './SystemHealth';

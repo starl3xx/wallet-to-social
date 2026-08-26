@@ -14,6 +14,7 @@ export function FunnelStep({
   label,
   count,
   rate,
+  rateTitle,
   valueClassName,
 }: {
   label: string;
@@ -24,6 +25,13 @@ export function FunnelStep({
    * a funnel that does not show shares.
    */
   rate?: number | null;
+  /**
+   * What to say on hover when the rate is `null`. Named per funnel, because
+   * the denominator differs: the event funnel divides by page views and the
+   * session funnel by sessions, and one hardcoded sentence explained the wrong
+   * missing measurement on whichever pane it was not written for.
+   */
+  rateTitle?: string;
   /** A colour for the figure, e.g. `text-attested` on the paid step. */
   valueClassName?: string;
 }) {
@@ -35,7 +43,12 @@ export function FunnelStep({
       valueClassName={valueClassName}
       note={
         rate === undefined ? undefined : rate === null ? (
-          <span title="No page views recorded in this window, so a rate cannot be computed">
+          <span
+            title={
+              rateTitle ??
+              'Nothing was recorded to divide by in this window, so a rate cannot be computed'
+            }
+          >
             n/a
           </span>
         ) : (

@@ -249,6 +249,32 @@ export async function getOrCreateUser(
     .values({ email: normalizedEmail, acquisition: acquisition ?? null })
     .returning();
 
+  /**
+   * The signup event, which has been declared since January and fired by
+   * nothing.
+   *
+   * `user_registered` was in `AnalyticsEventType` from the start and never
+   * emitted from anywhere in the codebase, so the funnel had no account step at
+   * all: it went from "ran a lookup" straight to "saw pricing", past the gate
+   * the whole free allowance is built around. Signups were countable only from
+   * `users.created_at`, in a different pane, on a different time basis, with no
+   * way to place them between arriving and using anything.
+   *
+   * Inside the create branch, after `returning()`, so it fires once per account
+   * and only when a row was actually written. Awaited for the reason
+   * `provisionPaidCheckout` documents below: a floating promise is one a
+   * serverless runtime may discard when the handler returns.
+   *
+   * No session id, deliberately. This runs on the magic-link callback, which is
+   * often opened in a different browser from the one that asked for the link,
+   * so a session id here would be a different visit's. The join to the rest of
+   * the funnel is the email, the same key `payment_completed` uses.
+   */
+  await trackEvent('user_registered', {
+    userId: normalizedEmail,
+    metadata: { acquisition: acquisition ?? null },
+  });
+
   return newUser;
 }
 

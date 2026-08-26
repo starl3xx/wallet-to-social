@@ -21,6 +21,7 @@ import type { ContractType } from '@/lib/contract-holders';
 // Imported from lib/chains (not lib/contract-holders) so ethers stays out of the
 // client bundle — contract-holders imports ethers at module scope.
 import { CHAIN_MARKS } from '@/components/ui/chain-marks';
+import { getSessionId } from '@/lib/client-analytics';
 import {
   CHAIN_LABELS,
   SUPPORTED_CHAINS,
@@ -136,7 +137,15 @@ export function ContractImportModal({
       const response = await fetch('/api/contract-holders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractAddress, chain }),
+        // The session travels with the request for the same reason it does on
+        // /api/jobs: this route's two events are emitted server-side, so
+        // without it a contract import is a gate the funnel counts and cannot
+        // place in anybody's visit.
+        body: JSON.stringify({
+          contractAddress,
+          chain,
+          sessionId: getSessionId(),
+        }),
       });
 
       const data = await response.json();

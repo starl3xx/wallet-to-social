@@ -869,12 +869,36 @@ async function finalizeJobWithResults(
   // Save to history if requested
   if (options.saveToHistory) {
     try {
-      await saveLookup(
+      const lookupId = await saveLookup(
         results,
         options.historyName,
         options.userId || job.userId || undefined,
         options.inputSource
       );
+
+      /**
+       * `history_saved` fires here, where the save happened, and nowhere else.
+       *
+       * The event type and `Analytics.historySaved` have both existed since
+       * January and neither was ever called, so "History save rate" on the
+       * admin panel was a structural 0% and the funnel step under it was a
+       * structural zero. Same shape as the `page_view` gap that
+       * `PageViewTracker` was written to close.
+       *
+       * Server-side rather than from the browser, because saving is a checkbox
+       * the user sets before submitting and the request that honours it is
+       * this one. A client event would record the intent; this records what was
+       * actually written, which is the thing worth a rate.
+       */
+      trackEvent('history_saved', {
+        userId: options.userId || job.userId || undefined,
+        sessionId: job.sessionId ?? undefined,
+        metadata: {
+          jobId: job.id,
+          lookupId,
+          walletCount: results.length,
+        },
+      });
     } catch (error) {
       console.error('History save error:', error);
     }

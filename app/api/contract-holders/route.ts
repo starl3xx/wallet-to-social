@@ -20,6 +20,8 @@ export const maxDuration = 60;
 interface ContractHoldersRequest {
   contractAddress: string;
   chain: SupportedChain;
+  /** Browser session, so this gate can be placed in a visit. See below. */
+  sessionId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -49,6 +51,20 @@ export async function POST(request: NextRequest) {
     const body: ContractHoldersRequest = await request.json();
     const { contractAddress } = body;
     chain = body.chain;
+
+    /**
+     * Sanitised, never trusted: it arrives in a request body and lands in a
+     * column the funnel groups by, so anything that is not a
+     * `crypto.randomUUID()` is not one of ours and is dropped rather than
+     * stored. Same test as `/api/jobs`, for the same reason.
+     */
+    const browserSession =
+      typeof body.sessionId === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        body.sessionId
+      )
+        ? body.sessionId
+        : undefined;
 
     // Validate required fields
     if (!contractAddress) {
@@ -83,6 +99,7 @@ export async function POST(request: NextRequest) {
     if (!(await hasPaidAccess(session.user.id, access.tier))) {
       trackEvent('contract_import_blocked', {
         userId: session.user.email,
+        sessionId: browserSession,
         metadata: {
           tier: access.tier,
           contractAddress,
@@ -134,6 +151,7 @@ export async function POST(request: NextRequest) {
     // Track successful import
     trackEvent('contract_import_success', {
       userId: session.user.email,
+      sessionId: browserSession,
       metadata: {
         contractAddress,
         chain,

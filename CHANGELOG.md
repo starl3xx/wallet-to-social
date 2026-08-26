@@ -2,6 +2,76 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-26 (the funnel counted events and called them people)
+
+The admin panel had thirteen destinations and four pairs of them answered the
+same question in two places, with different numbers. Two of those numbers were
+funnels. Underneath, three events had been declared since January and emitted by
+nothing, and a fourth was written on every gate and read by nobody.
+
+**The panel: thirteen tabs to nine.**
+
+| was                      | is       | why                                                  |
+| ------------------------ | -------- | ---------------------------------------------------- |
+| Behavior + Revenue       | Funnel   | both drew a funnel, over different windows and bases |
+| Behavior (rest) + Growth | Growth   | cohorts, retention and adoption are one question     |
+| Lookups + Usage          | Usage    | both counted lookups and wallets by period           |
+| Jobs + Saved lookups     | Records  | two lists of the same runs                           |
+| Users + Whitelist        | Accounts | a whitelist grant is an entitlement on an account    |
+| Enrichment + Conflicts   | Data     | both are social-graph quality work                   |
+
+**The funnel is now a funnel.** `getSessionFunnel` counts distinct sessions that
+reached each step, so a ratio between two steps is a ratio between two groups of
+people. The old one grouped events by type, where one visitor opening the
+pricing modal six times was six. Both are shown, stacked and labelled, because
+the event counts remain the right answer for load and for the paywall work.
+
+- The money tail is forced monotone. The buy-credits modal is the only way into
+  a Stripe checkout, so a session that started one did see the pricing whether or
+  not the beacon arrived. The steps above it are reported as measured, which is
+  why "saw pricing" can exceed "got results": pricing is reachable from the
+  marketing pages without running anything.
+- "Paid" is joined by account email, because the Stripe webhook has no session,
+  and it requires the session to have reached checkout as well. Without that
+  second test it read 20 paid sessions against a single payment, because one
+  buyer had visited twenty times.
+
+**Three events existed and fired from nowhere.**
+
+- `user_registered`, declared in January, emitted by nothing. The funnel had no
+  account step at all, past the gate the whole free allowance is built around.
+  It now fires in `getOrCreateUser`, inside the create branch only.
+- `history_saved`, same. "History save rate" on the panel was a structural 0%
+  for seven months. Saving is a checkbox the user sets, so it is a real
+  behaviour; both pipelines now emit it from the point the save succeeded.
+- `limit_hit` was written on every free-allowance refusal and read by nothing,
+  while a cohort labelled "3+ lookups, hit limit, didn't pay" tested only the
+  lookup count. The label had been claiming a test the code never made. It is
+  now its own cohort, driven by the event.
+
+**Two conversion rates, named.** There were three under one word: the Pulse tile
+divided payments by lookups over 7 days, the revenue pane divided payments by
+pricing views over 30, and the behaviour funnel divided everything by page views.
+The tile linked to the pane, so the one journey a reader was invited to take
+crossed two definitions in silence. `conversionRates` is now the only definition
+of either, and both return `null` rather than 0 when there is nothing to divide
+by.
+
+**A raw-SQL window bound was five hours short.** Interpolating a JS `Date` into a
+`sql` template sends a local-offset string, and these columns are `timestamp
+without time zone` holding UTC, so Postgres kept the wall-clock half and dropped
+the offset. Measured over 30 days on 2026-08-26: the query builder counted 3,739
+events, the same window in raw SQL counted 3,645. The missing 94 were that whole
+day. Production runs in UTC and never saw it, which is why it survived, and why
+it made every local reading of these queries lie.
+
+Also: `getFeatureAdoption` selected every event row in the window and filtered
+eight times in Node, and applied the cron-heartbeat filter to two of those
+filters but not the third; it is one aggregate query now. Contract imports carry
+a session id, so that gate can be placed in a visit. Payments are split by rail,
+since an onchain sale reaches the last step of the funnel having skipped the
+three above it. 310 invariants, 26 guard mutations.
+
 ### 2026-08-26 (the index write was losing wallets quietly)
 
 Two defects on the one path that persists what a lookup found. Both were
