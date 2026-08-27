@@ -63,10 +63,16 @@ export async function GET(request: NextRequest) {
   try {
     const outcome = await runCheckinCampaign(DEFAULT_PER_VARIANT);
 
+    /**
+     * `ok` is derived, never asserted. A run that reached the provider and
+     * failed every send is not a healthy run, and hardcoding true here records
+     * one while nobody is mailed (Bugbot, 2026-08-27). The sibling welcome
+     * crons take it from the same place.
+     */
     trackEvent('lookup_completed', {
       metadata: {
         eventSubtype: 'checkin_nonbuyers',
-        ok: true,
+        ok: outcome.failed === 0,
         ...outcome,
         durationMs: Date.now() - startedAt,
       },

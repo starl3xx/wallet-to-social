@@ -478,6 +478,68 @@ async function main() {
         readFileSync('vercel.json', 'utf8')
       )
     );
+
+    /**
+     * The ledger row is a lock, not a witness.
+     *
+     * Writing it after the send makes the unique constraint record a race
+     * instead of preventing one: a doubled cron, or a manual `--send`
+     * overlapping 16:00 UTC, both select the same people, both send, and one
+     * insert then no-ops. The welcome sequence moved to claim-before-send for
+     * exactly this, and the pull request that shipped the old shape here
+     * asserted in its own text that the two runners were safe together
+     * (Bugbot, 2026-08-27).
+     */
+    const claimPos = campaign.indexOf('INSERT INTO lifecycle_emails');
+    const sendPos = campaign.indexOf('await sendPlainEmail(');
+    ok(
+      'the claim is taken before the send',
+      claimPos >= 0 && sendPos >= 0 && claimPos < sendPos
+    );
+    ok(
+      'a row another runner already holds stops this one sending',
+      /if \(claim\.rows\.length === 0\) \{[\s\S]{0,120}?continue;/.test(
+        campaign
+      )
+    );
+    /**
+     * The reclaim exists AND runs. Two assertions, because they fail apart.
+     *
+     * Checking only that the DELETE is in the file passed while the call to it
+     * was deleted: the mechanism sat there, invoked by nothing, and a claim
+     * taken by a killed process would have blocked that account's email
+     * forever. This is the third time in this file that asserting a mechanism
+     * without asserting its call site let the guard through, after the UTC
+     * bound helper and the cron auth guard. Assert the thing that makes it
+     * happen, not the thing that could.
+     */
+    ok(
+      'a claim that is never redeemed can be freed',
+      /DELETE FROM lifecycle_emails[\s\S]{0,200}?email_key = \$\{EMAIL_KEY\}[\s\S]{0,200}?confirmed_at IS NULL[\s\S]{0,120}?failed_at IS NULL/.test(
+        campaign
+      )
+    );
+    const reclaimPos = campaign.indexOf('await reclaimStaleCheckinClaims()');
+    ok(
+      'and the run actually calls it, before it selects anybody',
+      reclaimPos >= 0 && selectPos >= 0 && reclaimPos < selectPos
+    );
+
+    /**
+     * A heartbeat that is always `ok` reports health rather than measuring it,
+     * and a subtype the health pane does not list is a job whose silence looks
+     * the same as never having existed.
+     */
+    ok(
+      'the cron derives ok from the outcome rather than asserting it',
+      /ok: outcome\.failed === 0/.test(cron) && !/ok: true/.test(cron)
+    );
+    ok(
+      'the health pane expects this job, so its silence is visible',
+      /subtype: 'checkin_nonbuyers'/.test(
+        readFileSync('app/api/admin/health/dependencies/route.ts', 'utf8')
+      )
+    );
   }
 
   // ------------------------------------------------ the index write path

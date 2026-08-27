@@ -164,6 +164,24 @@ const JOBS: Array<{
   },
   {
     /**
+     * The check-in campaign writes this heartbeat so a refused run can be told
+     * apart from a job that never ran, and that distinction only exists if the
+     * pane knows to expect it: an unlisted subtype makes a silent campaign look
+     * identical to one that was never registered, which is the blindness this
+     * pane exists to catch (Bugbot, 2026-08-27).
+     *
+     * It ends by running out of people rather than by being switched off, so a
+     * silence after the queue empties is correct. Until then it should be
+     * daily.
+     */
+    name: 'Non-buyer check-in',
+    schedule: '16:00 daily',
+    subtype: 'checkin_nonbuyers',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
+  {
+    /**
      * The runner that actually sends welcome-1, and the one whose silence
      * costs the most: if it stops, every new signup waits a day for the email
      * that greets them, and the daily runner keeps reporting healthy while it

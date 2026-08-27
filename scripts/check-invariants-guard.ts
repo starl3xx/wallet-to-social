@@ -259,6 +259,30 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    name: 'the check-in ledger row is written after the send, so it records a race (Bugbot, 2026-08-27)',
+    file: 'lib/checkin-campaign.ts',
+    from: '    if (claim.rows.length === 0) {\n      outcome.claimedElsewhere += 1;\n      continue;\n    }',
+    to: '',
+  },
+  {
+    name: 'an unredeemed check-in claim is never freed, costing that account its email',
+    file: 'lib/checkin-campaign.ts',
+    from: '  outcome.reclaimed = await reclaimStaleCheckinClaims();',
+    to: '',
+  },
+  {
+    name: 'the check-in heartbeat reports ok while every send failed',
+    file: 'app/api/cron/checkin-nonbuyers/route.ts',
+    from: 'ok: outcome.failed === 0,',
+    to: 'ok: true,',
+  },
+  {
+    name: 'the health pane stops expecting the check-in, so its silence is invisible',
+    file: 'app/api/admin/health/dependencies/route.ts',
+    from: "    subtype: 'checkin_nonbuyers',",
+    to: "    subtype: 'checkin_nonbuyers_unlisted',",
+  },
+  {
     name: 'the check-in cron drops its secret, so anyone can trigger a send',
     file: 'app/api/cron/checkin-nonbuyers/route.ts',
     from: '  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {',

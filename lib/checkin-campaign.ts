@@ -260,7 +260,43 @@ export interface CampaignOutcome {
   attempted: number;
   sent: number;
   failed: number;
+  /** Rows another runner had already claimed. Non-zero means two ran at once. */
+  claimedElsewhere: number;
+  /** Claims taken and never redeemed, freed at the start of this run. */
+  reclaimed: number;
   byVariant: Record<string, number>;
+}
+
+/**
+ * How long a claim may sit unredeemed before it is treated as abandoned.
+ * Comfortably above the route's maxDuration of 300s, so a slow run in progress
+ * is never mistaken for a dead one.
+ */
+const CLAIM_RECLAIM_MINUTES = 15;
+
+/**
+ * Free claims taken and never confirmed, so a process killed between the claim
+ * and the send does not cost that account its email forever.
+ *
+ * Scoped to this campaign's own key, and that scope is load-bearing:
+ * `lifecycle_emails` is a shared ledger, and an unscoped delete would treat the
+ * welcome sequence's claims as abandoned ones of ours and let it re-send.
+ *
+ * `failed_at IS NULL` keeps it off recorded failures. Those rows are a decision
+ * not to retry, not an abandoned claim.
+ */
+async function reclaimStaleCheckinClaims(): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  const freed = (await db.execute(sql`
+    DELETE FROM lifecycle_emails
+    WHERE email_key = ${EMAIL_KEY}
+      AND confirmed_at IS NULL
+      AND failed_at IS NULL
+      AND sent_at < now() - make_interval(mins => ${CLAIM_RECLAIM_MINUTES})
+    RETURNING id
+  `)) as unknown as { rows: unknown[] };
+  return freed.rows?.length ?? 0;
 }
 
 /** Send one day's slice. The ledger row is written only after a send lands. */
@@ -273,6 +309,8 @@ export async function runCheckinCampaign(
     attempted: 0,
     sent: 0,
     failed: 0,
+    claimedElsewhere: 0,
+    reclaimed: 0,
     byVariant: {},
   };
 
@@ -284,6 +322,8 @@ export async function runCheckinCampaign(
   const db = getDb();
   if (!db) return outcome;
 
+  outcome.reclaimed = await reclaimStaleCheckinClaims();
+
   const pending = await selectPending();
   outcome.pending = pending.length;
 
@@ -291,6 +331,35 @@ export async function runCheckinCampaign(
   outcome.attempted = today.length;
 
   for (const r of today) {
+    /**
+     * Claim the row BEFORE sending, so the unique prevents a double send
+     * rather than recording one after the fact.
+     *
+     * Writing the ledger row after the send makes the constraint a witness to
+     * a race, not a lock: a doubled cron, or a manual `--send` overlapping
+     * 16:00 UTC, both select the same people, both send, and one insert then
+     * no-ops. That is exactly the failure the welcome sequence moved to
+     * claim-before-send to fix, and this campaign shipped the old shape with
+     * a comment in its own pull request claiming the two runners were safe
+     * together (Bugbot, 2026-08-27).
+     *
+     * `DO NOTHING` is enough here where the welcome sequence needs a retry
+     * predicate: a check-in is sent once per account, ever, so a row existing
+     * for any reason means this runner must not send. Retries come from
+     * `reclaimStaleCheckinClaims` below rather than from the claim itself.
+     */
+    const claim = (await db.execute(sql`
+      INSERT INTO lifecycle_emails (user_id, email_key, attempts)
+      VALUES (${r.id}, ${EMAIL_KEY}, 1)
+      ON CONFLICT (user_id, email_key) DO NOTHING
+      RETURNING id
+    `)) as unknown as { rows: Array<{ id: string }> };
+
+    if (claim.rows.length === 0) {
+      outcome.claimedElsewhere += 1;
+      continue;
+    }
+
     const content = CONTENT[r.variant]();
     const result = await sendPlainEmail({
       to: r.email,
@@ -302,17 +371,22 @@ export async function runCheckinCampaign(
     });
 
     if (result.success) {
-      // After the send, never before: this row records a delivery, not a
-      // claim, so a failure leaves nothing to reclaim and simply retries
-      // tomorrow.
+      // The row is now proof of delivery rather than of intent.
       await db.execute(sql`
-        INSERT INTO lifecycle_emails (user_id, email_key, confirmed_at)
-        VALUES (${r.id}, ${EMAIL_KEY}, now())
-        ON CONFLICT (user_id, email_key) DO NOTHING
+        UPDATE lifecycle_emails SET confirmed_at = now()
+        WHERE user_id = ${r.id} AND email_key = ${EMAIL_KEY}
       `);
       outcome.sent += 1;
       outcome.byVariant[r.variant] = (outcome.byVariant[r.variant] ?? 0) + 1;
     } else {
+      // The claim stays, carrying the failure. `reclaimStaleCheckinClaims`
+      // collects only claims with no `failed_at`, so a recorded failure is
+      // never mistaken for an abandoned claim and re-sent.
+      await db.execute(sql`
+        UPDATE lifecycle_emails
+        SET failed_at = now(), last_error = ${result.error ?? 'unknown'}
+        WHERE user_id = ${r.id} AND email_key = ${EMAIL_KEY}
+      `);
       outcome.failed += 1;
       console.error(`check-in send failed for ${r.id}: ${result.error}`);
     }
