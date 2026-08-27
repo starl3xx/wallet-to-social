@@ -242,9 +242,51 @@ const MUTATIONS: Mutation[] = [
   },
   {
     name: 'the check-in offers a pack to an account holding a partly-spent one',
-    file: 'scripts/checkin-nonbuyers.ts',
+    file: 'lib/checkin-campaign.ts',
     from: "    variant: !r.holds_lot\n      ? 'no-credits'",
     to: "    variant: r.spent_lot\n      ? 'no-credits'",
+  },
+  {
+    name: 'a pause switch that cannot be read lets the campaign keep sending',
+    file: 'lib/checkin-campaign.ts',
+    from: "    console.error('check-in pause check failed, refusing to send:', error);\n    return true;",
+    to: "    console.error('check-in pause check failed:', error);\n    return false;",
+  },
+  {
+    name: 'the campaign selects its recipients before checking the pause switch',
+    file: 'lib/checkin-campaign.ts',
+    from: '  if (await isPaused()) {\n    outcome.paused = true;\n    return outcome;\n  }',
+    to: '',
+  },
+  {
+    name: 'the check-in ledger row is written after the send, so it records a race (Bugbot, 2026-08-27)',
+    file: 'lib/checkin-campaign.ts',
+    from: '    if (claim.rows.length === 0) {\n      outcome.claimedElsewhere += 1;\n      continue;\n    }',
+    to: '',
+  },
+  {
+    name: 'an unredeemed check-in claim is never freed, costing that account its email',
+    file: 'lib/checkin-campaign.ts',
+    from: '  outcome.reclaimed = await reclaimStaleCheckinClaims();',
+    to: '',
+  },
+  {
+    name: 'the check-in heartbeat reports ok while every send failed',
+    file: 'app/api/cron/checkin-nonbuyers/route.ts',
+    from: 'ok: outcome.failed === 0,',
+    to: 'ok: true,',
+  },
+  {
+    name: 'the health pane stops expecting the check-in, so its silence is invisible',
+    file: 'app/api/admin/health/dependencies/route.ts',
+    from: "    subtype: 'checkin_nonbuyers',",
+    to: "    subtype: 'checkin_nonbuyers_unlisted',",
+  },
+  {
+    name: 'the check-in cron drops its secret, so anyone can trigger a send',
+    file: 'app/api/cron/checkin-nonbuyers/route.ts',
+    from: '  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {',
+    to: '  if (false && authHeader !== `Bearer ${cronSecret}`) {',
   },
   {
     name: 'the plain sender stops requiring a working unsubscribe',

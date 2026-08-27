@@ -349,7 +349,11 @@ async function main() {
      * the two partly-spent accounts by keying the offer on `consumed = 0`
      * rather than on holding a lot at all.
      */
-    const campaign = readFileSync('scripts/checkin-nonbuyers.ts', 'utf8');
+    // The campaign moved to `lib/checkin-campaign.ts` when the daily run was
+    // automated, so the cron and the CLI share one implementation. These read
+    // the library, not the front end: the script deliberately holds no copy
+    // and no selection rules, which the assertion below states outright.
+    const campaign = readFileSync('lib/checkin-campaign.ts', 'utf8');
     const code = withoutComments(campaign);
     ok(
       'the offer arm is chosen by holding nothing, never by having spent nothing',
@@ -393,6 +397,148 @@ async function main() {
       'and it still sets the one-click headers',
       /'List-Unsubscribe': `<\$\{unsub\}>`/.test(plain) &&
         /'List-Unsubscribe-Post'/.test(plain)
+    );
+
+    /**
+     * One implementation, now that a cron sends this unattended.
+     *
+     * The CLI is a front end. If it kept its own copy of the wording or its own
+     * selection rules, the campaign would send two different emails depending
+     * on whether a person or the scheduler pressed it, and only one of the two
+     * would be the one anybody reviewed.
+     */
+    const cli = readFileSync('scripts/checkin-nonbuyers.ts', 'utf8');
+    ok(
+      'the CLI holds no copy of its own',
+      !/I wanted to check in personally|gift you a Trial pack/.test(cli)
+    );
+    ok(
+      'and no selection rules of its own',
+      !/FROM users u/.test(cli) && /selectPending\(\)/.test(cli)
+    );
+
+    /**
+     * The pause switch is a row, and it fails closed.
+     *
+     * An env var takes effect on the next deployment, so stopping an outbound
+     * campaign with one means waiting for a build while it keeps sending. And a
+     * switch whose read error means "carry on" is not a switch: the catch
+     * returns paused.
+     */
+    ok(
+      'the campaign can be stopped without a deploy',
+      /FROM ingest_state WHERE name = 'checkin_campaign'/.test(campaign)
+    );
+    ok(
+      'a pause switch that cannot be read stops the campaign',
+      /catch[\s\S]{0,220}?refusing to send[\s\S]{0,80}?return true;/.test(
+        campaign
+      )
+    );
+    /**
+     * Both positions have to exist before their order means anything.
+     *
+     * `indexOf` answers -1 for absent, and -1 is less than every real index,
+     * so a bare `a < b` reports "the check comes first" most loudly when the
+     * check has been deleted. The guard removed the pause block and this
+     * passed. The same trap is documented a few hundred lines up, on the
+     * assertion that had it first.
+     */
+    const pausePos = campaign.indexOf('if (await isPaused())');
+    const selectPos = campaign.indexOf('const pending = await selectPending()');
+    ok(
+      'the run checks the switch before selecting anybody',
+      pausePos >= 0 && selectPos >= 0 && pausePos < selectPos
+    );
+
+    /**
+     * And the cron is authenticated like every other one, or the campaign is a
+     * send anybody on the internet can trigger.
+     */
+    const cron = withoutComments(
+      readFileSync('app/api/cron/checkin-nonbuyers/route.ts', 'utf8')
+    );
+    /**
+     * The whole guard, not just the comparison inside it.
+     *
+     * Testing for `authHeader !== ...` alone passed while the guard read
+     * `if (false && authHeader !== ...)`: the comparison survives, and the
+     * refusal it belonged to does not. The condition that decides whether the
+     * 401 happens is the thing worth asserting.
+     */
+    ok(
+      'the check-in cron requires the cron secret',
+      /if \(cronSecret && authHeader !== `Bearer \$\{cronSecret\}`\) \{/.test(
+        cron
+      ) && /status: 401/.test(cron)
+    );
+    ok(
+      'and it is scheduled',
+      /"path": "\/api\/cron\/checkin-nonbuyers"/.test(
+        readFileSync('vercel.json', 'utf8')
+      )
+    );
+
+    /**
+     * The ledger row is a lock, not a witness.
+     *
+     * Writing it after the send makes the unique constraint record a race
+     * instead of preventing one: a doubled cron, or a manual `--send`
+     * overlapping 16:00 UTC, both select the same people, both send, and one
+     * insert then no-ops. The welcome sequence moved to claim-before-send for
+     * exactly this, and the pull request that shipped the old shape here
+     * asserted in its own text that the two runners were safe together
+     * (Bugbot, 2026-08-27).
+     */
+    const claimPos = campaign.indexOf('INSERT INTO lifecycle_emails');
+    const sendPos = campaign.indexOf('await sendPlainEmail(');
+    ok(
+      'the claim is taken before the send',
+      claimPos >= 0 && sendPos >= 0 && claimPos < sendPos
+    );
+    ok(
+      'a row another runner already holds stops this one sending',
+      /if \(claim\.rows\.length === 0\) \{[\s\S]{0,120}?continue;/.test(
+        campaign
+      )
+    );
+    /**
+     * The reclaim exists AND runs. Two assertions, because they fail apart.
+     *
+     * Checking only that the DELETE is in the file passed while the call to it
+     * was deleted: the mechanism sat there, invoked by nothing, and a claim
+     * taken by a killed process would have blocked that account's email
+     * forever. This is the third time in this file that asserting a mechanism
+     * without asserting its call site let the guard through, after the UTC
+     * bound helper and the cron auth guard. Assert the thing that makes it
+     * happen, not the thing that could.
+     */
+    ok(
+      'a claim that is never redeemed can be freed',
+      /DELETE FROM lifecycle_emails[\s\S]{0,200}?email_key = \$\{EMAIL_KEY\}[\s\S]{0,200}?confirmed_at IS NULL[\s\S]{0,120}?failed_at IS NULL/.test(
+        campaign
+      )
+    );
+    const reclaimPos = campaign.indexOf('await reclaimStaleCheckinClaims()');
+    ok(
+      'and the run actually calls it, before it selects anybody',
+      reclaimPos >= 0 && selectPos >= 0 && reclaimPos < selectPos
+    );
+
+    /**
+     * A heartbeat that is always `ok` reports health rather than measuring it,
+     * and a subtype the health pane does not list is a job whose silence looks
+     * the same as never having existed.
+     */
+    ok(
+      'the cron derives ok from the outcome rather than asserting it',
+      /ok: outcome\.failed === 0/.test(cron) && !/ok: true/.test(cron)
+    );
+    ok(
+      'the health pane expects this job, so its silence is visible',
+      /subtype: 'checkin_nonbuyers'/.test(
+        readFileSync('app/api/admin/health/dependencies/route.ts', 'utf8')
+      )
     );
   }
 

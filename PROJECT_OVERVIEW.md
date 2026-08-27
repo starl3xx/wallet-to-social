@@ -628,6 +628,23 @@ stored on the row so `lookup_completed`, emitted minutes later by a worker, can
 carry the same session as `lookup_started`. Null means no visit behind it: the
 seed cron and the public API both create jobs and neither has a browser.
 
+**The non-buyer check-in runs daily at 16:00 UTC** (`/api/cron/checkin-nonbuyers`,
+`lib/checkin-campaign.ts`), five per variant per day, an hour after the welcome
+sequence so an account due both gets them an hour apart. It is plain text from
+`starl3xx@`, not the branded template, and it ends by running out of people.
+
+**Stop it with a row, not a deploy.** `isPaused()` reads `ingest_state`, so one
+UPDATE halts the next run:
+
+```sql
+INSERT INTO ingest_state (name, value, updated_at)
+VALUES ('checkin_campaign', '{"paused":true}'::jsonb, now())
+ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+```
+
+The switch fails closed: a read error returns paused, because a switch whose
+failure means "carry on" is not a switch.
+
 **A sale is booked where credits are granted** (`bookSale` in `lib/credits.ts`),
 on both the Stripe and x402 rails, awaited and only on the branch that wrote.
 `provisionPaidAccess` books the legacy tier purchase for the same reason. A
