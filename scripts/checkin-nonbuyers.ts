@@ -5,7 +5,7 @@
  *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts                # dry run, prints the split and every draft
  *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts --to a@b.c     # preview EVERY variant to one address
  *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts --send         # send
- *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts --send --limit 5
+ *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts --send --per-variant 10
  *   npx tsx --env-file=.env.local scripts/checkin-nonbuyers.ts --send --variant has-credits
  *
  * ## Why there are three variants and not one
@@ -50,7 +50,10 @@
  * ## Idempotency
  *
  * One `lifecycle_emails` row per account under this key, written after a
- * successful send, so a re-run retries only the failures. The key is shared by
+ * successful send, so a re-run retries only the failures. That ledger is also
+ * what makes the daily drip resumable: an account already written to is not
+ * selected again, so running this once a day walks the queue without holding
+ * any state of its own. The key is shared by
  * all three variants: a person gets this check-in once, whichever version they
  * were eligible for on the day.
  *
@@ -169,9 +172,15 @@ const CONTENT: Record<Variant, () => { subject: string; text: string }> = {
 async function main() {
   const args = process.argv.slice(2);
   const send = args.includes('--send');
-  const limitIdx = args.indexOf('--limit');
-  const limit =
-    limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : Number.POSITIVE_INFINITY;
+  const capIdx = args.indexOf('--per-variant');
+  const parsedCap = capIdx >= 0 ? parseInt(args[capIdx + 1], 10) : NaN;
+  /**
+   * Five a variant a day, Jake's call on 2026-08-27. Small enough that a reply
+   * can be answered by a person the same day, which is the entire point of a
+   * check-in, and small enough that copy that lands badly is discovered on the
+   * fifth recipient rather than the ninety-fourth.
+   */
+  const dailyCap = Number.isFinite(parsedCap) && parsedCap > 0 ? parsedCap : 5;
   const toIdx = args.indexOf('--to');
   const previewTo = toIdx >= 0 ? args[toIdx + 1] : null;
   const variantIdx = args.indexOf('--variant');
@@ -266,15 +275,49 @@ async function main() {
         : 'has-credits',
   }));
 
-  const selected = recipients.filter(
+  const eligible = recipients.filter(
     (r) => !onlyVariant || r.variant === onlyVariant
   );
 
+  /**
+   * The daily cap is per variant, not per run.
+   *
+   * `--limit` bounds the whole run and takes its rows in signup order, so on a
+   * mixed set it would spend the entire day's quota on whichever variant
+   * happens to hold the oldest accounts: `has-credits` is 94 of the 133, so a
+   * shared cap of five would have sent nothing to the other two arms for
+   * eighteen days. Each arm gets its own five so all three start today, and
+   * the batch that finishes first simply stops.
+   *
+   * Ordering inside a variant stays signup order, oldest first, which is the
+   * order these accounts have been waiting in.
+   */
+  const perVariant = new Map<Variant, number>();
+  const selected = eligible.filter((r) => {
+    const taken = perVariant.get(r.variant) ?? 0;
+    if (taken >= dailyCap) return false;
+    perVariant.set(r.variant, taken + 1);
+    return true;
+  });
+
+  const remaining = eligible.reduce<Record<string, number>>((acc, r) => {
+    acc[r.variant] = (acc[r.variant] ?? 0) + 1;
+    return acc;
+  }, {});
   const counts = selected.reduce<Record<string, number>>((acc, r) => {
     acc[r.variant] = (acc[r.variant] ?? 0) + 1;
     return acc;
   }, {});
-  console.log('eligible:', JSON.stringify(counts), `total ${selected.length}`);
+  console.log(
+    'still to reach:',
+    JSON.stringify(remaining),
+    `total ${eligible.length}`
+  );
+  console.log(
+    `this run (cap ${dailyCap}/variant):`,
+    JSON.stringify(counts),
+    `total ${selected.length}`
+  );
 
   if (!send) {
     for (const variant of Object.keys(CONTENT) as Variant[]) {
@@ -296,10 +339,7 @@ async function main() {
   let sent = 0;
   let failed = 0;
 
-  for (const r of selected.slice(
-    0,
-    limit === Number.POSITIVE_INFINITY ? undefined : limit
-  )) {
+  for (const r of selected) {
     const c = CONTENT[r.variant]();
     const result = await sendPlainEmail({
       to: r.email,
