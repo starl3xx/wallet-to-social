@@ -229,6 +229,18 @@ const MUTATIONS: Mutation[] = [
     to: 'AND ${sql`TRUE`}',
   },
   {
+    name: 'welcome-1 tells a gifted account it has the free allowance (Bugbot, 2026-08-27)',
+    file: 'lib/welcome-sequence.ts',
+    from: '    content: (ctx: WelcomeContext) =>\n      ctx.holdsCredits',
+    to: '    content: (ctx: WelcomeContext) =>\n      false && ctx.holdsCredits',
+  },
+  {
+    name: 'the first-touch runner sends one form of welcome-1 to everybody',
+    file: 'lib/welcome-sequence.ts',
+    from: '      contentFor(first, { holdsCredits: r.holdsCredits })',
+    to: '      contentFor(first, { holdsCredits: false })',
+  },
+  {
     name: 'the check-in offers a pack to an account holding a partly-spent one',
     file: 'scripts/checkin-nonbuyers.ts',
     from: "    variant: !r.holds_lot\n      ? 'no-credits'",

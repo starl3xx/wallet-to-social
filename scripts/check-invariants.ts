@@ -227,13 +227,65 @@ async function main() {
     // the named one. Put a cheaper rung underneath and the email sells the
     // second one. It is not a crash and not a wrong price, it is a working link
     // to the wrong shelf, and nothing else in the repo can see it.
-    const { WELCOME_EMAILS } = await import('@/lib/welcome-sequence');
-    const sales = WELCOME_EMAILS[WELCOME_EMAILS.length - 1];
+    const { WELCOME_EMAILS, contentFor } =
+      await import('@/lib/welcome-sequence');
+    const sales = contentFor(WELCOME_EMAILS[WELCOME_EMAILS.length - 1], {
+      holdsCredits: false,
+    });
     const entry = PACKS[PACK_IDS[0]];
     ok(
       'the sales email cannot name a rung that is no longer the entry',
-      sales.content.subject.includes(String(entry.matches)) &&
-        (sales.content.button?.label ?? '').includes(entry.name)
+      sales.subject.includes(String(entry.matches)) &&
+        (sales.button?.label ?? '').includes(entry.name)
+    );
+
+    /**
+     * An email that adapts must be true in BOTH of its forms.
+     *
+     * welcome-1 told a gifted account it had the rolling free allowance
+     * (Bugbot, 2026-08-27). A live lot makes `hasPaidAccess` true, so that
+     * reader is spending a pack, not the allowance, and the same paragraph
+     * went on to sell them the features their pack had already opened.
+     *
+     * Asserted through the resolver rather than by reading the source, so it
+     * tests what a reader receives.
+     */
+    const { FREE_MATCHES_PER_WINDOW } = await import('@/lib/packs');
+    for (const email of WELCOME_EMAILS) {
+      const paid = contentFor(email, { holdsCredits: true });
+      const body = [paid.subject, ...paid.paragraphs].join(' ');
+      ok(
+        `${email.key} does not tell a credit-holder they are on the free allowance`,
+        !new RegExp(
+          `${FREE_MATCHES_PER_WINDOW}\\s+free matches|your ${FREE_MATCHES_PER_WINDOW} free`,
+          'i'
+        ).test(body)
+      );
+    }
+
+    /**
+     * And both runners must pass the reader's real state.
+     *
+     * The assertion above proves the copy adapts; it says nothing about
+     * whether anybody asks it to. A runner that resolves with a hardcoded
+     * `false` sends the free-allowance version to a credit-holder while every
+     * content check still passes, so the call sites are asserted separately
+     * from the content.
+     */
+    const seqSrc = withoutComments(
+      readFileSync('lib/welcome-sequence.ts', 'utf8')
+    );
+    ok(
+      'both runners read holdsCredits from the row',
+      (seqSrc.match(/\) AS "holdsCredits"/g) ?? []).length === 2
+    );
+    ok(
+      'and pass it through rather than a literal',
+      /contentFor\(first, \{ holdsCredits: r\.holdsCredits \}\)/.test(seqSrc) &&
+        /contentFor\(email, \{ holdsCredits: d\.holdsCredits \}\)/.test(
+          seqSrc
+        ) &&
+        !/contentFor\([a-z]+, \{ holdsCredits: (true|false) \}\)/.test(seqSrc)
     );
 
     /**
