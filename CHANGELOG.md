@@ -2,6 +2,49 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-27 (a check-in that read the account first)
+
+A personal check-in to every account that signed in and never bought, plus the
+onboarding bug the campaign would have walked into.
+
+**The obvious version of this email was wrong, and the data said so.** Offering
+a free Trial pack to every non-buyer would have offered a $29 pack to **96
+people who were given one on 2026-08-23 and have not touched it**: of 25,000
+granted matches, 3 were consumed, across 2 accounts. Offering somebody a gift
+they are already sitting on is the one thing a message opening "I wanted to
+personally check in" cannot survive, because it proves nobody looked.
+
+So `scripts/checkin-nonbuyers.ts` splits on what the account already holds:
+
+- **has-credits** (94): holds an untouched granted pack. No offer. The unused
+  pack is the reason for writing, and the question is what got in the way.
+- **used-credits** (2): has actually spent some of it, so they are the only
+  people with an experience to report and the email asks about that.
+- **no-credits** (37): holds nothing. The offer stands.
+
+The first draft of that split keyed the offer on `consumed = 0`, which routed a
+partly-spent grant into the offer arm and reintroduced the exact failure the
+split exists to prevent, for two accounts.
+
+**`sendPlainEmail`** sends these as text from a person, not inside the campaign
+template: a note asking "let me know" that arrives as branded HTML from
+`noreply@` answers its own question before it is read. Plain is not exempt from
+any lifecycle rule, so it refuses without the unsubscribe secret and still sets
+the one-click `List-Unsubscribe` headers. Every send is bcc'd for the archive,
+because a script's mail exists in nobody's Sent folder.
+
+**A gifted pack silently ended the welcome sequence.** Eligibility excluded any
+account holding **any** credit lot, so gifting credits stopped onboarding with
+nothing failing and no diff. It had cost nobody an email only by luck: all 100
+granted accounts predate `SEQUENCE_START`. "Bought" is now `amount_cents > 0`,
+the same test `getUserCohorts` uses. The sales email still stands down for
+anyone holding credits, for its own reason: a live lot makes `hasPaidAccess`
+true, so welcome-5's ask names features that are already open to the reader.
+That is a copy problem, so it is applied to that one email rather than to the
+sequence.
+
+344 invariants, 141 guard mutations.
+
 ### 2026-08-27 (we held the evidence and answered "no wallets")
 
 Some wallet owners have attested two live X accounts through different sources.

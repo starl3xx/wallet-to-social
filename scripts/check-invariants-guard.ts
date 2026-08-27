@@ -217,6 +217,30 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    name: 'a gifted pack silently ends the welcome sequence again',
+    file: 'lib/welcome-sequence.ts',
+    from: '    WHERE cl.user_id = u.id AND cl.amount_cents > 0\n  )',
+    to: '    WHERE cl.user_id = u.id\n  )',
+  },
+  {
+    name: 'the sales email is sent to an account that already holds credits',
+    file: 'lib/welcome-sequence.ts',
+    from: 'AND ${REQUIRES_NO_CREDITS.has(e.key) ? HOLDS_NO_CREDITS : sql`TRUE`}',
+    to: 'AND ${sql`TRUE`}',
+  },
+  {
+    name: 'the check-in offers a pack to an account holding a partly-spent one',
+    file: 'scripts/checkin-nonbuyers.ts',
+    from: "    variant: !r.holds_lot\n      ? 'no-credits'",
+    to: "    variant: r.spent_lot\n      ? 'no-credits'",
+  },
+  {
+    name: 'the plain sender stops requiring a working unsubscribe',
+    file: 'lib/email.ts',
+    from: "  const unsub = unsubscribeUrl(options.to);\n  if (!unsub) {\n    console.error('EMAIL_UNSUBSCRIBE_SECRET missing - plain send refused');\n    return { success: false, error: 'Unsubscribe secret not configured' };\n  }",
+    to: "  const unsub = unsubscribeUrl(options.to) ?? '';",
+  },
+  {
     name: 'the Stripe pack grant stops booking the sale',
     file: 'lib/credits.ts',
     from: "    await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);\n",

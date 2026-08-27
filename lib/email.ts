@@ -220,6 +220,78 @@ export async function sendLifecycleEmail(
 }
 
 /**
+ * Send one plain-text lifecycle email, with no template around it.
+ *
+ * `sendLifecycleEmail` above renders the branded HTML: a heading, a button, a
+ * footnote, a signature block. That is right for a campaign and wrong for a
+ * note from a person, which is what this is for. A "I wanted to check in on
+ * your experience" message arriving inside marketing chrome answers its own
+ * question before the reader gets to it.
+ *
+ * ## Still lifecycle mail, so still every lifecycle rule
+ *
+ * Plain does not mean exempt. It refuses without the unsubscribe secret for
+ * the same reason the templated sender does: lifecycle mail with no working
+ * unsubscribe is not a degraded send, it is a send we must not make. Callers
+ * check `users.email_opt_out` first, as they do for the templated one.
+ *
+ * The visible opt-out is one line rather than a footer, and the
+ * `List-Unsubscribe` headers do the real work: they are what a mail client
+ * offers as one-click, and they cost the message none of its tone.
+ *
+ * `bcc` is how a sent message survives. Mail sent by a script exists in
+ * nobody's Sent folder, so without a copy there is no record a person can
+ * audit later, only a ledger row saying it happened.
+ */
+export async function sendPlainEmail(options: {
+  to: string;
+  from: string;
+  replyTo: string;
+  subject: string;
+  /** The message, exactly as written. No markup, no template. */
+  text: string;
+  bcc?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    console.error('Resend not configured - RESEND_API_KEY missing');
+    return { success: false, error: 'Email service not configured' };
+  }
+  const unsub = unsubscribeUrl(options.to);
+  if (!unsub) {
+    console.error('EMAIL_UNSUBSCRIBE_SECRET missing - plain send refused');
+    return { success: false, error: 'Unsubscribe secret not configured' };
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: options.from,
+      to: options.to,
+      bcc: options.bcc,
+      replyTo: options.replyTo,
+      subject: options.subject,
+      // Text only. Passing no `html` is what keeps this a plain message in
+      // every client rather than one that quietly renders as a styled one.
+      text: `${options.text}\n\nNo more emails like this: ${unsub}`,
+      headers: {
+        'List-Unsubscribe': `<${unsub}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    });
+    if (error) {
+      console.error('Resend error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send plain email:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * The two inline markers the approved copy uses. Applied to our own strings
  * only, never to user input, so no escaping pass precedes it.
  */

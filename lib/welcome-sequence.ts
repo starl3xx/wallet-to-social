@@ -310,8 +310,52 @@ const ELIGIBLE_USER = sql`
   AND NOT EXISTS (
     SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
   )
-  AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+  AND NOT EXISTS (
+    SELECT 1 FROM credit_lots cl
+    WHERE cl.user_id = u.id AND cl.amount_cents > 0
+  )
 `;
+
+/**
+ * Holding credits is not the same as having bought, and only one email cares.
+ *
+ * This test used to be `NOT EXISTS (... credit_lots ...)` with no amount, so
+ * **any** lot ended the sequence, a hand-issued grant included.
+ *
+ * It has not cost anybody an email yet, and the reason is luck rather than
+ * design: all 100 accounts the relaunch campaign granted a Trial pack to on
+ * 2026-08-23 were created before `SEQUENCE_START`, so they were never in the
+ * sequence for the grant to remove them from. Checked on 2026-08-27, before
+ * this comment was written the other way round.
+ *
+ * The trap is live for the next grant. Gift a pack to an account inside the
+ * window and the old predicate ends its onboarding silently, with nothing
+ * failing and no diff: the account gets whatever campaign email came with the
+ * gift and never hears from the sequence again. Those 100 lots had consumed 3
+ * matches of 25,000 between them by 2026-08-27, so a granted account is
+ * precisely the one that still needs onboarding.
+ *
+ * "Bought" is `amount_cents > 0`, the same test `getUserCohorts` uses and the
+ * same sentence CHANGELOG uses for `bookSale`: a hand-issued credit is not a
+ * sale.
+ *
+ * The sales email still has to stand down, and for a different reason: a live
+ * lot makes `hasPaidAccess` true, so welcome-5's ask ("the cheapest pack opens
+ * all of them") is addressed to somebody for whom they are already open. That
+ * is a copy problem, not an eligibility one, so it is applied to that email
+ * alone rather than to the sequence.
+ */
+const HOLDS_NO_CREDITS = sql`
+  NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+`;
+
+/**
+ * Emails whose copy assumes the reader cannot yet use the paid features.
+ *
+ * Keyed by the email's own key rather than by position, so reordering the
+ * sequence cannot silently move the restriction onto a different email.
+ */
+const REQUIRES_NO_CREDITS = new Set(['welcome-5']);
 
 /**
  * Selection asks whether an email was *delivered*, never whether a row exists.
@@ -605,6 +649,7 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
       SELECT u.id AS "userId", u.email
       FROM users u
       WHERE ${ELIGIBLE_USER}
+        AND ${REQUIRES_NO_CREDITS.has(e.key) ? HOLDS_NO_CREDITS : sql`TRUE`}
         AND u.created_at <= now() - make_interval(days => ${e.day})
         AND (
           SELECT count(*) FROM lifecycle_emails prev
