@@ -15,6 +15,7 @@ import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   publicTwitterField,
+  alsoOnXForWallets,
   walletsBySecondaryHandle,
 } from '@/lib/handle-reachability';
 
@@ -230,6 +231,28 @@ export async function GET(
     }))
   );
 
+  /**
+   * The second attested account, on the rows that have one.
+   *
+   * This route never called it, which was survivable while the query matched
+   * only primaries and became a contradiction the moment it stopped: a wallet
+   * matched on its second handle answers with a *different* name in
+   * `twitter.handle` and, without this, nothing anywhere in the response
+   * mentioning the handle that was searched for. The docs shipped alongside
+   * that change said the searched name appears under `twitter.also`, so the
+   * gap made a published promise false (Bugbot, 2026-08-27).
+   *
+   * Keyed on each row's own handle rather than the queried one, because
+   * `alsoOnXForWallets` requires the conflict's `ours` to be the handle being
+   * displayed, and for a secondary match those two differ by definition.
+   */
+  const also = await alsoOnXForWallets(
+    results.map((r) => ({
+      wallet: r.wallet,
+      handle: r.twitterHandle ?? normalizedHandle,
+    }))
+  );
+
   const data = results.map((result) => {
     const item: Record<string, unknown> = {
       wallet: result.wallet,
@@ -243,6 +266,7 @@ export async function GET(
       url: result.twitterUrl,
       verified: result.twitterVerified,
       reachability: reach.get(result.wallet.toLowerCase()) ?? null,
+      also: also.get(result.wallet.toLowerCase()) ?? null,
     });
     if (result.farcaster) {
       item.farcaster = {

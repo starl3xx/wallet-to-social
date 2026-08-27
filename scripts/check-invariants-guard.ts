@@ -174,8 +174,35 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the count and the list stop sharing one FROM clause',
     file: 'lib/handle-reachability.ts',
-    from: 'sql`SELECT count(DISTINCT c.wallet)::int AS n ${secondaryHandleFrom(normalized)}`',
+    // The count lost its DISTINCT when the FROM clause gained a DISTINCT ON,
+    // so this anchored on text that no longer existed and the guard reported
+    // SETUP rather than testing anything.
+    from: 'sql`SELECT count(*)::int AS n ${secondaryHandleFrom(normalized)}`',
     to: 'sql`SELECT count(*)::int AS n FROM handle_conflicts c WHERE lower(c.theirs) = ${normalized}`',
+  },
+  {
+    name: 'a reverse match returns a wallet whose row shows a different second handle (Bugbot, 2026-08-27)',
+    file: 'lib/handle-reachability.ts',
+    from: '      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w\n    WHERE w.theirs = ${normalized}',
+    to: '        AND lower(c.theirs) = ${normalized}\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+  },
+  {
+    name: 'the public reverse route stops filling twitter.also (Bugbot, 2026-08-27)',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '      also: also.get(result.wallet.toLowerCase()) ?? null,\n',
+    to: '',
+  },
+  {
+    name: 'the app reverse route stops stamping the second account',
+    file: 'app/api/reverse/route.ts',
+    from: '  await stampAlsoOnX(results);',
+    to: '',
+  },
+  {
+    name: 'an inert closure can never be reopened when a handle revives (Bugbot, 2026-08-27)',
+    file: 'lib/conflict-resolution.ts',
+    from: "       AND (o.status = 'live' OR t.status = 'live')",
+    to: '       AND false',
   },
   {
     name: 'an inert conflict is closed on a stale reading',

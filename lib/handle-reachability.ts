@@ -319,22 +319,41 @@ export async function reachabilityForWallets(
  *   - the source must map to a public evidence class, or the row is dropped
  *     rather than named. Filtering on `MAPPED_SOURCE_IDS` rather than on the
  *     rendered class keeps one allowlist.
+ *
+ * ## And it picks the same winner, not merely a qualifying row
+ *
+ * `alsoOnXForWallets` keeps **one** conflict per wallet: `DISTINCT ON (wallet)`
+ * ordered by the account id first, since that one passed the stronger test,
+ * then by the most recently seen. A wallet with two qualifying second accounts
+ * therefore displays exactly one of them.
+ *
+ * So the handle filter is applied **after** that selection, not inside it. The
+ * first version filtered first and matched any qualifying row, which returns a
+ * wallet for the loser of a tie: searched B, row shows A, and the caller is
+ * left holding the exact contradiction this gate exists to prevent (Bugbot,
+ * 2026-08-27). No wallet has two today, which is precisely why the ordering had
+ * to be copied rather than reasoned about from the current data.
  */
 function secondaryHandleFrom(normalized: string) {
   return sql`
-    FROM handle_conflicts c
-    JOIN x_accounts o ON o.handle = lower(c.ours)
-    JOIN x_accounts t ON t.handle = lower(c.theirs)
-    JOIN social_graph g ON g.wallet = c.wallet
-    WHERE c.platform = 'twitter'
-      AND c.resolved_at IS NULL
-      AND o.status = 'live'
-      AND t.status = 'live'
-      AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)
-      AND lower(c.ours) = lower(g.twitter_handle)
-      AND lower(c.theirs) = ${normalized}
-      AND lower(c.theirs) <> lower(g.twitter_handle)
-      AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])
+    FROM (
+      SELECT DISTINCT ON (c.wallet)
+             c.wallet, lower(c.theirs) AS theirs
+      FROM handle_conflicts c
+      JOIN x_accounts o ON o.handle = lower(c.ours)
+      JOIN x_accounts t ON t.handle = lower(c.theirs)
+      JOIN social_graph g ON g.wallet = c.wallet
+      WHERE c.platform = 'twitter'
+        AND c.resolved_at IS NULL
+        AND o.status = 'live'
+        AND t.status = 'live'
+        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)
+        AND lower(c.ours) = lower(g.twitter_handle)
+        AND lower(c.theirs) <> lower(g.twitter_handle)
+        AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])
+      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC
+    ) w
+    WHERE w.theirs = ${normalized}
   `;
 }
 
@@ -351,7 +370,7 @@ export async function walletsBySecondaryHandle(
   if (normalized.length === 0) return [];
 
   const result = (await db.execute(
-    sql`SELECT DISTINCT c.wallet ${secondaryHandleFrom(normalized)}`
+    sql`SELECT w.wallet ${secondaryHandleFrom(normalized)}`
   )) as unknown as { rows: Array<{ wallet: string }> };
 
   return result.rows.map((r) => r.wallet);
@@ -383,7 +402,7 @@ export async function countBySecondaryHandle(handle: string): Promise<number> {
   if (normalized.length === 0) return 0;
 
   const result = (await db.execute(
-    sql`SELECT count(DISTINCT c.wallet)::int AS n ${secondaryHandleFrom(normalized)}`
+    sql`SELECT count(*)::int AS n ${secondaryHandleFrom(normalized)}`
   )) as unknown as { rows: Array<{ n: number }> };
 
   return result.rows[0]?.n ?? 0;

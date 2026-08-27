@@ -100,6 +100,11 @@ async function main() {
     console.log(
       `closed inert    ${out.closedBothDead.toLocaleString()} (neither handle reachable)`
     );
+    if (out.reopenedBothDead > 0) {
+      console.log(
+        `reopened        ${out.reopenedBothDead.toLocaleString()} (a side is live again)`
+      );
+    }
   }
   console.log(`took            ${seconds.toFixed(1)}s`);
 

@@ -12,6 +12,7 @@ import { lockedReverseBody } from '@/lib/reverse-access';
 import {
   walletsBySecondaryHandle,
   countBySecondaryHandle,
+  stampAlsoOnX,
 } from '@/lib/handle-reachability';
 import {
   checkIpRateLimit,
@@ -263,6 +264,21 @@ export async function POST(request: NextRequest) {
     agent_token_symbol: r.agentTokenSymbol ?? undefined,
     agent_verified: r.agentVerified ?? undefined,
   }));
+
+  /**
+   * Stamp the second attested account, before anything reads these rows.
+   *
+   * A wallet matched on its second handle answers with a *different* name in
+   * `twitter_handle`, so without this the results table shows a row that looks
+   * unrelated to what was typed, and the saved lookup below persists it that
+   * way (Bugbot, 2026-08-27). `stampAlsoOnX` mutates in place and keys on each
+   * row's own handle, which is what `alsoOnXForWallets` requires.
+   *
+   * Above `saveLookup` for the same reason `stampReachability` is in
+   * `job-processor`: saving first would persist rows without the mark, so
+   * reopening a saved lookup would drop it.
+   */
+  await stampAlsoOnX(results);
 
   // Save to My lookups, same as a forward lookup. A reverse result is a wallet
   // list like any other: worth reloading, renaming and exporting later, and

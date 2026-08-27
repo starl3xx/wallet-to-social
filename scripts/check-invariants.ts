@@ -1769,6 +1769,83 @@ async function main() {
       code.indexOf('if (dryRun) return outcome;') <
         code.indexOf('closeBothDead(recheckDays)')
     );
+    /**
+     * Closing is only safe because it is reversible, and the reversal has to
+     * be here.
+     *
+     * The comment on `closeBothDead` first claimed `recordConflicts` would
+     * reopen a row if a side came back to life. It does not: it clears
+     * `resolved_at` only when the `ours` or `theirs` strings change, and
+     * liveness lives in `x_accounts`, which never touches this table. A lifted
+     * suspension would have left the row closed for good (Bugbot, 2026-08-27).
+     */
+    ok(
+      'an inert closure is reopened when either side is live again',
+      /SET resolved_at = NULL,[\s\S]{0,200}?c\.resolution = \$\{RESOLUTION_BOTH_DEAD\}[\s\S]{0,200}?\(o\.status = 'live' OR t\.status = 'live'\)/.test(
+        code
+      )
+    );
+    ok(
+      'the reopen runs before the close, so a revived row re-enters this run',
+      code.indexOf('SET resolved_at = NULL') <
+        code.indexOf('SET resolved_at = now()')
+    );
+  }
+
+  // ------------------------------- The reverse answer corroborates itself
+  {
+    /**
+     * A wallet matched on its second handle answers with a different name in
+     * `twitter.handle`. If nothing in the response then mentions the handle
+     * that was searched, the caller is handed a row that looks unrelated to
+     * their query, and the docs shipped with the feature say the searched name
+     * appears under `twitter.also` (Bugbot, 2026-08-27).
+     */
+    const v1 = withoutComments(
+      readFileSync('app/api/v1/reverse/twitter/[handle]/route.ts', 'utf8')
+    );
+    ok(
+      'the public reverse route fills twitter.also',
+      /alsoOnXForWallets\(/.test(v1) && /also: also\.get\(/.test(v1)
+    );
+
+    const app = withoutComments(
+      readFileSync('app/api/reverse/route.ts', 'utf8')
+    );
+    ok(
+      'the app reverse route stamps the second account',
+      /await stampAlsoOnX\(results\)/.test(app)
+    );
+    ok(
+      'it stamps before the results are persisted to history',
+      app.indexOf('stampAlsoOnX(results)') < app.indexOf('saveLookup(results')
+    );
+
+    /**
+     * And reverse must pick the same winner the row displays.
+     *
+     * `alsoOnXForWallets` keeps one conflict per wallet, ordered by account id
+     * then recency. Filtering on the handle *inside* that selection returns a
+     * wallet for the loser of a tie: searched B, row shows A.
+     */
+    const reach = withoutComments(
+      readFileSync('lib/handle-reachability.ts', 'utf8')
+    );
+    const from = reach.slice(
+      reach.indexOf('function secondaryHandleFrom'),
+      reach.indexOf('function normalizeHandle')
+    );
+    ok(
+      'the secondary gate picks one conflict per wallet, as the display does',
+      /DISTINCT ON \(c\.wallet\)/.test(from) &&
+        /ORDER BY c\.wallet, \(c\.their_user_id IS NOT NULL\) DESC, c\.last_seen_at DESC/.test(
+          from
+        )
+    );
+    ok(
+      'the handle filter is applied after that selection, not inside it',
+      from.indexOf('ORDER BY c.wallet') < from.indexOf('WHERE w.theirs =')
+    );
   }
 
   // ------------------------------------------- Attribution: what we keep of it

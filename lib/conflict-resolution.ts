@@ -146,6 +146,8 @@ export interface ResolveOutcome {
    * swapped and nothing was chosen: see `closeBothDead`.
    */
   closedBothDead: number;
+  /** Inert closures put back on the queue because a side is live again. */
+  reopenedBothDead: number;
   blocked: Record<BlockedReason, number>;
   recheck: {
     /** Distinct handles that need a look before their row can qualify. */
@@ -491,6 +493,7 @@ export async function resolveUnreachableConflicts(
     walletsUpdated: 0,
     cacheRowsDeleted: 0,
     closedBothDead: 0,
+    reopenedBothDead: 0,
     blocked,
     recheck,
     sample,
@@ -510,7 +513,9 @@ export async function resolveUnreachableConflicts(
     outcome.cacheRowsDeleted += written.cacheRows;
   }
 
-  outcome.closedBothDead = await closeBothDead(recheckDays);
+  const inert = await closeBothDead(recheckDays);
+  outcome.closedBothDead = inert.closed;
+  outcome.reopenedBothDead = inert.reopened;
   return outcome;
 }
 
@@ -535,9 +540,24 @@ export const RESOLUTION_BOTH_DEAD = 'closed: neither handle reachable';
  * handle does not come back to life on its own.
  *
  * Closing is not deciding. Our handle stays exactly where it is; the row is
- * marked so the queue stops carrying work nobody can do. If either side is ever
- * seen live again, `recordConflicts` reopens the row on its next ingest, which
- * is the same mechanism that reopens a conflict that changed shape.
+ * marked so the queue stops carrying work nobody can do.
+ *
+ * ## Reopening is this function's job, not `recordConflicts`'s
+ *
+ * The first version of this comment claimed that "if either side is ever seen
+ * live again, `recordConflicts` reopens the row on its next ingest". That was
+ * false, and it is exactly the shape of claim this codebase asserts rather than
+ * asserts about: `recordConflicts` clears `resolved_at` only when the `ours` or
+ * `theirs` **strings** change. Liveness lives in `x_accounts` and never touches
+ * `handle_conflicts`, so a lifted suspension or a reclaimed name would have
+ * left the row closed forever, unable to surface as `twitter.also` or to
+ * qualify for a swap, with a live attested handle sitting right there (Bugbot,
+ * 2026-08-27).
+ *
+ * So the reopen is done here, in the same pass and before the close: any row
+ * closed as inert whose sides are no longer both dead goes back on the queue.
+ * The two statements cannot disagree about what "dead" means, because they read
+ * the same two columns.
  *
  * ## Why freshness is required to close
  *
@@ -547,9 +567,35 @@ export const RESOLUTION_BOTH_DEAD = 'closed: neither handle reachable';
  * than being closed on an old look. That is the whole reason this runs after
  * the recheck above rather than before it.
  */
-async function closeBothDead(recheckDays: number): Promise<number> {
+async function closeBothDead(
+  recheckDays: number
+): Promise<{ closed: number; reopened: number }> {
   const db = getDb();
-  if (!db) return 0;
+  if (!db) return { closed: 0, reopened: 0 };
+
+  /**
+   * Reopen first, so a row that came back to life is a candidate again on this
+   * run rather than on the next one.
+   *
+   * No freshness test here, deliberately, and it is the opposite asymmetry to
+   * the close below. Closing on a stale reading risks burying a live handle, so
+   * it demands a fresh look on both sides. Reopening on a stale reading costs a
+   * row re-entering a queue it will leave again, so any evidence that either
+   * side is not dead is enough. When the two rules disagree, the one that keeps
+   * a conflict visible wins.
+   */
+  const reopened = (await db.execute(sql`
+    UPDATE handle_conflicts c
+       SET resolved_at = NULL,
+           resolution  = NULL
+      FROM x_accounts o, x_accounts t
+     WHERE o.handle = lower(c.ours)
+       AND t.handle = lower(c.theirs)
+       AND c.platform = 'twitter'
+       AND c.resolution = ${RESOLUTION_BOTH_DEAD}
+       AND (o.status = 'live' OR t.status = 'live')
+    RETURNING 1
+  `)) as unknown as { rows: unknown[] };
 
   const result = (await db.execute(sql`
     UPDATE handle_conflicts c
@@ -567,5 +613,8 @@ async function closeBothDead(recheckDays: number): Promise<number> {
     RETURNING 1
   `)) as unknown as { rows: unknown[] };
 
-  return result.rows?.length ?? 0;
+  return {
+    closed: result.rows?.length ?? 0,
+    reopened: reopened.rows?.length ?? 0,
+  };
 }
