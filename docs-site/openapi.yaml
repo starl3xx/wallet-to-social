@@ -348,8 +348,17 @@ paths:
         Every wallet in the index attested to this X account, ordered by
         Farcaster follower count descending, then by address.
 
-        Billed one match credit per wallet returned. A handle nobody holds
-        returns an empty array and costs nothing.
+        A wallet matches when this handle is its primary X account **or** its
+        second attested one. Some owners have attested two live X accounts from
+        the same wallet through different evidence; a wallet matched on the
+        second carries its other handle in `twitter.handle` and names the one
+        you searched for under `twitter.also`. The conditions are the ones
+        `twitter.also` itself requires: both accounts live, and any attested
+        account id still matching.
+
+        Billed one match credit per wallet returned, on the same terms
+        whichever half matched. A handle nobody holds returns an empty array
+        and costs nothing.
 
         Paginated by keyset cursor. When `truncated` is true, pass
         `meta.next_cursor` back as `cursor` to get the next page. The cursor is
