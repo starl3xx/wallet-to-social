@@ -2,6 +2,55 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-27 (we held the evidence and answered "no wallets")
+
+Some wallet owners have attested two live X accounts through different sources.
+The row showed the second one, the CSV exported it, the public API served it as
+`twitter.also`, the docs described it, and reverse lookup then answered "no
+wallets" when somebody searched for it. Both reverse doors matched
+`social_graph.twitter_handle` and nothing else.
+
+- **Both reverse routes now match the second attested account.** A wallet
+  matched this way carries a different handle in `twitter.handle` and names the
+  searched one under `twitter.also`, so the answer corroborates itself.
+- **The gate is the display's gate, not a second one.** Reverse and
+  `alsoOnXForWallets` read the same `FROM` clause and the same source
+  allowlist, because a wallet returned for a handle its own row does not show
+  is worse than the gap it fixes.
+- **`MAPPED_SOURCE_IDS` is derived from `SOURCE_CLASSES`**, so the allowlist and
+  its enforcement cannot drift into two lists.
+
+**The obvious implementation was unusable, and only a query plan said so.** An
+`OR EXISTS (...)` bolted onto the route's `WHERE` reads perfectly and defeats
+the index on `twitter_handle`: Postgres sequentially scans all 5,117,875 graph
+rows and runs the subplan once per row. **19.7 seconds to return two wallets.**
+`handle_conflicts` holds 3,680 rows in total, so resolving the wallets first and
+matching them by primary key costs **42ms**, and the cost is set by the conflict
+table rather than by the graph. Where a handle has no second-account claim,
+which is nearly all of them, the predicate is the one that ran before.
+
+**The first draft also broke a disclosure rule the file states in its own
+header.** `/api/reverse` publishes the count to callers with no credits and
+withholds the addresses, and the header is explicit that the address query "must
+not run for them at all". Building the free count from a resolved wallet list
+did exactly the work that forbids, one `console.log` from disclosure. The free
+path now counts and the paid path lists, over one `FROM` clause, and the
+invariant asserts the order of the two calls around the gate.
+
+**Conflicts nobody can ever act on are now closed.** A conflict where both
+handles are dead cannot be accepted (acceptance needs theirs live) and cannot
+surface as a second account (that needs both live). It was inert: re-examined by
+every run forever, counted in every queue total forever, unable to change any
+answer. `closeBothDead` closes them under a distinct resolution, and only on
+fresh readings of both sides, because two dead readings from six weeks ago are
+not evidence that both are dead now.
+
+Also: the conflict resolver's recheck budget was a fixed 300 credits a day, 14
+lookups, against a sibling sweep allowed 96,724 by a formula derived from the
+live balance. The backlog of 539 rechecks was cleared by hand (151 conflicts
+resolved on 150 wallets, 14,796 credits) and `CONFLICT_RECHECK_CREDITS` is set
+in production. 328 invariants, 133 guard mutations.
+
 ### 2026-08-26 (the funnel counted events and called them people)
 
 The admin panel had thirteen destinations and four pairs of them answered the

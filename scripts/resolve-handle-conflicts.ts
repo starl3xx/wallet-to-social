@@ -97,6 +97,9 @@ async function main() {
       `accepted        ${out.accepted.toLocaleString()} conflicts on ${out.walletsUpdated.toLocaleString()} wallets`
     );
     console.log(`cache rows gone ${out.cacheRowsDeleted.toLocaleString()}`);
+    console.log(
+      `closed inert    ${out.closedBothDead.toLocaleString()} (neither handle reachable)`
+    );
   }
   console.log(`took            ${seconds.toFixed(1)}s`);
 

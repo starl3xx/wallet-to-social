@@ -1659,6 +1659,116 @@ async function main() {
       'a missing session is not answered with 401',
       !/Sign in to use reverse lookup/.test(route)
     );
+
+    /**
+     * The second attested account is searchable, and searching it discloses no
+     * more than searching the primary does.
+     *
+     * `countBySecondaryHandle` returns a number and `walletsBySecondaryHandle`
+     * returns addresses. The count belongs above the entitlement gate, because
+     * an unentitled caller is told the total; the list belongs below it,
+     * because the header of that route is explicit that the address query must
+     * not run for them at all. The first draft of this feature resolved the
+     * wallet list above the gate to build the count, which satisfied every
+     * response-shape check and did exactly the work the header forbids.
+     */
+    const secondaryCount = route.indexOf('countBySecondaryHandle(');
+    const secondaryList = route.indexOf('walletsBySecondaryHandle(');
+    ok(
+      'reverse matches the second attested account at all',
+      secondaryCount > 0 && secondaryList > 0
+    );
+    ok(
+      'the free count counts, and never resolves the addresses',
+      secondaryCount < lockedReturn && secondaryList > lockedReturn
+    );
+
+    /**
+     * Reverse and the row display share one gate.
+     *
+     * A wallet returned for a handle its own row does not show is worse than
+     * the gap this closed: the caller is told a wallet belongs to a handle,
+     * opens the row, and finds no such handle on it. Both read the same `FROM`
+     * clause and the same source allowlist.
+     */
+    const reach = readFileSync('lib/handle-reachability.ts', 'utf8');
+    const reachCode = withoutComments(reach);
+    ok(
+      'both secondary queries are built from one FROM clause',
+      (reachCode.match(/secondaryHandleFrom\(normalized\)/g) ?? []).length === 2
+    );
+    ok(
+      'the secondary gate filters on the public source allowlist',
+      /c\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}/.test(
+        reachCode
+      )
+    );
+    ok(
+      'the allowlist is derived from the class map, not typed out again',
+      /Object\.entries\(SOURCE_CLASSES\)/.test(
+        withoutComments(readFileSync('lib/api-sources.ts', 'utf8'))
+      )
+    );
+
+    /**
+     * Never a correlated EXISTS against the graph.
+     *
+     * The obvious shape for this feature is `OR EXISTS (...)` bolted onto the
+     * route's `WHERE`. Measured on production it defeats the index on
+     * `twitter_handle`, sequentially scans all 5,117,875 graph rows and runs
+     * the subplan once per row: 19.7 seconds to return two wallets, against
+     * 42ms for the list-then-match shape. Both reverse routes must resolve the
+     * wallets first and match them by primary key.
+     */
+    for (const file of [
+      'app/api/reverse/route.ts',
+      'app/api/v1/reverse/twitter/[handle]/route.ts',
+    ]) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} matches secondary wallets by key, not by a correlated subquery`,
+        /inArray\(socialGraph\.wallet, secondary\)/.test(src) &&
+          !/EXISTS\s*\(/i.test(src)
+      );
+    }
+  }
+
+  // ------------------------------------- Conflicts nobody can ever act on
+  {
+    const resolution = readFileSync('lib/conflict-resolution.ts', 'utf8');
+    const code = withoutComments(resolution);
+    /**
+     * A conflict with two dead handles is inert: it cannot be accepted, since
+     * acceptance needs theirs live, and it cannot surface as a second account,
+     * since that needs both live. Closing it is not deciding it, and the
+     * freshness window is what separates the two: two dead readings from six
+     * weeks ago are not evidence that both are dead now, because a suspension
+     * gets lifted and a freed name gets taken.
+     */
+    ok(
+      'the both-dead close requires a fresh reading on BOTH sides',
+      /o\.checked_at > now\(\) - make_interval\(days => \$\{recheckDays\}\)/.test(
+        code
+      ) &&
+        /t\.checked_at > now\(\) - make_interval\(days => \$\{recheckDays\}\)/.test(
+          code
+        )
+    );
+    ok(
+      'it closes only rows where neither side is live',
+      /o\.status IN \('not_found', 'unavailable'\)/.test(code) &&
+        /t\.status IN \('not_found', 'unavailable'\)/.test(code)
+    );
+    ok(
+      'a closed-as-inert row is labelled differently from an accepted one',
+      /RESOLUTION_BOTH_DEAD = 'closed: neither handle reachable'/.test(code) &&
+        /RESOLUTION = 'accepted-theirs: ours unreachable'/.test(code)
+    );
+    ok(
+      'a dry run closes nothing',
+      code.indexOf('if (dryRun) return outcome;') <
+        code.indexOf('closeBothDead(recheckDays)')
+    );
   }
 
   // ------------------------------------------- Attribution: what we keep of it

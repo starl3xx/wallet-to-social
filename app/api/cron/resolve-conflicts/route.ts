@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
         accepted: outcome.accepted,
         walletsUpdated: outcome.walletsUpdated,
         cacheRowsDeleted: outcome.cacheRowsDeleted,
+        closedBothDead: outcome.closedBothDead,
         blocked: outcome.blocked,
         recheckWanted: outcome.recheck.wanted,
         recheckRequested: outcome.recheck.requested,

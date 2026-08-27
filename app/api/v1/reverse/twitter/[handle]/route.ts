@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import {
@@ -15,6 +15,7 @@ import { publicSources } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   publicTwitterField,
+  walletsBySecondaryHandle,
 } from '@/lib/handle-reachability';
 
 export const runtime = 'nodejs';
@@ -86,13 +87,35 @@ export async function GET(
     );
   }
 
+  /**
+   * The handle as a primary, OR as the second attested account on the row.
+   *
+   * One expression, built once and used by the count, the page and the cursor
+   * predicate below, because the three disagreeing is how a paginated endpoint
+   * reports a total it will not hand out.
+   *
+   * The wallets are resolved first and matched by primary key rather than
+   * expressed as a correlated `EXISTS`: see `walletsBySecondaryHandle` for the
+   * 19.7-second measurement that settled it. Where a handle has no second-
+   * account claim, which is nearly all of them, this is the same predicate the
+   * route used before.
+   */
+  const secondary = await walletsBySecondaryHandle(normalizedHandle);
+  const matchesHandle =
+    secondary.length > 0
+      ? or(
+          eq(socialGraph.twitterHandle, normalizedHandle),
+          inArray(socialGraph.wallet, secondary)
+        )
+      : eq(socialGraph.twitterHandle, normalizedHandle);
+
   // Get total count first (for truncation detection)
   const [countResult] = await db
     .select({
       count: sql<number>`COUNT(*)::int`,
     })
     .from(socialGraph)
-    .where(eq(socialGraph.twitterHandle, normalizedHandle));
+    .where(matchesHandle);
 
   const totalCount = countResult?.count ?? 0;
 
@@ -134,8 +157,8 @@ export async function GET(
     .from(socialGraph)
     .where(
       afterCursor === undefined
-        ? eq(socialGraph.twitterHandle, normalizedHandle)
-        : and(eq(socialGraph.twitterHandle, normalizedHandle), afterCursor)
+        ? matchesHandle
+        : and(matchesHandle, afterCursor)
     )
     .orderBy(
       sql`${socialGraph.fcFollowers} DESC NULLS LAST`,

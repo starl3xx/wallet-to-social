@@ -52,7 +52,7 @@
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
-import { publicSources } from '@/lib/api-sources';
+import { publicSources, MAPPED_SOURCE_IDS } from '@/lib/api-sources';
 import type { TwitterAlso } from '@/lib/types';
 
 /** What the public API and the UI speak. */
@@ -275,6 +275,120 @@ export async function reachabilityForWallets(
  *
  * Keyed by lowercased wallet, like `reachabilityForWallets`.
  */
+/**
+ * The wallets whose SECOND attested X account is this handle.
+ *
+ * Reverse lookup can then find a wallet by the handle shown *beneath* the
+ * primary one. Before this, both reverse routes matched
+ * `social_graph.twitter_handle` alone: we held an owner-attested link,
+ * displayed it on the row, exported it in the CSV, served it from the public
+ * API as `twitter.also`, and then answered "no wallets" when somebody searched
+ * for it.
+ *
+ * ## Why this returns a list instead of a predicate
+ *
+ * The obvious shape is a correlated `OR EXISTS (...)` bolted onto the route's
+ * existing `WHERE`, which reads well and is unusable. Measured on production:
+ * the `OR` defeats the index on `social_graph.twitter_handle`, so Postgres
+ * sequentially scans all 5,117,875 graph rows and runs the subplan once per
+ * row. **19.7 seconds** for a query that returns two wallets.
+ *
+ * `handle_conflicts` holds 3,680 rows in total, so resolving the wallets first
+ * is a scan of a rounding error, and the route then filters `social_graph` by
+ * primary key. It is also why the shape is safe as the table grows: the cost is
+ * set by the conflict table, not by the graph.
+ *
+ * Returning `[]` matters as much as returning wallets. Almost every handle has
+ * no second-account claim at all, and on that path the caller leaves its
+ * predicate exactly as it was, so the overwhelmingly common query is
+ * byte-identical to the one that ran before this existed.
+ *
+ * ## Every condition `alsoOnXForWallets` applies, including the three it
+ * applies in JavaScript
+ *
+ * The two must agree exactly. A wallet returned here whose row does not display
+ * this handle is worse than the gap it fixes: the caller is told a wallet
+ * belongs to a handle, opens the row, and finds no such handle anywhere on it.
+ * So the SQL gate is the same one, and the three filters that used to live only
+ * in the loop below are restated here:
+ *
+ *   - the conflict's `ours` must be the handle the graph currently serves, not
+ *     the one the sweep saw last week;
+ *   - `theirs` must differ from the primary, since identical modulo case is
+ *     not a second account whatever the table says;
+ *   - the source must map to a public evidence class, or the row is dropped
+ *     rather than named. Filtering on `MAPPED_SOURCE_IDS` rather than on the
+ *     rendered class keeps one allowlist.
+ */
+function secondaryHandleFrom(normalized: string) {
+  return sql`
+    FROM handle_conflicts c
+    JOIN x_accounts o ON o.handle = lower(c.ours)
+    JOIN x_accounts t ON t.handle = lower(c.theirs)
+    JOIN social_graph g ON g.wallet = c.wallet
+    WHERE c.platform = 'twitter'
+      AND c.resolved_at IS NULL
+      AND o.status = 'live'
+      AND t.status = 'live'
+      AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)
+      AND lower(c.ours) = lower(g.twitter_handle)
+      AND lower(c.theirs) = ${normalized}
+      AND lower(c.theirs) <> lower(g.twitter_handle)
+      AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])
+  `;
+}
+
+function normalizeHandle(handle: string): string {
+  return handle.toLowerCase().replace(/^@/, '');
+}
+
+export async function walletsBySecondaryHandle(
+  handle: string
+): Promise<string[]> {
+  const db = getDb();
+  if (!db) return [];
+  const normalized = normalizeHandle(handle);
+  if (normalized.length === 0) return [];
+
+  const result = (await db.execute(
+    sql`SELECT DISTINCT c.wallet ${secondaryHandleFrom(normalized)}`
+  )) as unknown as { rows: Array<{ wallet: string }> };
+
+  return result.rows.map((r) => r.wallet);
+}
+
+/**
+ * How many wallets the handle would add, without reading a single address.
+ *
+ * `/api/reverse` publishes the count to callers with no credits and withholds
+ * the addresses, and its own header is explicit that the address query "must
+ * not run for them at all", because a version that read every wallet and then
+ * declined to print them would satisfy the response shape and still have done
+ * the work. The first draft of the second-account match broke exactly that: it
+ * resolved the wallet list above the entitlement gate so the free count could
+ * include them.
+ *
+ * So the free path counts and the paid path lists, over one `FROM` clause
+ * neither of them writes twice.
+ *
+ * The two sets are disjoint, which is what makes adding the counts sound rather
+ * than convenient. A wallet matched here has `twitter_handle = ours` and
+ * `ours <> theirs = handle`, so its primary handle is not the handle being
+ * searched, so it cannot also be in the primary count.
+ */
+export async function countBySecondaryHandle(handle: string): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  const normalized = normalizeHandle(handle);
+  if (normalized.length === 0) return 0;
+
+  const result = (await db.execute(
+    sql`SELECT count(DISTINCT c.wallet)::int AS n ${secondaryHandleFrom(normalized)}`
+  )) as unknown as { rows: Array<{ n: number }> };
+
+  return result.rows[0]?.n ?? 0;
+}
+
 export async function alsoOnXForWallets(
   rows: Array<{ wallet: string; handle?: string | null }>
 ): Promise<Map<string, TwitterAlso>> {

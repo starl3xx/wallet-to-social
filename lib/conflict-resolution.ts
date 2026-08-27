@@ -141,6 +141,11 @@ export interface ResolveOutcome {
   /** Graph rows rewritten. Below `accepted` when two sources named one account. */
   walletsUpdated: number;
   cacheRowsDeleted: number;
+  /**
+   * Conflicts closed because neither handle reaches anybody. Nothing was
+   * swapped and nothing was chosen: see `closeBothDead`.
+   */
+  closedBothDead: number;
   blocked: Record<BlockedReason, number>;
   recheck: {
     /** Distinct handles that need a look before their row can qualify. */
@@ -485,10 +490,13 @@ export async function resolveUnreachableConflicts(
     accepted: 0,
     walletsUpdated: 0,
     cacheRowsDeleted: 0,
+    closedBothDead: 0,
     blocked,
     recheck,
     sample,
   };
+  // A dry run closes nothing, for the same reason it accepts nothing and
+  // rechecks nothing: every one of those is a write.
   if (dryRun) return outcome;
 
   for (let i = 0; i < toAccept.length; i += BATCH) {
@@ -501,5 +509,63 @@ export async function resolveUnreachableConflicts(
     outcome.walletsUpdated += written.wallets;
     outcome.cacheRowsDeleted += written.cacheRows;
   }
+
+  outcome.closedBothDead = await closeBothDead(recheckDays);
   return outcome;
+}
+
+/**
+ * Written to `resolution` when neither handle reaches anybody.
+ *
+ * A distinct string from `RESOLUTION`, because these rows are closed on the
+ * evidence rather than decided: nothing was swapped and nothing was chosen.
+ * Anything grouping the column by outcome must be able to tell the two apart.
+ */
+export const RESOLUTION_BOTH_DEAD = 'closed: neither handle reachable';
+
+/**
+ * Close the conflicts that no rule can ever act on.
+ *
+ * A conflict where **both** handles are dead cannot be accepted, because
+ * acceptance requires theirs to be live, and it cannot surface as a second
+ * account either, because `alsoOnXForWallets` requires both to be live. It is
+ * inert: it will be re-examined by every run forever, counted in every queue
+ * total forever, and can never change any answer the product gives. On
+ * 2026-08-27 there were 188 of them and the number only grows, because a dead
+ * handle does not come back to life on its own.
+ *
+ * Closing is not deciding. Our handle stays exactly where it is; the row is
+ * marked so the queue stops carrying work nobody can do. If either side is ever
+ * seen live again, `recordConflicts` reopens the row on its next ingest, which
+ * is the same mechanism that reopens a conflict that changed shape.
+ *
+ * ## Why freshness is required to close
+ *
+ * Two dead readings from six weeks ago are not evidence that both are dead now:
+ * a suspension gets lifted and a freed name gets taken. So the same recheck
+ * window that governs acceptance governs this, and a stale row waits rather
+ * than being closed on an old look. That is the whole reason this runs after
+ * the recheck above rather than before it.
+ */
+async function closeBothDead(recheckDays: number): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const result = (await db.execute(sql`
+    UPDATE handle_conflicts c
+       SET resolved_at = now(),
+           resolution  = ${RESOLUTION_BOTH_DEAD}
+      FROM x_accounts o, x_accounts t
+     WHERE o.handle = lower(c.ours)
+       AND t.handle = lower(c.theirs)
+       AND c.platform = 'twitter'
+       AND c.resolved_at IS NULL
+       AND o.status IN ('not_found', 'unavailable')
+       AND t.status IN ('not_found', 'unavailable')
+       AND o.checked_at > now() - make_interval(days => ${recheckDays})
+       AND t.checked_at > now() - make_interval(days => ${recheckDays})
+    RETURNING 1
+  `)) as unknown as { rows: unknown[] };
+
+  return result.rows?.length ?? 0;
 }
