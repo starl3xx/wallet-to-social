@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-27 (the check-in runs itself)
+
+The daily run is a cron: `/api/cron/checkin-nonbuyers`, 16:00 UTC, five per
+variant. An hour after the welcome sequence, so an account due both gets them an
+hour apart rather than in the same second.
+
+Selection and copy moved to `lib/checkin-campaign.ts`, and the script became a
+front end for a dry run, a preview and a manual push. A second copy of either in
+the CLI is how a campaign ends up sending two different emails depending on who
+pressed it, and only one of them is the reviewed one.
+
+**The pause switch is a row, not an environment variable.** An env var takes
+effect on the next deployment, so stopping an outbound campaign with one means
+waiting for a build while it keeps sending. `isPaused()` reads `ingest_state`,
+checked before anybody is selected, so one UPDATE halts the next run. It fails
+closed: a read error returns paused, because a switch whose failure means "carry
+on" is not a switch. Verified by pausing, watching a `--send` refuse, and
+resuming.
+
+Running beside the welcome sequence is deliberate, Jake's call: a plain note
+from a person is a different kind of mail from the branded sequence and the two
+can interleave. The one collision that would have mattered was already closed,
+since accepting the free pack gives the account credits and welcome-5 stands
+down for credit holders.
+
+358 invariants, 147 guard mutations.
+
 ### 2026-08-27 (the check-in drips, five a variant a day)
 
 `scripts/checkin-nonbuyers.ts` takes `--per-variant`, defaulting to 5, and the

@@ -49,6 +49,10 @@
       "schedule": "0 15 * * *"
     },
     {
+      "path": "/api/cron/checkin-nonbuyers",
+      "schedule": "0 16 * * *"
+    },
+    {
       "path": "/api/cron/welcome-first",
       "schedule": "*/5 * * * *"
     },
