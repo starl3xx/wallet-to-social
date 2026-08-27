@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-27 (the check-in drips, five a variant a day)
+
+`scripts/checkin-nonbuyers.ts` takes `--per-variant`, defaulting to 5, and the
+cap is per variant rather than per run.
+
+`--limit` bounded the whole run and took its rows in signup order, so on a mixed
+set it spent the entire day's quota on whichever variant held the oldest
+accounts. `has-credits` is 94 of the 133, so a shared cap of five would have
+sent nothing to the other two arms for eighteen days. Each arm gets its own
+five, so all three start on day one and the batch that finishes first stops.
+
+The `lifecycle_emails` ledger is what makes the drip resumable: an account
+already written to is not selected again, so running this once a day walks the
+queue holding no state of its own.
+
+**Day one went out on 2026-08-27**: 12 sent, 0 failed. `used-credits` completed
+in that run, both of them. 89 `has-credits` and 32 `no-credits` remain.
+
 ### 2026-08-27 (a check-in that read the account first)
 
 A personal check-in to every account that signed in and never bought, plus the
