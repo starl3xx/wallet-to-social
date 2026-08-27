@@ -227,13 +227,172 @@ async function main() {
     // the named one. Put a cheaper rung underneath and the email sells the
     // second one. It is not a crash and not a wrong price, it is a working link
     // to the wrong shelf, and nothing else in the repo can see it.
-    const { WELCOME_EMAILS } = await import('@/lib/welcome-sequence');
-    const sales = WELCOME_EMAILS[WELCOME_EMAILS.length - 1];
+    const { WELCOME_EMAILS, contentFor } =
+      await import('@/lib/welcome-sequence');
+    const sales = contentFor(WELCOME_EMAILS[WELCOME_EMAILS.length - 1], {
+      holdsCredits: false,
+    });
     const entry = PACKS[PACK_IDS[0]];
     ok(
       'the sales email cannot name a rung that is no longer the entry',
-      sales.content.subject.includes(String(entry.matches)) &&
-        (sales.content.button?.label ?? '').includes(entry.name)
+      sales.subject.includes(String(entry.matches)) &&
+        (sales.button?.label ?? '').includes(entry.name)
+    );
+
+    /**
+     * An email that adapts must be true in BOTH of its forms.
+     *
+     * welcome-1 told a gifted account it had the rolling free allowance
+     * (Bugbot, 2026-08-27). A live lot makes `hasPaidAccess` true, so that
+     * reader is spending a pack, not the allowance, and the same paragraph
+     * went on to sell them the features their pack had already opened.
+     *
+     * Asserted through the resolver rather than by reading the source, so it
+     * tests what a reader receives.
+     */
+    const { FREE_MATCHES_PER_WINDOW } = await import('@/lib/packs');
+    for (const email of WELCOME_EMAILS) {
+      const paid = contentFor(email, { holdsCredits: true });
+      const body = [paid.subject, ...paid.paragraphs].join(' ');
+      ok(
+        `${email.key} does not tell a credit-holder they are on the free allowance`,
+        !new RegExp(
+          `${FREE_MATCHES_PER_WINDOW}\\s+free matches|your ${FREE_MATCHES_PER_WINDOW} free`,
+          'i'
+        ).test(body)
+      );
+    }
+
+    /**
+     * And both runners must pass the reader's real state.
+     *
+     * The assertion above proves the copy adapts; it says nothing about
+     * whether anybody asks it to. A runner that resolves with a hardcoded
+     * `false` sends the free-allowance version to a credit-holder while every
+     * content check still passes, so the call sites are asserted separately
+     * from the content.
+     */
+    const seqSrc = withoutComments(
+      readFileSync('lib/welcome-sequence.ts', 'utf8')
+    );
+    ok(
+      'both runners read holdsCredits from the row',
+      (seqSrc.match(/\) AS "holdsCredits"/g) ?? []).length === 2
+    );
+    ok(
+      'and pass it through rather than a literal',
+      /contentFor\(first, \{ holdsCredits: r\.holdsCredits \}\)/.test(seqSrc) &&
+        /contentFor\(email, \{ holdsCredits: d\.holdsCredits \}\)/.test(
+          seqSrc
+        ) &&
+        !/contentFor\([a-z]+, \{ holdsCredits: (true|false) \}\)/.test(seqSrc)
+    );
+
+    /**
+     * A hand-issued grant must not end somebody's onboarding.
+     *
+     * Eligibility once excluded any account holding **any** credit lot, so
+     * gifting a pack silently stopped the sequence: the account got whatever
+     * campaign email came with the gift and never heard from onboarding
+     * again, with nothing failing and no diff. It had cost nobody an email
+     * only because every granted account so far predates `SEQUENCE_START`.
+     *
+     * "Bought" is `amount_cents > 0`, and holding credits is a separate
+     * question that exactly one email is allowed to ask.
+     */
+    const seq = withoutComments(
+      readFileSync('lib/welcome-sequence.ts', 'utf8')
+    );
+    const eligible = seq.slice(
+      seq.indexOf('const ELIGIBLE_USER'),
+      seq.indexOf('const HOLDS_NO_CREDITS')
+    );
+    ok(
+      'the sequence ends only for accounts that actually bought',
+      /credit_lots cl\s*WHERE cl\.user_id = u\.id AND cl\.amount_cents > 0/.test(
+        eligible
+      )
+    );
+    ok(
+      'eligibility does not exclude an account merely for holding credits',
+      !/NOT EXISTS \(SELECT 1 FROM credit_lots cl WHERE cl\.user_id = u\.id\)/.test(
+        eligible
+      )
+    );
+    /**
+     * And the sales email still stands down for them, for its own reason: a
+     * live lot makes `hasPaidAccess` true, so its ask names features that are
+     * already open to the reader.
+     */
+    ok(
+      'the sales email is the one gated on holding no credits',
+      /REQUIRES_NO_CREDITS = new Set\(\['welcome-5'\]\)/.test(seq) &&
+        /REQUIRES_NO_CREDITS\.has\(e\.key\) \? HOLDS_NO_CREDITS : sql`TRUE`/.test(
+          seq
+        )
+    );
+    ok(
+      'the gated key is one the sequence actually contains',
+      WELCOME_EMAILS.some((e) => e.key === 'welcome-5')
+    );
+  }
+
+  // --------------------------------------- A check-in that read the account
+  {
+    /**
+     * The campaign must never offer a pack to somebody already holding one.
+     *
+     * Measured on 2026-08-27, the single-variant version of this email would
+     * have offered a $29 Trial pack to 96 accounts that were given one four
+     * days earlier and had spent 3 of 25,000 matches between them. The split
+     * exists for that, and its first draft reintroduced the same failure for
+     * the two partly-spent accounts by keying the offer on `consumed = 0`
+     * rather than on holding a lot at all.
+     */
+    const campaign = readFileSync('scripts/checkin-nonbuyers.ts', 'utf8');
+    const code = withoutComments(campaign);
+    ok(
+      'the offer arm is chosen by holding nothing, never by having spent nothing',
+      /variant: !r\.holds_lot\s*\?\s*'no-credits'/.test(code) &&
+        !/holds_lot[\s\S]{0,80}consumed = 0/.test(code)
+    );
+    ok(
+      'only the no-credits copy contains an offer',
+      /I'd be happy to gift you a Trial pack/.test(
+        campaign.slice(campaign.indexOf('function noCreditsContent'))
+      ) &&
+        !/gift you a Trial pack/.test(
+          campaign.slice(
+            campaign.indexOf('function hasCreditsContent'),
+            campaign.indexOf('function noCreditsContent')
+          )
+        )
+    );
+    ok(
+      'every send is archived and answerable by a person',
+      /bcc: ARCHIVE_BCC/.test(code) &&
+        /replyTo: REPLY_TO/.test(code) &&
+        !/noreply/.test(code)
+    );
+
+    /**
+     * Plain does not mean exempt: lifecycle mail with no working unsubscribe
+     * is a send we must not make, whichever sender renders it.
+     */
+    const email = withoutComments(readFileSync('lib/email.ts', 'utf8'));
+    const plain = email.slice(
+      email.indexOf('export async function sendPlainEmail')
+    );
+    ok(
+      'the plain sender refuses without the unsubscribe secret',
+      /const unsub = unsubscribeUrl\(options\.to\);[\s\S]{0,200}?if \(!unsub\)[\s\S]{0,200}?return \{ success: false/.test(
+        plain
+      )
+    );
+    ok(
+      'and it still sets the one-click headers',
+      /'List-Unsubscribe': `<\$\{unsub\}>`/.test(plain) &&
+        /'List-Unsubscribe-Post'/.test(plain)
     );
   }
 

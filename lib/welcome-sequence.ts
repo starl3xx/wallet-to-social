@@ -124,11 +124,49 @@ const RUN_BUDGET_MS = 240_000;
  */
 export const FIRST_TOUCH_DELAY_MINUTES = 5;
 
+/**
+ * What the sequence needs to know about the reader before it can write to them.
+ *
+ * Exactly one fact so far, and it is the one that decides whether half the
+ * copy is true: an account holding a live lot is not spending the free
+ * allowance, because `hasPaidAccess` is `!onFreeAllowance`.
+ */
+export interface WelcomeContext {
+  holdsCredits: boolean;
+}
+
 interface WelcomeEmail {
   key: string;
   /** Days after signup this email becomes due. */
   day: number;
-  content: LifecycleEmailContent;
+  /**
+   * Static where the email says the same thing to everybody, a function where
+   * it cannot.
+   *
+   * Gating is not an alternative for anything but the last email. A pass
+   * demands that every earlier email was *delivered*, so skipping welcome-1
+   * for a reader stops welcome-2 through welcome-5 from ever becoming due:
+   * the account would receive nothing at all, which is the failure the
+   * eligibility fix was made to end. Only welcome-5, with nothing after it,
+   * can be withheld safely.
+   *
+   * So an email whose copy is false for a credit-holder has to adapt instead
+   * (Bugbot, 2026-08-27, on welcome-1 telling a gifted account it has the
+   * rolling free allowance).
+   */
+  content:
+    | LifecycleEmailContent
+    | ((ctx: WelcomeContext) => LifecycleEmailContent);
+}
+
+/** Resolve an email's copy for one reader. */
+export function contentFor(
+  email: WelcomeEmail,
+  ctx: WelcomeContext
+): LifecycleEmailContent {
+  return typeof email.content === 'function'
+    ? email.content(ctx)
+    : email.content;
 }
 
 const SITE = 'https://walletlink.social';
@@ -158,32 +196,53 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
   {
     key: 'welcome-1',
     day: 0,
-    content: {
-      subject: `Your first ${FREE_MATCHES_PER_WINDOW} matches are free`,
-      paragraphs: [
-        'Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.',
-        // "Paste a contract address" led this sentence until 2026-08-26, and
-        // contract import is credit-gated (`contractLocked={!entitled}`): the
-        // first instruction in the first email was the one thing the reader
-        // could not do. Upload and paste are the free paths, so they lead.
-        `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
-        // The last sentence is the boundary, and it belongs here rather than in
-        // a later email. The allowance is a match count, `hasPaidAccess` is
-        // binary, and an email that states only the first one lets a reader
-        // infer that 100 free matches means 100 matches' worth of product.
-        // Naming the paid half once, plainly, in the email that explains the
-        // free half is cheaper than four later emails working around it.
-        //
-        // The CSV export is deliberately NOT in this list. `ExportButton` gates
-        // the X list on `entitled` and hands everyone the CSV, every column of
-        // it, so an earlier draft of this sentence saying "the exports" sold a
-        // free feature as a paid one. Read the gate before naming a feature
-        // here: two of the five in this sentence were wrong on the first pass.
-        `You have ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance. The CSV export is yours either way, every row of it. What credits add is the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle.`,
-      ],
-      button: { label: 'Run a lookup', url: SITE },
-      footnote: 'If anything is unclear, just reply to this email!',
-    },
+    content: (ctx: WelcomeContext) =>
+      ctx.holdsCredits
+        ? {
+            /**
+             * The same email, addressed to somebody who is not on the free
+             * allowance.
+             *
+             * A live lot makes `hasPaidAccess` true, so every sentence about
+             * "your 100 free matches" and "what credits add" is false for this
+             * reader: they are spending a pack, and they already have the
+             * features the other version is describing as the paid half.
+             */
+            subject: 'Your credits are ready. Here is what they do.',
+            paragraphs: [
+              'Hey, thanks for signing up for walletlink.social. There are credits on your account already, so here is what you can do with them.',
+              `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+              'A match is a wallet we resolve to an X or Farcaster account, and **wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your balance. Your credits are what open the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle. The CSV export was never behind that line and is yours either way, every row of it.',
+            ],
+            button: { label: 'Run a lookup', url: SITE },
+            footnote: 'If anything is unclear, just reply to this email!',
+          }
+        : {
+            subject: `Your first ${FREE_MATCHES_PER_WINDOW} matches are free`,
+            paragraphs: [
+              'Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.',
+              // "Paste a contract address" led this sentence until 2026-08-26, and
+              // contract import is credit-gated (`contractLocked={!entitled}`): the
+              // first instruction in the first email was the one thing the reader
+              // could not do. Upload and paste are the free paths, so they lead.
+              `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+              // The last sentence is the boundary, and it belongs here rather than in
+              // a later email. The allowance is a match count, `hasPaidAccess` is
+              // binary, and an email that states only the first one lets a reader
+              // infer that 100 free matches means 100 matches' worth of product.
+              // Naming the paid half once, plainly, in the email that explains the
+              // free half is cheaper than four later emails working around it.
+              //
+              // The CSV export is deliberately NOT in this list. `ExportButton` gates
+              // the X list on `entitled` and hands everyone the CSV, every column of
+              // it, so an earlier draft of this sentence saying "the exports" sold a
+              // free feature as a paid one. Read the gate before naming a feature
+              // here: two of the five in this sentence were wrong on the first pass.
+              `You have ${FREE_MATCHES_PER_WINDOW} free matches in a rolling ${FREE_WINDOW_DAYS}-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance. The CSV export is yours either way, every row of it. What credits add is the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle.`,
+            ],
+            button: { label: 'Run a lookup', url: SITE },
+            footnote: 'If anything is unclear, just reply to this email!',
+          },
   },
   {
     key: 'welcome-2',
@@ -242,8 +301,14 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       subject: 'How many wallets are behind that handle?',
       paragraphs: [
         'A lookup runs in both directions, and the second direction is the one people miss.',
-        `**Reverse lookup**. Type an X handle or a Farcaster username and we tell you how many wallets in the index carry it. That count is free: it spends no credits and none of your ${FREE_MATCHES_PER_WINDOW} free matches.`,
-        'The number on its own is a real answer. Before a partnership, an allowlist or an airdrop, whether a person is attached to any wallet we hold, and to how many, is most of what you wanted to know. **Which** wallets, address by address, is the part credits buy.',
+        // "none of your 100 free matches" and "the part credits buy" are both
+        // written to somebody on the free allowance. For a credit-holder the
+        // first names an allowance they are not spending and the second sells
+        // them what they already hold, so the sentence states the free half
+        // without claiming the reader is on it, and the ask becomes a
+        // signpost.
+        `**Reverse lookup**. Type an X handle or a Farcaster username and we tell you how many wallets in the index carry it. That count is free for everybody: it spends no credits and none of the ${FREE_MATCHES_PER_WINDOW}-match free allowance.`,
+        'The number on its own is a real answer. Before a partnership, an allowlist or an airdrop, whether a person is attached to any wallet we hold, and to how many, is most of what you wanted to know. **Which** wallets, address by address, is what credits unlock.',
       ],
       button: { label: 'Look up a handle', url: SITE },
       footnote:
@@ -310,8 +375,52 @@ const ELIGIBLE_USER = sql`
   AND NOT EXISTS (
     SELECT 1 FROM whitelist w WHERE lower(w.email) = lower(u.email)
   )
-  AND NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+  AND NOT EXISTS (
+    SELECT 1 FROM credit_lots cl
+    WHERE cl.user_id = u.id AND cl.amount_cents > 0
+  )
 `;
+
+/**
+ * Holding credits is not the same as having bought, and only one email cares.
+ *
+ * This test used to be `NOT EXISTS (... credit_lots ...)` with no amount, so
+ * **any** lot ended the sequence, a hand-issued grant included.
+ *
+ * It has not cost anybody an email yet, and the reason is luck rather than
+ * design: all 100 accounts the relaunch campaign granted a Trial pack to on
+ * 2026-08-23 were created before `SEQUENCE_START`, so they were never in the
+ * sequence for the grant to remove them from. Checked on 2026-08-27, before
+ * this comment was written the other way round.
+ *
+ * The trap is live for the next grant. Gift a pack to an account inside the
+ * window and the old predicate ends its onboarding silently, with nothing
+ * failing and no diff: the account gets whatever campaign email came with the
+ * gift and never hears from the sequence again. Those 100 lots had consumed 3
+ * matches of 25,000 between them by 2026-08-27, so a granted account is
+ * precisely the one that still needs onboarding.
+ *
+ * "Bought" is `amount_cents > 0`, the same test `getUserCohorts` uses and the
+ * same sentence CHANGELOG uses for `bookSale`: a hand-issued credit is not a
+ * sale.
+ *
+ * The sales email still has to stand down, and for a different reason: a live
+ * lot makes `hasPaidAccess` true, so welcome-5's ask ("the cheapest pack opens
+ * all of them") is addressed to somebody for whom they are already open. That
+ * is a copy problem, not an eligibility one, so it is applied to that email
+ * alone rather than to the sequence.
+ */
+const HOLDS_NO_CREDITS = sql`
+  NOT EXISTS (SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id)
+`;
+
+/**
+ * Emails whose copy assumes the reader cannot yet use the paid features.
+ *
+ * Keyed by the email's own key rather than by position, so reordering the
+ * sequence cannot silently move the restriction onto a different email.
+ */
+const REQUIRES_NO_CREDITS = new Set(['welcome-5']);
 
 /**
  * Selection asks whether an email was *delivered*, never whether a row exists.
@@ -528,7 +637,10 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
   const first = WELCOME_EMAILS[0];
 
   const rows = (await db.execute(sql`
-    SELECT u.id AS "userId", u.email
+    SELECT u.id AS "userId", u.email,
+           EXISTS (
+             SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id
+           ) AS "holdsCredits"
     FROM users u
     WHERE ${ELIGIBLE_USER}
       AND NOT EXISTS (
@@ -538,7 +650,9 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
       )
     ORDER BY u.created_at
     LIMIT ${FIRST_TOUCH_MAX_SENDS}
-  `)) as unknown as { rows: Array<{ userId: string; email: string }> };
+  `)) as unknown as {
+    rows: Array<{ userId: string; email: string; holdsCredits: boolean }>;
+  };
 
   const outcome: WelcomeRunOutcome = {
     due: rows.rows.length,
@@ -558,7 +672,7 @@ export async function runWelcomeFirstTouch(): Promise<WelcomeRunOutcome> {
       r.userId,
       r.email,
       first.key,
-      first.content
+      contentFor(first, { holdsCredits: r.holdsCredits })
     );
     if (result === 'sent') {
       outcome.sent += 1;
@@ -598,13 +712,22 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
    * index can satisfy it for a given user, which is what makes the pacing
    * below a safety net rather than the mechanism.
    */
-  const due: Array<{ userId: string; email: string; key: string }> = [];
+  const due: Array<{
+    userId: string;
+    email: string;
+    key: string;
+    holdsCredits: boolean;
+  }> = [];
   for (const [index, e] of WELCOME_EMAILS.entries()) {
     const earlierKeys = WELCOME_EMAILS.slice(0, index).map((p) => p.key);
     const rows = (await db.execute(sql`
-      SELECT u.id AS "userId", u.email
+      SELECT u.id AS "userId", u.email,
+             EXISTS (
+               SELECT 1 FROM credit_lots cl WHERE cl.user_id = u.id
+             ) AS "holdsCredits"
       FROM users u
       WHERE ${ELIGIBLE_USER}
+        AND ${REQUIRES_NO_CREDITS.has(e.key) ? HOLDS_NO_CREDITS : sql`TRUE`}
         AND u.created_at <= now() - make_interval(days => ${e.day})
         AND (
           SELECT count(*) FROM lifecycle_emails prev
@@ -618,13 +741,20 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
             AND ${NOT_SENDABLE}
         )
       ORDER BY u.created_at
-    `)) as unknown as { rows: Array<{ userId: string; email: string }> };
+    `)) as unknown as {
+      rows: Array<{ userId: string; email: string; holdsCredits: boolean }>;
+    };
     for (const r of rows.rows) {
       // Belt and braces: the predicate above already admits a user to at most
       // one pass, so this can no longer fire. It stays because it is cheap and
       // because the last two bugs here were both a user reaching two passes.
       if (!due.some((d) => d.userId === r.userId)) {
-        due.push({ userId: r.userId, email: r.email, key: e.key });
+        due.push({
+          userId: r.userId,
+          email: r.email,
+          key: e.key,
+          holdsCredits: r.holdsCredits,
+        });
       }
     }
   }
@@ -643,7 +773,7 @@ export async function runWelcomeSequence(): Promise<WelcomeRunOutcome> {
       d.userId,
       d.email,
       d.key,
-      email.content
+      contentFor(email, { holdsCredits: d.holdsCredits })
     );
     if (result === 'sent') {
       outcome.sent += 1;
