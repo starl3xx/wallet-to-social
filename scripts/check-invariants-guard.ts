@@ -154,6 +154,69 @@ const MUTATIONS: Mutation[] = [
     to: 'count(*) FILTER (WHERE ran_lookup)::int AS ranLookup,',
   },
   {
+    name: 'the free count resolves wallet addresses to build itself',
+    file: 'app/api/reverse/route.ts',
+    from: 'await countBySecondaryHandle(handle) : 0;',
+    to: '(await walletsBySecondaryHandle(handle)).length : 0;',
+  },
+  {
+    name: 'the secondary match goes back to a correlated EXISTS over 5.1M rows',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: 'inArray(socialGraph.wallet, secondary)',
+    to: 'sql`EXISTS (SELECT 1 FROM handle_conflicts c WHERE c.wallet = ${socialGraph.wallet})`',
+  },
+  {
+    name: 'the secondary gate drops the public source allowlist',
+    file: 'lib/handle-reachability.ts',
+    from: 'AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])',
+    to: '',
+  },
+  {
+    name: 'the count and the list stop sharing one FROM clause',
+    file: 'lib/handle-reachability.ts',
+    // The count lost its DISTINCT when the FROM clause gained a DISTINCT ON,
+    // so this anchored on text that no longer existed and the guard reported
+    // SETUP rather than testing anything.
+    from: 'sql`SELECT count(*)::int AS n ${secondaryHandleFrom(normalized)}`',
+    to: 'sql`SELECT count(*)::int AS n FROM handle_conflicts c WHERE lower(c.theirs) = ${normalized}`',
+  },
+  {
+    name: 'a reverse match returns a wallet whose row shows a different second handle (Bugbot, 2026-08-27)',
+    file: 'lib/handle-reachability.ts',
+    from: '      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w\n    WHERE w.theirs = ${normalized}',
+    to: '        AND lower(c.theirs) = ${normalized}\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+  },
+  {
+    name: 'the public reverse route stops filling twitter.also (Bugbot, 2026-08-27)',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '      also: also.get(result.wallet.toLowerCase()) ?? null,\n',
+    to: '',
+  },
+  {
+    name: 'the app reverse route stops stamping the second account',
+    file: 'app/api/reverse/route.ts',
+    from: '  await stampAlsoOnX(results);',
+    to: '',
+  },
+  {
+    name: 'an inert closure can never be reopened when a handle revives (Bugbot, 2026-08-27)',
+    file: 'lib/conflict-resolution.ts',
+    from: "       AND (o.status = 'live' OR t.status = 'live')",
+    to: '       AND false',
+  },
+  {
+    name: 'an inert conflict is closed on a stale reading',
+    file: 'lib/conflict-resolution.ts',
+    from: '       AND o.checked_at > now() - make_interval(days => ${recheckDays})\n',
+    to: '',
+  },
+  {
+    name: 'the both-dead close swallows a row where theirs is still live',
+    file: 'lib/conflict-resolution.ts',
+    from: "       AND t.status IN ('not_found', 'unavailable')",
+    to: '',
+  },
+  {
     name: 'the Stripe pack grant stops booking the sale',
     file: 'lib/credits.ts',
     from: "    await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);\n",

@@ -124,6 +124,26 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   none: undefined,
 };
 
+/**
+ * The internal source ids that map to a public evidence class, as a list SQL
+ * can be given.
+ *
+ * `publicSources` is the allowlist and stays the only one; this is the same
+ * table read from the other end, for the one query that has to filter by source
+ * *before* it has a row rather than after. Reverse lookup needs it: a wallet is
+ * matched by a second attested handle only where that attestation would also be
+ * shown, and `alsoOnXForWallets` decides "would be shown" by dropping any
+ * source this map does not name. A reverse query without the same filter would
+ * return a wallet for a handle the row itself never displays, and would leak
+ * the existence of an unmapped source by the shape of the result.
+ *
+ * Derived, never typed out again: a second hand-written copy is how an
+ * allowlist and its enforcement drift apart.
+ */
+export const MAPPED_SOURCE_IDS: string[] = Object.entries(SOURCE_CLASSES)
+  .filter(([, mapped]) => mapped !== undefined)
+  .map(([id]) => id);
+
 /** Stable output order, so responses do not vary by insertion order. */
 const SOURCE_ORDER: PublicSource[] = [
   'onchain',

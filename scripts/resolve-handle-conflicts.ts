@@ -97,6 +97,14 @@ async function main() {
       `accepted        ${out.accepted.toLocaleString()} conflicts on ${out.walletsUpdated.toLocaleString()} wallets`
     );
     console.log(`cache rows gone ${out.cacheRowsDeleted.toLocaleString()}`);
+    console.log(
+      `closed inert    ${out.closedBothDead.toLocaleString()} (neither handle reachable)`
+    );
+    if (out.reopenedBothDead > 0) {
+      console.log(
+        `reopened        ${out.reopenedBothDead.toLocaleString()} (a side is live again)`
+      );
+    }
   }
   console.log(`took            ${seconds.toFixed(1)}s`);
 

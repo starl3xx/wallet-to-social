@@ -97,6 +97,14 @@ curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
 
 Multiple results are normal, not a bug. People keep a hot wallet and a vault, and the same handle can be attested from several addresses.
 
+## Second accounts are matched too
+
+A wallet is returned when the handle is its primary X account **or** its second attested one. Some owners have attested two live X accounts from the same wallet through different evidence; a single lookup shows that as [`twitter.also`](/api-reference/wallet#a-second-x-account), and searching either handle finds the wallet.
+
+A wallet matched this way has a different handle in its own `twitter.handle` field, and names the handle you searched for under `twitter.also`. The same conditions apply as for `twitter.also` itself: both accounts must be live, and where the attestation carried an account id it must still match. Nothing is returned on the strength of a handle we cannot corroborate.
+
+These wallets bill exactly as any other: 1 match credit per wallet returned.
+
 The endpoint returns at most 100 wallets per page. When `truncated` is true, pass `meta.next_cursor` back as the `cursor` query parameter to fetch the next page; the last page carries `next_cursor: null`. Each page is its own request: it weighs 2 rate-limit units and bills 1 match credit per wallet it returns.
 
 Pages walk the index in Farcaster-reach order, so the first page holds the most reachable wallets. The cursor is a position in a live index, not a snapshot: a wallet whose follower count changes mid-walk can appear twice or be skipped, and `total_count` can move between pages. Treat the cursor as opaque, use it promptly, and do not store it.

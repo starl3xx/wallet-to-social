@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -9,6 +9,11 @@ import { hasPaidAccess } from '@/lib/credits';
 import { publicSources } from '@/lib/api-sources';
 import { saveLookup } from '@/lib/history';
 import { lockedReverseBody } from '@/lib/reverse-access';
+import {
+  walletsBySecondaryHandle,
+  countBySecondaryHandle,
+  stampAlsoOnX,
+} from '@/lib/handle-reachability';
 import {
   checkIpRateLimit,
   formatRateLimitHeaders,
@@ -151,14 +156,28 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const column =
+  /**
+   * The count first, and by counting rather than by listing.
+   *
+   * On X the handle can be a row's primary or its second attested account, and
+   * an unentitled caller is told the total for both. `countBySecondaryHandle`
+   * is used rather than the wallet list precisely because this runs above the
+   * gate: see the header above, and the function's own note. Farcaster has no
+   * second-account concept, so it stays a plain equality.
+   *
+   * The two sets are disjoint (a secondary match has a different primary
+   * handle), so the totals add without double-counting.
+   */
+  const primaryColumn =
     platform === 'twitter' ? socialGraph.twitterHandle : socialGraph.farcaster;
 
   const [countRow] = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(socialGraph)
-    .where(eq(column, handle));
-  const totalCount = countRow?.count ?? 0;
+    .where(eq(primaryColumn, handle));
+  const secondaryCount =
+    platform === 'twitter' ? await countBySecondaryHandle(handle) : 0;
+  const totalCount = (countRow?.count ?? 0) + secondaryCount;
 
   /**
    * Everything a caller without credits gets, and the last statement they
@@ -173,6 +192,18 @@ export async function POST(request: NextRequest) {
   if (!entitled) {
     return NextResponse.json(lockedReverseBody(platform, handle, totalCount));
   }
+
+  /**
+   * Below the gate, deliberately. This is the first statement that reads a
+   * wallet address, and it is the first statement an unentitled caller never
+   * reaches.
+   */
+  const secondary =
+    platform === 'twitter' ? await walletsBySecondaryHandle(handle) : [];
+  const matchesHandle =
+    secondary.length > 0
+      ? or(eq(primaryColumn, handle), inArray(socialGraph.wallet, secondary))
+      : eq(primaryColumn, handle);
 
   const rows = await db
     .select({
@@ -206,7 +237,7 @@ export async function POST(request: NextRequest) {
     // the ordering precisely on the handles big enough to truncate, and it is
     // worst on X lookups, where many linked wallets have no Farcaster data.
     .orderBy(sql`${socialGraph.fcFollowers} DESC NULLS LAST`)
-    .where(eq(column, handle))
+    .where(matchesHandle)
     .limit(MAX_RESULTS);
 
   const results: WalletSocialResult[] = rows.map((r) => ({
@@ -233,6 +264,21 @@ export async function POST(request: NextRequest) {
     agent_token_symbol: r.agentTokenSymbol ?? undefined,
     agent_verified: r.agentVerified ?? undefined,
   }));
+
+  /**
+   * Stamp the second attested account, before anything reads these rows.
+   *
+   * A wallet matched on its second handle answers with a *different* name in
+   * `twitter_handle`, so without this the results table shows a row that looks
+   * unrelated to what was typed, and the saved lookup below persists it that
+   * way (Bugbot, 2026-08-27). `stampAlsoOnX` mutates in place and keys on each
+   * row's own handle, which is what `alsoOnXForWallets` requires.
+   *
+   * Above `saveLookup` for the same reason `stampReachability` is in
+   * `job-processor`: saving first would persist rows without the mark, so
+   * reopening a saved lookup would drop it.
+   */
+  await stampAlsoOnX(results);
 
   // Save to My lookups, same as a forward lookup. A reverse result is a wallet
   // list like any other: worth reloading, renaming and exporting later, and

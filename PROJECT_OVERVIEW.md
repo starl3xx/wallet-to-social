@@ -671,6 +671,15 @@ that requested the link, not necessarily the one that opens it. Only the referri
 the accumulated graph can answer and a CSV export cannot. It draws match credits like
 every other call, one per wallet returned.
 
+**Reverse matches the second attested X account as well as the primary**
+(`walletsBySecondaryHandle` in `lib/handle-reachability.ts`). It reads the same
+`FROM` clause and the same source allowlist as `alsoOnXForWallets`, so a wallet
+is only returned for a handle its own row displays. **Never as a correlated
+`OR EXISTS`:** measured on production that scans all 5.1M graph rows and takes
+19.7s against 42ms for resolving the wallets first and matching by primary key.
+The free count uses `countBySecondaryHandle`, which returns a number, because
+`/api/reverse` must not read a wallet address above the entitlement gate.
+
 **The app's own door onto it discloses in two halves** (`app/api/reverse/route.ts`,
 `lib/reverse-access.ts`). The **count** of wallets carrying a handle is free, keyless
 and available to an anonymous caller, bounded per address at the `/api/reachability`
