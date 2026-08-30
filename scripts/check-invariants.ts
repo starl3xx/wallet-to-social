@@ -3110,6 +3110,41 @@ async function main() {
     );
   }
 
+  // --------------------------------------- evidence travels with the account
+  // The product's central claim is that every match carries the class of
+  // evidence behind it. /v1/batch returned a Farcaster account with no
+  // `verified` field until 2026-08-30, so the MCP layer reported
+  // `attested: null` on every multi-address result: the claim went missing
+  // exactly where the volume is. Twitter had the same bug and was fixed alone.
+  //
+  // Asserted per route rather than centrally, because there is no shared
+  // builder for the Farcaster object and the next route will be written by
+  // copying one of these four.
+  {
+    const ROUTES = [
+      'app/api/v1/batch/route.ts',
+      'app/api/v1/wallet/[address]/route.ts',
+      'app/api/v1/reverse/twitter/[handle]/route.ts',
+      'app/api/v1/reverse/farcaster/[username]/route.ts',
+    ];
+    for (const file of ROUTES) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      // The select list has to carry it before the response can.
+      ok(
+        `${file} selects farcasterVerified`,
+        /farcasterVerified: socialGraph\.farcasterVerified/.test(src)
+      );
+      // And the emitted object has to include it. Matched inside the farcaster
+      // literal specifically, so a `verified` belonging to twitter cannot
+      // satisfy this.
+      const emitted = src.match(/\.farcaster = \{[\s\S]*?\n\s{4,6}\}/);
+      ok(
+        `${file} returns verified on the farcaster object`,
+        !!emitted && /\bverified:/.test(emitted[0])
+      );
+    }
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
       twitterUrl: socialGraph.twitterUrl,
       farcaster: socialGraph.farcaster,
       farcasterUrl: socialGraph.farcasterUrl,
+      farcasterVerified: socialGraph.farcasterVerified,
       fcFollowers: socialGraph.fcFollowers,
       fcFid: socialGraph.fcFid,
       lens: socialGraph.lens,
@@ -244,11 +245,18 @@ export async function POST(request: NextRequest) {
       });
     }
     if (result.farcaster) {
+      // `verified` for the same reason twitter carries it four lines up: this
+      // route omitted it while the other three returned it, so a multi-address
+      // caller got the account without the evidence class behind it. The MCP
+      // layer had to report `attested: null` on every batch result as a result
+      // (app/api/mcp/route.ts), which is the product's central claim going
+      // missing exactly where the volume is.
       item.farcaster = {
         username: result.farcaster,
         url: result.farcasterUrl || `https://warpcast.com/${result.farcaster}`,
         followers: result.fcFollowers,
         fid: result.fcFid,
+        verified: result.farcasterVerified ?? false,
       };
     }
     if (result.lens) item.lens = result.lens;

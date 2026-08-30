@@ -227,8 +227,12 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
       username: farcaster.username,
       url: farcaster.url,
       followers: farcaster.followers ?? null,
-      // Absent on a many-address request, where the API does not return it.
-      // Reported as null rather than false for the same reason as above.
+      // All four v1 routes now return `verified`, so this is a boolean in
+      // practice. The null branch stays: it is the difference between "not
+      // attested" and "not reported", and collapsing them would turn a gap in
+      // our own response into a claim about the person. /v1/batch omitted this
+      // field until 2026-08-30 and every batch result reported null here, which
+      // is how a missing field became a missing claim.
       attested:
         typeof farcaster.verified === 'boolean' ? farcaster.verified : null,
     };

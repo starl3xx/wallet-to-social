@@ -85,13 +85,17 @@ curl -X POST https://walletlink.social/api/v1/batch \
 
 ## Differences from single lookup
 
-Batch returns a deliberately lighter record. Three things present on
+Batch returns a deliberately lighter record. Two things present on
 [`/v1/wallet/{address}`](/api-reference/wallet) are absent here:
 
 - No `quality` object.
-- No `verified` flag inside `farcaster`. (`twitter.verified` is present, on the
-  same terms as single lookup.)
 - No `stale` or `last_updated` in `meta`, and no staleness headers.
+
+`farcaster.verified` **is** present as of 2026-08-30, on the same terms as
+single lookup, and so is `twitter.verified`. It was previously omitted here
+alone, which meant a multi-address caller received an account without the class
+of evidence behind it. Every match carries its evidence, and that has to hold on
+the route that resolves the most of them.
 
 The reachability fields and `twitter.also` are present here on the same terms
 as on single lookup.
