@@ -94,7 +94,6 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/formo',
   },
   datePublished: '2026-08-22',
-  dateModified: new Date().toISOString().split('T')[0],
   keywords:
     'Formo alternative, wallet profiles, wallet to social, DeFi analytics',
 };

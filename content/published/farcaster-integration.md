@@ -6,7 +6,7 @@ headline_variations:
   - 'Farcaster integration: turn 10,000 wallet addresses into reachable holders'
   - '22% match rate: how Farcaster makes wallet identity actually work'
 published: true
-publish_date: '2025-01-15'
+publish_date: '2026-02-21'
 ---
 
 # walletlink.social now supports Farcaster: 3x more wallet matches

@@ -47,6 +47,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
+import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import serverManifest from '@/server.json';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
 import {
   callRoute,
@@ -72,6 +74,36 @@ export const runtime = 'nodejs';
  * be a second copy of a number that lives in `lib/api-plans.ts`.
  */
 const MAX_ADDRESSES = API_PLANS[CREDIT_API_PLAN].maxBatchSize;
+
+/**
+ * What a client is told this server is for, before it calls anything.
+ *
+ * Instructions are read once, ahead of tool selection, so they carry only what
+ * no single tool description can: what is in scope, where the links come from,
+ * the unit the meter counts, and which direction is expensive. Anything a tool
+ * can say about itself stays in that tool.
+ *
+ * The provenance paragraph is not decoration. A handle-to-wallet lookup with no
+ * stated source reads as a deanonymiser, and this text is the first thing a
+ * directory reviewer sees.
+ *
+ * Two numbers are interpolated and one is not. The free allowance is imported,
+ * because it is exported and a change to it would otherwise make this text lie
+ * silently. The 100-wallet page is written out: MAX_RESULTS is module-local to
+ * both reverse routes and is not exported, and it is a different number that
+ * merely happens to equal the allowance today. Welding them into one clause
+ * would hide that.
+ *
+ * `scripts/check-design-language.mjs` greps the inside of strings, so run it
+ * after any edit here.
+ */
+const INSTRUCTIONS = [
+  'This server answers two questions about an Ethereum address: which social accounts its owner published, and which addresses a given X handle or Farcaster account is attested to. Balances, transfers and prices are a block explorer\u2019s job.',
+  'Every link was published by the address owner, in an onchain ENS record or a Farcaster verification, or it is labelled as correlated rather than attested. Nothing is inferred from a display name or a bio.',
+  `Billing is per address, not per identity. An address carrying both an X handle and a Farcaster account costs one credit; one carrying nothing, or only an ENS name, a Lens profile or a GitHub account, is free. An unpromising list is cheap to try, and splitting one saves no credits. The ceiling is ${MAX_ADDRESSES} addresses per call.`,
+  `The reverse direction is the expensive one: one page of the wallets behind a handle can spend 100 credits, and the free allowance is ${FREE_MATCHES_PER_WINDOW} matches per ${FREE_WINDOW_DAYS} days. Reading the balance or the coverage figures is free.`,
+  'An X handle can be attested by its owner and suspended today, so a handle in a result is not a promise that anyone is behind it.',
+].join('\n\n');
 
 // --- result helpers ---------------------------------------------------------
 
@@ -493,7 +525,26 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: 'walletlink.social', version: '1.0.0' },
+    /**
+     * The version comes from the manifest `mcp-publisher` publishes, not from a
+     * second copy typed here. It was a literal 1.0.0 while the registry had
+     * moved to 1.2.0 twice over, and nothing could catch that.
+     *
+     * An import, never readFileSync. This resolves as a module and the bundler
+     * inlines it, so no filesystem is touched at request time; server.json sits
+     * at the repo root, not in public/, and a read would depend on file tracing
+     * pulling a root file into the function bundle.
+     *
+     * No `title`. server.json's title is byte-identical to this name, so it
+     * would add nothing to a client picker, and mcp-handler types serverInfo as
+     * { name, version }: an inline literal carrying `title` fails with TS2353,
+     * and the named const that gets around it is an indirection whose purpose
+     * is invisible to the next reader.
+     */
+    serverInfo: { name: 'walletlink.social', version: serverManifest.version },
+    // A sibling of serverInfo, not a field inside it. Nested, it typechecks and
+    // is then dropped at initialize, so no client ever sees it.
+    instructions: INSTRUCTIONS,
   }
 );
 

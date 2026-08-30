@@ -65,8 +65,7 @@ const jsonLd = {
     '@type': 'WebPage',
     '@id': 'https://walletlink.social/vs/addressable',
   },
-  datePublished: '2025-01-01',
-  dateModified: new Date().toISOString().split('T')[0],
+  datePublished: '2026-01-17',
   keywords:
     'Addressable alternative, wallet to social, Web3 marketing, crypto marketing',
 };

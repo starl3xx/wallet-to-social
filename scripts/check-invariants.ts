@@ -3050,6 +3050,66 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------- the MCP handshake surface
+  // The handshake reported version 1.0.0 while the public registry had moved
+  // to 1.2.0 twice over. A literal here is a second copy of a number that
+  // lives in server.json, and nothing could ever notice the two disagreeing.
+  {
+    const mcpSrc = withoutComments(
+      readFileSync('app/api/mcp/route.ts', 'utf8')
+    );
+    const manifest = JSON.parse(readFileSync('server.json', 'utf8')) as {
+      version?: string;
+    };
+
+    ok(
+      'the MCP handshake version is read from the manifest',
+      /version: serverManifest\.version/.test(mcpSrc)
+    );
+    ok(
+      'no hardcoded version literal survives in the handshake',
+      !/serverInfo: \{[^}]*version: '[0-9]/.test(mcpSrc)
+    );
+    ok('server.json still declares a version to read', !!manifest.version);
+    // instructions is a ServerOptions field, a SIBLING of serverInfo. Nested
+    // inside it the code still typechecks and the field is silently dropped at
+    // initialize, so no client ever sees it and nothing fails.
+    ok(
+      'instructions sits beside serverInfo, not inside it',
+      /serverInfo: \{[^}]*\},\s*instructions: INSTRUCTIONS/.test(
+        mcpSrc.replace(/\n\s*/g, ' ')
+      )
+    );
+  }
+
+  // --------------------------------------------- no blended coverage anywhere
+  // The house rule is that the chain decides the match rate and a single
+  // blended figure is never published. app/layout.tsx carried "30.8% across
+  // all three" in a site-wide FAQPage for eight days while llms.txt, the
+  // README and all five comparison pages published the chain rows instead.
+  // A rule that only some surfaces follow is a rule nothing enforces.
+  {
+    const surfaces = [
+      'app/layout.tsx',
+      'app/llms.txt/route.ts',
+      'README.md',
+      'app/pricing/page.tsx',
+    ];
+    const blended = surfaces.filter((f) => {
+      try {
+        return /across all three|blended (match )?rate/i.test(
+          readFileSync(f, 'utf8')
+        );
+      } catch {
+        return false;
+      }
+    });
+    ok(
+      `no public surface publishes a blended match rate (found in: ${blended.join(', ') || 'none'})`,
+      blended.length === 0
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

@@ -43,6 +43,91 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-30 (the first move on AI search)
+
+An AI-search research pass produced a list of sub-hour changes, each with a
+binary check. Two of its recommendations changed under review, and both changes
+are the interesting part of this.
+
+**robots.ts: the named answer-engine groups were dropped, not added.** The
+proposal was to name OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot and
+Claude-User so the decision was on the record. But a crawler obeys exactly one
+group, and once it matches its own it never consults the wildcard group (RFC
+9309 section 2.2.1). So a named group that does not repeat both lists verbatim
+does not record a decision, it grants that engine `/api/` and `/_next/`, with
+nothing anywhere erroring. Measured against a real spec parser, a named group
+carrying the same two lists resolves identically to the wildcard group for every
+bot, so the whole construct was ten extra lines and one silent-failure mode for
+no behavioural change. The rosters rot too: OpenAI documents four tokens and
+Anthropic three, and the proposal named five of eight. The decision is now
+recorded in a comment, where it cannot open a path.
+
+What did ship from that file is the one load-bearing line: `/api/public-stats`
+is allowed. It is keyless, holds no customer data, and is the live source for
+the index figure the homepage renders over its static fallback, so a crawler
+running the page's JavaScript now reads the figure instead of recording a
+blocked resource. It beats `Disallow: /api/` by longest match, 17 octets against 5. Verified with a spec parser across 12 bots and 14 paths, 168 cells, zero
+violations: `/api/public-stats` is the only cell that changed.
+
+**The MCP handshake reported version 1.0.0** while the public registry had moved
+to 1.2.0 twice over, so the server and its listing disagreed in public with
+nothing to catch it. It now reads `server.json`, the same file `mcp-publisher`
+publishes. An import, not a `readFileSync`: the bundler inlines it, whereas a
+read would depend on file tracing pulling a repo-root file into the function
+bundle, and the trace does not include it. `title` was deliberately not wired:
+`server.json`'s title is byte-identical to the name, and `mcp-handler` types
+`serverInfo` as `{ name, version }`, so it only compiles behind an indirection
+whose purpose is invisible.
+
+**`initialize` now returns `instructions`**, 196 words, which it previously
+omitted entirely. That string is the only text a model reads before choosing a
+tool, so it carries what no single tool description can: what is in scope, where
+the links come from, that billing is per address rather than per identity, that
+an address resolving only to an ENS name or a GitHub account is free, and which
+direction is expensive. The provenance paragraph is not decoration: a
+handle-to-wallet lookup with no stated source reads as a deanonymiser, and this
+is the first text a directory reviewer sees. The batch ceiling and the free
+allowance are interpolated from constants; the 100-wallet reverse page is
+written out, because `MAX_RESULTS` is module-local and is a different number
+that merely equals the allowance today.
+
+**Dates.** Six comparison pages stamped `dateModified` with `new Date()` at
+build, so every deploy told crawlers the page changed that day. Following the
+precedent the blog and the sitemap already set, the field is omitted rather than
+fabricated. Four `datePublished` values were wrong: addressable and blaze said
+`2025-01-01`, which predates the first commit in this repo by 377 days, and
+airstack and holder were each a day early. cookie3 and formo were already
+correct and were left alone. One live wrong blog date was found and fixed:
+`content/published/farcaster-integration.md` said `2025-01-15` while the file
+entered the repo on 2026-02-21, and that value was being served in the post's
+JSON-LD and as its sitemap `lastmod`.
+
+**The blended coverage rate is gone from the FAQ.** `app/layout.tsx` published
+"30.8% across all three" in a site-wide FAQPage, against a house rule that the
+chain decides the rate. The figure checker was indifferent either way, so
+precedent decided: llms.txt, the README and all five comparison pages already
+publish the chain rows with the instruction instead. Qualifying the number would
+have left it inside an extractable unit where a truncated snippet keeps the
+figure and drops the caveat; removing it has no such failure mode.
+
+**LICENSE: AGPL-3.0.** The repo was public with no licence, which means all
+rights reserved: readable, which is the point, but not reusable, and rejected by
+some directories. AGPL keeps the hosted service unaffected while obliging anyone
+running a modified copy as a service to publish their changes.
+
+**The x402 facilitator was probed, not switched.** The finding is recorded in
+`lib/x402.ts`: pointing `X402_FACILITATOR_URL` at Coinbase's CDP facilitator by
+env var alone takes the rail down rather than listing it, because CDP answers
+401 unauthenticated and `initialize()` calls `getSupported()` on first use.
+
+Five assertions added, verified by mutation: reverting the version to a literal
+fails two, nesting `instructions` inside `serverInfo` (which typechecks and is
+then silently dropped) fails one, and reintroducing a blended rate fails one.
+
+Not in this PR, and worth knowing. `Disallow: /_next/` blocks the CSS and JS
+chunks and the image optimiser, so a rendering crawler sees this site unstyled.
+That is pre-existing and Google's guidance is not to block render resources.
+
 ### 2026-08-30 (a public file documented the bypass next to the defence)
 
 `docs/AI-SEARCH.md` carried four Cloudflare identifiers in its Resources table:
