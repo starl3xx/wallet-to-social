@@ -19,7 +19,7 @@ The starting point for most people. You have a CSV out of a block explorer or a 
 curl -X POST https://walletlink.social/api/v1/batch \
   -H "Authorization: Bearer wts_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"wallets":["0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+  -d '{"wallets":["0x00000000000000000000000000000000000000a1",
                  "0x2211d1d0020daea8039e46cf1367962070d77da9",
                  "0x0000000000000000000000000000000000000001"]}'
 ```
@@ -80,7 +80,7 @@ Every X handle we return carries the answer:
 
 ```json
 "twitter": {
-  "handle": "vitalikbuterin",
+  "handle": "example_user",
   "verified": true,
   "reachable": true,
   "reachability": "live",

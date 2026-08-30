@@ -43,6 +43,55 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-30 (the privacy page now describes what actually happens)
+
+`app/privacy/page.tsx` promised people who never used walletlink that we would
+"remove it and suppress it from being re-collected". Neither half was
+implemented. There is no removal endpoint and no suppression list, and the only
+opt-out in the schema is `email_opt_out`, which governs mail.
+
+A design pass produced a database trigger that would enforce suppression on
+every write path, and two adversarial reviews then established that shipping it
+alone would have made the promise **more** false, not less. The trigger is a
+storage guard; the sentence describes collection. Today a lookup of a suppressed
+wallet finds no graph row and no cache row, so `lib/job-processor.ts` runs the
+full external pipeline, the resolvers answer, and the handle lands in
+`lookup_jobs.partial_results`, in `lookup_history.results` and on the customer's
+screen before the write to `social_graph` is silently dropped. Worse, the guard
+also blocks `upsertNegativeWallets`, which is what records "checked, nothing
+here" and stops us asking again for 30 days. Suppressing a wallet would have
+taken re-collection from monthly to once per lookup: a person asks to be left
+alone and gets queried more often.
+
+So the promise is corrected rather than the code, for now. The page keeps the
+generous part, which is that we do not ask for proof of ownership, and adds
+three things it did not say:
+
+- Name every identifier you want gone, because we deliberately keep nothing
+  that would let us work out which wallets and handles belong to one person, so
+  we cannot find the others for you. That limitation is a consequence of a
+  privacy choice, and the page now says so rather than implying a lookup we do
+  not have.
+- Removal is by hand and can undo itself when a later sweep finds the same
+  public record. Write again and we will remove it again. That is worse than
+  the old sentence claimed and better than pretending otherwise.
+- Two things are permanently beyond reach: a customer's exported copy, because
+  usage is recorded against the endpoint and never the address so we do not
+  know who to tell, and a search engine's cache.
+
+The removal system itself is deliberately not in this change. It needs a
+pre-flight filter in the job processor, an admin removal endpoint, the trigger,
+a coverage assertion over the schema, a JSONB amend across saved lookups and a
+retention policy, and it should not land a row trigger on roughly 4M writes two
+days before the full Farcaster sweep restarts.
+
+Separately, the public docs published a real named person's assembled identity
+as the canonical example: wallet, ENS name, X handle, Farcaster username, FID
+and a reachability timestamp, across 8 files and 68 places. Replaced with a
+synthetic identity. Three prose mentions are kept on purpose, because naming a
+well-known ENS name in a format hint or an ethers.js snippet is not the same act
+as publishing somebody's assembled identity as our own output.
+
 ### 2026-08-30 (the evidence stopped travelling with the account)
 
 walletlink's central claim is that every match carries the class of evidence

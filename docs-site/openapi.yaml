@@ -147,27 +147,27 @@ paths:
                   summary: Found
                   value:
                     data:
-                      wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
-                      ens_name: vitalik.eth
+                      wallet: '0x00000000000000000000000000000000000000a1'
+                      ens_name: example.eth
                       twitter:
-                        handle: vitalikbuterin
-                        url: https://x.com/vitalikbuterin
+                        handle: example_user
+                        url: https://x.com/example_user
                         verified: true
                         reachable: true
                         reachability: live
                         reachability_checked_at: '2026-08-17T09:41:02.000Z'
                       farcaster:
-                        username: vitalik.eth
-                        url: https://warpcast.com/vitalik.eth
+                        username: example
+                        url: https://warpcast.com/example
                         followers: 123456
-                        fid: 5650
+                        fid: 900001
                         verified: true
                       sources: [onchain, farcaster]
                       quality:
                         score: 90
                         last_verified: '2026-08-10T09:12:00.000Z'
                     meta:
-                      wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                      wallet: '0x00000000000000000000000000000000000000a1'
                       found: true
                       last_updated: '2026-08-10T09:12:00.000Z'
                       stale: false
@@ -243,7 +243,7 @@ paths:
             schema: { $ref: '#/components/schemas/BatchRequest' }
             example:
               wallets:
-                - '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+                - '0x00000000000000000000000000000000000000a1'
                 - '0x0000000000000000000000000000000000000001'
       responses:
         '200':
@@ -274,13 +274,13 @@ paths:
                     $ref: '#/components/schemas/BatchMeta'
               example:
                 data:
-                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
-                    ens_name: vitalik.eth
+                  - wallet: '0x00000000000000000000000000000000000000a1'
+                    ens_name: example.eth
                     farcaster:
-                      username: vitalik.eth
-                      url: https://warpcast.com/vitalik.eth
+                      username: example
+                      url: https://warpcast.com/example
                       followers: 123456
-                      fid: 5650
+                      fid: 900001
                       verified: true
                     sources: [onchain, farcaster]
                   - null
@@ -395,11 +395,11 @@ paths:
                     $ref: '#/components/schemas/ReverseTwitterMeta'
               example:
                 data:
-                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
-                    ens_name: vitalik.eth
+                  - wallet: '0x00000000000000000000000000000000000000a1'
+                    ens_name: example.eth
                     twitter:
-                      handle: vitalikbuterin
-                      url: https://x.com/vitalikbuterin
+                      handle: example_user
+                      url: https://x.com/example_user
                       verified: true
                       reachable: true
                       reachability: live
@@ -407,7 +407,7 @@ paths:
                     sources: [onchain]
                     quality_score: 70
                 meta:
-                  handle: vitalikbuterin
+                  handle: example_user
                   total_count: 1
                   returned_count: 1
                   truncated: false
@@ -486,18 +486,18 @@ paths:
                     $ref: '#/components/schemas/ReverseFarcasterMeta'
               example:
                 data:
-                  - wallet: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
-                    ens_name: vitalik.eth
+                  - wallet: '0x00000000000000000000000000000000000000a1'
+                    ens_name: example.eth
                     farcaster:
-                      username: vitalik.eth
-                      url: https://warpcast.com/vitalik.eth
+                      username: example
+                      url: https://warpcast.com/example
                       followers: 123456
-                      fid: 5650
+                      fid: 900001
                       verified: true
                     sources: [farcaster]
                     quality_score: 65
                 meta:
-                  username: vitalik.eth
+                  username: example
                   total_count: 1
                   returned_count: 1
                   truncated: false
@@ -742,7 +742,7 @@ components:
       schema:
         type: string
         pattern: '^0x[a-fA-F0-9]{40}$'
-      example: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+      example: '0x00000000000000000000000000000000000000a1'
 
     TwitterHandle:
       name: handle
@@ -754,7 +754,7 @@ components:
       schema:
         type: string
         pattern: '^@?[a-zA-Z0-9_]{1,15}$'
-      example: vitalikbuterin
+      example: example_user
 
     FarcasterUsername:
       name: username
@@ -775,7 +775,7 @@ components:
       schema:
         type: string
         pattern: '^[a-zA-Z0-9][a-zA-Z0-9.-]{0,31}$'
-      example: vitalik.eth
+      example: example
 
     Cursor:
       name: cursor
