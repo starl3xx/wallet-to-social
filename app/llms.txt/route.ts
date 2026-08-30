@@ -219,6 +219,7 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 
 Claim-by-claim comparisons with the alternatives, maintained and dated:
 
+- [All comparisons](https://walletlink.social/vs): the hub over the six pages below, split by whether the service still exists.
 - [walletlink vs Addressable](https://walletlink.social/vs/addressable): deterministic and owner-attested against probabilistic fingerprinting, and self-serve against a sales call.
 - [walletlink vs Cookie3](https://walletlink.social/vs/cookie3): their wallet-to-X matching caps at ten thousand accounts on every tier a person can buy. Cookie3 is not Cookie.fun; the page says so explicitly.
 - [walletlink vs Formo](https://walletlink.social/vs/formo): Formo is product analytics for your own app, billed per request whether or not an address resolves. Different purchase.
