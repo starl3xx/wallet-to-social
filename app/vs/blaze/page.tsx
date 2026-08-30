@@ -68,8 +68,7 @@ const jsonLd = {
     '@type': 'WebPage',
     '@id': 'https://walletlink.social/vs/blaze',
   },
-  datePublished: '2025-01-01',
-  dateModified: new Date().toISOString().split('T')[0],
+  datePublished: '2026-01-17',
   keywords:
     'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
 };

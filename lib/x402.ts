@@ -48,6 +48,26 @@ export const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
  * `network: eip155:8453` and `scheme: exact`, rather than by reading a
  * marketing page. Several facilitators advertise Base mainnet and serve
  * protocol v1 only, and the v2 client refuses them at `initialize()`.
+ *
+ * **Do not point this at Coinbase's CDP facilitator by changing the env var
+ * alone. That takes the rail down rather than listing it.** Probed 2026-08-30:
+ * `GET https://api.cdp.coinbase.com/platform/v2/x402/supported` answers 401 to
+ * an unauthenticated request, and CDP signs a separate JWT per path bound to
+ * method and path. `HTTPFacilitatorClient` is constructed with `{ url }` only,
+ * and `getResourceServer()` calls `initialize()`, which calls `getSupported()`,
+ * so the first request after such a switch throws and every buy answers 500.
+ * `initialize()` also caches on success only, so there is no negative cache and
+ * every subsequent request retries the failing call.
+ *
+ * CDP does appear capable in the shape this code needs (its seller docs list
+ * Base `eip155:8453` with scheme `exact` under v2, and its public discovery
+ * index carries 13,699 resources declaring exactly that kind), so the switch is
+ * worth making. It needs `@coinbase/x402` and two secrets, not an env edit.
+ *
+ * Separately, and independent of any facilitator change: CDP indexes only
+ * routes that advertise an `extensions.bazaar` block on the 402, and this
+ * route sends none. walletlink is absent from CDP's index and from payai's own,
+ * so the current facilitator is not listing it either.
  */
 const FACILITATOR_URL =
   process.env.X402_FACILITATOR_URL ?? 'https://facilitator.payai.network';

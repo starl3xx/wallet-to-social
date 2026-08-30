@@ -68,8 +68,7 @@ const jsonLd = {
     '@type': 'WebPage',
     '@id': 'https://walletlink.social/vs/airstack',
   },
-  datePublished: '2026-08-12',
-  dateModified: new Date().toISOString().split('T')[0],
+  datePublished: '2026-08-13',
   keywords:
     'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
 };

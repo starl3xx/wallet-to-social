@@ -93,7 +93,6 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/cookie3',
   },
   datePublished: '2026-08-20',
-  dateModified: new Date().toISOString().split('T')[0],
   keywords:
     'Cookie3 alternative, Twitter wallet matching, wallet to social, web3 analytics',
 };
