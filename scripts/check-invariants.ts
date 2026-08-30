@@ -2984,6 +2984,72 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------ the recognised seed prefix
+  // lib/recognized-contracts.ts says "do not add an entry from memory". That
+  // instruction is the only thing standing between this file and a page about
+  // the wrong asset, and an instruction in a comment enforces nothing.
+  {
+    const { RECOGNIZED_CONTRACTS, recognizedCandidates } =
+      await import('@/lib/recognized-contracts');
+    const { SUPPORTED_CHAINS } = await import('@/lib/chains');
+
+    ok(
+      'every recognised address is a lowercase 40-hex contract address',
+      RECOGNIZED_CONTRACTS.every((c) => /^0x[0-9a-f]{40}$/.test(c.address))
+    );
+    ok(
+      'no chain lists the same contract twice',
+      new Set(RECOGNIZED_CONTRACTS.map((c) => `${c.chain}:${c.address}`))
+        .size === RECOGNIZED_CONTRACTS.length
+    );
+    ok(
+      'every recognised contract names a supported chain',
+      RECOGNIZED_CONTRACTS.every((c) => SUPPORTED_CHAINS.includes(c.chain))
+    );
+    // A zero address, a burn address or the chain's own predeploy range would
+    // pass the hex check and publish a page about nothing.
+    ok(
+      'no recognised entry is the zero or burn address',
+      !RECOGNIZED_CONTRACTS.some(
+        (c) =>
+          c.address === `0x${'0'.repeat(40)}` ||
+          c.address === `0x${'0'.repeat(39)}1` ||
+          /^0x0*dead$/.test(c.address)
+      )
+    );
+    ok(
+      'the accessor filters on both chain and kind',
+      recognizedCandidates('ethereum', 'nft').every(
+        (c) => c.chain === 'ethereum' && c.kind === 'nft'
+      )
+    );
+
+    const seedSrc = withoutComments(
+      readFileSync('lib/seed-collections.ts', 'utf8')
+    );
+    // The Robinhood fallback used to test `candidates.length === 0`. Prepending
+    // a curated list makes that false, which would have silently narrowed the
+    // one chain nobody else indexes to a handful of names. Assert the fixed
+    // test is present AND the broken one is gone, because only the pair is
+    // load-bearing: the old condition still reads plausibly.
+    ok(
+      'the Robinhood fallback tests whether discovery found nothing',
+      /candidates\.length === recognizedCount && chain === 'robinhood'/.test(
+        seedSrc
+      )
+    );
+    ok(
+      'the superseded length-zero fallback test is gone',
+      !/candidates\.length === 0 && chain === 'robinhood'/.test(seedSrc)
+    );
+    // A discovery outage must not throw away names already held, but a genuine
+    // nothing-to-seed must still surface as a failure.
+    ok(
+      'a token-discovery outage rethrows only when there is nothing to seed',
+      /if \(candidates\.length === 0\) throw error;/.test(seedSrc)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

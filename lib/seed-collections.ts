@@ -19,6 +19,12 @@
  *
  * Selection is novelty-aware: contracts seeded within NOVELTY_DAYS are
  * skipped, so the cron works down the list instead of re-buying the top 10.
+ *
+ * Both discovery sources rank by novelty, and the novelty filter then works
+ * further down each list, so on its own this pipeline is anti-correlated with
+ * search demand: it seeds what nobody has searched for yet. lib/recognized-
+ * contracts.ts leads both queues with names people do search, and empties
+ * itself into the trending feeds once every entry has been seeded.
  */
 
 import { getDb } from '@/db';
@@ -36,6 +42,7 @@ import {
   checkHolderIndexBudget,
   estimateRequests,
 } from './holder-index-budget';
+import { recognizedCandidates } from './recognized-contracts';
 
 // Per-contract holder cap: bounds daily external-API spend for the social
 // resolution of never-seen wallets. Negatives persist, so re-encounters of
@@ -148,8 +155,12 @@ export async function discoverNftCandidates(
   chain: SupportedChain
 ): Promise<SeedCandidate[]> {
   const slug = OPENSEA_CHAIN_SLUGS[chain];
-  const candidates: SeedCandidate[] = [];
-  const seen = new Set<string>();
+  // Recognised names lead. Novelty filtering downstream drops the ones already
+  // seeded, so this prefix empties itself and discovery takes the slot back
+  // without a second code path.
+  const candidates: SeedCandidate[] = [...recognizedCandidates(chain, 'nft')];
+  const recognizedCount = candidates.length;
+  const seen = new Set<string>(candidates.map((c) => c.address));
 
   // The whole OpenSea section — key acquisition included — is best-effort:
   // temp-key provisioning is capped at 2/day, so it must be able to fail
@@ -201,10 +212,19 @@ export async function discoverNftCandidates(
 
   // Robinhood Chain must not depend on OpenSea (temp-key provisioning is
   // capped at 2/day and a standard key may not be configured): fall back to
-  // Blockscout's holders-ranked token list, which needs no key at all
-  if (candidates.length === 0 && chain === 'robinhood') {
+  // Blockscout's holders-ranked token list, which needs no key at all.
+  //
+  // The test is whether DISCOVERY found nothing, not whether the list is
+  // empty: a recognised prefix would otherwise suppress the fallback and
+  // silently narrow this chain to its handful of curated names. The fallback
+  // now appends rather than replaces, for the same reason.
+  if (candidates.length === recognizedCount && chain === 'robinhood') {
     try {
-      return await discoverRobinhoodNftFallback();
+      for (const fallback of await discoverRobinhoodNftFallback()) {
+        if (seen.has(fallback.address)) continue;
+        seen.add(fallback.address);
+        candidates.push(fallback);
+      }
     } catch (error) {
       console.error('Blockscout fallback failed:', error);
     }
@@ -258,15 +278,25 @@ export async function discoverTokenCandidates(
   const network = GECKO_NETWORKS[chain];
   const url = `https://api.geckoterminal.com/api/v2/networks/${network}/trending_pools?page=1`;
 
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`GeckoTerminal ${res.status} for ${network}`);
-  const json = (await res.json()) as { data?: GeckoPool[] };
+  const candidates: SeedCandidate[] = [...recognizedCandidates(chain, 'erc20')];
+  const seen = new Set<string>(candidates.map((c) => c.address));
 
-  const candidates: SeedCandidate[] = [];
-  const seen = new Set<string>();
+  let json: { data?: GeckoPool[] };
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) throw new Error(`GeckoTerminal ${res.status} for ${network}`);
+    json = (await res.json()) as { data?: GeckoPool[] };
+  } catch (error) {
+    // A discovery outage must not throw away names we already hold. Rethrow
+    // only when there is genuinely nothing to seed, so the run still records
+    // "discovery failed" in the case where that is the whole story.
+    if (candidates.length === 0) throw error;
+    console.error(`GeckoTerminal unavailable for ${network}:`, error);
+    return candidates;
+  }
 
   for (const pool of json.data ?? []) {
     const tokenId = pool.relationships?.base_token?.data?.id;
