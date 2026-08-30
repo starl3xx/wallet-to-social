@@ -12,6 +12,14 @@ trending novelty, so it built 66 reports on entities nobody searches. One query
 was a raw contract address, and that contract does have a report, which is the
 single piece of positive evidence in the set.
 
+**The seeding fix.** `lib/recognized-contracts.ts` now leads both discovery
+queues with 63 contracts across all seven chains, chosen on one criterion only:
+would a person type this name next to a word like "holders" or "owners". It is
+finite by design, so once every entry is seeded the novelty filter empties it
+and discovery falls back to the trending feeds, and thirty days later the oldest
+becomes eligible again and its report refreshes. Chainlink, which had the one
+non-brand query in the top ten and no page, is in it.
+
 Three plumbing faults were fixed the same day. `app/sitemap.ts` had no
 `revalidate`, so it froze at build and every seeded collection stayed invisible
 until a redeploy; the sitemap had also never been submitted in Search Console.

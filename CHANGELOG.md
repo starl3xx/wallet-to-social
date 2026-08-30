@@ -2,6 +2,47 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-30 (the cron was seeding what nobody searches)
+
+Both discovery sources rank by novelty (OpenSea `trending`, GeckoTerminal
+`trending_pools`), and `NOVELTY_DAYS` then works further down each list. So the
+pipeline was anti-correlated with search demand by construction: trending ranks
+what has no search history yet. The corpus it built was 66 reports holding one
+recognisable brand and a page titled "Unknown Token holders on Base", while
+`chainlink holders` earned impressions against no page at all.
+
+`lib/recognized-contracts.ts` leads both queues: 63 contracts over seven chains,
+chosen on one criterion, whether a person would type the name next to "holders"
+or "owners". Market cap does not qualify a wrapped asset and does not disqualify
+a mid-sized collection with a loud community.
+
+It is a prefix, not a new code path. `selectNovelCandidates` already cycles
+candidates, so an entry seeded last week drops out on its own, the list empties
+itself into the trending feeds once exhausted, and thirty days later the oldest
+becomes eligible again and its report refreshes. Nothing needs pruning.
+
+Two integration details that would have failed quietly:
+
+- The Robinhood Blockscout fallback tested `candidates.length === 0`. A curated
+  prefix makes that false, which would have suppressed the fallback and narrowed
+  the one chain nobody else indexes to a couple of curated names. It now tests
+  whether discovery found nothing, and appends rather than replaces.
+- `discoverTokenCandidates` threw on a bad GeckoTerminal response, which would
+  have discarded the recognised names along with the outage. It now returns them
+  and rethrows only when there is genuinely nothing to seed, so a real discovery
+  failure still reports itself.
+
+Every address was read from live sources and re-read by a second pass against
+different ones: an onchain `name()` call over an independent RPC, a resolution
+run in the reverse direction (brand slug to address, the direction that catches
+an impostor contract), and a second index. 63 survived, 22 were rejected, and
+the rejections are recorded in the file because each looks like an obvious
+addition until checked. CryptoPunks is the one worth knowing: it predates
+ERC-721, `ownerOf` reverts, there is no ERC-165, and ownership sits in a
+non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
+against a real figure near 3,900. Seeding it would publish exactly the broken
+page this list exists to prevent.
+
 ### 2026-08-30 (the sitemap was frozen and /vs was a 404)
 
 Search Console produced its first read, and it is small: 4 clicks and 379
