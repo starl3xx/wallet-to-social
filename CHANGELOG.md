@@ -44,7 +44,10 @@ Two smaller things:
   one count name the wallets. `OVERLAP_MIN_SHARED = 20` applies the same
   k-anonymity floor the listing rule already uses. Counterparties still named
   `Unknown Token` are dropped too; `sc.name IS NOT NULL` let the placeholder
-  through.
+  through. That floor is a claim about an attacker, so it is asserted in
+  `scripts/check-invariants.ts` rather than trusted: four assertions, checked by
+  deleting the `HAVING`, lowering the constant to 1 and dropping the name
+  filter, each of which fails the run.
 
 The sitemap had also never been submitted in Search Console (the Sitemaps report
 read 0 of 0, and URL Inspection named `/pricing` as how it found `/holders`).
