@@ -43,6 +43,47 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-30 (the evidence stopped travelling with the account)
+
+walletlink's central claim is that every match carries the class of evidence
+behind it. `POST /v1/batch` returned a Farcaster account with no `verified`
+field, so on the route that resolves the most addresses, the claim was missing.
+
+The MCP layer had already noticed and handled it honestly: it reported
+`attested: null` on every batch result rather than guessing, with a comment
+saying the field is "absent on a many-address request". That comment described a
+bug, not a design. Twitter had exactly the same bug and was fixed on its own,
+and the comment beside that fix says "One builder is how that stops happening";
+the builder never arrived for Farcaster.
+
+`/v1/batch` now selects `farcasterVerified` and returns it, matching the three
+routes that always did. The MCP null branch stays, because it is the difference
+between "not attested" and "not reported", and collapsing those would turn a gap
+in our own response into a claim about a person.
+
+Eight assertions, one pair per v1 route, checked by mutation: reverting either
+half of the batch fix fails one. They match inside the Farcaster object
+specifically, so a `verified` belonging to twitter cannot satisfy them.
+
+`docs-site` carried this as documented behaviour in two places, both now
+corrected. `api-reference/batch.mdx` listed "No `verified` flag inside
+`farcaster`" among three deliberate omissions; it is two now. `openapi.yaml` had
+a whole schema, `FarcasterAccountBrief`, whose description said it "omits
+`verified`. The other three endpoints include it. This is an inconsistency in
+the API, recorded here rather than smoothed over." Honest, and no longer true:
+the batch record now references `FarcasterAccount` and the brief schema is
+deleted. Spec revalidated.
+
+Also, smaller and less certain than it first looked. The `live` reachability
+detail read "The owner attested this account, and it still reaches them." A
+review flagged that as overclaiming against our own rule that reachable means
+the account still exists. Checked, and the complaint was mostly wrong: the four
+states are a deliverability set by design, where `suspended` says messages will
+not arrive and `reassigned` says they would reach a stranger, so `live` carrying
+a deliverability sense is coherent. There was still a real precision gain, so it
+now reads "the same account still holds the handle", which is what is actually
+checked. Deliverability was always inferred from that.
+
 ### 2026-08-30 (the disclosed AI Search endpoint is now inert)
 
 The generated `ns-….search.ai.cloudflare.com` hostname had been committed to

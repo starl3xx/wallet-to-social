@@ -92,7 +92,7 @@ export const REACHABILITY_LABEL: Record<Reachability, string> = {
  * what to do rather than what happened internally.
  */
 export const REACHABILITY_DETAIL: Record<Reachability, string> = {
-  live: 'The owner attested this account, and it still reaches them.',
+  live: 'The owner attested this account, and the same account still holds the handle.',
   suspended:
     'The owner attested this account and X has since suspended it. Messages will not arrive.',
   unclaimed:

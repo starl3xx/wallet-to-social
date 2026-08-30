@@ -281,6 +281,7 @@ paths:
                       url: https://warpcast.com/vitalik.eth
                       followers: 123456
                       fid: 5650
+                      verified: true
                     sources: [onchain, farcaster]
                   - null
                 meta:
@@ -1049,22 +1050,6 @@ components:
             Whether the account carries a protocol-level verification of this
             wallet.
 
-    FarcasterAccountBrief:
-      type: object
-      description: |
-        The Farcaster shape returned by `POST /batch`, which omits `verified`.
-        The other three endpoints include it. This is an inconsistency in the
-        API, recorded here rather than smoothed over, because a spec that
-        promised `verified` on every endpoint would be wrong on one of them.
-      required: [username, url]
-      properties:
-        username: { type: string }
-        url: { type: string, format: uri }
-        followers:
-          type: [integer, 'null']
-        fid:
-          type: [integer, 'null']
-
     AgentMetadata:
       type: object
       description: |
@@ -1153,7 +1138,7 @@ components:
             twitter:
               $ref: '#/components/schemas/XIdentityWithAlso'
             farcaster:
-              $ref: '#/components/schemas/FarcasterAccountBrief'
+              $ref: '#/components/schemas/FarcasterAccount'
 
     ReverseTwitterRecord:
       description: |

@@ -142,7 +142,7 @@ One term that reliably misleads: a twitter.verified value of false does not mean
 
 Farcaster stores a verified X account as a name, written once, with no account number and no later check. When somebody renames or gets suspended, nothing in the protocol notices, so every tool built on those verifications carries the same dead handles and none of them can say which. We check the handle against the live account and report the answer per record.
 
-- live: the owner attested this account, and it still reaches them.
+- live: the owner attested this account, and the same account still holds the handle.
 - suspended: the owner attested it and X has since suspended it. Messages will not arrive.
 - unclaimed: the owner attested it and no account holds the name now, usually a rename. Treat it as a lead rather than a contact.
 - reassigned: the owner attested it and the name now belongs to a different live account. Messages would reach a stranger, not the wallet owner.
