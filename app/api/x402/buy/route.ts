@@ -128,38 +128,57 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+      /**
+       * The schema describes `info` itself, not the endpoint's payload, and
+       * `input` sets `additionalProperties: false`. So every key present in
+       * `info.input` above must be listed here or a validating facilitator
+       * drops the resource, which is the exact outcome this block exists to
+       * prevent. Read off a live indexed POST resource: same four keys, all
+       * four required, and only `input` is closed.
+       */
       schema: {
         $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        required: ['input'],
         properties: {
           input: {
             type: 'object',
             additionalProperties: false,
+            required: ['type', 'method', 'bodyType', 'body'],
             properties: {
+              type: { type: 'string', const: 'http' },
               method: { type: 'string', enum: ['POST'] },
-              headers: {
+              bodyType: { type: 'string', enum: ['json'] },
+              body: {
                 type: 'object',
-                properties: {
-                  'PAYMENT-SIGNATURE': {
-                    type: 'string',
-                    description:
-                      'Base64 JSON of the signed x402 payment payload. The only required input.',
-                  },
-                },
-                required: ['PAYMENT-SIGNATURE'],
+                additionalProperties: false,
+                properties: {},
+                description:
+                  'Empty. The signed payment travels in the PAYMENT-SIGNATURE header, not in the body, so an agent that posts a payload gets nothing for it.',
               },
             },
           },
           output: {
             type: 'object',
+            required: ['type', 'example'],
             properties: {
-              api_key: {
-                type: ['string', 'null'],
-                description:
-                  'Shown once and never reissued, because every field of a settled payment is public.',
+              type: { type: 'string', const: 'json' },
+              example: {
+                type: 'object',
+                required: ['matches_available', 'pack', 'newly_granted'],
+                properties: {
+                  api_key: {
+                    type: ['string', 'null'],
+                    description:
+                      'Shown once and never reissued, because every field of a settled payment is public.',
+                  },
+                  shown_once: { type: 'boolean' },
+                  matches_available: { type: 'integer' },
+                  pack: { type: 'string' },
+                  newly_granted: { type: 'boolean' },
+                  docs: { type: 'string' },
+                },
               },
-              matches_available: { type: 'integer' },
-              pack: { type: 'string' },
-              newly_granted: { type: 'boolean' },
             },
           },
         },

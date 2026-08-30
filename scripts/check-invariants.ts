@@ -3182,11 +3182,31 @@ async function main() {
       /tags:\s*\[/.test(x402Src)
     );
     // The endpoint reads no request body: the payment is a header. An agent
-    // told otherwise pays and gets nothing.
+    // told otherwise pays and gets nothing, so the declaration has to say so.
     ok(
-      'the declared input names the payment header',
-      /'PAYMENT-SIGNATURE':/.test(x402Src)
+      'the declared input says the payment travels in the header',
+      /PAYMENT-SIGNATURE header, not in the body/.test(x402Src)
     );
+    // The finding this guard exists for. `schema` describes `info` itself and
+    // closes `input` with additionalProperties: false, so a key present in
+    // info.input and absent from the schema makes a validating facilitator
+    // drop the resource: the exact outcome the block exists to prevent, and
+    // nothing local fails. Both lists are read out of the source and compared.
+    {
+      const flat = x402Src.replace(/\s+/g, ' ');
+      const infoInput = /input: \{ type: 'http'[^}]*\}/.exec(flat)?.[0] ?? '';
+      const declared =
+        /required: \['type', 'method', 'bodyType', 'body'\]/.test(flat);
+      const infoKeys = ['type', 'method', 'bodyType', 'body'].filter((k) =>
+        new RegExp(`\\b${k}:`).test(infoInput)
+      );
+      ok(
+        'every info.input key is declared in the schema that closes it',
+        infoKeys.length === 4 &&
+          declared &&
+          /input: \{ type: 'object', additionalProperties: false/.test(flat)
+      );
+    }
   }
 
   if (!failures.length) {

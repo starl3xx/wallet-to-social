@@ -67,7 +67,27 @@ can find and one it can use is written down.
 on: a scan of the live index found freeform tags and no category taxonomy at
 all across 14,344 resources.
 
-Five assertions. The one worth having guards argument position:
+Bugbot caught a defect that would have made the whole change a no-op, and it
+was right. The `schema` block describes `info` itself and closes `input` with
+`additionalProperties: false`, so a validating facilitator drops any resource
+whose `info.input` carries a key the schema does not list. The first version
+listed `method` and a `headers` property that was not even in `info.input`,
+while the emitted input carried `type`, `bodyType` and `body`. It would have
+failed validation and stayed unindexed: exactly the outcome this change exists
+to prevent, with nothing local failing.
+
+Corrected against a live indexed POST resource rather than from intuition. Its
+`schema.properties.input` lists the same four keys as its `info.input`, marks
+all four required, and only `input` is closed. The `output` half was wrong in
+the same way, describing the endpoint's payload instead of `info.output`.
+
+Verified the way a facilitator would: the 402 was captured from a built server,
+and `info` was validated against its own `schema` with a real Draft 2020-12
+validator. It passes, and the schema itself is a valid schema.
+
+Six assertions now. The one that would have caught this compares the key list
+in `info.input` against the key list the schema declares; dropping `bodyType`
+from the schema fails it. The other one worth having guards argument position:
 `createPaymentRequiredResponse(requirements, resourceInfo, error?, extensions?)`
 puts the block fourth, and passed third it lands in `error` and is rendered to
 the buyer as a failure string instead of being indexed, with nothing erroring.
