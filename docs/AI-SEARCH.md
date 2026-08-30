@@ -1,4 +1,4 @@
-# AI Search assistant — setup record
+# AI Search assistant: setup record
 
 Internal. The floating chat bubble on walletlink.social, backed by Cloudflare
 AI Search over the docs and the marketing site.
@@ -32,9 +32,25 @@ AI Search over the docs and the marketing site.
 > only thing disclosing it.
 >
 > **Treat all four as disclosed.** This repo is public and they were committed,
-> so removing them from the current tree does not unpublish them. Rotating the
-> namespace is the only action that actually revokes the bypass; the account and
-> zone identifiers cannot be rotated and were always the lower risk.
+> so removing them from the current tree does not unpublish them.
+>
+> **Resolved on 2026-08-30 by turning the default hostname off, not by
+> rotating.** Rotation turned out to be impossible: Cloudflare generates the
+> public endpoint identifier the first time the endpoint is enabled and never
+> rotates it, and disabling the endpoint keeps it, so re-enabling reuses the
+> same URL. A new hostname would have meant a new namespace, two rebuilt
+> instances, a full reindex and a DNS repoint.
+>
+> `public_endpoint_params.default_domain_enabled` is now `false`. The generated
+> hostname answers 404 with error 60018, and only `help.walletlink.social`
+> serves. No DNS change was needed: AI Search routes on the hostname the client
+> requested, not on the CNAME target, so the record kept working. Verified after
+> the change: the generated host returns 404 on both `/search` and `/mcp`, the
+> custom domain returns 200, and the widget bundle still loads.
+>
+> Before the change, a single unauthenticated POST to the generated host with no
+> `Origin` header returned 200 and real indexed content. The bypass was live,
+> not theoretical.
 
 Endpoints: `/search`, `/chat/completions`, `/mcp`, plus the widget bundle at
 `/assets/<version>/search-snippet.es.js`.
@@ -53,10 +69,33 @@ pages and the blog, so `/admin`, `/success` and `/api` cannot be indexed by
 construction rather than by a filter someone has to maintain.
 
 **The CNAME is proxied.** The opposite of the `docs` record, which must stay
-DNS-only for Mintlify's certificate. Here proxying is the entire point: the
-public endpoint is unauthenticated by design and spends Workers AI neurons on
-every answer, so the zone is the only place that spend can be bounded. A
-DNS-only record would bypass the zone and the rate limit would never run.
+DNS-only for Mintlify's certificate. Here proxying is the point: the public
+endpoint is unauthenticated by design and spends Workers AI neurons on every
+answer, and a proxied record puts the zone in front of that spend. A DNS-only
+record would bypass the zone and the zone's rate limit would never run.
+
+_Corrected 2026-08-30._ This paragraph used to say the zone was "the only place
+that spend can be bounded". That was wrong, and it mattered, because it made the
+exposure above sound worse than it was. The namespace carries its own
+`rate_limit` in `public_endpoint_params`, currently 20 requests per 60 seconds
+sliding, applied by AI Search itself. So the generated hostname was rate-limited
+even while it was reachable; what it skipped was the zone, not every limit. Read
+the live value rather than trusting this sentence, since the number can change
+without a commit here.
+
+**`public_endpoint_params` is replaced in full on every update.** Any field left
+out of a PUT reverts to its default, and `default_domain_enabled` defaults to
+`true`. So a future update that sends a partial object silently reopens the
+generated hostname, with nothing failing and no deploy to review. Send the
+complete object every time: `enabled`, `default_domain_enabled`, `rate_limit`,
+`authorized_hosts`, `mcp`, `search_endpoint`, `chat_completions_endpoint`,
+`instances_allowed`. `custom_domains` is the one exception, where omitting
+leaves the existing set alone and an empty array clears it. There is no CI guard
+for this, because the state lives in Cloudflare rather than in this repo.
+
+**`authorized_hosts` does not gate a request with no `Origin`.** It held
+`walletlink.social`, `www.` and `docs.` throughout, and the probe above still
+returned 200. Treat it as a browser-origin control, not as authentication.
 
 The widget bundle is served from `help.walletlink.social` too, so the page
 loads nothing from a third-party host.

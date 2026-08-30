@@ -43,6 +43,42 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-30 (the disclosed AI Search endpoint is now inert)
+
+The generated `ns-….search.ai.cloudflare.com` hostname had been committed to
+this public repo. Confirmed live before changing anything: a single
+unauthenticated POST to it, with no `Origin` header, returned 200 and real
+indexed content. The bypass was real.
+
+Rotation turned out to be impossible. Cloudflare generates the public endpoint
+identifier the first time the endpoint is enabled and never rotates it, and
+disabling the endpoint keeps it, so re-enabling reuses the same URL. A new
+hostname meant a new namespace, two rebuilt instances, a full reindex and a DNS
+repoint.
+
+`default_domain_enabled` is now `false` instead. The generated hostname answers
+404 with error 60018 on both `/search` and `/mcp`; `help.walletlink.social`
+still answers 200 and the widget bundle still loads. No DNS change was needed,
+because AI Search routes on the hostname the client requested rather than on the
+CNAME target. Nothing in the repo referenced the generated host:
+`components/DocsChat.tsx:19` has always pointed at the custom domain.
+
+Two corrections to `docs/AI-SEARCH.md`, both of which had made the exposure
+sound different from what it was:
+
+- It said the zone was "the only place that spend can be bounded". The namespace
+  carries its own `rate_limit`, 20 requests per 60 seconds sliding, applied by
+  AI Search. The generated hostname was rate-limited while it was reachable;
+  what it skipped was the zone, not every limit.
+- `authorized_hosts` is not authentication. It listed three walletlink
+  hostnames throughout, and the probe with no `Origin` still returned 200.
+
+One footgun is now written down where it will be read: `public_endpoint_params`
+is replaced in full on every update, and `default_domain_enabled` defaults to
+`true`, so a later partial PUT silently reopens the generated hostname with
+nothing failing and no deploy to review. There is no CI guard, because the state
+lives in Cloudflare rather than in this repo.
+
 ### 2026-08-30 (the first move on AI search)
 
 An AI-search research pass produced a list of sub-hour changes, each with a
