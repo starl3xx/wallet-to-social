@@ -21,6 +21,16 @@ That distinction is the rule to apply when deciding where a new document belongs
 - **Public**, if it helps someone verify what we claim about the data. `AI-SEARCH.md` stays public for exactly this reason: it documents an assistant anyone can already interrogate.
 - **Private**, if it mainly tells someone where to push.
 
+**The test applies per fact, not per file.** On 2026-08-30 `AI-SEARCH.md` was
+found to be carrying four Cloudflare identifiers: the account, the zone, the
+rate-limit ruleset, and the raw namespace endpoint. The document passes the test
+and stayed. The identifiers fail it and moved to walletlink-ops. The endpoint
+was the one that mattered, because that same page explains that the endpoint is
+unauthenticated and that the proxied CNAME is the only thing bounding Workers AI
+spend, so publishing the origin hostname documented the bypass alongside the
+defence. A file can be correctly public and still contain a line that is not, so
+read a document fact by fact before concluding it passes.
+
 This repo stays public on purpose. walletlink's core claim is that every match carries the class of evidence behind it and none of it is inferred, and public code is what makes that claim checkable.
 
 Those paths are gitignored here, so they remain on disk locally and the `ralph:*` scripts keep working unchanged.

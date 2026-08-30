@@ -5,15 +5,36 @@ AI Search over the docs and the marketing site.
 
 ## Resources
 
-| Thing              | Value                                                                |
-| ------------------ | -------------------------------------------------------------------- |
-| Account            | `7f7320799b461a1dc32c14ca69ada49c`                                   |
-| Zone               | `walletlink.social` / `5f07ca0d1b1eccdb9cc6786ac47de42a` (Free plan) |
-| Namespace          | `default`                                                            |
-| Instances          | `walletlink-docs`, `walletlink-site`                                 |
-| Public endpoint    | `ns-a505678a-aa07-4497-affa-40590b1f63c5.search.ai.cloudflare.com`   |
-| Custom domain      | `help.walletlink.social` (**proxied** CNAME)                         |
-| Rate limit ruleset | `a08dbe0efe7e496397d12b8a97b024f9`                                   |
+| Thing              | Value                                                |
+| ------------------ | ---------------------------------------------------- |
+| Account            | see walletlink-ops                                   |
+| Zone               | `walletlink.social` / see walletlink-ops (Free plan) |
+| Namespace          | `default`                                            |
+| Instances          | `walletlink-docs`, `walletlink-site`                 |
+| Public endpoint    | see walletlink-ops                                   |
+| Custom domain      | `help.walletlink.social` (**proxied** CNAME)         |
+| Rate limit ruleset | see walletlink-ops                                   |
+
+> **The four identifiers above moved to the private
+> [starl3xx/walletlink-ops](https://github.com/starl3xx/walletlink-ops) repo on
+> 2026-08-30.** This document stays here, because it passes the test in
+> `docs/README.md`: it explains an assistant anyone can already interrogate, and
+> every word of the reasoning below is still on this page. The identifiers fail
+> that test. They verify nothing about our data and they tell an attacker where
+> to push.
+>
+> The namespace endpoint is the one that mattered. This page explains two
+> paragraphs down that the endpoint is unauthenticated by design, spends Workers
+> AI neurons on every answer, and that the zone is the only place that spend can
+> be bounded, which is why the CNAME is proxied. Publishing the origin hostname
+> handed anyone a route straight past that rate limit. A proxied CNAME hides the
+> origin from DNS, so the hostname was secret in practice and this file was the
+> only thing disclosing it.
+>
+> **Treat all four as disclosed.** This repo is public and they were committed,
+> so removing them from the current tree does not unpublish them. Rotating the
+> namespace is the only action that actually revokes the bypass; the account and
+> zone identifiers cannot be rotated and were always the lower risk.
 
 Endpoints: `/search`, `/chat/completions`, `/mcp`, plus the widget bundle at
 `/assets/<version>/search-snippet.es.js`.

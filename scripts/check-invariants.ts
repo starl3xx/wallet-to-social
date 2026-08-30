@@ -32,6 +32,7 @@
  * Run: npx tsx scripts/check-invariants.ts
  */
 import { readFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -2941,6 +2942,45 @@ async function main() {
     ok(
       'a placeholder-named counterparty is excluded by name, not only by NULL',
       /sc\.name <> 'Unknown Token'/.test(overlapSql)
+    );
+  }
+
+  // -------------------------------------------------- no infra ids in the repo
+  // docs/README.md's public/private test is applied by a person reading a file,
+  // and on 2026-08-30 that missed four Cloudflare identifiers sitting in a
+  // table in a document that otherwise passes. The raw namespace endpoint was
+  // the costly one: the same page explains that the endpoint is unauthenticated
+  // and that the proxied CNAME is the only thing bounding Workers AI spend, so
+  // the file documented the bypass next to the defence.
+  //
+  // These assertions match on SHAPE, never on a value. Writing the identifier
+  // into the checker to detect the identifier would republish the thing it is
+  // meant to remove, in a file nobody would think to look in.
+  {
+    const tracked = execSync('git ls-files', { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+    const offenders = (pattern: RegExp) =>
+      tracked.filter((f) => {
+        try {
+          return pattern.test(readFileSync(f, 'utf8'));
+        } catch {
+          return false;
+        }
+      });
+
+    ok(
+      'no tracked file publishes an AI Search namespace endpoint',
+      offenders(/ns-[0-9a-f-]{20,}\.search\.ai\.cloudflare\.com/).length === 0
+    );
+    // The table shape this actually shipped in: a labelled row whose value is a
+    // bare 32-hex Cloudflare id. Narrow on purpose, so a commit hash or a test
+    // fixture elsewhere in the repo does not fail the run.
+    ok(
+      'no tracked file tabulates a Cloudflare account, zone or ruleset id',
+      offenders(
+        /\|\s*(Account|Zone|Rate limit ruleset|Namespace id)\b[^|\n]*\|[^|\n]*\b[0-9a-f]{32}\b/i
+      ).length === 0
     );
   }
 
