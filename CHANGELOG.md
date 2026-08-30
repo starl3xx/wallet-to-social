@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-30 (a public file documented the bypass next to the defence)
+
+`docs/AI-SEARCH.md` carried four Cloudflare identifiers in its Resources table:
+the account, the zone, the rate-limit ruleset, and the raw AI Search namespace
+endpoint. This repo is public.
+
+The endpoint is the one that mattered, and the same page explains why. The
+public endpoint is unauthenticated by design and spends Workers AI neurons on
+every answer, so the zone is the only place that spend can be bounded, which is
+the entire reason the `help.` CNAME is proxied rather than DNS-only. A proxied
+CNAME hides the origin from DNS, so that hostname was secret in practice and
+this file was the only thing disclosing it. Anyone reading it could call the
+origin directly and never touch the rate limit.
+
+The document itself stays. It passes the test in `docs/README.md`: it explains
+an assistant anyone can already interrogate, and every word of the reasoning is
+still on the page. The identifiers fail that test, verify nothing about the
+data, and moved to the private walletlink-ops repo.
+
+**They are disclosed, not removed.** They were committed to a public repo, so
+this changes the current tree and nothing else. Rotating the namespace is the
+only action that revokes the bypass; the account and zone identifiers cannot be
+rotated and were always the lower risk.
+
+`docs/README.md` now records that the public/private test applies per fact, not
+per file, because a document can be correctly public and still carry a line that
+is not. Two assertions in `scripts/check-invariants.ts` enforce it: no tracked
+file may publish a namespace endpoint, and none may tabulate a bare 32-hex
+Cloudflare id under an Account, Zone or ruleset label. Both match on shape and
+never on a value, because writing the identifier into the checker in order to
+detect the identifier would republish it in a file nobody would think to search.
+The table-shaped regex is deliberately narrow: a blanket 32-hex scan
+false-positives on the keccak hashes already in that file.
+
 ### 2026-08-30 (the sitemap was frozen and /vs was a 404)
 
 Search Console produced its first read, and it is small: 4 clicks and 379
