@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '25 August 2026';
+const UPDATED = '30 August 2026';
 
 function Section({
   id,
@@ -195,10 +195,29 @@ export default function PrivacyPage() {
             history and no contact details for anyone in the index.
           </p>
           <p>
-            Write to <Mail /> with the address or handle and we will remove it
-            and suppress it from being re-collected. We do not require you to
-            prove ownership first, because the alternative is asking a stranger
-            for more information than we already hold about them.
+            Write to <Mail /> with the address or handle and we will remove it.
+            We do not require you to prove ownership first, because the
+            alternative is asking a stranger for more information than we
+            already hold about them. Name every identifier you want gone: we
+            deliberately keep nothing that would let us work out which wallets
+            and which handles belong to the same person, so we cannot find the
+            others for you.
+          </p>
+          <p>
+            <span className="text-foreground">What we cannot do yet.</span> We
+            remove you from the index by hand. We cannot yet stop an automated
+            sweep from finding the same public record again later and adding it
+            back, so a removal can undo itself. Until that is built, write to us
+            again and we will remove it again. We would rather say this than
+            imply a door that locks.
+          </p>
+          <p>
+            Two things are beyond our reach whatever we build. A customer who
+            exported a result before you asked still has their copy, and we
+            cannot reach it: we record which endpoint a customer called and
+            never which address they asked about, so we do not know who to tell.
+            And a search engine may hold a cached copy of a page for a while
+            after we change it.
           </p>
         </Section>
 

@@ -26,7 +26,7 @@ This runs the graph backwards, and it answers a question most wallet tooling can
 ## Request
 
 ```bash
-curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
+curl https://walletlink.social/api/v1/reverse/twitter/example_user \
   -H "Authorization: Bearer wts_live_YOUR_KEY"
 ```
 
@@ -64,11 +64,11 @@ curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
 {
   "data": [
     {
-      "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-      "ens_name": "vitalik.eth",
+      "wallet": "0x00000000000000000000000000000000000000a1",
+      "ens_name": "example.eth",
       "twitter": {
-        "handle": "vitalikbuterin",
-        "url": "https://x.com/vitalikbuterin",
+        "handle": "example_user",
+        "url": "https://x.com/example_user",
         "verified": true,
         "reachable": true,
         "reachability": "live",
@@ -79,7 +79,7 @@ curl https://walletlink.social/api/v1/reverse/twitter/vitalikbuterin \
     }
   ],
   "meta": {
-    "handle": "vitalikbuterin",
+    "handle": "example_user",
     "total_count": 1,
     "returned_count": 1,
     "truncated": false,

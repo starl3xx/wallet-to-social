@@ -18,7 +18,7 @@ For more than a handful of addresses use [batch](/api-reference/batch) instead.
 ## Request
 
 ```bash
-curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045 \
+curl https://walletlink.social/api/v1/wallet/0x00000000000000000000000000000000000000a1 \
   -H "Authorization: Bearer wts_live_YOUR_KEY"
 ```
 
@@ -79,21 +79,21 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
 ```json Found
 {
   "data": {
-    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-    "ens_name": "vitalik.eth",
+    "wallet": "0x00000000000000000000000000000000000000a1",
+    "ens_name": "example.eth",
     "twitter": {
-      "handle": "vitalikbuterin",
-      "url": "https://x.com/vitalikbuterin",
+      "handle": "example_user",
+      "url": "https://x.com/example_user",
       "verified": true,
       "reachable": true,
       "reachability": "live",
       "reachability_checked_at": "2026-08-17T09:41:02.000Z"
     },
     "farcaster": {
-      "username": "vitalik.eth",
-      "url": "https://warpcast.com/vitalik.eth",
+      "username": "example",
+      "url": "https://warpcast.com/example",
       "followers": 123456,
-      "fid": 5650,
+      "fid": 900001,
       "verified": true
     },
     "sources": ["onchain", "farcaster"],
@@ -103,7 +103,7 @@ curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37
     }
   },
   "meta": {
-    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "wallet": "0x00000000000000000000000000000000000000a1",
     "found": true,
     "last_updated": "2026-08-10T09:12:00.000Z",
     "stale": false

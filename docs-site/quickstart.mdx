@@ -49,7 +49,7 @@ Keys look like `wts_live_` followed by 32 characters. You can hold up to 10 acti
 ### Make a call
 
 ```bash
-curl https://walletlink.social/api/v1/wallet/0xd8da6bf26964af9d7eed9e03e53415d37aa96045 \
+curl https://walletlink.social/api/v1/wallet/0x00000000000000000000000000000000000000a1 \
   -H "Authorization: Bearer wts_live_YOUR_KEY"
 ```
 
@@ -60,20 +60,20 @@ The `Bearer` prefix is optional. A bare key in the `Authorization` header works 
 ```json
 {
   "data": {
-    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-    "ens_name": "vitalik.eth",
+    "wallet": "0x00000000000000000000000000000000000000a1",
+    "ens_name": "example.eth",
     "farcaster": {
-      "username": "vitalik.eth",
-      "url": "https://warpcast.com/vitalik.eth",
+      "username": "example",
+      "url": "https://warpcast.com/example",
       "followers": 123456,
-      "fid": 5650,
+      "fid": 900001,
       "verified": true
     },
     "sources": ["onchain", "farcaster"],
     "quality": { "score": 75, "last_verified": "2026-08-01T00:00:00.000Z" }
   },
   "meta": {
-    "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "wallet": "0x00000000000000000000000000000000000000a1",
     "found": true,
     "last_updated": "2026-08-01T00:00:00.000Z",
     "stale": false
