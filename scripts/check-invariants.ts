@@ -3145,6 +3145,70 @@ async function main() {
     }
   }
 
+  // ------------------------------------------------ the rail declares itself
+  // A discovery index lists only what declares itself. This route carried no
+  // `extensions.bazaar`, so walletlink was absent from all 14,344 resources in
+  // Coinbase's index, and from payai's own, while the rail was live.
+  //
+  // The position of the argument is the fragile part and it fails silently:
+  // `createPaymentRequiredResponse(requirements, resourceInfo, error?,
+  // extensions?)`. Passed third, the block lands in `error` and is rendered to
+  // the buyer as a failure string instead of being indexed, with nothing
+  // erroring.
+  {
+    const x402Src = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+
+    ok(
+      'the 402 declares bazaar metadata',
+      /extensions\?*:?\s*\{?[\s\S]{0,40}|BAZAAR_EXTENSIONS/.test(x402Src) &&
+        /bazaar:\s*\{/.test(x402Src)
+    );
+    ok(
+      'the bazaar block carries both info and schema',
+      /bazaar:\s*\{[\s\S]*?info:\s*\{/.test(x402Src) &&
+        /bazaar:\s*\{[\s\S]*?schema:\s*\{/.test(x402Src)
+    );
+    // Fourth position, with the error slot explicitly skipped.
+    ok(
+      'the extensions argument sits in the fourth position',
+      /createPaymentRequiredResponse\(\s*requirements,\s*resourceInfo,\s*undefined,\s*BAZAAR_EXTENSIONS/.test(
+        x402Src.replace(/\n\s*/g, ' ').replace(/\s+/g, ' ')
+      )
+    );
+    ok(
+      'the resource carries tags, the only field a discovery index can filter on',
+      /tags:\s*\[/.test(x402Src)
+    );
+    // The endpoint reads no request body: the payment is a header. An agent
+    // told otherwise pays and gets nothing, so the declaration has to say so.
+    ok(
+      'the declared input says the payment travels in the header',
+      /PAYMENT-SIGNATURE header, not in the body/.test(x402Src)
+    );
+    // The finding this guard exists for. `schema` describes `info` itself and
+    // closes `input` with additionalProperties: false, so a key present in
+    // info.input and absent from the schema makes a validating facilitator
+    // drop the resource: the exact outcome the block exists to prevent, and
+    // nothing local fails. Both lists are read out of the source and compared.
+    {
+      const flat = x402Src.replace(/\s+/g, ' ');
+      const infoInput = /input: \{ type: 'http'[^}]*\}/.exec(flat)?.[0] ?? '';
+      const declared =
+        /required: \['type', 'method', 'bodyType', 'body'\]/.test(flat);
+      const infoKeys = ['type', 'method', 'bodyType', 'body'].filter((k) =>
+        new RegExp(`\\b${k}:`).test(infoInput)
+      );
+      ok(
+        'every info.input key is declared in the schema that closes it',
+        infoKeys.length === 4 &&
+          declared &&
+          /input: \{ type: 'object', additionalProperties: false/.test(flat)
+      );
+    }
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

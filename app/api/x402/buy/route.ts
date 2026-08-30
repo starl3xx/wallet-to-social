@@ -79,6 +79,111 @@ export async function POST(request: NextRequest) {
     description: `${PACK.name} pack: ${PACK.matches} match credits for wallet identity lookups.`,
     mimeType: 'application/json',
     serviceName: 'walletlink.social',
+    // Free-text, and the only thing a discovery index can filter on. There is
+    // no category field: a scan of the live index found 14,344 resources with
+    // freeform tags and no taxonomy at all.
+    tags: ['wallet', 'identity', 'social', 'farcaster', 'ens', 'base'],
+  };
+
+  /**
+   * What a discovery index reads before an agent decides whether to pay.
+   *
+   * A discovery index lists only what declares itself. Coinbase's Bazaar
+   * indexes resources whose 402 carries an `extensions.bazaar` block, and this
+   * route carried none, so walletlink was absent from all 14,344 indexed
+   * resources when this shipped. It was absent from the payai index too, so
+   * the rail was invisible to both.
+   *
+   * The shape is not in the SDK: `extensions` is typed `Record<string,
+   * unknown>` and the contract belongs to the index. It was read off live
+   * indexed resources rather than from a docs page, which is also where the
+   * `schema` sibling came from; a description of the block that mentions only
+   * `info` is incomplete.
+   *
+   * The input matters more here than on a typical resource. This endpoint
+   * takes no request body: the signed payment travels in the PAYMENT-SIGNATURE
+   * header, and an agent that posts a body gets nothing for it. Saying so here
+   * is the difference between a resource an agent can use and one it can only
+   * find.
+   */
+  const BAZAAR_EXTENSIONS = {
+    bazaar: {
+      info: {
+        input: {
+          type: 'http',
+          method: 'POST',
+          bodyType: 'json',
+          // Deliberately empty. The payment is a header, not a payload.
+          body: {},
+        },
+        output: {
+          type: 'json',
+          example: {
+            api_key: 'wts_live_…',
+            shown_once: true,
+            matches_available: PACK.matches,
+            pack: PACK.name,
+            newly_granted: true,
+            docs: 'https://docs.walletlink.social/agent-pack',
+          },
+        },
+      },
+      /**
+       * The schema describes `info` itself, not the endpoint's payload, and
+       * `input` sets `additionalProperties: false`. So every key present in
+       * `info.input` above must be listed here or a validating facilitator
+       * drops the resource, which is the exact outcome this block exists to
+       * prevent. Read off a live indexed POST resource: same four keys, all
+       * four required, and only `input` is closed.
+       */
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        required: ['input'],
+        properties: {
+          input: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['type', 'method', 'bodyType', 'body'],
+            properties: {
+              type: { type: 'string', const: 'http' },
+              method: { type: 'string', enum: ['POST'] },
+              bodyType: { type: 'string', enum: ['json'] },
+              body: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {},
+                description:
+                  'Empty. The signed payment travels in the PAYMENT-SIGNATURE header, not in the body, so an agent that posts a payload gets nothing for it.',
+              },
+            },
+          },
+          output: {
+            type: 'object',
+            required: ['type', 'example'],
+            properties: {
+              type: { type: 'string', const: 'json' },
+              example: {
+                type: 'object',
+                required: ['matches_available', 'pack', 'newly_granted'],
+                properties: {
+                  api_key: {
+                    type: ['string', 'null'],
+                    description:
+                      'Shown once and never reissued, because every field of a settled payment is public.',
+                  },
+                  shown_once: { type: 'boolean' },
+                  matches_available: { type: 'integer' },
+                  pack: { type: 'string' },
+                  newly_granted: { type: 'boolean' },
+                  docs: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   };
 
   const requirements = await server.buildPaymentRequirements({
@@ -109,7 +214,12 @@ export async function POST(request: NextRequest) {
   if (!signature) {
     const required = await server.createPaymentRequiredResponse(
       requirements,
-      resourceInfo
+      resourceInfo,
+      // `error` is the third parameter and there is none to report: this is the
+      // ordinary unpaid response, not a failure. Skipping it to reach
+      // `extensions` in fourth position.
+      undefined,
+      BAZAAR_EXTENSIONS
     );
     return NextResponse.json(
       {
