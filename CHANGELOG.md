@@ -43,6 +43,47 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-30 (the rail was live and invisible)
+
+`POST /api/x402/buy` has sold credits for USDC on Base with no account since it
+shipped. It was in no discovery index. A discovery index lists only what
+declares itself, and this route's 402 carried no `extensions.bazaar` block, so
+walletlink was absent from all 14,344 resources in Coinbase's index and from
+payai's own, checked directly against both.
+
+The shape was read off live indexed resources rather than from a docs page,
+which turned out to matter: the block has a `schema` sibling alongside `info`,
+and a description mentioning only `info` is incomplete. It is not in the SDK
+either. `extensions` is typed `Record<string, unknown>`, so the contract belongs
+to the index and there is nothing to typecheck against.
+
+The input declaration carries the load here. This endpoint reads no request
+body: the signed payment travels in the `PAYMENT-SIGNATURE` header, and an agent
+that posts a payload gets nothing for it. The declared JSON Schema names that
+header as the only required input, so the difference between a resource an agent
+can find and one it can use is written down.
+
+`resource.tags` is also set. It is the only field a discovery index can filter
+on: a scan of the live index found freeform tags and no category taxonomy at
+all across 14,344 resources.
+
+Five assertions. The one worth having guards argument position:
+`createPaymentRequiredResponse(requirements, resourceInfo, error?, extensions?)`
+puts the block fourth, and passed third it lands in `error` and is rendered to
+the buyer as a failure string instead of being indexed, with nothing erroring.
+Moving it to the error slot fails that assertion; dropping the schema sibling
+fails two more.
+
+Verified on the wire rather than in the source: a real 402 from a built server
+decodes to `x402Version: 2`, `resource.tags` set, `extensions.bazaar` carrying
+both `info` and `schema`, and `accepts` unchanged at `eip155:8453` / `exact` /
+`1000000`.
+
+No facilitator change. Pointing `X402_FACILITATOR_URL` at Coinbase's facilitator
+by env var alone still takes the rail down, for the reasons recorded in
+`lib/x402.ts`. Indexing needs the declaration, and the declaration is
+independent of who settles.
+
 ### 2026-08-30 (the privacy page now describes what actually happens)
 
 `app/privacy/page.tsx` promised people who never used walletlink that we would

@@ -3145,6 +3145,50 @@ async function main() {
     }
   }
 
+  // ------------------------------------------------ the rail declares itself
+  // A discovery index lists only what declares itself. This route carried no
+  // `extensions.bazaar`, so walletlink was absent from all 14,344 resources in
+  // Coinbase's index, and from payai's own, while the rail was live.
+  //
+  // The position of the argument is the fragile part and it fails silently:
+  // `createPaymentRequiredResponse(requirements, resourceInfo, error?,
+  // extensions?)`. Passed third, the block lands in `error` and is rendered to
+  // the buyer as a failure string instead of being indexed, with nothing
+  // erroring.
+  {
+    const x402Src = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+
+    ok(
+      'the 402 declares bazaar metadata',
+      /extensions\?*:?\s*\{?[\s\S]{0,40}|BAZAAR_EXTENSIONS/.test(x402Src) &&
+        /bazaar:\s*\{/.test(x402Src)
+    );
+    ok(
+      'the bazaar block carries both info and schema',
+      /bazaar:\s*\{[\s\S]*?info:\s*\{/.test(x402Src) &&
+        /bazaar:\s*\{[\s\S]*?schema:\s*\{/.test(x402Src)
+    );
+    // Fourth position, with the error slot explicitly skipped.
+    ok(
+      'the extensions argument sits in the fourth position',
+      /createPaymentRequiredResponse\(\s*requirements,\s*resourceInfo,\s*undefined,\s*BAZAAR_EXTENSIONS/.test(
+        x402Src.replace(/\n\s*/g, ' ').replace(/\s+/g, ' ')
+      )
+    );
+    ok(
+      'the resource carries tags, the only field a discovery index can filter on',
+      /tags:\s*\[/.test(x402Src)
+    );
+    // The endpoint reads no request body: the payment is a header. An agent
+    // told otherwise pays and gets nothing.
+    ok(
+      'the declared input names the payment header',
+      /'PAYMENT-SIGNATURE':/.test(x402Src)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);
