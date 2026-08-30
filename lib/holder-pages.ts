@@ -34,6 +34,13 @@ export interface HolderCollection {
 /** A collection above the listing floor, carrying the number that earned it. */
 export interface ListedHolderCollection extends HolderCollection {
   reachableAny: number;
+  /**
+   * When this collection's holder set was last confirmed onchain: the same
+   * `max(last_seen_at)` that defines its current batch. The sitemap publishes
+   * it as `lastmod`, so the value has to be a fact about the data rather than
+   * the time the page was rendered.
+   */
+  lastSeenAt: string;
 }
 
 /**
@@ -50,6 +57,21 @@ export interface ListedHolderCollection extends HolderCollection {
  */
 export const LISTING_MIN_REACHABLE = 20;
 export const LISTING_MIN_RATE = 0.05;
+
+/**
+ * The minimum shared holders a counterparty needs before its overlap row is
+ * published.
+ *
+ * This is a disclosure floor, not a quality floor, and it is not the same
+ * quantity as LISTING_MIN_REACHABLE even though the number matches. Holder
+ * lists are free from any block explorer, so a published intersection is a
+ * set operation anyone can invert: "3 wallets hold both A and B" plus two
+ * public holder lists names those three wallets. Aggregates protect people
+ * only while the cell is large enough that differencing it returns a crowd.
+ * Twenty is the same k-anonymity floor the listing rule already uses, applied
+ * to the other place a small number reaches a page.
+ */
+export const OVERLAP_MIN_SHARED = 20;
 
 /**
  * Below this checked coverage, a below-floor page is a measurement still
@@ -134,9 +156,11 @@ export async function listHolderCollections(): Promise<
            sc.contract_type AS "contractType",
            sc.total_holders AS "totalHolders",
            sc.holders_imported AS "holdersImported",
-           r.reachable AS "reachableAny"
+           r.reachable AS "reachableAny",
+           l.at AS "lastSeenAt"
     FROM seeded_contracts sc
     JOIN reach r ON r.contract = sc.address AND r.chain = sc.chain
+    JOIN latest l ON l.contract = sc.address AND l.chain = sc.chain
     WHERE sc.holders_imported > 0 AND sc.name IS NOT NULL
       AND r.reachable >= ${LISTING_MIN_REACHABLE}
       -- The float cast is load-bearing: bound beside an int multiplication
@@ -248,9 +272,11 @@ export async function getHolderOverlap(
     JOIN seeded_contracts sc
       ON sc.address = wh.contract AND sc.chain = wh.chain
      AND sc.holders_imported > 0 AND sc.name IS NOT NULL
+     AND sc.name <> 'Unknown Token'
     WHERE NOT (wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain})
       AND wh.last_seen_at >= ol.at - interval '1 hour'
     GROUP BY sc.address, sc.chain, sc.name
+    HAVING count(*) >= ${OVERLAP_MIN_SHARED}
     ORDER BY count(*) DESC
     LIMIT ${limit}
   `)) as unknown as { rows: HolderOverlap[] };

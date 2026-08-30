@@ -2898,6 +2898,52 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------ the overlap disclosure floor
+  // The claim in lib/holder-pages.ts is that a published overlap row cannot be
+  // inverted to name wallets. That is a claim about an attacker, so it is
+  // asserted here rather than trusted.
+  //
+  // The attack it defends against: holder lists are free from any block
+  // explorer, so "N wallets hold both A and B" plus two public lists is a set
+  // intersection anyone can compute. At N=2 the answer is two named people. The
+  // floor is the whole defence, and nothing else in the query enforces it.
+  {
+    const { OVERLAP_MIN_SHARED, LISTING_MIN_REACHABLE } =
+      await import('@/lib/holder-pages');
+    const holderSrc = withoutComments(
+      readFileSync('lib/holder-pages.ts', 'utf8')
+    );
+    const overlapSql = holderSrc.slice(
+      holderSrc.indexOf('export async function getHolderOverlap')
+    );
+
+    ok(
+      'the overlap query bounds its groups by OVERLAP_MIN_SHARED',
+      /HAVING count\(\*\) >= \$\{OVERLAP_MIN_SHARED\}/.test(overlapSql)
+    );
+    // Assert the refusal: a floor that can be edited down to 1 is not a floor.
+    // k-anonymity here has to be at least the floor the listing rule already
+    // applies, or the hub publishes a crowd while a report publishes a pair.
+    ok(
+      'the overlap floor is at least the listing floor',
+      OVERLAP_MIN_SHARED >= LISTING_MIN_REACHABLE && OVERLAP_MIN_SHARED >= 20
+    );
+    // The bug this replaces, asserted absent so the check above is
+    // load-bearing: GROUP BY running straight into ORDER BY with nothing
+    // between them is the unbounded query that shipped.
+    ok(
+      'no unbounded GROUP BY survives in the overlap query',
+      !/GROUP BY sc\.address, sc\.chain, sc\.name\s*ORDER BY/.test(overlapSql)
+    );
+    // An unnamed counterparty reaches a page as the string "Unknown Token",
+    // which is both useless to a reader and a tell that the name check is only
+    // testing for NULL.
+    ok(
+      'a placeholder-named counterparty is excluded by name, not only by NULL',
+      /sc\.name <> 'Unknown Token'/.test(overlapSql)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

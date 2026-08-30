@@ -2,6 +2,57 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-08-30 (the sitemap was frozen and /vs was a 404)
+
+Search Console produced its first read, and it is small: 4 clicks and 379
+impressions over the three months to 2026-08-28, average position 50.1, across
+17 queries. Three faults in the plumbing explain part of it, and all three are
+fixed here.
+
+**`app/sitemap.ts` froze at build.** It is an async function with no
+`revalidate`, so Next prerendered it once and never again: production served
+106 URLs whose every `lastmod` was one of two build timestamps 10ms apart, and
+the daily seed cron added collections that could not appear until somebody
+redeployed. It now revalidates hourly, on the same cadence as the pages it
+lists.
+
+**Every `lastmod` was `new Date()`**, which stamps the render time on pages that
+have not changed. Now a blog post carries its publish date, a holder report
+carries `max(last_seen_at)` for its holder set (`ListedHolderCollection` grew a
+`lastSeenAt` field and the query finally joins the `latest` CTE it already
+computed), a hub carries the newest date among its children, and the static
+marketing pages carry nothing at all, because nothing records when they last
+changed. Google's guidance is to omit the field rather than supply a date the
+content does not support. The built sitemap went from 2 distinct dates across
+106 URLs to 110 across 123.
+
+**`/vs` returned 404.** Six comparison pages, 806 to 1,533 words each, sat under
+a path with no hub, so they had no crawl entry point and no reader could reach
+one from another. There is now a hub, split by whether the vendor still exists,
+carrying `ItemList` JSON-LD and listed in `app/llms.txt` and the sitemap. It
+restates no claim from the pages it links, so it cannot drift away from them.
+
+Two smaller things:
+
+- `/admin` and `/success` were index-eligible. Both are client components, so
+  the `noindex` had to go in a new `layout.tsx` for each. Deliberately not a
+  robots.txt `Disallow`: a disallowed URL can still be indexed from a link, and
+  Google cannot read a `noindex` on a page it may not fetch.
+- `getHolderOverlap` had no floor on `sharedHolders`, so a report could publish
+  a counterparty it shared 1 or 2 holders with. Holder lists are free from any
+  explorer, which makes a small published intersection invertible: two lists and
+  one count name the wallets. `OVERLAP_MIN_SHARED = 20` applies the same
+  k-anonymity floor the listing rule already uses. Counterparties still named
+  `Unknown Token` are dropped too; `sc.name IS NOT NULL` let the placeholder
+  through. That floor is a claim about an attacker, so it is asserted in
+  `scripts/check-invariants.ts` rather than trusted: four assertions, checked by
+  deleting the `HAVING`, lowering the constant to 1 and dropping the name
+  filter, each of which fails the run.
+
+The sitemap had also never been submitted in Search Console (the Sitemaps report
+read 0 of 0, and URL Inspection named `/pricing` as how it found `/holders`).
+Submitted on 2026-08-30.
+
 ### 2026-08-27 (the check-in runs itself)
 
 The daily run is a cron: `/api/cron/checkin-nonbuyers`, 16:00 UTC, five per

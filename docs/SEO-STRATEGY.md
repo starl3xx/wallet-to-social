@@ -2,6 +2,22 @@
 
 **Positioning:** The simple, affordable alternative to Addressable for crypto teams who just need wallet-to-social lookups. Backed by a 4.7M-wallet identity index with complete Farcaster protocol coverage (August 2026 milestone): the deterministic, owner-attested counter to Addressable's probabilistic "fingerprinting".
 
+**2026-08-30 baseline, read from Search Console.** The first real numbers, and
+they are small: 4 clicks and 379 impressions over the three months to 2026-08-28,
+average position 50.1, 17 distinct queries. `addressable` alone accounts for 141
+impressions and no clicks, and most of those are the ordinary English word rather
+than the company. The only non-brand product query in the top ten is
+`chainlink holders` (13 impressions), which has no page: the seed cron selects by
+trending novelty, so it built 66 reports on entities nobody searches. One query
+was a raw contract address, and that contract does have a report, which is the
+single piece of positive evidence in the set.
+
+Three plumbing faults were fixed the same day. `app/sitemap.ts` had no
+`revalidate`, so it froze at build and every seeded collection stayed invisible
+until a redeploy; the sitemap had also never been submitted in Search Console.
+`/vs` returned 404, leaving the six comparison pages with no crawl entry point.
+`/admin` and `/success` were index-eligible. See CHANGELOG.md for that day.
+
 **August 2026 update:** The dataset grew from ~5k to 4.7M wallets with complete Farcaster coverage and full reverse lookup (any Farcaster handle → wallets). Two dead-competitor migration pages went live: `/vs/holder` (Holder sunset June 2024) and `/vs/airstack` (Airstack deprecated its API, pivoted to Senpi), and `/vs/blaze` was rewritten as a migration page (Blaze left web3; withblaze.app is dead).
 
 **Twitter coverage, corrected 2026-08-13:** it is **over 1 million wallets**, not the ~41k this document previously stated. The sweep had been discarding the verified X handles Neynar returns alongside Farcaster profiles; recovering them took the figure from 43,704 to 1,070,442. Nearly all are owner-attested: most from an X account verified on Farcaster, the rest from onchain ENS records.
@@ -264,7 +280,7 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
 
 - [x] Update meta title/description in layout.tsx
 - [ ] Add structured data (Organization, Product, FAQ schemas)
-- [ ] Create sitemap.ts
+- [x] Create sitemap.ts
 - [ ] Create robots.ts
 - [ ] Add canonical URLs
 - [ ] Optimize Core Web Vitals (already done with virtualization)
