@@ -36,7 +36,7 @@ import { execSync } from 'child_process';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
-import { SUPPORTED_CHAINS } from '../lib/chains';
+import { ERC20_SUPPORTED_CHAINS, SUPPORTED_CHAINS } from '../lib/chains';
 import {
   API_TIMEOUT_MS,
   batchDeadlineMs,
@@ -2437,8 +2437,232 @@ async function main() {
 
     // Every other mark's plate and its clip are rounded together. Rounding the
     // plate alone leaves the mark painting back into the corners just cut.
+    //
+    // Derived rather than hardcoded. This read `plates === 12` until HyperEVM
+    // arrived as the eighth chain and made it 14, and a literal that has to be
+    // re-typed on every chain addition is a literal that will one day be
+    // re-typed to whatever the file happens to contain. Two per mark (the plate
+    // and its clip) for every chain but Base, which is plateless by the
+    // assertion directly above.
     const plates = (marks.match(/rx="6"/g) ?? []).length;
-    ok('six plates and six clips are rounded, twelve in all', plates === 12);
+    const plated = SUPPORTED_CHAINS.length - 1;
+    ok(
+      `${plated} plates and ${plated} clips are rounded, ${plated * 2} in all`,
+      plates === plated * 2
+    );
+  }
+
+  // ------------------------- HyperEVM: the first chain with no holder index
+  // Three sources refuse the chain (checked 2026-08-31): the NFT API, the
+  // metered ERC-20 index and Blockscout, which has no instance for it. Its NFT
+  // owners are read off the contract one token id at a time instead. That path
+  // has failure modes the indexed paths do not, and these are the ones that
+  // would ship a wrong answer rather than an error.
+  {
+    /**
+     * Bounded slices, not whole-file searches.
+     *
+     * Every regex below is anchored to one construct. An unbounded probe over
+     * a file this commented finds its own prose: the mutation guard has already
+     * caught an assertion here that matched a doc comment describing the thing
+     * it meant to check, and passed while the code was broken.
+     */
+    const sliceBetween = (source: string, from: string, to: string) => {
+      const start = source.indexOf(from);
+      if (start === -1) return '';
+      const end = source.indexOf(to, start + from.length);
+      return end === -1 ? '' : source.slice(start, end + to.length);
+    };
+
+    const chains = withoutComments(readFileSync('lib/chains.ts', 'utf8'));
+    const onchain = withoutComments(
+      readFileSync('lib/onchain-holders.ts', 'utf8')
+    );
+    const holders = withoutComments(
+      readFileSync('lib/contract-holders.ts', 'utf8')
+    );
+
+    /**
+     * The list that decides whether the UI offers a token import.
+     *
+     * Adding hyperevm here would put an ERC-20 tile in front of a customer with
+     * nothing behind it: no metered index accepts the chain and no explorer
+     * serves it, so the import throws CHAIN_NO_ERC20_SUPPORT every time. The
+     * file's own rule is to keep this list in step with MORALIS_CHAIN_IDS and
+     * BLOCKSCOUT_BASE_URLS, and this is that rule made checkable.
+     */
+    const erc20List = sliceBetween(
+      chains,
+      'export const ERC20_SUPPORTED_CHAINS',
+      '];'
+    );
+    ok(
+      'hyperevm is kept out of ERC20_SUPPORTED_CHAINS',
+      erc20List.length > 0 && !erc20List.includes('hyperevm')
+    );
+    ok(
+      'no chain is listed for ERC-20 without a metered index or an explorer',
+      ERC20_SUPPORTED_CHAINS.every(
+        (c) =>
+          holders.includes(`  ${c}: '0x`) ||
+          holders.includes(`  ${c}: 'https://`)
+      )
+    );
+
+    /**
+     * Every supported chain can serve an NFT holder list some way.
+     *
+     * The picker is built from SUPPORTED_CHAINS, so a chain that reaches it
+     * with neither an NFT-API entry nor an onchain source is a tile that fails
+     * on both contract kinds while the site advertises the chain as included.
+     */
+    const alchemyBlock = sliceBetween(holders, 'const ALCHEMY_ENDPOINTS', '};');
+    const onchainBlock = sliceBetween(onchain, 'const ONCHAIN_RPCS', '};');
+    for (const chain of SUPPORTED_CHAINS) {
+      ok(
+        `${chain} has an NFT holder source`,
+        alchemyBlock.includes(`${chain}:`) || onchainBlock.includes(`${chain}:`)
+      );
+    }
+
+    /**
+     * The walk starts at 0 and is bounded by supply, rather than stopping at
+     * the first revert.
+     *
+     * On the collection this shipped for, `ownerOf(0)` reverts and
+     * `ownerOf(6666)` resolves. A loop that read the first revert as the end of
+     * supply would return zero holders there and report success.
+     */
+    const scanRange = sliceBetween(
+      onchain,
+      'const ids: number[] = [];',
+      'const owners = new Map<number, string>();'
+    );
+    ok(
+      'the id walk covers 0 through totalSupply inclusive',
+      /for \(let id = 0; id <= supply; id\+\+\)/.test(scanRange)
+    );
+
+    /**
+     * The completeness proof, which is the whole reason the module may be
+     * trusted. getContractHolders derives `truncated` from totalHolders against
+     * wallets.length, so a scan that stopped early would report truncated:false
+     * and tell the buyer it held every holder.
+     */
+    const proof = sliceBetween(
+      onchain,
+      'if (owners.size !== supply)',
+      'const bags'
+    );
+    ok(
+      'a scan that resolved fewer owners than supply throws',
+      proof.includes('HOLDER_SCAN_INCOMPLETE')
+    );
+
+    /**
+     * Batch replies are matched by JSON-RPC id.
+     *
+     * A reordered batch read positionally yields a holder list with the right
+     * cardinality and the wrong owners, and nothing downstream can detect it.
+     */
+    const batchRead = sliceBetween(
+      onchain,
+      'const byId = new Map<number, RpcReply>();',
+      'return owners;'
+    );
+    ok(
+      'batch replies are looked up by id, never by array position',
+      batchRead.includes('byId.get(id)') && !/body\[\s*i\s*\]/.test(batchRead)
+    );
+
+    /** ERC-1155 has no ownerOf, so it is refused rather than half-scanned. */
+    const dispatch = sliceBetween(
+      holders,
+      'if (hasOnchainHolderSource(chain))',
+      'holdersResult = await getOnchainNftHolders'
+    );
+    ok(
+      'ERC-1155 on an onchain-only chain is refused, not attempted',
+      dispatch.includes('ERC1155_NO_ONCHAIN_ENUM')
+    );
+
+    /**
+     * Every code this path throws reaches the customer as itself.
+     *
+     * The route matches on an exact string, so a code missing from its map
+     * falls through to the generic 500 that says to try again. That is wrong
+     * advice for three of these four: an ERC-1155 contract and an oversized
+     * collection will still be an ERC-1155 contract and an oversized collection
+     * on the next attempt. Two of the codes are also thrown carrying a
+     * diagnostic suffix, which is why the route matches the leading code as
+     * well as the whole string, and why that fallback is asserted here rather
+     * than trusted.
+     */
+    const route = withoutComments(
+      readFileSync('app/api/contract-holders/route.ts', 'utf8')
+    );
+    const errorMap = sliceBetween(
+      route,
+      'const errorMap: Record<string, { message: string; status: number }> = {',
+      '\n    };'
+    );
+    const thrownCodes = new Set(
+      [...onchain.matchAll(/new Error\(\s*[`'"]([A-Z][A-Z0-9_]{3,})/g)].map(
+        (m) => m[1]
+      )
+    );
+    thrownCodes.add('ERC1155_NO_ONCHAIN_ENUM');
+    ok(
+      'the onchain path throws codes worth mapping',
+      thrownCodes.size >= 4 && thrownCodes.has('HOLDER_SCAN_INCOMPLETE')
+    );
+    for (const code of [...thrownCodes].sort()) {
+      ok(`${code} has customer-facing copy`, errorMap.includes(`${code}: {`));
+    }
+    ok(
+      'a suffixed code still matches its map entry',
+      /errorMessage\.split\(':', 1\)\[0\]/.test(route) &&
+        /\^\[A-Z\]\[A-Z0-9_\]\*\$/.test(route)
+    );
+    ok(
+      'a permanent refusal is not sent to a retry loop',
+      /COLLECTION_TOO_LARGE: \{[\s\S]{0,400}?status: 400/.test(errorMap) &&
+        /ERC1155_NO_ONCHAIN_ENUM: \{[\s\S]{0,400}?status: 400/.test(errorMap)
+    );
+
+    /** A supply too large to scan is refused before any call is spent. */
+    ok(
+      'an oversized collection is refused before enumeration starts',
+      /if \(supply > MAX_ONCHAIN_SUPPLY\) \{[\s\S]{0,400}?COLLECTION_TOO_LARGE/.test(
+        onchain
+      )
+    );
+
+    /**
+     * The seed cron's token slot is gated on ERC20_SUPPORTED_CHAINS, not on
+     * usesMeteredHolderIndex.
+     *
+     * That helper answers false both for "billed elsewhere" (Robinhood, which
+     * has an explorer) and for "nowhere to ask" (hyperevm). Gating on it would
+     * skip the budget check and walk into a certain failure, which
+     * seedFirstViable then records as a holders_imported = 0 row that locks the
+     * address out for FAILURE_RETRY_DAYS.
+     */
+    const seed = withoutComments(
+      readFileSync('lib/seed-collections.ts', 'utf8')
+    );
+    ok(
+      'the seed token slot is gated on the ERC-20 chain list',
+      seed.includes('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
+    );
+    ok(
+      'hyperevm has an explicit place in SEED_ORDER',
+      sliceBetween(
+        seed,
+        'const SEED_ORDER: SupportedChain[] = [',
+        '];'
+      ).includes("'hyperevm'")
+    );
   }
 
   // -------------------------------- The funnel: a lookup belongs to a visit
