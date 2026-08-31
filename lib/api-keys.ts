@@ -236,7 +236,31 @@ export async function revokeApiKey(
 }
 
 /**
- * Rotates an API key - revokes the old one and creates a new one with same settings
+ * Rotates an API key: revokes the old one and issues a replacement.
+ *
+ * ## Why this does not check the cap, and why that is only safe now
+ *
+ * Rotation is count-neutral: it retires exactly one active key and issues
+ * exactly one. That holds ONLY while the three filters below hold, and every
+ * one of them was missing.
+ *
+ * The select matched on `id` alone, and the revoke was unconditional. So
+ * rotating an already-revoked key retired nothing and created a live key, and
+ * the insert never went through `createApiKeyIfUnderCap`. Revoke once, then
+ * POST the same dead id N times, and an account holds N+1 active keys against
+ * a cap of 10. The cap was decoration.
+ *
+ * Worse, `oauth_grant_id` was not excluded. An OAuth access token lives an hour
+ * and is capped separately in `lib/oauth/grants.ts`; the replacement row
+ * carries no `oauth_grant_id`, so rotating a grant laundered a one-hour token
+ * into a permanent dashboard credential. `listApiKeys` has always hidden grant
+ * rows, which is why this was not visible from the dashboard, and
+ * `/api/developer/usage` handed the id over anyway.
+ *
+ * The revoke is conditional on the row still being active and returns the
+ * rows it touched. Two concurrent rotations of one key therefore produce one
+ * replacement, not two: the loser updates nothing and returns null rather than
+ * inserting.
  */
 export async function rotateApiKey(
   keyId: string,
@@ -245,25 +269,40 @@ export async function rotateApiKey(
   const db = getDb();
   if (!db) return null;
 
-  // Get the existing key
+  // Ownership is in the WHERE clause, not a comparison after the fact: a filter
+  // the database applies cannot be skipped by an early return being edited.
   const [existingKey] = await db
     .select()
     .from(apiKeys)
-    .where(eq(apiKeys.id, keyId))
+    .where(
+      and(
+        eq(apiKeys.id, keyId),
+        eq(apiKeys.userId, userId),
+        eq(apiKeys.isActive, true),
+        isNull(apiKeys.revokedAt),
+        isNull(apiKeys.oauthGrantId)
+      )
+    )
     .limit(1);
 
-  if (!existingKey || existingKey.userId !== userId) {
+  if (!existingKey) {
     return null;
   }
 
-  // Revoke the old key
-  await db
+  // Conditional, and the returned rows are the interlock. If another request
+  // rotated or revoked this key first, nothing is updated and no key is minted.
+  const retired = await db
     .update(apiKeys)
     .set({
       isActive: false,
       revokedAt: new Date(),
     })
-    .where(eq(apiKeys.id, keyId));
+    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.isActive, true)))
+    .returning();
+
+  if (retired.length === 0) {
+    return null;
+  }
 
   // Create new key with same settings
   const { rawKey, hashedKey, prefix } = generateApiKey();

@@ -1284,9 +1284,23 @@ async function main() {
       'the key cap ranks only keys a person made, not OAuth access tokens',
       ranked.includes('oauth_grant_id IS NULL')
     );
+    // Bounded to the function body, and read with comments stripped. Both
+    // matter, and the second one is why this broke: `keys` above is the RAW
+    // file, so the moment another function's doc comment mentioned
+    // `listApiKeys` by name, the regex anchored inside that comment and ran
+    // forward to a DIFFERENT function's `isNull(apiKeys.oauthGrantId)`. The
+    // assertion then passed with this filter deleted. `rotateApiKey` gained
+    // such a comment on 2026-08-31 and the guard caught it the same day.
+    const listSrc = (() => {
+      const stripped = withoutComments(keys);
+      const from = stripped.indexOf('export async function listApiKeys');
+      if (from === -1) return '';
+      const next = stripped.indexOf('\nexport ', from + 1);
+      return stripped.slice(from, next === -1 ? undefined : next);
+    })();
     ok(
       'the key list hides OAuth access tokens, which nobody can copy or usefully revoke',
-      /listApiKeys[\s\S]*?isNull\(apiKeys\.oauthGrantId\)/.test(keys)
+      /isNull\(apiKeys\.oauthGrantId\)/.test(listSrc)
     );
   }
 
@@ -3207,6 +3221,71 @@ async function main() {
           /input: \{ type: 'object', additionalProperties: false/.test(flat)
       );
     }
+  }
+
+  // ------------------------------------------------------ key rotation is safe
+  // `rotateApiKey` does not check the cap, and that is only sound while
+  // rotation is count-neutral: exactly one active key retired, exactly one
+  // issued. Three filters carry that property and all three were missing.
+  //
+  // Without them: revoke a key once, then POST the dead id N times, and the
+  // account holds N+1 active keys against a cap of 10. And rotating an OAuth
+  // grant minted a row with no `oauth_grant_id`, turning a one-hour access
+  // token into a permanent dashboard credential.
+  {
+    const keys = withoutComments(readFileSync('lib/api-keys.ts', 'utf8'));
+    // Bounded at the NEXT export, not at end of file. Slicing to the end swept
+    // in `listApiKeys`, which carries its own `isNull(apiKeys.oauthGrantId)`,
+    // so the grant-row assertion passed on a different function's code and
+    // survived deleting the filter it was written to protect. Caught by
+    // mutation, which is the only reason it is written this way.
+    const from = keys.indexOf('export async function rotateApiKey');
+    const next = keys.indexOf('\nexport ', from + 1);
+    const rotate = keys.slice(from, next === -1 ? undefined : next);
+    const flat = rotate.replace(/\s+/g, ' ');
+
+    // Matched as one clause, not as four independent probes. Probing for
+    // `eq(apiKeys.isActive, true)` anywhere in the function passes on the
+    // conditional revoke's copy of that same expression, so deleting it from
+    // the SELECT changed nothing and the assertion still went green. Also
+    // caught by mutation.
+    ok(
+      'the select filters on id, owner, active, not-revoked and not-a-grant',
+      /\.where\( and\( eq\(apiKeys\.id, keyId\), eq\(apiKeys\.userId, userId\), eq\(apiKeys\.isActive, true\), isNull\(apiKeys\.revokedAt\), isNull\(apiKeys\.oauthGrantId\) \) \)/.test(
+        flat
+      )
+    );
+    ok(
+      'rotation refuses an OAuth grant row',
+      /isNull\(apiKeys\.oauthGrantId\)/.test(flat)
+    );
+    ok(
+      'ownership is enforced in SQL, not after the select',
+      /eq\(apiKeys\.userId, userId\)/.test(flat)
+    );
+    // The interlock against two concurrent rotations minting two keys.
+    ok(
+      'the revoke is conditional and its result gates the insert',
+      /\.where\(and\(eq\(apiKeys\.id, keyId\), eq\(apiKeys\.isActive, true\)\)\)/.test(
+        flat
+      ) && /retired\.length === 0/.test(flat)
+    );
+    // Assert the refusal: the unconditional revoke that shipped is gone.
+    ok(
+      'the unconditional revoke-by-id is gone',
+      !/\.set\(\{ isActive: false, revokedAt: new Date\(\), \}\) \.where\(eq\(apiKeys\.id, keyId\)\)/.test(
+        flat
+      )
+    );
+    // The id had to come from somewhere: the dashboard hides grant rows, and
+    // /usage handed them over.
+    const usage = withoutComments(
+      readFileSync('app/api/developer/usage/route.ts', 'utf8')
+    );
+    ok(
+      'the usage route hides OAuth grant rows, as listApiKeys does',
+      /isNull\(apiKeys\.oauthGrantId\)/.test(usage)
+    );
   }
 
   if (!failures.length) {
