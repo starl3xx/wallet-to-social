@@ -249,9 +249,56 @@ export async function POST(request: NextRequest) {
         message: `Token (ERC-20) holder lookups are not available on ${chainLabel}. NFT collections on this chain are supported.`,
         status: 400,
       },
+      /**
+       * The four refusals from the onchain enumeration path.
+       *
+       * Three of them are permanent facts about the contract, so they are 4xx
+       * and the copy says what to do instead rather than "try again". Sending
+       * an ERC-1155 or a 200,000-token collection into a retry loop is the
+       * same mistake DAILY_ALLOWANCE_SPENT above already records having made.
+       */
+      COLLECTION_TOO_LARGE: {
+        message: `This collection is too large to read from ${chainLabel} directly. Uploading or pasting the holder list works now, and resolves exactly the same way.`,
+        status: 400,
+      },
+      ERC1155_NO_ONCHAIN_ENUM: {
+        message: `ERC-1155 collections are not supported on ${chainLabel}. ERC-721 collections are, and an upload or a pasted list works for either.`,
+        status: 400,
+      },
+      ONCHAIN_NO_TOTAL_SUPPLY: {
+        message: `This contract does not report a total supply, which is what bounds a holder read on ${chainLabel}. An upload or a pasted list works now.`,
+        status: 400,
+      },
+      /**
+       * The one that is worth retrying. It means the scan could not prove it
+       * had every holder, so it refused to return a short list: a node failed
+       * mid-read, or the time budget ran out. Both are usually gone in a
+       * minute.
+       */
+      HOLDER_SCAN_INCOMPLETE: {
+        message: `The holder list for this collection could not be read completely just now, so it was not returned in part. It is worth trying again in a few minutes.`,
+        status: 503,
+      },
     };
 
-    const mappedError = errorMap[errorMessage];
+    /**
+     * Matched on the code, then on the code before its diagnostic suffix.
+     *
+     * The onchain path throws detail with the code ("HOLDER_SCAN_INCOMPLETE:
+     * resolved 700 of 764 tokens") because that detail is what makes the log
+     * useful. An exact-match-only lookup therefore missed every one of those
+     * and returned the generic 500 telling the buyer to retry, including for
+     * the refusals where retrying cannot work. The suffix stays in the log and
+     * stops deciding the customer's answer.
+     *
+     * The shape test is what keeps this narrow: only a leading SCREAMING_SNAKE
+     * token is treated as a code, so an ordinary error message whose first word
+     * happens to match cannot borrow someone else's status.
+     */
+    const errorCode = errorMessage.split(':', 1)[0].trim();
+    const mappedError =
+      errorMap[errorMessage] ??
+      (/^[A-Z][A-Z0-9_]*$/.test(errorCode) ? errorMap[errorCode] : undefined);
     if (mappedError) {
       return NextResponse.json(
         { error: mappedError.message },

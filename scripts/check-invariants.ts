@@ -2586,6 +2586,50 @@ async function main() {
       dispatch.includes('ERC1155_NO_ONCHAIN_ENUM')
     );
 
+    /**
+     * Every code this path throws reaches the customer as itself.
+     *
+     * The route matches on an exact string, so a code missing from its map
+     * falls through to the generic 500 that says to try again. That is wrong
+     * advice for three of these four: an ERC-1155 contract and an oversized
+     * collection will still be an ERC-1155 contract and an oversized collection
+     * on the next attempt. Two of the codes are also thrown carrying a
+     * diagnostic suffix, which is why the route matches the leading code as
+     * well as the whole string, and why that fallback is asserted here rather
+     * than trusted.
+     */
+    const route = withoutComments(
+      readFileSync('app/api/contract-holders/route.ts', 'utf8')
+    );
+    const errorMap = sliceBetween(
+      route,
+      'const errorMap: Record<string, { message: string; status: number }> = {',
+      '\n    };'
+    );
+    const thrownCodes = new Set(
+      [...onchain.matchAll(/new Error\(\s*[`'"]([A-Z][A-Z0-9_]{3,})/g)].map(
+        (m) => m[1]
+      )
+    );
+    thrownCodes.add('ERC1155_NO_ONCHAIN_ENUM');
+    ok(
+      'the onchain path throws codes worth mapping',
+      thrownCodes.size >= 4 && thrownCodes.has('HOLDER_SCAN_INCOMPLETE')
+    );
+    for (const code of [...thrownCodes].sort()) {
+      ok(`${code} has customer-facing copy`, errorMap.includes(`${code}: {`));
+    }
+    ok(
+      'a suffixed code still matches its map entry',
+      /errorMessage\.split\(':', 1\)\[0\]/.test(route) &&
+        /\^\[A-Z\]\[A-Z0-9_\]\*\$/.test(route)
+    );
+    ok(
+      'a permanent refusal is not sent to a retry loop',
+      /COLLECTION_TOO_LARGE: \{[\s\S]{0,400}?status: 400/.test(errorMap) &&
+        /ERC1155_NO_ONCHAIN_ENUM: \{[\s\S]{0,400}?status: 400/.test(errorMap)
+    );
+
     /** A supply too large to scan is refused before any call is spent. */
     ok(
       'an oversized collection is refused before enumeration starts',
