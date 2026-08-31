@@ -461,6 +461,26 @@ export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
     kind: 'erc20',
     label: 'Pons',
   },
+
+  // HyperEVM: 0 tokens, 1 collection.
+  //
+  // Verified onchain 2026-08-31 rather than from a listing: the contract
+  // answers supportsInterface(0x80ac58cd) true, name() "HYPE TERMINAL",
+  // symbol() "TERMINAL", totalSupply() 6666, and enumerating ownerOf across
+  // 1..6666 returned 6,666 owned tokens across 773 addresses. The marketplace
+  // slug is hype-terminals and its safelist status is verified, but no listing
+  // was treated as evidence of the address; the address came first and the
+  // listing only confirmed the name.
+  //
+  // The only entry for this chain, and deliberately so. Token discovery is
+  // gated off here (no ERC-20 holder source exists), so this list is the whole
+  // of the NFT seed queue for HyperEVM until discovery proves itself on it.
+  {
+    address: '0x8853fdd2f9bad000473b70f7a4a41b55abdcf3d4',
+    chain: 'hyperevm',
+    kind: 'nft',
+    label: 'HYPE TERMINAL',
+  },
 ];
 
 /**

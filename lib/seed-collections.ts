@@ -34,7 +34,11 @@ import {
   usesMeteredHolderIndex,
   type HolderResult,
 } from './contract-holders';
-import { SUPPORTED_CHAINS, type SupportedChain } from './chains';
+import {
+  ERC20_SUPPORTED_CHAINS,
+  SUPPORTED_CHAINS,
+  type SupportedChain,
+} from './chains';
 import { createJob } from './job-processor';
 import { trackEvent } from './analytics';
 import { checkBackgroundBudget } from './neynar-budget';
@@ -85,6 +89,10 @@ const OPENSEA_CHAIN_SLUGS: Record<SupportedChain, string> = {
   polygon: 'matic',
   optimism: 'optimism',
   bsc: 'bsc',
+  // Verified against the live collection endpoint on 2026-08-31: the
+  // marketplace's own slug for chain 999 is the same word we use, which is why
+  // CHAIN_ALIASES in lib/contract-deep-link.ts needs no entry for it.
+  hyperevm: 'hyperevm',
 };
 
 const GECKO_NETWORKS: Record<SupportedChain, string> = {
@@ -95,6 +103,15 @@ const GECKO_NETWORKS: Record<SupportedChain, string> = {
   polygon: 'polygon_pos',
   optimism: 'optimism',
   bsc: 'bsc',
+  // The id this source publishes for HyperEVM in its own network list, where
+  // it sits beside a separate `hyperliquid` entry. Which of the two carries
+  // chain 999's pools was NOT established: both returned an empty page when
+  // probed on 2026-08-31. The value is unread today, because the token slot
+  // below is gated off for any chain outside ERC20_SUPPORTED_CHAINS and this
+  // chain has no ERC-20 holder source at all. Confirm it against a real pool
+  // before that gate is ever opened; polygon_pos two lines up is the standing
+  // proof that this map's ids are not guessable from the chain name.
+  hyperevm: 'hyperevm',
 };
 
 export interface SeedCandidate {
@@ -748,6 +765,11 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   // bug this replaces.
   const SEED_ORDER: SupportedChain[] = [
     'robinhood',
+    // Second for the same reason Robinhood is first: no index anybody else
+    // sells reaches it, so its coverage is a differentiator rather than a
+    // duplicate. It is also the cheapest slot in the run, because its holder
+    // list is read straight from public RPC and spends no metered allowance.
+    'hyperevm',
     'ethereum',
     'base',
     'arbitrum',
@@ -798,8 +820,21 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
       });
     }
 
-    // Token, now on every chain: Robinhood ERC-20 holder lists resolve through
-    // its Blockscout explorer, and GeckoTerminal indexes the chain for discovery
+    // Token, on every chain that has an ERC-20 holder source: Robinhood's
+    // resolves through its Blockscout explorer, and GeckoTerminal indexes the
+    // chain for discovery.
+    //
+    // HyperEVM has neither, and the guard has to be this list rather than
+    // `usesMeteredHolderIndex`, which is the trap here: that helper answers
+    // false for a chain absent from MORALIS_CHAIN_IDS, so it reads the same for
+    // "billed elsewhere" (Robinhood) as for "nowhere to ask" (HyperEVM). Left
+    // to it, the budget check at seedContract is skipped and the run walks into
+    // a certain CHAIN_NO_ERC20_SUPPORT, which seedFirstViable records as a
+    // holders_imported = 0 row that then locks the address out for
+    // FAILURE_RETRY_DAYS. A daily failure that also poisons the retry.
+    if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {
+      continue;
+    }
     {
       if (Date.now() > deadline - SLOT_RESERVE_MS) {
         results.push(budgetExhausted(chain, 'erc20'));

@@ -6,6 +6,10 @@ import {
   type SupportedChain,
 } from './chains';
 import { recordHolderIndexSpend } from './holder-index-budget';
+import {
+  getOnchainNftHolders,
+  hasOnchainHolderSource,
+} from './onchain-holders';
 
 // Re-exported so existing server-side importers keep working unchanged.
 // Client components must import these from '@/lib/chains' instead — importing
@@ -145,6 +149,16 @@ const RPC_ENDPOINTS: Record<SupportedChain, string[]> = {
     'https://optimism-rpc.publicnode.com',
   ],
   bsc: ['https://bsc-dataseed.binance.org', 'https://bsc-rpc.publicnode.com'],
+  // Probed 2026-08-31: all three answer eth_chainId = 0x3e7. The order is by
+  // measured bulk throughput, not by which is canonical. rpc.hyperliquid.xyz is
+  // the chain's own endpoint and is last, because under a real enumeration load
+  // it throttled after 800 of 6,666 calls; it answers single calls fine, which
+  // is all contract-type detection and token metadata need from this list.
+  hyperevm: [
+    'https://rpc.purroofgroup.com',
+    'https://rpc.hypurrscan.io',
+    'https://rpc.hyperliquid.xyz/evm',
+  ],
 };
 
 // Alchemy endpoints for NFT holder lookups. getOwnersForContract returns the
@@ -166,6 +180,15 @@ const ALCHEMY_ENDPOINTS: Partial<Record<SupportedChain, string>> = {
   polygon: 'https://polygon-mainnet.g.alchemy.com/nft/v3',
   optimism: 'https://opt-mainnet.g.alchemy.com/nft/v3',
   bsc: 'https://bnb-mainnet.g.alchemy.com/nft/v3',
+  // HyperEVM is absent on purpose, not by oversight. The NFT API refuses the
+  // chain in as many words ("This endpoint isn't enabled for that chain or
+  // network just yet"), checked 2026-08-31 against the real host, which is
+  // `hyperliquid-mainnet` and not `hyperevm-mainnet`. The refusal arrives as a
+  // JSON error body whose HTTP status is not 403, so an entry here would not
+  // reach CHAIN_NFT_NOT_ENABLED below: it would parse as a response with no
+  // `owners` array, produce an empty list, and surface to the buyer as
+  // NO_HOLDERS on a collection with thousands of them. That chain's NFT holders
+  // come from lib/onchain-holders.ts instead.
 };
 
 // Moralis chain IDs (hex form), the ERC-20 holder index. Verified live on the
@@ -1359,11 +1382,33 @@ export async function getContractHolders(
   };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
-    holdersResult = await getERC721Holders(
-      normalizedAddress,
-      chain,
-      effectiveLimit
-    );
+    /**
+     * A chain with no NFT index reads its owners off the contract instead.
+     *
+     * ERC-1155 cannot go down that path and is refused rather than attempted:
+     * it has no `ownerOf`, no single enumerable id space and no one
+     * `totalSupply` to prove a scan against, so the completeness guarantee that
+     * whole module is built on does not exist for it. A best-effort
+     * TransferSingle replay would be precisely the silent partial answer this
+     * file already refuses elsewhere.
+     */
+    if (hasOnchainHolderSource(chain)) {
+      if (contractType === 'ERC-1155') {
+        throw new Error('ERC1155_NO_ONCHAIN_ENUM');
+      }
+      holdersResult = await getOnchainNftHolders(
+        normalizedAddress,
+        chain,
+        effectiveLimit,
+        deadlineMs
+      );
+    } else {
+      holdersResult = await getERC721Holders(
+        normalizedAddress,
+        chain,
+        effectiveLimit
+      );
+    }
   } else {
     holdersResult = await getERC20Holders(
       normalizedAddress,

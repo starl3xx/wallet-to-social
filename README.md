@@ -66,7 +66,7 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 |                      |                                                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------------------- |
 | **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses                        |
-| **Seven chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain                           |
+| **Eight chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain, HyperEVM (NFT only)      |
 | **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together                             |
 | **Agent detection**  | 13,000+ known AI agent wallets flagged                                                            |
 | **Reverse lookup**   | X handle or Farcaster username back to wallets                                                    |

@@ -1,5 +1,5 @@
 /**
- * The seven network marks, as their owners publish them.
+ * The eight network marks, as their owners publish them.
  *
  * ## Where these come from
  *
@@ -10,7 +10,7 @@
  *
  * ## What was changed, and what was not
  *
- * Six of the seven sit knocked out of a full-bleed coloured square that the
+ * Seven of the eight sit knocked out of a full-bleed coloured square that the
  * icon set composes as a container. That container is rounded to 6px, which is
  * `--radius-sm`, the token this product already uses for badges and inline
  * code. The clip path is rounded with it: rounding the plate alone leaves the
@@ -258,6 +258,40 @@ export function BnbMark({ className }: MarkProps) {
 }
 
 /**
+ * HyperEVM.
+ *
+ * Added 2026-08-31 with the chain itself. Taken from the same icon set as its
+ * neighbours (`networks/background/hyper-evm.svg`), so the plate colour
+ * `#072723` and the mark colour `#50D2C1` are the set's, not ours. It is the
+ * eighth mark and the seventh plate: only Base still ships without one.
+ */
+export function HyperEvmMark({ className }: MarkProps) {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden
+      focusable="false"
+    >
+      <g clipPath={`url(#hyper-evm__a-${uid})`}>
+        <rect width="24" height="24" rx="6" fill="#072723" />
+        <path
+          fill="#50D2C1"
+          d="M20 11.942a9 9 0 0 1-.8 3.795c-.772 1.72-2.62 3.127-4.309 1.63-1.377-1.22-1.632-3.698-3.695-4.06-2.729-.333-2.795 2.854-4.578 3.214-1.987.407-2.646-2.96-2.617-4.488.03-1.529.433-3.678 2.16-3.678 1.987 0 2.121 3.031 4.644 2.867 2.498-.172 2.542-3.325 4.174-4.675 1.408-1.166 3.065-.311 3.894 1.093.769 1.298 1.107 2.822 1.124 4.302z"
+        />
+      </g>
+      <defs>
+        <clipPath id={`hyper-evm__a-${uid}`}>
+          <rect width="24" height="24" rx="6" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
+/**
  * Keyed by `SupportedChain`, so a chain added to `lib/chains.ts` without a mark
  * is a type error rather than a blank tile nobody notices.
  */
@@ -272,4 +306,5 @@ export const CHAIN_MARKS: Record<
   polygon: PolygonMark,
   optimism: OptimismMark,
   bsc: BnbMark,
+  hyperevm: HyperEvmMark,
 };

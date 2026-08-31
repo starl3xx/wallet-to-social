@@ -31,7 +31,14 @@ Addresses are extracted by pattern, so a block of text with addresses scattered 
 
 ### Contract import
 
-Both NFT collections and token contracts are supported, on every network we cover: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism and BNB Chain.**
+We cover eight networks: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain and HyperEVM.** Both NFT collections and token contracts are supported on the first seven. **HyperEVM is NFT collections only**, because nothing indexes token balances on that network in a form we can read; a token import there is refused outright rather than returning a partial list.
+
+<Note>
+  HyperEVM NFT holder lists are read from the collection itself, one token at a
+  time, so a very large collection is refused rather than sampled. If you hit
+  that, upload the holder list instead: a pasted or uploaded list is resolved
+  exactly the same way as an imported one.
+</Note>
 
 <Note>
   A holder list can be truncated. Token holder lists in particular come from an
@@ -42,10 +49,12 @@ Both NFT collections and token contracts are supported, on every network we cove
 
 Token holder lists have a second index behind the first. If the primary one is
 unavailable, the import is served from a backup rather than failing, so a spent
-daily ceiling no longer stops the feature. **BNB Chain is the exception**: it has
-no backup, and token import there is unavailable until the ceiling resets. NFT
-collections are never affected on any network, because they resolve a different
-way.
+daily ceiling no longer stops the feature. Two networks sit outside that
+arrangement, for different reasons: **BNB Chain** has a primary index and no
+backup, so token import there is unavailable until the ceiling resets, and
+**HyperEVM** has neither, so it has no token import at all. NFT collections are
+unaffected by a spent ceiling on every network, because they do not resolve
+through that index.
 
 The backup is slower and returns fewer holders, so a list served from it is more
 often partial. It is marked truncated exactly as any other partial list is, so
