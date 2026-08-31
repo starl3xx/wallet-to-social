@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { requireDeveloperAccess } from '@/lib/developer-auth';
 import { users, apiKeys, apiPlans } from '@/db/schema';
@@ -56,7 +56,11 @@ export async function GET(request: NextRequest) {
     })
     .from(apiKeys)
     .innerJoin(apiPlans, eq(apiKeys.plan, apiPlans.id))
-    .where(eq(apiKeys.userId, user.id));
+    // Grant rows excluded, matching `listApiKeys`. An OAuth access token is not
+    // a key the account manages, and returning its id here is what made the
+    // rotate path reachable: the dashboard never shows a grant, so the id had
+    // to come from somewhere, and this was it.
+    .where(and(eq(apiKeys.userId, user.id), isNull(apiKeys.oauthGrantId)));
 
   // Filter to specific key if requested
   const targetKeys = keyId ? keys.filter((k) => k.key.id === keyId) : keys;

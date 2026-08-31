@@ -43,6 +43,47 @@ non-standard `punkIndexToAddress` mapping, so CoinGecko reports 100 holders
 against a real figure near 3,900. Seeding it would publish exactly the broken
 page this list exists to prevent.
 
+### 2026-08-31 (rotating a key bypassed the cap it was meant to respect)
+
+`rotateApiKey` selected on `id` alone, revoked unconditionally, and inserted
+without going through `createApiKeyIfUnderCap`. Rotation is only count-neutral
+while it retires exactly one ACTIVE key, and nothing checked that.
+
+So: revoke a key once, then POST that same dead id N times. Each rotation
+retired nothing and minted a live key, and an account held N+1 active keys
+against a cap of 10. The cap was decoration.
+
+The second consequence is worse. `oauth_grant_id` was not excluded, and the
+replacement row carries none, so rotating an OAuth grant laundered a one-hour
+access token into a permanent dashboard credential. Grants are capped
+separately, in `lib/oauth/grants.ts`, for reasons that stopped applying the
+moment the row could be rotated out of that category.
+
+`listApiKeys` has always hidden grant rows, so the id could not come from the
+dashboard. It came from `/api/developer/usage`, which filtered on `user_id`
+alone. That now matches `listApiKeys`.
+
+The select gains owner, active, not-revoked and not-a-grant, with ownership
+moved into the WHERE clause rather than compared after the fact. The revoke is
+now conditional on the row still being active and its returned rows gate the
+insert, so two concurrent rotations of one key produce one replacement.
+
+Blast radius today was small, and only because the paid gate happens to stand
+in front of the route. That is not a defence anyone designed, and it is the
+reason a proposed free API key was not shipped alongside this: it would have
+opened the route to anyone who can sign up.
+
+Six assertions. Two of them were wrong when first written and mutation testing
+caught both, which is the whole argument for the practice:
+
+- The function slice ran to end of file, so the grant-row assertion was matching
+  `listApiKeys`'s own `isNull(oauthGrantId)` further down. It went green with
+  the filter it protects deleted. Now bounded at the next export.
+- Probing for `eq(apiKeys.isActive, true)` anywhere in the function passed on
+  the conditional revoke's copy of that same expression, so deleting it from the
+  select changed nothing. The select is now matched as one clause, and each of
+  its four filters fails the run when removed individually.
+
 ### 2026-08-30 (the rail was live and invisible)
 
 `POST /api/x402/buy` has sold credits for USDC on Base with no account since it
