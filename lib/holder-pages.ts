@@ -74,10 +74,30 @@ export const LISTING_MIN_RATE = 0.05;
 export const OVERLAP_MIN_SHARED = 20;
 
 /**
- * Below this checked coverage, a below-floor page is a measurement still
- * running, not a measured low rate, and says so. A fully checked collection
- * that still misses the floor (a bot-heavy holder base) gets no such note:
- * its numbers are the finding.
+ * Below this checked coverage, a page is a measurement still running rather
+ * than a measured rate, and says so.
+ *
+ * ## This used to also require the page to be below the listing floor
+ *
+ * It read `!meetsListingFloor(...) && checked < holderCount * 0.5`, on the
+ * reasoning that a page clearing the floor had found enough people to be worth
+ * publishing, so its numbers were the finding. Those are two different claims,
+ * and the conjunction quietly asserted that clearing the floor implies being
+ * measured. It does not, and the gap is not a corner case: `reachableAny` only
+ * ever undercounts, which is exactly why the floor keys on it, so a collection
+ * with a dense holder base clears the floor on its first few hundred checked
+ * wallets and then renders as finished.
+ *
+ * Found on a real page. A collection seeded 2026-08-31 stood at 198 reachable
+ * of 764 holders with 239 checked: it cleared the floor at 25.9%, the note
+ * could not fire, and the page published a lower bound computed over 31% of the
+ * holder set as though it were the collection's rate. The remaining 525 wallets
+ * were not unreachable, they were unasked.
+ *
+ * So the floor no longer gates the note. Coverage alone decides it, which is
+ * the only thing the sentence was ever about. A fully checked collection that
+ * misses the floor (a bot-heavy holder base) still gets no note, because it is
+ * above this coverage line: that case was never carried by the floor term.
  */
 export const MEASUREMENT_IN_PROGRESS_BELOW = 0.5;
 
@@ -92,10 +112,7 @@ export function meetsListingFloor(
 }
 
 export function measurementInProgress(stats: HolderStats): boolean {
-  return (
-    !meetsListingFloor(stats.reachableAny, stats.holderCount) &&
-    stats.checked < stats.holderCount * MEASUREMENT_IN_PROGRESS_BELOW
-  );
+  return stats.checked < stats.holderCount * MEASUREMENT_IN_PROGRESS_BELOW;
 }
 
 export interface HolderStats {

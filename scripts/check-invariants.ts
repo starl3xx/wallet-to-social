@@ -3147,7 +3147,7 @@ async function main() {
   // intersection anyone can compute. At N=2 the answer is two named people. The
   // floor is the whole defence, and nothing else in the query enforces it.
   {
-    const { OVERLAP_MIN_SHARED, LISTING_MIN_REACHABLE } =
+    const { OVERLAP_MIN_SHARED, LISTING_MIN_REACHABLE, meetsListingFloor } =
       await import('@/lib/holder-pages');
     const holderSrc = withoutComments(
       readFileSync('lib/holder-pages.ts', 'utf8')
@@ -3180,6 +3180,55 @@ async function main() {
     ok(
       'a placeholder-named counterparty is excluded by name, not only by NULL',
       /sc\.name <> 'Unknown Token'/.test(overlapSql)
+    );
+
+    /**
+     * The "measurement in progress" note is decided by coverage alone.
+     *
+     * It used to also require the page to be below the listing floor, which
+     * silently asserted that clearing the floor implies being measured. It does
+     * not: `reachableAny` only ever undercounts, so a dense holder base clears
+     * the floor on its first few hundred checked wallets and the page then
+     * renders a lower bound as the collection's rate with the note suppressed.
+     * Seen live on a collection at 239 of 764 checked.
+     */
+    const { measurementInProgress, MEASUREMENT_IN_PROGRESS_BELOW } =
+      await import('@/lib/holder-pages');
+    const partial = {
+      holderCount: 764,
+      checked: 239,
+      withTwitter: 165,
+      twitterVerified: 0,
+      withFarcaster: 150,
+      xLive: 147,
+      xUnclaimed: 12,
+      xSuspended: 6,
+      reachableAny: 198,
+      avgFcFollowers: null,
+      medianFcFollowers: null,
+    };
+    ok(
+      'a barely-checked page says so even when it clears the listing floor',
+      meetsListingFloor(partial.reachableAny, partial.holderCount) &&
+        measurementInProgress(partial)
+    );
+    ok(
+      'a fully checked page carries no measurement note',
+      !measurementInProgress({ ...partial, checked: partial.holderCount })
+    );
+    ok(
+      'the coverage line is what decides the note',
+      measurementInProgress({
+        ...partial,
+        checked:
+          Math.ceil(partial.holderCount * MEASUREMENT_IN_PROGRESS_BELOW) - 1,
+      }) &&
+        !measurementInProgress({
+          ...partial,
+          checked: Math.ceil(
+            partial.holderCount * MEASUREMENT_IN_PROGRESS_BELOW
+          ),
+        })
     );
   }
 

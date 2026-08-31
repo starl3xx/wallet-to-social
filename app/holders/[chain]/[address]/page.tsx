@@ -151,12 +151,14 @@ export default async function HolderPage({ params }: Props) {
           )}
         </p>
 
-        {/* A below-floor page whose holders are mostly unchecked is a
-            measurement still running, not a measured low rate, and must say
-            so: without this note the small numbers below read as a finding
-            about the collection. The caution panel is the app's one warning
-            idiom (app/page.tsx mergeWarning). A fully checked below-floor
-            page skips it, because there the numbers are the finding. */}
+        {/* A page whose holders are mostly unchecked is a measurement still
+            running, not a measured rate, and must say so: without this note
+            the numbers below read as a finding about the collection when they
+            are a lower bound over whatever share has been asked about. The
+            caution panel is the app's one warning idiom (app/page.tsx
+            mergeWarning). A fully checked page skips it, whether it cleared
+            the listing floor or not, because there the numbers are the
+            finding. */}
         {measurementInProgress(stats) && (
           <div className="mb-8 flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
             <Warning
