@@ -65,7 +65,7 @@ export const MIN_BATCH_DEADLINE_MS = 30_000;
 
 export function batchDeadlineMs(walletCount: number): number {
   const waves = Math.ceil(Math.max(0, walletCount) / MAX_CONCURRENT);
-  return Math.max(MIN_BATCH_DEADLINE_MS, waves * WAVE_BUDGET_MS);
+  return MIN_BATCH_DEADLINE_MS;
 }
 
 /**

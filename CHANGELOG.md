@@ -84,6 +84,19 @@ caught both, which is the whole argument for the practice:
   select changed nothing. The select is now matched as one clause, and each of
   its four filters fails the run when removed individually.
 
+The guard caught a second defect in the same change, and it is the more
+instructive one. `check-invariants.ts` had an assertion that `listApiKeys`
+hides OAuth grant rows, written as a regex over the RAW file:
+`/listApiKeys[\s\S]*?isNull\(apiKeys\.oauthGrantId\)/`. The doc comment added
+to `rotateApiKey` here mentions `listApiKeys` by name, so the regex anchored
+inside that comment and ran forward to `rotateApiKey`'s own
+`isNull(apiKeys.oauthGrantId)`. A comment about one function satisfied an
+assertion about another, and the check passed with the filter it protects
+deleted. It now reads the stripped source, bounded to the `listApiKeys` body.
+
+Three assertions in this change were wrong when first written and all three
+were caught by mutation or by the guard rather than by review.
+
 ### 2026-08-30 (the rail was live and invisible)
 
 `POST /api/x402/buy` has sold credits for USDC on Base with no account since it

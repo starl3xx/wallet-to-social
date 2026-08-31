@@ -1284,9 +1284,23 @@ async function main() {
       'the key cap ranks only keys a person made, not OAuth access tokens',
       ranked.includes('oauth_grant_id IS NULL')
     );
+    // Bounded to the function body, and read with comments stripped. Both
+    // matter, and the second one is why this broke: `keys` above is the RAW
+    // file, so the moment another function's doc comment mentioned
+    // `listApiKeys` by name, the regex anchored inside that comment and ran
+    // forward to a DIFFERENT function's `isNull(apiKeys.oauthGrantId)`. The
+    // assertion then passed with this filter deleted. `rotateApiKey` gained
+    // such a comment on 2026-08-31 and the guard caught it the same day.
+    const listSrc = (() => {
+      const stripped = withoutComments(keys);
+      const from = stripped.indexOf('export async function listApiKeys');
+      if (from === -1) return '';
+      const next = stripped.indexOf('\nexport ', from + 1);
+      return stripped.slice(from, next === -1 ? undefined : next);
+    })();
     ok(
       'the key list hides OAuth access tokens, which nobody can copy or usefully revoke',
-      /listApiKeys[\s\S]*?isNull\(apiKeys\.oauthGrantId\)/.test(keys)
+      /isNull\(apiKeys\.oauthGrantId\)/.test(listSrc)
     );
   }
 
