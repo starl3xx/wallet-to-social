@@ -3216,6 +3216,40 @@ async function main() {
       'a fully checked page carries no measurement note',
       !measurementInProgress({ ...partial, checked: partial.holderCount })
     );
+    /**
+     * The two questions the note used to answer at once.
+     *
+     * "Are these numbers quotable" is measurementInProgress; "is there a public
+     * report to link" is meetsListingFloor, which is what actually puts a
+     * collection on the hub and in the sitemap. They coincided only while the
+     * note carried the floor inside it, and conflating them again would report
+     * a live, listed report as not existing.
+     */
+    const concierge = withoutComments(
+      readFileSync('scripts/concierge-signals.ts', 'utf8')
+    );
+    // Bounded to the one function. An unbounded probe over a file this
+    // commented finds its own prose.
+    const sliceBetween = (source: string, from: string, to: string) => {
+      const start = source.indexOf(from);
+      if (start === -1) return '';
+      const end = source.indexOf(to, start + from.length);
+      return end === -1 ? '' : source.slice(start, end + to.length);
+    };
+    const reportUrlFn = sliceBetween(
+      concierge,
+      'function reportUrlFor(',
+      '\n}'
+    );
+    ok(
+      'the report link is gated on publication, not on quotable numbers',
+      reportUrlFn.includes('published') && !/\bstats\b/.test(reportUrlFn)
+    );
+    ok(
+      'hasPublicReport is not derived from the quotable-stats value',
+      !concierge.includes('hasPublicReport: Boolean(collection && stats)')
+    );
+
     ok(
       'the coverage line is what decides the note',
       measurementInProgress({

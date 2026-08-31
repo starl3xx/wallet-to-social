@@ -53,6 +53,7 @@ import {
   getHolderStats,
   getHolderOverlap,
   measurementInProgress,
+  meetsListingFloor,
   chainLabel,
   type HolderStats,
   type HolderCollection,
@@ -192,12 +193,37 @@ function followerSentence(s: HolderStats): string | null {
  * then drafted "NO NUMBER AVAILABLE" for contracts we hold and have already
  * published. A lane should not be able to forget how to look something up.
  */
+/**
+ * `stats` and `published` answer two different questions, and they used to be
+ * one.
+ *
+ * "Are these numbers safe to quote?" is `measurementInProgress`, and a
+ * barely-checked collection fails it. "Is there a public report to link?" is
+ * `meetsListingFloor`, because that predicate is literally what puts a
+ * collection on the hub, in the sitemap and into prerendering.
+ *
+ * They used to coincide, because `measurementInProgress` carried the listing
+ * floor inside it. Once it stopped (a collection can clear the floor and still
+ * be a third measured), nulling `stats` for both purposes started reporting a
+ * live, listed, indexed report as not existing: `reportUrlFor` returns null
+ * without stats, `hasPublicReport` goes false, and the candidate silently loses
+ * the 100,000-point rank boost that says "we have already published this".
+ *
+ * So the quoting rule keeps `stats`, and the linking rule gets its own field.
+ */
 async function resolveContract(address: string | null): Promise<{
   chain: SupportedChain | null;
   collection: HolderCollection | null;
   stats: HolderStats | null;
+  published: boolean;
 }> {
-  if (!address) return { chain: null, collection: null, stats: null };
+  const empty = {
+    chain: null,
+    collection: null,
+    stats: null,
+    published: false,
+  };
+  if (!address) return empty;
   for (const c of SUPPORTED_CHAINS) {
     const collection = await getHolderCollection(c, address);
     if (!collection) continue;
@@ -206,9 +232,10 @@ async function resolveContract(address: string | null): Promise<{
       chain: c,
       collection,
       stats: s && !measurementInProgress(s) ? s : null,
+      published: Boolean(s && meetsListingFloor(s.reachableAny, s.holderCount)),
     };
   }
-  return { chain: null, collection: null, stats: null };
+  return empty;
 }
 
 /**
@@ -247,13 +274,20 @@ function castUrl(username: string | null, hash: unknown): string | null {
     : base;
 }
 
-/** The public report URL, only where one actually exists. */
+/**
+ * The public report URL, only where one actually exists.
+ *
+ * Gated on `published`, not on whether the numbers are quotable. A report that
+ * cleared the listing floor is on the hub and in the sitemap whatever its
+ * measurement state, and telling the operator it does not exist sends them to
+ * pitch a collection whose page is already live.
+ */
 function reportUrlFor(
   chain: SupportedChain | null,
   address: string | null,
-  stats: HolderStats | null
+  published: boolean
 ): string | null {
-  if (!chain || !address || !stats) return null;
+  if (!chain || !address || !published) return null;
   return `${SITE}/holders/${chain}/${address}`;
 }
 
@@ -379,7 +413,8 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
       // slug would need a resolution hop, which is a separate step a person
       // can trigger; the candidate is still worth printing without one.
       const address = t.text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
-      const { chain, collection, stats } = await resolveContract(address);
+      const { chain, collection, stats, published } =
+        await resolveContract(address);
 
       out.push({
         lane: 'x',
@@ -391,14 +426,14 @@ async function fromX(limit: number, sinceIso: string): Promise<Candidate[]> {
         chain,
         address,
         sourceUrl: t.url ?? `https://x.com/i/status/${t.id}`,
-        reportUrl: reportUrlFor(chain, address, stats),
+        reportUrl: reportUrlFor(chain, address, published),
         handle: t.author?.userName ?? null,
         postedAt: t.createdAt ? new Date(t.createdAt) : null,
         excerpt: t.text.replace(/\s+/g, ' ').slice(0, 220),
         collection,
         stats,
         overlap: [],
-        hasPublicReport: Boolean(collection && stats),
+        hasPublicReport: Boolean(collection && published),
       });
     }
     // Break the QUERY loop, not just the tweet loop. Breaking only the inner
@@ -450,7 +485,8 @@ async function fromFarcaster(limit: number, now: Date): Promise<Candidate[]> {
           continue;
         }
         const address = text.match(ADDRESS_RE)?.[0]?.toLowerCase() ?? null;
-        const { chain, collection, stats } = await resolveContract(address);
+        const { chain, collection, stats, published } =
+          await resolveContract(address);
         out.push({
           lane: 'farcaster',
           name: displayName(
@@ -470,14 +506,14 @@ async function fromFarcaster(limit: number, now: Date): Promise<Candidate[]> {
            * that arrives without one.
            */
           sourceUrl: castUrl(author?.username ?? null, c.hash),
-          reportUrl: reportUrlFor(chain, address, stats),
+          reportUrl: reportUrlFor(chain, address, published),
           handle: author?.username ?? null,
           postedAt: ts,
           excerpt: text.slice(0, 220),
           collection,
           stats,
           overlap: [],
-          hasPublicReport: Boolean(collection && stats),
+          hasPublicReport: Boolean(collection && published),
         });
         if (out.length >= limit * 4) break;
       }
