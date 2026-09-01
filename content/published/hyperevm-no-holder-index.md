@@ -77,4 +77,4 @@ That is not a feature anybody asks for. It is the difference between a number yo
 
 ---
 
-*HyperEVM is our eighth chain, NFT collections only, because nothing indexes token balances there yet. If you run a collection on it, the holder report is free to look at and you can run a sample of the holders without an account.*
+_HyperEVM is our eighth chain, NFT collections only, because nothing indexes token balances there yet. If you run a collection on it, the holder report is free to look at and you can run a sample of the holders without an account._

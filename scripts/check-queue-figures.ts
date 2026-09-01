@@ -109,11 +109,25 @@ async function main() {
     }
   }
 
-  const list = await api<{ results: Array<{ id: number; status: string }> }>(
-    `/social-sets/${SOCIAL_SET}/drafts?limit=50`,
-    key
-  );
-  const checkable = list.results.filter((d) => CHECKABLE.has(d.status));
+  /**
+   * Every page, not the first one.
+   *
+   * The endpoint caps `limit` at 50 and the queue holds 119 drafts, mixed with
+   * published ones and ordered by most recently edited. So the oldest copy,
+   * which is the likeliest to have gone stale, sits furthest from page one, and
+   * a single-page scan prints a confident all-clear having read a third of the
+   * queue. That is worse than no check (found by Bugbot).
+   */
+  const stubs: Array<{ id: number; status: string }> = [];
+  for (let offset = 0; ; offset += 50) {
+    const page = await api<{
+      results: Array<{ id: number; status: string }>;
+      next: string | null;
+    }>(`/social-sets/${SOCIAL_SET}/drafts?limit=50&offset=${offset}`, key);
+    stubs.push(...page.results);
+    if (!page.next || page.results.length === 0) break;
+  }
+  const checkable = stubs.filter((d) => CHECKABLE.has(d.status));
 
   let flagged = 0;
   let scanned = 0;
@@ -133,40 +147,56 @@ async function main() {
     for (const claim of CLAIMS) {
       const actual = actuals.get(claim.what);
       if (actual === undefined) continue;
-      const m = text.match(claim.pattern);
-      if (!m) continue;
-      const raw = m.slice(1).find((g) => g !== undefined);
-      if (raw === undefined) continue;
-      const published = Number(raw.replace(/,/g, '')) * (claim.scale ?? 1);
-      if (!Number.isFinite(published) || published === 0) continue;
-
       /**
-       * A trailing "+" makes a figure a floor, not an estimate.
+       * Every occurrence, not the first.
        *
-       * "13,000+ known agent wallets" against a live 13,622 is true, and
-       * reporting it as 4.6% behind is how a guard trains people to skim past
-       * it. The registry already writes this claim as `13K+` for the same
-       * reason. A floor is only ever wrong by overstating.
+       * `String.match` without /g returns one hit, so a thread stating the same
+       * claim twice with different numbers would have its second statement
+       * never compared. This module's own premise is that a thread's claims are
+       * mostly not in its first post, and the repository checker had already
+       * moved to matchAll for exactly this. Writing `.match` here reproduced the
+       * defect the file was written to describe (found by Bugbot).
        */
-      const isFloor = new RegExp(
-        `${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\+`
-      ).test(text);
+      const global = new RegExp(
+        claim.pattern.source,
+        claim.pattern.flags.includes('g')
+          ? claim.pattern.flags
+          : claim.pattern.flags + 'g'
+      );
+      for (const m of text.matchAll(global)) {
+        const raw = m.slice(1).find((g) => g !== undefined);
+        if (raw === undefined) continue;
+        const published = Number(raw.replace(/,/g, '')) * (claim.scale ?? 1);
+        if (!Number.isFinite(published) || published === 0) continue;
 
-      const off = Math.abs(published - actual) / actual;
-      if (published > actual) {
-        console.error(
-          `  ${armed ? 'ARMED ' : ''}OVERSTATES  ${label}: ${claim.what} ` +
-            `says ${raw}, actual ${actual.toLocaleString()}` +
-            (isFloor ? ' (a floor claim, and it does not hold)' : '')
-        );
-        flagged++;
-      } else if (off > 0.02 && !isFloor) {
-        console.warn(
-          `  ${armed ? 'ARMED ' : ''}STALE       ${label}: ${claim.what} ` +
-            `says ${raw}, actual ${actual.toLocaleString()} ` +
-            `(${(off * 100).toFixed(1)}% behind)`
-        );
-        flagged++;
+        /**
+         * A trailing "+" makes a figure a floor, not an estimate.
+         *
+         * "13,000+ known agent wallets" against a live 13,622 is true, and
+         * reporting it as 4.6% behind is how a guard trains people to skim past
+         * it. The registry already writes this claim as `13K+` for the same
+         * reason. A floor is only ever wrong by overstating.
+         */
+        const isFloor = new RegExp(
+          `${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\+`
+        ).test(text);
+
+        const off = Math.abs(published - actual) / actual;
+        if (published > actual) {
+          console.error(
+            `  ${armed ? 'ARMED ' : ''}OVERSTATES  ${label}: ${claim.what} ` +
+              `says ${raw}, actual ${actual.toLocaleString()}` +
+              (isFloor ? ' (a floor claim, and it does not hold)' : '')
+          );
+          flagged++;
+        } else if (off > 0.02 && !isFloor) {
+          console.warn(
+            `  ${armed ? 'ARMED ' : ''}STALE       ${label}: ${claim.what} ` +
+              `says ${raw}, actual ${actual.toLocaleString()} ` +
+              `(${(off * 100).toFixed(1)}% behind)`
+          );
+          flagged++;
+        }
       }
     }
 
@@ -183,8 +213,17 @@ async function main() {
     }
   }
 
+  /**
+   * The all-clear states its own coverage.
+   *
+   * "Nothing contradicts the database" means nothing about the drafts this run
+   * never opened. Printing the totals is what makes a clean result readable as
+   * evidence rather than as an absence of output.
+   */
+  const published = stubs.length - checkable.length;
   console.log(
-    `\n${scanned} queued drafts scanned across ${checkable.length} checkable.`
+    `\n${scanned} scanned of ${checkable.length} checkable, from ${stubs.length} drafts ` +
+      `(${published} already published, so not editable).`
   );
   if (flagged === 0) {
     console.log('Nothing in the queue contradicts the database.');
