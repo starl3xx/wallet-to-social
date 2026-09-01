@@ -18,42 +18,48 @@ export const maxDuration = 60;
  */
 export async function POST(request: NextRequest) {
   try {
-    /**
-     * A missing or expired cookie is an anonymous caller, not an error, same
-     * as `/api/reverse`. The session decides which bound applies, not whether
-     * the endpoint answers.
-     *
-     * A signed-in caller passes: enriching a large saved lookup takes dozens
-     * of batched calls from their own history view, and an account is already
-     * something we can see and refuse individually. An anonymous caller gets
-     * the IP bound, because every username in the body becomes one upstream
-     * request billed to our credential, and this endpoint shipped with no
-     * bound at all: an open proxy for a credit pool that has already been
-     * exhausted once this year.
-     */
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    const session = token ? await validateSession(token) : { user: null };
-
-    if (!session.user) {
-      const limit = await checkIpRateLimit(
-        getClientIp(request),
-        '/api/enrich-fids'
-      );
-      if (!limit.allowed) {
-        return NextResponse.json(
-          { error: 'Too many requests. Sign in, or try again later.' },
-          { status: 429, headers: formatRateLimitHeaders(limit) }
-        );
-      }
-    }
-
     const { usernames } = await request.json();
 
     if (!Array.isArray(usernames) || usernames.length === 0) {
       return NextResponse.json(
         { error: 'usernames array required' },
         { status: 400 }
+      );
+    }
+
+    // Limit to 100 usernames per request to prevent abuse
+    const limitedUsernames = usernames.slice(0, 100);
+
+    /**
+     * Everyone is bounded here, because every username in the body becomes
+     * one upstream request billed to our own provider credential, and this
+     * endpoint shipped with no bound at all: an open proxy for a credit pool
+     * that has already been exhausted once this year.
+     *
+     * A missing or expired cookie is an anonymous caller, not an error, same
+     * as `/api/reverse`. The session picks WHICH bucket, not whether one
+     * applies: a signed-in history view legitimately sends thousands of
+     * usernames in 100-name batches, and an account is free to mint, so a
+     * session alone cannot mean unbounded. The buckets count usernames, not
+     * requests, which is why the body is read first.
+     */
+    const cookieStore = await cookies();
+    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const session = token ? await validateSession(token) : { user: null };
+
+    const limit = await checkIpRateLimit(
+      getClientIp(request),
+      session.user ? '/api/enrich-fids:user' : '/api/enrich-fids',
+      limitedUsernames.length
+    );
+    if (!limit.allowed) {
+      return NextResponse.json(
+        {
+          error: session.user
+            ? 'Enrichment limit reached for this hour. It resumes on its own.'
+            : 'Too many requests. Sign in, or try again later.',
+        },
+        { status: 429, headers: formatRateLimitHeaders(limit) }
       );
     }
 
@@ -65,9 +71,6 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.NEYNAR_API_KEY!;
-
-    // Limit to 100 usernames per request to prevent abuse
-    const limitedUsernames = usernames.slice(0, 100);
 
     const fidMap = await fetchFidsByUsernames(limitedUsernames, apiKey);
 

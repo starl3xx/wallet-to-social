@@ -17,17 +17,22 @@ export const IP_RATE_LIMITS = {
   /**
    * FID enrichment for old saved lookups, which is the one endpoint here that
    * spends our own provider credits on the caller's behalf: each username in
-   * the body becomes one upstream request, up to 100 per call.
+   * the body becomes one upstream request, so these two buckets count
+   * USERNAMES, not requests, via the limiter's `units` argument. A
+   * request-shaped bound understated the exposure by the batch factor: 20
+   * requests an hour reads as small and is 2,000 upstream calls.
    *
    * It shipped with no bound at all, which made it an open proxy for a
-   * credential we pay for. Only anonymous callers land on this limit: a
-   * signed-in caller is an account we can see and enriching a large saved
-   * lookup legitimately takes dozens of calls, so charging them an IP-shaped
-   * limit would break their own history view. 20 an hour covers a stranger's
-   * plausible use several times over and caps the proxy at a size not worth
-   * scripting.
+   * credential we pay for. Two buckets because the two callers differ by two
+   * orders of magnitude, not in kind: an anonymous stranger checking a page
+   * of names fits comfortably in 300; a signed-in account enriching a large
+   * saved lookup legitimately sends thousands (the history view batches 100
+   * a request), and 2,000 an hour lets that finish across a couple of views
+   * while capping what a scripted signup can drain. Signing up is free, so a
+   * session cannot mean unbounded.
    */
-  '/api/enrich-fids': { limit: 20, windowHours: 1 },
+  '/api/enrich-fids': { limit: 300, windowHours: 1 },
+  '/api/enrich-fids:user': { limit: 2000, windowHours: 1 },
   /**
    * The reverse lookup's free branch, which discloses exactly what
    * `/api/reachability` discloses: how many wallets carry a handle, never
@@ -173,10 +178,16 @@ export function getClientIp(request: NextRequest): string {
 /**
  * Check and increment IP rate limit for an endpoint
  * Uses atomic UPSERT to prevent race conditions under concurrent load
+ *
+ * `units` is what one request costs against the bucket, default 1. An endpoint
+ * whose cost scales with its body (enrich-fids: one upstream call per
+ * username) passes the body size, so the configured limit bounds the actual
+ * work rather than the number of envelopes it arrived in.
  */
 export async function checkIpRateLimit(
   ipAddress: string,
-  endpoint: RateLimitedEndpoint
+  endpoint: RateLimitedEndpoint,
+  units: number = 1
 ): Promise<IpRateLimitResult> {
   const config = IP_RATE_LIMITS[endpoint];
   const db = getDb();
@@ -204,7 +215,7 @@ export async function checkIpRateLimit(
         ipAddress,
         endpoint,
         bucketKey,
-        count: 1,
+        count: units,
       })
       .onConflictDoUpdate({
         target: [
@@ -213,13 +224,13 @@ export async function checkIpRateLimit(
           ipRateLimitBuckets.bucketKey,
         ],
         set: {
-          count: sql`${ipRateLimitBuckets.count} + 1`,
+          count: sql`${ipRateLimitBuckets.count} + ${units}`,
           updatedAt: new Date(),
         },
       })
       .returning();
 
-    const count = result[0]?.count ?? 1;
+    const count = result[0]?.count ?? units;
     const remaining = Math.max(0, config.limit - count);
     const allowed = count <= config.limit;
 

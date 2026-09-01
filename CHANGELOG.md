@@ -11,13 +11,18 @@ been exhausted once this year. Its spend was also invisible, because
 `fetchFidsByUsernames` was the one caller of the API that never reported to the
 monthly counter.
 
-- Anonymous callers now pass an IP rate limit (20 requests an hour). Signed-in
-  callers are unaffected, so enriching a large saved lookup from the history
-  view still works.
+- Every caller now passes an IP rate limit that counts usernames, not
+  requests, because a request-shaped bound understates the exposure by the
+  batch factor of 100. Anonymous callers get 300 usernames an hour; signed-in
+  callers get 2,000, enough to enrich a large saved lookup across a couple of
+  history views while capping what a scripted free signup can drain.
 - `fetchFidsByUsernames` reports its spend, one credit per username, so the
   budget's answer to background work stays honest.
-- Both properties are asserted in `scripts/check-invariants.ts`: the refusal
-  must precede the upstream fetch, and the spend must be recorded.
+- The properties are asserted in `scripts/check-invariants.ts` and were
+  mutation-tested: the refusal must precede the upstream fetch (anchored so a
+  decoy string cannot satisfy it), the buckets must exist in comment-stripped
+  source, the limiter must be charged per username, and the spend must be
+  recorded.
 
 ### 2026-08-30 (the cron was seeding what nobody searches)
 
