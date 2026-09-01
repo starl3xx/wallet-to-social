@@ -2665,6 +2665,64 @@ async function main() {
     );
   }
 
+  // ------------------- Budget counters: an untyped parameter disables them
+  // `jsonb_build_object` declares its arguments as `"any"`, so Postgres cannot
+  // infer a bare placeholder and fails the whole statement at plan time with
+  // 42P18. The driver sends no type hints, so it fires on every call, for every
+  // value, in every environment. In `lib/neynar-budget.ts` that silently turned
+  // the credit ceiling off: the counter stopped moving on 2026-08-13, the catch
+  // wrote one line to a cron log, and the stale row kept reading above the
+  // ceiling so the guard looked alive right up until the period key rolled and
+  // it began permitting everything.
+  {
+    const files = [
+      'lib/neynar-budget.ts',
+      'lib/holder-index-budget.ts',
+      'lib/clanker.ts',
+      'lib/ens-harvest.ts',
+    ];
+    for (const file of files) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      // Each jsonb_build_object call, up to the end of its argument list. The
+      // bound keeps a later cast in an unrelated clause from covering for a
+      // bare parameter inside this one.
+      const calls = src.match(/jsonb_build_object\([^;]{0,400}?\)\)?/g) ?? [];
+      for (const [i, call] of calls.entries()) {
+        ok(
+          `${file}: jsonb_build_object #${i + 1} casts every parameter`,
+          !/\$\{[^}]+\}(?!::)/.test(call)
+        );
+      }
+    }
+
+    /**
+     * The counter is read and written through the same period key.
+     *
+     * `getPeriodSpend` matches on `value->>'period' = currentPeriod()`, so a
+     * write that stamps any other period is invisible to the read and the
+     * ceiling silently becomes infinite. They must both come from
+     * `currentPeriod()` and nothing else.
+     */
+    const budget = withoutComments(
+      readFileSync('lib/neynar-budget.ts', 'utf8')
+    );
+    const readFn = budget.slice(
+      budget.indexOf('export async function getPeriodSpend'),
+      budget.indexOf('export async function recordSpend')
+    );
+    const writeFn = budget.slice(
+      budget.indexOf('export async function recordSpend')
+    );
+    ok(
+      'the spend counter is read against currentPeriod()',
+      readFn.includes('currentPeriod()')
+    );
+    ok(
+      'the spend counter is written against the same currentPeriod()',
+      writeFn.includes('currentPeriod()') && !/'20\d\d-\d\d'/.test(writeFn)
+    );
+  }
+
   // -------------------------------- The funnel: a lookup belongs to a visit
   // Every lookup_started and lookup_completed row in the table, 1,597 of them,
   // had no session_id, because both are emitted server-side and nothing told

@@ -70,6 +70,32 @@ export async function getPeriodSpend(): Promise<number> {
  * Add to this period's spend. Atomic: the whole read-modify-write happens in
  * one statement, so concurrent jobs can't lose each other's increments. Rolls
  * over automatically when the period key changes.
+ *
+ * ## Every parameter inside `jsonb_build_object` must carry a cast
+ *
+ * `jsonb_build_object` declares its arguments as `"any"`, so Postgres has no
+ * signature to infer a bare placeholder from. The HTTP driver sends parameters
+ * with no type hints, so the server plans the statement, reaches `$2`, and
+ * fails the whole INSERT with `42P18: could not determine data type of
+ * parameter $2`. It is a planning error, so it fires on every call, for every
+ * value, in every environment.
+ *
+ * **This shipped, and it silently disabled the ceiling this module exists to
+ * enforce.** The counter last moved on 2026-08-13. Everything after it (the
+ * daily incremental sweep, the daily seed run, every background lookup) spent
+ * real credits and recorded none, and the catch below turned each failure into
+ * one console line in a cron log nobody reads. It stayed invisible for as long
+ * as it did because the stale August row still read above the ceiling, so the
+ * guard kept refusing work and looked like it was working. The moment the
+ * period key rolled to September, `getPeriodSpend` stopped matching that row,
+ * returned 0, and the guard began permitting everything with nothing able to
+ * increment it back.
+ *
+ * That is the exact condition behind the August overage: unmetered background
+ * work against a key whose provider pauses **all** requests on overage,
+ * including `lib/neynar.ts` in the live lookup path.
+ *
+ * `scripts/check-invariants.ts` asserts the casts are present.
  */
 export async function recordSpend(credits: number): Promise<void> {
   if (!Number.isFinite(credits) || credits <= 0) return;
@@ -80,13 +106,13 @@ export async function recordSpend(credits: number): Promise<void> {
   try {
     await db.execute(sql`
       INSERT INTO ingest_state (name, value, updated_at)
-      VALUES (${STATE_KEY}, jsonb_build_object('period', ${period}, 'credits', ${n}::bigint), now())
+      VALUES (${STATE_KEY}, jsonb_build_object('period', ${period}::text, 'credits', ${n}::bigint), now())
       ON CONFLICT (name) DO UPDATE SET
         value = CASE
-          WHEN ingest_state.value->>'period' = ${period}
-            THEN jsonb_build_object('period', ${period},
+          WHEN ingest_state.value->>'period' = ${period}::text
+            THEN jsonb_build_object('period', ${period}::text,
                    'credits', ((ingest_state.value->>'credits')::bigint + ${n}::bigint))
-          ELSE jsonb_build_object('period', ${period}, 'credits', ${n}::bigint)
+          ELSE jsonb_build_object('period', ${period}::text, 'credits', ${n}::bigint)
         END,
         updated_at = now()
     `);
