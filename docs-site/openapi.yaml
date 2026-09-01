@@ -127,6 +127,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
             X-Data-Staleness: { $ref: '#/components/headers/XDataStaleness' }
             X-Last-Updated: { $ref: '#/components/headers/XLastUpdated' }
           content:
@@ -201,6 +203,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -255,6 +259,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema:
@@ -382,6 +388,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema:
@@ -424,6 +432,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -472,6 +482,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema:
@@ -513,6 +525,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -559,6 +573,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema:
@@ -631,6 +647,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema:
@@ -703,6 +721,8 @@ paths:
             X-RateLimit-Remaining:
               { $ref: '#/components/headers/XRateLimitRemaining' }
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -804,6 +824,14 @@ components:
     RetryAfter:
       description: Seconds to wait before retrying. Present on 429.
       schema: { type: string }
+    XMatchesAvailable:
+      description: |
+        Match credits available **before** this call's matches were debited.
+        What a call costs is not known until it resolves, so subtract the
+        matches the response reports to know what remains. Present on success,
+        402 and 429; absent on 401 and for the legacy unmetered accounts.
+      required: false
+      schema: { type: string }
     XDataStaleness:
       description: |
         Present only when the record is past its freshness window or has not
@@ -850,6 +878,8 @@ components:
 
         Not worth retrying. It clears when a pack is bought, or when the free
         window rolls forward.
+      headers:
+        X-Matches-Available: { $ref: '#/components/headers/XMatchesAvailable' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -878,6 +908,7 @@ components:
           { $ref: '#/components/headers/XRateLimitRemaining' }
         X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
         Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        X-Matches-Available: { $ref: '#/components/headers/XMatchesAvailable' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

@@ -46,6 +46,12 @@ export interface RouteCallResult {
   status: number;
   /** Parsed body. `null` when the response carried no JSON. */
   json: unknown;
+  /**
+   * The response headers, verbatim. The v1 handlers report quota there
+   * (`X-RateLimit-*`, `X-Matches-Available`), and dropping them here was why
+   * a tool caller needed a second call to learn what its first one left.
+   */
+  headers: Headers;
 }
 
 /**
@@ -72,7 +78,7 @@ async function readResponse(response: NextResponse): Promise<RouteCallResult> {
       json = null;
     }
   }
-  return { status: response.status, json };
+  return { status: response.status, json, headers: response.headers };
 }
 
 /**
@@ -87,6 +93,7 @@ function internalError(error: unknown): RouteCallResult {
   return {
     status: 500,
     json: { error: 'Internal server error', code: 'INTERNAL_ERROR' },
+    headers: new Headers(),
   };
 }
 

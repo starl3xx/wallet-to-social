@@ -37,6 +37,21 @@ function extractApiKey(request: NextRequest): string | null {
 }
 
 /**
+ * The CORS pair every API-surface response needs, baked into the error path.
+ *
+ * The success path gets these from each route's own `corsHeaders`, but the
+ * errors this module produces (401, 402, 429) return before any route code
+ * runs, and they shipped with no CORS headers at all: a browser could not
+ * read the 402 that carries the balance figure, or even distinguish it from
+ * a network failure. Declared here once rather than threaded from six routes.
+ */
+const API_ERROR_CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Expose-Headers':
+    'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated',
+};
+
+/**
  * Creates a JSON error response with proper headers
  */
 export function apiError(
@@ -51,6 +66,7 @@ export function apiError(
       status,
       headers: {
         'Content-Type': 'application/json',
+        ...API_ERROR_CORS_HEADERS,
         ...headers,
       },
     }
@@ -122,6 +138,7 @@ export async function authenticateApiRequest(
    * does for a job. This refuses the call when nothing is left.
    */
   const tier = await effectiveTierForUserId(key.userId);
+  let matchesAvailable: number | undefined;
   if (!legacyTierIsUnmetered(tier)) {
     const balance = await getBalance(key.userId);
     if (balance.available <= 0) {
@@ -131,10 +148,18 @@ export async function authenticateApiRequest(
             ? 'Free allowance used up for this 30-day window. Buy a pack to continue.'
             : 'No credits left. Buy a pack to continue.',
           'NO_CREDITS',
-          402
+          402,
+          /**
+           * The 402 is the moment a caller most wants a balance figure, so it
+           * carries one. Clamped: a concurrent overspend can leave the ledger
+           * below zero, and a negative balance is bookkeeping, not something a
+           * caller can act on.
+           */
+          { 'X-Matches-Available': String(Math.max(0, balance.available)) }
         ),
       };
     }
+    matchesAvailable = balance.available;
   }
 
   // Check rate limits
@@ -146,16 +171,41 @@ export async function authenticateApiRequest(
         `Rate limit exceeded. Try again in ${rateLimitResult.result.retryAfter} seconds`,
         'RATE_LIMIT_EXCEEDED',
         429,
-        rateLimitResult.headers
+        // The balance gate ran first, so the figure exists here too. A 429 is
+        // a pacing signal, and what to do next depends on both meters.
+        matchesAvailable === undefined
+          ? rateLimitResult.headers
+          : {
+              ...rateLimitResult.headers,
+              'X-Matches-Available': String(matchesAvailable),
+            }
       ),
     };
+  }
+
+  /**
+   * The balance rides out as a header, so a caller learns what is left from
+   * the call it already made instead of spending a second request to ask.
+   *
+   * It is the balance the gate above read, which is the balance BEFORE this
+   * call's matches are debited: what a call costs is not known until it
+   * resolves, and the debit happens where the matches are counted. Subtract
+   * the matches the response reports to know what is left after it. The two
+   * legacy unmetered accounts have no balance to report, so the header is
+   * absent rather than carrying a number that means nothing.
+   */
+  const rateLimitHeaders: RateLimitHeaders = {
+    ...rateLimitResult.headers,
+  };
+  if (matchesAvailable !== undefined) {
+    rateLimitHeaders['X-Matches-Available'] = String(matchesAvailable);
   }
 
   return {
     context: {
       key,
       plan,
-      rateLimitHeaders: rateLimitResult.headers,
+      rateLimitHeaders,
     },
   };
 }

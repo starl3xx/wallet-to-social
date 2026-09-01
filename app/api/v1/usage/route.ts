@@ -13,6 +13,10 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  // Non-safelisted response headers are invisible to browser JS unless
+  // exposed, and the docs tell callers to read these.
+  'Access-Control-Expose-Headers':
+    'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated',
 };
 
 // Usage endpoint is free (0 credits)

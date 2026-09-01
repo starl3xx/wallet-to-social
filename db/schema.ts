@@ -14,7 +14,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-// Cache individual wallet social lookups (24h TTL)
+// Cache individual wallet social lookups (7-day TTL: CACHE_TTL_HOURS in
+// lib/cache-constants.ts, enforced at read time in lib/cache.ts)
 export const walletCache = pgTable(
   'wallet_cache',
   {

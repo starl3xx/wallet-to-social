@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (a tool call now reports what it left behind)
+
+An agent that wanted to know its remaining quota after a resolve had to spend a
+second call asking, because `lib/mcp-call.ts` kept only the status and body of
+a v1 response and dropped the headers where the v1 handlers report quota.
+
+- Every keyed v1 response now carries `X-Matches-Available`: the credit
+  balance the call was admitted with, before its own matches were debited. It
+  rides on success, on 402 (where it reads 0, the figure a caller most wants
+  at that moment) and on 429; absent on 401 and for the legacy unmetered
+  accounts. Documented in the API reference and declared in the OpenAPI spec.
+- The v1 routes now send `Access-Control-Expose-Headers`, because without it
+  a browser caller could read none of the headers the docs tell them to read;
+  the rate-limit trio had this gap all along.
+- `RouteCallResult` carries the response headers, and every metered MCP tool
+  result now embeds a `quota` object: `matches_available_before_this_call`,
+  `requests_remaining_this_window` and `window_resets_at` (ISO, converted from
+  the header's Unix seconds). Error results carry it too: a 402 or 429 tool
+  refusal is exactly when an agent needs the meters.
+- The API error path (401, 402, 429) now sends CORS headers at all; it shipped
+  without them, so a browser could not read the 402 that carries the balance,
+  or tell it from a network failure.
+- The `wallet_cache` schema comment claimed a 24h TTL; the TTL has been 7 days
+  (`CACHE_TTL_HOURS`) since the constant moved. The comment now points at the
+  constant instead of restating a number.
+
 ### 2026-09-01 (the FID enrichment endpoint was an open proxy)
 
 `POST /api/enrich-fids` answered anyone, with no session check and no rate
