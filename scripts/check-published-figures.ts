@@ -82,12 +82,12 @@ interface Claim {
   scale?: number;
 }
 
-const one = async (q: ReturnType<typeof sql>): Promise<number> => {
+export const one = async (q: ReturnType<typeof sql>): Promise<number> => {
   const rows = (await q) as unknown as Array<Record<string, unknown>>;
   return Number(Object.values(rows[0] ?? {})[0] ?? 0);
 };
 
-const CLAIMS: Claim[] = [
+export const CLAIMS: Claim[] = [
   {
     what: 'index size, in millions',
     files: [
@@ -876,10 +876,23 @@ async function main() {
   console.log('Everything we publish still matches the database.');
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+/**
+ * Only run when this file is the entry point.
+ *
+ * `scripts/check-queue-figures.ts` imports CLAIMS from here so the two checks
+ * cannot drift into disagreeing about what we claim, which is the whole reason
+ * the registry exists. Without this guard that import would run the entire
+ * repository sweep as a side effect of asking what the claims are.
+ */
+const isEntryPoint = /check-published-figures\.[tj]s$/.test(
+  process.argv[1] ?? ''
+);
+
+if (isEntryPoint)
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
 
 /* ------------------------------------------------------------------ */
 /* The inverse check: a figure nobody declared                         */
@@ -906,7 +919,7 @@ const COPY_SURFACES = [
 ];
 
 /** Shapes that read as one of our coverage claims. */
-const FIGURE_SHAPES = [
+export const FIGURE_SHAPES = [
   /\b[0-9]{1,2}(?:\.[0-9])?%\s*(?:match|reachab|of wallets|of the|live|suspended|unclaimed)/gi,
   /\b[0-9](?:\.[0-9])?\s*(?:M|million)[- ]wallet/gi,
   /\b[0-9](?:\.[0-9]+)? million wallets/gi,
