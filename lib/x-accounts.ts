@@ -8,7 +8,7 @@
  *
  * ## Why this is a table about handles, not a column on wallets
  *
- * 1,150,285 rows carry a handle, but there are only 460,810 distinct handles we
+ * 1,150,285 rows carry a handle, but there are only 460,798 distinct handles we
  * hold: 2.58 rows per handle. Resolving per row would pay 2.58 times over for
  * the same answer. More importantly, "does this string reach anyone" is a fact about the
  * string, and storing a fact about a string on a row about a wallet is how a
