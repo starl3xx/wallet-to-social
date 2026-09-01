@@ -481,30 +481,103 @@ export async function beginSeenTracking(): Promise<string> {
  * Rows left with no socials, no sources, and no full-pipeline check are
  * deleted outright rather than kept as empty husks.
  */
+/**
+ * How many monthly slices the FID space is cut into.
+ *
+ * Six, so every FID is re-checked twice a year and a revoked verification sits
+ * in the graph for at most six months rather than until somebody can afford a
+ * whole-network sweep. Measured cost is about one credit per FID, so a sixth of
+ * a 3.35M-FID network is roughly 558,000 credits, or 7.4% of the monthly
+ * background ceiling. The budget is not what decides this number; staleness
+ * tolerance is. Halving it to twelfths halves the cost and doubles the window.
+ */
+export const SWEEP_SLICES = 6;
+
+/**
+ * The slice to sweep this month, and its FID bounds.
+ *
+ * ## The head is recomputed every run, never frozen
+ *
+ * `networkMax` is probed at run time and the top slice always ends on it, so
+ * the partition grows with the network. A constant taken once would leave a
+ * widening band above it that this scheme never revisits. New FIDs are covered
+ * daily by the incremental cron either way, so this is about refresh, not about
+ * first contact.
+ *
+ * ## Contiguous by construction
+ *
+ * Slice `i` ends at `floor(max * (i + 1) / n)` and slice `i + 1` starts one
+ * past it, so the slices tile `[1, max]` with no gap and no overlap whatever
+ * `max` is. Computing each bound independently from `max` is what guarantees
+ * that; deriving one slice's start by adding a fixed width to the last would
+ * accumulate rounding and eventually skip a FID.
+ */
+export function monthlySliceRange(
+  networkMax: number,
+  when: Date,
+  slices: number = SWEEP_SLICES
+): { index: number; startFid: number; endFid: number } {
+  if (!Number.isSafeInteger(networkMax) || networkMax < slices) {
+    throw new Error(`monthlySliceRange: unusable networkMax ${networkMax}`);
+  }
+  /**
+   * Keyed to absolute months, not to the month number.
+   *
+   * `month % 6` would repeat 0..5 within a year and then restart at January,
+   * which is a cycle of six only by coincidence of 12 being divisible by 6.
+   * Counting months since year zero cycles correctly for any slice count.
+   */
+  const absoluteMonth = when.getUTCFullYear() * 12 + when.getUTCMonth();
+  const index = absoluteMonth % slices;
+  return {
+    index,
+    startFid: Math.floor((networkMax * index) / slices) + 1,
+    endFid: Math.floor((networkMax * (index + 1)) / slices),
+  };
+}
+
 export async function cleanupRevokedWallets(
   sweepStartedAt: Date,
   seenTable: string,
   expectedSeenCount: number,
   /**
-   * The sweep that produced `seenTable` covered its ENTIRE range. Cleanup
-   * clears every pure-sweep wallet absent from the seen table, so running it
-   * after a partial sweep would treat every FID the sweep never reached as
-   * revoked and wipe their Farcaster data.
+   * The FID range this sweep covered COMPLETELY, or null if it did not.
    *
-   * The guards below cannot detect this on their own: a sweep that stops
-   * halfway has a proportionally smaller seen table AND a proportionally
-   * smaller upsert count, so the ratio check still passes. It has to be
-   * asserted by the caller.
+   * Cleanup clears every pure-sweep wallet absent from the seen table, so
+   * running it after a partial sweep would treat every FID the sweep never
+   * reached as revoked and wipe their Farcaster data. The guards below cannot
+   * detect that on their own: a sweep that stops halfway has a proportionally
+   * smaller seen table AND a proportionally smaller upsert count, so the ratio
+   * check still passes. It has to be asserted by the caller.
+   *
+   * It is a range rather than a boolean so the caller cannot assert
+   * completeness without also saying what was completed. The UPDATE is bounded
+   * to it, which is what makes a partial-range sweep safe to clean up after:
+   * a run covering a sixth of the network clears revocations in that sixth and
+   * cannot touch the other five, where the absence of a wallet from the seen
+   * table means "not looked at" rather than "gone".
    */
-  sweepWasComplete: boolean
+  coveredRange: { startFid: number; endFid: number } | null
 ): Promise<{ cleared: number; deleted: number }> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
-  if (!sweepWasComplete) {
+  if (!coveredRange) {
     throw new Error(
       `Refusing revocation cleanup: the sweep did not cover its full range, so ` +
         `unswept FIDs would be misread as revoked (seen table ${seenTable} kept)`
+    );
+  }
+  const { startFid, endFid } = coveredRange;
+  if (
+    !Number.isSafeInteger(startFid) ||
+    !Number.isSafeInteger(endFid) ||
+    startFid < 1 ||
+    endFid < startFid
+  ) {
+    throw new Error(
+      `Refusing revocation cleanup: covered range [${startFid}, ${endFid}] is not ` +
+        `a usable FID span (seen table ${seenTable} kept)`
     );
   }
 
@@ -520,6 +593,16 @@ export async function cleanupRevokedWallets(
   //    exceed distinct wallets when one wallet is attached to several FIDs).
   //
   // On failure: abort and keep the table for forensics.
+  /**
+   * Measured against real density on 2026-09-01 rather than guessed.
+   *
+   * Wallets per twelfth of the FID space ran 292,675 to 603,104, so a monthly
+   * sixth carries roughly 585k to 1.17M and a twelfth roughly 292k to 603k.
+   * Both clear this floor by a wide margin, which is why the floor is a
+   * constant and not a fraction of the slice. A slice finer than about a
+   * fortieth would approach it, and that is the point at which this needs to
+   * become proportional.
+   */
   const MIN_PLAUSIBLE_SWEEP_WALLETS = 100_000;
   const [seenRow] = (
     (await db.execute(
@@ -559,9 +642,24 @@ export async function cleanupRevokedWallets(
     WHERE 'farcaster_sweep' = ANY(sources)
       AND NOT (sources && ARRAY['neynar', 'manual'])
       AND last_updated_at < ${sweepStartedAt}
+      -- The bound that makes a partial-range sweep safe to clean up after.
+      -- Outside it, absence from the seen table means "not looked at".
+      -- A NULL fc_fid is excluded by BETWEEN, which is correct: a row whose
+      -- Farcaster data is already gone has nothing left to revoke.
+      AND fc_fid BETWEEN ${startFid} AND ${endFid}
       AND wallet NOT IN (SELECT wallet FROM ${sql.raw(seenTable)})
   `);
 
+  /**
+   * Husks are deleted regardless of range, and that is deliberate.
+   *
+   * The predicate is self-justifying: no handle of any kind, no sources, never
+   * checked by the full pipeline. Such a row carries no information about
+   * anybody, whichever sweep left it behind. It also cannot be range-bounded
+   * usefully, because clearing a row's Farcaster data sets `fc_fid` to NULL, so
+   * by the time it qualifies as a husk the column this cleanup ranges on is
+   * already gone.
+   */
   const deleted = await db.execute(sql`
     DELETE FROM social_graph
     WHERE twitter_handle IS NULL AND farcaster IS NULL AND ens_name IS NULL

@@ -16,9 +16,10 @@ on:
       mode:
         description: 'Sweep mode'
         required: false
-        default: '--auto'
+        default: '--slice'
         type: choice
         options:
+          - '--slice'
           - '--auto'
           - '--full'
           - '--incremental'
@@ -52,18 +53,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # `--auto` on the schedule, not `--full`. A full sweep that exhausts the
-      # Neynar background ceiling stops partway and records where; before that
-      # checkpoint existed, the next month restarted at FID 1, spent its budget
-      # re-covering the same ground, stopped in about the same place and left
-      # another ~580 MB seen table behind. August spent 11,557,744 credits
-      # against a 7,500,000 ceiling and still did not finish, so the sweep could
-      # never complete and revocation cleanup could never run.
+      # `--slice` on the schedule: one sixth of the FID space per month, so
+      # every FID is re-checked twice a year and revocation cleanup runs every
+      # month over the sixth it just swept.
       #
-      # `--auto` resumes the checkpoint if there is one and starts a fresh full
-      # sweep if there is not, carrying the same seen table and the original
-      # start timestamp across segments so cleanup stays valid.
-      - run: npx tsx scripts/farcaster-sweep.ts ${{ inputs.mode || '--auto' }}
+      # It replaces `--auto`, which was a workaround for a cost that turned out
+      # not to be real. The reasoning was that a full sweep exhausts the
+      # background ceiling and so can never complete, taken from August's
+      # 11,557,744 credits against a 7,500,000 ceiling. That figure was the
+      # whole month's account usage across every app, not the sweep. Measured on
+      # 2026-09-01 over 912,052 FIDs, the sweep costs almost exactly one credit
+      # per FID, so a full pass is about 3.35M and a monthly sixth about 558k.
+      #
+      # Slices are preferred anyway. A full sweep leaves eleven months of
+      # staleness between passes and clears revocations once a year; a sixth
+      # clears its own every month, now that cleanup is bounded to the span the
+      # run actually covered. `--auto` and `--full` stay available by hand.
+      - run: npx tsx scripts/farcaster-sweep.ts ${{ inputs.mode || '--slice' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}

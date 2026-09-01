@@ -2768,6 +2768,116 @@ async function main() {
     );
   }
 
+  // -------------- Revocation cleanup may only clear what the run looked at
+  // Cleanup clears every sweep-sourced wallet ABSENT from the seen table, so
+  // its blast radius is "everything not seen". That was safe only while the
+  // sweep covered the whole network in one run, which had never once happened.
+  // Bounding the UPDATE to the swept FID span is what lets a monthly sixth
+  // clean up at all; get the bound wrong and it reads five sixths of the graph
+  // as revoked.
+  {
+    const lib = withoutComments(readFileSync('lib/farcaster-sweep.ts', 'utf8'));
+    const runner = withoutComments(
+      readFileSync('scripts/farcaster-sweep.ts', 'utf8')
+    );
+
+    const cleanupFn = lib.slice(
+      lib.indexOf('export async function cleanupRevokedWallets'),
+      lib.indexOf('export async function sweepFidRange')
+    );
+
+    ok(
+      'the cleanup UPDATE is bounded to the swept FID range',
+      /AND fc_fid BETWEEN \$\{startFid\} AND \$\{endFid\}/.test(cleanupFn)
+    );
+    ok(
+      'cleanup refuses to run without a covered range',
+      /if \(!coveredRange\)[\s\S]{0,200}?throw new Error/.test(cleanupFn)
+    );
+    ok(
+      'cleanup validates the range it was handed',
+      /startFid < 1 \|\|[\s\S]{0,80}?endFid < startFid/.test(cleanupFn)
+    );
+
+    /**
+     * Only a run that covered a known span completely may record what it saw,
+     * and only a run that recorded what it saw can reach cleanup. A `--range`
+     * validation pass over 50k FIDs must not clear revocations across a band
+     * nobody meant to audit.
+     */
+    ok(
+      'only a full sweep or a monthly slice records a seen table',
+      /const tracksSeen =\s*effectiveMode === '--full' \|\| effectiveMode === '--slice';/.test(
+        runner
+      )
+    );
+    /**
+     * A slice must not clear the checkpoint either, not just refrain from
+     * writing one. The cleanup branch was full-sweep exclusive when its
+     * unconditional clear was written; widening the gate to `tracksSeen` handed
+     * that clear to the monthly cron, which would wipe an in-progress full
+     * sweep's resume point every month.
+     */
+    ok(
+      'only a full sweep clears the full-sweep checkpoint',
+      /if \(effectiveMode === '--full'\) await clearSweepCheckpoint\(\);/.test(
+        runner
+      ) &&
+        !/\n\s*await clearSweepCheckpoint\(\);\n\s*\} else if \(effectiveMode === '--resume'\)/.test(
+          runner
+        )
+    );
+
+    /**
+     * On a signal the resume point is written BEFORE the seen table is dropped.
+     * The sweep keeps inserting into that table until the process exits, so a
+     * DROP racing those inserts throws into main().catch and exits before the
+     * checkpoint is written. The table is litter; the resume point is a month
+     * of budget.
+     */
+    const handler = runner.slice(
+      runner.indexOf('const onSignal'),
+      runner.indexOf("process.on('SIGINT'")
+    );
+    ok(
+      'a signal saves the checkpoint before dropping the seen table',
+      handler.indexOf('saveCheckpoint(') < handler.indexOf('dropSeenTable(') &&
+        handler.includes('saveCheckpoint(')
+    );
+
+    ok(
+      'a slice keeps no full-sweep checkpoint',
+      /const tracksProgress =\s*effectiveMode === '--full' \|\| effectiveMode === '--resume';/.test(
+        runner
+      ) && !/tracksProgress[\s\S]{0,120}?'--slice'/.test(runner)
+    );
+
+    /**
+     * The slices tile [1, max] with no gap and no overlap, for every head the
+     * network can reach. A gap is a band of FIDs no monthly run ever sweeps,
+     * and because cleanup is bounded to what was swept, nothing would ever
+     * report it: those FIDs would simply stop being refreshed.
+     */
+    const { monthlySliceRange, SWEEP_SLICES } =
+      await import('@/lib/farcaster-sweep');
+    for (const max of [SWEEP_SLICES, 100, 3_349_441, 3_349_447, 9_999_999]) {
+      let previousEnd = 0;
+      let tiles = true;
+      for (let i = 0; i < SWEEP_SLICES; i++) {
+        // Month chosen so the index lands on i, whatever today is.
+        const when = new Date(Date.UTC(2000, i, 1));
+        const r = monthlySliceRange(max, when, SWEEP_SLICES);
+        if (r.index !== i % SWEEP_SLICES) tiles = false;
+        if (r.startFid !== previousEnd + 1) tiles = false;
+        previousEnd = r.endFid;
+      }
+      ok(
+        `slices tile 1..${max.toLocaleString()} with no gap and end on the head`,
+        tiles && previousEnd === max
+      );
+    }
+  }
+
   // ------------------ The sweep must never silently start over at FID 1
   // A full sweep from 1 costs more than the whole monthly background ceiling,
   // so it can never reach the FIDs above the last stop: every restart re-covers

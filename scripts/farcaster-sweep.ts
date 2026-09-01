@@ -11,6 +11,8 @@
  *                hour at free-tier pacing; ~3.3M of the 10M monthly credits)
  * --incremental  sweep only FIDs above the highest fc_fid in social_graph
  * --range A B    sweep an explicit FID range (validation, backfill repair)
+ * --slice        sweep this month's sixth of the network, then clean up its
+ *                own revocations. The monthly cron mode.
  * --resume       continue the unfinished full sweep from its checkpoint
  * --auto         resume if there is a checkpoint, otherwise start a full sweep.
  *                This is what the monthly schedule runs.
@@ -38,6 +40,8 @@ import {
   dropSeenTable,
   getMaxKnownFid,
   getNetworkMaxFid,
+  monthlySliceRange,
+  SWEEP_SLICES,
   isUsableCheckpoint,
   readSweepCheckpoint,
   sweepFidRange,
@@ -110,6 +114,25 @@ async function main() {
     startFid = maxKnown + 1;
     console.log(`Probing network max FID (from ${maxKnown})...`);
     endFid = await getNetworkMaxFid(apiKey, maxKnown);
+  } else if (mode === '--slice') {
+    /**
+     * One sixth of the network, chosen by the calendar month.
+     *
+     * The head is probed here rather than read from a constant, so the top
+     * slice always ends on the real maximum and the partition grows with the
+     * network. See monthlySliceRange.
+     */
+    const maxKnown = await getMaxKnownFid();
+    console.log(`Probing network max FID (hint ${maxKnown || 1})...`);
+    const networkMax = await getNetworkMaxFid(apiKey, Math.max(maxKnown, 1));
+    const slice = monthlySliceRange(networkMax, new Date());
+    startFid = slice.startFid;
+    endFid = slice.endFid;
+    console.log(
+      `Monthly slice ${slice.index + 1} of ${SWEEP_SLICES}: FIDs ` +
+        `${startFid.toLocaleString()} to ${endFid.toLocaleString()} ` +
+        `(head ${networkMax.toLocaleString()})`
+    );
   } else if (effectiveMode === '--full') {
     startFid = 1;
     const maxKnown = await getMaxKnownFid();
@@ -117,7 +140,7 @@ async function main() {
     endFid = await getNetworkMaxFid(apiKey, Math.max(maxKnown, 1));
   } else {
     console.error(
-      'Usage: farcaster-sweep.ts --full | --incremental | --resume | --auto | --range <start> <end>'
+      'Usage: farcaster-sweep.ts --full | --slice | --incremental | --resume | --auto | --range <start> <end>'
     );
     process.exit(1);
   }
@@ -161,9 +184,24 @@ async function main() {
    */
   const tracksProgress =
     effectiveMode === '--full' || effectiveMode === '--resume';
+  /**
+   * A slice deliberately keeps no checkpoint. It is a span the calendar chose,
+   * not progress through the network, and writing one would let next month's
+   * `--auto` resume a sixth, "complete" it, and clear the real full-sweep
+   * checkpoint. The same argument the comment above makes for `--range`.
+   */
 
-  const isFull = effectiveMode === '--full';
-  const seenTable = isFull ? await beginSeenTracking() : undefined;
+  /**
+   * Which runs record what they saw, and therefore may clean up afterwards.
+   *
+   * A full sweep and a monthly slice both cover a known span completely in one
+   * run, which is the only property cleanup needs now that its UPDATE is bounded
+   * to that span. `--range` and `--incremental` are excluded: their spans are
+   * chosen ad hoc, so a validation run over 50k FIDs would otherwise clear
+   * revocations across a band nobody meant to audit.
+   */
+  const tracksSeen = effectiveMode === '--full' || effectiveMode === '--slice';
+  const seenTable = tracksSeen ? await beginSeenTracking() : undefined;
 
   /**
    * Checkpoint as we go, not only when the budget stops us.
@@ -212,7 +250,30 @@ async function main() {
     if (signalled) return;
     signalled = true;
     console.warn(`\n${signal} received at FID ${inFlightFid.toLocaleString()}`);
+    /**
+     * The seen table dies with the run.
+     *
+     * It is only ever usable by a run that covered its whole span, and this run
+     * did not. Nothing carries it across segments by design, so leaving it is
+     * pure litter: a killed slice used to strand one permanently, and the
+     * workflow comment already records a past incident of ~580 MB left behind
+     * this way.
+     *
+     * **The checkpoint is written first.** Dropping first looked tidier and was
+     * backwards: the sweep keeps inserting into the seen table until
+     * `process.exit` runs, so a DROP racing those inserts makes one throw into
+     * `main().catch`, which exits 1 before the resume point is ever written.
+     * The table is litter; the resume point is a month of budget (found by
+     * Bugbot). A drop that fails leaves one table behind and says so.
+     */
     saveCheckpoint(inFlightFid)
+      .then(() =>
+        seenTable
+          ? dropSeenTable(seenTable).catch((error) =>
+              console.error('Seen-table drop failed:', error)
+            )
+          : undefined
+      )
       .then(() => {
         if (tracksProgress) {
           console.warn(
@@ -326,15 +387,19 @@ async function main() {
         `(segment ${segments}). The next --auto resumes there.\n` +
         `Revocation cleanup does not run for a resumed sweep; see SweepCheckpoint.`
     );
-  } else if (isFull && seenTable) {
-    // A single-run full sweep: the only shape that may clean up, and the
-    // semantics are exactly what they were before checkpointing existed.
+  } else if (tracksSeen && seenTable) {
+    // A single-run sweep that covered its whole range: a full sweep, or one
+    // monthly slice. Either may clean up, because cleanup is now bounded to the
+    // span that was actually swept.
     if (stats.failedCalls === 0 && coveredRange) {
       const cleanup = await cleanupRevokedWallets(
         sweepStartedAt,
         seenTable,
         stats.walletsUpserted,
-        true
+        // The range this run actually requested every FID of, checked above.
+        // Passing the span rather than a boolean is what bounds the UPDATE, so
+        // a slice can clean up its own FIDs and nothing else.
+        { startFid, endFid }
       );
       console.log(
         `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
@@ -347,7 +412,20 @@ async function main() {
           `A partial seen set would be misread as revocations. Seen table dropped.`
       );
     }
-    await clearSweepCheckpoint();
+    /**
+     * Only a full sweep clears the full-sweep checkpoint.
+     *
+     * This branch used to be full-sweep exclusive, so an unconditional clear
+     * was correct. Widening the gate to `tracksSeen` quietly handed the same
+     * clear to the monthly slice, which would have wiped an in-progress
+     * `--full` or `--auto` resume point every month: the exact failure the
+     * "a slice writes no checkpoint" comments were written to prevent, arriving
+     * through the other door (found by Bugbot).
+     *
+     * A slice has no relationship to that checkpoint. It neither writes one nor
+     * reads one, so it must not clear one either.
+     */
+    if (effectiveMode === '--full') await clearSweepCheckpoint();
   } else if (effectiveMode === '--resume') {
     // Reached the end of the range. Nothing to clean up (a resume never
     // tracked), so the checkpoint has simply done its job.
