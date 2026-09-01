@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (the agent surface gets a design authority)
+
+Agents are now a first-class customer (the API, the MCP server, the Grok
+plugin, llms.txt consumers), and their design decisions lived nowhere. Five
+embodied agent personas drove the whole surface through the code and reported
+back; the synthesis is three documents:
+
+- `docs/AGENT-SYSTEM.md`: the layer tower (index, semantic contract, metered
+  primitives, agent affordances, projections), the seven principles every
+  change must preserve, a grounded gap register (including eight truth bugs on
+  public surfaces, worst: the MCP `attested` field contradicts the docs' own
+  definition), and a sequenced roadmap with Jake's pricing decisions marked.
+- `docs/CI.md`: every CI gate, its dependencies, whether a red is
+  deterministic or environmental, and the local repro command, so the next
+  session does not rediscover the preview-build starvation or the figures
+  drift loop the hard way.
+- `docs/OPERATIONS.md`: live posture per pipeline and the PR protocol
+  (Bugbot semantics included), updated in the same PR as any posture change.
+
+CLAUDE.md gained a session-bootstrap section pointing at them, and
+PROJECT_OVERVIEW.md gained the short form of the layer model. Documents only;
+no behavior changed.
+
 ### 2026-09-01 (a tool call now reports what it left behind)
 
 An agent that wanted to know its remaining quota after a resolve had to spend a
