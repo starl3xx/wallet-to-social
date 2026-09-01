@@ -257,16 +257,23 @@ async function main() {
      * did not. Nothing carries it across segments by design, so leaving it is
      * pure litter: a killed slice used to strand one permanently, and the
      * workflow comment already records a past incident of ~580 MB left behind
-     * this way. Dropped before the checkpoint so a failure to drop cannot cost
-     * us the resume point.
+     * this way.
+     *
+     * **The checkpoint is written first.** Dropping first looked tidier and was
+     * backwards: the sweep keeps inserting into the seen table until
+     * `process.exit` runs, so a DROP racing those inserts makes one throw into
+     * `main().catch`, which exits 1 before the resume point is ever written.
+     * The table is litter; the resume point is a month of budget (found by
+     * Bugbot). A drop that fails leaves one table behind and says so.
      */
-    const cleanupTable = seenTable
-      ? dropSeenTable(seenTable).catch((error) =>
-          console.error('Seen-table drop failed:', error)
-        )
-      : Promise.resolve();
-    cleanupTable
-      .then(() => saveCheckpoint(inFlightFid))
+    saveCheckpoint(inFlightFid)
+      .then(() =>
+        seenTable
+          ? dropSeenTable(seenTable).catch((error) =>
+              console.error('Seen-table drop failed:', error)
+            )
+          : undefined
+      )
       .then(() => {
         if (tracksProgress) {
           console.warn(
@@ -405,7 +412,20 @@ async function main() {
           `A partial seen set would be misread as revocations. Seen table dropped.`
       );
     }
-    await clearSweepCheckpoint();
+    /**
+     * Only a full sweep clears the full-sweep checkpoint.
+     *
+     * This branch used to be full-sweep exclusive, so an unconditional clear
+     * was correct. Widening the gate to `tracksSeen` quietly handed the same
+     * clear to the monthly slice, which would have wiped an in-progress
+     * `--full` or `--auto` resume point every month: the exact failure the
+     * "a slice writes no checkpoint" comments were written to prevent, arriving
+     * through the other door (found by Bugbot).
+     *
+     * A slice has no relationship to that checkpoint. It neither writes one nor
+     * reads one, so it must not clear one either.
+     */
+    if (effectiveMode === '--full') await clearSweepCheckpoint();
   } else if (effectiveMode === '--resume') {
     // Reached the end of the range. Nothing to clean up (a resume never
     // tracked), so the checkpoint has simply done its job.

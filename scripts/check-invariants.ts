@@ -2811,6 +2811,40 @@ async function main() {
         runner
       )
     );
+    /**
+     * A slice must not clear the checkpoint either, not just refrain from
+     * writing one. The cleanup branch was full-sweep exclusive when its
+     * unconditional clear was written; widening the gate to `tracksSeen` handed
+     * that clear to the monthly cron, which would wipe an in-progress full
+     * sweep's resume point every month.
+     */
+    ok(
+      'only a full sweep clears the full-sweep checkpoint',
+      /if \(effectiveMode === '--full'\) await clearSweepCheckpoint\(\);/.test(
+        runner
+      ) &&
+        !/\n\s*await clearSweepCheckpoint\(\);\n\s*\} else if \(effectiveMode === '--resume'\)/.test(
+          runner
+        )
+    );
+
+    /**
+     * On a signal the resume point is written BEFORE the seen table is dropped.
+     * The sweep keeps inserting into that table until the process exits, so a
+     * DROP racing those inserts throws into main().catch and exits before the
+     * checkpoint is written. The table is litter; the resume point is a month
+     * of budget.
+     */
+    const handler = runner.slice(
+      runner.indexOf('const onSignal'),
+      runner.indexOf("process.on('SIGINT'")
+    );
+    ok(
+      'a signal saves the checkpoint before dropping the seen table',
+      handler.indexOf('saveCheckpoint(') < handler.indexOf('dropSeenTable(') &&
+        handler.includes('saveCheckpoint(')
+    );
+
     ok(
       'a slice keeps no full-sweep checkpoint',
       /const tracksProgress =\s*effectiveMode === '--full' \|\| effectiveMode === '--resume';/.test(
