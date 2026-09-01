@@ -9,16 +9,30 @@
  * renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. Coverage of the index reached **100.0%** on 2026-09-01: of the
- * 460,810 distinct handles the index holds, 460,645 carry a resolved state and
- * 165 are awaiting a retry after a transport failure.
+ * 2026-08-18. It has checked 460,889 distinct handles, which is every handle in
+ * `x_accounts`.
  *
- * `x_accounts` holds 460,889 rows, slightly MORE than the index holds, and that
- * is not an error. The table keeps every handle it has ever resolved, including
- * ones the conflict resolver has since replaced, so it is a superset rather than
- * a subset. Read "resolved" as a count of states known and not as a share of
- * anything: the two numbers are close enough that treating one as the other's
- * denominator produced coverage above 100% the first time this was written.
+ * That is slightly MORE than the 460,810 distinct handles the index holds, and
+ * it is not an error: the table keeps every handle it has ever seen a state
+ * for, including ones the conflict resolver has since replaced, so it is a
+ * superset rather than a subset. Treating one as the other's denominator gives
+ * coverage above 100%, which is what the first version of this paragraph did.
+ *
+ * Coverage of the index reached **100.0%** on 2026-09-01: 460,645 of the held
+ * handles have a status, and 165 await a retry after a transport failure.
+ *
+ * Two counts sit here and only one of them is the published claim.
+ * `scripts/check-published-figures.ts` finds the resolved-handles figure by
+ * looking for a number within 25 characters of "resolved" or "checked", so the
+ * `x_accounts` count is written that way above and the held-handle count is
+ * deliberately not. Keep it that way when editing this header.
+ *
+ * An earlier rewrite phrased the held-handle count as carrying a resolved
+ * state, and the check quietly began verifying that number instead. The two are
+ * 0.05% apart, well inside the 2% stale band, so it passed while the published
+ * figure went unchecked in this file (found by Bugbot). The phrasing is not
+ * repeated here even as an example, because the matcher reads prose and cannot
+ * tell a cautionary quotation from a claim.
  *
  * This paragraph used to end "and falling, because new handles arrive
  * continuously and no scheduled job resolves them", which was true when it was
