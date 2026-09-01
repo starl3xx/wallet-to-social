@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (the FID enrichment endpoint was an open proxy)
+
+`POST /api/enrich-fids` answered anyone, with no session check and no rate
+limit, and every username in the body became one upstream request billed to our
+own provider credential: an unmetered proxy for a credit pool that has already
+been exhausted once this year. Its spend was also invisible, because
+`fetchFidsByUsernames` was the one caller of the API that never reported to the
+monthly counter.
+
+- Anonymous callers now pass an IP rate limit (20 requests an hour). Signed-in
+  callers are unaffected, so enriching a large saved lookup from the history
+  view still works.
+- `fetchFidsByUsernames` reports its spend, one credit per username, so the
+  budget's answer to background work stays honest.
+- Both properties are asserted in `scripts/check-invariants.ts`: the refusal
+  must precede the upstream fetch, and the spend must be recorded.
+
 ### 2026-08-30 (the cron was seeding what nobody searches)
 
 Both discovery sources rank by novelty (OpenSea `trending`, GeckoTerminal

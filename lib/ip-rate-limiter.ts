@@ -15,6 +15,20 @@ export const IP_RATE_LIMITS = {
    */
   '/api/reachability': { limit: 60, windowHours: 1 },
   /**
+   * FID enrichment for old saved lookups, which is the one endpoint here that
+   * spends our own provider credits on the caller's behalf: each username in
+   * the body becomes one upstream request, up to 100 per call.
+   *
+   * It shipped with no bound at all, which made it an open proxy for a
+   * credential we pay for. Only anonymous callers land on this limit: a
+   * signed-in caller is an account we can see and enriching a large saved
+   * lookup legitimately takes dozens of calls, so charging them an IP-shaped
+   * limit would break their own history view. 20 an hour covers a stranger's
+   * plausible use several times over and caps the proxy at a size not worth
+   * scripting.
+   */
+  '/api/enrich-fids': { limit: 20, windowHours: 1 },
+  /**
    * The reverse lookup's free branch, which discloses exactly what
    * `/api/reachability` discloses: how many wallets carry a handle, never
    * which ones. Same cost, same disclosure, same bound.
