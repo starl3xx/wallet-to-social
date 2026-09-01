@@ -253,6 +253,10 @@ export async function fetchFidsByUsernames(
 
   if (usernames.length === 0) return results;
 
+  // One request per username, so one credit per username. This was the one
+  // caller of the API whose spend the monthly counter never saw.
+  void recordSpend(usernames.length);
+
   // Neynar's user/by_username endpoint only supports one at a time,
   // but we can use the search endpoint or bulk lookup
   // Using individual lookups with concurrency control
