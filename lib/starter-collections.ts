@@ -96,6 +96,44 @@ export interface StarterWallets {
 const PLACEHOLDER_NAMES = new Set(['unknown token', 'unknown', 'unnamed']);
 
 /**
+ * One collection promoted to the first card, or null for none.
+ *
+ * ## Why a slot that ranking cannot fill
+ *
+ * The cards are ordered by reachable people, and that number is dominated by
+ * collection size, so the same handful of large, old collections hold the
+ * three slots indefinitely. Nothing new can ever reach the front page under
+ * that rule however interesting it is: HYPE TERMINAL, a collection three days
+ * old on a chain we had just added, sits 73rd of 78 with 157 reachable against
+ * the leader's 644. Ranking is right about which collection demonstrates the
+ * product best and says nothing about which one a visitor arrived curious
+ * about.
+ *
+ * ## What this is not
+ *
+ * It is not a claim that the featured collection is better, and no copy says
+ * it is: the card is the same card and carries the same numbers. It changes
+ * position only.
+ *
+ * ## Retiring it
+ *
+ * Set it to `null` and the cards go back to pure ranking. It is deliberately a
+ * single entry rather than a list, so it cannot quietly become a curated front
+ * page nobody maintains. If the collection stops clearing the listing floor,
+ * or is unseeded, it silently drops out and the ranking fills the slot: the
+ * lookup below runs against `listHolderCollections`, which applies the floor
+ * before this function ever sees a row, so a stale pin degrades rather than
+ * shipping a card to a page that will not render.
+ */
+export const FEATURED_STARTER: {
+  chain: SupportedChain;
+  address: string;
+} | null = {
+  chain: 'hyperevm',
+  address: '0x8853fdd2f9bad000473b70f7a4a41b55abdcf3d4',
+};
+
+/**
  * The collections worth offering, most reachable first.
  *
  * Composed over `listHolderCollections` rather than querying reachability
@@ -104,22 +142,35 @@ const PLACEHOLDER_NAMES = new Set(['unknown token', 'unknown', 'unnamed']);
  * disagreeing about which collections exist. The floor is also the right bar
  * here for the same reason it is there, since a collection whose resolution
  * job has not run would hand a first-time visitor a screen of misses.
+ *
+ * `FEATURED_STARTER` takes the first slot when it qualifies, and the ranking
+ * fills the rest. The featured row is removed from the tail before slicing, so
+ * promoting a collection that would have ranked anyway costs a slot rather than
+ * printing the same card twice.
  */
 export async function listStarterCollections(
   limit = 3
 ): Promise<StarterCollection[]> {
-  const listed = await listHolderCollections();
-  return listed
-    .filter((c) => !PLACEHOLDER_NAMES.has(c.name.trim().toLowerCase()))
-    .slice(0, limit)
-    .map((c) => ({
-      chain: c.chain,
-      address: c.address,
-      name: c.name,
-      symbol: c.symbol,
-      holders: c.holdersImported,
-      reachableAny: c.reachableAny,
-    }));
+  const listed = (await listHolderCollections()).filter(
+    (c) => !PLACEHOLDER_NAMES.has(c.name.trim().toLowerCase())
+  );
+
+  const isFeatured = (c: { chain: string; address: string }) =>
+    FEATURED_STARTER !== null &&
+    c.chain === FEATURED_STARTER.chain &&
+    c.address.toLowerCase() === FEATURED_STARTER.address.toLowerCase();
+
+  const featured = listed.find(isFeatured);
+  const rest = featured ? listed.filter((c) => !isFeatured(c)) : listed;
+
+  return (featured ? [featured, ...rest] : rest).slice(0, limit).map((c) => ({
+    chain: c.chain,
+    address: c.address,
+    name: c.name,
+    symbol: c.symbol,
+    holders: c.holdersImported,
+    reachableAny: c.reachableAny,
+  }));
 }
 
 /**

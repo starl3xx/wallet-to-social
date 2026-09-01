@@ -746,6 +746,7 @@ async function main() {
     const starterSrc = withoutComments(
       readFileSync('lib/starter-collections.ts', 'utf8')
     );
+
     // `before` rather than a bare index comparison, because indexOf answers -1
     // for something that is not there at all, and -1 comes before everything.
     // A deleted gate would have satisfied the naive form of both of these.
@@ -754,6 +755,50 @@ async function main() {
       const b = src.indexOf(second);
       return a !== -1 && b !== -1 && a < b;
     };
+
+    /**
+     * The featured slot is a promotion, never a bypass.
+     *
+     * It picks its row out of `listHolderCollections`, which applies the
+     * listing floor before this module sees anything, so a pin that stops
+     * qualifying drops out and the ranking fills the slot. Reading the corpus a
+     * second way, or hand-building a row from the constant, would put a card on
+     * the front page for a collection whose report page will not render.
+     */
+    const { FEATURED_STARTER } = await import('@/lib/starter-collections');
+    ok(
+      'the featured starter is one entry or none, never a curated list',
+      FEATURED_STARTER === null ||
+        (typeof FEATURED_STARTER === 'object' &&
+          !Array.isArray(FEATURED_STARTER))
+    );
+    ok(
+      'a featured starter names a supported chain and a real address',
+      FEATURED_STARTER === null ||
+        (SUPPORTED_CHAINS.includes(FEATURED_STARTER.chain) &&
+          /^0x[0-9a-f]{40}$/.test(FEATURED_STARTER.address.toLowerCase()))
+    );
+    // Bounded to the function body. `FEATURED_STARTER` is declared above it, so
+    // an unbounded ordering check finds the declaration and passes whatever the
+    // function does.
+    const listFn = starterSrc.slice(
+      starterSrc.indexOf('export async function listStarterCollections')
+    );
+    ok(
+      'the featured row comes from the floor-filtered listing',
+      before(listFn, 'listHolderCollections()', 'FEATURED_STARTER')
+    );
+    /**
+     * Promoting a collection that would have ranked anyway must cost a slot,
+     * not print the same card twice. The tail is rebuilt without the featured
+     * row before the slice, and dropping that filter is the defect.
+     */
+    ok(
+      'a promoted collection is removed from the tail it was promoted out of',
+      /const rest = featured \? listed\.filter\(\(c\) => !isFeatured\(c\)\) : listed;/.test(
+        starterSrc
+      )
+    );
     // The refusal itself, not the call that feeds it. Asserting only that
     // `getHolderCollection(` precedes `wallet_holdings` passed over the real
     // defect: keeping the lookup for its name and deleting `if (!collection)
