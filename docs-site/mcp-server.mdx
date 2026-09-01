@@ -168,6 +168,11 @@ which is the field no competing source publishes.
 {
   "requested": 2,
   "billed_matches": 1,
+  "quota": {
+    "matches_available_before_this_call": 87,
+    "requests_remaining_this_window": 58,
+    "window_resets_at": "2026-09-01T18:04:00.000Z"
+  },
   "results": [
     {
       "address": "0x00000000000000000000000000000000000000a1",
@@ -189,6 +194,12 @@ which is the field no competing source publishes.
 `reaches_someone` and `reachability` are **omitted** when we have not resolved
 the handle. Absent is not false: see
 [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
+
+Every metered tool result carries `quota`, so an agent learns what its call
+left without a second call to ask. The balance is the one the call was admitted
+with, before its own matches were debited: subtract `billed_matches` to know
+what remains. `walletlink_account_balance` still exists for reading the balance
+without resolving anything.
 
 ## The REST surface
 

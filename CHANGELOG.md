@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (a tool call now reports what it left behind)
+
+An agent that wanted to know its remaining quota after a resolve had to spend a
+second call asking, because `lib/mcp-call.ts` kept only the status and body of
+a v1 response and dropped the headers where the v1 handlers report quota.
+
+- Every v1 response now carries `X-Matches-Available`: the credit balance the
+  call was admitted with, before its own matches were debited. Documented in
+  the API reference; absent on the legacy unmetered accounts.
+- `RouteCallResult` carries the response headers, and every metered MCP tool
+  result now embeds a `quota` object: `matches_available_before_this_call`,
+  `requests_remaining_this_window` and `window_resets_at` (ISO, converted from
+  the header's Unix seconds).
+- The `wallet_cache` schema comment claimed a 24h TTL; the TTL has been 7 days
+  (`CACHE_TTL_HOURS`) since the constant moved. The comment now points at the
+  constant instead of restating a number.
+
 ### 2026-08-30 (the cron was seeding what nobody searches)
 
 Both discovery sources rank by novelty (OpenSea `trending`, GeckoTerminal

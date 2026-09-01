@@ -254,6 +254,39 @@ function isMatch(shaped: Record<string, unknown> | null): boolean {
 const BILLING_NOTE =
   'Charged one match credit per address that resolved to an X handle or a Farcaster account. Addresses that resolved to nothing, and those carrying only an ENS name, a Lens profile or a GitHub account, were not charged.';
 
+/**
+ * The quota the v1 handler reported, read off its response headers.
+ *
+ * Every metered tool result carries this, so an agent learns what its call
+ * left without spending a second call to ask. The balance is the one the
+ * handler read BEFORE debiting this call's matches, because what a call costs
+ * is not known until it resolves: subtract `billed_matches` to know what is
+ * left after it. The reset arrives as Unix seconds and leaves as ISO, which is
+ * the format a model reads without arithmetic.
+ *
+ * `undefined` when no header survived, which is the two legacy unmetered
+ * accounts and any handler path that answered without entering the limiter.
+ * An absent field, not a zero: a zero here would read as an empty balance.
+ */
+function quotaFrom(
+  result: RouteCallResult
+): Record<string, unknown> | undefined {
+  const matches = result.headers.get('X-Matches-Available');
+  const remaining = result.headers.get('X-RateLimit-Remaining');
+  const reset = result.headers.get('X-RateLimit-Reset');
+  if (matches === null && remaining === null) return undefined;
+
+  const quota: Record<string, unknown> = {};
+  if (matches !== null)
+    quota.matches_available_before_this_call = Number(matches);
+  if (remaining !== null)
+    quota.requests_remaining_this_window = Number(remaining);
+  if (reset !== null) {
+    quota.window_resets_at = new Date(Number(reset) * 1000).toISOString();
+  }
+  return quota;
+}
+
 // --- the server -------------------------------------------------------------
 
 const handler = createMcpHandler(
@@ -304,6 +337,7 @@ const handler = createMcpHandler(
             requested: 1,
             billed_matches: isMatch(shaped) ? 1 : 0,
             billing: BILLING_NOTE,
+            quota: quotaFrom(result),
             results: shaped
               ? [
                   {
@@ -342,6 +376,7 @@ const handler = createMcpHandler(
           requested: asNumber(meta.requested, unique.length),
           billed_matches: asNumber(meta.matched, 0),
           billing: BILLING_NOTE,
+          quota: quotaFrom(result),
           results: rows,
         });
       }
@@ -394,6 +429,7 @@ const handler = createMcpHandler(
           total_wallets: asNumber(meta.total_count, 0),
           returned,
           billed_matches: returned,
+          quota: quotaFrom(result),
           more_pages: asBoolean(meta.truncated, false),
           next_cursor: asString(meta.next_cursor) ?? null,
           wallets: asArray(data).map(shapeRecord).filter(Boolean),
@@ -448,6 +484,7 @@ const handler = createMcpHandler(
           total_wallets: asNumber(meta.total_count, 0),
           returned,
           billed_matches: returned,
+          quota: quotaFrom(result),
           more_pages: asBoolean(meta.truncated, false),
           next_cursor: asString(meta.next_cursor) ?? null,
           wallets: asArray(data).map(shapeRecord).filter(Boolean),

@@ -122,6 +122,7 @@ export async function authenticateApiRequest(
    * does for a job. This refuses the call when nothing is left.
    */
   const tier = await effectiveTierForUserId(key.userId);
+  let matchesAvailable: number | undefined;
   if (!legacyTierIsUnmetered(tier)) {
     const balance = await getBalance(key.userId);
     if (balance.available <= 0) {
@@ -135,6 +136,7 @@ export async function authenticateApiRequest(
         ),
       };
     }
+    matchesAvailable = balance.available;
   }
 
   // Check rate limits
@@ -151,11 +153,29 @@ export async function authenticateApiRequest(
     };
   }
 
+  /**
+   * The balance rides out as a header, so a caller learns what is left from
+   * the call it already made instead of spending a second request to ask.
+   *
+   * It is the balance the gate above read, which is the balance BEFORE this
+   * call's matches are debited: what a call costs is not known until it
+   * resolves, and the debit happens where the matches are counted. Subtract
+   * the matches the response reports to know what is left after it. The two
+   * legacy unmetered accounts have no balance to report, so the header is
+   * absent rather than carrying a number that means nothing.
+   */
+  const rateLimitHeaders: RateLimitHeaders = {
+    ...rateLimitResult.headers,
+  };
+  if (matchesAvailable !== undefined) {
+    rateLimitHeaders['X-Matches-Available'] = String(matchesAvailable);
+  }
+
   return {
     context: {
       key,
       plan,
-      rateLimitHeaders: rateLimitResult.headers,
+      rateLimitHeaders,
     },
   };
 }
