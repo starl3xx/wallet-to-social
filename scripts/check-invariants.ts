@@ -2005,7 +2005,12 @@ async function main() {
 
     // The free branch is bounded per address, or the count becomes a way to
     // enumerate the index one handle at a time.
-    const limits = readFileSync('lib/ip-rate-limiter.ts', 'utf8');
+    // Comment-stripped, or a commented-out entry keeps the assertion green:
+    // the exact trap the withoutComments docstring documents, reproduced here
+    // by a mutation test against the raw read.
+    const limits = withoutComments(
+      readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+    );
     ok(
       "'/api/reverse' has an IP rate limit",
       /'\/api\/reverse':\s*\{\s*limit:/.test(limits)
@@ -2023,6 +2028,63 @@ async function main() {
     ok(
       'a missing session is not answered with 401',
       !/Sign in to use reverse lookup/.test(route)
+    );
+
+    /**
+     * The FID enrichment endpoint spends our provider credential, one upstream
+     * request per username in the body, and it shipped with no bound of any
+     * kind: an anonymous POST was an open proxy for a credit pool that has
+     * already been exhausted once this year.
+     *
+     * The order matters as much as the presence. A limiter called after the
+     * upstream fetch has already paid for the request it is refusing, so the
+     * refusal must come first. Both positions have to exist before `<` means
+     * anything: `indexOf` answers -1 for absent, and -1 is less than every
+     * real index, so a bare comparison reports "the check comes first" most
+     * loudly when the check has been deleted.
+     *
+     * The anchor is `checkIpRateLimit(` and not the endpoint string, because
+     * an earlier draft anchored on `'/api/enrich-fids'` and a mutation test
+     * beat it: any benign earlier occurrence of that string (a log line, a
+     * telemetry tag) satisfied the order check with the whole guard moved
+     * after the fetch. The trailing paren is what keeps this anchor off the
+     * import line, which reads `checkIpRateLimit,`.
+     */
+    const enrich = withoutComments(
+      readFileSync('app/api/enrich-fids/route.ts', 'utf8')
+    );
+    ok(
+      'both enrichment buckets exist, anonymous and signed-in',
+      /'\/api\/enrich-fids':\s*\{\s*limit:/.test(limits) &&
+        /'\/api\/enrich-fids:user':\s*\{\s*limit:/.test(limits)
+    );
+    const enrichLimitPos = enrich.indexOf('checkIpRateLimit(');
+    const enrichFetchPos = enrich.indexOf('fetchFidsByUsernames(');
+    ok(
+      'every caller class is refused before the upstream spend',
+      enrichLimitPos >= 0 &&
+        enrichFetchPos >= 0 &&
+        enrichLimitPos < enrichFetchPos
+    );
+    // The bucket counts usernames, not envelopes. A request-shaped count
+    // understates the exposure by the batch factor of 100.
+    ok(
+      'the limiter is charged per username',
+      /checkIpRateLimit\([\s\S]{0,160}?limitedUsernames\.length/.test(enrich)
+    );
+    ok('the refusal is a refusal, not a warning', /status: 429/.test(enrich));
+
+    // And the spend it makes is a spend the monthly counter sees. The budget
+    // exists to tell background work how much room is left, and a caller the
+    // counter cannot see makes that answer wrong for everyone else.
+    const fidsFn = withoutComments(readFileSync('lib/neynar.ts', 'utf8'));
+    const fidsFnStart = fidsFn.indexOf(
+      'export async function fetchFidsByUsernames'
+    );
+    const fidsSpendPos = fidsFn.indexOf('void recordSpend(usernames.length)');
+    ok(
+      'the per-username enrichment reports its spend',
+      fidsFnStart >= 0 && fidsSpendPos > fidsFnStart
     );
 
     /**
