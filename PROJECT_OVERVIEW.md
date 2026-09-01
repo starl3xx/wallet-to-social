@@ -869,6 +869,28 @@ not enabled fails with `<NETWORK>_MAINNET is not enabled for this app`.
 
 ---
 
+## The agent surface, as a system
+
+Agents (the API, the MCP server, the Grok plugin, llms.txt consumers) are a
+first-class customer. `docs/AGENT-SYSTEM.md` is the design authority; the short
+form of its model:
+
+- **L0 The index**: the facts, including negative knowledge, with provenance
+  and freshness as part of the fact.
+- **L1 The semantic contract**: what match, attested, reachability, stale and
+  absent mean. One authority per sentence, the way `lib/packs.ts` is one
+  authority per price.
+- **L2 Metered primitives**: resolve, reverse, stats, usage; one auth gate,
+  one meter (matches, misses free), one rate limiter.
+- **L3 Agent affordances**: quota in every result and refusal, self-remedying
+  errors, spend planning, async jobs, deltas and watchlists, purchase memory.
+- **L4 Projections**: REST, MCP, plugins, docs, llms.txt. A projection that
+  executes carries the credential down; one that explains quotes the
+  contract; neither re-implements either (`lib/mcp-call.ts` is the exemplar).
+
+A new agent-surface feature names its layer in `docs/AGENT-SYSTEM.md` before
+it ships, and must not restate a fact whose authority lives in another layer.
+
 ## Files to Update on Changes
 
 When making significant changes, update:
@@ -876,3 +898,5 @@ When making significant changes, update:
 1. `CHANGELOG.md` - Dated entry at the top (the changelog no longer lives in README.md)
 2. `PROJECT_OVERVIEW.md` - This file (architecture, features)
 3. `CLAUDE.md` - If adding new patterns or commands
+4. `docs/OPERATIONS.md` - If operational posture moved (a pipeline paused or resumed, a standing constraint changed)
+5. `docs/AGENT-SYSTEM.md` - If the change touches the agent surface (API, MCP, plugin, llms.txt, agent docs)

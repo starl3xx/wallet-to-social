@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session bootstrap
+
+Four documents make a fresh session productive; read the first two, keep the
+other two for when their subject comes up:
+
+1. **`docs/OPERATIONS.md`**: live posture per pipeline and the PR protocol
+   (branch, Bugbot wait, `bugbot run` on a neutral conclusion, merge on
+   green). Updated in the same PR as any posture change.
+2. **`docs/CI.md`**: every CI gate, which are environmental, what a red
+   means, and the local repro command. Read its Vercel and `figures` rows
+   before your first push; both have failure modes that look like your diff
+   and are not.
+3. **`docs/AGENT-SYSTEM.md`**: the design authority for anything touching the
+   API, MCP server, plugin, llms.txt or agent-facing docs. New agent-surface
+   features name their layer there first.
+4. **`PROJECT_OVERVIEW.md`**: the systems map.
+
 ## Commands
 
 ```bash
@@ -223,9 +240,10 @@ on the first pass.
 
 **Every published figure must be declared in `scripts/check-published-figures.ts`.**
 It reads each number out of the copy and compares it with a live query, and a
-claim it can no longer find is an error rather than a shrug. This is a scheduled
-check, not a PR one, because the index grows daily: a figure goes stale with no
-commit, no diff and no pull request, which no review can catch. If you publish a
+claim it can no longer find is an error rather than a shrug. The Monday schedule
+is the primary trigger, because the index grows daily: a figure goes stale with
+no commit, no diff and no pull request. A path-filtered PR trigger also runs it
+when published copy or the checker changes. If you publish a
 new number, add it to the registry in the same change.
 
 ## UI Guidelines

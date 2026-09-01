@@ -4,11 +4,16 @@ Internal engineering notes. **Not published.** The customer-facing Mintlify
 site is built from `docs-site/`, and Mintlify's content root is set to that
 directory precisely so nothing here reaches docs.walletlink.social.
 
-| File              | What it covers                                                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `AI-SEARCH.md`    | The assistant on walletlink.social: instances, endpoint, rate limits, the load-bearing system prompt, and its regression test |
-| `DOCS-SITE.md`    | Mintlify setup, DNS, and what the docs still need                                                                             |
-| `SEO-STRATEGY.md` | Keyword targets and messaging guidelines                                                                                      |
+| File                 | What it covers                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT-SYSTEM.md`    | The design authority for the agent surface: the layer tower, the physics, the gap register, and the roadmap                   |
+| `AI-SEARCH.md`       | The assistant on walletlink.social: instances, endpoint, rate limits, the load-bearing system prompt, and its regression test |
+| `CI.md`              | Every CI gate: trigger, dependencies, deterministic or environmental, what a red means, local repro                           |
+| `DESIGN-LANGUAGE.md` | The canonical reference for every visual decision: radius, elevation, type, spacing, colour, motion, per-surface coverage     |
+| `DOCS-SITE.md`       | Mintlify setup, DNS, and what the docs still need                                                                             |
+| `EMAIL-SEQUENCE.md`  | Lifecycle email: the relaunch campaign record and the live welcome sequence                                                   |
+| `OPERATIONS.md`      | Live posture per pipeline, the PR protocol (Bugbot included), and standing constraints                                        |
+| `SEO-STRATEGY.md`    | Keyword targets and messaging guidelines                                                                                      |
 
 ## The security runbook moved
 
