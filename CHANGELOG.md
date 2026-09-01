@@ -8,9 +8,14 @@ An agent that wanted to know its remaining quota after a resolve had to spend a
 second call asking, because `lib/mcp-call.ts` kept only the status and body of
 a v1 response and dropped the headers where the v1 handlers report quota.
 
-- Every v1 response now carries `X-Matches-Available`: the credit balance the
-  call was admitted with, before its own matches were debited. Documented in
-  the API reference; absent on the legacy unmetered accounts.
+- Every keyed v1 response now carries `X-Matches-Available`: the credit
+  balance the call was admitted with, before its own matches were debited. It
+  rides on success, on 402 (where it reads 0, the figure a caller most wants
+  at that moment) and on 429; absent on 401 and for the legacy unmetered
+  accounts. Documented in the API reference and declared in the OpenAPI spec.
+- The v1 routes now send `Access-Control-Expose-Headers`, because without it
+  a browser caller could read none of the headers the docs tell them to read;
+  the rate-limit trio had this gap all along.
 - `RouteCallResult` carries the response headers, and every metered MCP tool
   result now embeds a `quota` object: `matches_available_before_this_call`,
   `requests_remaining_this_window` and `window_resets_at` (ISO, converted from

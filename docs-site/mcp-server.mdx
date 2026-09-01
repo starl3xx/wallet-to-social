@@ -198,8 +198,10 @@ the handle. Absent is not false: see
 Every metered tool result carries `quota`, so an agent learns what its call
 left without a second call to ask. The balance is the one the call was admitted
 with, before its own matches were debited: subtract `billed_matches` to know
-what remains. `walletlink_account_balance` still exists for reading the balance
-without resolving anything.
+what remains. The balance key is absent for the legacy unmetered accounts,
+which have no balance to report; the request counters are always present.
+`walletlink_account_balance` still exists for reading the balance without
+resolving anything.
 
 ## The REST surface
 

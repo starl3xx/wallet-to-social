@@ -16,11 +16,11 @@ Every response carries the current state:
 | `X-RateLimit-Limit`     | Rate-limit units allowed in the current window.                      |
 | `X-RateLimit-Remaining` | Units left in it.                                                    |
 | `X-RateLimit-Reset`     | When the window resets, as a **Unix timestamp in seconds**.          |
-| `X-Matches-Available`   | Match credits available **before** this call's matches were debited. |
+| `X-Matches-Available`   | Match credits available **before** this call’s matches were debited. |
 
 `X-RateLimit-Reset` is seconds since the epoch, not seconds from now. Convert it rather than treating it as a duration.
 
-`X-Matches-Available` is the balance the request was admitted with, not the balance it left behind: what a call costs is not known until it resolves, so subtract the matches the response reports to know what remains. The header is absent on the legacy unmetered accounts.
+`X-Matches-Available` is the balance the request was admitted with, not the balance it left behind: what a call costs is not known until it resolves, so subtract the matches the response reports to know what remains. It rides on success responses, on `402` (where it reads `0`) and on `429`; it is absent on `401`, where no account was identified, and for the legacy unmetered accounts, which have no balance to report.
 
 ## Handling 429
 

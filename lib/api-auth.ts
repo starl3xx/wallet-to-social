@@ -132,7 +132,14 @@ export async function authenticateApiRequest(
             ? 'Free allowance used up for this 30-day window. Buy a pack to continue.'
             : 'No credits left. Buy a pack to continue.',
           'NO_CREDITS',
-          402
+          402,
+          /**
+           * The 402 is the moment a caller most wants a balance figure, so it
+           * carries one. Clamped: a concurrent overspend can leave the ledger
+           * below zero, and a negative balance is bookkeeping, not something a
+           * caller can act on.
+           */
+          { 'X-Matches-Available': String(Math.max(0, balance.available)) }
         ),
       };
     }
@@ -148,7 +155,14 @@ export async function authenticateApiRequest(
         `Rate limit exceeded. Try again in ${rateLimitResult.result.retryAfter} seconds`,
         'RATE_LIMIT_EXCEEDED',
         429,
-        rateLimitResult.headers
+        // The balance gate ran first, so the figure exists here too. A 429 is
+        // a pacing signal, and what to do next depends on both meters.
+        matchesAvailable === undefined
+          ? rateLimitResult.headers
+          : {
+              ...rateLimitResult.headers,
+              'X-Matches-Available': String(matchesAvailable),
+            }
       ),
     };
   }

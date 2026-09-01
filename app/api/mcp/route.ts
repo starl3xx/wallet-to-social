@@ -264,9 +264,13 @@ const BILLING_NOTE =
  * left after it. The reset arrives as Unix seconds and leaves as ISO, which is
  * the format a model reads without arithmetic.
  *
- * `undefined` when no header survived, which is the two legacy unmetered
- * accounts and any handler path that answered without entering the limiter.
- * An absent field, not a zero: a zero here would read as an empty balance.
+ * Field-level absence is the honest shape here. The rate limiter runs for
+ * every keyed call, so `requests_remaining_this_window` is always present on
+ * a 200; the balance key is absent for the two legacy unmetered accounts,
+ * which have no balance to report. An absent field, not a zero: a zero would
+ * read as an empty balance. `undefined` survives as a guard for a response
+ * that somehow carried neither header, and JSON.stringify then drops the
+ * whole key.
  */
 function quotaFrom(
   result: RouteCallResult
