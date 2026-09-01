@@ -19,7 +19,11 @@ a v1 response and dropped the headers where the v1 handlers report quota.
 - `RouteCallResult` carries the response headers, and every metered MCP tool
   result now embeds a `quota` object: `matches_available_before_this_call`,
   `requests_remaining_this_window` and `window_resets_at` (ISO, converted from
-  the header's Unix seconds).
+  the header's Unix seconds). Error results carry it too: a 402 or 429 tool
+  refusal is exactly when an agent needs the meters.
+- The API error path (401, 402, 429) now sends CORS headers at all; it shipped
+  without them, so a browser could not read the 402 that carries the balance,
+  or tell it from a network failure.
 - The `wallet_cache` schema comment claimed a 24h TTL; the TTL has been 7 days
   (`CACHE_TTL_HOURS`) since the constant moved. The comment now points at the
   constant instead of restating a number.

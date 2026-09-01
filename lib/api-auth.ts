@@ -37,6 +37,21 @@ function extractApiKey(request: NextRequest): string | null {
 }
 
 /**
+ * The CORS pair every API-surface response needs, baked into the error path.
+ *
+ * The success path gets these from each route's own `corsHeaders`, but the
+ * errors this module produces (401, 402, 429) return before any route code
+ * runs, and they shipped with no CORS headers at all: a browser could not
+ * read the 402 that carries the balance figure, or even distinguish it from
+ * a network failure. Declared here once rather than threaded from six routes.
+ */
+const API_ERROR_CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Expose-Headers':
+    'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated',
+};
+
+/**
  * Creates a JSON error response with proper headers
  */
 export function apiError(
@@ -51,6 +66,7 @@ export function apiError(
       status,
       headers: {
         'Content-Type': 'application/json',
+        ...API_ERROR_CORS_HEADERS,
         ...headers,
       },
     }

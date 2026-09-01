@@ -129,8 +129,18 @@ function ok(payload: unknown): ToolResult {
  * read out.
  */
 function failed(result: RouteCallResult): ToolResult {
+  /**
+   * A refusal is exactly when the caller needs the meters: a 402 carries the
+   * balance (reading 0) and a 429 carries the windows, so the quota rides the
+   * error text rather than being dropped with the headers. Function
+   * declarations hoist, so quotaFrom being defined below is fine.
+   */
+  const quota = quotaFrom(result);
+  const text = quota
+    ? `${errorTextFrom(result)}\n\n${JSON.stringify({ quota }, null, 2)}`
+    : errorTextFrom(result);
   return {
-    content: [{ type: 'text', text: errorTextFrom(result) }],
+    content: [{ type: 'text', text }],
     isError: true,
   };
 }
