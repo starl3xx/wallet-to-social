@@ -2817,6 +2817,70 @@ async function main() {
     );
   }
 
+  // ------------- Reachability percentages live in the registry, not in copy
+  // The counts were centralised on 2026-08-20 after one figure became three
+  // different numbers across five surfaces. The percentages beside them were
+  // left as literals and grew the same shape back: eleven hand-typed copies
+  // that every sweep moves at once. check-published-figures verifies each of
+  // them against x_accounts, so drift was caught, but caught is not prevented,
+  // and eleven chores per sweep is what makes people round rather than
+  // re-measure. Markdown keeps literals, because a .md cannot import; that is
+  // exactly what the figures check is for.
+  {
+    const tsCopy = [
+      'components/ReachabilityClaim.tsx',
+      'lib/welcome-sequence.ts',
+      'app/llms.txt/route.ts',
+      'app/layout.tsx',
+      'app/check/page.tsx',
+    ];
+    for (const file of tsCopy) {
+      let text: string;
+      try {
+        text = readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      // Comments are stripped: a header may record what a share was on a date,
+      // which is history rather than a live claim.
+      const code = withoutComments(text);
+      const hit = code.match(
+        /\b[0-9]{1,2}\.[0-9]%\s*(?:live|suspended|unclaimed|are|names nobody|reach)/i
+      );
+      ok(
+        `${file} takes its reachability shares from the registry`,
+        hit === null
+      );
+    }
+
+    /**
+     * The unreachable share is derived, never typed.
+     *
+     * It is suspended plus unclaimed and has no independent source, so a
+     * literal is a number that must agree with two others and will not when
+     * either moves. Asserting the arithmetic rather than the value keeps this
+     * true after the next sweep.
+     */
+    const figures = await import('@/lib/public-figures');
+    const derived =
+      Math.round(
+        (Number(figures.X_SUSPENDED_PCT) + Number(figures.X_UNCLAIMED_PCT)) * 10
+      ) / 10;
+    ok(
+      'the unreachable share equals suspended plus unclaimed',
+      Number(figures.X_UNREACHABLE_PCT) === derived
+    );
+    ok(
+      'the three reachability shares account for the whole resolved set',
+      Math.abs(
+        Number(figures.X_LIVE_PCT) +
+          Number(figures.X_SUSPENDED_PCT) +
+          Number(figures.X_UNCLAIMED_PCT) -
+          100
+      ) <= 0.2
+    );
+  }
+
   // -------------------------------- The funnel: a lookup belongs to a visit
   // Every lookup_started and lookup_completed row in the table, 1,597 of them,
   // had no session_id, because both are emitted server-side and nothing told
