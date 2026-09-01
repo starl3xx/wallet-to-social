@@ -238,9 +238,9 @@ fixture-first) to refuse drift the way figures drift is refused today.
     normally. Backed by `getEnrichedWalletsSince` plus
     `x_accounts` status transitions (which today never touch
     `last_updated_at`, so include them explicitly). Scope strictly to wallets
-    the account was previously billed for. **Constraint: the right-to-removal
-    suppression design must be honoured in v1 of this endpoint, not
-    retrofitted.** _Decision: pricing of the expansion call._
+    the account was previously billed for. **Constraint: principle 8 applies
+    from v1.** _Decision: pricing of both the watch call and the expansion
+    call._
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
     `startup` preset (200-address batches, 300/min). _Decision: which packs
