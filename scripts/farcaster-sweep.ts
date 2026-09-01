@@ -148,14 +148,90 @@ async function main() {
    * segment's rows, and clear ~10^6 pure-sweep rows in the range it was
    * supposed to cover. See SweepCheckpoint in lib/farcaster-sweep.ts.
    */
+  /**
+   * Only a sweep that is working through the whole network keeps a checkpoint.
+   *
+   * `--range` and `--incremental` cover a span somebody else chose, so a
+   * checkpoint from one of them is not a statement about the full sweep's
+   * progress. Writing one anyway would let a `--range 1 50000` validation run
+   * that happened to budget-stop overwrite a real full-sweep checkpoint with
+   * its own narrow range; the next `--auto` would resume that tiny span,
+   * "complete" it, clear the checkpoint, and the full sweep's progress would be
+   * gone with nothing reporting it.
+   */
+  const tracksProgress =
+    effectiveMode === '--full' || effectiveMode === '--resume';
+
   const isFull = effectiveMode === '--full';
   const seenTable = isFull ? await beginSeenTracking() : undefined;
+
+  /**
+   * Checkpoint as we go, not only when the budget stops us.
+   *
+   * The checkpoint used to be written in exactly one place: the budget-stop
+   * branch below. Every other way a run can end wrote nothing, so a kill, a
+   * crash, a lost network or a CI job timeout discarded the whole segment's
+   * progress and the next `--auto` found no checkpoint and started again at
+   * FID 1. That is not hypothetical twice over. The August 2026 run was
+   * cancelled by hand at FID 2,396,590 and left no record, and a run started on
+   * 2026-09-01 was killed after seconds and left none either; the resume point
+   * had to be reconstructed from a memory note and written back by hand.
+   *
+   * Starting again at 1 is the expensive failure. A full sweep from 1 costs
+   * more than the whole monthly background ceiling, so it can never reach the
+   * FIDs above the last stop, and the newest FIDs stay unswept forever however
+   * many times it runs.
+   *
+   * `lastFid` from `onProgress` is the FID the completed round covered up to,
+   * so the next unswept FID is the one after it. Throttled to the same 25k
+   * cadence as the log line, which at the measured rate is a write every few
+   * minutes and at most 25k FIDs of repeated work after an abrupt end.
+   */
+  let lastCheckpointedAt = 0;
+  let inFlightFid = startFid;
+  const saveCheckpoint = async (nextFid: number) => {
+    if (!tracksProgress) return;
+    await writeSweepCheckpoint({
+      nextFid,
+      endFid,
+      segments: (checkpoint?.segments ?? 0) + 1,
+      startedAt: checkpoint?.startedAt ?? sweepStartedAt.toISOString(),
+    });
+  };
+
+  /**
+   * A signal must not lose the segment either.
+   *
+   * CI sends SIGTERM when a job is cancelled or times out, and Ctrl-C sends
+   * SIGINT. Both previously ended the process between two throttled writes and
+   * threw away up to 25k FIDs; more importantly, on a run that had not yet
+   * reached its first throttled write, they threw away everything.
+   */
+  let signalled = false;
+  const onSignal = (signal: string) => {
+    if (signalled) return;
+    signalled = true;
+    console.warn(`\n${signal} received at FID ${inFlightFid.toLocaleString()}`);
+    saveCheckpoint(inFlightFid)
+      .then(() => {
+        if (tracksProgress) {
+          console.warn(
+            `Checkpoint saved. The next --auto run resumes from FID ${inFlightFid.toLocaleString()}.`
+          );
+        }
+      })
+      .catch((error) => console.error('Checkpoint write failed:', error))
+      .finally(() => process.exit(130));
+  };
+  process.on('SIGINT', () => onSignal('SIGINT'));
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
 
   const stats = await sweepFidRange(
     startFid,
     endFid,
     apiKey,
     (s, lastFid) => {
+      inFlightFid = lastFid + 1;
       const done = lastFid - startFid + 1;
       // Log roughly every 25k FIDs
       if (done - lastLoggedAt >= 25000 || lastFid >= endFid) {
@@ -167,6 +243,15 @@ async function main() {
             `${s.fidsWithEthAddress.toLocaleString()} FIDs with wallets | ` +
             `${s.walletsUpserted.toLocaleString()} wallets upserted | ` +
             `${s.failedCalls} failed calls | ${elapsed}m elapsed`
+        );
+      }
+      // Same cadence, separate counter: a checkpoint that rode on the log's
+      // `lastLoggedAt` would stop being written the moment somebody changed the
+      // log's condition, and nothing would report that it had.
+      if (done - lastCheckpointedAt >= 25000 && lastFid < endFid) {
+        lastCheckpointedAt = done;
+        void saveCheckpoint(lastFid + 1).catch((error) =>
+          console.error('Checkpoint write failed:', error)
         );
       }
     },
@@ -191,9 +276,6 @@ async function main() {
    * "complete" it, clear the checkpoint, and the full sweep's progress would be
    * gone with nothing reporting it.
    */
-  const tracksProgress =
-    effectiveMode === '--full' || effectiveMode === '--resume';
-
   if (stats.budgetStopped) {
     console.warn(
       `\nSweep stopped early on the Neynar credit budget: ${stats.budgetReason}` +

@@ -2768,6 +2768,55 @@ async function main() {
     );
   }
 
+  // ------------------ The sweep must never silently start over at FID 1
+  // A full sweep from 1 costs more than the whole monthly background ceiling,
+  // so it can never reach the FIDs above the last stop: every restart re-covers
+  // the same early range and the newest FIDs stay unswept forever. The only
+  // thing standing between a run and that outcome is the checkpoint, so every
+  // way a run can end has to leave one.
+  {
+    const sweep = withoutComments(
+      readFileSync('scripts/farcaster-sweep.ts', 'utf8')
+    );
+
+    // A signal must save progress. CI sends SIGTERM on cancel and on timeout,
+    // and both used to discard the whole segment: the checkpoint was written in
+    // exactly one branch, the budget stop.
+    ok(
+      'a terminating signal saves the checkpoint',
+      sweep.includes("process.on('SIGTERM'") &&
+        sweep.includes("process.on('SIGINT'") &&
+        /onSignal[\s\S]{0,600}?saveCheckpoint\(/.test(sweep)
+    );
+
+    // Progress is written during the run, not only at the end. Without this a
+    // crash or a lost network is the same as never having run.
+    ok(
+      'the checkpoint is written as the sweep progresses',
+      /lastCheckpointedAt[\s\S]{0,300}?saveCheckpoint\(/.test(sweep)
+    );
+
+    // The periodic write keeps its own counter. Riding on the log line's
+    // `lastLoggedAt` would silently stop checkpointing the moment somebody
+    // changed the logging condition, and nothing would report it.
+    ok(
+      'the checkpoint cadence does not ride on the log cadence',
+      sweep.includes('lastCheckpointedAt') &&
+        !/lastLoggedAt[\s\S]{0,120}?saveCheckpoint\(/.test(sweep)
+    );
+
+    // Only a run covering the whole network may write one. A `--range`
+    // validation run that budget-stopped would otherwise overwrite a real
+    // full-sweep checkpoint with its own narrow span, and the next `--auto`
+    // would "complete" that span, clear it, and lose the real progress.
+    ok(
+      'only a full sweep or a resume writes a checkpoint',
+      /const saveCheckpoint[\s\S]{0,200}?if \(!tracksProgress\) return;/.test(
+        sweep
+      )
+    );
+  }
+
   // -------------------------------- The funnel: a lookup belongs to a visit
   // Every lookup_started and lookup_completed row in the table, 1,597 of them,
   // had no session_id, because both are emitted server-side and nothing told
