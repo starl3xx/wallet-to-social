@@ -331,15 +331,22 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
-      'components/ReachabilityClaim.tsx',
-      'app/llms.txt/route.ts',
-      'lib/welcome-sequence.ts',
+      /**
+       * `lib/public-figures.ts` is where this figure now lives.
+       *
+       * ReachabilityClaim, llms.txt and the welcome sequence interpolate the
+       * constant, so there is no literal in them to verify and the check
+       * reported NO MATCH: the guard had stopped guarding them while looking
+       * like it still did. The constant is the one place the figure is written,
+       * so it is the one place to check it.
+       */
+      'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
     pattern:
-      /\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live\s+\| ([0-9]{2}\.[0-9])%\s+\||([0-9]{2}\.[0-9])% live/,
+      /X_LIVE_PCT = '([0-9]{2}\.[0-9])'|\*?\*?([0-9]{2}\.[0-9])%\*?\*? (?:were |are )?live|\| Live\s+\| ([0-9]{2}\.[0-9])%\s+\||([0-9]{2}\.[0-9])% live/,
     actual: async () => {
       const live = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'live'`
@@ -363,17 +370,24 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
-      'components/ReachabilityClaim.tsx',
       'README.md',
       'docs/AI-SEARCH.md',
-      'app/llms.txt/route.ts',
-      'lib/welcome-sequence.ts',
+      /**
+       * `lib/public-figures.ts` is where this figure now lives.
+       *
+       * ReachabilityClaim, llms.txt and the welcome sequence interpolate the
+       * constant, so there is no literal in them to verify and the check
+       * reported NO MATCH: the guard had stopped guarding them while looking
+       * like it still did. The constant is the one place the figure is written,
+       * so it is the one place to check it.
+       */
+      'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
     ],
     // "are suspended" joined the phrasings with the welcome sequence, whose
     // approved copy writes the split as a sentence.
     pattern:
-      /([0-9]{2}\.[0-9])%\s+(?:are\s+)?suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
+      /X_SUSPENDED_PCT = '([0-9]{2}\.[0-9])'|([0-9]{2}\.[0-9])%\s+(?:are\s+)?suspended|\| Suspended\s+\| ([0-9]{2}\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'unavailable'`
@@ -388,18 +402,25 @@ const CLAIMS: Claim[] = [
     files: [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
-      'components/ReachabilityClaim.tsx',
       'README.md',
       'docs/AI-SEARCH.md',
-      'app/llms.txt/route.ts',
-      'lib/welcome-sequence.ts',
+      /**
+       * `lib/public-figures.ts` is where this figure now lives.
+       *
+       * ReachabilityClaim, llms.txt and the welcome sequence interpolate the
+       * constant, so there is no literal in them to verify and the check
+       * reported NO MATCH: the guard had stopped guarding them while looking
+       * like it still did. The constant is the one place the figure is written,
+       * so it is the one place to check it.
+       */
+      'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
     ],
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
     // keyword is more durable than trying to enumerate the prose.
     pattern:
-      /([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
+      /X_UNCLAIMED_PCT = '([0-9]\.[0-9])'|([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'not_found'`

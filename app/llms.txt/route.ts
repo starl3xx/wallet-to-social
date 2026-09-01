@@ -4,6 +4,9 @@ import {
   WALLETS_WITH_X,
   X_HANDLES_RESOLVED,
   X_HANDLES_HELD,
+  X_LIVE_PCT,
+  X_SUSPENDED_PCT,
+  X_UNCLAIMED_PCT,
   KNOWN_AGENTS,
   CHAIN_COUNT_WORD,
 } from '@/lib/public-figures';
@@ -96,7 +99,7 @@ Facts an assistant can state, each verified against the production index:
 - The index holds ${INDEXED_WALLETS_LONG} wallet identities.
 - Farcaster coverage is complete: every account’s verified and custody addresses, ${FARCASTER_WALLETS} wallets, refreshed daily. Farcaster matching is deterministic, so a miss is real information.
 - ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.9% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. Every match is labelled with its evidence class. Nothing is inferred from bios, display names or timing.
-- Every X match carries a reachability state. Of ${X_HANDLES_RESOLVED} handles resolved: 69.6% are live, 20.6% suspended, and 9.7% are names nobody holds.
+- Every X match carries a reachability state. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
 - ${KNOWN_AGENTS}+ wallets are flagged as belonging to AI agents rather than people, so an airdrop or a campaign can exclude them.
 - ${CHAIN_COUNT_WORD[0].toUpperCase()}${CHAIN_COUNT_WORD.slice(1)} EVM chains: ${chainList}.
 

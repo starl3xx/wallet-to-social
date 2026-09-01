@@ -53,7 +53,7 @@ export const INDEXED_WALLETS_LONG = '4.8 million';
  * no longer reach anybody, which is reported per record rather than folded into
  * this number: see `lib/handle-reachability.ts`.
  */
-export const WALLETS_WITH_X = '1.15 million';
+export const WALLETS_WITH_X = '1.17 million';
 
 /**
  * Wallets carrying a Farcaster identity.
@@ -77,7 +77,7 @@ export const FARCASTER_WALLETS = '4.7 million';
  * safe. Safe is not the same as true, so the check now also fails when a
  * ceiling claim falls too far behind, and the literal lives here.
  */
-export const X_HANDLES_RESOLVED = '448,069';
+export const X_HANDLES_RESOLVED = '460,889';
 
 /**
  * Distinct X handles the index holds. The denominator for the figure above.
@@ -85,7 +85,48 @@ export const X_HANDLES_RESOLVED = '448,069';
  * Also previously duplicated and also already divergent: 446,070 in one module
  * header, 446,043 in the docs, 446,329 in the database.
  */
-export const X_HANDLES_HELD = '450,194';
+export const X_HANDLES_HELD = '460,810';
+
+/**
+ * The reachability split: what happened to the X handles we resolved.
+ *
+ * ## Why these are here and not in the copy
+ *
+ * The counts above were centralised on 2026-08-20 after one figure became
+ * three different numbers across five surfaces. The percentages beside them
+ * were left as literals, and by 2026-09-01 the same shape had grown back: the
+ * three shares were hand-typed in `lib/x-accounts.ts`, `lib/handle-reachability.ts`,
+ * `lib/welcome-sequence.ts`, `app/llms.txt/route.ts`, `components/ReachabilityClaim.tsx`,
+ * the README, two docs-site pages and two published posts. Every sweep moves
+ * all three, so every sweep needed eleven hand edits that had to agree.
+ *
+ * `scripts/check-published-figures.ts` does verify each of them against
+ * `x_accounts` to a 0.05 tolerance, so drift was caught. Caught is not the same
+ * as prevented: the guard turns a silent lie into eleven chores, and the chore
+ * is what makes people round rather than re-measure.
+ *
+ * Markdown surfaces still carry literals, because a `.md` cannot import a
+ * constant. Those are exactly the ones the guard exists for.
+ */
+export const X_LIVE_PCT = '70.1';
+export const X_SUSPENDED_PCT = '20.1';
+export const X_UNCLAIMED_PCT = '9.8';
+
+/**
+ * The share that reaches nobody, derived rather than typed.
+ *
+ * It is suspended plus unclaimed and nothing else, so writing it by hand is
+ * writing a number that must agree with two others and has no independent
+ * source. `lib/x-accounts.ts` carried 30.3% as its own literal, which is
+ * correct today and would survive unchanged the first time either input moved.
+ *
+ * Rounded to one decimal after adding, not before: 20.6 + 9.7 is
+ * 30.299999999999997 in binary floating point, and `String()` of that is not a
+ * figure anybody should publish.
+ */
+export const X_UNREACHABLE_PCT = (
+  Math.round((Number(X_SUSPENDED_PCT) + Number(X_UNCLAIMED_PCT)) * 10) / 10
+).toFixed(1);
 
 /**
  * Supported EVM chains, genuinely derived. The comment here used to say

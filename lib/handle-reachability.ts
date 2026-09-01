@@ -4,13 +4,21 @@
  * ## This is a feature, not an apology
  *
  * Farcaster records a verified X account as a **string**, captured once, with no
- * account id and no recheck. That is the source of 1,039,550 of our handles, and
- * nothing in the protocol notices when somebody renames or gets suspended.
+ * account id and no recheck. That is the source of 1,062,068 of our handles
+ * (measured 2026-09-01), and nothing in the protocol notices when somebody
+ * renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. It has checked 448,069 distinct handles, with none now left
- * unchecked in the table. Against the 450,194 distinct handles the index holds,
- * that is 95.9% coverage, and **rising**.
+ * 2026-08-18. Coverage of the index reached **100.0%** on 2026-09-01: of the
+ * 460,810 distinct handles the index holds, 460,645 carry a resolved state and
+ * 165 are awaiting a retry after a transport failure.
+ *
+ * `x_accounts` holds 460,889 rows, slightly MORE than the index holds, and that
+ * is not an error. The table keeps every handle it has ever resolved, including
+ * ones the conflict resolver has since replaced, so it is a superset rather than
+ * a subset. Read "resolved" as a count of states known and not as a share of
+ * anything: the two numbers are close enough that treating one as the other's
+ * denominator produced coverage above 100% the first time this was written.
  *
  * This paragraph used to end "and falling, because new handles arrive
  * continuously and no scheduled job resolves them", which was true when it was
@@ -21,11 +29,11 @@
  * The first pass, on 2026-08-17, did 417,872 in a single run. Not "all" of
  * them: the sweep leaves transport failures unrecorded so they retry, so its
  * result was never going to equal its target. The percentages below are shares
- * of the 448,069 that returned a state:
+ * of the 460,889 that returned a state:
  *
- *     live          298,087   69.6%
- *     suspended      88,440   20.6%
- *     unclaimed      41,532    9.7%
+ *     live          322,889   70.1%
+ *     suspended      92,832   20.1%
+ *     unclaimed      45,168    9.8%
  *
  * **Roughly a third of every attested X handle in the Farcaster protocol reaches
  * nobody.** Anyone reselling Farcaster verifications is shipping that blind,

@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { SealCheck } from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { X_HANDLES_RESOLVED } from '@/lib/public-figures';
+import {
+  X_HANDLES_RESOLVED,
+  X_LIVE_PCT,
+  X_SUSPENDED_PCT,
+  X_UNCLAIMED_PCT,
+} from '@/lib/public-figures';
 
 /**
  * The claim that no competitor on any of these pages can make.
@@ -80,15 +85,15 @@ export function ReachabilityClaim({
                 makes <strong> `bolder`, which resolves to 700 on a 400 parent,
                 and the 700 cut is loaded. The emphasis weight is 600. */}
             <strong className="font-semibold text-foreground">
-              69.6% live
+              {X_LIVE_PCT}% live
             </strong>
             ,{' '}
             <strong className="font-semibold text-foreground">
-              20.6% suspended
+              {X_SUSPENDED_PCT}% suspended
             </strong>
             , and{' '}
             <strong className="font-semibold text-foreground">
-              9.7% names nobody holds any more
+              {X_UNCLAIMED_PCT}% names nobody holds any more
             </strong>
             . Roughly a third reach no person at all.
           </p>
