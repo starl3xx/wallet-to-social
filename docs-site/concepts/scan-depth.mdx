@@ -57,4 +57,4 @@ So a fast scan is free of side effects in both directions: it takes what is ther
 
 ## Through the API
 
-The API has no depth setting. Every API call behaves like a fast scan: it answers from the index, which is why it returns in milliseconds. What it costs depends on how much it resolves: a call that matches nothing is free. If you need live resolution across a large list, run it in the app.
+The API has no depth setting; the depth follows the endpoint. The synchronous lookups behave like a fast scan: they answer from the index, which is why they return in milliseconds. An [async job](/api-reference/jobs) runs the standard pipeline, resolving whatever the index cannot answer against live sources, though without the onchain ENS text-record pass the app’s deep scan adds. What either costs depends on how much it resolves: a call that matches nothing is free.

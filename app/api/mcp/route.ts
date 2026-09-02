@@ -1,8 +1,8 @@
 /**
  * The walletlink.social MCP server.
  *
- * Five tools over the six `/v1` endpoints, so an agent can resolve a wallet to
- * its social identities without a human first reading an API reference.
+ * Seven tools over the eight `/v1` endpoints, so an agent can resolve a wallet
+ * to its social identities without a human first reading an API reference.
  *
  * ## It authenticates nothing and bills nothing
  *
@@ -47,7 +47,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
-import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import {
+  FREE_MATCHES_PER_WINDOW,
+  FREE_WINDOW_DAYS,
+  SUBMISSION_MULTIPLIER,
+} from '@/lib/packs';
 import {
   MATCH_SENTENCE,
   ATTESTED_SENTENCE,
@@ -71,6 +75,8 @@ import { GET as reverseTwitterGet } from '@/app/api/v1/reverse/twitter/[handle]/
 import { GET as reverseFarcasterGet } from '@/app/api/v1/reverse/farcaster/[username]/route';
 import { GET as statsGet } from '@/app/api/v1/stats/route';
 import { GET as usageGet } from '@/app/api/v1/usage/route';
+import { POST as jobsPost } from '@/app/api/v1/jobs/route';
+import { GET as jobStatusGet } from '@/app/api/v1/jobs/[id]/route';
 import { looksLikeAccessToken, validateAccessToken } from '@/lib/oauth/grants';
 import { wwwAuthenticate } from '@/lib/oauth/metadata';
 import { callsATool, isMetered } from '@/lib/mcp-gate';
@@ -634,6 +640,140 @@ const handler = createMcpHandler(
           rate_limit_units_used: asNumber(usage.total_credits, 0),
           requests_last_month: asNumber(usage.total_requests, 0),
         });
+      }
+    );
+
+    // 6 --------------------------------------------------------------------
+    server.registerTool(
+      'walletlink_submit_job',
+      {
+        title: 'Submit a background lookup job',
+        description: [
+          'Submit a list of addresses as a background job. A job runs a deeper scan than the resolve tool: an address the index has not checked, or holds only stale answers for, is resolved against live sources, so a job can find identities the resolve tool reports as never seen. Use it for lists larger than one resolve call, or when misses are worth re-checking.',
+          `COST: billed on matches exactly like resolving, when the job completes: one match credit per address that resolved to an X handle or a Farcaster account, misses free. One job may be active per account at a time; a second submission is refused until the first finishes, and the refusal names the active job id. A submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance, so the worst case is bounded by what the account already holds. Submitting itself spends one request-unit of the rate window.`,
+          'The submission returns a job id. Poll walletlink_job_status for progress and, on completion, the results. A job that fails is never billed.',
+          'Resubmitting the same list after a job completes runs the whole job again and bills its matches again.',
+        ].join('\n\n'),
+        inputSchema: z.object({
+          addresses: z
+            .array(z.string().regex(/^0x[a-fA-F0-9]{40}$/))
+            .min(1)
+            .describe(
+              'Ethereum addresses, each 0x followed by 40 hex characters. Case does not matter. The ceiling is the balance-derived cap, not a fixed number; a list over the cap is refused with the cap named.'
+            ),
+        }),
+        // Not read-only: it creates a job and, on completion, a debit. Not
+        // idempotent: a repeat after completion runs and bills again (a
+        // repeat while one is active is refused, which is the safe half).
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async ({ addresses }, ctx) => {
+        const authorization = ctx.http?.req?.headers.get('authorization');
+        if (!authorization) return missingKey();
+
+        const unique = [...new Set(addresses.map((a) => a.toLowerCase()))];
+
+        const result = await callRoute(jobsPost, '/api/v1/jobs', {
+          method: 'POST',
+          authorization,
+          body: JSON.stringify({ wallets: unique }),
+        });
+        if (result.status !== 202) return failed(result);
+
+        const { data } = envelope(result);
+        const d = asObject(data) ?? {};
+        return ok({
+          job_id: asString(d.job_id) ?? null,
+          status: asString(d.status) ?? 'pending',
+          wallets_submitted: asNumber(d.wallets, unique.length),
+          quota: quotaFrom(result),
+          note: 'Poll walletlink_job_status with this job_id. Matches are billed when the job completes, at the same price as resolving.',
+        });
+      }
+    );
+
+    // 7 --------------------------------------------------------------------
+    server.registerTool(
+      'walletlink_job_status',
+      {
+        title: 'Check a background job',
+        description: [
+          'Progress and results for a job submitted with walletlink_submit_job. While the job runs it reports processed counts; on completion it reports the resolved records and what was billed.',
+          `COST: free on both meters, so a drained key can still collect results it already paid for. ${ABSENT_SENTENCE}`,
+          'Only jobs submitted by this account are visible; any other id answers not found.',
+        ].join('\n\n'),
+        inputSchema: z.object({
+          job_id: z
+            .string()
+            .regex(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+            )
+            .describe('The job id returned by walletlink_submit_job.'),
+        }),
+        annotations: { readOnlyHint: true, idempotentHint: true },
+      },
+      async ({ job_id }, ctx) => {
+        const authorization = ctx.http?.req?.headers.get('authorization');
+        if (!authorization) return missingKey();
+
+        const id = job_id.toLowerCase();
+        const result = await callRouteWithParams(
+          jobStatusGet,
+          `/api/v1/jobs/${id}`,
+          { id },
+          { method: 'GET', authorization }
+        );
+        if (result.status !== 200) return failed(result);
+
+        const { data, meta } = envelope(result);
+        const d = asObject(data) ?? {};
+        const progress = asObject(d.progress) ?? {};
+
+        const out: Record<string, unknown> = {
+          job_id: asString(d.job_id) ?? id,
+          status: asString(d.status) ?? null,
+          progress: {
+            processed: asNumber(progress.processed, 0),
+            total: asNumber(progress.total, 0),
+          },
+          quota: quotaFrom(result),
+        };
+        if (typeof d.error === 'string') out.error = d.error;
+
+        const wallets = asArray(d.wallets);
+        const rawResults = asArray(d.results);
+        if (rawResults.length > 0) {
+          /**
+           * A model does not need ten thousand rows in a tool result, and no
+           * context window survives them. The first page rides along; the
+           * full set stays one HTTP call away, on the same key, for free.
+           */
+          const PAGE = 100;
+          const rows = rawResults.slice(0, PAGE).map((row, i) => {
+            const shaped = shapeRecord(row);
+            if (!shaped) {
+              return { address: asString(wallets[i]) ?? null, found: false };
+            }
+            return shaped;
+          });
+          out.billed_matches = asNumber(meta.matched, 0);
+          out.billing = BILLING_NOTE;
+          out.found = asNumber(meta.found, 0);
+          out.not_found = asNumber(meta.not_found, 0);
+          out.results = rows;
+          if (rawResults.length > PAGE) {
+            out.results_truncated = true;
+            out.total_results = rawResults.length;
+            out.full_results =
+              'This tool shows the first 100 rows. Read the full set with GET https://walletlink.social/api/v1/jobs/{id} using the same key; that read is free.';
+          }
+        }
+
+        return ok(out);
       }
     );
   },

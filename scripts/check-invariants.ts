@@ -828,6 +828,26 @@ async function main() {
         jobsSrc
       )
     );
+
+    // The keyed job-status route. A job holds the resolved social data for
+    // every wallet the submitter paid to check, so the ownership gate is the
+    // whole access control: any valid key can construct the URL. Two claims,
+    // both attacker-shaped. The mismatch refusal must come before anything
+    // reads a result field, and it must be the same 404 a missing job
+    // answers: a 403 would confirm the id exists, and a job id is the only
+    // handle an enumerator needs.
+    const v1JobSrc = withoutComments(
+      readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+    );
+    const V1_JOB_GATE = 'job.userId !== context.key.userId';
+    ok(
+      'a job another account owns is refused before any result field is read',
+      before(v1JobSrc, V1_JOB_GATE, 'partialResults')
+    );
+    ok(
+      'the ownership refusal is the missing-job 404, never a 403 existence oracle',
+      v1JobSrc.includes("'JOB_NOT_FOUND', 404") && !/\b403\b/.test(v1JobSrc)
+    );
   }
 
   // ------------------------------------------------------ x402 settlement id

@@ -1,6 +1,6 @@
 ---
 title: 'MCP server'
-description: 'Five tools that let an agent resolve wallets to social identities, over the same API and the same balance.'
+description: 'Seven tools that let an agent resolve wallets to social identities, over the same API and the same balance.'
 ---
 
 An agent can call walletlink.social directly, without a human first reading this
@@ -37,9 +37,10 @@ secret is issued. Discovery starts at
 
 <Note>
   A connection can spend match credits, so it is worth knowing what it can
-  reach. It can resolve wallets in both directions and read your credit balance.
-  It cannot see your saved lookups, your billing details or your email address,
-  and it cannot buy credits or change anything about your account.
+  reach. It can resolve wallets in both directions, run a background job, and
+  read your credit balance. It cannot see your saved lookups, your billing
+  details or your email address, and it cannot buy credits or change anything
+  about your account.
 </Note>
 
 ### Disconnect
@@ -132,20 +133,31 @@ Keys are self-serve from the account menu for any account holding credits.
 An OAuth connection is better for a person using a client. A key is better for
 a server you run yourself, where there is no browser to sign in with.
 
-## The five tools
+## The seven tools
 
-| Tool                                       | Answers                                      | Match credits                    |
-| ------------------------------------------ | -------------------------------------------- | -------------------------------- |
-| `walletlink_resolve_wallets`               | Who is behind these addresses?               | 1 per address that resolves      |
-| `walletlink_wallets_by_x_handle`           | Which wallets belong to this X account?      | 1 per wallet returned, up to 100 |
-| `walletlink_wallets_by_farcaster_username` | Which wallets belong to this Farcaster user? | 1 per wallet returned, up to 100 |
-| `walletlink_index_coverage`                | How much of the index carries each identity? | 0                                |
-| `walletlink_account_balance`               | What is left on this key?                    | 0                                |
+| Tool                                       | Answers                                      | Match credits                              |
+| ------------------------------------------ | -------------------------------------------- | ------------------------------------------ |
+| `walletlink_resolve_wallets`               | Who is behind these addresses?               | 1 per address that resolves                |
+| `walletlink_submit_job`                    | Run a big list, or re-check the misses, live | 1 per address that resolves, at completion |
+| `walletlink_job_status`                    | How is that job doing, and what did it find? | 0                                          |
+| `walletlink_wallets_by_x_handle`           | Which wallets belong to this X account?      | 1 per wallet returned, up to 100           |
+| `walletlink_wallets_by_farcaster_username` | Which wallets belong to this Farcaster user? | 1 per wallet returned, up to 100           |
+| `walletlink_index_coverage`                | How much of the index carries each identity? | 0                                          |
+| `walletlink_account_balance`               | What is left on this key?                    | 0                                          |
 
-Six endpoints become five tools because the single and batch lookups answer the
-same question at two sizes and bill by the same rule.
+Eight endpoints become seven tools because the single and batch lookups answer
+the same question at two sizes and bill by the same rule.
 `walletlink_resolve_wallets` takes 1 to 50 addresses and picks the endpoint for
 you.
+
+`walletlink_submit_job` is the async surface: it submits a background
+[job](/api-reference/jobs) that resolves wallets the index has not checked
+against live sources, so it can find identities the resolve tool reports as
+never seen. One job may be active per account at a time, a submission is capped
+at 10 times the match balance, and the matches are billed when the job
+completes, at the same price as resolving. `walletlink_job_status` polls it for
+free on both meters and shows the first 100 result rows; the full set is one
+free REST call away on the same key.
 
 ## It is the same meter
 
@@ -176,8 +188,11 @@ call resent by a retrying framework bills its matches again; the tools declare
 `idempotentHint: false` for exactly this reason. A tool call cannot carry an
 idempotency key; the REST [batch endpoint](/api-reference/batch) can, so a
 pipeline that must retry safely should call REST with an `Idempotency-Key`
-header instead. At zero balance the two free tools keep answering, so a
-drained agent can always read its own meter.
+header instead. A job submission is half-covered on its own: a resend while
+the job runs is refused with the active id, and only a resend after
+completion runs and bills again. At zero balance the three free tools keep
+answering, so a drained agent can always read its own meter and collect a
+finished job.
 
 ## What the tools return
 

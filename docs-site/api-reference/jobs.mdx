@@ -1,0 +1,172 @@
+---
+title: 'Async jobs'
+description: 'POST /v1/jobs and GET /v1/jobs/{id}'
+api: 'POST https://walletlink.social/api/v1/jobs'
+---
+
+Submits a list of addresses as a background job. Costs **1 match credit per address that resolves** to an X handle or a Farcaster account, debited once, when the job completes. Nothing is billed at submission, misses cost nothing, and a job that fails is never billed.
+
+A job does something no synchronous endpoint does: it resolves live. [`/v1/batch`](/api-reference/batch) answers from the index and returns in milliseconds; a job reads the index and the cache first, then resolves whatever is left against live sources, so it can find identities the synchronous endpoints report as never seen. It is the same pipeline a lookup in the app runs. The onchain ENS text-record pass, the app’s deep-scan extra, is not part of an API job: see [scan depth](/concepts/scan-depth).
+
+The list has no fixed ceiling. Two rules bound it instead:
+
+- **The balance-derived cap.** A submission may be at most 10 times your available match credits. A longer list is refused whole with `402 SUBMISSION_LIMIT_EXCEEDED`, and the message names the maximum your current balance allows. The worst a job can cost is bounded by what you already hold.
+- **One active job per account.** A second submission while one is pending or processing answers `409 JOB_ALREADY_ACTIVE`, naming the running job’s id so you can poll it instead of guessing. The rule counts jobs from every surface: a job started in the web app blocks an API submission too, because both drain the same pipeline and bill the same balance.
+
+A submission spends **one rate-limit unit**, whatever the list size. The work is billed as matches at completion, not as request weight at the gate, which is the opposite of batch, where the request is the work.
+
+## Body
+
+<ParamField body="wallets" type="string[]" required>
+  Addresses to resolve. Duplicates are removed before the job is created and
+  before billing. No fixed maximum: the ceiling is 10 times your match balance.
+  The whole body is capped at 4.5 MB, roughly 100,000 addresses.
+</ParamField>
+
+## Request
+
+```bash
+curl -X POST https://walletlink.social/api/v1/jobs \
+  -H "Authorization: Bearer wts_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wallets": [
+      "0x00000000000000000000000000000000000000a1",
+      "0x0000000000000000000000000000000000000001"
+    ]
+  }'
+```
+
+## Response
+
+`202 Accepted`, because the work has not happened yet.
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="job_id" type="string">
+      A UUID. The handle for everything that follows.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      `pending`, or already `completed`: a job of 10 addresses or fewer runs
+      inline rather than waiting for a worker. The status URL is the authority
+      either way.
+    </ResponseField>
+    <ResponseField name="wallets" type="number">
+      Unique addresses accepted, after deduplication.
+    </ResponseField>
+    <ResponseField name="status_url" type="string">
+      The absolute URL to poll.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "data": {
+    "job_id": "3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90",
+    "status": "pending",
+    "wallets": 2,
+    "status_url": "https://walletlink.social/api/v1/jobs/3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90"
+  },
+  "meta": {
+    "submitted_at": "2026-09-01T12:00:00.000Z"
+  }
+}
+```
+
+## Polling
+
+```
+GET https://walletlink.social/api/v1/jobs/{id}
+```
+
+The status poll is **free on both meters**: zero match credits and zero rate-limit units. That is deliberate, not generous: the job being polled may be the very thing that drained the key, and a drained key must be able to collect what it already paid for. Poll every few seconds; there is no penalty, and larger jobs report progress as they go.
+
+While the job runs:
+
+```json
+{
+  "data": {
+    "job_id": "3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90",
+    "status": "processing",
+    "progress": { "processed": 150, "total": 500, "stage": "live" },
+    "created_at": "2026-09-01T12:00:00.000Z",
+    "started_at": "2026-09-01T12:00:02.000Z",
+    "completed_at": null
+  },
+  "meta": { "requested": 500 }
+}
+```
+
+`status` is `pending`, `processing`, `completed` or `failed`. `progress.stage` names where the pipeline is, by evidence class rather than by internal component: `index`, `cache`, `live` or `onchain`, and `null` between stages.
+
+<Note>
+  Only jobs your account submitted are visible. Any other id answers the same
+  `404 JOB_NOT_FOUND` as a job that does not exist. That is deliberate: a
+  distinct “not yours” answer would confirm which ids exist, and a job id is the
+  only handle an enumerator would need.
+</Note>
+
+## Results
+
+On completion the poll carries the full results, in the [batch](/api-reference/batch) row shape.
+
+<ResponseField name="data.wallets" type="string[]">
+  The deduplicated, lowercased submission, in processing order. It rides in the
+  same payload as the results because the submission may be sessions old and you
+  may no longer hold the list you sent.
+</ResponseField>
+
+<ResponseField name="data.results" type="array">
+  Positionally aligned with `wallets`: entry N describes wallet N, and is `null`
+  where nothing was attached, so a client branching on `if (entry)` cannot read
+  a checked negative as a match. Entries are the batch record without the
+  per-row freshness pair: identity fields, `twitter` with the wallet-keyed
+  reachability and `verified`, `farcaster` with `fid` and `verified`, and
+  `sources` mapped through the same evidence-class allowlist as every other
+  endpoint. `sources` is omitted where nothing classifiable backs the row.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `requested`, `found`, `not_found` and `matched`, with the batch arithmetic:
+  `matched` is the number the job billed at completion, and it is never more
+  than `found`, because ENS, Lens and GitHub identities are free.
+</ResponseField>
+
+Two things about completed results are worth knowing:
+
+- **Reachability is read at poll time.** The X reachability fields and `twitter.also` come from the same wallet-keyed reads every other endpoint uses, at the moment you poll, not from a stamp stored with the job. A repeat poll can differ where the daily reachability check has moved a handle, and that is the poll telling you the truth.
+- **Follower counts follow your entitlement.** A job run on pack credits carries `farcaster.followers`; one run on the free allowance reports it as `null`, the same as a free lookup in the app.
+
+## Failure
+
+A failed job reports `status: failed` and a generic `error` stating the one fact you can act on: nothing was billed, submit the list again. The internal failure detail is not returned.
+
+## Retries
+
+There is no `Idempotency-Key` on this endpoint. The two halves of a retry are covered differently:
+
+- A resend **while the job is active** is refused by the one-active-job rule, with the active id in the message. Nothing runs twice, and a lost id comes back in that refusal.
+- A resend **after it completes** is a new job: it runs the whole list again and bills its matches again. Once a job completes there is no way to rediscover its id, so persist the id from the 202 and poll before resubmitting.
+
+A job interrupted mid-run is resumed by the worker and is never billed twice: the debit is keyed on the job id.
+
+## Cost
+
+Match credits are charged once, at completion, on the addresses that **resolved to an X handle or a Farcaster account** after deduplication. `meta.matched` is exactly that count. An address that carries only an ENS name, a Lens profile or a GitHub account is returned, counted in `found`, and not billed. A failed job is charged nothing.
+
+Because a job resolves live, an address the index had never seen can come back as a match and be billed, which is the point: you are paying for resolution, not for a read of what was already known.
+
+## When to use batch instead
+
+[`/v1/batch`](/api-reference/batch) is the right call when the answer should come back in the same request: it reads the index only, returns in milliseconds, and takes an `Idempotency-Key` for safe retries. A job is the right call when the list is larger than a batch, or when misses are worth re-checking against live sources. The billing rule is identical on both.
+
+## Errors
+
+`INVALID_REQUEST`, `INVALID_ADDRESS`, `SUBMISSION_LIMIT_EXCEEDED`,
+`JOB_ALREADY_ACTIVE`, `JOB_NOT_FOUND`, plus the
+[standard errors](/api-reference/errors). The body cap answers `413` with
+`INVALID_REQUEST`.
+
+A single malformed address rejects the entire submission. The error message
+names the first few offenders.

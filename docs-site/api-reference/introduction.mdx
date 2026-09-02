@@ -44,8 +44,9 @@ it draws on the same balance the app does. There is no API-only plan.
 These are rate limits: they bound how fast you can call, not how much you can
 resolve in total. What you can resolve is bounded by your credit balance, and a
 metered call made with no credits left returns `402` with code `NO_CREDITS`.
-The two free endpoints, [`/v1/stats`](/api-reference/stats) and
-[`/v1/usage`](/api-reference/usage), keep answering at zero balance.
+The free endpoints, [`/v1/stats`](/api-reference/stats),
+[`/v1/usage`](/api-reference/usage) and the
+[job status poll](/api-reference/jobs#polling), keep answering at zero balance.
 
 <Note>
   Responses from [`/v1/usage`](/api-reference/usage) report the internal plan
@@ -70,6 +71,8 @@ the app.
 | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `GET /v1/wallet/{address}`             | 1 if the address resolves to an X handle or a Farcaster account, 0 if it does not               |
 | `POST /v1/batch`                       | 1 per address that resolves to an X handle or a Farcaster account, after duplicates are removed |
+| `POST /v1/jobs`                        | 1 per address that resolves, debited once when the job completes; nothing at submission         |
+| `GET /v1/jobs/{id}`                    | 0                                                                                               |
 | `GET /v1/reverse/twitter/{handle}`     | 1 per wallet returned, up to 100                                                                |
 | `GET /v1/reverse/farcaster/{username}` | 1 per wallet returned, up to 100                                                                |
 | `GET /v1/stats`                        | 0                                                                                               |
@@ -79,8 +82,9 @@ A record that carries only an ENS name, a Lens profile or a GitHub account is
 returned but not billed: a match means X or Farcaster.
 
 A metered call made with no match credits left returns `402` with code
-`NO_CREDITS`. The two zero-credit endpoints answer at any balance, so a drained
-key can always read its own meter.
+`NO_CREDITS`. The zero-credit endpoints answer at any balance, so a drained
+key can always read its own meter, and can collect the results of a
+[job](/api-reference/jobs) it already paid for.
 
 **Rate-limit units** are separate, are not bought, and reset on their own
 schedule. They bound how fast you may call, never how much you may resolve.
@@ -89,13 +93,17 @@ schedule. They bound how fast you may call, never how much you may resolve.
 | -------------------------------------- | ----------------------- |
 | `GET /v1/wallet/{address}`             | 1                       |
 | `POST /v1/batch`                       | 1 per address submitted |
+| `POST /v1/jobs`                        | 1 per submission        |
+| `GET /v1/jobs/{id}`                    | 0                       |
 | `GET /v1/reverse/twitter/{handle}`     | 2                       |
 | `GET /v1/reverse/farcaster/{username}` | 2                       |
 | `GET /v1/stats`                        | 0                       |
 | `GET /v1/usage`                        | 0                       |
 
 Reverse lookups weigh double here because they scan the index by identity rather
-than by key.
+than by key. A [job](/api-reference/jobs) submission weighs one unit however
+long its list, because the request only queues the work; the work itself is
+billed as matches when the job completes.
 
 Deduplicating your list still helps, but not for the reason it used to: a
 duplicate is billed once in match credits, and counts twice against your rate

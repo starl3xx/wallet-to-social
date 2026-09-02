@@ -81,10 +81,11 @@ the layer with the largest gaps:
   the x402 rail is invisible from inside MCP.
 - **Spend planning**, missing: no total-cost surface, no dry run, no per-chain
   rates on the free tools.
-- **Async work**, missing: the resumable job pipeline exists and is reachable
-  only from the web surface (a session, or an anonymous browser bounded by IP
-  rate limits); the key-authenticated surface is sync-only, so a
-  10,000-address job is 200 paced calls across two UTC days.
+- **Async work**, shipped 2026-09-01 (gap 15, `/v1/jobs`). The record of the
+  gap: the resumable job pipeline was reachable only from the web surface (a
+  session, or an anonymous browser bounded by IP rate limits); the
+  key-authenticated surface was sync-only, so a 10,000-address job was 200
+  paced calls across two UTC days. Now it is one submission and a free poll.
 - **Deltas**, missing: the server holds three forms of “what changed since
   last week” (`getEnrichedWalletsSince`, `social_graph_history`, `x_accounts`
   transitions) and exposes none of them to a key, so a weekly agent re-buys
@@ -232,7 +233,15 @@ fixture-first) to refuse drift the way figures drift is refused today.
     free web product is not. _Decided (2026-09-01):_ ship; runs the standard
     pipeline (live resolve on miss, exactly like web jobs) so it also closes
     gap 20; billed on matches by `chargeForJob`; bounded by
-    `SUBMISSION_MULTIPLIER` and one active job per account.
+    `SUBMISSION_MULTIPLIER` and one active job per account. _Shipped
+    (2026-09-01):_ `POST /v1/jobs` and `GET /v1/jobs/{id}` (poll free on both
+    meters, ownership mismatch answering the missing-job 404, asserted in
+    `check-invariants.ts`), the `walletlink_submit_job` and
+    `walletlink_job_status` MCP tools, and the docs (openapi.yaml, the jobs
+    reference page, llms.txt) in the same wave. Gap 20 closed with it. No
+    `Idempotency-Key` on the POST yet: the 409 covers the in-flight window,
+    and a resend after completion re-runs and re-bills, stated where agents
+    read.
 16. **`/v1/changes` and watchlists: the accretive core.** A key registers a
     wallet set once (or references a `lookup_history` row it owns); a call
     priced by principle 5 (the outcome “nothing changed” is small) answers “N
@@ -271,6 +280,8 @@ fixture-first) to refuse drift the way figures drift is refused today.
     agent just paid. A keyed deep-scan (live resolve on miss, via the job
     pipeline, budget-guarded) closes the inversion. _Decided (2026-09-01):_
     subsumed by decision 15 (jobs run the live pipeline); no separate tier.
+    _Closed (2026-09-01)_ by 15 shipping: a keyed job runs live resolve on
+    miss, so the paid rail no longer loses to the free demo.
 21. **A metered holders tool.** The conversational journey (“top holders of
     X, who can I DM?”) currently exits to a competitor between two walletlink
     calls, while `lib/contract-holders.ts` sits cookie-gated. _Decided

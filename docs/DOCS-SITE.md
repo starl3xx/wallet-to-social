@@ -33,8 +33,10 @@ document belongs.
 
 ## What is written
 
-13 pages. `index`, `quickstart`, two concept pages, and a nine-page API
-reference covering all six `/v1` endpoints, plus rate limits and error codes.
+`index`, `quickstart`, the concept pages, the agent pages, and an API
+reference covering all eight `/v1` endpoints (the async jobs pair included,
+2026-09-01), plus rate limits and error codes. Counts drift; `docs.json` is
+the authority on what exists.
 
 Response shapes were read off the route handlers rather than off README, which
 had drifted: it advertised the API plans as standalone monthly subscriptions

@@ -51,6 +51,10 @@
             "pages": ["api-reference/wallet", "api-reference/batch"]
           },
           {
+            "group": "Jobs",
+            "pages": ["api-reference/jobs"]
+          },
+          {
             "group": "Reverse lookups",
             "pages": [
               "api-reference/reverse-twitter",

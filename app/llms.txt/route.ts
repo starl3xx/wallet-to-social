@@ -16,6 +16,7 @@ import {
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
   CREDIT_LIFETIME_MONTHS,
+  SUBMISSION_MULTIPLIER,
 } from '@/lib/packs';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
 import { X402_PACKS, MEASURED_MATCH_RATE } from '@/lib/packs';
@@ -179,7 +180,7 @@ Having an account and reaching it are different claims again, which is what the 
 
 The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any account holding live credits.
 
-Six endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request, reverse lookup by X handle, reverse lookup by Farcaster username, index statistics, and your own usage and remaining balance. Reverse results are cursor-paginated.
+Eight endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request, an async job submission with a free status poll, reverse lookup by X handle, reverse lookup by Farcaster username, index statistics, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
 
 Billing follows the same rule as the app. A single lookup costs one match credit when it resolves to X or Farcaster, and nothing when it does not. A batch costs one credit per resolving address, after duplicates are removed. A reverse lookup costs one credit per wallet returned, and nothing when a handle has no wallets. Statistics and usage are free, and still require a key. ${ZERO_BALANCE_SENTENCE}
 
@@ -191,7 +192,7 @@ Full request and response shapes, every error code and the exact header semantic
 
 There is a remote MCP server at https://walletlink.social/api/mcp, so an agent can resolve wallets without a person first reading an API reference. Streamable HTTP, drawing the same credits as everything else. It is listed in the official MCP registry as social.walletlink/wallet-identity, verified by DNS.
 
-Five tools: resolve one to ${batchSize} addresses to their social identities, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The last two are free on both meters. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
+Seven tools: resolve one to ${batchSize} addresses to their social identities, submit a background job that resolves unchecked wallets against live sources, poll that job for progress and results, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The job poll, the coverage tool and the balance tool are free on both meters. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
 
 Two ways to authenticate. OAuth 2.1, which is what a client with a person behind it should use: add the URL, and the first tool call opens a consent screen rather than asking for a key. The server is an OAuth resource server, discovery starts at https://walletlink.social/.well-known/oauth-protected-resource, and it registers clients through both client ID metadata documents and dynamic client registration at https://walletlink.social/api/oauth/register. Every client is public, so PKCE with S256 is required and no client secret is issued. Access tokens last an hour and refresh themselves; a person ends a connection from their account and it stops on the next call.
 
@@ -226,7 +227,7 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 - [Coverage](https://docs.walletlink.social/concepts/coverage.md): what fraction of a wallet list resolves, per chain, and what the number actually means.
 - [Data quality](https://docs.walletlink.social/concepts/data-quality.md): evidence classes, the quality score, reachability states, and when a record goes stale.
 - [API reference](https://docs.walletlink.social/api-reference/introduction.md): base URL, authentication and conventions, then one page per endpoint.
-- [MCP server](https://docs.walletlink.social/mcp-server.md): five tools for agents, what each costs, and the config block for Claude and Cursor.
+- [MCP server](https://docs.walletlink.social/mcp-server.md): seven tools for agents, what each costs, and the config block for Claude and Cursor.
 - [Agent pack over x402](https://docs.walletlink.social/agent-pack.md): buy credits with USDC on Base, no account, and how to recover a lost key.
 - [OpenAPI description](https://docs.walletlink.social/openapi.yaml): the whole REST surface as OpenAPI 3.1, for SDK generation and tool discovery.
 - [Full docs for LLMs](https://docs.walletlink.social/llms-full.txt): the complete documentation in one file.
