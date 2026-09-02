@@ -166,6 +166,21 @@ function kindHit(
 }
 
 /**
+ * Is this value suppressed under this kind? The exported form of the check
+ * every scrub here uses, for routes that read the forward index directly
+ * (the /v1 wallet, batch and estimate handlers) and for filtering the
+ * live `twitter_also` stamp. Pure; case-insensitive like everything else
+ * in this file.
+ */
+export function isKindSuppressed(
+  sets: SuppressionSets,
+  kind: SuppressionKind,
+  value: unknown
+): boolean {
+  return kindHit(sets, kind, value);
+}
+
+/**
  * Scrub one result row against the suppression sets. Pure; returns the same
  * reference when nothing matched, so an untouched payload allocates nothing.
  *
@@ -281,10 +296,15 @@ export async function scrubSuppressed(
 ): Promise<{
   rowSets: WalletSocialResult[][];
   suppressedWallets: ReadonlySet<string>;
+  /** The loaded sets, so a caller that stamps live data AFTER this scrub
+   *  (the `twitter_also` read on the jobs route) can filter that stamp
+   *  against the same list instead of reading it twice. Empty when the
+   *  payload had no rows, which is also the one case nothing can stamp. */
+  sets: SuppressionSets;
 }> {
   const hasRows = rowSets.some((rows) => rows.length > 0);
   if (!hasRows) {
-    return { rowSets, suppressedWallets: new Set() };
+    return { rowSets, suppressedWallets: new Set(), sets: emptySets() };
   }
 
   const sets = await loadSuppressionList();
@@ -293,7 +313,7 @@ export async function scrubSuppressed(
     (kind) => (sets.get(kind)?.size ?? 0) > 0
   );
   if (!anySuppressed) {
-    return { rowSets, suppressedWallets: new Set() };
+    return { rowSets, suppressedWallets: new Set(), sets };
   }
 
   const walletSet = sets.get('wallet')!;
@@ -306,5 +326,5 @@ export async function scrubSuppressed(
     })
   );
 
-  return { rowSets: scrubbed, suppressedWallets };
+  return { rowSets: scrubbed, suppressedWallets, sets };
 }

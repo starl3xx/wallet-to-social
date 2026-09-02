@@ -1157,6 +1157,21 @@ const MUTATIONS: Mutation[] = [
       '  });',
   },
   {
+    // The triggers only guard writes: with the forward filter gone, a
+    // restored backup or a failed erasure keeps serving the mapping to
+    // every keyed caller until some write happens to hit the trigger.
+    name: 'the single forward lookup stops asking the suppression list',
+    file: 'app/api/v1/wallet/[address]/route.ts',
+    from: "  if (isKindSuppressed(suppression, 'wallet', normalizedAddress)) {\n",
+    to: '  if (false) {\n',
+  },
+  {
+    name: 'the batch serves suppressed wallets straight off the index again',
+    file: 'app/api/v1/batch/route.ts',
+    from: "    if (isKindSuppressed(suppression, 'wallet', r.wallet)) return false;\n",
+    to: '    if (false) return false;\n',
+  },
+  {
     name: 'the endpoint writes its own timestamps, defeating the per-row jitter',
     file: 'lib/removal-admin.ts',
     from:

@@ -40,6 +40,11 @@ import {
   readBodyCapped,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
+import {
+  loadSuppressionList,
+  isKindSuppressed,
+  type SuppressionSets,
+} from '@/lib/suppression';
 import { ESTIMATE_MIN_WALLETS } from '@/lib/api-plans';
 import { MEASURED_MATCH_RATE } from '@/lib/packs';
 import {
@@ -204,10 +209,41 @@ export async function POST(request: NextRequest) {
     .from(socialGraph)
     .where(inArray(socialGraph.wallet, uniqueWallets));
 
+  /**
+   * The counts are a membership disclosure too: two estimates differing by
+   * one wallet subtract into a free single-wallet membership oracle, which
+   * is exactly what a suppressed wallet must not answer. So a suppressed
+   * wallet is skipped entirely (it counts as never checked, the
+   * never-indexed shape), and a suppressed handle does not let its row
+   * claim an identity. Fail closed like every serve-time filter.
+   */
+  let suppression: SuppressionSets;
+  try {
+    suppression = await loadSuppressionList();
+  } catch (error) {
+    console.error('Suppression check failed on /v1/estimate:', error);
+    return apiError(
+      'Service temporarily unavailable',
+      'SERVICE_UNAVAILABLE',
+      503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+
   let inIndex = 0;
   let billableNow = 0;
   let previouslyCheckedEmpty = 0;
   for (const row of rows) {
+    if (isKindSuppressed(suppression, 'wallet', row.wallet)) continue;
+    if (isKindSuppressed(suppression, 'twitter', row.twitterHandle)) {
+      row.twitterHandle = null;
+    }
+    if (isKindSuppressed(suppression, 'farcaster', row.farcaster)) {
+      row.farcaster = null;
+    }
+    if (isKindSuppressed(suppression, 'ens', row.ensName)) row.ensName = null;
+    if (isKindSuppressed(suppression, 'lens', row.lens)) row.lens = null;
+    if (isKindSuppressed(suppression, 'github', row.github)) row.github = null;
     const hasIdentity = !!(
       row.twitterHandle ||
       row.farcaster ||

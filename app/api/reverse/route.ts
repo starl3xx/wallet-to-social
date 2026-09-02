@@ -318,6 +318,40 @@ export async function POST(request: NextRequest) {
    */
   await stampAlsoOnX(results);
 
+  /**
+   * The stamp reads LIVE handle_conflicts, so mid-erasure (or after a
+   * backup restore) it can attach a suppressed second handle to these
+   * rows. Filtered here the same way the serve-time scrub strips
+   * `twitter_also` from saved payloads, and fail closed by the same rule
+   * as the check above: a throw refuses the request via the catch in the
+   * route handler chain rather than serving unchecked.
+   */
+  const alsoHandles = results.flatMap((r) =>
+    r.twitter_also ? [r.twitter_also.handle] : []
+  );
+  if (alsoHandles.length > 0) {
+    let suppressedAlso: Set<string>;
+    try {
+      suppressedAlso = await isSuppressed('twitter', alsoHandles);
+    } catch (error) {
+      console.error('Suppression check failed on /api/reverse also:', error);
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable' },
+        { status: 503 }
+      );
+    }
+    if (suppressedAlso.size > 0) {
+      for (const r of results) {
+        if (
+          r.twitter_also &&
+          suppressedAlso.has(r.twitter_also.handle.toLowerCase())
+        ) {
+          delete r.twitter_also;
+        }
+      }
+    }
+  }
+
   // Save to My lookups, same as a forward lookup. A reverse result is a wallet
   // list like any other: worth reloading, renaming and exporting later, and
   // there is no reason it should be the one kind that vanishes on refresh.

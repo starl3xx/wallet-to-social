@@ -5017,6 +5017,113 @@ async function main() {
     );
   }
 
+  // ----------------------------- right-to-removal: the forward index reads
+  // The storage triggers only guard writes. After a backup restore, or in
+  // the window where an erasure failed after its suppression row committed,
+  // the graph rows still exist, so every route that reads the forward index
+  // and serves identity must ask the list itself: a suppressed wallet
+  // answers exactly as a never-indexed one, fail closed. The live
+  // `twitter_also` stamp is read AFTER the scrub on serving routes, so it
+  // gets its own filter or a suppressed second handle rides back in.
+  {
+    const w = withoutComments(
+      readFileSync('app/api/v1/wallet/[address]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const wCheck = w.indexOf(
+      "if (isKindSuppressed(suppression, 'wallet', normalizedAddress)) {"
+    );
+    const wQuery = w.indexOf('.from(socialGraph)');
+    const wFail = w.indexOf(
+      "console.error('Suppression check failed on /v1/wallet:', error);"
+    );
+    ok(
+      'the single forward lookup refuses a suppressed wallet before the index is read, fail closed',
+      wCheck !== -1 &&
+        wQuery !== -1 &&
+        wCheck < wQuery &&
+        wFail !== -1 &&
+        w.includes(
+          'meta: { wallet: normalizedAddress, found: false, checked_at: null },'
+        ) &&
+        w.includes("!isKindSuppressed(suppression, 'twitter', alsoVal.handle)")
+    );
+
+    const b = withoutComments(
+      readFileSync('app/api/v1/batch/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const bDrop = b.indexOf(
+      "if (isKindSuppressed(suppression, 'wallet', r.wallet)) return false;"
+    );
+    const bServe = b.indexOf('reachabilityForWallets(handleRows)');
+    const bFail = b.indexOf(
+      "console.error('Suppression check failed on /v1/batch:', error);"
+    );
+    ok(
+      'the batch drops suppressed wallets before anything downstream reads a row, fail closed',
+      bDrop !== -1 &&
+        bServe !== -1 &&
+        bDrop < bServe &&
+        bFail !== -1 &&
+        b.includes(
+          "if (isKindSuppressed(suppression, 'twitter', a.handle)) also.delete(w);"
+        )
+    );
+
+    const est = withoutComments(
+      readFileSync('app/api/v1/estimate/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the estimate counts a suppressed wallet as never checked, fail closed',
+      est.includes(
+        "if (isKindSuppressed(suppression, 'wallet', row.wallet)) continue;"
+      ) &&
+        est.includes(
+          "console.error('Suppression check failed on /v1/estimate:', error);"
+        )
+    );
+
+    const vj = withoutComments(
+      readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const vjAlso = vj.indexOf('alsoOnXForWallets(handleRows)');
+    const vjFilter = vj.indexOf(
+      "if (isKindSuppressed(suppressionSets, 'twitter', a.handle)) { also.delete(w); }"
+    );
+    ok(
+      'the job read filters the live also stamp against the same list its scrub used',
+      vjAlso !== -1 && vjFilter !== -1 && vjAlso < vjFilter
+    );
+
+    const rev = withoutComments(
+      readFileSync('app/api/reverse/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const revStamp = rev.indexOf('await stampAlsoOnX(results);');
+    const revFilter = rev.indexOf('delete r.twitter_also;');
+    ok(
+      'the app reverse route strips a suppressed second handle after the live stamp, fail closed',
+      revStamp !== -1 &&
+        revFilter !== -1 &&
+        revStamp < revFilter &&
+        rev.includes(
+          "console.error('Suppression check failed on /api/reverse also:', error);"
+        )
+    );
+
+    // The amend keeps the denormalized counts honest in the same statement:
+    // stale twitter_found beside scrubbed rows is itself a removal signal.
+    const adminSrc = withoutComments(
+      readFileSync('lib/removal-admin.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the amend recomputes the match counts from the scrubbed array it writes',
+      adminSrc.includes('SET ${col} = s.scrubbed') &&
+        adminSrc.includes('jsonb_array_elements(s.scrubbed)') &&
+        adminSrc.includes('any_social_found = (SELECT count(*)::int') &&
+        adminSrc.includes("countOf('twitter_handle')") &&
+        adminSrc.includes("countOf('farcaster')")
+    );
+  }
+
   // -------------------------------- right-to-removal: what a restore contains
   // The asymmetry IS the restore semantics. suppressed_identifiers goes in
   // BOTH lists: a backup restored without it would un-remove every person who

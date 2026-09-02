@@ -348,27 +348,59 @@ async function amendSavedCopies(
   const alsoGuard = checkTwitterAlso
     ? sql` OR lower(e #>> '{twitter_also,handle}') = ${identifier}`
     : sql``;
+  /**
+   * The denormalized match counts are recomputed from the SAME scrubbed
+   * array the row is being set to, in the same statement, using the same
+   * truthiness predicate the job finalize recount uses. Left stale, the
+   * summary endpoints serve the old totals beside the amended rows, and
+   * the gap between "twitter_found: 3" and two visible handles is itself
+   * a removal signal. `lookup_history` has no any_social_found column;
+   * `lookup_jobs` does, and it is what chargeForJob billed, so the ledger
+   * row (credit_ledger) stays the billing record while the job row tells
+   * the truth about what is served.
+   */
+  const countOf = (key: string) =>
+    `(SELECT count(*)::int FROM jsonb_array_elements(s.scrubbed) c
+       WHERE coalesce(c ->> '${key}', '') <> '')`;
+  const countSet = sql.raw(
+    table === 'lookup_jobs'
+      ? `, twitter_found = ${countOf('twitter_handle')},
+           farcaster_found = ${countOf('farcaster')},
+           any_social_found = (SELECT count(*)::int
+             FROM jsonb_array_elements(s.scrubbed) c
+             WHERE coalesce(c ->> 'twitter_handle', '') <> ''
+                OR coalesce(c ->> 'farcaster', '') <> '')`
+      : `, twitter_found = ${countOf('twitter_handle')},
+           farcaster_found = ${countOf('farcaster')}`
+  );
   const res = (await db.execute(sql`
     UPDATE ${sql.raw(table)} h
-    SET ${col} = (
-      SELECT COALESCE(jsonb_agg(
-        CASE
-          WHEN lower(t.elem ->> ${matchKey}) = ${identifier}
-            THEN t.elem - ${strip}
-          ${alsoWhen}
-          ELSE t.elem
-        END
-        ORDER BY t.ord
-      ), '[]'::jsonb)
-      FROM jsonb_array_elements(h.${col}) WITH ORDINALITY AS t(elem, ord)
-    )
-    WHERE EXISTS (
-      SELECT 1 FROM jsonb_array_elements(
-        CASE WHEN jsonb_typeof(h.${col}) = 'array'
-             THEN h.${col} ELSE '[]'::jsonb END
-      ) e
-      WHERE lower(e ->> ${matchKey}) = ${identifier} ${alsoGuard}
-    )
+    SET ${col} = s.scrubbed
+    ${countSet}
+    FROM (
+      SELECT h2.id,
+        (
+          SELECT COALESCE(jsonb_agg(
+            CASE
+              WHEN lower(t.elem ->> ${matchKey}) = ${identifier}
+                THEN t.elem - ${strip}
+              ${alsoWhen}
+              ELSE t.elem
+            END
+            ORDER BY t.ord
+          ), '[]'::jsonb)
+          FROM jsonb_array_elements(h2.${col}) WITH ORDINALITY AS t(elem, ord)
+        ) AS scrubbed
+      FROM ${sql.raw(table)} h2
+      WHERE EXISTS (
+        SELECT 1 FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(h2.${col}) = 'array'
+               THEN h2.${col} ELSE '[]'::jsonb END
+        ) e
+        WHERE lower(e ->> ${matchKey}) = ${identifier} ${alsoGuard}
+      )
+    ) s
+    WHERE h.id = s.id
     RETURNING h.id
   `)) as unknown as { rows: unknown[] };
   return res.rows.length;

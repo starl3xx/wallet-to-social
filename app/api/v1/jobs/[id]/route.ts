@@ -20,7 +20,11 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
-import { scrubSuppressed } from '@/lib/suppression';
+import {
+  scrubSuppressed,
+  isKindSuppressed,
+  type SuppressionSets,
+} from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -195,9 +199,11 @@ export async function GET(
      * table an un-removal, so the read gets the same retryable answer as a
      * missing results page. The poll is free either way.
      */
+    let suppressionSets: SuppressionSets;
     try {
       const scrub = await scrubSuppressed([rows]);
       rows = scrub.rowSets[0];
+      suppressionSets = scrub.sets;
     } catch (error) {
       console.error('Suppression filter failed on /v1/jobs read:', error);
       return apiError(
@@ -222,6 +228,16 @@ export async function GET(
       reachabilityForWallets(handleRows),
       alsoOnXForWallets(handleRows),
     ]);
+    // The also read is LIVE handle_conflicts, taken after the scrub above,
+    // so mid-erasure (or after a backup restore) it can hand back a
+    // suppressed second handle the scrub just removed. Filtered against
+    // the same list the scrub used; same ordering rule as the finalize,
+    // which scrubs after its stamp for exactly this reason.
+    for (const [w, a] of also) {
+      if (isKindSuppressed(suppressionSets, 'twitter', a.handle)) {
+        also.delete(w);
+      }
+    }
 
     /**
      * The batch contract: an entry is a record or null, in submission order,
