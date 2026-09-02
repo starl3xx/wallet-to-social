@@ -4309,7 +4309,7 @@ async function main() {
     const flat = buySrc.replace(/\s+/g, ' ');
     ok(
       'the loyalty bonus is unreachable by replay: it runs only when the grant actually wrote',
-      /if \(granted\) \{ const settled = await countSettledPurchases\(payer\);/.test(
+      /if \(granted\) \{ try \{ const settled = await countSettledPurchases\(payer\);/.test(
         flat
       )
     );

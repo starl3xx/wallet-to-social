@@ -455,6 +455,28 @@ export async function POST(request: NextRequest) {
   const already = await lotForSettlement(settlementId);
   if (already) {
     const balance = await getBalance(already.userId);
+    /**
+     * A replayed TOP-UP is a success report, not a key-loss condition: no key
+     * ever existed for this payment, the credits are on the account the
+     * presented key proves, and the retrying client is most likely the same
+     * one whose success response was lost in transit. Recognised only when
+     * the replay itself carries the key that owns the credited account;
+     * without that proof the reply must not name where the credits live.
+     */
+    if (topUp && topUp.userId === already.userId) {
+      return NextResponse.json({
+        api_key: null,
+        credited_to_key_prefix: topUp.keyPrefix,
+        newly_granted: false,
+        matches_added: 0,
+        matches_available: balance.available,
+        pack: PACK.name,
+        note: 'This payment was already honoured as a top-up to this account. Nothing was charged this time; the balance above is current.',
+        code: 'ALREADY_HONOURED',
+        settlement: settlementId,
+        docs: 'https://docs.walletlink.social/agent-pack',
+      });
+    }
     return NextResponse.json({
       api_key: null,
       // Already paid for. Nothing was charged this time.
@@ -462,7 +484,7 @@ export async function POST(request: NextRequest) {
       matches_available: balance.available,
       pack: PACK.name,
       error:
-        'This payment has already been honoured. Its key was shown once and cannot be reissued from the payment, because every field of a settled payment is public. Contact help@walletlink.social with the settlement reference.',
+        'This payment has already been honoured. If it minted a key, that key was shown once and cannot be reissued from the payment, because every field of a settled payment is public; if it was a top-up, the credits are already on the account of the key presented with the purchase. Contact help@walletlink.social with the settlement reference.',
       code: 'ALREADY_HONOURED',
       settlement: settlementId,
       docs: 'https://docs.walletlink.social/agent-pack',
@@ -557,14 +579,28 @@ export async function POST(request: NextRequest) {
     let loyalty: { bonus_matches: number; settled_purchases: number } | null =
       null;
     if (granted) {
-      const settled = await countSettledPurchases(payer);
-      if (settled > 0 && settled % X402_LOYALTY_EVERY_N === 0) {
-        await grantCredits(
-          userId,
-          PACK.matches,
-          `x402 loyalty bonus: settled purchase ${settled} from ${payer}`
+      /**
+       * Its own try, deliberately. The pack lot above is already written, so
+       * a failure HERE must not turn the response into GRANT_FAILED: the
+       * retry would then read ALREADY_HONOURED and the buyer would count a
+       * real purchase as lost. A missed bonus is a support line item, logged
+       * with the settlement reference; a misreported purchase is a refund.
+       */
+      try {
+        const settled = await countSettledPurchases(payer);
+        if (settled > 0 && settled % X402_LOYALTY_EVERY_N === 0) {
+          await grantCredits(
+            userId,
+            PACK.matches,
+            `x402 loyalty bonus: settled purchase ${settled} from ${payer}`
+          );
+          loyalty = { bonus_matches: PACK.matches, settled_purchases: settled };
+        }
+      } catch (error) {
+        console.error(
+          `x402 loyalty bonus failed for settlement ${settlementId}; grant by hand if the milestone stands:`,
+          error
         );
-        loyalty = { bonus_matches: PACK.matches, settled_purchases: settled };
       }
     }
 
