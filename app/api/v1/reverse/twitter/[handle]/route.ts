@@ -18,6 +18,7 @@ import {
   alsoOnXForWallets,
   walletsBySecondaryHandle,
 } from '@/lib/handle-reachability';
+import { isSuppressed } from '@/lib/suppression';
 
 export const runtime = 'nodejs';
 
@@ -88,6 +89,62 @@ export async function GET(
       'Service temporarily unavailable',
       'SERVICE_UNAVAILABLE',
       503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+
+  /**
+   * The suppression check, before any row is read.
+   *
+   * A removal deletes the rows this query would find and the triggers keep
+   * them from coming back, so on the ordinary day this answers nothing new.
+   * It exists for the windows where deletion has not caught up with the
+   * list: mid-removal, and after a backup restore resurrects deleted rows
+   * until their next write re-suppresses them. Reads have no trigger, so
+   * this is the read path's half of the same guard.
+   *
+   * A suppressed handle serves the exact response an unindexed handle
+   * serves, bills the same (zero: a reverse bills per returned wallet), and
+   * consumes the same rate-limit weight, so the two are indistinguishable
+   * from outside. Fail closed: if the list cannot be read, refuse the
+   * request rather than serve rows unchecked.
+   */
+  let handleSuppressed: boolean;
+  try {
+    handleSuppressed =
+      (await isSuppressed('twitter', [normalizedHandle])).size > 0;
+  } catch (error) {
+    console.error('Suppression check failed on /v1/reverse/twitter:', error);
+    return apiError(
+      'Service temporarily unavailable',
+      'SERVICE_UNAVAILABLE',
+      503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+  if (handleSuppressed) {
+    trackApiUsage({
+      apiKeyId: context.key.id,
+      endpoint: '/v1/reverse/twitter/{handle}',
+      method: 'GET',
+      walletCount: 0,
+      responseStatus: 200,
+      latencyMs: Date.now() - startTime,
+      creditsUsed: CREDITS_COST,
+      matches: 0,
+    }).catch(console.error);
+
+    return apiSuccess(
+      {
+        data: [],
+        meta: {
+          handle: normalizedHandle,
+          total_count: 0,
+          returned_count: 0,
+          truncated: false,
+          next_cursor: null,
+        },
+      },
       { ...context.rateLimitHeaders, ...corsHeaders }
     );
   }

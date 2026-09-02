@@ -19,6 +19,7 @@ import {
   formatRateLimitHeaders,
   getClientIp,
 } from '@/lib/ip-rate-limiter';
+import { isSuppressed } from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -154,6 +155,43 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: formatRateLimitHeaders(rate) }
       );
     }
+  }
+
+  /**
+   * The suppression check, before even the count is read.
+   *
+   * The count alone would leak: a nonzero total for a suppressed handle,
+   * served free above the paywall, is exactly the existence confirmation
+   * the removal exists to end. Same guard as the /v1 reverse routes: a
+   * suppressed handle gets the answer an unindexed handle gets (a zero
+   * count, or an empty entitled result), after the same rate limit, so the
+   * two are indistinguishable from outside. Fail closed on a failed read.
+   */
+  let handleSuppressed: boolean;
+  try {
+    handleSuppressed = (await isSuppressed(platform, [handle])).size > 0;
+  } catch (error) {
+    console.error('Suppression check failed on /api/reverse:', error);
+    return NextResponse.json(
+      { error: 'Service temporarily unavailable' },
+      { status: 503 }
+    );
+  }
+  if (handleSuppressed) {
+    if (!entitled) {
+      return NextResponse.json(lockedReverseBody(platform, handle, 0));
+    }
+    return NextResponse.json({
+      results: [],
+      lookup_id: null,
+      meta: {
+        platform,
+        handle,
+        total_count: 0,
+        returned_count: 0,
+        truncated: false,
+      },
+    });
   }
 
   /**

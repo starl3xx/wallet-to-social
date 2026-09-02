@@ -2083,8 +2083,14 @@ async function main() {
      * query that selects them.
      */
     const route = readFileSync('app/api/reverse/route.ts', 'utf8');
+    // Anchored on the computed count, because it is no longer the first
+    // lockedReverseBody in the file: the suppression branch above the count
+    // deliberately returns a zero-count locked body BEFORE any count is read
+    // (a suppressed handle must never learn its own total). The paywall gate
+    // is the one that reports totalCount, and it is the one these ordering
+    // assertions are about.
     const lockedReturn = route.indexOf(
-      'return NextResponse.json(lockedReverseBody'
+      'return NextResponse.json(lockedReverseBody(platform, handle, totalCount))'
     );
     const rowQuery = route.indexOf('.limit(MAX_RESULTS)');
     const countQuery = route.indexOf('COUNT(*)::int');
@@ -4448,6 +4454,645 @@ async function main() {
     ok(
       'the starter-collections preview answer is the empty list with the real cap, not invented rows',
       /collections: \[\], walletCap: STARTER_WALLET_CAP/.test(starter)
+    );
+  }
+
+  // ---------------------------------------- right-to-removal: trigger coverage
+  // Decision 2 (2026-09-02): every table that stores an identifier naming a
+  // person either carries the suppression_guard trigger or is named in the
+  // documented exclusion boundary in scripts/migrate-suppression.ts. The
+  // attacker here is a future schema change: a new identity-carrying table
+  // added without a trigger is exactly how the removal promise silently
+  // becomes false again. So the identity tables are DERIVED from db/schema.ts
+  // rather than listed here, and a new one must land in one of the two lists
+  // or this fails.
+  {
+    const schemaSrc = withoutComments(readFileSync('db/schema.ts', 'utf8'));
+    const migRaw = readFileSync('scripts/migrate-suppression.ts', 'utf8');
+    const migCode = withoutComments(migRaw);
+    const mflat = migCode.replace(/\s+/g, ' ');
+
+    // A column that names a person, by its sql-side name. The list mirrors
+    // the migration's KINDS vocabulary in the column spellings the schema
+    // uses (wallet, twitter_handle, farcaster, ens_name, lens, github), plus
+    // the bare handle columns: x_accounts.handle, x_handle_attempts.handle,
+    // handle_conflicts.ours/theirs. All of these are text columns, which is
+    // why the parse matches text('...') declarations.
+    const namesAPerson = (col: string) =>
+      col === 'wallet' ||
+      col === 'handle' ||
+      col.endsWith('_handle') ||
+      col === 'farcaster' ||
+      col === 'ens_name' ||
+      col === 'lens' ||
+      col === 'github' ||
+      col === 'ours' ||
+      col === 'theirs';
+
+    const chunks = schemaSrc.split(/export const \w+ = pgTable\(/).slice(1);
+    const identityTables: string[] = [];
+    let parsedTables = 0;
+    for (const chunk of chunks) {
+      const name = chunk.match(/'([a-z0-9_]+)'/)?.[1];
+      if (!name) continue;
+      parsedTables++;
+      const cols = [...chunk.matchAll(/\btext\('([a-z0-9_]+)'/g)].map(
+        (m) => m[1]
+      );
+      if (cols.some(namesAPerson)) identityTables.push(name);
+    }
+
+    // Guarded: the migration's attachment list.
+    const attachBlock =
+      migCode.match(
+        /const ATTACHMENTS: Attachment\[\] = \[([\s\S]*?)\n\];/
+      )?.[1] ?? '';
+    const attached = [...attachBlock.matchAll(/table: '([a-z0-9_]+)'/g)].map(
+      (m) => m[1]
+    );
+
+    // Excluded: the decision 2 boundary, which is the doc block PLUS the
+    // constant it explains, parsed with its comments on purpose: the
+    // account/billing and jsonb-payload carve-outs live in the prose, and
+    // the point of this check is that an identity table is either guarded or
+    // NAMED there, in the place the next reader will look.
+    const boundaryStart = migRaw.indexOf(
+      'Tables that store identifiers and deliberately do NOT get the guard'
+    );
+    const boundaryArr = migRaw.match(
+      /const SUPPRESSION_EXCLUDED_TABLES = \[([\s\S]*?)\];/
+    );
+    const boundaryEnd = boundaryArr
+      ? migRaw.indexOf(boundaryArr[0]) + boundaryArr[0].length
+      : -1;
+    const boundary =
+      boundaryStart !== -1 && boundaryEnd > boundaryStart
+        ? migRaw.slice(boundaryStart, boundaryEnd)
+        : '';
+    const excluded = new Set(
+      [
+        ...boundary.matchAll(/'([a-z0-9_]+)'/g),
+        ...boundary.matchAll(/`([a-z0-9_]+)`/g),
+      ].map((m) => m[1])
+    );
+
+    // Prove the parsers can find things, so "nothing uncovered" below cannot
+    // pass by matching nothing.
+    ok('the schema parser sees the whole schema', parsedTables >= 30);
+    ok(
+      'identity detection finds the index, the handle table and a carve-out table',
+      identityTables.includes('social_graph') &&
+        identityTables.includes('x_accounts') &&
+        identityTables.includes('users')
+    );
+    ok(
+      'identity detection does not match everything',
+      !identityTables.includes('rate_limit_buckets') &&
+        !identityTables.includes('suppressed_identifiers')
+    );
+    ok(
+      'the attachment parse found the trigger list',
+      attached.length >= 7 &&
+        attached.includes('social_graph') &&
+        attached.includes('known_agents')
+    );
+    ok(
+      'the boundary parse found the documented exclusions',
+      excluded.has('x_handle_attempts') &&
+        excluded.has('users') &&
+        !excluded.has('social_graph')
+    );
+
+    const uncovered = identityTables.filter(
+      (t) => !attached.includes(t) && !excluded.has(t)
+    );
+    ok(
+      `every identity-carrying table is guarded or named in the exclusion boundary (uncovered: ${uncovered.join(', ') || 'none'})`,
+      boundary.length > 0 && uncovered.length === 0
+    );
+    ok(
+      'no guarded table is simultaneously excluded',
+      attached.every((t) => !excluded.has(t))
+    );
+
+    // BEFORE UPDATE is load-bearing, not belt-and-braces: BEFORE INSERT
+    // edits are reflected in EXCLUDED, so an INSERT-only guard hands a
+    // suppressed handle straight back through every
+    // COALESCE(EXCLUDED.x, stored.x) upsert branch and every literal-set
+    // UPDATE writer.
+    ok(
+      'the guard is attached BEFORE INSERT OR UPDATE, not INSERT alone',
+      mflat.includes('BEFORE INSERT OR UPDATE ON ${a.table}')
+    );
+
+    // The migration checks itself the refusing way, each exiting non-zero:
+    // catalog set equality (the right count on the wrong tables must fail),
+    // no guard on an excluded table, and an operator-only quarantine.
+    const setEqIdx = mflat.indexOf(
+      'JSON.stringify(wanted) !== JSON.stringify(got)'
+    );
+    ok(
+      'the migration verifies attachment set equality and fails non-zero',
+      setEqIdx !== -1 &&
+        mflat.slice(setEqIdx, setEqIdx + 400).includes('process.exit(1)')
+    );
+    const onExclIdx = mflat.indexOf('if (onExcluded.length > 0) {');
+    ok(
+      'the migration refuses a guard attached to an excluded table',
+      onExclIdx !== -1 &&
+        mflat.slice(onExclIdx, onExclIdx + 300).includes('process.exit(1)')
+    );
+    const qGrantsIdx = mflat.indexOf('if (qGrants.length > 0) {');
+    ok(
+      'the migration revokes the quarantine table and verifies it operator-only',
+      mflat.includes('REVOKE ALL ON suppression_quarantine FROM PUBLIC') &&
+        qGrantsIdx !== -1 &&
+        mflat.slice(qGrantsIdx, qGrantsIdx + 300).includes('process.exit(1)')
+    );
+  }
+
+  // ------------------------------------------ right-to-removal: the pre-flight
+  // The trigger blocks upsertNegativeWallets, so without this filter a
+  // suppressed wallet with no cached row would run the FULL external pipeline
+  // on every lookup: re-collection moving from monthly to per-lookup, for
+  // exactly the person who objected. The refusal is the filter that drops the
+  // wallet from the work list before anything reads or resolves.
+  {
+    const jp = withoutComments(readFileSync('lib/job-processor.ts', 'utf8'));
+    const flat = jp.replace(/\s+/g, ' ');
+
+    const filterIdx = flat.indexOf(
+      'const activeWallets = suppressedWallets.size === 0 ? walletsToProcess : walletsToProcess.filter( (w) => !suppressedWallets.has(w.toLowerCase()) );'
+    );
+    ok(
+      'the pre-flight refusal exists: suppressed wallets are dropped from the work list',
+      filterIdx !== -1
+    );
+
+    const neynarIdx = flat.indexOf('? batchFetchNeynar(');
+    const web3Idx = flat.indexOf('await batchFetchWeb3Bio(');
+    const negIdx = flat.indexOf(
+      'await upsertNegativeWallets(negativeWallets);'
+    );
+    ok(
+      'and it runs before the external resolvers and before the negative persist',
+      filterIdx !== -1 &&
+        neynarIdx !== -1 &&
+        web3Idx !== -1 &&
+        negIdx !== -1 &&
+        filterIdx < neynarIdx &&
+        filterIdx < web3Idx &&
+        filterIdx < negIdx
+    );
+
+    ok(
+      'every pipeline consumer takes the filtered list, never the raw one',
+      flat.includes('let uncachedWallets = activeWallets;') &&
+        flat.includes('await detectKnownAgents(activeWallets)') &&
+        flat.includes('getSocialGraphWithQuality(activeWallets)') &&
+        !flat.includes('detectKnownAgents(walletsToProcess)') &&
+        !flat.includes('getSocialGraphWithQuality(walletsToProcess)')
+    );
+
+    ok(
+      'the graph-error fallback cannot walk a suppressed wallet into the pipeline',
+      flat.includes('walletsNeedingLookup.push(...activeWallets);') &&
+        !flat.includes('walletsNeedingLookup.push(...walletsToProcess)')
+    );
+
+    // A suppressed HANDLE still arrives on other wallets' rows (a live
+    // resolve returns whatever the upstream maps). The chunk scrub runs
+    // before any stat is counted or billed; the finalize re-reads the list
+    // and scrubs once more before lookup_history is written, after the
+    // twitter_also stamp that could re-import one from a resurrected
+    // conflict row.
+    const chunkScrubIdx = flat.indexOf(
+      'results.set(wallet, scrubResultRow(result, suppression));'
+    );
+    const statsIdx = flat.indexOf('const twitterFound =');
+    ok(
+      'the chunk scrub runs before match stats are counted',
+      chunkScrubIdx !== -1 && statsIdx !== -1 && chunkScrubIdx < statsIdx
+    );
+
+    const firstReadIdx = flat.indexOf('await loadSuppressionList()');
+    const finalReadIdx = flat.indexOf(
+      'await loadSuppressionList()',
+      firstReadIdx + 1
+    );
+    const stampIdx = flat.indexOf('await stampAlsoOnX(results);');
+    const saveIdx = flat.indexOf('await saveLookup(');
+    ok(
+      'the finalize re-reads the list after the stamp and scrubs before the history write',
+      finalReadIdx !== -1 &&
+        stampIdx !== -1 &&
+        saveIdx !== -1 &&
+        stampIdx < finalReadIdx &&
+        finalReadIdx < saveIdx &&
+        flat.includes('results[i] = scrubResultRow(results[i], suppression);')
+    );
+
+    // Billing equals what is served: after the finalize scrub the match
+    // stats are recounted from the scrubbed array, or a mid-job removal is
+    // billed as a match the customer never receives, and the off-by-one
+    // between meta stats and rows is itself a removal oracle.
+    const recountIdx = flat.indexOf(
+      'anySocialFound = results.filter( (r) => r.twitter_handle || r.farcaster ).length;'
+    );
+    ok(
+      'the finalize recomputes billing stats from the scrubbed rows',
+      recountIdx !== -1 &&
+        recountIdx > finalReadIdx &&
+        flat.includes(
+          'twitterFound = results.filter((r) => r.twitter_handle).length;'
+        )
+    );
+  }
+
+  // -------------------------------- right-to-removal: the operator endpoint
+  // The order is the design: insert and commit the suppression rows FIRST,
+  // then erase. The other way round leaves a window in which an in-flight
+  // sweep batch re-inserts the mapping after the delete and before any guard
+  // exists to stop it.
+  {
+    const route = withoutComments(
+      readFileSync('app/api/admin/removal/route.ts', 'utf8')
+    );
+    const rflat = route.replace(/\s+/g, ' ');
+    const admin = withoutComments(readFileSync('lib/removal-admin.ts', 'utf8'));
+    const aflat = admin.replace(/\s+/g, ' ');
+
+    const insertIdx = rflat.indexOf(
+      'outcomes = await insertSuppressions(db, targets, lane, reason);'
+    );
+    const eraseIdx = rflat.indexOf('await eraseIdentifier(');
+    ok(
+      'the suppression rows are inserted and awaited before any erase begins',
+      insertIdx !== -1 && eraseIdx !== -1 && insertIdx < eraseIdx
+    );
+
+    const insertFailIdx = rflat.indexOf(
+      'catch (e) { return NextResponse.json( { error: `Failed inserting suppression rows'
+    );
+    ok(
+      'a failed suppression insert returns before the erasure can start',
+      insertFailIdx !== -1 && insertFailIdx < eraseIdx
+    );
+
+    const insFnStart = aflat.indexOf(
+      'export async function insertSuppressions'
+    );
+    const insFnEnd = aflat.indexOf('async function quarantineDelete');
+    const insFn =
+      insFnStart !== -1 && insFnEnd > insFnStart
+        ? aflat.slice(insFnStart, insFnEnd)
+        : '';
+    ok(
+      'each suppression row is one statement of its own, idempotent on re-run',
+      insFn.includes('for (const t of targets)') &&
+        insFn.includes('ON CONFLICT (kind, identifier) DO NOTHING') &&
+        insFn.split('db.execute').length - 1 === 1
+    );
+
+    // The trigger on known_agents only refuses FUTURE writes; an existing
+    // curated row pairing a suppressed wallet or handle with an agent name
+    // is the mapping itself and must be ERASED, in both branches. The
+    // guard-without-erase gap shipped once and was caught in review.
+    ok(
+      'the erase reaches known_agents for a suppressed wallet and for a suppressed handle',
+      aflat.includes(
+        "await del('known_agents', sql`t.wallet = ${identifier}`)"
+      ) &&
+        aflat.includes('sql`lower(t.twitter_handle) = ${identifier}`') &&
+        aflat.includes('sql`lower(t.farcaster) = ${identifier}`')
+    );
+
+    // A saved REVERSE lookup's name plus row membership IS the mapping, so
+    // the per-element amend cannot make it honest; it must be deleted
+    // whole, matched on the marker app/api/reverse/route.ts writes.
+    ok(
+      'a saved reverse lookup whose subject is the suppressed handle is deleted whole',
+      aflat.includes(
+        "'lookup_history', sql`t.input_source = 'reverse_lookup'"
+      ) &&
+        readFileSync('app/api/reverse/route.ts', 'utf8').includes(
+          "'reverse_lookup'"
+        )
+    );
+
+    // The jitter lives in the table DEFAULT, so the one insert path must not
+    // supply the columns: an endpoint writing now() itself would silently
+    // defeat the jitter for every row it inserts.
+    const stmtStart = insFn.indexOf('INSERT INTO suppressed_identifiers');
+    const stmtEnd = insFn.indexOf('RETURNING');
+    const stmt =
+      stmtStart !== -1 && stmtEnd > stmtStart
+        ? insFn.slice(stmtStart, stmtEnd)
+        : '';
+    ok(
+      'the insert names no timestamp, so the jittered defaults stay in charge',
+      stmt.includes('(kind, identifier, reason, lane)') &&
+        !stmt.includes('requested_at') &&
+        !stmt.includes('created_at') &&
+        !stmt.includes('now()')
+    );
+  }
+
+  // ------------------------------------------ right-to-removal: the jsonb amend
+  // Decision 5: the amend over lookup_history.results and lookup_jobs
+  // payloads is NOT fail-soft. propagateManualCorrection in lib/social-graph.ts
+  // logs and carries on, and that is correct THERE (the graph write already
+  // happened; a stale saved lookup is where we were before the feature). Here
+  // the same shape would let the serve-time filter mask a broken amend
+  // forever, so a failure must abort the removal and name what remains.
+  {
+    const admin = withoutComments(readFileSync('lib/removal-admin.ts', 'utf8'));
+    const route = withoutComments(
+      readFileSync('app/api/admin/removal/route.ts', 'utf8')
+    );
+    const rflat = route.replace(/\s+/g, ' ');
+
+    ok(
+      'the removal module holds no fail-soft machinery: no try, no catch, no console.error',
+      !admin.includes('try {') &&
+        !admin.includes('.catch(') &&
+        !admin.includes('console.error')
+    );
+
+    ok(
+      'the erase failure path names what completed, what failed and what remains',
+      rflat.includes('remaining: targets.slice(i),') &&
+        rflat.includes(
+          'failedAt: { kind: t.kind, identifier: t.identifier },'
+        ) &&
+        rflat.includes("'re-run this same request to finish the erasure.',") &&
+        rflat.includes('{ status: 500 }')
+    );
+
+    // Prove the contrast is real, or the no-catch assertion above is a claim
+    // about a codebase where nothing ever fails soft.
+    const sgflat = withoutComments(
+      readFileSync('lib/social-graph.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'propagateManualCorrection really does fail soft, so strictness here is a choice this file now defends',
+      sgflat.includes(
+        "console.error('propagateManualCorrection failed:', error); return amended;"
+      )
+    );
+    ok(
+      'the removal path never routes through the fail-soft propagator',
+      !admin.includes('propagateManualCorrection') &&
+        !route.includes('propagateManualCorrection')
+    );
+  }
+
+  // --------------------------------- right-to-removal: the serve-time filter
+  // Reads have no trigger. Saved payloads, and the windows where deletion has
+  // not caught up (mid-removal, a backup restore), are covered only by these
+  // route-level filters, so each must fail CLOSED: an unreadable suppression
+  // list refuses the request, because serving stored rows unfiltered would
+  // make an outage of one tiny table behave as an un-removal.
+  {
+    const sup = withoutComments(readFileSync('lib/suppression.ts', 'utf8'));
+    ok(
+      'the suppression read helpers throw on failure and never soften',
+      sup.split("throw new Error('Suppression list unavailable").length - 1 ===
+        2 &&
+        !sup.includes('catch') &&
+        !sup.includes('console.error')
+    );
+
+    const hist = withoutComments(
+      readFileSync('app/api/history/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the history list scrubs full payloads and ships the scrubbed rows',
+      hist.includes(
+        'const scrub = await scrubSuppressed(full.map((h) => h.results));'
+      ) && hist.includes('full[i] = { ...full[i], results: scrub.rowSets[i] };')
+    );
+    ok(
+      'a throw on the history list lands in a catch that refuses',
+      hist.includes(
+        "console.error('History fetch error:', error); return NextResponse.json( { error: 'Failed to fetch history' }"
+      )
+    );
+
+    const histId = withoutComments(
+      readFileSync('app/api/history/[id]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'a saved lookup ships scrubbed rows and drops suppressed wallets from the enriched list',
+      histId.includes(
+        'await scrubSuppressed([ lookup.results as WalletSocialResult[], ])'
+      ) &&
+        histId.includes('results: servedResults,') &&
+        histId.includes(
+          'enrichedWallets = enrichedWallets.filter( (w) => !scrub.suppressedWallets.has(w.toLowerCase()) );'
+        )
+    );
+    ok(
+      'a throw on the saved-lookup read lands in a catch that refuses',
+      histId.includes(
+        "console.error('History fetch error:', error); return NextResponse.json( { error: 'Failed to fetch lookup' }"
+      )
+    );
+
+    const jobsId = withoutComments(
+      readFileSync('app/api/jobs/[id]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const j1 = jobsId.indexOf(
+      "console.error('Suppression filter failed on job results read:', error);"
+    );
+    ok(
+      'the job read serves scrubbed rows and answers 503 when the list cannot be read',
+      jobsId.includes(
+        'await scrubSuppressed([ job.partialResults as WalletSocialResult[], ])'
+      ) &&
+        jobsId.includes('response.results = scrub.rowSets[0];') &&
+        j1 !== -1 &&
+        jobsId
+          .slice(j1, j1 + 300)
+          .includes(
+            "return NextResponse.json( { error: 'Results are temporarily unavailable. Retry shortly.' }, { status: 503 } );"
+          )
+    );
+
+    const v1jobs = withoutComments(
+      readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const j2 = v1jobs.indexOf(
+      "console.error('Suppression filter failed on /v1/jobs read:', error);"
+    );
+    ok(
+      'the keyed job read serves scrubbed rows and answers 503 when the list cannot be read',
+      v1jobs.includes(
+        'const scrub = await scrubSuppressed([rows]); rows = scrub.rowSets[0];'
+      ) &&
+        j2 !== -1 &&
+        v1jobs
+          .slice(j2, j2 + 300)
+          .includes(
+            "return apiError( 'Results are temporarily unavailable. Retry shortly; the poll is free.', 'SERVICE_UNAVAILABLE', 503,"
+          )
+    );
+
+    // Reverse lookups ask the list before any row or count is read: the free
+    // count above the paywall is an existence oracle otherwise.
+    const revX = withoutComments(
+      readFileSync('app/api/v1/reverse/twitter/[handle]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const cX = revX.indexOf(
+      "(await isSuppressed('twitter', [normalizedHandle])).size > 0;"
+    );
+    const qX = revX.indexOf(
+      'await walletsBySecondaryHandle(normalizedHandle);'
+    );
+    const eX = revX.indexOf(
+      "console.error('Suppression check failed on /v1/reverse/twitter:', error);"
+    );
+    ok(
+      'the X reverse route asks the list before any read, and refuses on a failed read',
+      cX !== -1 &&
+        qX !== -1 &&
+        cX < qX &&
+        revX.includes('if (handleSuppressed) {') &&
+        eX !== -1 &&
+        revX
+          .slice(eX, eX + 220)
+          .includes(
+            "return apiError( 'Service temporarily unavailable', 'SERVICE_UNAVAILABLE', 503,"
+          )
+    );
+
+    const revF = withoutComments(
+      readFileSync('app/api/v1/reverse/farcaster/[username]/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const cF = revF.indexOf(
+      "(await isSuppressed('farcaster', [normalizedUsername])).size > 0;"
+    );
+    const qF = revF.indexOf('.from(socialGraph)');
+    const eF = revF.indexOf(
+      "console.error('Suppression check failed on /v1/reverse/farcaster:', error);"
+    );
+    ok(
+      'the Farcaster reverse route asks the list before any read, and refuses on a failed read',
+      cF !== -1 &&
+        qF !== -1 &&
+        cF < qF &&
+        revF.includes('if (usernameSuppressed) {') &&
+        eF !== -1 &&
+        revF
+          .slice(eF, eF + 220)
+          .includes(
+            "return apiError( 'Service temporarily unavailable', 'SERVICE_UNAVAILABLE', 503,"
+          )
+    );
+
+    const revApp = withoutComments(
+      readFileSync('app/api/reverse/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const cA = revApp.indexOf(
+      '(await isSuppressed(platform, [handle])).size > 0;'
+    );
+    const nA = revApp.indexOf('await countBySecondaryHandle(handle)');
+    const eA = revApp.indexOf(
+      "console.error('Suppression check failed on /api/reverse:', error);"
+    );
+    ok(
+      'the app reverse route asks the list before even the free count, and a suppressed handle counts zero',
+      cA !== -1 &&
+        nA !== -1 &&
+        cA < nA &&
+        revApp.includes(
+          'if (handleSuppressed) { if (!entitled) { return NextResponse.json(lockedReverseBody(platform, handle, 0)); }'
+        ) &&
+        eA !== -1 &&
+        revApp
+          .slice(eA, eA + 220)
+          .includes(
+            "return NextResponse.json( { error: 'Service temporarily unavailable' }, { status: 503 } );"
+          )
+    );
+  }
+
+  // -------------------------------- right-to-removal: what a restore contains
+  // The asymmetry IS the restore semantics. suppressed_identifiers goes in
+  // BOTH lists: a backup restored without it would un-remove every person who
+  // asked to be gone, while with it the triggers re-suppress every restored
+  // identity row on its next write and the pre-flight filter holds meanwhile.
+  // suppression_quarantine goes in NEITHER: it holds the erased edges whole,
+  // and a nightly dump would stretch the stated 30-day retention into a
+  // 90-day artifact.
+  {
+    const grants = readFileSync('scripts/migrate-grant-readonly.ts', 'utf8');
+    const readOnly = [
+      ...(
+        grants.match(/const READ_ONLY_TABLES = \[([\s\S]*?)\]/)?.[1] ?? ''
+      ).matchAll(/'([a-z0-9_]+)'/g),
+    ].map((m) => m[1]);
+    const backup = [
+      ...(
+        grants.match(/const BACKUP_TABLES = \[([\s\S]*?)\]/)?.[1] ?? ''
+      ).matchAll(/'([a-z0-9_]+)'/g),
+    ].map((m) => m[1]);
+    ok(
+      'suppressed_identifiers is in BOTH lists, so a restore cannot un-remove people',
+      readOnly.includes('suppressed_identifiers') &&
+        backup.includes('suppressed_identifiers')
+    );
+    ok(
+      'suppression_quarantine is in NEITHER list',
+      !readOnly.includes('suppression_quarantine') &&
+        !backup.includes('suppression_quarantine')
+    );
+    const yml = readFileSync('.github/workflows/db-backup.yml', 'utf8');
+    ok(
+      'the dump names the suppression list and never the quarantine',
+      yml.includes('-t public.suppressed_identifiers') &&
+        !yml.includes('-t public.suppression_quarantine')
+    );
+  }
+
+  // ------------------------------------ right-to-removal: jittered timestamps
+  // One request naming a wallet and a handle becomes two rows, and equal
+  // insert timestamps would rebuild exactly the association the
+  // one-identifier-per-row key refuses to store. The jitter is the column
+  // DEFAULT, evaluated per row and per column, and everything that could
+  // defeat it is asserted: the expression, both columns, the migration's own
+  // catalog verification, and the schema declaration beside it.
+  {
+    const migCode = withoutComments(
+      readFileSync('scripts/migrate-suppression.ts', 'utf8')
+    );
+    const mflat = migCode.replace(/\s+/g, ' ');
+    ok(
+      'the timestamp default is jittered and backward only',
+      migCode.includes(
+        "const JITTERED_DEFAULT = `(now() - random() * interval '4 hours')`;"
+      )
+    );
+    ok(
+      'both timestamp columns take the jittered default, at create and at converge',
+      migCode.split('${JITTERED_DEFAULT}').length - 1 === 4
+    );
+    const unjIdx = mflat.indexOf('if (unjittered.length > 0) {');
+    ok(
+      'the migration reads the live defaults out of pg_attrdef and refuses when random() is gone',
+      mflat.includes(
+        "return !row || !String(row.expr).includes('random()');"
+      ) &&
+        unjIdx !== -1 &&
+        mflat.slice(unjIdx, unjIdx + 300).includes('process.exit(1)')
+    );
+    const schemaSrc = withoutComments(readFileSync('db/schema.ts', 'utf8'));
+    ok(
+      'db/schema.ts declares the same jittered defaults',
+      schemaSrc.split("default(sql`now() - random() * interval '4 hours'`)")
+        .length -
+        1 ===
+        2
     );
   }
 

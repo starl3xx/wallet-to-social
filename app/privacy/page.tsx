@@ -26,7 +26,11 @@ import type { Metadata } from 'next';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
-import { ANALYTICS_RETENTION_DAYS } from '@/app/api/cron/cleanup/route';
+import {
+  ANALYTICS_RETENTION_DAYS,
+  JOB_PAYLOAD_RETENTION_DAYS,
+} from '@/app/api/cron/cleanup/route';
+import { QUARANTINE_RETENTION_DAYS } from '@/lib/removal-admin';
 import { NEGATIVE_RECHECK_DAYS } from '@/lib/social-graph';
 import { LEGAL_ENTITY } from '@/lib/site-url';
 import {
@@ -43,7 +47,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '30 August 2026';
+const UPDATED = '2 September 2026';
 
 function Section({
   id,
@@ -204,12 +208,28 @@ export default function PrivacyPage() {
             others for you.
           </p>
           <p>
-            <span className="text-foreground">What we cannot do yet.</span> We
-            remove you from the index by hand. We cannot yet stop an automated
-            sweep from finding the same public record again later and adding it
-            back, so a removal can undo itself. Until that is built, write to us
-            again and we will remove it again. We would rather say this than
-            imply a door that locks.
+            <span className="text-foreground">What happens next.</span> A person
+            reads your email and runs the removal by hand; there is no form and
+            no automation between you and it. Each identifier you name is
+            deleted from the index and added to a suppression list that every
+            write path checks, so an automated sweep that finds the same public
+            record later cannot put it back. The removal is permanent. Where a
+            customer’s saved lookup that we still hold carries the link, the
+            link is removed from it: everything we resolved for the identifier
+            is stripped, so the entry reads as if nothing was found. An address
+            that was part of the customer’s own uploaded list stays in that
+            list, carrying nothing. A saved lookup whose subject is the
+            identifier itself (a search for the wallets behind your handle) is
+            deleted whole. We complete this within 30 days, the same period as
+            every other request on this page.
+          </p>
+          <p>
+            One copy survives, briefly and on purpose. For{' '}
+            {QUARANTINE_RETENTION_DAYS} days after a removal we keep what was
+            deleted in a table read only by the removal tooling itself, kept so
+            a removal made in error (a mistyped address, somebody else’s handle)
+            can be undone. After {QUARANTINE_RETENTION_DAYS} days that copy is
+            deleted automatically.
           </p>
           <p>
             Two things are beyond our reach whatever we build. A customer who
@@ -293,8 +313,16 @@ export default function PrivacyPage() {
                   ['Your account and credits', 'Until you ask us to delete it'],
                   ['Saved lookups', 'Until you delete them, or the account'],
                   [
+                    'Background job payloads',
+                    `The addresses and raw results a job carries: ${JOB_PAYLOAD_RETENTION_DAYS} days`,
+                  ],
+                  [
                     'Wallet-to-identity mappings',
                     'Indefinitely. This is the index',
+                  ],
+                  [
+                    'Removal quarantine copies',
+                    `${QUARANTINE_RETENTION_DAYS} days, so a mistaken removal can be undone`,
                   ],
                   ['Cached raw results', `${CACHE_TTL_DAYS} days`],
                   [

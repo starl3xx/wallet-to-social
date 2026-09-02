@@ -11,3 +11,4 @@ export { UsageMeter } from './UsageMeter';
 export { AccountDetail } from './AccountDetail';
 export { HandleConflicts } from './HandleConflicts';
 export { DependencyHealth } from './DependencyHealth';
+export { RemovalPane } from './RemovalPane';

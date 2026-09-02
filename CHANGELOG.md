@@ -2,6 +2,57 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-02 (right-to-removal stage 1: the promise becomes true)
+
+The privacy page has promised since 2026-08-30 that a removal request needs
+no proof and that we would rather admit a removal can undo itself than imply
+a door that locks. Stage 1 builds the lock. Six policy decisions (recorded in
+full under principle 8 of `docs/AGENT-SYSTEM.md`) shipped together:
+
+- **Intake, staged.** Stage 1 is email-only to the published support
+  address, executed by an operator through an admin-gated removal endpoint;
+  no proof is demanded. Verified self-serve lanes are a later stage and are
+  not built.
+- **Scope.** Requester-named identifiers only: one independent
+  `(kind, identifier)` row in `suppressed_identifiers` per identifier,
+  nothing stored that associates the rows, insert timestamps jittered so a
+  multi-identifier request cannot be reassembled. The dedupe and negative
+  tables stay outside the boundary, documented, because deleting
+  do-not-reprocess markers would increase processing of the person who
+  asked to be left alone.
+- **Disclosure, calibrated.** The email reply script is uniform and never
+  confirms whether a record existed; no removed event type appears on any
+  surface; no automatic refunds.
+- **Reversal.** Before deletion the affected rows are copied to an
+  operator-only quarantine table, purged at 30 days by the cleanup cron; a
+  `lane` column on the suppression table records the verification method,
+  never anything about the requester; un-suppress restores from quarantine
+  and is operator-only.
+- **Saved copies.** Background job payloads expire at 30 days; a serve-time
+  filter strips suppressed identifiers from history and jobs reads; each
+  removal amends saved results in place, non-fail-soft, removing the
+  mapping keys (absent keys are the ordinary-miss shape, so an amended row
+  cannot be fingerprinted as a removal) while keeping the wallet entry so
+  row counts align. A saved reverse lookup whose subject is the removed
+  handle is quarantined and deleted whole, name and all.
+- **The promise, laddered.** `app/privacy/page.tsx` now states exactly what
+  stage 1 ships: removal by email, executed by hand, permanent because the
+  suppression list blocks re-collection, a 30-day quarantine copy kept so
+  a mistaken removal can be undone, and saved customer lookups
+  amended. The no-proof sentence, the jurisdiction-blind stance and the
+  30-day SLA all stand; the exports-already-downloaded carve-out stays. The
+  retention table gains the quarantine copies and job payload rows.
+
+Enforcement is in the database, not a checklist: `BEFORE INSERT OR UPDATE`
+row triggers with `SECURITY DEFINER` functions on every table declaring a
+wallet or handle column (the UPDATE half is load-bearing: an upsert's
+conflict branch would otherwise restore the handle through `COALESCE`), plus
+a pre-flight filter in `lib/job-processor.ts` so a suppressed wallet with no
+cached row does not run the external pipeline. The operator runbook (reply
+script, endpoint order, un-suppress window, migration-before-merge) is in
+`docs/OPERATIONS.md`; the posture row there moves from designed-unshipped to
+stage 1 in review.
+
 ### 2026-09-02 (the funnel pane answers the source, gate and rail questions)
 
 The admin funnel had the data for "where do people come from, which gate

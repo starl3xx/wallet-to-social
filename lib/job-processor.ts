@@ -26,6 +26,11 @@ import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 import type { UserTier } from '@/lib/access';
 import { asSourceList } from '@/lib/api-sources';
+import {
+  loadSuppressionList,
+  scrubResultRow,
+  SUPPRESSION_KINDS,
+} from '@/lib/suppression';
 
 // Process up to this many wallets per cron invocation
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
@@ -230,18 +235,51 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
     }
 
+    // =========================================================================
+    // PRE-FLIGHT: the suppression filter. Runs before anything reads or
+    // resolves, and it is load-bearing, not an optimisation.
+    //
+    // A suppressed wallet must never reach the external resolvers, because
+    // asking an upstream about a person who asked us to stop is still
+    // processing them. It must never touch wallet_cache or social_graph
+    // reads either: after a backup restore, a deleted row can transiently
+    // exist again, and this filter is what keeps it unserved until the next
+    // write re-suppresses it. And it must never enter upsertNegativeWallets,
+    // because the suppression trigger silently drops that write, which would
+    // turn the one persisted "checked, nothing found" row into a fresh
+    // external pipeline on every future lookup: re-collection moving from
+    // monthly to per-lookup, for exactly the person who objected.
+    //
+    // Dropped wallets keep their initialised row above, so they surface in
+    // the results as ordinary not-found rows (same shape as a wallet with no
+    // record: the keys are absent and `source` stays empty) and, carrying no
+    // handle, they count in no match stat and bill nothing.
+    //
+    // Fail closed: a failed list read throws and the job is marked failed,
+    // unbilled, with "submit the list again" as the caller-facing answer.
+    // Proceeding unfiltered is the one behaviour this feature cannot allow.
+    // =========================================================================
+    const suppression = await loadSuppressionList();
+    const suppressedWallets = suppression.get('wallet')!;
+    const activeWallets =
+      suppressedWallets.size === 0
+        ? walletsToProcess
+        : walletsToProcess.filter(
+            (w) => !suppressedWallets.has(w.toLowerCase())
+          );
+
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     let cacheHits = job.cacheHits;
     let graphHits = 0;
     let graphNegativeHits = 0;
-    let uncachedWallets = walletsToProcess;
+    let uncachedWallets = activeWallets;
 
     // =========================================================================
     // STEP 0: Check known_agents table (highest confidence agent detection)
     // Pre-populate agent fields for known wallets before any API calls
     // =========================================================================
     try {
-      const knownAgentResults = await detectKnownAgents(walletsToProcess);
+      const knownAgentResults = await detectKnownAgents(activeWallets);
       for (const [wallet, agentData] of knownAgentResults) {
         const existing = results.get(wallet);
         if (existing) {
@@ -268,7 +306,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     const walletsNeedingLookup: string[] = [];
     try {
-      const graphResults = await getSocialGraphWithQuality(walletsToProcess);
+      const graphResults = await getSocialGraphWithQuality(activeWallets);
 
       for (const [wallet, graphResult] of graphResults) {
         const existing = results.get(wallet)!;
@@ -319,8 +357,10 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
     } catch (error) {
       console.error('Social graph lookup error:', error);
-      // On error, fall back to looking up all wallets
-      walletsNeedingLookup.push(...walletsToProcess);
+      // On error, fall back to looking up all non-suppressed wallets. Never
+      // walletsToProcess: this fallback must not become the path that walks
+      // a suppressed wallet into the external pipeline.
+      walletsNeedingLookup.push(...activeWallets);
     }
 
     // Track social graph hit rate for this chunk
@@ -634,6 +674,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       results.set(wallet, result);
     }
 
+    /**
+     * Scrub suppressed identifiers out of every in-flight row, before any
+     * stat is counted and before the rows are written back to the job.
+     *
+     * The pre-flight above covers suppressed wallets, but a suppressed
+     * HANDLE can still arrive here: a live resolve of some other,
+     * unsuppressed wallet returns whatever the upstream still maps to it.
+     * The triggers strip that from social_graph and wallet_cache on write,
+     * but nothing guards the job row or the stats. Left in, the handle
+     * would count into anySocialFound and be billed as a match that the
+     * serve-time filter then hides, and it would persist inside
+     * partial_results, which the per-removal amend has already run over.
+     *
+     * The whole map rather than this chunk, because the progress save below
+     * writes the whole map back to partial_results: rows loaded from a
+     * resume must not re-save a mapping a removal amended away mid-job.
+     */
+    if (SUPPRESSION_KINDS.some((k) => (suppression.get(k)?.size ?? 0) > 0)) {
+      for (const [wallet, result] of results) {
+        results.set(wallet, scrubResultRow(result, suppression));
+      }
+    }
+
     // Calculate stats for this chunk
     const chunkResults = walletsToProcess.map(
       (w) => results.get(w.toLowerCase())!
@@ -865,6 +928,44 @@ async function finalizeJobWithResults(
    * the whole batch and `saveLookup` persists what the live view showed.
    */
   await stampAlsoOnX(results);
+
+  /**
+   * The last look before anything durable is written from this array.
+   *
+   * `saveLookup` below writes lookup_history.results, which no trigger
+   * guards and which the per-removal amend can no longer reach (it already
+   * ran, before this job finished). The chunk-level scrub covered rows as
+   * they were processed, but a removal can land between a chunk and this
+   * finalize, and `finalizeJob` can arrive here straight off stored partial
+   * results without a chunk pass at all. The list is re-read rather than
+   * threaded through, so the freshest removal wins; a failed read throws
+   * and the job fails closed, unbilled, rather than saving unchecked rows.
+   *
+   * After the stamps, deliberately: `stampAlsoOnX` reads handle_conflicts,
+   * and in the window where a restore has resurrected a deleted conflict
+   * row it can stamp a suppressed handle back on as `twitter_also`.
+   */
+  const suppression = await loadSuppressionList();
+  if (SUPPRESSION_KINDS.some((k) => (suppression.get(k)?.size ?? 0) > 0)) {
+    for (let i = 0; i < results.length; i++) {
+      results[i] = scrubResultRow(results[i], suppression);
+    }
+    /**
+     * The stats are recomputed from what will actually be served and
+     * saved. The accumulated chunk counts were taken before this scrub, so
+     * a removal landing mid-job would otherwise leave them one higher than
+     * the rows show: the customer is billed (`chargeForJob` reads
+     * `anySocialFound` below) for a match they never receive, and the
+     * off-by-one between meta stats and served rows is itself a removal
+     * oracle. `results` is the complete array here, so recounting is exact
+     * and equals the accumulation whenever nothing was scrubbed.
+     */
+    twitterFound = results.filter((r) => r.twitter_handle).length;
+    farcasterFound = results.filter((r) => r.farcaster).length;
+    anySocialFound = results.filter(
+      (r) => r.twitter_handle || r.farcaster
+    ).length;
+  }
 
   // Save to history if requested
   if (options.saveToHistory) {

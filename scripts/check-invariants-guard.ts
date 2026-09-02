@@ -695,10 +695,15 @@ const MUTATIONS: Mutation[] = [
     to: 'const wallets = body.wallets ?? starter?.wallets;',
   },
   {
+    // Anchored on the list's new last entry plus the declaration after it:
+    // BACKUP_TABLES gained 'suppressed_identifiers' with removal stage 1, so
+    // the old `'credit_ledger',\n];` anchor stopped matching, and both
+    // arrays now end with the same entry, so the trailing context is what
+    // keeps this applying to the dump list and not the read-only list.
     name: 'BACKUP_TABLES diverges from the pg_dump list',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'credit_ledger',\n];",
-    to: "  'credit_ledger',\n  'x402_recovery_redemptions',\n];",
+    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
+    to: "  'suppressed_identifiers',\n  'x402_recovery_redemptions',\n];\n\nconst GRANTS",
   },
 
   // --- the MCP server's OAuth flow ----------------------------------------
@@ -806,10 +811,12 @@ const MUTATIONS: Mutation[] = [
     to: "  sameSite: 'none' as const,",
   },
   {
+    // Same re-anchoring as the BACKUP_TABLES divergence mutation above: the
+    // dump list's last entry is now 'suppressed_identifiers'.
     name: 'a grant table joins the nightly dump, so a restore resurrects a revoked connection',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'credit_ledger',\n];",
-    to: "  'credit_ledger',\n  'oauth_grants',\n];",
+    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
+    to: "  'suppressed_identifiers',\n  'oauth_grants',\n];\n\nconst GRANTS",
   },
   {
     name: 'the code is spent before the exchange is validated (Bugbot, 2026-08-25)',
@@ -1062,6 +1069,175 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/holder-pages.ts',
     from: "  if (process.env.VERCEL_ENV === 'preview') return [];\n  const db = getDb();",
     to: '  const db = getDb();',
+  },
+
+  // --- right-to-removal stage 1 -------------------------------------------
+
+  {
+    // The mutation the synthesis names first. Without the pre-flight, a
+    // suppressed wallet with no cached row runs the full external pipeline,
+    // and the trigger then blocks upsertNegativeWallets, so it runs it again
+    // on EVERY lookup: re-collection moving from monthly to per-lookup.
+    name: 'the pre-flight filter is deleted, so a suppressed wallet runs the full pipeline',
+    file: 'lib/job-processor.ts',
+    from:
+      '    const activeWallets =\n' +
+      '      suppressedWallets.size === 0\n' +
+      '        ? walletsToProcess\n' +
+      '        : walletsToProcess.filter(\n' +
+      '            (w) => !suppressedWallets.has(w.toLowerCase())\n' +
+      '          );',
+    to: '    const activeWallets = walletsToProcess;',
+  },
+  {
+    name: 'the graph-error fallback walks every submitted wallet, suppressed included',
+    file: 'lib/job-processor.ts',
+    from: '      walletsNeedingLookup.push(...activeWallets);',
+    to: '      walletsNeedingLookup.push(...walletsToProcess);',
+  },
+  {
+    name: 'the finalize save skips the last scrub, so a mid-job removal is written to history',
+    file: 'lib/job-processor.ts',
+    // Deletes the scrub but leaves the surrounding read and if-block, so
+    // the assertion must anchor on the scrub statement itself rather than
+    // on loadSuppressionList being called somewhere nearby.
+    from:
+      '    for (let i = 0; i < results.length; i++) {\n' +
+      '      results[i] = scrubResultRow(results[i], suppression);\n' +
+      '    }\n',
+    to: '',
+  },
+  {
+    // The recompute after the finalize scrub is what keeps billing equal
+    // to what is served: without it a mid-job removal is billed as a match
+    // the customer never receives, and the stats-vs-rows off-by-one is a
+    // removal oracle.
+    name: 'the finalize keeps pre-scrub stats, billing a match the scrub removed',
+    file: 'lib/job-processor.ts',
+    from: '    anySocialFound = results.filter(\n      (r) => r.twitter_handle || r.farcaster\n    ).length;\n',
+    to: '',
+  },
+  {
+    // The load-bearing order: suppression rows commit FIRST, then the
+    // erasure. Fired without awaiting, the deletes race an in-flight sweep
+    // batch that can re-insert the mapping before any guard exists.
+    name: 'the erasure runs before the suppression rows exist, reopening the re-insert window',
+    file: 'app/api/admin/removal/route.ts',
+    from: '    outcomes = await insertSuppressions(db, targets, lane, reason);',
+    to: '    outcomes = new Map();\n    void insertSuppressions(db, targets, lane, reason);',
+  },
+  {
+    // The exact shape of propagateManualCorrection, which is correct there
+    // and forbidden here: a swallowed amend failure is masked by the
+    // serve-time filter forever, while the operator reads "removed".
+    name: 'the jsonb amend goes fail-soft, copying the manual-correction shape',
+    file: 'lib/removal-admin.ts',
+    from:
+      '  const historyRows = await amendSavedCopies(\n' +
+      '    db,\n' +
+      "    'lookup_history',\n" +
+      "    'results',\n" +
+      '    identifier,\n' +
+      '    RESULT_MATCH_KEY[kind],\n' +
+      '    RESULT_STRIP[kind],\n' +
+      "    kind === 'twitter'\n" +
+      '  );',
+    to:
+      '  const historyRows = await amendSavedCopies(\n' +
+      '    db,\n' +
+      "    'lookup_history',\n" +
+      "    'results',\n" +
+      '    identifier,\n' +
+      '    RESULT_MATCH_KEY[kind],\n' +
+      '    RESULT_STRIP[kind],\n' +
+      "    kind === 'twitter'\n" +
+      '  ).catch((error) => {\n' +
+      "    console.error('lookup_history amend failed:', error);\n" +
+      '    return 0;\n' +
+      '  });',
+  },
+  {
+    name: 'the endpoint writes its own timestamps, defeating the per-row jitter',
+    file: 'lib/removal-admin.ts',
+    from:
+      '      INSERT INTO suppressed_identifiers (kind, identifier, reason, lane)\n' +
+      '      VALUES (${t.kind}, ${t.identifier}, ${reason}, ${lane})',
+    to:
+      '      INSERT INTO suppressed_identifiers (kind, identifier, reason, lane, requested_at, created_at)\n' +
+      '      VALUES (${t.kind}, ${t.identifier}, ${reason}, ${lane}, now(), now())',
+  },
+  {
+    name: 'the jitter collapses to a shared now(), so co-batched rows re-join by equality',
+    file: 'scripts/migrate-suppression.ts',
+    from: "const JITTERED_DEFAULT = `(now() - random() * interval '4 hours')`;",
+    to: 'const JITTERED_DEFAULT = `now()`;',
+  },
+  {
+    // EXCLUDED reflects BEFORE INSERT edits, so an INSERT-only guard leaks
+    // a suppressed handle back through COALESCE(EXCLUDED.x, stored.x) and
+    // through every literal-set UPDATE writer.
+    name: 'the guard fires on INSERT alone, so the upsert conflict branch keeps the handle',
+    file: 'scripts/migrate-suppression.ts',
+    from: '             BEFORE INSERT OR UPDATE ON ${a.table}',
+    to: '             BEFORE INSERT ON ${a.table}',
+  },
+  {
+    // The coverage assertion's whole reason to exist: an identity-carrying
+    // table added later, with no trigger and no boundary entry, must fail
+    // the build rather than quietly falsify the promise.
+    name: 'a new identity-carrying table ships with no trigger and no boundary entry',
+    file: 'db/schema.ts',
+    from: 'export type SuppressedIdentifier = typeof suppressedIdentifiers.$inferSelect;',
+    to:
+      "export const probeContacts = pgTable('probe_contacts', {\n" +
+      "  wallet: text('wallet').primaryKey(),\n" +
+      '});\n\n' +
+      'export type SuppressedIdentifier = typeof suppressedIdentifiers.$inferSelect;',
+  },
+  {
+    name: 'a guarded table quietly leaves the attachment list',
+    file: 'scripts/migrate-suppression.ts',
+    from:
+      '  {\n' +
+      "    table: 'known_agents',\n" +
+      "    fn: 'suppression_guard_skip',\n" +
+      "    args: `'wallet=wallet', 'twitter=twitter_handle', 'farcaster=farcaster'`,\n" +
+      '  },\n',
+    to: '',
+  },
+  {
+    name: 'the quarantine table joins the nightly dump, stretching 30 days into a 90-day artifact',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
+    to: "  'suppressed_identifiers',\n  'suppression_quarantine',\n];\n\nconst GRANTS",
+  },
+  {
+    name: 'the suppression list leaves the dump, so a restore un-removes everyone who asked',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
+    to: '];\n\nconst GRANTS',
+  },
+  {
+    // The refusal is deleted but the logging stays, which is how fail-open
+    // usually looks in review: the error is "handled" and the stored payload
+    // ships unfiltered anyway.
+    name: 'a failed serve-time filter falls through to the stored payload',
+    file: 'app/api/v1/jobs/[id]/route.ts',
+    from:
+      "      console.error('Suppression filter failed on /v1/jobs read:', error);\n" +
+      '      return apiError(',
+    to:
+      "      console.error('Suppression filter failed on /v1/jobs read:', error);\n" +
+      '      void apiError(',
+  },
+  {
+    // The free count above the paywall becomes an existence oracle: a
+    // nonzero total for a suppressed handle is exactly the confirmation the
+    // calibrated-disclosure decision forbids.
+    name: 'the reverse count stops asking the suppression list',
+    file: 'app/api/reverse/route.ts',
+    from: '    handleSuppressed = (await isSuppressed(platform, [handle])).size > 0;',
+    to: '    handleSuppressed = false;',
   },
 ];
 

@@ -185,6 +185,24 @@ export async function updateLookup(
   return updated.length > 0;
 }
 
+/**
+ * Hard delete, not a hidden flag. A saved lookup is the customer's copy of a
+ * result set, and deleting their copy is their call; keeping a shadow of it
+ * after they asked would be retention nobody agreed to. The caller checks
+ * ownership first (the route does, the same way its GET does).
+ */
+export async function deleteLookup(id: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+
+  const deleted = await db
+    .delete(lookupHistory)
+    .where(eq(lookupHistory.id, id))
+    .returning();
+
+  return deleted.length > 0;
+}
+
 export async function updateLookupName(
   id: string,
   name: string

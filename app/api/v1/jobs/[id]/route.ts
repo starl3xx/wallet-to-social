@@ -20,6 +20,7 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import { scrubSuppressed } from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -174,12 +175,38 @@ export async function GET(
       );
     }
 
-    const rows = page.rows.map((r) => ({
+    let rows: WalletSocialResult[] = page.rows.map((r) => ({
       ...r,
       // Rows written before the source-order fix can carry a comma-joined
       // string here; coerced the same way the processor coerces on resume.
       source: asSourceList(r.source),
     }));
+
+    /**
+     * The serve-time suppression filter: a removed identifier must not ship
+     * out of a stored payload, however it got in there. The wallet entries
+     * survive with their mapping fields stripped, so the page's row count,
+     * order and pagination are untouched; a stripped row simply serves as
+     * the same null an ordinary miss serves, and `found`/`not_found` below
+     * are counted after the filter so they agree with what shipped.
+     *
+     * Fail closed. Serving the stored payload unfiltered because the
+     * suppression list could not be read would make an outage of one tiny
+     * table an un-removal, so the read gets the same retryable answer as a
+     * missing results page. The poll is free either way.
+     */
+    try {
+      const scrub = await scrubSuppressed([rows]);
+      rows = scrub.rowSets[0];
+    } catch (error) {
+      console.error('Suppression filter failed on /v1/jobs read:', error);
+      return apiError(
+        'Results are temporarily unavailable. Retry shortly; the poll is free.',
+        'SERVICE_UNAVAILABLE',
+        503,
+        { ...context.rateLimitHeaders, ...corsHeaders }
+      );
+    }
 
     const byWallet = new Map<string, WalletSocialResult>();
     for (const r of rows) byWallet.set(r.wallet, r);

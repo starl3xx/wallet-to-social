@@ -6,11 +6,13 @@ import {
   updateLookupName,
   markLookupViewed,
   getLookupLastViewedAt,
+  deleteLookup,
 } from '@/lib/history';
 import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
+import { scrubSuppressed } from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 /**
@@ -126,8 +128,31 @@ export async function GET(
     // correct on the day somebody upgrades.
     await markLookupViewed(id);
 
+    /**
+     * The serve-time suppression filter, last before the payload ships.
+     *
+     * Removed identifiers are stripped from the stored rows on the way out;
+     * every wallet row stays, mapping fields removed, so the table the
+     * customer reopens has the same rows in the same order. The enriched
+     * list is filtered with the same read: "this wallet has new data" is
+     * itself a claim about a suppressed wallet, so it must not survive the
+     * row being stripped.
+     *
+     * Fail closed: a throw lands in the catch below and the request errors
+     * rather than serving the stored payload unfiltered.
+     */
+    const scrub = await scrubSuppressed([
+      lookup.results as WalletSocialResult[],
+    ]);
+    const servedResults = scrub.rowSets[0];
+    if (scrub.suppressedWallets.size > 0) {
+      enrichedWallets = enrichedWallets.filter(
+        (w) => !scrub.suppressedWallets.has(w.toLowerCase())
+      );
+    }
+
     return NextResponse.json({
-      results: lookup.results,
+      results: servedResults,
       enrichedWallets, // wallets that were updated since last view
     });
   } catch (error) {
@@ -206,8 +231,19 @@ export async function PATCH(
       );
     }
 
+    /**
+     * The same scrub the GET applies on the way out, applied on the way
+     * in. Without it a customer re-upload (this endpoint merges results
+     * from the browser) could put a suppressed identifier back at rest
+     * after the per-removal amend has run, and nothing would re-amend it
+     * until that identifier's next removal run. Fail closed: a failed
+     * suppression read throws into the catch below and the write is
+     * refused rather than stored unchecked.
+     */
+    const scrub = await scrubSuppressed([results]);
+
     // Update the lookup
-    const success = await updateLookup(id, results);
+    const success = await updateLookup(id, scrub.rowSets[0]);
 
     if (!success) {
       return NextResponse.json(
@@ -221,6 +257,59 @@ export async function PATCH(
     console.error('History update error:', error);
     return NextResponse.json(
       { error: 'Failed to update lookup' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Delete a saved lookup. Their copy, their call.
+ *
+ * Until this existed only the admin endpoint could delete a lookup
+ * (DELETE /api/admin/history), so the retention story for saved lookups was
+ * "kept until the owner deletes it" with no way for the owner to do so. This
+ * is that way: any signed-in owner, no paid gate (a copy you cannot get rid
+ * of is not yours), a hard delete of the row.
+ *
+ * Ownership goes through the same helper as GET and PATCH, so a lookup that
+ * is missing and a lookup someone else owns are the same 404 (the repo
+ * pattern; /v1/jobs/{id} does the same, because a distinct answer for
+ * "exists but not yours" is an enumeration oracle).
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 503 }
+    );
+  }
+
+  try {
+    const { id } = await params;
+
+    // Validate session and ownership
+    const validation = await validateSessionAndOwnership(id);
+    if (!validation.success) {
+      return validation.response;
+    }
+
+    const success = await deleteLookup(id);
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Failed to delete lookup' },
+        { status: 500 }
+      );
+    }
+
+    // Deleted, nothing to return.
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error('History delete error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete lookup' },
       { status: 500 }
     );
   }

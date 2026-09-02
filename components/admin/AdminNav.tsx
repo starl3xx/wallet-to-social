@@ -14,6 +14,7 @@ import {
   // `PencilSimple`, not `Pencil`: they are different glyphs, and the page was
   // rendering this one.
   PencilSimple as Pencil,
+  Eraser,
   type Icon,
 } from '@phosphor-icons/react';
 
@@ -26,7 +27,8 @@ export type AdminTab =
   | 'usage'
   | 'records'
   | 'accounts'
-  | 'data';
+  | 'data'
+  | 'removal';
 
 interface NavItem {
   value: AdminTab;
@@ -35,7 +37,7 @@ interface NavItem {
 }
 
 /**
- * Two groups, nine destinations, one question each.
+ * Two groups, ten destinations, one question each.
  *
  * It was thirteen, and the problem was never the count: four pairs answered
  * the same question in two places, so the panel's own navigation could not tell
@@ -75,6 +77,7 @@ const OPERATIONS: NavItem[] = [
   { value: 'records', label: 'Records', icon: Briefcase },
   { value: 'accounts', label: 'Accounts', icon: Users },
   { value: 'data', label: 'Data', icon: Pencil },
+  { value: 'removal', label: 'Removal', icon: Eraser },
 ];
 
 function NavGroup({
@@ -108,8 +111,7 @@ function NavGroup({
           for "Saved lookups", which at a 320px screen needed 138px inside a
           132px cell and spilled out of the pill; the longest label is now
           "Accounts" and fits at every step. `lg:grid-cols-5` fills the row
-          exactly for the five analytics destinations and leaves the four
-          operations ones at their natural width rather than stretched. */}
+          exactly for the five destinations each group now holds. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
         {items.map((item) => {
           const Icon = item.icon;
