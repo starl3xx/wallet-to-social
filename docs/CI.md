@@ -33,7 +33,8 @@ inputs.
 needs no database, no Chrome and no secrets (format, typecheck, palette,
 design-language, contrast, og-palette, invariants) in one command.
 
-Rules of thumb: `npm run build` typechecks as part of the build, and
+Rules of thumb: a stale `.next/` can fail `typecheck` on generated route
+types; `rm -rf .next` and re-run. `npm run build` typechecks as part of the build, and
 `npx tsc --noEmit` is the faster standalone check (the tree currently
 typechecks clean); after touching `scripts/check-invariants.ts` always run
 the guard too; after editing any string under `app/`, run design-language
