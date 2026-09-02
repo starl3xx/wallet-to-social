@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiRequest, apiSuccess, apiError } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
-import { getJob } from '@/lib/job-processor';
+import { getJobStatus, getJobResultsPage } from '@/lib/job-processor';
 import { publicSources, asSourceList } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
@@ -58,6 +58,16 @@ const PUBLIC_STAGE: Record<string, string | undefined> = {
   web3bio: 'live',
 };
 
+/**
+ * Results are paged, because a job accepts lists far above the batch cap and
+ * a single response carrying 100k rows would exceed what a serverless
+ * function can hold or ship. The page is sliced and filtered inside
+ * Postgres (`getJobResultsPage`), so no poll ever deserialises the whole
+ * job; a progress poll reads counts only (`getJobStatus`).
+ */
+const RESULTS_PAGE_LIMIT_MAX = 1000;
+const RESULTS_PAGE_LIMIT_DEFAULT = 1000;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -78,6 +88,26 @@ export async function GET(
     );
   }
 
+  const offsetParam = request.nextUrl.searchParams.get('offset');
+  const limitParam = request.nextUrl.searchParams.get('limit');
+  const offset = offsetParam === null ? 0 : Number(offsetParam);
+  const limit =
+    limitParam === null ? RESULTS_PAGE_LIMIT_DEFAULT : Number(limitParam);
+  if (
+    !Number.isInteger(offset) ||
+    offset < 0 ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > RESULTS_PAGE_LIMIT_MAX
+  ) {
+    return apiError(
+      `offset must be a non-negative integer and limit an integer from 1 to ${RESULTS_PAGE_LIMIT_MAX}.`,
+      'INVALID_REQUEST',
+      400,
+      corsHeaders
+    );
+  }
+
   const authResult = await authenticateApiRequest(request, CREDITS_COST);
   if ('error' in authResult) {
     return authResult.error;
@@ -85,7 +115,7 @@ export async function GET(
 
   const { context } = authResult;
 
-  const job = await getJob(id);
+  const job = await getJobStatus(id);
 
   // A job another account owns and a job that does not exist are the same
   // answer. System jobs carry a null userId and are nobody's to read.
@@ -113,7 +143,7 @@ export async function GET(
     status: job.status,
     progress: {
       processed: job.processedCount,
-      total: job.wallets.length,
+      total: job.walletCount,
       stage: job.currentStage ? (PUBLIC_STAGE[job.currentStage] ?? null) : null,
     },
     created_at: job.createdAt.toISOString(),
@@ -122,7 +152,7 @@ export async function GET(
   };
 
   const meta: Record<string, unknown> = {
-    requested: job.wallets.length,
+    requested: job.walletCount,
   };
 
   if (job.status === 'failed') {
@@ -133,8 +163,18 @@ export async function GET(
       'The job failed before completing. It was not billed; submit the list again.';
   }
 
-  if (job.status === 'completed' && job.partialResults) {
-    const rows = (job.partialResults as WalletSocialResult[]).map((r) => ({
+  if (job.status === 'completed') {
+    const page = await getJobResultsPage(id, offset, limit);
+    if (!page) {
+      return apiError(
+        'Results are temporarily unavailable. Retry shortly; the poll is free.',
+        'SERVICE_UNAVAILABLE',
+        503,
+        { ...context.rateLimitHeaders, ...corsHeaders }
+      );
+    }
+
+    const rows = page.rows.map((r) => ({
       ...r,
       // Rows written before the source-order fix can carry a comma-joined
       // string here; coerced the same way the processor coerces on resume.
@@ -164,7 +204,7 @@ export async function GET(
      * batch response the submission may be sessions old and the caller may no
      * longer hold the list it sent.
      */
-    const wallets = job.wallets.map((w) => w.toLowerCase());
+    const wallets = page.wallets;
     const results: Array<Record<string, unknown> | null> = [];
     let foundCount = 0;
 
@@ -224,12 +264,20 @@ export async function GET(
 
     data.wallets = wallets;
     data.results = results;
+    /**
+     * `found` and `not_found` count THIS PAGE; `requested` and `matched` are
+     * whole-job totals. The split is deliberate: page counts fall out of the
+     * rows shipped, and the only whole-job number the row already holds is
+     * the billed one.
+     */
     meta.found = foundCount;
     meta.not_found = wallets.length - foundCount;
+    meta.offset = offset;
+    meta.limit = limit;
+    meta.next_offset = offset + limit < job.walletCount ? offset + limit : null;
     /**
      * What the job billed: the number `chargeForJob` debited at finalize, a
-     * wallet carrying an X handle or a Farcaster account. `found` is larger,
-     * because ENS, Lens and GitHub identities are free.
+     * wallet carrying an X handle or a Farcaster account.
      */
     meta.matched = job.anySocialFound;
   }

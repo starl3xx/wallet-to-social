@@ -713,17 +713,32 @@ const handler = createMcpHandler(
               /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
             )
             .describe('The job id returned by walletlink_submit_job.'),
+          offset: z
+            .number()
+            .int()
+            .min(0)
+            .optional()
+            .describe(
+              'Result row to start from, for a completed job. Pass the next_offset from a previous call to continue. Omit for the first page.'
+            ),
         }),
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
-      async ({ job_id }, ctx) => {
+      async ({ job_id, offset }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
         if (!authorization) return missingKey();
 
+        /**
+         * The tool asks the route for exactly the page it will show. The
+         * route pages server-side, so neither the function nor this layer
+         * ever holds a whole large job.
+         */
+        const PAGE = 100;
         const id = job_id.toLowerCase();
+        const query = `?limit=${PAGE}&offset=${offset ?? 0}`;
         const result = await callRouteWithParams(
           jobStatusGet,
-          `/api/v1/jobs/${id}`,
+          `/api/v1/jobs/${id}${query}`,
           { id },
           { method: 'GET', authorization }
         );
@@ -746,14 +761,13 @@ const handler = createMcpHandler(
 
         const wallets = asArray(d.wallets);
         const rawResults = asArray(d.results);
-        if (rawResults.length > 0) {
+        if (asString(d.status) === 'completed') {
           /**
            * A model does not need ten thousand rows in a tool result, and no
-           * context window survives them. The first page rides along; the
-           * full set stays one HTTP call away, on the same key, for free.
+           * context window survives them. One 100-row page per call; the
+           * next page is one more free call away via next_offset.
            */
-          const PAGE = 100;
-          const rows = rawResults.slice(0, PAGE).map((row, i) => {
+          const rows = rawResults.map((row, i) => {
             const shaped = shapeRecord(row);
             if (!shaped) {
               return { address: asString(wallets[i]) ?? null, found: false };
@@ -762,15 +776,14 @@ const handler = createMcpHandler(
           });
           out.billed_matches = asNumber(meta.matched, 0);
           out.billing = BILLING_NOTE;
-          out.found = asNumber(meta.found, 0);
-          out.not_found = asNumber(meta.not_found, 0);
+          out.page = {
+            offset: asNumber(meta.offset, 0),
+            found: asNumber(meta.found, 0),
+            not_found: asNumber(meta.not_found, 0),
+            // null when this is the last page.
+            next_offset: meta.next_offset ?? null,
+          };
           out.results = rows;
-          if (rawResults.length > PAGE) {
-            out.results_truncated = true;
-            out.total_results = rawResults.length;
-            out.full_results =
-              'This tool shows the first 100 rows. Read the full set with GET https://walletlink.social/api/v1/jobs/{id} using the same key; that read is free.';
-          }
         }
 
         return ok(out);

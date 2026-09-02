@@ -109,12 +109,18 @@ While the job runs:
 
 ## Results
 
-On completion the poll carries the full results, in the [batch](/api-reference/batch) row shape.
+On completion the poll carries the results one page at a time, in the
+[batch](/api-reference/batch) row shape. Page with `offset` and `limit`
+(default and maximum 1000 rows): `meta.next_offset` is the next page’s
+offset, `null` on the last page, so the whole read is
+`while next_offset is not null`. Paged because a job accepts lists far above
+the batch cap, and a single response carrying them all would be too large to
+ship.
 
 <ResponseField name="data.wallets" type="string[]">
-  The deduplicated, lowercased submission, in processing order. It rides in the
-  same payload as the results because the submission may be sessions old and you
-  may no longer hold the list you sent.
+  This page of the deduplicated, lowercased submission, in processing order. It
+  rides in the same payload as the results because the submission may be
+  sessions old and you may no longer hold the list you sent.
 </ResponseField>
 
 <ResponseField name="data.results" type="array">
@@ -128,9 +134,11 @@ On completion the poll carries the full results, in the [batch](/api-reference/b
 </ResponseField>
 
 <ResponseField name="meta" type="object">
-  `requested`, `found`, `not_found` and `matched`, with the batch arithmetic:
-  `matched` is the number the job billed at completion, and it is never more
-  than `found`, because ENS, Lens and GitHub identities are free.
+  `found` and `not_found` count this page; `requested` and `matched` are
+  whole-job totals, with the batch arithmetic: `matched` is the number the job
+  billed at completion, never more than the sum of `found` across pages, because
+  ENS, Lens and GitHub identities are free. `offset`, `limit` and `next_offset`
+  place the page.
 </ResponseField>
 
 Two things about completed results are worth knowing:

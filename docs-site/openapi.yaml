@@ -587,12 +587,16 @@ paths:
         the same `404 JOB_NOT_FOUND` as a job that does not exist, so a job
         id cannot be used to test whether someone else's job exists.
 
-        On completion the results come back in the batch row shape, aligned
-        to the `wallets` array in the same payload: entry N describes wallet
-        N, `null` where nothing was attached. X reachability and the second
-        attested handle are read at poll time rather than stored with the
-        job, so a repeat poll can differ where the daily reachability check
-        has moved a handle.
+        On completion the results come back in the batch row shape, one
+        page at a time, aligned to the `wallets` array in the same payload:
+        entry N describes wallet N of the page, `null` where nothing was
+        attached. Page with `offset` and `limit`; `meta.next_offset` is the
+        next page's offset, `null` on the last page. `meta.found` and
+        `meta.not_found` count the page; `meta.requested` and `meta.matched`
+        are whole-job totals. X reachability and the second attested handle
+        are read at poll time rather than stored with the job, so a repeat
+        poll can differ where the daily reachability check has moved a
+        handle.
       x-match-credits: 0
       x-rate-limit-units: 0
       parameters:
@@ -604,6 +608,18 @@ paths:
             type: string
             pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           example: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+        - name: offset
+          in: query
+          required: false
+          description: |
+            First result row of the page, 0-based, in submission order. Pass
+            `meta.next_offset` from the previous page to continue.
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: limit
+          in: query
+          required: false
+          description: Rows per page, 1 to 1000.
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 1000 }
       responses:
         '200':
           description: |

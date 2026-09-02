@@ -842,7 +842,7 @@ async function main() {
     const V1_JOB_GATE = 'job.userId !== context.key.userId';
     ok(
       'a job another account owns is refused before any result field is read',
-      before(v1JobSrc, V1_JOB_GATE, 'partialResults')
+      before(v1JobSrc, V1_JOB_GATE, 'getJobResultsPage(')
     );
     ok(
       'the ownership refusal is the missing-job 404, never a 403 existence oracle',
