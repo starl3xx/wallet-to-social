@@ -886,39 +886,399 @@ export async function getGateMetrics(
 }
 
 /**
- * Buy-credits modal opens by the gate that opened them.
+ * Buy-credits modal opens by the gate that opened them, and whether the
+ * session went on to a checkout.
  *
  * The trigger name has been written since the modal existed ('limit' and
- * 'feature' before 2026-08-22, per-gate names after), but nothing read it:
- * the one question the paywall work needs answered, which gate converts, had
- * the data and no query. Bare counts here; join against checkouts by hand
- * once volume justifies it.
+ * 'feature' before 2026-08-22, per-gate names after). The first reader of it
+ * reported bare open counts with a note to "join against checkouts by hand
+ * once volume justifies it"; this is that join, done here so nobody has to.
+ *
+ * The bottom step is a checkout, deliberately not a payment. The payment
+ * lands from the Stripe webhook with no session, so a per-gate "paid" could
+ * only be built on the email join the session funnel documents as a floor,
+ * and a floor divided by a per-gate count would read as a per-gate rate it is
+ * not. `checkout_started` OR `checkout_redirected`, same as the session
+ * funnel's money tail, so a dropped redirect beacon does not lose the intent.
+ *
+ * A session that opened the modal through two gates and checked out once
+ * credits both gates: the join is co-occurrence in the session, not a click
+ * path, and splitting the credit would be inventing an attribution model.
  */
-export async function getPaywallTriggers(
+export interface GateConversion {
+  /** False when the query failed and the empty table below is not a quiet week. */
+  ok: boolean;
+  gates: Array<{
+    trigger: string;
+    /** Modal opens through this gate, one person six times is six. */
+    opens: number;
+    /** Distinct sessions that met this gate. Opens with no session id count above only. */
+    sessions: number;
+    /** Of those sessions, how many reached a checkout in the window. */
+    checkoutSessions: number;
+  }>;
+}
+
+export async function getGateConversion(
   startDate: Date,
   endDate: Date
-): Promise<Array<{ trigger: string; count: number }>> {
+): Promise<GateConversion> {
+  const empty: GateConversion = { ok: false, gates: [] };
   const db = getDb();
-  if (!db) return [];
+  if (!db) return empty;
   try {
-    return (await db
-      .select({
-        trigger: sql<string>`coalesce(${analyticsEvents.metadata}->>'trigger', '(none)')`,
-        count: count(),
-      })
-      .from(analyticsEvents)
-      .where(
-        and(
-          eq(analyticsEvents.eventType, 'upgrade_modal_viewed'),
-          gte(analyticsEvents.createdAt, startDate),
-          lte(analyticsEvents.createdAt, endDate)
-        )
+    const result = (await db.execute(sql`
+      WITH opens AS (
+        SELECT metadata->>'trigger' AS trig, session_id
+        FROM analytics_events
+        WHERE event_type = 'upgrade_modal_viewed'
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+      ),
+      checkouts AS (
+        SELECT DISTINCT session_id
+        FROM analytics_events
+        WHERE event_type IN ('checkout_started', 'checkout_redirected')
+          AND session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
       )
-      .groupBy(sql`1`)
-      .orderBy(desc(count()))) as Array<{ trigger: string; count: number }>;
+      SELECT
+        coalesce(o.trig, '(none)') AS "trigger",
+        count(*)::int AS "opens",
+        count(DISTINCT o.session_id)::int AS "sessions",
+        count(DISTINCT o.session_id) FILTER (
+          WHERE c.session_id IS NOT NULL
+        )::int AS "checkoutSessions"
+      FROM opens o
+      LEFT JOIN checkouts c ON c.session_id = o.session_id
+      GROUP BY 1
+      ORDER BY count(*) DESC
+    `)) as unknown as { rows: GateConversion['gates'] };
+    return { ok: true, gates: result.rows ?? [] };
   } catch (error) {
-    console.error('Paywall triggers error:', error);
-    return [];
+    console.error('Gate conversion error:', error);
+    return empty;
+  }
+}
+
+/**
+ * Where sessions and accounts came from, by first touch.
+ *
+ * `page_view.metadata.origin` and `users.acquisition` have been written since
+ * 2026-08-25 and read by nothing but a one-off campaign script: the exact
+ * shape `getGateMetrics` complains about, data recorded to answer "did the
+ * campaign work" with no query anybody can run. These two groupings are that
+ * query.
+ *
+ * `(untagged)`, never `direct`, for a missing origin. `direct` is a measured
+ * value (this browser arrived with no referrer and no tag); a session whose
+ * first page view carries no origin at all predates the capture, or lost the
+ * beacon, and folding it into `direct` would report the absence of a
+ * measurement as the most common acquisition channel.
+ *
+ * The signup grouping excludes rows minted by the onchain rail
+ * (`users.origin = 'x402'`): the schema documents those as not-signups, and
+ * they carry no browser first touch to group by. `bought` is "has ever
+ * purchased a pack, as of now", not "purchased inside the window": a cohort's
+ * purchases trail its signups by days, and clipping them to the window would
+ * make every recent cohort read as non-converting.
+ */
+export interface AcquisitionSources {
+  /** False when a query failed and the empty tables below are invented. */
+  ok: boolean;
+  /** Sessions grouped by the origin on their first page view in the window. */
+  sessions: Array<{
+    source: string;
+    sessions: number;
+    ranLookup: number;
+    sawPricing: number;
+    startedCheckout: number;
+  }>;
+  /** Accounts created in the window, by the first touch stored at signup. */
+  signups: Array<{
+    source: string;
+    signups: number;
+    bought: number;
+  }>;
+}
+
+export async function getAcquisitionSources(
+  startDate: Date,
+  endDate: Date
+): Promise<AcquisitionSources> {
+  const empty: AcquisitionSources = { ok: false, sessions: [], signups: [] };
+  const db = getDb();
+  if (!db) return empty;
+  try {
+    const sessionRows = (await db.execute(sql`
+      WITH first_view AS (
+        SELECT DISTINCT ON (session_id)
+          session_id,
+          coalesce(metadata->>'origin', '(untagged)') AS source
+        FROM analytics_events
+        WHERE event_type = 'page_view'
+          AND session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+        ORDER BY session_id, created_at
+      ),
+      s AS (
+        SELECT
+          session_id,
+          bool_or(event_type = 'lookup_started') AS ran_lookup,
+          -- Checkout events count as having seen pricing, the same forced
+          -- monotone tail getSessionFunnel documents: the buy-credits modal
+          -- is the only way into a checkout, so a session that started one
+          -- did see the pricing whether or not that beacon reached us.
+          -- Without this a row can read "started checkout 1, saw pricing 0",
+          -- which the product cannot do.
+          bool_or(
+            event_type IN (
+              'upgrade_modal_viewed',
+              'checkout_started',
+              'checkout_redirected'
+            )
+          ) AS saw_pricing,
+          bool_or(
+            event_type IN ('checkout_started', 'checkout_redirected')
+          ) AS started_checkout
+        FROM analytics_events
+        WHERE session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+        GROUP BY session_id
+      ),
+      grouped AS (
+        SELECT
+          f.source,
+          count(*)::int AS sessions,
+          count(*) FILTER (WHERE s.ran_lookup)::int AS ran_lookup,
+          count(*) FILTER (WHERE s.saw_pricing)::int AS saw_pricing,
+          count(*) FILTER (WHERE s.started_checkout)::int AS started_checkout
+        FROM first_view f
+        JOIN s ON s.session_id = f.session_id
+        GROUP BY f.source
+      ),
+      ranked AS (
+        SELECT *, row_number() OVER (ORDER BY sessions DESC, source) AS rn
+        FROM grouped
+      )
+      -- The long tail folds into one labelled remainder row instead of being
+      -- silently dropped: column sums must always reconcile with the funnels
+      -- above, and a cap nothing on the card names is a lie by omission.
+      SELECT
+        CASE
+          WHEN rn <= 19 THEN source
+          ELSE '(' || (SELECT count(*) FROM ranked WHERE rn > 19)::text || ' more sources)'
+        END AS "source",
+        sum(sessions)::int AS "sessions",
+        sum(ran_lookup)::int AS "ranLookup",
+        sum(saw_pricing)::int AS "sawPricing",
+        sum(started_checkout)::int AS "startedCheckout"
+      FROM ranked
+      GROUP BY 1, (rn <= 19)
+      ORDER BY (rn <= 19) DESC, sum(sessions) DESC
+    `)) as unknown as { rows: AcquisitionSources['sessions'] };
+
+    const signupRows = (await db.execute(sql`
+      WITH grouped AS (
+        SELECT
+          coalesce(u.acquisition, '(untagged)') AS source,
+          count(*)::int AS signups,
+          count(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM credit_lots l
+              WHERE l.user_id = u.id AND l.amount_cents > 0
+            )
+          )::int AS bought
+        FROM users u
+        WHERE u.created_at >= ${utcBound(startDate)}::timestamp
+          AND u.created_at <= ${utcBound(endDate)}::timestamp
+          AND u.origin IS DISTINCT FROM 'x402'
+        GROUP BY 1
+      ),
+      ranked AS (
+        SELECT *, row_number() OVER (ORDER BY signups DESC, source) AS rn
+        FROM grouped
+      )
+      -- Same remainder rule as the sessions table: sums reconcile, always.
+      SELECT
+        CASE
+          WHEN rn <= 19 THEN source
+          ELSE '(' || (SELECT count(*) FROM ranked WHERE rn > 19)::text || ' more sources)'
+        END AS "source",
+        sum(signups)::int AS "signups",
+        sum(bought)::int AS "bought"
+      FROM ranked
+      GROUP BY 1, (rn <= 19)
+      ORDER BY (rn <= 19) DESC, sum(signups) DESC
+    `)) as unknown as { rows: AcquisitionSources['signups'] };
+
+    return {
+      ok: true,
+      sessions: sessionRows.rows ?? [],
+      signups: signupRows.rows ?? [],
+    };
+  } catch (error) {
+    console.error('Acquisition sources error:', error);
+    return empty;
+  }
+}
+
+/**
+ * Packs bought in the window, from the settled record rather than the events.
+ *
+ * `credit_lots` is the one table both rails write: a Stripe webhook and an
+ * x402 settlement each end as a lot. The Revenue pane reads Stripe alone, so
+ * an onchain sale is visible there nowhere; any surface quoting this total
+ * beside that pane must say the two differ and why, or the panel gains two
+ * disagreeing revenue figures again.
+ *
+ * `amount_cents > 0` keeps hand-issued grants out: a grant is a lot and is
+ * not a purchase, and counting it would inflate exactly the number this
+ * exists to make honest.
+ */
+export interface Purchases {
+  /** False when the query failed and the empty table below is invented. */
+  ok: boolean;
+  byPack: Array<{
+    pack: string;
+    rail: string;
+    count: number;
+    amountCents: number;
+  }>;
+}
+
+export async function getPurchases(
+  startDate: Date,
+  endDate: Date
+): Promise<Purchases> {
+  const empty: Purchases = { ok: false, byPack: [] };
+  const db = getDb();
+  if (!db) return empty;
+  try {
+    const result = (await db.execute(sql`
+      SELECT
+        pack AS "pack",
+        coalesce(rail, '(unknown)') AS "rail",
+        count(*)::int AS "count",
+        coalesce(sum(amount_cents), 0)::int AS "amountCents"
+      FROM credit_lots
+      WHERE amount_cents > 0
+        AND created_at >= ${utcBound(startDate)}::timestamp
+        AND created_at <= ${utcBound(endDate)}::timestamp
+      GROUP BY 1, 2
+      ORDER BY count(*) DESC, 4 DESC
+    `)) as unknown as { rows: Purchases['byPack'] };
+    return { ok: true, byPack: result.rows ?? [] };
+  } catch (error) {
+    console.error('Purchases error:', error);
+    return empty;
+  }
+}
+
+/**
+ * The agent rail: API keys, what they called, and what the onchain rail sold.
+ *
+ * `api_usage` is written on every metered call and `getUsageByUser` was built
+ * "for admin analytics" with zero callers; this is the first admin surface to
+ * read the table. It is a rail beside the browser funnel, not a step of it:
+ * an API call spends credits an account already bought, and an x402 sale
+ * mints an account with no session, no modal and no checkout event, so
+ * neither belongs inside either funnel above.
+ *
+ * The key counts are point-in-time, not windowed: "how many keys exist and
+ * how many could call right now" is the standing question, and a key created
+ * before the window is still the caller behind this week's requests.
+ */
+export interface AgentRail {
+  /** False when the query failed and every count below is an invented zero. */
+  ok: boolean;
+  /** Keys ever created, OAuth access tokens included. */
+  totalKeys: number;
+  /** Keys that could authenticate a call right now. */
+  activeKeys: number;
+  /** Keys that are OAuth access tokens from agent connections. */
+  oauthKeys: number;
+  /** Distinct keys that made at least one call in the window. */
+  callers: number;
+  requests: number;
+  creditsUsed: number;
+  /** Onchain pack sales settled in the window, and what they charged. */
+  onchainSales: number;
+  onchainCents: number;
+}
+
+export async function getAgentRail(
+  startDate: Date,
+  endDate: Date
+): Promise<AgentRail> {
+  const empty: AgentRail = {
+    ok: false,
+    totalKeys: 0,
+    activeKeys: 0,
+    oauthKeys: 0,
+    callers: 0,
+    requests: 0,
+    creditsUsed: 0,
+    onchainSales: 0,
+    onchainCents: 0,
+  };
+  const db = getDb();
+  if (!db) return empty;
+  try {
+    const result = (await db.execute(sql`
+      WITH keys AS (
+        SELECT
+          count(*)::int AS total_keys,
+          -- The same three tests lib/api-keys.ts applies before honouring a
+          -- key. The expiry test matters most for the OAuth tokens this stat
+          -- exists to watch: every one of them carries expires_at, so without
+          -- it each expired token would read as able to call forever.
+          count(*) FILTER (
+            WHERE is_active AND revoked_at IS NULL
+              AND (expires_at IS NULL OR expires_at > ${utcBound(new Date())}::timestamp)
+          )::int AS active_keys,
+          count(*) FILTER (WHERE oauth_grant_id IS NOT NULL)::int AS oauth_keys
+        FROM api_keys
+      ),
+      calls AS (
+        SELECT
+          count(DISTINCT api_key_id)::int AS callers,
+          count(*)::int AS requests,
+          coalesce(sum(credits_used), 0)::int AS credits_used
+        FROM api_usage
+        WHERE created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+      ),
+      onchain AS (
+        SELECT
+          count(*)::int AS sales,
+          coalesce(sum(amount_cents), 0)::int AS cents
+        FROM credit_lots
+        WHERE rail = 'x402'
+          AND amount_cents > 0
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+      )
+      SELECT
+        keys.total_keys AS "totalKeys",
+        keys.active_keys AS "activeKeys",
+        keys.oauth_keys AS "oauthKeys",
+        calls.callers AS "callers",
+        calls.requests AS "requests",
+        calls.credits_used AS "creditsUsed",
+        onchain.sales AS "onchainSales",
+        onchain.cents AS "onchainCents"
+      FROM keys, calls, onchain
+    `)) as unknown as { rows: Array<Omit<AgentRail, 'ok'>> };
+    const row = result.rows?.[0];
+    if (!row) return empty;
+    return { ok: true, ...row };
+  } catch (error) {
+    console.error('Agent rail error:', error);
+    return empty;
   }
 }
 

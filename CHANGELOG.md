@@ -2,6 +2,45 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-02 (the funnel pane answers the source, gate and rail questions)
+
+The admin funnel had the data for "where do people come from, which gate
+converts, and what does the agent rail do" written and read by nothing; every
+one of those questions needed hand SQL. Four new readers in `lib/analytics.ts`
+close the gap, all admin-only.
+
+- **Sources.** `getAcquisitionSources` groups sessions by the origin on their
+  first page view (`page_view.metadata.origin`, written since 2026-08-25 and
+  previously read only by a one-off campaign script) and accounts by
+  `users.acquisition`, with a has-ever-bought column per source. Missing
+  origins read `(untagged)`, never `direct`, because `direct` is a measured
+  arrival and the absence of a measurement is not.
+- **Gate conversion.** `getGateConversion` replaces `getPaywallTriggers`
+  (same `(none)` and legacy `limit`/`feature` labels) and joins modal opens
+  to same-session `checkout_started`/`checkout_redirected`. Checkout is the
+  per-gate bottom step on purpose: a payment carries no session, so a
+  per-gate "paid" would inherit the email-join floor the session funnel
+  documents.
+- **Purchases.** `getPurchases` reads settled `credit_lots` by pack and rail,
+  grants excluded. The card says explicitly that the Revenue pane is
+  card-processor-only and the two totals differ by exactly the onchain
+  amount, so the panel does not regain two silently disagreeing revenue
+  figures.
+- **The agent rail.** `getAgentRail` is the first admin reader over
+  `api_usage` (distinct callers, requests, credits) plus the key counts with
+  the OAuth split and windowed onchain sales, presented as a rail beside the
+  funnels rather than a fabricated step of them.
+- **Previous window.** The journey route also computes the same-length window
+  before the current one and the pane shows deltas on its four headline
+  tiles; a zero or unmeasured baseline renders no delta rather than "+100%".
+  The window options move from 7/30/90 to 7/28/90 so both sides of every
+  comparison hold the same weekday mix; 28 is the new default.
+- **Index note.** Every funnel reader that does not lead with an event type
+  scans `analytics_events` by bare `created_at`, which no existing index
+  serves. `scripts/migrate-analytics-created-at.ts` (idempotent, verified,
+  **not yet run**) adds `analytics_events_created_at_idx`; the declaration is
+  in `db/schema.ts` beside the other three.
+
 ### 2026-09-02 (the repo as an agent surface: tier D, plus a README prune)
 
 Items 22 to 25 of `docs/AGENT-SYSTEM.md` (tier D), so a fresh session is

@@ -124,7 +124,7 @@ wallet-to-social/
 │   ├── LookupHistory.tsx     # Saved lookups sidebar
 │   └── admin/
 │       ├── AdminNav.tsx         # The nine destinations, two groups
-│       ├── FunnelPane.tsx       # The one funnel: sessions, events, gates, rates
+│       ├── FunnelPane.tsx       # The one funnel: sources, sessions, events, gates, purchases, the agent rail
 │       └── LookupDashboard.tsx  # Usage metrics & analytics dashboard
 ├── lib/
 │   ├── job-processor.ts      # Core lookup processing logic
@@ -550,15 +550,15 @@ Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as t
 
 ### Admin
 
-| Endpoint                       | Purpose                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------- |
-| `/api/admin/dashboard`         | Usage metrics, match analytics, performance stats (supports `?period=today\|week\|month`) |
-| `/api/admin/analytics/journey` | The whole funnel over one window: sessions, events, gates, paywall triggers, both rates   |
-| `/api/admin/users`             | User management                                                                           |
-| `/api/admin/jobs`              | Job management                                                                            |
-| `/api/admin/whitelist`         | Whitelist management                                                                      |
-| `/api/admin/social-graph`      | Manual wallet enrichment                                                                  |
-| `/api/admin/conflicts`         | The handle conflict queue with reachability on both sides, and the resolved counts        |
+| Endpoint                       | Purpose                                                                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/admin/dashboard`         | Usage metrics, match analytics, performance stats (supports `?period=today\|week\|month`)                                                                      |
+| `/api/admin/analytics/journey` | The whole funnel over one window: sources, sessions, events, gates, gate conversion, purchases, the agent rail, both rates, and the previous window for deltas |
+| `/api/admin/users`             | User management                                                                                                                                                |
+| `/api/admin/jobs`              | Job management                                                                                                                                                 |
+| `/api/admin/whitelist`         | Whitelist management                                                                                                                                           |
+| `/api/admin/social-graph`      | Manual wallet enrichment                                                                                                                                       |
+| `/api/admin/conflicts`         | The handle conflict queue with reachability on both sides, and the resolved counts                                                                             |
 
 `journey` replaced `analytics/funnel` and `analytics/paywall`, which the panel
 called separately at two different window lengths and drew as two funnels with
