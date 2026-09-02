@@ -8,6 +8,7 @@ import {
   apiError,
   isValidWalletAddress,
   normalizeWalletAddress,
+  readBodyCapped,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { publicSources } from '@/lib/api-sources';
@@ -47,34 +48,9 @@ interface BatchRequestBody {
   wallets: string[];
 }
 
-// Bound the actual bytes read from the stream, NOT Content-Length, which a
-// caller can omit, understate, or evade with chunked transfer-encoding. Reads
-// until the cap, then aborts. The max batch is ~1000 addresses (~46 KB); 1 MB
-// is generous. Rate limiting needs the wallet count from the body, so we can't
-// authenticate before reading, but this caps what an unauthenticated caller
-// can force us to buffer and parse.
+// The max batch is ~1000 addresses (~46 KB); 1 MB is generous. The read-side
+// cap itself lives in lib/api-auth.ts (readBodyCapped), shared with /v1/jobs.
 const MAX_BODY_BYTES = 1_000_000;
-
-async function readBodyCapped(
-  request: NextRequest,
-  maxBytes: number
-): Promise<string | null> {
-  if (!request.body) return null;
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null; // over the cap
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();

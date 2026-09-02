@@ -156,4 +156,4 @@ If you have a list, start with recipe 4. Auditing what you already hold costs al
 
 If you are wiring something new, start with recipe 1 and add the reachability filter on day one rather than after the first campaign underperforms.
 
-If you want to feel the difference, connect the MCP server and ask it something. The five tools are documented at [docs.walletlink.social/mcp-server](https://docs.walletlink.social/mcp-server), the REST API is described in OpenAPI 3.1 at [docs.walletlink.social/openapi.yaml](https://docs.walletlink.social/openapi.yaml), and the free allowance is 100 matches per rolling 30 days, which is enough to test every recipe on this page.
+If you want to feel the difference, connect the MCP server and ask it something. The tools are documented at [docs.walletlink.social/mcp-server](https://docs.walletlink.social/mcp-server), the REST API is described in OpenAPI 3.1 at [docs.walletlink.social/openapi.yaml](https://docs.walletlink.social/openapi.yaml), and the free allowance is 100 matches per rolling 30 days, which is enough to test every recipe on this page.

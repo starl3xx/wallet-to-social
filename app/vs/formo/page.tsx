@@ -329,7 +329,7 @@ export default function FormoComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (five tools, on every pack and the free allowance)
+                          (seven tools, on every pack and the free allowance)
                         </span>
                       </span>
                     </td>

@@ -8,6 +8,8 @@ Resolves many addresses in one request. Costs **1 match credit per address that 
 
 This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same match credits, but the batch is one request instead of fifty and returns in a fraction of the time.
 
+Batch answers from the index, which is why it returns in milliseconds. For a list larger than a batch, or when the misses are worth re-checking against live sources, submit an [async job](/api-reference/jobs) instead: same billing rule, no 50-address ceiling, and live resolution on wallets the index has not checked.
+
 ## Headers
 
 <ParamField header="Idempotency-Key" type="string">

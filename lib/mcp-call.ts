@@ -18,7 +18,7 @@
  * Three things follow from that, and each one closes a hole the design review
  * flagged:
  *
- * - `api_usage.endpoint` keeps recording the same six literals the REST
+ * - `api_usage.endpoint` keeps recording the same route literals the REST
  *   surface records. Nothing keyed by tool name reaches that column, so
  *   `requests_by_endpoint` on `/v1/usage` stays the bounded set the docs
  *   promise, and a client-supplied tool name can never mint a new key.

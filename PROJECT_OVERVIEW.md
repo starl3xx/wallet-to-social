@@ -364,12 +364,15 @@ Main page orchestrating:
 | `/api/v1/reverse/farcaster/[username]` | GET    | 1 per wallet returned, 100 per page (keyset `cursor`) | Find wallets by Farcaster |
 | `/api/v1/stats`                        | GET    | 0                                                     | Dataset statistics        |
 | `/api/v1/usage`                        | GET    | 0                                                     | API key usage             |
+| `/api/v1/jobs`                         | POST   | 1/match at completion via `chargeForJob`; misses free | Submit async lookup job   |
+| `/api/v1/jobs/[id]`                    | GET    | 0                                                     | Poll job, read results    |
 
-Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted); see `docs-site/api-reference/introduction.mdx`, "Two meters".
+Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted, a job submission weighs 1 for the whole list, a job poll weighs 0); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
-The two zero-credit endpoints skip the balance refusal (`authenticateApiRequest`
-refuses only when the declared cost is above zero), so a drained key can always
-read its own meter. `/v1/stats` serves counts materialized daily into
+The zero-credit endpoints (`/v1/stats`, `/v1/usage`, `GET /v1/jobs/[id]`) skip
+the balance refusal (`authenticateApiRequest` refuses only when the declared
+cost is above zero), so a drained key can always read its own meter and collect
+a finished job. `/v1/stats` serves counts materialized daily into
 `ingest_state` by `/api/cron/refresh-coverage` (`lib/coverage-stats.ts`) and
 reports `meta.as_of`. `/v1/batch` accepts an `Idempotency-Key` header: a resend
 of the identical request inside 24 hours replays the stored response
@@ -377,6 +380,21 @@ of the identical request inside 24 hours replays the stored response
 true` and bills nothing. Batch rows carry `last_updated` and `stale`
 (`lib/staleness.ts`, shared with single lookup) and misses report
 `meta.previously_checked`.
+
+`POST /v1/jobs` (gap 15 of `docs/AGENT-SYSTEM.md`) runs the standard job
+pipeline (`createJob` + `processJobChunk`: live resolve on miss, exactly like a
+web job) behind `authenticateApiRequest`. The list is bounded by `canSubmit`
+(SUBMISSION_MULTIPLIER times the balance) and by one active job per account
+(409 `JOB_ALREADY_ACTIVE` names the active id); matches are debited at finalize
+by the idempotent `chargeForJob`, so a failed job is never billed. Jobs at or
+under 10 wallets run inline; larger ones go to Inngest with the cron worker as
+fallback. `GET /v1/jobs/[id]` is zero-cost, scoped strictly to the key's
+account (a mismatch answers the same 404 as a missing job; asserted in
+`scripts/check-invariants.ts`), and on completion serves results in the batch
+row shape: `publicTwitterField` with read-time reachability, evidence classes
+through the `publicSources` allowlist, and the internal stage names mapped
+through a public-stage allowlist so provider names cannot leak. The MCP server
+exposes both as `walletlink_submit_job` and `walletlink_job_status`.
 
 ### Onchain rail (x402)
 
@@ -403,15 +421,16 @@ Accounts with `users.origin = 'x402'` get no free allowance.
 
 ### MCP server (for agents)
 
-`app/api/mcp/route.ts` exposes five tools over those six endpoints at
+`app/api/mcp/route.ts` exposes seven tools over those eight endpoints at
 `https://walletlink.social/api/mcp`. It bills nothing of its own: each tool
 builds a request carrying the caller's credential and hands it to the v1 handler
 through `lib/mcp-call.ts`, and the handler keeps ownership of authentication,
 rate limiting and the credit debit. Doing either at the MCP layer would charge
 the caller twice for one tool call.
 
-Because the handler does the recording, `api_usage.endpoint` keeps the same six
-literals, so MCP traffic needs no new keys in `requests_by_endpoint`. Protocol
+Because the handler does the recording, `api_usage.endpoint` keeps the same
+route literals the REST surface records, so MCP traffic needs no new keys in
+`requests_by_endpoint`. Protocol
 chatter (`initialize`, `tools/list`) reaches no handler and is bounded by IP at
 120 an hour under `/api/mcp` in `lib/ip-rate-limiter.ts`, since it is the one
 path no key-based limit covers. Tool descriptions live under `app/`, so
@@ -463,8 +482,8 @@ Four things worth knowing before touching any of it:
 **The access token is an `api_keys` row**, carrying `oauth_grant_id`. Metering,
 the three rate-limit windows, the balance check and the usage ledger all key off
 that table, so this is the only shape that avoids a second copy of each. It
-follows that an access token also authenticates a REST call: the five tools are
-the six endpoints, so the two surfaces reach the same data on the same balance,
+follows that an access token also authenticates a REST call: the seven tools are
+the eight endpoints, so the two surfaces reach the same data on the same balance,
 and `lib/oauth/grants.ts` says so rather than implying a boundary.
 
 **The discovery documents are rewrites, not routes.** The App Router does not
@@ -495,7 +514,7 @@ the Cloudflare record is commented with its location. Publish with
 `mcp-publisher login dns --domain walletlink.social --private-key <hex>` then
 `mcp-publisher publish`.
 
-`docs-site/openapi.yaml` is the machine-readable description of all six: request and response schemas, both authentication forms, every error code, and the rate-limit and staleness headers. It is what the MCP server, SDK generation and agent discovery are built on, so it has its own CI gate in `.github/workflows/docs-freshness.yml`: touching a route, a validator, a plan limit or the `sources` enum requires touching the spec, and touching the spec runs `redocly lint` over it.
+`docs-site/openapi.yaml` is the machine-readable description of all eight: request and response schemas, both authentication forms, every error code, and the rate-limit and staleness headers. It is what the MCP server, SDK generation and agent discovery are built on, so it has its own CI gate in `.github/workflows/docs-freshness.yml`: touching a route, a validator, a plan limit or the `sources` enum requires touching the spec, and touching the spec runs `redocly lint` over it.
 
 Farcaster usernames are validated as `[a-z0-9][a-z0-9.-]{0,31}` rather than as the fname spec, because `social_graph.farcaster` holds both fnames and attached ENS names and the reverse lookup matches on the column. See the comment on `isValidFarcasterUsername` in `lib/api-auth.ts` for the measurement behind it.
 

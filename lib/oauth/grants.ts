@@ -20,7 +20,7 @@
  *
  * A token issued for the MCP server also authenticates a plain REST call to
  * `/v1/*`. It is the same credential type, so it must. That is not a hole
- * being tolerated: the five MCP tools are the six `/v1` endpoints, reached
+ * being tolerated: the seven MCP tools are the eight `/v1` endpoints, reached
  * through the same handlers, drawing on the same balance. There is nothing on
  * one surface that is not on the other, so the audience separation RFC 8707
  * describes would separate two names for one resource.

@@ -1019,6 +1019,12 @@ const MUTATIONS: Mutation[] = [
     from: "  'oauth_grants',\n  'oauth_authorization_requests',",
     to: "  'oauth_authorization_requests',",
   },
+  {
+    name: 'the keyed job-status route hands any valid key any job',
+    file: 'app/api/v1/jobs/[id]/route.ts',
+    from: '  if (!job || job.userId !== context.key.userId) {',
+    to: '  if (!job) {',
+  },
 ];
 
 function invariantsPass(): boolean {

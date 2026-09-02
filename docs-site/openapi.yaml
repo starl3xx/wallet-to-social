@@ -94,6 +94,11 @@ security:
 tags:
   - name: Lookups
     description: Address in, identities out.
+  - name: Jobs
+    description: |
+      The async surface. Submit a list, poll it, collect the results. A job
+      resolves wallets the index has not checked against live sources, which
+      the synchronous lookups never do.
   - name: Reverse lookups
     description: Identity in, addresses out. Paginated, and weighted double against your rate limit.
   - name: Account
@@ -391,6 +396,344 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /jobs:
+    post:
+      operationId: submitJob
+      summary: Submit an async lookup job
+      tags: [Jobs]
+      description: |
+        Submits a list of addresses as a background job and answers 202 with a
+        job id. A job runs the standard pipeline the web app runs: the index
+        and the cache first, then live resolution for whatever is left. An
+        address the index has never checked, or holds only a stale answer
+        for, is resolved against live sources, so a job can find identities
+        the synchronous endpoints report as never seen. The onchain ENS
+        text-record pass is not part of an API job.
+
+        The list has no fixed ceiling. It is bounded by your balance: at most
+        10 times the match credits available, refused whole with
+        `SUBMISSION_LIMIT_EXCEEDED` when longer, with the allowed maximum
+        named in the message. One job may be active per account at a time,
+        across the API and the web app alike; a second submission answers
+        `409 JOB_ALREADY_ACTIVE` naming the running job’s id, so poll that
+        one instead of guessing.
+
+        Nothing is billed at submission. Matches are debited once, when the
+        job completes: one credit per address that resolved to an X handle or
+        a Farcaster account, misses free, exactly as the synchronous
+        endpoints bill. A failed job is never billed, and a job resumed after
+        an interruption is never billed twice.
+
+        There is no `Idempotency-Key` here. While the job is active a resend
+        is refused by the one-active-job rule; a resend after it completes
+        runs the whole job again and bills its matches again.
+
+        Jobs of 10 addresses or fewer are processed inline, so the 202 can
+        already report `status: completed`; poll the status URL once to
+        collect the results. Larger jobs are queued: a worker normally picks
+        them up within seconds, and a fallback sweep runs every minute.
+      x-match-credits: 1 per address that resolves to X or Farcaster, debited when the job completes; nothing at submission
+      x-rate-limit-units: 1 per submission, regardless of list size
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobsRequest' }
+            example:
+              wallets:
+                - '0x00000000000000000000000000000000000000a1'
+                - '0x0000000000000000000000000000000000000001'
+      responses:
+        '202':
+          description: |
+            The job was accepted. `data.status` reports what was true at
+            return time; the status URL is the authority from here on.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/JobSubmission' }
+                  meta:
+                    type: object
+                    required: [submitted_at]
+                    properties:
+                      submitted_at:
+                        type: string
+                        format: date-time
+              example:
+                data:
+                  job_id: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+                  status: pending
+                  wallets: 2
+                  status_url: https://walletlink.social/api/v1/jobs/3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90
+                meta:
+                  submitted_at: '2026-09-01T12:00:00.000Z'
+        '400':
+          description: |
+            `INVALID_REQUEST` when the body is not JSON, or `wallets` is
+            missing, not an array, or empty. Returned before authentication
+            and without rate-limit headers.
+
+            `INVALID_ADDRESS` when any entry is not `0x` plus 40 hex
+            characters. The message names up to five of them.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidRequest:
+                  summary: INVALID_REQUEST
+                  value:
+                    error: Missing or invalid "wallets" array in request body
+                    code: INVALID_REQUEST
+                invalidAddress:
+                  summary: INVALID_ADDRESS
+                  value:
+                    error: 'Invalid wallet addresses: not-an-address'
+                    code: INVALID_ADDRESS
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '402':
+          description: |
+            One of two codes, and they name different problems.
+
+            `NO_CREDITS` means the balance is empty before any list is
+            weighed: the same refusal every metered endpoint gives, cleared
+            by buying a pack.
+
+            `SUBMISSION_LIMIT_EXCEEDED` means the balance is live but the
+            list is longer than 10 times it. The message names the maximum
+            the current balance allows; shorten the list or top up. Both
+            carry `X-Matches-Available` and both purchase paths.
+          headers:
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noCredits:
+                  summary: NO_CREDITS
+                  value:
+                    error: No credits left. Buy a pack at
+                      https://walletlink.social/pricing to continue, or buy one
+                      with USDC, no account needed, at POST
+                      https://walletlink.social/api/x402/buy.
+                    code: NO_CREDITS
+                submissionLimitExceeded:
+                  summary: SUBMISSION_LIMIT_EXCEEDED
+                  value:
+                    error: 5,000 wallets needs more headroom than 120 matches
+                      allows. You can submit up to 1,200 wallets. Buy a pack at
+                      https://walletlink.social/pricing, or with USDC, no
+                      account needed, at POST
+                      https://walletlink.social/api/x402/buy.
+                    code: SUBMISSION_LIMIT_EXCEEDED
+        '409':
+          description: |
+            `JOB_ALREADY_ACTIVE`. This account already has a pending or
+            processing job, on any surface: a job started in the web app
+            blocks an API submission too, because both drain the same
+            pipeline and bill the same balance. The message names the
+            active job’s id; poll it and resubmit when it completes.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: This account already has an active job, 3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90. Poll it at GET /v1/jobs/3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90 and submit again when it completes.
+                code: JOB_ALREADY_ACTIVE
+        '413':
+          description: |
+            `INVALID_REQUEST`. The body exceeded 4.5 MB, which admits roughly
+            100,000 addresses. Measured on the bytes actually read rather
+            than on `Content-Length`, so it fires before the body is parsed
+            and before authentication.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: Request body too large
+                code: INVALID_REQUEST
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      summary: Poll a job, read its results
+      tags: [Jobs]
+      description: |
+        Progress while the job runs, results when it completes. Free on both
+        meters, so a drained key can collect what it already paid for: the
+        job being polled may be the very thing that drained it.
+
+        Only jobs this account submitted are visible. Any other id answers
+        the same `404 JOB_NOT_FOUND` as a job that does not exist, so a job
+        id cannot be used to test whether someone else's job exists.
+
+        On completion the results come back in the batch row shape, one
+        page at a time, aligned to the `wallets` array in the same payload:
+        entry N describes wallet N of the page, `null` where nothing was
+        attached. Page with `offset` and `limit`; `meta.next_offset` is the
+        next page's offset, `null` on the last page. `meta.found` and
+        `meta.not_found` count the page; `meta.requested` and `meta.matched`
+        are whole-job totals. X reachability and the second attested handle
+        are read at poll time rather than stored with the job, so a repeat
+        poll can differ where the daily reachability check has moved a
+        handle.
+      x-match-credits: 0
+      x-rate-limit-units: 0
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The `job_id` returned by `POST /jobs`. A UUID.
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          example: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+        - name: offset
+          in: query
+          required: false
+          description: |
+            First result row of the page, 0-based, in submission order. Pass
+            `meta.next_offset` from the previous page to continue.
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: limit
+          in: query
+          required: false
+          description: Rows per page, 1 to 1000.
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 1000 }
+      responses:
+        '200':
+          description: |
+            The job’s current state. `results` and the counting fields in
+            `meta` appear only once `status` is `completed`.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/JobStatus' }
+                  meta: { $ref: '#/components/schemas/JobMeta' }
+              examples:
+                processing:
+                  summary: Still running
+                  value:
+                    data:
+                      job_id: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+                      status: processing
+                      progress:
+                        processed: 150
+                        total: 500
+                        stage: live
+                      created_at: '2026-09-01T12:00:00.000Z'
+                      started_at: '2026-09-01T12:00:02.000Z'
+                      completed_at: null
+                    meta:
+                      requested: 500
+                completed:
+                  summary: Completed, with results
+                  value:
+                    data:
+                      job_id: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+                      status: completed
+                      progress:
+                        processed: 2
+                        total: 2
+                        stage: null
+                      created_at: '2026-09-01T12:00:00.000Z'
+                      started_at: '2026-09-01T12:00:02.000Z'
+                      completed_at: '2026-09-01T12:00:09.000Z'
+                      wallets:
+                        - '0x00000000000000000000000000000000000000a1'
+                        - '0x0000000000000000000000000000000000000001'
+                      results:
+                        - wallet: '0x00000000000000000000000000000000000000a1'
+                          ens_name: example.eth
+                          farcaster:
+                            username: example
+                            url: https://warpcast.com/example
+                            followers: 123456
+                            fid: 900001
+                            verified: true
+                          sources: [onchain, farcaster]
+                        - null
+                    meta:
+                      requested: 2
+                      found: 1
+                      not_found: 1
+                      matched: 1
+                failed:
+                  summary: Failed, not billed
+                  value:
+                    data:
+                      job_id: '3f9d2c1a-7b44-4c2e-9a10-5e8f6d4b2a90'
+                      status: failed
+                      progress:
+                        processed: 150
+                        total: 500
+                        stage: null
+                      created_at: '2026-09-01T12:00:00.000Z'
+                      started_at: '2026-09-01T12:00:02.000Z'
+                      completed_at: null
+                      error: The job failed before completing. It was not billed; submit the list again.
+                    meta:
+                      requested: 500
+        '400':
+          description: '`INVALID_REQUEST`. The id is not a UUID.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: Invalid job id. Use the job_id returned by POST /v1/jobs.
+                code: INVALID_REQUEST
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            `JOB_NOT_FOUND`. No job with this id is visible to this account.
+            A job another account submitted answers exactly this, on purpose:
+            distinguishing “not yours” from “not there” would confirm which
+            ids exist.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: Job not found
+                code: JOB_NOT_FOUND
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
 
   /reverse/twitter/{handle}:
     get:
@@ -940,8 +1283,9 @@ components:
       description: |
         `NO_CREDITS`. The match balance is exhausted, or the free allowance for
         this rolling 30-day window is used up. Returned only by the metered
-        endpoints: `/stats` and `/usage` answer at any balance, so a drained
-        key can always read its own meter.
+        endpoints: `/stats`, `/usage` and the job status poll answer at any
+        balance, so a drained key can always read its own meter and collect
+        results it already paid for.
 
         Not worth retrying. It clears when a pack is bought, or when the free
         window rolls forward.
@@ -1043,6 +1387,9 @@ components:
             - INVALID_CURSOR
             - INVALID_REQUEST
             - BATCH_SIZE_EXCEEDED
+            - SUBMISSION_LIMIT_EXCEEDED
+            - JOB_ALREADY_ACTIVE
+            - JOB_NOT_FOUND
             - IDEMPOTENCY_KEY_REUSED
             - IDEMPOTENCY_NOT_REPLAYABLE
             - SERVICE_UNAVAILABLE
@@ -1439,6 +1786,160 @@ components:
           items:
             type: string
             pattern: '^0x[a-fA-F0-9]{40}$'
+
+    JobsRequest:
+      type: object
+      required: [wallets]
+      properties:
+        wallets:
+          type: array
+          description: |
+            Addresses to resolve. Duplicates are removed before the job is
+            created and before billing. No fixed `maxItems`: the ceiling is 10
+            times your match balance, and a longer list is refused whole with
+            `SUBMISSION_LIMIT_EXCEEDED` naming the maximum. The body itself is
+            capped at 4.5 MB.
+          minItems: 1
+          items:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+
+    JobSubmission:
+      type: object
+      description: The 202 body of `POST /jobs`.
+      required: [job_id, status, wallets, status_url]
+      properties:
+        job_id:
+          type: string
+          description: A UUID. The handle for the status poll.
+        status:
+          type: string
+          description: |
+            What was true when the 202 was written. A job of 10 addresses or
+            fewer runs inline and can already report `completed`; the status
+            URL is the authority either way.
+          enum: [pending, completed]
+        wallets:
+          type: integer
+          description: Unique addresses accepted, after deduplication.
+        status_url:
+          type: string
+          format: uri
+          description: The absolute URL of `GET /jobs/{id}` for this job.
+
+    JobStage:
+      type: string
+      description: |
+        Which part of the pipeline the job is in, by evidence class rather
+        than by internal component: `index` reads our own graph, `cache` the
+        short-term cache in front of it, `live` resolves the remainder
+        against live sources, and `onchain` reads onchain records. `null`
+        when the job is not currently inside a stage.
+      enum: [index, cache, onchain, live]
+
+    JobRecord:
+      description: |
+        One entry in a completed job’s `results` array: the batch record
+        without the per-row freshness pair. Evidence classes come through the
+        same allowlist as everywhere else, and are omitted where nothing
+        classifiable backs the row. The X reachability fields are read at
+        poll time, not stored with the job.
+      allOf:
+        - $ref: '#/components/schemas/IdentityCore'
+        - type: object
+          properties:
+            twitter:
+              $ref: '#/components/schemas/XIdentityWithAlso'
+            farcaster:
+              $ref: '#/components/schemas/FarcasterAccount'
+
+    JobStatus:
+      type: object
+      description: The `data` object of `GET /jobs/{id}`.
+      required: [job_id, status, progress, created_at, started_at, completed_at]
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress:
+          type: object
+          required: [processed, total, stage]
+          properties:
+            processed:
+              type: integer
+              description: Addresses processed so far.
+            total:
+              type: integer
+              description: Unique addresses in the job.
+            stage:
+              oneOf:
+                - $ref: '#/components/schemas/JobStage'
+                - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: [string, 'null']
+          format: date-time
+          description: '`null` until a worker picks the job up.'
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+          description: '`null` until the job completes.'
+        error:
+          type: string
+          description: |
+            Present only when `status` is `failed`. A generic statement that
+            the job was not billed, never the internal failure detail.
+        wallets:
+          type: array
+          description: |
+            Present only when `status` is `completed`: the deduplicated,
+            lowercased submission, in processing order. It rides in the same
+            payload as `results` because the submission may be sessions old
+            and the caller may no longer hold the list it sent.
+          items:
+            type: string
+            pattern: '^0x[0-9a-f]{40}$'
+        results:
+          type: array
+          description: |
+            Present only when `status` is `completed`. Positionally aligned
+            with `wallets`: entry N describes wallet N, and is `null` where
+            nothing was attached.
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/JobRecord'
+              - type: 'null'
+
+    JobMeta:
+      type: object
+      description: |
+        `requested` is always present. The three counts appear only on a
+        completed job, and follow the batch meta's arithmetic: `matched` is
+        what the job billed, never more than `found`.
+      required: [requested]
+      properties:
+        requested:
+          type: integer
+          description: Unique addresses in the job.
+        found:
+          type: integer
+          description: |
+            Entries that came back as a record rather than `null`, counting
+            records carrying only an ENS name, a Lens profile or a GitHub
+            account.
+        not_found:
+          type: integer
+          description: '`requested` minus `found`.'
+        matched:
+          type: integer
+          description: |
+            What the job billed at completion: addresses that resolved to an
+            X handle or a Farcaster account. Reconcile this against your
+            balance.
 
     Stats:
       type: object

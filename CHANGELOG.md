@@ -2,6 +2,56 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (the paid rail gets the async surface)
+
+Gap 15 of `docs/AGENT-SYSTEM.md` (tier C, decided 2026-09-01), which also
+closes gap 20: the key-authenticated surface is no longer sync-only, and the
+job it runs is the standard pipeline, live resolve on miss, exactly like a web
+job. Shipped with its docs in the same wave.
+
+- **`POST /v1/jobs`.** Body `{wallets: [...]}`, validated and deduplicated
+  like `/v1/batch`, weighed one request-unit (the work is billed as matches at
+  completion, not the queue ticket). The list is bounded by the existing
+  `canSubmit` verdict from the key's account (SUBMISSION_MULTIPLIER times the
+  balance; refusal 402 `SUBMISSION_LIMIT_EXCEEDED` names the cap and both
+  purchase paths) and by one active pending/processing job per account,
+  across web and API alike (409 `JOB_ALREADY_ACTIVE` names the active id).
+  Returns 202 with `job_id` and `status_url`; jobs of 10 wallets or fewer run
+  inline, larger ones queue for Inngest with the cron worker as fallback.
+  Billing is the existing idempotent `chargeForJob` at finalize: misses free,
+  a failed job never billed, a resumed job never billed twice.
+- **`GET /v1/jobs/{id}`.** Zero declared cost, so a drained key can collect
+  what it already paid for. Strictly scoped to the key's account: a job
+  another account owns answers the same 404 as a missing job (asserted in
+  `scripts/check-invariants.ts`, with a guard mutation proving the assertion
+  can fail). Progress reports the job row's counts with stage names mapped
+  through an allowlist (`index`, `cache`, `onchain`, `live`), never internal
+  pipeline identifiers. Completed results come back in the batch row shape:
+  `publicTwitterField` with wallet-keyed reachability read at poll time,
+  `verified` on both identity objects, evidence classes through the
+  `publicSources` allowlist, entries null for wallets that resolved to
+  nothing, `meta.matched` carrying the billed number.
+- **Two MCP tools.** `walletlink_submit_job` (cost stated at the decision
+  point: billed on matches like resolving, one active job per account, cap
+  named) and `walletlink_job_status` (free on both meters; shows the first
+  100 rows and points at the REST endpoint for the full set). Both forward
+  the caller's own key through `lib/mcp-call.ts`, so pricing stays identical
+  by construction.
+- `readBodyCapped` moved from the batch route to `lib/api-auth.ts`, shared
+  with the jobs route, so a route cannot forget the byte cap by copying the
+  wrong template.
+- **The docs, in the same wave.** `docs-site/openapi.yaml` gains both paths
+  with the new error codes (`SUBMISSION_LIMIT_EXCEEDED`, `JOB_ALREADY_ACTIVE`,
+  `JOB_NOT_FOUND`) and the job schemas; a new API reference page,
+  `api-reference/jobs`, states the cost, the one-active-job rule, the
+  balance-derived cap and the polling contract; the introduction's two meter
+  tables, the errors page, rate limits, batch, the MCP page, the agent-pack
+  page and the scan-depth concept page (whose "run it in the app" advice the
+  jobs endpoint just retired) all pick up the new surface; llms.txt gains the
+  async sentence with the submission multiplier interpolated. Endpoint and
+  tool counts move six-to-eight and five-to-seven everywhere they were
+  published.
+
 ### 2026-09-01 (the agent surface stops fighting its own callers)
 
 Tier B of `docs/AGENT-SYSTEM.md` (gap register items 9 to 14): six ergonomic

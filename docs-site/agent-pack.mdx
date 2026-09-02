@@ -66,11 +66,14 @@ that matches well and is not wasted on one that does not. See
 [credits](/api-reference/introduction#credits).
 
 The key works on the whole [REST API](/api-reference/introduction) and on the
-[MCP server](/mcp-server). When the pack runs dry, the metered endpoints answer
-`402 NO_CREDITS`, but [`/v1/usage`](/api-reference/usage) and
-[`/v1/stats`](/api-reference/stats) keep answering at zero balance: a drained
-key can always read its own meter, and that zero reading is the signal to buy
-again.
+[MCP server](/mcp-server), including [async jobs](/api-reference/jobs): with
+the pack’s 12 matches live, it can submit a job of up to 120 wallets that
+resolves unchecked addresses against live sources, billed only on what
+completes. When the pack runs dry, the metered endpoints answer
+`402 NO_CREDITS`, but [`/v1/usage`](/api-reference/usage),
+[`/v1/stats`](/api-reference/stats) and the job status poll keep answering at
+zero balance: a drained key can always read its own meter and collect a
+finished job, and that zero reading is the signal to buy again.
 
 |                        |              |
 | ---------------------- | ------------ |

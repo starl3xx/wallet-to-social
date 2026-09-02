@@ -1,6 +1,6 @@
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
@@ -1093,6 +1093,102 @@ export async function createJob(
 /**
  * Get job by ID
  */
+/**
+ * The poll-shaped read: everything a status endpoint needs and nothing it
+ * must not load. On a large job, `wallets` and `partial_results` are
+ * megabytes of jsonb, and a poll that deserialises them to report a
+ * percentage makes the cheapest call on the surface the most expensive one
+ * to serve. Counts are computed where the data already lives.
+ */
+export interface JobStatusRow {
+  id: string;
+  status: string;
+  userId: string | null;
+  processedCount: number;
+  currentStage: string | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  anySocialFound: number;
+  walletCount: number;
+}
+
+export async function getJobStatus(
+  jobId: string
+): Promise<JobStatusRow | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const [row] = await db
+    .select({
+      id: lookupJobs.id,
+      status: lookupJobs.status,
+      userId: lookupJobs.userId,
+      processedCount: lookupJobs.processedCount,
+      currentStage: lookupJobs.currentStage,
+      createdAt: lookupJobs.createdAt,
+      startedAt: lookupJobs.startedAt,
+      completedAt: lookupJobs.completedAt,
+      anySocialFound: lookupJobs.anySocialFound,
+      walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
+    })
+    .from(lookupJobs)
+    .where(eq(lookupJobs.id, jobId))
+    .limit(1);
+
+  return row || null;
+}
+
+/**
+ * One page of a completed job, sliced and filtered inside Postgres so the
+ * page ships and the job stays put. The wallets slice keeps submission
+ * order (the order authority the response echoes); the result rows are the
+ * subset whose wallet falls in that slice. Ordinality is 1-based; casts are
+ * explicit because the HTTP driver sends no parameter type hints (the 42P18
+ * lesson in lib/neynar-budget.ts).
+ */
+export interface JobResultsPage {
+  wallets: string[];
+  rows: WalletSocialResult[];
+}
+
+export async function getJobResultsPage(
+  jobId: string,
+  offset: number,
+  limit: number
+): Promise<JobResultsPage | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const rows = await db.execute(sql`
+    WITH page AS (
+      SELECT lower(w.value) AS wallet, w.ordinality AS ord
+      FROM lookup_jobs j,
+           jsonb_array_elements_text(j.wallets) WITH ORDINALITY AS w
+      WHERE j.id = ${jobId}::uuid
+        AND w.ordinality > ${offset}::int
+        AND w.ordinality <= ${offset + limit}::int
+    )
+    SELECT
+      (SELECT coalesce(jsonb_agg(wallet ORDER BY ord), '[]'::jsonb)
+         FROM page) AS wallets,
+      (SELECT coalesce(jsonb_agg(elem), '[]'::jsonb)
+         FROM lookup_jobs j2,
+              jsonb_array_elements(j2.partial_results) AS elem
+        WHERE j2.id = ${jobId}::uuid
+          AND lower(elem->>'wallet') IN (SELECT wallet FROM page)) AS rows
+  `);
+
+  // The http driver answers { rows }; a pooled driver answers the array
+  // itself. Read both shapes rather than guessing which client built db.
+  const raw = rows as unknown as { rows?: unknown[] } | unknown[];
+  const first = (Array.isArray(raw) ? raw[0] : raw.rows?.[0]) as
+    | { wallets: string[]; rows: WalletSocialResult[] }
+    | undefined;
+  if (!first) return null;
+  return { wallets: first.wallets ?? [], rows: first.rows ?? [] };
+}
+
 export async function getJob(jobId: string): Promise<LookupJob | null> {
   const db = getDb();
   if (!db) {

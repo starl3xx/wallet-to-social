@@ -311,6 +311,38 @@ export function withApiAuth<T>(
 }
 
 /**
+ * Read a request body while bounding the actual bytes taken off the stream.
+ *
+ * NOT Content-Length, which a caller can omit, understate, or evade with
+ * chunked transfer-encoding. Reads until the cap, then aborts and returns
+ * null. The wallet-count endpoints need the body before they can weigh the
+ * rate limit, so they cannot authenticate before reading; this caps what an
+ * unauthenticated caller can force us to buffer and parse. One copy here
+ * rather than one per route, because a route that forgets the cap is the
+ * same hole with a different path.
+ */
+export async function readBodyCapped(
+  request: NextRequest,
+  maxBytes: number
+): Promise<string | null> {
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null; // over the cap
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
  * Validates wallet address format
  */
 export function isValidWalletAddress(address: string): boolean {
