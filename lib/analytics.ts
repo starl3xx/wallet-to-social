@@ -1048,37 +1048,71 @@ export async function getAcquisitionSources(
           AND created_at >= ${utcBound(startDate)}::timestamp
           AND created_at <= ${utcBound(endDate)}::timestamp
         GROUP BY session_id
+      ),
+      grouped AS (
+        SELECT
+          f.source,
+          count(*)::int AS sessions,
+          count(*) FILTER (WHERE s.ran_lookup)::int AS ran_lookup,
+          count(*) FILTER (WHERE s.saw_pricing)::int AS saw_pricing,
+          count(*) FILTER (WHERE s.started_checkout)::int AS started_checkout
+        FROM first_view f
+        JOIN s ON s.session_id = f.session_id
+        GROUP BY f.source
+      ),
+      ranked AS (
+        SELECT *, row_number() OVER (ORDER BY sessions DESC, source) AS rn
+        FROM grouped
       )
+      -- The long tail folds into one labelled remainder row instead of being
+      -- silently dropped: column sums must always reconcile with the funnels
+      -- above, and a cap nothing on the card names is a lie by omission.
       SELECT
-        f.source AS "source",
-        count(*)::int AS "sessions",
-        count(*) FILTER (WHERE s.ran_lookup)::int AS "ranLookup",
-        count(*) FILTER (WHERE s.saw_pricing)::int AS "sawPricing",
-        count(*) FILTER (WHERE s.started_checkout)::int AS "startedCheckout"
-      FROM first_view f
-      JOIN s ON s.session_id = f.session_id
-      GROUP BY f.source
-      ORDER BY count(*) DESC
-      LIMIT 20
+        CASE
+          WHEN rn <= 19 THEN source
+          ELSE '(' || (SELECT count(*) FROM ranked WHERE rn > 19)::text || ' more sources)'
+        END AS "source",
+        sum(sessions)::int AS "sessions",
+        sum(ran_lookup)::int AS "ranLookup",
+        sum(saw_pricing)::int AS "sawPricing",
+        sum(started_checkout)::int AS "startedCheckout"
+      FROM ranked
+      GROUP BY 1, (rn <= 19)
+      ORDER BY (rn <= 19) DESC, sum(sessions) DESC
     `)) as unknown as { rows: AcquisitionSources['sessions'] };
 
     const signupRows = (await db.execute(sql`
+      WITH grouped AS (
+        SELECT
+          coalesce(u.acquisition, '(untagged)') AS source,
+          count(*)::int AS signups,
+          count(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM credit_lots l
+              WHERE l.user_id = u.id AND l.amount_cents > 0
+            )
+          )::int AS bought
+        FROM users u
+        WHERE u.created_at >= ${utcBound(startDate)}::timestamp
+          AND u.created_at <= ${utcBound(endDate)}::timestamp
+          AND u.origin IS DISTINCT FROM 'x402'
+        GROUP BY 1
+      ),
+      ranked AS (
+        SELECT *, row_number() OVER (ORDER BY signups DESC, source) AS rn
+        FROM grouped
+      )
+      -- Same remainder rule as the sessions table: sums reconcile, always.
       SELECT
-        coalesce(u.acquisition, '(untagged)') AS "source",
-        count(*)::int AS "signups",
-        count(*) FILTER (
-          WHERE EXISTS (
-            SELECT 1 FROM credit_lots l
-            WHERE l.user_id = u.id AND l.amount_cents > 0
-          )
-        )::int AS "bought"
-      FROM users u
-      WHERE u.created_at >= ${utcBound(startDate)}::timestamp
-        AND u.created_at <= ${utcBound(endDate)}::timestamp
-        AND u.origin IS DISTINCT FROM 'x402'
-      GROUP BY 1
-      ORDER BY count(*) DESC
-      LIMIT 20
+        CASE
+          WHEN rn <= 19 THEN source
+          ELSE '(' || (SELECT count(*) FROM ranked WHERE rn > 19)::text || ' more sources)'
+        END AS "source",
+        sum(signups)::int AS "signups",
+        sum(bought)::int AS "bought"
+      FROM ranked
+      GROUP BY 1, (rn <= 19)
+      ORDER BY (rn <= 19) DESC, sum(signups) DESC
     `)) as unknown as { rows: AcquisitionSources['signups'] };
 
     return {
