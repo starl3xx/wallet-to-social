@@ -20,6 +20,11 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import {
+  scrubSuppressed,
+  isKindSuppressed,
+  type SuppressionSets,
+} from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -174,12 +179,40 @@ export async function GET(
       );
     }
 
-    const rows = page.rows.map((r) => ({
+    let rows: WalletSocialResult[] = page.rows.map((r) => ({
       ...r,
       // Rows written before the source-order fix can carry a comma-joined
       // string here; coerced the same way the processor coerces on resume.
       source: asSourceList(r.source),
     }));
+
+    /**
+     * The serve-time suppression filter: a removed identifier must not ship
+     * out of a stored payload, however it got in there. The wallet entries
+     * survive with their mapping fields stripped, so the page's row count,
+     * order and pagination are untouched; a stripped row simply serves as
+     * the same null an ordinary miss serves, and `found`/`not_found` below
+     * are counted after the filter so they agree with what shipped.
+     *
+     * Fail closed. Serving the stored payload unfiltered because the
+     * suppression list could not be read would make an outage of one tiny
+     * table an un-removal, so the read gets the same retryable answer as a
+     * missing results page. The poll is free either way.
+     */
+    let suppressionSets: SuppressionSets;
+    try {
+      const scrub = await scrubSuppressed([rows]);
+      rows = scrub.rowSets[0];
+      suppressionSets = scrub.sets;
+    } catch (error) {
+      console.error('Suppression filter failed on /v1/jobs read:', error);
+      return apiError(
+        'Results are temporarily unavailable. Retry shortly; the poll is free.',
+        'SERVICE_UNAVAILABLE',
+        503,
+        { ...context.rateLimitHeaders, ...corsHeaders }
+      );
+    }
 
     const byWallet = new Map<string, WalletSocialResult>();
     for (const r of rows) byWallet.set(r.wallet, r);
@@ -195,6 +228,16 @@ export async function GET(
       reachabilityForWallets(handleRows),
       alsoOnXForWallets(handleRows),
     ]);
+    // The also read is LIVE handle_conflicts, taken after the scrub above,
+    // so mid-erasure (or after a backup restore) it can hand back a
+    // suppressed second handle the scrub just removed. Filtered against
+    // the same list the scrub used; same ordering rule as the finalize,
+    // which scrubs after its stamp for exactly this reason.
+    for (const [w, a] of also) {
+      if (isKindSuppressed(suppressionSets, 'twitter', a.handle)) {
+        also.delete(w);
+      }
+    }
 
     /**
      * The batch contract: an entry is a record or null, in submission order,

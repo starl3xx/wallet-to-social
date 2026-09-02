@@ -12,6 +12,7 @@ import {
   formatRateLimitHeaders,
   getClientIp,
 } from '@/lib/ip-rate-limiter';
+import { isSuppressed } from '@/lib/suppression';
 
 export const runtime = 'nodejs';
 
@@ -123,6 +124,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    /**
+     * The suppression check, same guard as `/api/reverse` and the /v1
+     * reverse routes, because this is the same disclosure: a free keyless
+     * count of wallets carrying the handle, which for a suppressed handle
+     * is exactly the existence confirmation the removal exists to end. It
+     * also covers the two exposure windows the removal endpoint leaves
+     * (after the suppression rows commit but before the deletes land, and
+     * a failed erasure awaiting its re-run). A suppressed handle gets the
+     * NOT_IN_INDEX answer verbatim; the residual is timing (this branch
+     * skips the count query), which is the same accepted residual as the
+     * reverse routes. Fail closed: a throw here lands in the catch below
+     * and the request errors rather than answering unchecked.
+     */
+    if ((await isSuppressed('twitter', [handle])).size > 0) {
+      return NextResponse.json(
+        { handle, ...NOT_IN_INDEX },
+        { headers: formatRateLimitHeaders(limit) }
+      );
+    }
+
     /**
      * The count matches on lower(twitter_handle), deliberately, and it is
      * indexed. This comment sits outside the template because a tagged template

@@ -16,6 +16,7 @@ import {
   reachabilityForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import { isSuppressed } from '@/lib/suppression';
 
 export const runtime = 'nodejs';
 
@@ -86,6 +87,52 @@ export async function GET(
       'Service temporarily unavailable',
       'SERVICE_UNAVAILABLE',
       503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+
+  /**
+   * The suppression check, before any row is read. Same guard, same
+   * reasoning and same indistinguishable empty answer as the X reverse
+   * route: a suppressed username serves what an unindexed username serves,
+   * bills zero, and fails closed when the list cannot be read.
+   */
+  let usernameSuppressed: boolean;
+  try {
+    usernameSuppressed =
+      (await isSuppressed('farcaster', [normalizedUsername])).size > 0;
+  } catch (error) {
+    console.error('Suppression check failed on /v1/reverse/farcaster:', error);
+    return apiError(
+      'Service temporarily unavailable',
+      'SERVICE_UNAVAILABLE',
+      503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+  if (usernameSuppressed) {
+    trackApiUsage({
+      apiKeyId: context.key.id,
+      endpoint: '/v1/reverse/farcaster/{username}',
+      method: 'GET',
+      walletCount: 0,
+      responseStatus: 200,
+      latencyMs: Date.now() - startTime,
+      creditsUsed: CREDITS_COST,
+      matches: 0,
+    }).catch(console.error);
+
+    return apiSuccess(
+      {
+        data: [],
+        meta: {
+          username: normalizedUsername,
+          total_count: 0,
+          returned_count: 0,
+          truncated: false,
+          next_cursor: null,
+        },
+      },
       { ...context.rateLimitHeaders, ...corsHeaders }
     );
   }

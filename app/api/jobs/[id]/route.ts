@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getJob } from '@/lib/job-processor';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { scrubSuppressed } from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -92,7 +93,25 @@ export async function GET(
     // callers and non-owners (including anyone hitting a system job) get
     // progress/stats but never the wallet-level social data.
     if (isOwner && job.status === 'completed' && job.partialResults) {
-      response.results = job.partialResults as WalletSocialResult[];
+      /**
+       * The serve-time suppression filter: removed identifiers are stripped
+       * from the stored payload on the way out, with the wallet rows kept so
+       * counts and order survive. Fail closed: if the suppression list
+       * cannot be read, this answers 503 rather than serving the payload
+       * unfiltered, because an outage must never behave as an un-removal.
+       */
+      try {
+        const scrub = await scrubSuppressed([
+          job.partialResults as WalletSocialResult[],
+        ]);
+        response.results = scrub.rowSets[0];
+      } catch (error) {
+        console.error('Suppression filter failed on job results read:', error);
+        return NextResponse.json(
+          { error: 'Results are temporarily unavailable. Retry shortly.' },
+          { status: 503 }
+        );
+      }
     }
 
     // Include a generic failure signal — never the raw errorMessage, which can

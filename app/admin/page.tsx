@@ -54,6 +54,7 @@ import {
   LookupDashboard,
   UsageMeter,
   AccountDetail,
+  RemovalPane,
 } from '@/components/admin';
 
 // The union lives with the nav that renders it, so a new destination cannot be
@@ -1430,6 +1431,11 @@ export default function AdminPage() {
               <HandleConflicts password={password} />
             </div>
           )}
+          {/* The right-to-removal console: its own destination, not a card
+              under Data, because it acts on people rather than on data
+              quality, and because the clustering alarm needs to be the first
+              thing on screen when it fires. */}
+          {activeTab === 'removal' && <RemovalPane password={password} />}
         </>
       )}
     </PageShell>

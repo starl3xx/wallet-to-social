@@ -147,6 +147,40 @@ agent surface that violates one needs to say so and say why.
    suppression design binds L0 (the record), L3 (any delta or watch
    affordance) and L4 (every projection) the day each ships, never as a
    retrofit. A feature that cannot honour it yet is a feature that waits.
+   _Decided (2026-09-02), the stage 1 policy, in six parts._ **Intake** is
+   staged: stage 1 is email to the support address only, operator-executed,
+   no proof demanded; verified self-serve lanes are a later stage and are
+   not built. **Scope** is requester-named identifiers only: one
+   independent `(kind, identifier)` suppression row per identifier, no
+   stored association between rows, insert timestamps jittered so rows
+   from one request cannot be joined back together; the dedupe and
+   negative tables (`x_handle_attempts`, the ephemeral sweep seen tables,
+   `clanker_unresolved_ids`) stay outside the boundary, documented,
+   because deleting do-not-reprocess markers increases processing of the
+   person who asked to be left alone. **Disclosure** is calibrated: the
+   email-lane reply never confirms whether a record existed, no removed
+   event type appears on any surface, and there are no automatic refunds.
+   **Reversal** is a 30-day quarantine: before deletion the affected rows
+   are copied to an operator-only quarantine table (in neither
+   `READ_ONLY_TABLES` nor the backup list), purged at 30 days by the
+   cleanup cron; a `lane` column on the suppression table records the
+   verification method (values like `email`, `wallet_sig`, `handle_proof`,
+   `legal`), never anything about the requester; un-suppress restores from
+   quarantine and is operator-only in stage 1. **Saved copies** are erased
+   in stages: lookup job payloads expire at 30 days, saved lookups carry a
+   user-facing delete, a serve-time filter strips suppressed identifiers
+   from history and jobs reads, and each removal amends saved results in
+   place, non-fail-soft, REMOVING the mapping keys (removal rather than
+   JSON nulls, a deliberate refinement: absent keys are the ordinary-miss
+   shape, so an amended row cannot be fingerprinted as a removal, which
+   serves the calibrated-disclosure decision) while keeping the wallet
+   entry so row counts align. A saved lookup whose SUBJECT is the removed
+   identifier (a reverse lookup saved as "Wallets for @handle") is
+   quarantined and deleted whole, because its name plus row membership is
+   the mapping and no per-element amend can make it honest. **The
+   promise** is laddered: the
+   privacy page states exactly what each stage ships, and keeps the
+   no-proof sentence, the jurisdiction-blind stance and the 30-day SLA.
 
 ---
 
@@ -256,7 +290,10 @@ fixture-first) to refuse drift the way figures drift is refused today.
     wallets since the watermark) is free and rate-limited normally; expanding
     bills one credit per changed wallet that is a match; an unchanged wallet
     is never re-billed through the watch. “You pay when a watched wallet
-    changes, never to learn that nothing did.”
+    changes, never to learn that nothing did.” _Update (2026-09-02):_ the
+    principle 8 blocker is in build: removal stage 1 (the suppression list
+    and triggers, the pre-flight filter, the quarantine and the operator
+    endpoint) is in review, and 16 can start once it ships.
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
     `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
@@ -373,6 +410,8 @@ so no separate deep-scan tier ships. 15, 17, 18 and 19 shipped on
 It waits on the removal system (the right-to-removal suppression design,
 principle 8) by constraint, not by preference: a watch surface must honour a
 removal from its first day, so 16 does not start until that system exists.
+Stage 1 of that system entered review on 2026-09-02; the decided policy is
+recorded under principle 8.
 
 The tier C decisions were taken on 2026-09-01 and are recorded inline above,
 marked _Decided (2026-09-01):_. Nothing in phase 1 or 2 touches pricing or

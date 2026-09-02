@@ -16,6 +16,11 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import {
+  loadSuppressionList,
+  isKindSuppressed,
+  type SuppressionSets,
+} from '@/lib/suppression';
 import { isRecordStale } from '@/lib/staleness';
 
 export const runtime = 'nodejs';
@@ -73,6 +78,51 @@ export async function GET(
     );
   }
 
+  /**
+   * The suppression list, before the index is read. The storage triggers
+   * only guard WRITES: after a backup restore, or in the window where an
+   * erasure failed after its suppression row committed, the graph row still
+   * exists and this route would keep serving the mapping. So the forward
+   * read filters through the same list the reverse routes ask: a suppressed
+   * wallet answers exactly as a never-indexed one (the query is skipped, so
+   * there is no checked_at to leak), and a suppressed handle on someone
+   * else's wallet is dropped from the row before anything reads it. Fail
+   * closed: an unreadable list refuses the request rather than serving
+   * unfiltered.
+   */
+  let suppression: SuppressionSets;
+  try {
+    suppression = await loadSuppressionList();
+  } catch (error) {
+    console.error('Suppression check failed on /v1/wallet:', error);
+    return apiError(
+      'Service temporarily unavailable',
+      'SERVICE_UNAVAILABLE',
+      503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+  if (isKindSuppressed(suppression, 'wallet', normalizedAddress)) {
+    trackApiUsage({
+      apiKeyId: context.key.id,
+      endpoint: '/v1/wallet/{address}',
+      method: 'GET',
+      walletCount: 1,
+      responseStatus: 404,
+      latencyMs: Date.now() - startTime,
+      creditsUsed: 1,
+      matches: 0,
+    }).catch(console.error);
+    return apiSuccess(
+      {
+        data: null,
+        meta: { wallet: normalizedAddress, found: false, checked_at: null },
+      },
+      { ...context.rateLimitHeaders, ...corsHeaders },
+      200
+    );
+  }
+
   const [result] = await db
     .select({
       wallet: socialGraph.wallet,
@@ -105,6 +155,34 @@ export async function GET(
     .from(socialGraph)
     .where(eq(socialGraph.wallet, normalizedAddress))
     .limit(1);
+
+  // A suppressed handle on this (unsuppressed) wallet is dropped before
+  // the presence test below, so a row whose only identity was the removed
+  // handle serves the checked-and-empty shape, indistinguishable from a
+  // persisted negative.
+  if (result) {
+    if (isKindSuppressed(suppression, 'twitter', result.twitterHandle)) {
+      result.twitterHandle = null;
+      result.twitterUrl = null;
+      result.twitterVerified = null;
+    }
+    if (isKindSuppressed(suppression, 'farcaster', result.farcaster)) {
+      result.farcaster = null;
+      result.farcasterUrl = null;
+      result.fcFollowers = null;
+      result.fcFid = null;
+      result.farcasterVerified = null;
+    }
+    if (isKindSuppressed(suppression, 'ens', result.ensName)) {
+      result.ensName = null;
+    }
+    if (isKindSuppressed(suppression, 'lens', result.lens)) {
+      result.lens = null;
+    }
+    if (isKindSuppressed(suppression, 'github', result.github)) {
+      result.github = null;
+    }
+  }
 
   // Persisted negatives (checked, no socials found) are rows too — they must
   // report found: false, not an empty found: true object
@@ -172,12 +250,19 @@ export async function GET(
       reachabilityForWallets([row]),
       alsoOnXForWallets([row]),
     ]);
+    // The also stamp reads live handle_conflicts, which mid-erasure can
+    // still carry a suppressed second handle; it is filtered against the
+    // same list as everything else on this response.
+    const alsoVal = also.get(result.wallet.toLowerCase()) ?? null;
     data.twitter = publicTwitterField({
       handle: result.twitterHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
       reachability: reach.get(result.wallet.toLowerCase()) ?? null,
-      also: also.get(result.wallet.toLowerCase()) ?? null,
+      also:
+        alsoVal && !isKindSuppressed(suppression, 'twitter', alsoVal.handle)
+          ? alsoVal
+          : null,
     });
   }
   if (result.farcaster) {

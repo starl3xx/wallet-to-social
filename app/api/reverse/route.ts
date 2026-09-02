@@ -19,6 +19,7 @@ import {
   formatRateLimitHeaders,
   getClientIp,
 } from '@/lib/ip-rate-limiter';
+import { isSuppressed } from '@/lib/suppression';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -157,6 +158,43 @@ export async function POST(request: NextRequest) {
   }
 
   /**
+   * The suppression check, before even the count is read.
+   *
+   * The count alone would leak: a nonzero total for a suppressed handle,
+   * served free above the paywall, is exactly the existence confirmation
+   * the removal exists to end. Same guard as the /v1 reverse routes: a
+   * suppressed handle gets the answer an unindexed handle gets (a zero
+   * count, or an empty entitled result), after the same rate limit, so the
+   * two are indistinguishable from outside. Fail closed on a failed read.
+   */
+  let handleSuppressed: boolean;
+  try {
+    handleSuppressed = (await isSuppressed(platform, [handle])).size > 0;
+  } catch (error) {
+    console.error('Suppression check failed on /api/reverse:', error);
+    return NextResponse.json(
+      { error: 'Service temporarily unavailable' },
+      { status: 503 }
+    );
+  }
+  if (handleSuppressed) {
+    if (!entitled) {
+      return NextResponse.json(lockedReverseBody(platform, handle, 0));
+    }
+    return NextResponse.json({
+      results: [],
+      lookup_id: null,
+      meta: {
+        platform,
+        handle,
+        total_count: 0,
+        returned_count: 0,
+        truncated: false,
+      },
+    });
+  }
+
+  /**
    * The count first, and by counting rather than by listing.
    *
    * On X the handle can be a row's primary or its second attested account, and
@@ -279,6 +317,40 @@ export async function POST(request: NextRequest) {
    * reopening a saved lookup would drop it.
    */
   await stampAlsoOnX(results);
+
+  /**
+   * The stamp reads LIVE handle_conflicts, so mid-erasure (or after a
+   * backup restore) it can attach a suppressed second handle to these
+   * rows. Filtered here the same way the serve-time scrub strips
+   * `twitter_also` from saved payloads, and fail closed by the same rule
+   * as the check above: a throw refuses the request via the catch in the
+   * route handler chain rather than serving unchecked.
+   */
+  const alsoHandles = results.flatMap((r) =>
+    r.twitter_also ? [r.twitter_also.handle] : []
+  );
+  if (alsoHandles.length > 0) {
+    let suppressedAlso: Set<string>;
+    try {
+      suppressedAlso = await isSuppressed('twitter', alsoHandles);
+    } catch (error) {
+      console.error('Suppression check failed on /api/reverse also:', error);
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable' },
+        { status: 503 }
+      );
+    }
+    if (suppressedAlso.size > 0) {
+      for (const r of results) {
+        if (
+          r.twitter_also &&
+          suppressedAlso.has(r.twitter_also.handle.toLowerCase())
+        ) {
+          delete r.twitter_also;
+        }
+      }
+    }
+  }
 
   // Save to My lookups, same as a forward lookup. A reverse result is a wallet
   // list like any other: worth reloading, renaming and exporting later, and

@@ -1,6 +1,12 @@
 # Nightly encrypted backup of the irreplaceable tables (users, api_keys,
-# whitelist, lookup_history, known_agents, api_plans). The Farcaster/ENS/
-# holdings data is rebuildable from source; customer/business data is not.
+# api_plans, whitelist, lookup_history, known_agents, credit_lots,
+# credit_ledger, suppressed_identifiers). The Farcaster/ENS/holdings data is
+# rebuildable from source; customer/business data is not, and the suppression
+# list least of all: a restore without it would un-remove every person who
+# asked to be gone. suppression_quarantine is deliberately NOT dumped; a
+# backup would extend its promised 30-day retention. The authoritative pair
+# of lists is in scripts/migrate-grant-readonly.ts, and check-invariants
+# asserts this file agrees with it.
 #
 # Encryption uses age with a PUBLIC recipient key — the private key never
 # touches the runner, so a compromised runner cannot read past backups.
@@ -90,9 +96,10 @@ jobs:
             -t public.known_agents \
             -t public.credit_lots \
             -t public.credit_ledger \
+            -t public.suppressed_identifiers \
             | age -r "$BACKUP_AGE_PUBLIC_KEY" -o "$OUT"
           # A backup that "succeeds" but is empty is worse than no backup — it
-          # looks green until the day you need it. The eight tables always carry
+          # looks green until the day you need it. The nine tables always carry
           # at least the seeded api_plans and ~13k known_agents rows, so a
           # healthy dump is far above this floor; anything under it means the
           # dump silently produced nothing.

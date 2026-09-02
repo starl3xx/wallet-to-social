@@ -1186,3 +1186,97 @@ export type NewOauthAuthorizationRequest =
   typeof oauthAuthorizationRequests.$inferInsert;
 export type OauthGrant = typeof oauthGrants.$inferSelect;
 export type NewOauthGrant = typeof oauthGrants.$inferInsert;
+
+// ============================================================================
+// Right to removal (stage 1: storage)
+// ============================================================================
+
+/**
+ * The suppression list. Created and enforced by
+ * `scripts/migrate-suppression.ts`, which attaches BEFORE INSERT OR UPDATE
+ * triggers to every identity-carrying table above; read that file's header
+ * before changing anything here, because most of this shape is load-bearing.
+ *
+ * One row suppresses exactly one public identifier, keyed `(kind, identifier)`.
+ * A request naming a wallet and a handle becomes two rows that no column
+ * joins: a row pairing them would itself be the edge the person asked us to
+ * erase. There is no requester column, no contact address and no free text,
+ * on purpose; `reason` and `lane` are closed CHECK vocabularies in the
+ * migration (`reason`: requested | operator | legal; `lane`: email |
+ * wallet_sig | handle_proof | legal). `lane` records how a request was
+ * verified, never anything about who made it, and exists so reversal can
+ * demand same-or-stronger verification than the removal did.
+ *
+ * `requested_at` and `created_at` are approximate BY DESIGN: their database
+ * defaults subtract a per-row random offset of up to four hours, so two rows
+ * inserted by one request cannot be re-joined by timestamp equality. Never
+ * supply these columns on insert; writing `new Date()` from the endpoint
+ * would silently defeat the jitter.
+ *
+ * `identifier` is stored normalised (lowercase, trimmed, no '@', no URL) and
+ * a CHECK in the migration refuses anything else, because a suppression that
+ * matches nothing looks exactly like one that works.
+ *
+ * In BOTH `READ_ONLY_TABLES` and `BACKUP_TABLES`
+ * (scripts/migrate-grant-readonly.ts): the scheduled sweep asserts nothing
+ * suppressed remains at rest, and a backup restored without this table would
+ * un-remove every person who asked to be gone.
+ */
+export const suppressedIdentifiers = pgTable(
+  'suppressed_identifiers',
+  {
+    kind: text('kind').notNull(), // wallet | twitter | farcaster | ens | lens | github
+    identifier: text('identifier').notNull(),
+    reason: text('reason').notNull().default('requested'),
+    lane: text('lane').notNull().default('email'),
+    requestedAt: timestamp('requested_at')
+      .notNull()
+      .default(sql`now() - random() * interval '4 hours'`),
+    createdAt: timestamp('created_at')
+      .notNull()
+      .default(sql`now() - random() * interval '4 hours'`),
+  },
+  (table) => [primaryKey({ columns: [table.kind, table.identifier] })]
+);
+
+/**
+ * The 30-day undo window behind a removal. Operator-only.
+ *
+ * Before the removal endpoint deletes a row from the index, it copies the row
+ * here as jsonb with the source table name and the `(kind, identifier)` of
+ * the suppression that caused it (a reference by value, not a foreign key:
+ * un-suppress deletes the suppression row first and restores from here
+ * after). Rows past `purge_after` are deleted by the cleanup cron.
+ *
+ * This is the one table whose rows DO pair a wallet with its handles, which
+ * is why it is in NEITHER `READ_ONLY_TABLES` nor `BACKUP_TABLES`: the
+ * scheduled role must never read it, and a nightly dump would extend the
+ * promised 30-day retention. `scripts/migrate-suppression.ts` revokes and
+ * verifies that nothing but the owner can touch it.
+ */
+export const suppressionQuarantine = pgTable(
+  'suppression_quarantine',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    identifier: text('identifier').notNull(),
+    sourceTable: text('source_table').notNull(),
+    rowData: jsonb('row_data').notNull(),
+    quarantinedAt: timestamp('quarantined_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    purgeAfter: timestamp('purge_after', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '30 days'`),
+  },
+  (table) => [
+    index('suppression_quarantine_purge_idx').on(table.purgeAfter),
+    index('suppression_quarantine_ref_idx').on(table.kind, table.identifier),
+  ]
+);
+
+export type SuppressedIdentifier = typeof suppressedIdentifiers.$inferSelect;
+export type NewSuppressedIdentifier = typeof suppressedIdentifiers.$inferInsert;
+export type SuppressionQuarantine = typeof suppressionQuarantine.$inferSelect;
+export type NewSuppressionQuarantine =
+  typeof suppressionQuarantine.$inferInsert;

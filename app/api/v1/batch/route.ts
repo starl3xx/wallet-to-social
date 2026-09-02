@@ -17,6 +17,11 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import {
+  loadSuppressionList,
+  isKindSuppressed,
+  type SuppressionSets,
+} from '@/lib/suppression';
 import { isRecordStale } from '@/lib/staleness';
 import {
   findIdempotentReplay,
@@ -264,12 +269,55 @@ export async function POST(request: NextRequest) {
     .from(socialGraph)
     .where(inArray(socialGraph.wallet, uniqueWallets));
 
+  /**
+   * The suppression filter, before anything downstream reads a row. The
+   * storage triggers only guard writes: after a backup restore, or while a
+   * failed erasure awaits its re-run, the graph rows still exist and this
+   * route would keep serving the mapping. A suppressed WALLET is dropped
+   * whole and serves the never-indexed shape (null entry, and deliberately
+   * no previously_checked timestamp, because that timestamp is itself a
+   * "we held a row" signal); a suppressed HANDLE is dropped from its row
+   * before the presence test, the reachability read and the also read.
+   * Fail closed, same as every serve-time filter.
+   */
+  let suppression: SuppressionSets;
+  try {
+    suppression = await loadSuppressionList();
+  } catch (error) {
+    console.error('Suppression check failed on /v1/batch:', error);
+    return apiError(
+      'Service temporarily unavailable',
+      'SERVICE_UNAVAILABLE',
+      503,
+      { ...context.rateLimitHeaders, ...corsHeaders }
+    );
+  }
+  const servedRows = results.filter((r) => {
+    if (isKindSuppressed(suppression, 'wallet', r.wallet)) return false;
+    if (isKindSuppressed(suppression, 'twitter', r.twitterHandle)) {
+      r.twitterHandle = null;
+      r.twitterUrl = null;
+      r.twitterVerified = null;
+    }
+    if (isKindSuppressed(suppression, 'farcaster', r.farcaster)) {
+      r.farcaster = null;
+      r.farcasterUrl = null;
+      r.fcFollowers = null;
+      r.fcFid = null;
+      r.farcasterVerified = null;
+    }
+    if (isKindSuppressed(suppression, 'ens', r.ensName)) r.ensName = null;
+    if (isKindSuppressed(suppression, 'lens', r.lens)) r.lens = null;
+    if (isKindSuppressed(suppression, 'github', r.github)) r.github = null;
+    return true;
+  });
+
   // Build result map
   const resultMap = new Map<string, (typeof results)[0]>();
   // One read each for the whole batch, together: neither depends on the other.
   // `also` is a second live handle attested for the same wallet; see
   // alsoOnXForWallets for what has to hold before a row gets one.
-  const handleRows = results.map((r) => ({
+  const handleRows = servedRows.map((r) => ({
     wallet: r.wallet,
     handle: r.twitterHandle,
   }));
@@ -277,8 +325,13 @@ export async function POST(request: NextRequest) {
     reachabilityForWallets(handleRows),
     alsoOnXForWallets(handleRows),
   ]);
+  // The also read is live handle_conflicts, which mid-erasure can still
+  // carry a suppressed second handle; filtered against the same list.
+  for (const [w, a] of also) {
+    if (isKindSuppressed(suppression, 'twitter', a.handle)) also.delete(w);
+  }
 
-  for (const result of results) {
+  for (const result of servedRows) {
     resultMap.set(result.wallet, result);
   }
 

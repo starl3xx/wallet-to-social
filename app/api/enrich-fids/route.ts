@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { fetchFidsByUsernames, isNeynarConfigured } from '@/lib/neynar';
+import { isSuppressed } from '@/lib/suppression';
 import { SESSION_COOKIE_NAME, validateSession } from '@/lib/auth';
 import {
   checkIpRateLimit,
@@ -72,7 +73,27 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.NEYNAR_API_KEY!;
 
-    const fidMap = await fetchFidsByUsernames(limitedUsernames, apiKey);
+    /**
+     * The pre-flight rule from `lib/job-processor.ts` applies here too:
+     * asking an upstream about a person who asked us to stop is still
+     * processing them. Suppressed usernames are dropped BEFORE the upstream
+     * call and simply come back absent from the map, which is exactly what
+     * an unknown username looks like. Fail closed: a failed suppression
+     * read throws into the catch below and the request errors rather than
+     * proxying unchecked.
+     */
+    const suppressed = await isSuppressed('farcaster', limitedUsernames);
+    const askable =
+      suppressed.size === 0
+        ? limitedUsernames
+        : limitedUsernames.filter(
+            (u: string) => !suppressed.has(u.trim().toLowerCase())
+          );
+
+    const fidMap =
+      askable.length > 0
+        ? await fetchFidsByUsernames(askable, apiKey)
+        : new Map<string, number>();
 
     // Convert Map to plain object for JSON response
     const fids: Record<string, number> = {};

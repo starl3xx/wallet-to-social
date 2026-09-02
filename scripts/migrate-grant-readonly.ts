@@ -62,6 +62,17 @@ const READ_ONLY_TABLES = [
   // expires 24 hours after it is written, and restoring last night's rows
   // would resurrect replayable responses for keys already retried.
   'idempotency_keys',
+  // Added 2026-09-02 with the right-to-removal suppression list
+  // (scripts/migrate-suppression.ts). SELECT so the scheduled read-only sweep
+  // can assert that nothing on the list still appears at rest in the index;
+  // sweep_runner never writes suppressions, and the guard triggers do not
+  // need this grant either (they are SECURITY DEFINER on purpose).
+  //
+  // Its sibling `suppression_quarantine` must NEVER be added here: it holds
+  // the deleted rows, wallet and handles together, for the 30-day undo
+  // window, and it is operator-only. migrate-suppression.ts revokes and
+  // verifies that.
+  'suppressed_identifiers',
 ];
 
 /**
@@ -88,6 +99,17 @@ const BACKUP_TABLES = [
   'known_agents',
   'credit_lots',
   'credit_ledger',
+  // Added 2026-09-02, and the reason is restore semantics, not
+  // irreplaceability alone: a restore that lacked the suppression list would
+  // un-remove every person who asked to be gone. With the list restored, any
+  // identity row the restore brings back re-suppresses on its next write
+  // (the storage triggers from scripts/migrate-suppression.ts) and the
+  // lookup pre-flight filter holds in the meantime.
+  //
+  // `suppression_quarantine` is deliberately in NEITHER list: a nightly dump
+  // of it would extend the promised 30-day retention of quarantined rows
+  // into a 90-day artifact.
+  'suppressed_identifiers',
 ];
 
 const GRANTS: { role: string; tables: string[] }[] = [
