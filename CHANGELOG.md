@@ -2,6 +2,58 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-02 (the repo as an agent surface: tier D, plus a README prune)
+
+Items 22 to 25 of `docs/AGENT-SYSTEM.md` (tier D), so a fresh session is
+productive in one read and a red gate names its own cause; and the README
+returns to orienting a repo visitor.
+
+- **Preflight scripts (item 22).** `package.json` gains `typecheck` and one
+  `check:*` script per guard, plus `npm run preflight`, which chains every
+  gate that needs no database, no Chrome and no secrets (format check,
+  typecheck, palette, design-language, contrast, og-palette, invariants).
+  `docs/CI.md` names it as the local repro shortcut.
+- **Preview builds stop touching Neon (item 23).** On a Vercel preview
+  deployment, `/api/public-stats` serves the `lib/public-figures.ts`
+  constants, `/api/starter-collections` serves the empty list the homepage
+  panel already hides gracefully, and the holder listing
+  (`lib/holder-pages.ts`, feeding `/holders`, the sitemap and
+  `generateStaticParams`) answers empty, so no preview build reads the
+  database and concurrent preview pushes can no longer starve each other.
+  Production and local builds keep the live path, byte-identical; the guard
+  condition is asserted in `scripts/check-invariants.ts` and its loosenings
+  are mutations in `scripts/check-invariants-guard.ts`.
+- **Guards name their own flakes (item 24).** `check-control-height.mjs`
+  relaunches Chrome once with a fresh profile before failing and its failure
+  message says the fault is environmental, not layout;
+  `check-published-figures.ts` on a pull_request run whose only findings are
+  DRIFT/STALE prints that the index moved, not the PR, with the
+  sync-in-its-own-PR loop (exit code still 1); `check-design-language.mjs`
+  appends a rephrase hint when a hit sits inside a string literal in a
+  non-component file.
+- **Posture as data (item 25).** New read-only `scripts/ops-status.ts` prints
+  the `ingest_state` posture rows (`posture:*`, `neynar_credit_usage` with
+  its age, `farcaster_sweep_resume`); `docs/OPERATIONS.md` stays the index of
+  what each row means.
+- **README prune.** The README says what the product is, why the code is
+  public, how to run it and where the real docs live, and stops restating the
+  API reference. Cut: the endpoint credit table and the rate-limit plan table
+  (the docs site owns them, and the plan table predated plan laddering), the
+  legacy Pro and Unlimited rows and sentence, the MCP OAuth design essay (a
+  pointer to the `app/api/mcp/route.ts` header remains), the x402 per-address
+  economics, and the environment-variable table (`.env.example` is the
+  authority). Corrected: the licence section now says AGPL-3.0, matching
+  `LICENSE` (it said MIT); the MCP tool count is eight, matching the server;
+  the agent count is 13,622+, matching `KNOWN_AGENTS`; the commands block
+  matches the new scripts. Added: a “Public on purpose” section carrying the
+  `docs/README.md` rationale. Every figure the README still states is
+  declared in `scripts/check-published-figures.ts`; `README.md` joined the
+  live-share and known-agents claims there in the same change.
+- **Held-handles sync.** The distinct-handles-held figure had fallen ahead of
+  the live count on its four declared surfaces (460,798 published, 460,779
+  held: the conflict resolver removes handles, so this count can shrink);
+  synced so the figures gate runs green.
+
 ### 2026-09-01 (a pack buys its limits, the rail grows, and spend gets a dry run)
 
 Gaps 17, 18 and 19 of `docs/AGENT-SYSTEM.md` (tier C, decided 2026-09-01),

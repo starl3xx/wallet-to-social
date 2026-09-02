@@ -333,14 +333,29 @@ read. Tracked in `docs/CI.md` (the gate map) and `docs/OPERATIONS.md`
 (posture and PR protocol), created alongside this document:
 
 22. Preflight scripts in `package.json` (`typecheck`, per-guard `check:*`, one
-    `preflight` chaining every no-DB, no-Chrome gate).
+    `preflight` chaining every no-DB, no-Chrome gate). _Shipped
+    (2026-09-02):_ `npm run preflight` chains the no-DB, no-Chrome, no-secret
+    gates in CI order; `docs/CI.md` names it as the local repro shortcut.
 23. Preview builds stop touching Neon (serve frozen constants when
     `VERCEL_ENV === 'preview'`), removing the concurrent-preview starvation
-    structurally; until then the stagger rule is documented.
+    structurally; until then the stagger rule is documented. _Shipped
+    (2026-09-02):_ the preview branch lives in the three prerendered
+    surfaces and at the `lib/holder-pages.ts` choke point every build-time
+    reader flows through; production and local builds keep the live path,
+    asserted in `check-invariants.ts` with its loosenings as guard mutations.
 24. Guard messages learn to name their own flakes (control-height Chrome
     boot; figures STALE on unrelated PRs prints the sync-in-its-own-PR loop).
+    _Shipped (2026-09-02):_ control-height relaunches Chrome once with a
+    fresh profile before failing and says the fault is environmental; the
+    figures check tallies DRIFT/STALE apart from tree problems and prints the
+    index-moved epilogue on pull_request runs; design-language appends a
+    rephrase hint for string-literal hits in non-component files.
 25. Operational posture becomes data (`ingest_state` rows read by
     `scripts/ops-status.ts`), with `docs/OPERATIONS.md` as the index.
+    _Shipped (2026-09-02):_ one read-only SELECT for the `posture:*` rows,
+    the credit counter (age printed first, since a stale `updated_at` makes
+    the value untrustworthy) and the sweep checkpoint, telling alarming
+    absence from normal absence.
 
 ---
 

@@ -23,7 +23,11 @@ other two for when their subject comes up:
 
 ```bash
 npm run dev          # Start development server (localhost:3000)
-npm run build        # Production build
+npm run build        # Production build (typechecks as part of the build)
+npm run typecheck    # tsc --noEmit, the faster standalone check
+npm run preflight    # Every CI gate needing no DB, no Chrome, no secrets, in CI order
+npm run check:<x>    # One guard alone: palette, design, contrast, og, invariants,
+                     #   invariants-guard, figures (needs .env.local), height (needs Chrome)
 npm run lint         # ESLint
 npm run format       # Prettier format all files (enforced by CI, see below)
 npm run db:push      # REFUSES. See "Schema changes" below.

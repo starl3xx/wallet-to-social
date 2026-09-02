@@ -40,6 +40,12 @@ interface Props {
 }
 
 export async function generateStaticParams() {
+  // A preview build prerenders no holder pages, so it never reads Neon at
+  // build time (docs/CI.md, the Vercel row). A holder page visited on a
+  // preview still renders on demand through the ordinary request path;
+  // production and local builds prerender the full set unchanged. Exact
+  // equality on purpose, asserted in `scripts/check-invariants.ts`.
+  if (process.env.VERCEL_ENV === 'preview') return [];
   const collections = await listHolderCollections();
   return collections.map((c) => ({ chain: c.chain, address: c.address }));
 }

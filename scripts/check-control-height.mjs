@@ -465,23 +465,35 @@ async function main() {
 
   const chrome = findChrome();
   const tmp = mkdtempSync(join(tmpdir(), 'wl-control-height-'));
-  const profile = join(tmp, 'profile');
 
-  const browser = spawn(
-    chrome,
-    [
-      '--headless=new',
-      '--disable-gpu',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-dev-shm-usage',
-      '--allow-file-access-from-files',
-      `--user-data-dir=${profile}`,
-      '--remote-debugging-port=0',
-      'about:blank',
-    ],
-    { stdio: 'ignore' }
-  );
+  const launchChrome = (profileDir) =>
+    spawn(
+      chrome,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-dev-shm-usage',
+        '--allow-file-access-from-files',
+        `--user-data-dir=${profileDir}`,
+        '--remote-debugging-port=0',
+        'about:blank',
+      ],
+      { stdio: 'ignore' }
+    );
+
+  /** Chrome flushes the file asynchronously, so poll rather than race it. */
+  const waitForDevToolsPort = async (profileDir) => {
+    let found = null;
+    for (let i = 0; i < 60 && found === null; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      found = readDevToolsPort(profileDir);
+    }
+    return found;
+  };
+
+  let browser = launchChrome(join(tmp, 'profile'));
 
   let app = null;
   let failures = 0;
@@ -521,13 +533,35 @@ async function main() {
     process.exit(130);
   });
 
-  let port = null;
-  for (let i = 0; i < 60 && port === null; i++) {
-    await new Promise((r) => setTimeout(r, 250));
-    port = readDevToolsPort(profile);
+  let port = await waitForDevToolsPort(join(tmp, 'profile'));
+  if (port === null) {
+    /**
+     * One relaunch, with a fresh profile directory, before giving up.
+     *
+     * A Chrome that boots and never writes DevToolsActivePort is a runner
+     * fault (a stale singleton lock, a slow disk, a half-dead sandbox), not a
+     * measurement, and the observed CI failures of this kind cleared on a
+     * plain re-run. A fresh profile removes the one cause a retry into the
+     * same directory would inherit.
+     */
+    console.log(
+      `${DIM}Chrome never published a DevTools port; relaunching once with a fresh profile.${RESET}`
+    );
+    try {
+      browser.kill('SIGKILL');
+    } catch {
+      /* already gone */
+    }
+    browser = launchChrome(join(tmp, 'profile-relaunch'));
+    port = await waitForDevToolsPort(join(tmp, 'profile-relaunch'));
   }
   if (port === null)
-    fail('Chrome started and never published a DevTools port.');
+    fail(
+      'Chrome started and never published a DevTools port, twice, the second time\n' +
+        'with a fresh profile directory. This is environmental (the runner or its\n' +
+        'Chrome install), not a layout defect: nothing was measured, so this run says\n' +
+        'nothing about the pages. Re-run the job.'
+    );
 
   const cdp = await Cdp.attach(port);
 

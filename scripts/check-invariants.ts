@@ -4380,6 +4380,77 @@ async function main() {
     );
   }
 
+  // ------------------------------------------- preview builds and Neon
+  // docs/CI.md promises two things at once: a preview deployment never reads
+  // the database at build time, and production behaves as if the frozen
+  // branch did not exist. Both die to the same mutation, the guard condition
+  // drifting off the one string that is true ONLY on a preview deployment.
+  // `!== 'production'` freezes local builds; a truthy test freezes
+  // production, which then serves constants that age silently. So the
+  // assertion is exhaustive the attacker's way: every read of the variable in
+  // these files must be the exact preview equality, and each file must
+  // actually carry the branch (deleting it brings the starvation back).
+  {
+    const surfaces = [
+      'app/api/public-stats/route.ts',
+      'app/api/starter-collections/route.ts',
+      'app/holders/[chain]/[address]/page.tsx',
+      'lib/holder-pages.ts',
+    ];
+    for (const file of surfaces) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      const exact = src.match(/process\.env\.VERCEL_ENV === 'preview'/g) ?? [];
+      const any = src.match(/VERCEL_ENV/g) ?? [];
+      ok(
+        `${file}: the frozen preview branch exists (a preview build must not read Neon)`,
+        exact.length >= 1
+      );
+      ok(
+        `${file}: every VERCEL_ENV read is the exact preview equality, so neither production nor a local build can take the frozen path`,
+        any.length > 0 && any.length === exact.length
+      );
+    }
+
+    // The frozen public-stats answer must be the published constants, not a
+    // second set of hand-typed numbers: lib/public-figures.ts is the one
+    // authority, and a preview that answers from anywhere else can lie
+    // without any figure check noticing.
+    const stats = withoutComments(
+      readFileSync('app/api/public-stats/route.ts', 'utf8')
+    );
+    ok(
+      'the preview stats answer is derived from lib/public-figures.ts, not typed beside it',
+      /from '@\/lib\/public-figures'/.test(stats) &&
+        /figure\(INDEXED_WALLETS\)/.test(stats)
+    );
+    ok(
+      'the public-stats preview branch answers before the live query can run',
+      stats.indexOf("=== 'preview'") !== -1 &&
+        stats.indexOf("=== 'preview'") < stats.indexOf('getDb()')
+    );
+
+    // A preview build prerenders no holder pages: generateStaticParams
+    // answers the empty list before the corpus listing is consulted.
+    const holders = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'a preview build prerenders no holder pages (generateStaticParams answers [])',
+      /if \(process\.env\.VERCEL_ENV === 'preview'\) return \[\];/.test(holders)
+    );
+
+    // The canned starter answer stays the shape the consumer hides
+    // gracefully: an empty list plus the real wallet cap, never fabricated
+    // collection rows a preview visitor could mistake for the corpus.
+    const starter = withoutComments(
+      readFileSync('app/api/starter-collections/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the starter-collections preview answer is the empty list with the real cap, not invented rows',
+      /collections: \[\], walletCap: STARTER_WALLET_CAP/.test(starter)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

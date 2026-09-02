@@ -22,6 +22,27 @@ export const dynamic = 'force-static';
 
 export async function GET() {
   /**
+   * Preview deployments answer without reading Neon.
+   *
+   * This route is force-static, so its GET runs during every Vercel build;
+   * on previews that build-time read is what let two concurrent branch
+   * pushes starve each other (docs/CI.md, the Vercel row). The canned answer
+   * is the shape the consumer treats as "nothing to offer":
+   * `components/StarterCollections.tsx` renders no panel for an empty list,
+   * and every other way into the product stays on the page. The wallet cap
+   * is the real constant, not a placeholder, so nothing here can disagree
+   * with the meter. Exact equality on purpose: production reads
+   * 'production' and keeps the live path, local builds have it unset.
+   * Asserted in `scripts/check-invariants.ts`.
+   */
+  if (process.env.VERCEL_ENV === 'preview') {
+    return NextResponse.json({
+      collections: [],
+      walletCap: STARTER_WALLET_CAP,
+    });
+  }
+
+  /**
    * A failure must not be answered, because an answer here is kept for an hour.
    *
    * This caught the error and returned an empty list with a 200, reasoning that

@@ -12,7 +12,7 @@
  * 2026-08-18. It has checked 460,889 distinct handles, which is every handle in
  * `x_accounts`.
  *
- * That is slightly MORE than the 460,798 distinct handles the index holds, and
+ * That is slightly MORE than the 460,779 distinct handles the index holds, and
  * it is not an error: the table keeps every handle it has ever seen a state
  * for, including ones the conflict resolver has since replaced, so it is a
  * superset rather than a subset. Treating one as the other's denominator gives

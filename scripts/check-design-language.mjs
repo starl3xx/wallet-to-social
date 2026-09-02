@@ -150,6 +150,49 @@ const fires = (rule, s, file = '') =>
   !(rule.skip && rule.skip.test(s)) &&
   !(rule.files && rule.files.test(file));
 
+/**
+ * Is this hit prose quoted in a string, rather than a class in markup?
+ *
+ * The guard deliberately reads inside string literals, because className IS a
+ * string literal, and three of its rules exist for exactly that position. The
+ * cost is that a tool description or an error message which merely *mentions*
+ * a banned class fires the same rule (the header of `app/api/mcp/route.ts`
+ * records the first time that happened and how the sentence was rephrased).
+ * This does not exempt anything: the hit still fails the check. It only
+ * appends the one line that tells the author which of the two situations they
+ * are in. Scoped to non-component files (`.ts`, where no JSX className can
+ * exist), because in a `.tsx` file a class inside a string is the normal
+ * shape of a real violation.
+ */
+function insideString(code, at) {
+  let quote = null;
+  for (let i = 0; i < at; i++) {
+    const ch = code[i];
+    if (ch === '\\' && quote) {
+      i++;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+    }
+  }
+  return quote !== null;
+}
+
+function proseNote(rule, code, file) {
+  if (file.endsWith('.tsx')) return false;
+  const m = rule.re.exec(code);
+  if (!m) return false;
+  // Skip past the lead-in group, so a match that opens ON a quote counts as
+  // inside the string that quote opens.
+  return insideString(code, m.index + (m[1] ?? '').length);
+}
+
+const PROSE_HINT =
+  'If this is prose, the guard reads inside strings; rephrase (see the app/api/mcp/route.ts header).';
+
 /** Whole-line rule: uppercase text must be mono, since there is one label style. */
 function uppercaseWithoutMono(line) {
   if (!/(^|[\s"'`])(?:[a-z0-9-]+:)*uppercase(?=[\s"'`]|$)/.test(line))
@@ -357,6 +400,41 @@ for (const s of [
     failed++;
   }
 
+// The prose hint must know a quoted sentence from markup: a banned class
+// inside a string literal in a `.ts` file earns the hint, a className in a
+// component and a bare import statement never do.
+{
+  const radius = RULES.find((r) => r.name === 'radius');
+  const icons = RULES.find((r) => r.name === 'icon-library');
+  const cases = [
+    {
+      rule: radius,
+      code: "    description: 'answers never mention rounded-md corners',",
+      file: 'app/api/mcp/route.ts',
+      expect: true,
+    },
+    {
+      rule: radius,
+      code: '<div className="rounded-md border p-4">',
+      file: 'components/ui/card.tsx',
+      expect: false,
+    },
+    {
+      rule: icons,
+      code: "import { Check } from 'lucide-react';",
+      file: 'app/sitemap.ts',
+      expect: false,
+    },
+  ];
+  for (const c of cases)
+    if (proseNote(c.rule, c.code, c.file) !== c.expect) {
+      console.error(
+        `FIXTURE FAIL  prose hint ${c.expect ? 'missed a quoted sentence' : 'false alarm'}: ${c.code}`
+      );
+      failed++;
+    }
+}
+
 if (failed) {
   console.error(
     `\n${failed} fixture(s) failed. The guard does not do what it claims.`
@@ -398,6 +476,7 @@ for (const file of [...walk('app'), ...walk('components')]) {
             rule: rule.name,
             msg: rule.msg,
             code: code.trim().slice(0, 90),
+            prose: proseNote(rule, code, file),
           });
       if (uppercaseWithoutMono(code))
         hits.push({
@@ -417,6 +496,9 @@ if (!hits.length) {
   process.exit(0);
 }
 for (const h of hits)
-  console.error(`${h.file}:${h.line}  [${h.rule}]  ${h.code}\n    ${h.msg}`);
+  console.error(
+    `${h.file}:${h.line}  [${h.rule}]  ${h.code}\n    ${h.msg}` +
+      (h.prose ? `\n    ${PROSE_HINT}` : '')
+  );
 console.error(`\n${hits.length} violation(s). See docs/DESIGN-LANGUAGE.md.`);
 process.exit(1);

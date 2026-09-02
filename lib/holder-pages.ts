@@ -146,6 +146,15 @@ export interface HolderOverlap {
 export async function listHolderCollections(): Promise<
   ListedHolderCollection[]
 > {
+  // Preview deployments get the empty listing and never reach Neon. The
+  // holders hub and the sitemap both prerender through this listing at build
+  // time, which is the same build-time read that let concurrent preview
+  // builds starve each other (docs/CI.md, the Vercel row). Every caller
+  // already renders an empty listing gracefully, because a database-less
+  // build takes the `!db` branch below to the same answer. Exact equality on
+  // purpose: production and local builds keep the live query. Asserted in
+  // `scripts/check-invariants.ts`.
+  if (process.env.VERCEL_ENV === 'preview') return [];
   const db = getDb();
   if (!db) return [];
   const result = (await db.execute(sql`
