@@ -380,6 +380,13 @@ export const CLAIMS: Claim[] = [
       'docs-site/concepts/data-quality.mdx',
       'docs-site/concepts/coverage.mdx',
       /**
+       * The README always stated the live share in the same sentence as the
+       * suspended and unclaimed shares, but only those two were declared for
+       * it, so a third of the reachability split could drift there unseen.
+       * Declared with the 2026-09-02 README prune.
+       */
+      'README.md',
+      /**
        * `lib/public-figures.ts` is where this figure now lives.
        *
        * ReachabilityClaim, llms.txt and the welcome sequence interpolate the
@@ -482,6 +489,12 @@ export const CLAIMS: Claim[] = [
     what: 'known agent wallets flagged',
     files: [
       'lib/public-figures.ts',
+      /**
+       * The README's features table carried an undeclared "13,000+" that had
+       * quietly fallen behind KNOWN_AGENTS. Corrected to the constant's value
+       * and declared with the 2026-09-02 README prune.
+       */
+      'README.md',
       'content/published/filter-agents-before-airdrop.md',
       'content/published/ai-agents-why-it-matters.md',
       'content/published/walletlink-vs-blaze.md',
@@ -961,6 +974,18 @@ async function main() {
   let problems = 0;
   let checked = 0;
 
+  /**
+   * What kind of problem each one is, kept apart for the epilogue below.
+   *
+   * DRIFT and STALE on a declared claim are comparisons against the LIVE
+   * database, which moves daily with no commit; everything else (a missing
+   * file, a claim the regex cannot find, an undeclared figure, a measurement
+   * problem) is a property of the tree and therefore of the PR being checked.
+   * The distinction is what lets a pull-request run say whose fault the red
+   * is.
+   */
+  const findings = { driftStale: 0, other: 0 };
+
   for (const claim of CLAIMS) {
     const truth = await claim.actual();
 
@@ -971,6 +996,7 @@ async function main() {
       } catch {
         console.error(`MISSING  ${file} (declared by "${claim.what}")`);
         problems++;
+        findings.other++;
         continue;
       }
 
@@ -1025,6 +1051,7 @@ async function main() {
             `its entry should be too, or every occurrence is exempt.`
         );
         problems++;
+        findings.other++;
         continue;
       }
 
@@ -1080,6 +1107,7 @@ async function main() {
               `${(claim.staleBelow! * 100).toFixed(0)}%). Not wrong, just old.`
           );
           problems++;
+          findings.driftStale++;
         } else {
           console.error(
             `  DRIFT  ${file}: ${claim.what} published as ${publishedRaw}, actual ${fmt(truth)}` +
@@ -1088,15 +1116,22 @@ async function main() {
                 : ' (published claims more than the database holds)')
           );
           problems++;
+          findings.driftStale++;
         }
       }
     }
   }
 
-  problems += checkMeasurements();
+  // Measurement problems are tree problems: both halves of a measurement
+  // comparison are files, so only a commit can move them, and OLD is a
+  // calendar the PR author can read. None of them is the index moving.
+  const measurementProblems = checkMeasurements();
+  problems += measurementProblems;
+  findings.other += measurementProblems;
 
   const undeclared = sweepForUndeclared();
   problems += undeclared;
+  findings.other += undeclared;
 
   for (const known of KNOWN_UNDECLARED) {
     console.log(`  note   not declared, deliberately: ${known}`);
@@ -1111,6 +1146,29 @@ async function main() {
         `this is expected drift rather than a broken build: correct the copy and ` +
         `the figure, in the same change.`
     );
+    /**
+     * The flake this check is best known for, named on the run itself.
+     *
+     * The index grows daily, so on a pull request whose diff touches no
+     * figure, DRIFT and STALE mean the INDEX moved under the copy, not that
+     * the PR broke anything (docs/CI.md, the figures row). People kept
+     * rediscovering that from the log, so when every finding is one of those
+     * two kinds on a pull_request run, the run says so. The exit code stays 1
+     * on purpose: the copy really is behind, and green here must keep meaning
+     * "everything we publish matches the database".
+     */
+    if (
+      process.env.GITHUB_EVENT_NAME === 'pull_request' &&
+      findings.driftStale > 0 &&
+      findings.other === 0
+    ) {
+      console.error(
+        '\nEvery finding above is DRIFT or STALE against the live index. If your diff ' +
+          'touched none of these figures, the index moved, not your PR: sync ' +
+          'lib/public-figures.ts (and the copy beside each finding) in its own small ' +
+          'PR, merge that, then re-run this check.'
+      );
+    }
     process.exit(1);
   }
   console.log('Everything we publish still matches the database.');

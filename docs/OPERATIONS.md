@@ -17,6 +17,10 @@ Only pipelines with a non-default posture get a row; the full cron roster
 lives in `vercel.json` and the scheduled workflows, which stay the authority
 on what runs when.
 
+`npx tsx --env-file=.env.local scripts/ops-status.ts` prints the live values
+(the `ingest_state` posture and counter rows, read-only); this file stays the
+index of what each row means.
+
 | Pipeline                         | State                                | Notes                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Farcaster sweep (monthly)        | **running, slice mode**              | `--slice` covers a sixth of the network per month; every FID re-checked twice a year; revocation cleanup is range-bounded (#223). A slice writes no checkpoint by design.                                                                                                                                                                            |
@@ -36,9 +40,10 @@ on what runs when.
    to retrigger. Fix findings immediately and push; Bugbot re-reviews on push.
 4. Merge (squash, delete branch) when Bugbot has passed and every check is
    green. Do not merge over a red Vercel preview without diagnosing it: the
-   known benign cause is two concurrent preview builds starving each other’s
-   build-time DB reads (see `docs/CI.md`), and the fix is a staggered re-push,
-   not an override.
+   once-known benign cause (two concurrent preview builds starving each
+   other’s build-time DB reads) is structurally closed, since preview builds
+   no longer touch Neon (see `docs/CI.md`); if it still appears, stagger the
+   pushes and report it.
 5. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
    schema, endpoints, env vars or pricing moved; this file when posture moved.
 

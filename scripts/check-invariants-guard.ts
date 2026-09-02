@@ -1031,6 +1031,38 @@ const MUTATIONS: Mutation[] = [
     from: '  if (!job || job.userId !== context.key.userId) {',
     to: '  if (!job) {',
   },
+
+  // --- preview builds and Neon --------------------------------------------
+
+  {
+    // The plausible "improvement": previews are everything that is not
+    // production, so widen the guard. It freezes local builds too, and the
+    // invariant requires the one string that is true only on a preview.
+    name: 'the preview guard loosens to not-production, freezing local builds too',
+    file: 'app/api/public-stats/route.ts',
+    from: "process.env.VERCEL_ENV === 'preview'",
+    to: "process.env.VERCEL_ENV !== 'production'",
+  },
+  {
+    // The catastrophic direction: a truthy test is true in production as
+    // well, so the live site serves frozen constants that age silently.
+    name: 'the preview guard becomes a truthy test, so production serves the frozen answer',
+    file: 'app/api/starter-collections/route.ts',
+    from: "if (process.env.VERCEL_ENV === 'preview') {",
+    to: 'if (process.env.VERCEL_ENV) {',
+  },
+  {
+    name: 'holder pages go back to prerendering against Neon on preview builds',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: "  if (process.env.VERCEL_ENV === 'preview') return [];\n  const collections",
+    to: '  const collections',
+  },
+  {
+    name: 'the hub and sitemap listing goes back to reading Neon on preview builds',
+    file: 'lib/holder-pages.ts',
+    from: "  if (process.env.VERCEL_ENV === 'preview') return [];\n  const db = getDb();",
+    to: '  const db = getDb();',
+  },
 ];
 
 function invariantsPass(): boolean {
