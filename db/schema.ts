@@ -494,6 +494,13 @@ export const analyticsEvents = pgTable(
     ),
     index('analytics_events_user_id_idx').on(table.userId),
     index('analytics_events_session_id_idx').on(table.sessionId),
+    /**
+     * The bare window scan. Every funnel reader that does not lead with an
+     * event type (`getSessionFunnel`, `getGateMetrics`, the acquisition
+     * sources) filters on `created_at` alone, which none of the three above
+     * can serve. Created by `scripts/migrate-analytics-created-at.ts`.
+     */
+    index('analytics_events_created_at_idx').on(table.createdAt),
   ]
 );
 

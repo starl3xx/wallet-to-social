@@ -3,7 +3,10 @@ import {
   getUserFunnel,
   getSessionFunnel,
   getGateMetrics,
-  getPaywallTriggers,
+  getGateConversion,
+  getAcquisitionSources,
+  getPurchases,
+  getAgentRail,
   conversionRates,
 } from '@/lib/analytics';
 import { requireAdmin } from '@/lib/admin-auth';
@@ -20,6 +23,11 @@ export const runtime = 'nodejs';
  * were the same measurement over different windows. One window, chosen once by
  * the reader, is the whole point of this route.
  *
+ * `previous` is the same window shifted back by its own length, and carries
+ * only the two funnels plus their rates: the pane shows movement on its
+ * headline tiles, and doubling the source, gate and rail queries for a delta
+ * nobody asked for is where a cheap comparison stops being cheap.
+ *
  * `days` is clamped rather than trusted. The session funnel groups the whole
  * event table by session id inside the range, so an unbounded value is a
  * request to scan everything ever recorded, from a query string.
@@ -32,21 +40,43 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = new URL(request.url);
-    const requested = parseInt(url.searchParams.get('days') || '30', 10);
+    const requested = parseInt(url.searchParams.get('days') || '28', 10);
     const days =
       Number.isFinite(requested) && requested > 0
         ? Math.min(requested, MAX_DAYS)
-        : 30;
+        : 28;
 
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const [events, sessions, gates, triggers] = await Promise.all([
+    // The previous window ends where this one starts. Same length, so a 28-day
+    // window is compared against the 28 days before it and the weekday mix on
+    // both sides matches.
+    const prevEnd = new Date(startDate);
+    const prevStart = new Date(startDate);
+    prevStart.setDate(prevStart.getDate() - days);
+
+    const [
+      events,
+      sessions,
+      gates,
+      gateConversion,
+      sources,
+      purchases,
+      agents,
+      prevEvents,
+      prevSessions,
+    ] = await Promise.all([
       getUserFunnel(startDate, endDate),
       getSessionFunnel(startDate, endDate),
       getGateMetrics(startDate, endDate),
-      getPaywallTriggers(startDate, endDate),
+      getGateConversion(startDate, endDate),
+      getAcquisitionSources(startDate, endDate),
+      getPurchases(startDate, endDate),
+      getAgentRail(startDate, endDate),
+      getUserFunnel(prevStart, prevEnd),
+      getSessionFunnel(prevStart, prevEnd),
     ]);
 
     return NextResponse.json({
@@ -54,10 +84,18 @@ export async function GET(request: NextRequest) {
       events,
       sessions,
       gates,
-      triggers,
+      gateConversion,
+      sources,
+      purchases,
+      agents,
       // Computed here rather than in the browser so the two rates have exactly
       // one definition in the codebase. See `conversionRates`.
       rates: conversionRates(events),
+      previous: {
+        events: prevEvents,
+        sessions: prevSessions,
+        rates: conversionRates(prevEvents),
+      },
     });
   } catch (error) {
     console.error('Journey API error:', error);
