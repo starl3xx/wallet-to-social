@@ -290,6 +290,54 @@ export const CLAIMS: Claim[] = [
   },
   {
     /**
+     * A ratio the two ceiling claims above must never be turned into.
+     *
+     * The docs published X_HANDLES_RESOLVED over X_HANDLES_HELD as "99.5%
+     * coverage", and the two are not a fraction: `x_accounts` keeps every
+     * handle it has ever seen a state for, replaced ones included, so the
+     * numerator is a SUPERSET of the denominator and the quotient sits above
+     * 100% (see `lib/handle-reachability.ts`). Both inputs passed their own
+     * checks the whole time, because each is true alone; the lie lived only
+     * in the division. So the honest ratio is declared as its own claim,
+     * with its own predicate: of the distinct handles the index holds, the
+     * share that have a state in `x_accounts`.
+     */
+    what: 'share of held X handles with a reachability state',
+    files: [
+      'docs-site/concepts/coverage.mdx',
+      'docs-site/concepts/data-quality.mdx',
+      'lib/public-figures.ts',
+    ],
+    // `\s+` between the anchor words, not spaces: both docs pages wrap prose
+    // across lines, and a claim that stops matching on a reflow is a claim
+    // that quietly stops being checked (the held-handles pattern above
+    // learned this the hard way, in its own commit).
+    pattern:
+      /X_REACHABILITY_COVERAGE_PCT = '([0-9]{2}\.[0-9])'|([0-9]{2}\.[0-9])%\s+of\s+the\s+distinct\s+handles\s+(?:we\s+hold|the\s+index\s+holds)/,
+    actual: async () => {
+      const withState = await one(sql`
+        SELECT count(*)::int FROM (
+          SELECT DISTINCT lower(twitter_handle) AS handle
+          FROM social_graph WHERE twitter_handle IS NOT NULL
+        ) h WHERE EXISTS (SELECT 1 FROM x_accounts x WHERE x.handle = h.handle)`);
+      const held = await one(
+        sql`SELECT count(DISTINCT lower(twitter_handle))::int FROM social_graph
+            WHERE twitter_handle IS NOT NULL`
+      );
+      return held === 0 ? 0 : (withState / held) * 100;
+    },
+    /**
+     * Same band as the reachability shares. The published figure understates
+     * by construction (99.9 against a truth that hovers just below 100), and
+     * the band is what lets the check fail if a large unchecked cohort ever
+     * arrives: at 5% fractional drift the claim fails once true coverage
+     * falls under roughly 95%, which is exactly the moment the sentence
+     * around it stops being honest.
+     */
+    tolerance: 0.05,
+  },
+  {
+    /**
      * One digit from the index size and a different fact entirely.
      *
      * 4.7M is the Farcaster half, 4.8M is every wallet with any identity. Only
@@ -459,6 +507,11 @@ export const CLAIMS: Claim[] = [
       'app/layout.tsx',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
+      // The README stated this figure unregistered from the start; it was
+      // invisible to the sweep only because "of handles" is not one of the
+      // sweep's shapes. Declared the day its sentence was rewritten to the
+      // canonical route enumeration.
+      'README.md',
       // The comparison pages carry the same claim in their own words; they
       // were outside the list when the 2026-08-22 Sybil import moved the
       // measured share, and drifted unguarded.

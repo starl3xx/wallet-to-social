@@ -88,6 +88,23 @@ export const X_HANDLES_RESOLVED = '460,889';
 export const X_HANDLES_HELD = '460,798';
 
 /**
+ * Share of the distinct held X handles that carry a reachability state.
+ *
+ * The claim this replaces divided `X_HANDLES_RESOLVED` by `X_HANDLES_HELD`
+ * and published the quotient as coverage. Those two constants are not a
+ * numerator and a denominator: `x_accounts` keeps every handle it has ever
+ * seen a state for, replaced ones included, so it is a superset of what the
+ * index holds and the quotient sits above 100% (see
+ * `lib/handle-reachability.ts`). The honest claim is this one: of the
+ * distinct handles the index holds today, the share with a state. The
+ * remainder is new arrivals and transport retries the daily job works
+ * through oldest-first, which is why this is not written as a whole number:
+ * the gap is real, and rounding it away would claim a completeness the
+ * pipeline never has on any given day.
+ */
+export const X_REACHABILITY_COVERAGE_PCT = '99.9';
+
+/**
  * The reachability split: what happened to the X handles we resolved.
  *
  * ## Why these are here and not in the copy

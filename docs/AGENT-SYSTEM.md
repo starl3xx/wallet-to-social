@@ -153,7 +153,7 @@ Grounded findings from the five-persona drive, 2026-09-01. Each item names
 its subject files and functions; re-verify against the code before acting,
 since lines and behavior drift.
 
-### Tier A: truth bugs on public surfaces (fix first, no product decisions)
+### Tier A: truth bugs on public surfaces (shipped 2026-09-01; kept as the record of what was wrong)
 
 1. **The `attested` field contradicts the docs’ own definition.** MCP
    `shapeRecord` maps `attested` to the narrow `verified` flag, which
@@ -222,15 +222,17 @@ fixture-first) to refuse drift the way figures drift is refused today.
     bazaar block; the route now does. Verify the rail is actually indexed
     where paying agents browse, or finish the CDP facilitator switch.
 
-### Tier C: capabilities (each needs a Jake decision, marked)
+### Tier C: capabilities (decisions recorded 2026-09-01)
 
 15. **`/v1/jobs`: the async surface.** Wrap the existing pipeline
     (`createJob`, chunked, resumable, Inngest plus cron) behind
     `authenticateApiRequest`, bounded by the existing `SUBMISSION_MULTIPLIER`
     rule, billed by the existing idempotent `chargeForJob`. This is the
     single biggest capability gap: the paid surface is sync-only while the
-    free web product is not. _Decision: none on pricing (same meter); ship
-    order only._
+    free web product is not. _Decided (2026-09-01):_ ship; runs the standard
+    pipeline (live resolve on miss, exactly like web jobs) so it also closes
+    gap 20; billed on matches by `chargeForJob`; bounded by
+    `SUBMISSION_MULTIPLIER` and one active job per account.
 16. **`/v1/changes` and watchlists: the accretive core.** A key registers a
     wallet set once (or references a `lookup_history` row it owns); a call
     priced by principle 5 (the outcome “nothing changed” is small) answers “N
@@ -240,30 +242,42 @@ fixture-first) to refuse drift the way figures drift is refused today.
     `last_updated_at`, so include them explicitly). Scope strictly to wallets
     the account was previously billed for. **Constraint: the right-to-removal
     suppression design must be honoured in v1 of this endpoint, not
-    retrofitted.** _Decision: pricing of the expansion call._
+    retrofitted.** _Decided (2026-09-01):_ the watch call (counts of changed
+    wallets since the watermark) is free and rate-limited normally; expanding
+    bills one credit per changed wallet that is a match; an unchanged wallet
+    is never re-billed through the watch. “You pay when a watched wallet
+    changes, never to learn that nothing did.”
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
-    `startup` preset (200-address batches, 300/min). _Decision: which packs
-    ladder, since this touches what $299 buys._
+    `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
+    Trial and Campaign stay on developer; Scale maps to the startup preset;
+    Index maps to the enterprise preset. Credits keep bounding totals, so the
+    export-licence hole stays closed.
 18. **x402 rail growth.** Quantity on the buy (one settlement, N packs,
     per-match price unchanged, capped); top-up bound to the presented key so
     a 402 is recoverable mid-session; spend-based accretion (every Nth
-    settlement grants bonus matches). _Decision: all three are pricing
-    surface._
+    settlement grants bonus matches). _Decided (2026-09-01):_ quantity 1-25
+    per settlement at linear price; top-up credits the account behind a valid
+    `wts_live_` key presented with the payment (OAuth stays excluded); every
+    10th settlement from the same wallet grants one bonus pack of matches.
 19. **Dry-run estimate.** Counts-only pre-spend quote (how many of these
     addresses are in the index; how many would bill), per-chain rates on
-    stats. Same disclosure class as the free reverse count. _Decision:
-    whether the quote is free, and its rounding._
+    stats. Same disclosure class as the free reverse count. _Decided
+    (2026-09-01):_ free; counts only; minimum list size 10; weighed against
+    the rate window like a batch; per-chain match rates added to `/v1/stats`
+    from the measured table.
 20. **The paid rail must not lose to the free demo.** Today `/v1` is strictly
     index-read-only while the anonymous web job runs the live pipeline, so
     for a one-off 500-address job the free path is better than the $6-10 the
     agent just paid. A keyed deep-scan (live resolve on miss, via the job
-    pipeline, budget-guarded) closes the inversion. _Decision: pricing and
-    Neynar budget allocation._
+    pipeline, budget-guarded) closes the inversion. _Decided (2026-09-01):_
+    subsumed by decision 15 (jobs run the live pipeline); no separate tier.
 21. **A metered holders tool.** The conversational journey (“top holders of
     X, who can I DM?”) currently exits to a competitor between two walletlink
-    calls, while `lib/contract-holders.ts` sits cookie-gated. _Decision:
-    price and abuse bound; it breaks the misses-free model._
+    calls, while `lib/contract-holders.ts` sits cookie-gated. _Decided
+    (2026-09-01):_ deferred; identity is the product, holder lists are a
+    block explorer’s, and the SKILL.md pointer stands; revisit on demand
+    signals.
 
 ### Tier D: the repo as an agent surface
 
@@ -290,11 +304,14 @@ check lands first, then every surface converges on it. No decisions needed.
 
 Phase 2 (ergonomics): tier B plus tier D. Small, independent PRs.
 
-Phase 3 (capability): tier C in the order 15 → 16 → 17, with 18-21 as
-decided. 16 waits on principle 8 by constraint, not by preference.
+Phase 3 (capability): tier C in the order 15 → 16 → 17, then 18 and 19.
+Phase 3 starts with 15, and 20 is closed by it: jobs run the live pipeline,
+so no separate deep-scan tier ships. 16 waits on principle 8 by constraint,
+not by preference.
 
-Decisions parked for Jake are marked _Decision:_ above. Nothing in phase 1 or
-2 touches pricing or access tiers.
+The tier C decisions were taken on 2026-09-01 and are recorded inline above,
+marked _Decided (2026-09-01):_. Nothing in phase 1 or 2 touches pricing or
+access tiers.
 
 ---
 

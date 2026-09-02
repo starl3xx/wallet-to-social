@@ -154,13 +154,18 @@ about billing changes. Misses are free, a match means an X handle or a Farcaster
 account, and an ENS name on its own is returned and not charged. See
 [credits](/api-reference/introduction#credits).
 
-Two consequences worth knowing before you point an agent at it:
+Three consequences worth knowing before you point an agent at it:
 
 **A reverse lookup can spend 100 credits in one call.** A page holds up to 100
 wallets and each one is a match. The free allowance is 100 matches per rolling
 30 days, so a single widely held handle can spend all of it at once. There is no
 page-size parameter. Have the agent call `walletlink_account_balance` first,
 which is free.
+
+**A batch spends its size in rate limit.** A batch call spends one request-unit
+per address of the 60-per-minute window, so a full 50-address call is nearly a
+whole minute, and a second full batch inside the same minute is refused. Pace
+multi-batch runs a minute apart and read the reset time from `quota`.
 
 **Nothing is reserved.** The balance is checked, not held, so a call that
 resolves more than you have left is allowed to finish and the next one fails
@@ -199,6 +204,17 @@ which is the field no competing source publishes.
 }
 ```
 
+`attested` answers whether the wallet owner published the link themselves. It
+derives from the record’s evidence classes, the same array `evidence` shows: a
+Farcaster verification, an onchain ENS record, an attested-social sign-in, or a
+manually verified record makes it `true`; a record resting on correlation alone
+is `false`; a record with no classified evidence reports `null`. Evidence
+classes are recorded per wallet, so `attested` reflects the record’s
+strongest evidence, not each identity separately. It is deliberately not the
+REST API’s `verified` flag, which reports `false` on the majority
+Farcaster-attested handles: see
+[the verified flags](/concepts/data-quality#the-verified-flags).
+
 `reaches_someone` and `reachability` are **omitted** when we have not resolved
 the handle. Absent is not false: see
 [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
@@ -222,7 +238,9 @@ if you would rather generate a client than install a server.
 
 A failed call comes back as a tool error with a readable message, never as a
 transport failure, so the session survives and the agent can tell you what went
-wrong. Out of credits reads as "No credits left. Buy a pack to continue."
+wrong. Out of credits reads as "No credits left. Buy a pack at
+https://walletlink.social/pricing to continue, or buy one with USDC, no account
+needed, at POST https://walletlink.social/api/x402/buy."
 
 Authentication is the exception, and deliberately. A tool call arriving with no
 credential, or with an OAuth access token that has expired or been revoked, is

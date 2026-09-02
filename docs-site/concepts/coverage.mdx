@@ -75,7 +75,7 @@ That property is worth more than it first sounds. It means a Farcaster negative 
 
 X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so there is nothing to read the way Farcaster can be read. Our resolution layer works around that by drawing on several independent routes to the same fact, and telling you which one produced each match.
 
-**Three routes are owner-attested, and they carry almost all of the coverage.**
+**Four routes are owner-attested, and they carry almost all of the coverage.**
 
 - The owner verified their X account on Farcaster. Arrives as `farcaster`.
 - The owner set the handle in an ENS text record on their own address. Arrives
@@ -84,11 +84,13 @@ X handles are a different shape of problem. There is no protocol-level registry 
   signature and the account with a sign-in on an identity platform, an onchain
   attestation issued after that same proof, or a token deploy the account itself
   requested. All arrive as `attested-social`.
+- We reviewed the record directly. Arrives as `manual`, and it is a handful of
+  records rather than a route at scale.
 
-All three are established by the address owner rather than inferred by us, and together they account for **over 99.9% of the 1.17 million wallets with a linked X handle**.
+All four are attested rather than inferred, and together they account for **over 99.9% of the 1.17 million wallets with a linked X handle**.
 
 The third route is the newest and it is worth saying what it adds beyond reach.
-The other two record a handle as a string, captured once. This one records the
+The first two record a handle as a string, captured once. This one records the
 account’s permanent numeric id alongside it, so when a handle is a name its
 owner later changed, that is something we can detect rather than something that
 silently rots. See [when a handle stops being
@@ -108,10 +110,13 @@ Someone can verify a handle and later rename or lose that account. Nothing in
 any attestation notices, because an attestation records a name at a moment.
 
 So we resolve the X handles in the index against X itself, on a daily schedule.
-So far the job has resolved 460,889 handles: **70.1% are live, 20.1%
-suspended and 9.8% no longer in use**. That is 99.5% coverage of the 460,798
-distinct handles we hold, and the daily job works through the remainder
-oldest-first.
+The job has resolved 460,889 handles so far, and today 99.9% of the distinct
+handles we hold carry a state; the daily job works through new arrivals and
+transport retries oldest-first. Of the handles that returned a state,
+**70.1% are live, 20.1% suspended and 9.8% no longer in use**. The resolved
+count runs slightly ahead of the 460,798 distinct handles we hold, because the
+checker keeps a state for every handle it has ever seen, replaced ones
+included.
 
 A handle we have not reached yet is reported as unchecked, never assumed live.
 The daily job is bounded, so catching up after a large batch of new wallets
