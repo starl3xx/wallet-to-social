@@ -16,26 +16,28 @@ Branch on `code`. The `error` string is written for humans and may be reworded.
 
 ## Codes
 
-| Code                  | Status | Cause                                                                                                                  |
-| --------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `MISSING_API_KEY`     | 401    | No `Authorization` header.                                                                                             |
-| `INVALID_API_KEY`     | 401    | Key is unrecognized, revoked, or expired.                                                                              |
-| `RATE_LIMIT_EXCEEDED` | 429    | A per-minute, per-day or per-month limit was hit. See [rate limits](/api-reference/rate-limits).                       |
-| `INVALID_ADDRESS`     | 400    | An address is not `0x` plus 40 hex characters.                                                                         |
-| `INVALID_HANDLE`      | 400    | X handle is not 1 to 15 characters of letters, numbers or underscores.                                                 |
-| `INVALID_USERNAME`    | 400    | Farcaster username is not 1 to 32 characters of letters, numbers, dots or hyphens, starting with a letter or a number. |
-| `INVALID_PARAMETER`   | 400    | A query parameter is out of range, such as an unrecognized `period`.                                                   |
-| `INVALID_CURSOR`      | 400    | A `cursor` value the API did not produce, on the reverse-lookup endpoints.                                             |
-| `INVALID_REQUEST`     | 400    | Body is missing, not valid JSON, or `wallets` is absent or empty.                                                      |
-| `INVALID_REQUEST`     | 413    | Request body exceeded 1 MB.                                                                                            |
-| `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit of 50.                                                                              |
-| `NO_CREDITS`          | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack, on either rail below.          |
-| `SERVICE_UNAVAILABLE` | 503    | Datastore is temporarily unreachable. Retry with backoff.                                                              |
-| `INTERNAL_ERROR`      | 500    | Unexpected failure on our side.                                                                                        |
+| Code                         | Status | Cause                                                                                                                                                                                                  |
+| ---------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MISSING_API_KEY`            | 401    | No `Authorization` header.                                                                                                                                                                             |
+| `INVALID_API_KEY`            | 401    | Key is unrecognized, revoked, or expired.                                                                                                                                                              |
+| `RATE_LIMIT_EXCEEDED`        | 429    | A per-minute, per-day or per-month limit was hit. See [rate limits](/api-reference/rate-limits).                                                                                                       |
+| `INVALID_ADDRESS`            | 400    | An address is not `0x` plus 40 hex characters.                                                                                                                                                         |
+| `INVALID_HANDLE`             | 400    | X handle is not 1 to 15 characters of letters, numbers or underscores.                                                                                                                                 |
+| `INVALID_USERNAME`           | 400    | Farcaster username is not 1 to 32 characters of letters, numbers, dots or hyphens, starting with a letter or a number.                                                                                 |
+| `INVALID_PARAMETER`          | 400    | A query parameter is out of range, such as an unrecognized `period`.                                                                                                                                   |
+| `INVALID_CURSOR`             | 400    | A `cursor` value the API did not produce, on the reverse-lookup endpoints.                                                                                                                             |
+| `INVALID_REQUEST`            | 400    | Body is missing, not valid JSON, `wallets` is absent or empty, or an `Idempotency-Key` header is over 200 characters.                                                                                  |
+| `INVALID_REQUEST`            | 413    | Request body exceeded 1 MB.                                                                                                                                                                            |
+| `BATCH_SIZE_EXCEEDED`        | 400    | More wallets than your batch limit of 50.                                                                                                                                                              |
+| `NO_CREDITS`                 | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack, on either rail below. Only the metered endpoints return it; `/v1/stats` and `/v1/usage` answer at any balance. |
+| `IDEMPOTENCY_KEY_REUSED`     | 422    | The same `Idempotency-Key` was sent with a different request body inside the 24-hour window. Use a fresh key for a new request. Batch only.                                                            |
+| `IDEMPOTENCY_NOT_REPLAYABLE` | 409    | The original response under this `Idempotency-Key` was too large to store, so it cannot be replayed. Resend under a fresh key; the resend bills as a new request. Batch only.                          |
+| `SERVICE_UNAVAILABLE`        | 503    | Datastore is temporarily unreachable. Retry with backoff.                                                                                                                                              |
+| `INTERNAL_ERROR`             | 500    | Unexpected failure on our side.                                                                                                                                                                        |
 
 ## Running out of credits
 
-Every endpoint checks your match balance before it runs, including the ones that cost no credits. When nothing is left the call returns `402` with one of two `error` strings, depending on whether you are spending the free allowance or a pack:
+Every metered endpoint checks your match balance before it runs. The two free endpoints, [`/v1/stats`](/api-reference/stats) and [`/v1/usage`](/api-reference/usage), skip the refusal and answer at any balance, so a drained key can always read its own meter; that reading is the signal to top up. On a metered endpoint with nothing left, the call returns `402` with one of two `error` strings, depending on whether you are spending the free allowance or a pack:
 
 ```json
 {
@@ -66,6 +68,8 @@ Two cases return HTTP 200 and are easy to mistake for failures.
 ## Retrying
 
 `SERVICE_UNAVAILABLE` and `INTERNAL_ERROR` are worth retrying with exponential backoff. `RATE_LIMIT_EXCEEDED` is worth retrying once the window resets.
+
+A retried request bills again, because a retry is a second resolution. The exception is a [batch](/api-reference/batch) resent with the same `Idempotency-Key`: inside the 24-hour window it replays the stored response, marked `Idempotency-Replayed: true`, and bills nothing. Send the header on any batch you might have to retry.
 
 `NO_CREDITS` is not worth retrying. It clears when you buy a pack, or when the free window rolls forward.
 

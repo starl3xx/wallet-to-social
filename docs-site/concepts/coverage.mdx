@@ -136,6 +136,6 @@ See [data quality](/concepts/data-quality#we-check-and-we-tell-you).
 
 ## Checking coverage yourself
 
-Do not take these numbers on faith. [`GET /api/v1/stats`](/api-reference/stats) returns live totals for the whole index and costs no credits. Every endpoint, this one included, needs a non-zero balance: if your free allowance is spent, it returns `402 NO_CREDITS`. The public reachability check at [walletlink.social/check](https://walletlink.social/check) needs no key at all.
+Do not take these numbers on faith. [`GET /api/v1/stats`](/api-reference/stats) returns totals for the whole index, refreshed daily and stamped with `meta.as_of`, and costs no credits. It needs a valid key but no balance, so it answers even when your free allowance is spent. The public reachability check at [walletlink.social/check](https://walletlink.social/check) needs no key at all.
 
 For a specific list, run a sample through [`POST /api/v1/batch`](/api-reference/batch) and measure directly. You pay only for the addresses that match, so a sample costs what it finds. A few hundred addresses is enough to get a usable estimate for your own collection, which is more useful than any average we can publish.

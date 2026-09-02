@@ -2,6 +2,45 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (the agent surface stops fighting its own callers)
+
+Tier B of `docs/AGENT-SYSTEM.md` (gap register items 9 to 14): six ergonomic
+defects the five-persona drive found, none touching pricing. The docs moved in
+the same tree (openapi.yaml, the batch, stats, usage, errors and introduction
+pages, the coverage concept page, mcp-server.mdx, agent-pack.mdx), and the new
+cron got its posture row in `docs/OPERATIONS.md`.
+
+- **Free endpoints honour their declared zero cost.** `authenticateApiRequest`
+  refuses at zero balance only when the declared cost is above zero, so
+  `/v1/stats`, `/v1/usage` and the two free MCP tools answer a drained key and
+  carry the zero reading out in `X-Matches-Available`. The
+  `ZERO_BALANCE_SENTENCE` moved to the new truth in the same diff.
+- **Batch parity.** `POST /v1/batch` rows carry `last_updated` and `stale`
+  (one derivation with single lookup, `lib/staleness.ts`), misses report
+  `meta.previously_checked` (wallet to checked-at; absent means never seen),
+  and the MCP trim keeps `farcaster.fid`, which the Farcaster DM rail is
+  addressed by.
+- **Retry honesty.** `POST /v1/batch` accepts `Idempotency-Key`: a resend of
+  the identical request inside 24 hours replays the stored response
+  (`Idempotency-Replayed: true`) and bills nothing; a reused key with a
+  different body is refused 422, an oversize original 409. New
+  `idempotency_keys` table (`scripts/migrate-idempotency-keys.ts`, **run
+  before deploy**, then the read grant), swept by the cleanup cron. The
+  metered MCP tools now declare `idempotentHint: false` and their descriptions
+  state the retry-billing rule.
+- **Coverage an agent can poll.** `/v1/stats` and the MCP coverage tool serve
+  counts materialized daily into `ingest_state` by the new
+  `/api/cron/refresh-coverage`, with `meta.as_of` (and `as_of` in the tool
+  output) saying when they were taken.
+- **The x402 key-cap deadlock.** `POST /api/x402/recover` accepts
+  `revoke_others_and_reissue: true`: behind the same signed, single-use
+  challenge, it revokes the account’s active keys and mints one fresh key in a
+  single atomic statement, returning the revoked prefixes. Invariants assert
+  the reissue sits behind the proof and the spent challenge; four new guard
+  mutations prove those assertions can fail.
+- The stale `lib/x402.ts` comment claiming the buy route sends no bazaar block
+  is corrected; the CDP facilitator switch remains open.
+
 ### 2026-09-01 (attested starts telling the truth, and the contract gets one authority)
 
 Tier A of `docs/AGENT-SYSTEM.md`, the eight truth bugs its five-persona drive

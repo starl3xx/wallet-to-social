@@ -8,7 +8,7 @@ Reports your key’s plan, current rate limit state, consumption history, and yo
 
 Because it costs nothing and reports all three rate limit windows and your match balance at once, this is the right endpoint to poll from a dashboard or to check before starting a large job.
 
-It does need a non-zero balance, like every endpoint: a key with nothing left gets `402 NO_CREDITS` here too, which is itself the answer.
+It does not need a balance. A key whose credits are at zero can still call this endpoint and read the zero for itself; that reading is the signal to top up, and refusing it here would lock a drained agent out of its own meter. Only the metered endpoints return `402 NO_CREDITS`.
 
 ## Query parameters
 

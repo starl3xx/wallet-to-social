@@ -9,6 +9,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/refresh-coverage",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/cron/farcaster-sweep",
       "schedule": "30 5 * * *"
     },

@@ -736,6 +736,40 @@ export const rateLimitBuckets = pgTable(
   ]
 );
 
+/**
+ * One row per Idempotency-Key a batch caller sent, so a retried `POST
+ * /v1/batch` replays the stored answer instead of resolving and billing again.
+ *
+ * The row is keyed on (api key, header value): idempotency keys are scoped to
+ * the credential, so one caller's key can never replay another's response.
+ * `body_hash` pins the key to the exact body it was first sent with; a reuse
+ * with a different body is refused (422 IDEMPOTENCY_KEY_REUSED) rather than
+ * silently answered with somebody's older list. `response` is NULL when the
+ * original response was too large to store, in which case a replay answers 409
+ * IDEMPOTENCY_NOT_REPLAYABLE. Rows expire after `IDEMPOTENCY_TTL_HOURS`
+ * (lib/idempotency.ts) and the cleanup cron deletes them.
+ *
+ * Schema change applied by hand: scripts/migrate-idempotency-keys.ts.
+ */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    keyId: uuid('key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    idemKey: text('idem_key').notNull(),
+    bodyHash: text('body_hash').notNull(),
+    response: jsonb('response'),
+    status: integer('status').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.keyId, table.idemKey] }),
+    // For the cleanup cron's age sweep.
+    index('idempotency_keys_created_idx').on(table.createdAt),
+  ]
+);
+
 // IP-based rate limit buckets for unauthenticated UI endpoints
 export const ipRateLimitBuckets = pgTable(
   'ip_rate_limit_buckets',
@@ -932,7 +966,10 @@ export const seededContracts = pgTable(
   (table) => [primaryKey({ columns: [table.address, table.chain] })]
 );
 
-/** Every sweep checkpoint and budget counter, in five jsonb rows. */
+/**
+ * Sweep checkpoints, budget counters, and the materialized coverage counts
+ * (`v1_stats_coverage`, lib/coverage-stats.ts): one jsonb row per name.
+ */
 export const ingestState = pgTable('ingest_state', {
   name: text('name').primaryKey(),
   value: jsonb('value').notNull(),

@@ -197,7 +197,7 @@ plugin repo’s CI compares its SKILL.md against a pinned copy. Extend
 `check-published-figures.ts` (or a sibling `check-canonical-sentences.ts`,
 fixture-first) to refuse drift the way figures drift is refused today.
 
-### Tier B: ergonomics (small builds, no pricing decisions)
+### Tier B: ergonomics (shipped 2026-09-01; kept as the record; still open: the CDP facilitator half of 14, and batch rows deliberately keep omitting the quality object from 10)
 
 9. **Free tools honour their declared zero cost.** Skip the balance gate when
    the declared cost is 0 (`authenticateApiRequest` already receives the

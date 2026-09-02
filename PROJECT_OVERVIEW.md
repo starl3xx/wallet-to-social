@@ -213,6 +213,7 @@ Export to CSV or Twitter list
 | `api_usage`             | Per-request usage tracking                                                                                       |
 | `rate_limit_buckets`    | Sliding window rate limiting                                                                                     |
 | `ip_rate_limit_buckets` | IP-based rate limiting for unauthenticated endpoints (hourly buckets)                                            |
+| `idempotency_keys`      | Stored `POST /v1/batch` responses keyed on (api key, Idempotency-Key); 24h TTL, swept by the cleanup cron        |
 
 ### OAuth Tables
 
@@ -366,6 +367,17 @@ Main page orchestrating:
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
+The two zero-credit endpoints skip the balance refusal (`authenticateApiRequest`
+refuses only when the declared cost is above zero), so a drained key can always
+read its own meter. `/v1/stats` serves counts materialized daily into
+`ingest_state` by `/api/cron/refresh-coverage` (`lib/coverage-stats.ts`) and
+reports `meta.as_of`. `/v1/batch` accepts an `Idempotency-Key` header: a resend
+of the identical request inside 24 hours replays the stored response
+(`idempotency_keys` table, `lib/idempotency.ts`) with `Idempotency-Replayed:
+true` and bills nothing. Batch rows carry `last_updated` and `stale`
+(`lib/staleness.ts`, shared with single lookup) and misses report
+`meta.previously_checked`.
+
 ### Onchain rail (x402)
 
 `app/api/x402/buy/route.ts` sells a $1 Agent pack for USDC on Base with no
@@ -378,6 +390,15 @@ authorization rather than the transaction hash.
 
 The Agent pack lives in `X402_PACKS`, never in `PACKS`, so it cannot reach
 Stripe checkout and cannot appear on the nine surfaces `PACK_IDS` drives.
+
+`app/api/x402/recover/route.ts` reissues a lost key against a signed challenge
+(`lib/x402-recovery.ts`; single-use, five minutes, HMAC). The POST also takes
+`revoke_others_and_reissue: true`, which revokes the account’s active keys and
+mints one fresh key in a single atomic statement
+(`revokeAllAndReissueKey` in `lib/api-keys.ts`): the escape from the key-cap
+deadlock, since a wallet account has no email session to revoke from.
+`scripts/check-invariants.ts` asserts the reissue sits behind the proof and the
+spent challenge.
 Accounts with `users.origin = 'x402'` get no free allowance.
 
 ### MCP server (for agents)

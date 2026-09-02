@@ -238,8 +238,25 @@ paths:
         be known until the body is read. A request over 1 MB, or one whose body
         is not JSON with a non-empty `wallets` array, is rejected without a
         valid key and without rate-limit headers.
+
+        An optional `Idempotency-Key` header makes retries safe: resending the
+        identical request with the same key inside 24 hours replays the stored
+        response, marked `Idempotency-Replayed: true`, and bills nothing. The
+        dedup is scoped to your API key and pinned to the request body; only a
+        200 consumes a key, and rate limits still apply to a replay.
       x-match-credits: 1 per address that resolves to X or Farcaster, after duplicates are removed
       x-rate-limit-units: 1 per address submitted
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: |
+            Opaque retry token, at most 200 characters; a UUID is the usual
+            choice. Use one value per logical request and a fresh value for
+            each new request.
+          schema:
+            type: string
+            maxLength: 200
       requestBody:
         required: true
         content:
@@ -261,6 +278,8 @@ paths:
             X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
             X-Matches-Available:
               { $ref: '#/components/headers/XMatchesAvailable' }
+            Idempotency-Replayed:
+              { $ref: '#/components/headers/IdempotencyReplayed' }
           content:
             application/json:
               schema:
@@ -289,12 +308,16 @@ paths:
                       fid: 900001
                       verified: true
                     sources: [onchain, farcaster]
+                    last_updated: '2026-08-14T02:11:09.000Z'
+                    stale: false
                   - null
                 meta:
                   requested: 2
                   found: 1
                   not_found: 1
                   matched: 1
+                  previously_checked:
+                    '0x0000000000000000000000000000000000000001': '2026-08-20T05:40:00.000Z'
         '400':
           description: |
             One of three codes.
@@ -330,6 +353,18 @@ paths:
                     code: BATCH_SIZE_EXCEEDED
         '401': { $ref: '#/components/responses/Unauthorized' }
         '402': { $ref: '#/components/responses/PaymentRequired' }
+        '409':
+          description: |
+            `IDEMPOTENCY_NOT_REPLAYABLE`. The original response under this
+            `Idempotency-Key` was too large to store, so it cannot be
+            replayed. Resend under a fresh key; the resend is billed as a new
+            request.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: The original response under this Idempotency-Key was too large to store, so it cannot be replayed. Resend with a fresh key; the resend is billed as a new request.
+                code: IDEMPOTENCY_NOT_REPLAYABLE
         '413':
           description: |
             `INVALID_REQUEST`. The body exceeded 1 MB. Measured on the bytes
@@ -342,6 +377,17 @@ paths:
               example:
                 error: Request body too large
                 code: INVALID_REQUEST
+        '422':
+          description: |
+            `IDEMPOTENCY_KEY_REUSED`. The same `Idempotency-Key` was sent with
+            a different request body inside the 24-hour window. Use a fresh
+            key for a new request.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: This Idempotency-Key was already used with a different request body inside the 24-hour window. Use a fresh key for a new request.
+                code: IDEMPOTENCY_KEY_REUSED
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -553,7 +599,7 @@ paths:
       summary: Index coverage
       tags: [Account]
       description: |
-        Index-wide counts. Free, and resolves no wallet.
+        Index-wide counts, materialized daily. Free, and resolves no wallet.
 
         `total_wallets` counts only records carrying at least one identity.
         `wallets_checked` is larger, because it includes addresses we looked at
@@ -561,13 +607,16 @@ paths:
         computing it against the wrong denominator is the mistake this pair of
         fields exists to prevent.
 
-        Still requires a valid key, and still returns 402 when your balance is
-        exhausted, because the balance is checked before any endpoint runs.
+        The counts are refreshed once a day rather than counted live, and
+        `meta.as_of` says when they were taken; two calls inside a day return
+        the same numbers, so polling is harmless. Still requires a valid key,
+        but not a balance: this endpoint answers at zero credits, so it never
+        returns 402.
       x-match-credits: 0
       x-rate-limit-units: 0
       responses:
         '200':
-          description: Current index counts.
+          description: Index counts as of the last daily refresh.
           headers:
             X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
             X-RateLimit-Remaining:
@@ -584,12 +633,19 @@ paths:
                   data: { $ref: '#/components/schemas/Stats' }
                   meta:
                     type: object
-                    required: [generated_at]
+                    required: [generated_at, as_of]
                     properties:
                       generated_at:
                         type: string
                         format: date-time
-                        description: When these counts were computed. They are read live, not cached.
+                        description: When this response was built.
+                      as_of:
+                        type: string
+                        format: date-time
+                        description: |
+                          When the counts were computed, at the last daily
+                          refresh. Quote this alongside any number you take
+                          from the response.
               example:
                 data:
                   total_wallets: 4700000
@@ -605,8 +661,8 @@ paths:
                     max_followers: 1200000
                 meta:
                   generated_at: '2026-08-14T12:00:00.000Z'
+                  as_of: '2026-08-14T04:30:00.000Z'
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '402': { $ref: '#/components/responses/PaymentRequired' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -627,7 +683,9 @@ paths:
         `plan_limits` and `rate_limits` describe the request meter, which
         bounds how fast you may call. `credits` is the match meter, which
         bounds how much you may resolve, and it is the one that ends a session
-        with a 402.
+        with a 402 on the metered endpoints. This endpoint itself needs no
+        balance: it answers at zero credits, so a drained key can always read
+        its own meter, and it never returns 402.
       x-match-credits: 0
       x-rate-limit-units: 0
       parameters:
@@ -730,7 +788,6 @@ paths:
                 error: 'Invalid period. Use: day, week, or month'
                 code: INVALID_PARAMETER
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '402': { $ref: '#/components/responses/PaymentRequired' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -847,6 +904,15 @@ components:
         `X-Data-Staleness` only.
       required: false
       schema: { type: string }
+    IdempotencyReplayed:
+      description: |
+        Present, with the value `true`, only when this response was replayed
+        from the idempotency store instead of being resolved again. A replay
+        bills nothing. `POST /batch` only.
+      required: false
+      schema:
+        type: string
+        enum: ['true']
 
   responses:
     Unauthorized:
@@ -873,8 +939,9 @@ components:
     PaymentRequired:
       description: |
         `NO_CREDITS`. The match balance is exhausted, or the free allowance for
-        this rolling 30-day window is used up. Checked on every endpoint,
-        including the two that cost nothing.
+        this rolling 30-day window is used up. Returned only by the metered
+        endpoints: `/stats` and `/usage` answer at any balance, so a drained
+        key can always read its own meter.
 
         Not worth retrying. It clears when a pack is bought, or when the free
         window rolls forward.
@@ -976,6 +1043,8 @@ components:
             - INVALID_CURSOR
             - INVALID_REQUEST
             - BATCH_SIZE_EXCEEDED
+            - IDEMPOTENCY_KEY_REUSED
+            - IDEMPOTENCY_NOT_REPLAYABLE
             - SERVICE_UNAVAILABLE
             - INTERNAL_ERROR
 
@@ -1178,15 +1247,28 @@ components:
       description: |
         One entry in the `POST /batch` array. Carries no `quality` object: the
         forward single lookup returns one and the reverse lookups return a bare
-        `quality_score`, and this endpoint returns neither.
+        `quality_score`, and this endpoint returns neither. It does carry the
+        freshness pair the single lookup reports in its `meta`, per row,
+        because a batch has one `meta` for many rows.
       allOf:
         - $ref: '#/components/schemas/IdentityCore'
         - type: object
+          required: [last_updated, stale]
           properties:
             twitter:
               $ref: '#/components/schemas/XIdentityWithAlso'
             farcaster:
               $ref: '#/components/schemas/FarcasterAccount'
+            last_updated:
+              type: string
+              format: date-time
+              description: When the record last changed.
+            stale:
+              type: boolean
+              description: |
+                Whether the record is past its freshness window or has not
+                changed in 30 days. Same derivation as the single lookup’s
+                `meta.stale`.
 
     ReverseTwitterRecord:
       description: |
@@ -1282,6 +1364,18 @@ components:
             What this call was billed: addresses that resolved to an X handle
             or a Farcaster account. This is the number to reconcile against
             your balance.
+        previously_checked:
+          type: object
+          additionalProperties:
+            type: string
+            format: date-time
+          description: |
+            Negative knowledge for the misses: wallet to ISO timestamp, for
+            each `null` entry that was checked before and found bare. A miss
+            absent from this map has never been examined, and the whole field
+            is absent when no miss was previously checked. Absent is not
+            false. The single lookup makes the same distinction with
+            `meta.checked_at`.
 
     ReversePageMeta:
       type: object

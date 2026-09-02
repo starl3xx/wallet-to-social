@@ -56,6 +56,12 @@ const READ_ONLY_TABLES = [
   'oauth_clients',
   'oauth_grants',
   'oauth_authorization_requests',
+  // Added 2026-09-01 with Idempotency-Key support on POST /v1/batch.
+  //
+  // Read-only only, and deliberately absent from BACKUP_TABLES: every row
+  // expires 24 hours after it is written, and restoring last night's rows
+  // would resurrect replayable responses for keys already retried.
+  'idempotency_keys',
 ];
 
 /**

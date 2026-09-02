@@ -325,6 +325,75 @@ export async function rotateApiKey(
 }
 
 /**
+ * Revoke every active key an account holds and issue one fresh key, as one
+ * atomic statement.
+ *
+ * ## Who this is for
+ *
+ * An x402 wallet account at the key cap. Recovery mints a key only under the
+ * cap, and revoking a key takes an email session this account can never have:
+ * its synthetic address receives no email. That was a deadlock (tier B, item
+ * 13 of docs/AGENT-SYSTEM.md): three lost keys locked the account's credits
+ * away forever. Wallet-signature control is exactly the proof revocation
+ * needs, so the recovery route calls this when the signer asks for
+ * `revoke_others_and_reissue`.
+ *
+ * ## One statement, deliberately
+ *
+ * The revoke and the mint travel in a single SQL statement (a data-modifying
+ * CTE), so they commit or fail together: there is no window where the
+ * account's keys are revoked and no replacement exists. The neon-http driver
+ * has no interactive transactions (see createApiKeyIfUnderCap above), and one
+ * statement needs none.
+ *
+ * OAuth access tokens (`oauth_grant_id` set) are left alone: they are capped
+ * and revoked as grants in `lib/oauth/grants.ts`, they never count toward the
+ * key cap, and sweeping them here would kill a person's connected client as a
+ * side effect of an agent's key rotation.
+ *
+ * Returns the revoked prefixes so the caller can be told exactly which keys
+ * stopped working. `scripts/check-invariants.ts` asserts the callers and the
+ * scoping of this function; change it and run the guard.
+ */
+export async function revokeAllAndReissueKey(
+  userId: string,
+  name: string,
+  planId: string
+): Promise<{
+  rawKey: string;
+  keyPrefix: string;
+  revokedPrefixes: string[];
+} | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const { rawKey, hashedKey, prefix } = generateApiKey();
+
+  const result = (await db.execute(sql`
+    WITH revoked AS (
+      UPDATE api_keys
+      SET is_active = false, revoked_at = now()
+      WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL AND oauth_grant_id IS NULL
+      RETURNING key_prefix
+    ), minted AS (
+      INSERT INTO api_keys (key, key_prefix, name, user_id, plan)
+      VALUES (${hashedKey}, ${prefix}, ${name}, ${userId}, ${planId})
+      RETURNING id
+    )
+    SELECT
+      (SELECT COALESCE(array_agg(key_prefix), '{}'::text[]) FROM revoked) AS revoked_prefixes,
+      (SELECT id FROM minted) AS minted_id
+  `)) as unknown as {
+    rows: Array<{ revoked_prefixes: string[]; minted_id: string }>;
+  };
+
+  const row = result.rows[0];
+  if (!row?.minted_id) return null;
+
+  return { rawKey, keyPrefix: prefix, revokedPrefixes: row.revoked_prefixes };
+}
+
+/**
  * Lists the API keys a user made, without exposing the hash.
  *
  * OAuth access tokens are excluded. They are `api_keys` rows, but they are not

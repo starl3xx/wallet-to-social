@@ -70,14 +70,15 @@ export const REACHABILITY_SENTENCE =
   'A checked X handle carries one of four states: live, suspended, unclaimed, or reassigned. A handle can be attested by its owner and suspended today, so a handle is not a promise that anyone is behind it.';
 
 /**
- * Current truth, not aspiration: the balance gate in `lib/api-auth.ts` runs
- * before a call's cost is known, so even the zero-cost endpoints refuse an
- * empty account. When the free endpoints stop refusing at zero (tier B of
- * docs/AGENT-SYSTEM.md), the behavior changes first and this sentence changes
- * with it, in the same PR.
+ * Current truth: the balance gate in `lib/api-auth.ts` refuses only a call
+ * whose declared cost is above zero, so the free endpoints (`/v1/stats`,
+ * `/v1/usage`, and the MCP coverage and balance tools over them) keep
+ * answering at zero balance and carry the zero reading out with them. This
+ * changed 2026-09-01 (tier B, item 9 of docs/AGENT-SYSTEM.md); the behavior
+ * and this sentence moved in the same PR, as the rule above demands.
  */
 export const ZERO_BALANCE_SENTENCE =
-  'A key whose balance is zero receives NO_CREDITS even on the free endpoints; that answer is itself the signal to top up.';
+  'A key whose balance is zero can still read the free endpoints; the balance and coverage reads keep answering at zero, and only a call that could bill refuses with NO_CREDITS.';
 
 /**
  * The batch pacing rule, stated where an agent decides. Both numbers are the
