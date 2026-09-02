@@ -37,8 +37,9 @@ The bands are guidance, not thresholds enforced anywhere in the API. Pick your o
 
 <Warning>
   `twitter.verified: false` does **not** mean the handle is unverified in the
-  everyday sense. The flag is true only for handles attested by an onchain
-  record or a manual review. A handle that came from an X account verified on
+  everyday sense. The flag is true for handles attested by an onchain record, a
+  manual review, or an attested-social sign-in; the majority Farcaster-attested
+  handles carry false. A handle that came from an X account verified on
   Farcaster is genuinely owner-attested, and it still reports `false`.
 </Warning>
 
@@ -105,9 +106,9 @@ It is the only state where the record looks perfectly healthy: the name resolves
 to a real and active account, and that account is not the one that attested it.
 `reachable` is false for it, and the handle export leaves it out.
 
-### What we found when we checked all of them
+### What we found when we checked
 
-We have resolved 460,889 of the distinct X handles in the index, which is 99.5% of them. The rest are working through the same daily check.
+We have resolved 460,889 handles against X itself, and 99.9% of the distinct handles the index holds carry a state today; new arrivals and retries join the same daily check. The shares below are of the handles that returned a state.
 
 |                       | Share |
 | --------------------- | ----- |

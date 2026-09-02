@@ -154,6 +154,34 @@ const SOURCE_ORDER: PublicSource[] = [
 ];
 
 /**
+ * The evidence classes that mean the wallet owner published the link
+ * themselves: everything in the vocabulary except `aggregated`, which is
+ * correlated by a third party. This set is what an `attested` field on any
+ * projection derives from, never the narrower `verified` flag, which is true
+ * for the onchain, manual and attested-social routes and so reports false on
+ * the majority Farcaster-attested handles. The prose statement of the same fact is
+ * `ATTESTED_SENTENCE` in `lib/canonical-sentences.ts`; a class added here is
+ * a change to that sentence too.
+ */
+export const ATTESTED_SOURCES: ReadonlySet<PublicSource> = new Set([
+  'onchain',
+  'farcaster',
+  'attested-social',
+  'manual',
+]);
+
+/**
+ * Whether one public source value is attested evidence. Takes `unknown`
+ * because callers read the `sources` array back off a serialized response,
+ * where nothing has verified the element type.
+ */
+export function isAttestedSource(value: unknown): boolean {
+  return (
+    typeof value === 'string' && ATTESTED_SOURCES.has(value as PublicSource)
+  );
+}
+
+/**
  * Translates internal source identifiers into public evidence classes.
  * Deduplicates, drops anything unrecognized, and returns undefined rather
  * than an empty array so callers can omit the field entirely.

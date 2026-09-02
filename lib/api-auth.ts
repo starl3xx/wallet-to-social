@@ -144,9 +144,17 @@ export async function authenticateApiRequest(
     if (balance.available <= 0) {
       return {
         error: apiError(
+          /**
+           * A refusal carries its remedy, and this caller may have no human
+           * behind it: the browser path AND the machine path, or an
+           * autonomous agent hits a dead end here. These exact strings are
+           * documented in docs-site/api-reference/errors.mdx, quoted in
+           * docs-site/openapi.yaml and docs-site/mcp-server.mdx, and callers
+           * are told to branch on the code, so reword all four together.
+           */
           balance.onFreeAllowance
-            ? 'Free allowance used up for this 30-day window. Buy a pack to continue.'
-            : 'No credits left. Buy a pack to continue.',
+            ? 'Free allowance used up for this 30-day window. Buy a pack at https://walletlink.social/pricing to continue, or buy one with USDC, no account needed, at POST https://walletlink.social/api/x402/buy.'
+            : 'No credits left. Buy a pack at https://walletlink.social/pricing to continue, or buy one with USDC, no account needed, at POST https://walletlink.social/api/x402/buy.',
           'NO_CREDITS',
           402,
           /**

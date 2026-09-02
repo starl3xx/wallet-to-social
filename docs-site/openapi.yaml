@@ -887,12 +887,19 @@ components:
             freeAllowance:
               summary: Free allowance exhausted
               value:
-                error: Free allowance used up for this 30-day window. Buy a pack to continue.
+                error:
+                  Free allowance used up for this 30-day window. Buy a pack at
+                  https://walletlink.social/pricing to continue, or buy one with
+                  USDC, no account needed, at POST
+                  https://walletlink.social/api/x402/buy.
                 code: NO_CREDITS
             noBalance:
               summary: Balance exhausted
               value:
-                error: No credits left. Buy a pack to continue.
+                error: No credits left. Buy a pack at
+                  https://walletlink.social/pricing to continue, or buy one with
+                  USDC, no account needed, at POST
+                  https://walletlink.social/api/x402/buy.
                 code: NO_CREDITS
 
     RateLimited:
@@ -982,7 +989,9 @@ components:
         verification. `attested-social` is a platform where the owner proved
         both halves, the wallet by signature and the account by sign-in.
         `manual` was reviewed by us. `aggregated` is the weakest: correlated by
-        a third-party index rather than attested by anyone.
+        a third-party index rather than attested by anyone. The first four
+        classes are the attested ones, and any of them present means the
+        owner published the link; `aggregated` alone is correlation.
 
         Anything we cannot classify is dropped rather than passed through, so
         an unfamiliar value will never appear here.
@@ -1035,8 +1044,16 @@ components:
         verified:
           type: boolean
           description: |
-            Whether the link was attested rather than correlated. Narrower than
-            it looks: see the data-quality page.
+            Narrower than the everyday word, and narrower than attestation.
+            True for the onchain, manual and attested-social routes, so a
+            handle the owner attested through a Farcaster verification, the
+            majority route, genuinely is owner-published and still reports
+            `false`. To judge attestation,
+            read `sources`: an identity is attested when the wallet owner
+            published the link themselves, through a Farcaster verification,
+            an onchain ENS record, an attested-social sign-in, or a manually
+            verified record. Anything else is correlated, and labelled so.
+            See the data-quality page.
         reachable:
           type: boolean
           description: |

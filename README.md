@@ -44,18 +44,17 @@ The number most tools quote is the one that flatters them. Two numbers matter he
 
 | Question                                                           | Answer            |
 | ------------------------------------------------------------------ | ----------------- |
-| Wallets resolving to **any** identity                              | 16-47% by chain   |
 | Wallets with an X or Farcaster account                             | 16-46% by chain   |
 | What tools that match wallets to social accounts typically publish | low single digits |
 
 The chain decides this more than the collection does: measured across 26 collections and 72,318 holders, Base runs 46.2% and Ethereum 16.6%, because Base is where Farcaster lives. Use your chain's figure, not an average.
 
-Having an account and reaching it are different claims. Of 460,889 X handles resolved, 70.1% are live, 20.1% suspended and 9.8% are names nobody holds. Every match carries that answer.
+Having an account and reaching it are different claims. Of 460,889 X handles resolved, 70.1% are live, 20.1% suspended and 9.8% are names nobody holds. Matches carry that answer wherever the handle has been resolved.
 
-| Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                      |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information.                                                                                                                                                                                                    |
-| **X**         | Attested first, labelled always. Over 99.9% of handles were published by the account owner, through a Farcaster verification or an onchain ENS record. The rest are correlated from identity indexes and carry that as their evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
+| Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information.                                                                                                                                                                                                                                            |
+| **X**         | Attested first, labelled always. Over 99.9% of handles were published by the wallet owner themselves: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record. Anything else is correlated and labelled so in its evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
 
 Coverage would be higher if we guessed. Contacting the wrong person is worse than contacting fewer people.
 

@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (attested starts telling the truth, and the contract gets one authority)
+
+Tier A of `docs/AGENT-SYSTEM.md`, the eight truth bugs its five-persona drive
+found on the public surfaces.
+
+- `lib/canonical-sentences.ts` now holds the load-bearing sentences of the
+  semantic contract the way `lib/public-figures.ts` holds the numbers;
+  llms.txt and the MCP instructions interpolate them instead of hand-rolling.
+- The MCP `attested` field derives from the evidence classes, not the narrow
+  `verified` flag that reported false on the majority Farcaster-attested
+  handles and taught agents to treat the strongest evidence class as weak. A
+  record with no classified evidence reports null, never false.
+- Refusals carry their remedies: the two NO_CREDITS messages name the pricing
+  page and the x402 rail; the no-key and 401 texts name the machine path.
+- The impossible reachability arithmetic (460,889 resolved presented as 99.5%
+  of 460,798 held) is rewritten against a new registered coverage constant.
+- One owner-attested enumeration everywhere, four routes including manual;
+  agent-pack's stale recovery denial, quickstart's export contradiction,
+  README's orphan 16-47% figure and the reachable-vs-has-account label are
+  corrected; the batch pacing rule now appears at the decision point.
+- The review of the wave itself caught our replacement text overstating the
+  verified flag's narrowness (attested-social rows do set it true); corrected
+  on every surface in the same change.
+
 ### 2026-09-01 (the agent surface gets a design authority)
 
 Agents are now a first-class customer (the API, the MCP server, the Grok

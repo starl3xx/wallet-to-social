@@ -48,6 +48,15 @@ import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import {
+  MATCH_SENTENCE,
+  ATTESTED_SENTENCE,
+  ABSENT_SENTENCE,
+  REACHABILITY_SENTENCE,
+  ZERO_BALANCE_SENTENCE,
+  PACING_SENTENCE,
+} from '@/lib/canonical-sentences';
+import { isAttestedSource } from '@/lib/api-sources';
 import serverManifest from '@/server.json';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
 import {
@@ -94,15 +103,21 @@ const MAX_ADDRESSES = API_PLANS[CREDIT_API_PLAN].maxBatchSize;
  * merely happens to equal the allowance today. Welding them into one clause
  * would hide that.
  *
+ * The sentences about meaning come from `lib/canonical-sentences.ts`, not from
+ * here: this layer explains, so it quotes the semantic contract rather than
+ * restating it. The hand-rolled versions this text used to carry had drifted
+ * (two owner-attested routes where the docs enumerate more). Context around a
+ * canonical sentence is fine; a second version of one is not.
+ *
  * `scripts/check-design-language.mjs` greps the inside of strings, so run it
  * after any edit here.
  */
 const INSTRUCTIONS = [
   'This server answers two questions about an Ethereum address: which social accounts its owner published, and which addresses a given X handle or Farcaster account is attested to. Balances, transfers and prices are a block explorer\u2019s job.',
-  'Every link was published by the address owner, in an onchain ENS record or a Farcaster verification, or it is labelled as correlated rather than attested. Nothing is inferred from a display name or a bio.',
-  `Billing is per address, not per identity. An address carrying both an X handle and a Farcaster account costs one credit; one carrying nothing, or only an ENS name, a Lens profile or a GitHub account, is free. An unpromising list is cheap to try, and splitting one saves no credits. The ceiling is ${MAX_ADDRESSES} addresses per call.`,
-  `The reverse direction is the expensive one: one page of the wallets behind a handle can spend 100 credits, and the free allowance is ${FREE_MATCHES_PER_WINDOW} matches per ${FREE_WINDOW_DAYS} days. Reading the balance or the coverage figures is free.`,
-  'An X handle can be attested by its owner and suspended today, so a handle in a result is not a promise that anyone is behind it.',
+  `${ATTESTED_SENTENCE} Nothing is inferred from a display name or a bio.`,
+  `${MATCH_SENTENCE} Billing is per address, not per identity: an address carrying both an X handle and a Farcaster account costs one credit. An unpromising list is cheap to try, and splitting one saves no credits. The ceiling is ${MAX_ADDRESSES} addresses per call.`,
+  `The reverse direction is the expensive one: one page of the wallets behind a handle can spend 100 credits, and the free allowance is ${FREE_MATCHES_PER_WINDOW} matches per ${FREE_WINDOW_DAYS} days. Reading the balance or the coverage figures is free. ${ZERO_BALANCE_SENTENCE}`,
+  `${REACHABILITY_SENTENCE} ${ABSENT_SENTENCE}`,
 ].join('\n\n');
 
 // --- result helpers ---------------------------------------------------------
@@ -146,7 +161,7 @@ function failed(result: RouteCallResult): ToolResult {
 }
 
 const NO_KEY =
-  'No API key was sent. Add an Authorization header with a walletlink.social key (Bearer wts_live_...) to this server’s configuration. Keys are self-serve at https://walletlink.social for any account holding credits.';
+  'No API key was sent. Add an Authorization header with a walletlink.social key (Bearer wts_live_...) to this server’s configuration. Keys are self-serve at https://walletlink.social for any account holding credits. An agent holding a wallet can buy a key with USDC, no account needed: POST https://walletlink.social/api/x402/buy, documented at https://docs.walletlink.social/agent-pack.';
 
 function missingKey(): ToolResult {
   return { content: [{ type: 'text', text: NO_KEY }], isError: true };
@@ -212,12 +227,26 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
 
   if (r.ens_name) out.ens = r.ens_name;
 
+  // `attested` derives from the record's evidence classes (the public
+  // `sources` array, mapped through lib/api-sources.ts), never from the
+  // `verified` flag. That flag is true for the onchain, manual and
+  // attested-social routes, so mapping attested from it reported false on the majority
+  // Farcaster-attested handles and taught agents to treat them as weak
+  // evidence. The classes are recorded per wallet, not per identity, so one
+  // derivation covers both x and farcaster. A record carrying no classified
+  // evidence reports null: "not reported" is a different claim from "not
+  // attested", and collapsing them would turn a gap in our own response into
+  // a claim about the person.
+  const evidence = asArray(r.sources);
+  const attested =
+    evidence.length === 0 ? null : evidence.some(isAttestedSource);
+
   const twitter = asObject(r.twitter);
   if (twitter) {
     const x: Record<string, unknown> = {
       handle: twitter.handle,
       url: twitter.url,
-      attested: twitter.verified === true,
+      attested,
     };
     // Omitted when the handle has not been resolved, exactly as the API omits
     // it. A `false` here would read as "does not reach anyone", which is a
@@ -237,14 +266,7 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
       username: farcaster.username,
       url: farcaster.url,
       followers: farcaster.followers ?? null,
-      // All four v1 routes now return `verified`, so this is a boolean in
-      // practice. The null branch stays: it is the difference between "not
-      // attested" and "not reported", and collapsing them would turn a gap in
-      // our own response into a claim about the person. /v1/batch omitted this
-      // field until 2026-08-30 and every batch result reported null here, which
-      // is how a missing field became a missing claim.
-      attested:
-        typeof farcaster.verified === 'boolean' ? farcaster.verified : null,
+      attested,
     };
   }
 
@@ -312,7 +334,7 @@ const handler = createMcpHandler(
         title: 'Resolve wallets to social identities',
         description: [
           'Resolve one or more Ethereum addresses to the social identities attached to them: X handle, Farcaster account, ENS name, Lens profile, GitHub account.',
-          `COST: one match credit per address that resolves to an X handle or a Farcaster account. An address that resolves to nothing is free, and so is one carrying only an ENS name, a Lens profile or a GitHub account. Up to ${MAX_ADDRESSES} addresses per call.`,
+          `COST: one match credit per address that resolves to an X handle or a Farcaster account. An address that resolves to nothing is free, and so is one carrying only an ENS name, a Lens profile or a GitHub account. Up to ${MAX_ADDRESSES} addresses per call. ${PACING_SENTENCE}`,
           'Each identity reports whether the address owner attested it rather than it being correlated by a third party, and each X handle reports whether it still reaches anyone: a handle can be attested and suspended, or freed and since taken by a stranger.',
           'Send every address you need in one call. Duplicates are removed before you are charged, but each copy still costs throughput.',
         ].join('\n\n'),
@@ -513,7 +535,7 @@ const handler = createMcpHandler(
         title: 'Index coverage',
         description: [
           'How much of the index carries each identity type. Use it to judge whether a lookup is worth making before making it.',
-          'COST: free on both meters. It resolves no wallet and consumes no rate limit.',
+          `COST: free on both meters. It resolves no wallet and consumes no rate limit. ${ZERO_BALANCE_SENTENCE}`,
           'addresses_with_an_identity over addresses_checked is the coverage rate. The second number is larger because it counts addresses we have looked at and found bare. This runs a live count over the whole index, so it is slow enough not to poll.',
         ].join('\n\n'),
         annotations: { readOnlyHint: true, idempotentHint: true },
@@ -662,7 +684,10 @@ async function gate(
   if (!bearer) {
     return challenge(
       undefined,
-      'This tool needs a walletlink.social account. Connect one, or set an Authorization header carrying an API key.'
+      // The machine path rides along: for an autonomous caller a refusal
+      // without a remedy is a dead end, not a prompt. No double quotes, since
+      // this string is embedded in a quoted WWW-Authenticate parameter.
+      'This tool needs a walletlink.social account. Connect one, or set an Authorization header carrying an API key. An agent holding a wallet can buy a key with USDC at POST https://walletlink.social/api/x402/buy, documented at https://docs.walletlink.social/agent-pack.'
     );
   }
 

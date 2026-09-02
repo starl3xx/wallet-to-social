@@ -29,7 +29,7 @@ Branch on `code`. The `error` string is written for humans and may be reworded.
 | `INVALID_REQUEST`     | 400    | Body is missing, not valid JSON, or `wallets` is absent or empty.                                                      |
 | `INVALID_REQUEST`     | 413    | Request body exceeded 1 MB.                                                                                            |
 | `BATCH_SIZE_EXCEEDED` | 400    | More wallets than your batch limit of 50.                                                                              |
-| `NO_CREDITS`          | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack to continue.                    |
+| `NO_CREDITS`          | 402    | Match credit balance is exhausted, or the free 30-day allowance is used up. Buy a pack, on either rail below.          |
 | `SERVICE_UNAVAILABLE` | 503    | Datastore is temporarily unreachable. Retry with backoff.                                                              |
 | `INTERNAL_ERROR`      | 500    | Unexpected failure on our side.                                                                                        |
 
@@ -39,19 +39,21 @@ Every endpoint checks your match balance before it runs, including the ones that
 
 ```json
 {
-  "error": "Free allowance used up for this 30-day window. Buy a pack to continue.",
+  "error": "Free allowance used up for this 30-day window. Buy a pack at https://walletlink.social/pricing to continue, or buy one with USDC, no account needed, at POST https://walletlink.social/api/x402/buy.",
   "code": "NO_CREDITS"
 }
 ```
 
 ```json
 {
-  "error": "No credits left. Buy a pack to continue.",
+  "error": "No credits left. Buy a pack at https://walletlink.social/pricing to continue, or buy one with USDC, no account needed, at POST https://walletlink.social/api/x402/buy.",
   "code": "NO_CREDITS"
 }
 ```
 
 The free allowance is 100 matches per rolling 30 days. A pack adds a balance that lasts 12 months, and the API draws on it exactly as the app does.
+
+Both strings carry both remedies. A person buys a pack at [walletlink.social/pricing](https://walletlink.social/pricing); an agent holding a wallet buys credits with USDC over x402, no account, at `POST https://walletlink.social/api/x402/buy`. See [the agent pack](/agent-pack).
 
 ## Things that are not errors
 

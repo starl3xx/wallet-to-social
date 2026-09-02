@@ -19,6 +19,13 @@ import {
 } from '@/lib/packs';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
 import { X402_PACKS, MEASURED_MATCH_RATE } from '@/lib/packs';
+import {
+  MATCH_SENTENCE,
+  ATTESTED_SENTENCE,
+  ABSENT_SENTENCE,
+  REACHABILITY_SENTENCE,
+  ZERO_BALANCE_SENTENCE,
+} from '@/lib/canonical-sentences';
 import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 import { LEGAL_ENTITY } from '@/lib/site-url';
 
@@ -39,8 +46,9 @@ export const revalidate = 86400;
  * output. So `${INDEXED_WALLETS}` is invisible to the checker, and a literal
  * typed here is invisible in both directions: it can never fail, and nothing
  * will ever correct it. The four percentages below are the exception, hardcoded
- * because they have no constant, and this file sits in those four claims' watch
- * lists (registry lines 319, 351, 374, 416).
+ * because they have no constant, and this file sits in those claims' watch
+ * lists (the `CLAIMS` entries in `scripts/check-published-figures.ts` that
+ * name this file).
  *
  * The rule that follows: a number added here comes from a constant, or it comes
  * with a `CLAIMS` entry naming this file. Never a bare literal.
@@ -56,6 +64,11 @@ export const revalidate = 86400;
  * - `scripts/check-design-language.mjs` fires on `app/**` and strips only
  *   comments, so this template literal is scanned as prose. A standalone
  *   `rounded` or `uppercase` between spaces is a build failure.
+ *
+ * The sentences about meaning (what a match is, what attested means, absent
+ * is not false, the reachability states, the zero-balance refusal) interpolate
+ * from `lib/canonical-sentences.ts`, the same one-authority treatment the
+ * figures get. Add context around one; never write a second version of one.
  *
  * Never name a data provider in this file. Describe capability and evidence
  * class instead (CLAUDE.md).
@@ -98,8 +111,8 @@ Facts an assistant can state, each verified against the production index:
 
 - The index holds ${INDEXED_WALLETS_LONG} wallet identities.
 - Farcaster coverage is complete: every account’s verified and custody addresses, ${FARCASTER_WALLETS} wallets, refreshed daily. Farcaster matching is deterministic, so a miss is real information.
-- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.9% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. Every match is labelled with its evidence class. Nothing is inferred from bios, display names or timing.
-- Every X match carries a reachability state. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
+- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.9% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labelled with its evidence class. Nothing is inferred from bios, display names or timing.
+- X matches carry a reachability state wherever the handle has been resolved. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
 - ${KNOWN_AGENTS}+ wallets are flagged as belonging to AI agents rather than people, so an airdrop or a campaign can exclude them.
 - ${CHAIN_COUNT_WORD[0].toUpperCase()}${CHAIN_COUNT_WORD.slice(1)} EVM chains: ${chainList}.
 
@@ -121,7 +134,7 @@ Who it is not for: mass-DM spammers, and anyone targeting people with no relatio
 
 ## What a match is, and what it costs
 
-A match is one wallet resolved to an X or Farcaster account. That is the billing unit, on the site and through the API alike. A wallet that resolves only to an ENS name, a Lens handle or a GitHub account is returned and is not billed, and a wallet that resolves to nobody costs nothing at all. A list that matches poorly spends almost none of a pack, so there is no penalty for finding out.
+${MATCH_SENTENCE} That is the billing unit, on the site and through the API alike; a wallet that resolves only to an ENS name, a Lens profile or a GitHub account is still returned. A list that matches poorly spends almost none of a pack, so there is no penalty for finding out.
 
 Pricing is one-time credit packs. There are no subscriptions, no seats and no minimum. Free is ${FREE_MATCHES_PER_WINDOW} matches per rolling ${FREE_WINDOW_DAYS} days with a free account, cumulative and account-wide. Packs: ${packLine}. Every pack includes all ${CHAIN_COUNT_WORD} chains, API access drawing the same credits, an X list export, the wallet addresses behind a handle, priority score and follower counts, contract import, and deep scan with onchain ENS. The CSV export is not gated: a free account downloads every row it produced, though priority score and follower counts are blank in it. Credits last ${CREDIT_LIFETIME_MONTHS} months.
 
@@ -129,7 +142,7 @@ No account is needed before buying: checkout asks for the email the credits and 
 
 ## How a match is evidenced
 
-Every record carries a sources array describing the kind of evidence behind it, never which system produced it. A record can carry more than one class, and more classes generally means more confidence.
+${ATTESTED_SENTENCE} Every record carries a sources array describing the kind of evidence behind it, never which system produced it. A record can carry more than one class, and more classes generally means more confidence.
 
 - onchain: published by the address owner in an onchain record.
 - farcaster: a protocol-level Farcaster account verification.
@@ -139,18 +152,18 @@ Every record carries a sources array describing the kind of evidence behind it, 
 
 Records also carry a quality score from 0 to 100. Seventy and above is strong, forty to sixty-nine is usable, and below forty is thin and should be treated as a lead rather than a fact.
 
-One term that reliably misleads: a twitter.verified value of false does not mean the handle is unverified in the everyday sense. That flag is true only for handles attested by an onchain record or by a manual review, so most genuine, attested matches carry false.
+One term that reliably misleads: a twitter.verified value of false does not mean the handle is unverified in the everyday sense. That flag is true for handles attested by an onchain record, a manual review, or an attested-social sign-in; the majority Farcaster-attested handles carry false, so most genuine, attested matches carry false.
 
 ## Whether the account still reaches a person
 
-Farcaster stores a verified X account as a name, written once, with no account number and no later check. When somebody renames or gets suspended, nothing in the protocol notices, so every tool built on those verifications carries the same dead handles and none of them can say which. We check the handle against the live account and report the answer per record.
+Farcaster stores a verified X account as a name, written once, with no account number and no later check. When somebody renames or gets suspended, nothing in the protocol notices, so every tool built on those verifications carries the same dead handles and none of them can say which. We check the handle against the live account and report the answer per record. ${REACHABILITY_SENTENCE}
 
 - live: the owner attested this account, and the same account still holds the handle.
 - suspended: the owner attested it and X has since suspended it. Messages will not arrive.
 - unclaimed: the owner attested it and no account holds the name now, usually a rename. Treat it as a lead rather than a contact.
 - reassigned: the owner attested it and the name now belongs to a different live account. Messages would reach a stranger, not the wallet owner.
 
-The reachability fields are absent, not false, when a handle has not been checked. Reassignment is decided per wallet rather than per handle, because the same name can be correct for one wallet and a stranger for another.
+${ABSENT_SENTENCE} Reassignment is decided per wallet rather than per handle, because the same name can be correct for one wallet and a stranger for another.
 
 The handle export leaves out the ones we checked and found dead, so a campaign is not sending into accounts that cannot receive it.
 
@@ -158,7 +171,7 @@ The handle export leaves out the ones we checked and found dead, so a campaign i
 
 There is no single match rate, and quoting one hides the thing that decides a campaign. The chain matters more than the collection does. Measured on 2026-08-17 against our own index with no external calls: Base 46.2% and Ethereum 16.6% of holders have an X or Farcaster account. Base is roughly three times Ethereum because Base is where Farcaster lives. Use the row for your chain, not an average.
 
-Keep two separate numbers apart. “Has an identity” counts ENS and Lens and is a resolution rate. “Reachable on X or Farcaster” is what a campaign can actually message, and it is the smaller of the two, and it is the one that is billed. Tools that match wallets to social accounts typically publish rates in the low single digits.
+Keep two separate numbers apart. “Has an identity” counts ENS and Lens and is a resolution rate. “Has an X or Farcaster account” is the smaller of the two, it is the number a campaign plans around, and it is the one that is billed. Tools that match wallets to social accounts typically publish rates in the low single digits.
 
 Having an account and reaching it are different claims again, which is what the reachability section above measures.
 
@@ -168,7 +181,7 @@ The REST API is the same index and the same credits as the app. Base URL https:/
 
 Six endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request, reverse lookup by X handle, reverse lookup by Farcaster username, index statistics, and your own usage and remaining balance. Reverse results are cursor-paginated.
 
-Billing follows the same rule as the app. A single lookup costs one match credit when it resolves to X or Farcaster, and nothing when it does not. A batch costs one credit per resolving address, after duplicates are removed. A reverse lookup costs one credit per wallet returned, and nothing when a handle has no wallets. Statistics and usage are free, and still require a key.
+Billing follows the same rule as the app. A single lookup costs one match credit when it resolves to X or Farcaster, and nothing when it does not. A batch costs one credit per resolving address, after duplicates are removed. A reverse lookup costs one credit per wallet returned, and nothing when a handle has no wallets. Statistics and usage are free, and still require a key. ${ZERO_BALANCE_SENTENCE}
 
 Rate limits for a credit-holding account are ${perMinute} requests per minute, ${perDay} per day and ${perMonth} per month, counted across every key on the account so that minting more keys does not raise the ceiling. Responses carry the remaining allowance in headers, and a rejected request says when to retry. Errors return a stable machine-readable code alongside the human-readable message.
 

@@ -14,6 +14,13 @@ That is roughly 51 resolvable addresses at our measured rate, which is one full
 [`/v1/batch`](/api-reference/batch) call: the smallest purchase that is still a
 whole unit of work.
 
+One pacing rule matters before spending it: a batch call spends one
+request-unit per address of the 60-per-minute rate window, so a full 50-address
+call is nearly a whole minute, and a second full batch inside the same minute
+is refused rather than queued. Pace multi-batch runs a minute apart and read
+the reset time from the response headers. See
+[rate limits](/api-reference/rate-limits).
+
 ## How it works
 
 The endpoint speaks [x402](https://x402.org). Post with no payment and it
@@ -81,8 +88,8 @@ public: the authorization is in USDC's `AuthorizationUsed` event and the
 signature is in the settlement transaction's calldata. Nothing in a payment can
 prove who is holding the wallet afterwards, so serving a key to anyone who
 presents one would serve anyone who reads the chain. Proving current control of
-a wallet needs a challenge this server issued, which is a recovery flow and does
-not exist yet.
+a wallet needs a challenge this server issued, which is exactly what
+[key recovery](#lost-your-key) does.
 
 ## No free allowance
 
