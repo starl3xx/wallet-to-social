@@ -85,7 +85,7 @@ export const X_HANDLES_RESOLVED = '460,889';
  * Also previously duplicated and also already divergent: 446,070 in one module
  * header, 446,043 in the docs, 446,329 in the database.
  */
-export const X_HANDLES_HELD = '460,798';
+export const X_HANDLES_HELD = '460,779';
 
 /**
  * Share of the distinct held X handles that carry a reachability state.
