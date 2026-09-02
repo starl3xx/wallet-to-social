@@ -8,6 +8,15 @@
  * so the original cannot be produced by anybody, including us. The credits are
  * untouched, because they belong to the account rather than to the key.
  *
+ * The POST also accepts `revoke_others_and_reissue: true`, which revokes the
+ * account's active keys and mints the fresh one in a single statement. That is
+ * the escape from the key-cap deadlock: an x402 account's synthetic address
+ * can never receive the email a dashboard revocation needs, and without this
+ * flag three lost keys locked the credits away forever. Wallet-signature
+ * control over a spent, unexpired challenge is exactly the proof revocation
+ * needs, so the flag rides the same proof, the same rate limits and the same
+ * single-use guard as a plain recovery.
+ *
  * See `lib/x402-recovery.ts` for why this cannot be done from the payment
  * itself. Short version: every field of a settled payment is on a public chain.
  */
@@ -19,7 +28,7 @@ import {
   consumeChallenge,
   CHALLENGE_TTL_MS,
 } from '@/lib/x402-recovery';
-import { createApiKeyIfUnderCap } from '@/lib/api-keys';
+import { createApiKeyIfUnderCap, revokeAllAndReissueKey } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 import { getBalance } from '@/lib/credits';
 import { getDb } from '@/db';
@@ -116,6 +125,7 @@ export async function POST(request: NextRequest) {
     issued_at?: unknown;
     token?: unknown;
     signature?: unknown;
+    revoke_others_and_reissue?: unknown;
   };
   try {
     body = await request.json();
@@ -208,6 +218,47 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * The signer asked for a clean slate: revoke the account's active keys and
+   * mint one fresh, atomically. Reached only past the same proof and the same
+   * spent challenge as a plain recovery, because this is strictly more
+   * destructive than minting: it is the action's whole point (every prior key,
+   * lost or leaked, stops working), and only current wallet control may order
+   * it. Runs whether or not the account is at the cap; the caller who sends
+   * the flag is asking for exactly one working key.
+   */
+  if (body.revoke_others_and_reissue === true) {
+    const reissued = await revokeAllAndReissueKey(
+      userId,
+      `x402 recovery ${wallet.slice(0, 10)}`,
+      CREDIT_API_PLAN
+    );
+    if (!reissued) {
+      return NextResponse.json(
+        {
+          error: 'Service temporarily unavailable.',
+          code: 'SERVICE_UNAVAILABLE',
+        },
+        { status: 503 }
+      );
+    }
+
+    // Prefixes only, never keys: the revoked ones no longer matter and the
+    // fresh one must exist in exactly one place, the response.
+    console.log(
+      `[x402] keys revoked and reissued wallet=${wallet.toLowerCase()} revoked=[${reissued.revokedPrefixes.join(', ')}] prefix=${reissued.keyPrefix}`
+    );
+
+    const balance = await getBalance(userId);
+    return NextResponse.json({
+      api_key: reissued.rawKey,
+      shown_once: true,
+      revoked_key_prefixes: reissued.revokedPrefixes,
+      matches_available: balance.available,
+      docs: 'https://docs.walletlink.social/agent-pack',
+    });
+  }
+
   const created = await createApiKeyIfUnderCap(
     userId,
     `x402 recovery ${wallet.slice(0, 10)}`,
@@ -224,9 +275,14 @@ export async function POST(request: NextRequest) {
     );
   }
   if ('capReached' in created) {
+    /**
+     * A refusal carries its remedy, and the challenge above is spent: the
+     * message has to say a FRESH challenge is needed, or the caller retries
+     * this one into CHALLENGE_SPENT and reads it as a broken endpoint.
+     */
     return NextResponse.json(
       {
-        error: `This wallet already holds ${X402_MAX_KEYS} active keys. Revoke one before issuing another.`,
+        error: `This wallet already holds ${X402_MAX_KEYS} active keys. Request a fresh challenge and POST it with revoke_others_and_reissue set to true to revoke them all and receive one new key.`,
         code: 'KEY_CAP_REACHED',
       },
       { status: 409 }

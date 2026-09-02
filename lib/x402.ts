@@ -65,9 +65,12 @@ export const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
  * worth making. It needs `@coinbase/x402` and two secrets, not an env edit.
  *
  * Separately, and independent of any facilitator change: CDP indexes only
- * routes that advertise an `extensions.bazaar` block on the 402, and this
- * route sends none. walletlink is absent from CDP's index and from payai's own,
- * so the current facilitator is not listing it either.
+ * routes that advertise an `extensions.bazaar` block on the 402. The buy
+ * route sends one (`BAZAAR_EXTENSIONS` in `app/api/x402/buy/route.ts`, with
+ * `scripts/check-invariants.ts` asserting its shape and its argument
+ * position), so the block is no longer what keeps walletlink out of CDP's
+ * index; reaching that index still needs the facilitator switch above, since
+ * CDP indexes what its own facilitator serves.
  */
 const FACILITATOR_URL =
   process.env.X402_FACILITATOR_URL ?? 'https://facilitator.payai.network';

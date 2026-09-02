@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql } from 'drizzle-orm';
-import { getDb } from '@/db';
-import { socialGraph } from '@/db/schema';
 import { authenticateApiRequest, apiSuccess, apiError } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
+import { readCoverageStats } from '@/lib/coverage-stats';
 
 export const runtime = 'nodejs';
 
@@ -18,7 +16,9 @@ const corsHeaders = {
     'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated',
 };
 
-// Stats endpoint is free (0 credits)
+// Stats endpoint is free (0 credits). authenticateApiRequest skips the
+// balance refusal for a declared cost of zero, so this answers at zero
+// balance; see lib/api-auth.ts.
 const CREDITS_COST = 0;
 
 export async function OPTIONS() {
@@ -36,9 +36,16 @@ export async function GET(request: NextRequest) {
 
   const { context } = authResult;
 
-  // Query social graph stats
-  const db = getDb();
-  if (!db) {
+  /**
+   * Materialized counts, refreshed daily by /api/cron/refresh-coverage, never
+   * a live aggregate over the whole index: this endpoint is free, and a free
+   * endpoint that costs a table scan is one the docs had to warn agents not
+   * to poll. `meta.as_of` says when the counts were taken;
+   * `meta.generated_at` stays what it always was, when this response was
+   * built. See lib/coverage-stats.ts.
+   */
+  const materialized = await readCoverageStats();
+  if (!materialized) {
     return apiError(
       'Service temporarily unavailable',
       'SERVICE_UNAVAILABLE',
@@ -46,22 +53,6 @@ export async function GET(request: NextRequest) {
       { ...context.rateLimitHeaders, ...corsHeaders }
     );
   }
-
-  const [stats] = await db
-    .select({
-      // Positive rows only — persisted negatives ("checked, no socials") would
-      // otherwise inflate the denominator customers compute coverage against
-      totalWallets: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL OR ${socialGraph.farcaster} IS NOT NULL OR ${socialGraph.ensName} IS NOT NULL OR ${socialGraph.lens} IS NOT NULL OR ${socialGraph.github} IS NOT NULL)::int`,
-      walletsChecked: sql<number>`COUNT(*)::int`,
-      withTwitter: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.twitterHandle} IS NOT NULL)::int`,
-      withFarcaster: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.farcaster} IS NOT NULL)::int`,
-      withEns: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.ensName} IS NOT NULL)::int`,
-      withLens: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.lens} IS NOT NULL)::int`,
-      withGithub: sql<number>`COUNT(*) FILTER (WHERE ${socialGraph.github} IS NOT NULL)::int`,
-      avgFcFollowers: sql<number>`COALESCE(AVG(${socialGraph.fcFollowers}) FILTER (WHERE ${socialGraph.fcFollowers} IS NOT NULL), 0)::int`,
-      maxFcFollowers: sql<number>`COALESCE(MAX(${socialGraph.fcFollowers}), 0)::int`,
-    })
-    .from(socialGraph);
 
   // Track usage
   trackApiUsage({
@@ -78,23 +69,10 @@ export async function GET(request: NextRequest) {
 
   return apiSuccess(
     {
-      data: {
-        total_wallets: stats?.totalWallets ?? 0,
-        wallets_checked: stats?.walletsChecked ?? 0,
-        coverage: {
-          twitter: stats?.withTwitter ?? 0,
-          farcaster: stats?.withFarcaster ?? 0,
-          ens: stats?.withEns ?? 0,
-          lens: stats?.withLens ?? 0,
-          github: stats?.withGithub ?? 0,
-        },
-        farcaster_stats: {
-          avg_followers: stats?.avgFcFollowers ?? 0,
-          max_followers: stats?.maxFcFollowers ?? 0,
-        },
-      },
+      data: materialized.stats,
       meta: {
         generated_at: new Date().toISOString(),
+        as_of: materialized.asOf.toISOString(),
       },
     },
     { ...context.rateLimitHeaders, ...corsHeaders }

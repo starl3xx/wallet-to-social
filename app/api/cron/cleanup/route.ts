@@ -19,6 +19,7 @@
  * | IP rate-limit buckets      | 24 hours                          |
  * | Authorization requests     | Until they expire, then deleted   |
  * | Analytics events           | 400 days                          |
+ * | Idempotency replay rows    | 24 hours (lib/idempotency.ts)     |
  *
  * Analytics is the one addition rather than a wiring-up. It had no expiry at
  * all, and an event carries a browser id and sometimes an email, so an
@@ -37,6 +38,7 @@ import { analyticsEvents } from '@/db/schema';
 import { cleanupExpiredAuth } from '@/lib/auth';
 import { cleanupOldIpBuckets } from '@/lib/ip-rate-limiter';
 import { cleanupAuthorizationRequests } from '@/lib/oauth/requests';
+import { cleanupIdempotencyKeys } from '@/lib/idempotency';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -60,6 +62,8 @@ async function run(request: NextRequest): Promise<NextResponse> {
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
   const authorizationRequests = await cleanupAuthorizationRequests();
+  // Batch replay rows; the TTL lives with the writer in lib/idempotency.ts.
+  const idempotencyRows = await cleanupIdempotencyKeys();
 
   const cutoff = new Date(
     Date.now() - ANALYTICS_RETENTION_DAYS * 24 * 60 * 60 * 1000
@@ -74,6 +78,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     magicLinkTokens: auth.tokensDeleted,
     ipBuckets,
     authorizationRequests,
+    idempotencyRows,
     analyticsEvents: analytics.length,
   });
 }

@@ -8,6 +8,15 @@ Resolves many addresses in one request. Costs **1 match credit per address that 
 
 This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same match credits, but the batch is one request instead of fifty and returns in a fraction of the time.
 
+## Headers
+
+<ParamField header="Idempotency-Key" type="string">
+  Optional retry protection. An opaque value up to 200 characters, such as a
+  UUID. Resending the identical request with the same key inside 24 hours
+  replays the stored response, marked `Idempotency-Replayed: true`, and bills
+  nothing. See [retries](#retries-and-the-idempotency-key) below.
+</ParamField>
+
 ## Body
 
 <ParamField body="wallets" type="string[]" required>
@@ -35,7 +44,9 @@ curl -X POST https://walletlink.social/api/v1/batch \
   object as [single lookup](/api-reference/wallet), or `null` where nothing was
   found. That includes `twitter.also`, [a second X
   account](/api-reference/wallet#a-second-x-account) attested for the same
-  wallet, on the few records that have one.
+  wallet, on the few records that have one. Each found entry also carries
+  `last_updated` and `stale`, the same freshness pair single lookup reports in
+  its `meta`, here per row because a batch has one `meta` for many rows.
 </ResponseField>
 
 <ResponseField name="meta" type="object">
@@ -54,6 +65,13 @@ curl -X POST https://walletlink.social/api/v1/batch \
     <ResponseField name="not_found" type="number">
       Unique addresses with no identity at all: `requested` minus `found`.
     </ResponseField>
+    <ResponseField name="previously_checked" type="object">
+      Negative knowledge for the misses: wallet to ISO timestamp, for each
+      `null` entry we have checked before and found bare. A miss absent from
+      this map has never been examined. The whole field is absent when no miss
+      was previously checked; absent is not false. The single lookup makes the
+      same distinction with `meta.checked_at`.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -69,11 +87,21 @@ curl -X POST https://walletlink.social/api/v1/batch \
         "followers": 123456,
         "fid": 900001
       },
-      "sources": ["onchain", "farcaster"]
+      "sources": ["onchain", "farcaster"],
+      "last_updated": "2026-08-14T02:11:09.000Z",
+      "stale": false
     },
     null
   ],
-  "meta": { "requested": 2, "found": 1, "matched": 1, "not_found": 1 }
+  "meta": {
+    "requested": 2,
+    "found": 1,
+    "matched": 1,
+    "not_found": 1,
+    "previously_checked": {
+      "0x0000000000000000000000000000000000000001": "2026-08-20T05:40:00.000Z"
+    }
+  }
 }
 ```
 
@@ -85,13 +113,17 @@ curl -X POST https://walletlink.social/api/v1/batch \
 
 ## Differences from single lookup
 
-Batch returns a deliberately lighter record. Two things present on
-[`/v1/wallet/{address}`](/api-reference/wallet) are absent here:
+Batch returns a deliberately lighter record. One thing present on
+[`/v1/wallet/{address}`](/api-reference/wallet) is absent here:
 
 - No `quality` object.
-- No `stale` or `last_updated` in `meta`, and no staleness headers.
 
-`farcaster.verified` **is** present as of 2026-08-30, on the same terms as
+`stale` and `last_updated` **are** present as of 2026-09-01, per row rather
+than in `meta`, and misses carry their checked-at time through
+`meta.previously_checked`. Only the staleness response headers stay
+single-lookup-only, since one header cannot describe fifty rows.
+
+`farcaster.verified` is present as of 2026-08-30, on the same terms as
 single lookup, and so is `twitter.verified`. It was previously omitted here
 alone, which meant a multi-address caller received an account without the class
 of evidence behind it. Every match carries its evidence, and that has to hold on
@@ -118,9 +150,38 @@ A batch that exceeds your batch limit is rejected whole with
 `BATCH_SIZE_EXCEEDED`. Nothing is charged and nothing is partially processed, so
 split oversized batches client-side and send the pieces.
 
+## Retries and the Idempotency-Key
+
+A plain retry bills again, because it resolves again. Send an `Idempotency-Key`
+header on any batch you might have to retry, and a resend of the identical
+request replays the stored response instead:
+
+- The dedup is scoped to your API key and pinned to the exact request body, and
+  lasts 24 hours. A replay returns the original body and status with an
+  `Idempotency-Replayed: true` header, bills no matches, and resolves nothing.
+- Rate limits still apply to a replay: the request weight is spent at the gate,
+  before the store is consulted.
+- Reusing a key with a **different** body is refused with
+  `422 IDEMPOTENCY_KEY_REUSED` rather than silently answered with the older
+  list.
+- A response too large to store (over 256 KB, far beyond a full 50-address
+  batch) is recorded without a body; replaying it answers
+  `409 IDEMPOTENCY_NOT_REPLAYABLE`, and the fix is to resend under a fresh key,
+  knowingly billed as a new request.
+- Only a `200` consumes a key. A request that failed can be retried under the
+  same key into a success.
+- The window protects sequential retries, not concurrent duplicates: two copies
+  of the same request racing each other can both execute and both bill.
+  Serialize retries.
+- The balance gate runs before the replay store is consulted, so a key at zero
+  balance cannot replay even a stored response. If the batch that spent your
+  last credits lost its response in transit, read your usage rather than
+  retrying: the matches were billed and recorded.
+
 ## Errors
 
-`INVALID_REQUEST`, `INVALID_ADDRESS`, `BATCH_SIZE_EXCEEDED`, plus the
+`INVALID_REQUEST`, `INVALID_ADDRESS`, `BATCH_SIZE_EXCEEDED`,
+`IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_NOT_REPLAYABLE`, plus the
 [standard errors](/api-reference/errors).
 
 A single malformed address rejects the entire batch. The error message names the

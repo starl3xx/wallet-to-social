@@ -16,6 +16,14 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import { isRecordStale } from '@/lib/staleness';
+import {
+  findIdempotentReplay,
+  storeIdempotentResponse,
+  idempotencyBodyHash,
+  IDEMPOTENCY_KEY_MAX_LENGTH,
+  IDEMPOTENCY_TTL_HOURS,
+} from '@/lib/idempotency';
 
 export const runtime = 'nodejs';
 
@@ -23,11 +31,12 @@ export const runtime = 'nodejs';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Allow-Headers':
+    'Authorization, Content-Type, Idempotency-Key',
   // Non-safelisted response headers are invisible to browser JS unless
   // exposed, and the docs tell callers to read these.
   'Access-Control-Expose-Headers':
-    'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated',
+    'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Matches-Available, Retry-After, X-Data-Staleness, X-Last-Updated, Idempotency-Replayed',
 };
 
 export async function OPTIONS() {
@@ -107,6 +116,34 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * Optional retry protection: an Idempotency-Key header makes a repeat of
+   * this exact request replay the stored response instead of billing again.
+   * The header is validated before authentication like the other body-shape
+   * checks; the store itself is consulted after, because the dedup is scoped
+   * to the authenticated key. See lib/idempotency.ts for the contract.
+   */
+  const idemKey = request.headers.get('Idempotency-Key');
+  if (idemKey !== null && idemKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    return apiError(
+      `Idempotency-Key is longer than ${IDEMPOTENCY_KEY_MAX_LENGTH} characters. Use an opaque id such as a UUID.`,
+      'INVALID_REQUEST',
+      400,
+      corsHeaders
+    );
+  }
+  // An empty value is a footgun, not a key: every request would share one
+  // bucket and the second body would answer 422 for no reason a caller can
+  // see. Refused outright, the way Stripe refuses it.
+  if (idemKey !== null && idemKey.length === 0) {
+    return apiError(
+      'Idempotency-Key must not be empty. Use an opaque id such as a UUID, or omit the header.',
+      'INVALID_REQUEST',
+      400,
+      corsHeaders
+    );
+  }
+
   // Authenticate request with credits = wallet count
   const authResult = await authenticateApiRequest(request, body.wallets.length);
   if ('error' in authResult) {
@@ -152,6 +189,61 @@ export async function POST(request: NextRequest) {
   // Deduplicate
   const uniqueWallets = [...new Set(normalizedWallets)];
 
+  /**
+   * Replay check, after authentication (the store is keyed on the api key)
+   * and before any resolution work. The body hash covers the raw bytes, so a
+   * hit means the identical request already ran; its validations passed then
+   * and would pass identically now.
+   *
+   * A replay is recorded in api_usage with `matches: null`, the same shape as
+   * a non-resolving endpoint: the request happened and its rate-limit weight
+   * was spent at the gate above, but nothing was resolved and nothing is
+   * billed.
+   */
+  if (idemKey !== null) {
+    const bodyHash = idempotencyBodyHash(raw);
+    const prior = await findIdempotentReplay(context.key.id, idemKey, bodyHash);
+    if (prior.kind === 'mismatch') {
+      return apiError(
+        `This Idempotency-Key was already used with a different request body inside the ${IDEMPOTENCY_TTL_HOURS}-hour window. Use a fresh key for a new request.`,
+        'IDEMPOTENCY_KEY_REUSED',
+        422,
+        { ...context.rateLimitHeaders, ...corsHeaders }
+      );
+    }
+    if (prior.kind === 'not_replayable') {
+      return apiError(
+        'The original response under this Idempotency-Key was too large to store, so it cannot be replayed. Resend with a fresh key; the resend is billed as a new request.',
+        'IDEMPOTENCY_NOT_REPLAYABLE',
+        409,
+        { ...context.rateLimitHeaders, ...corsHeaders }
+      );
+    }
+    if (prior.kind === 'replay') {
+      trackApiUsage({
+        apiKeyId: context.key.id,
+        endpoint: '/v1/batch',
+        method: 'POST',
+        walletCount: uniqueWallets.length,
+        responseStatus: prior.status,
+        latencyMs: Date.now() - startTime,
+        creditsUsed: uniqueWallets.length,
+        // A replay resolves nothing and bills nothing.
+        matches: null,
+      }).catch(console.error);
+
+      return NextResponse.json(prior.response, {
+        status: prior.status,
+        headers: {
+          'Content-Type': 'application/json',
+          ...context.rateLimitHeaders,
+          ...corsHeaders,
+          'Idempotency-Replayed': 'true',
+        },
+      });
+    }
+  }
+
   // Query social graph
   const db = getDb();
   if (!db) {
@@ -179,6 +271,11 @@ export async function POST(request: NextRequest) {
       github: socialGraph.github,
       sources: socialGraph.sources,
       lastUpdatedAt: socialGraph.lastUpdatedAt,
+      // Freshness and negative knowledge, same row, no extra read: staleAt
+      // feeds per-row `stale`, lastCheckedAt feeds meta.previously_checked on
+      // misses.
+      staleAt: socialGraph.staleAt,
+      lastCheckedAt: socialGraph.lastCheckedAt,
       // Agent metadata
       isAgent: socialGraph.isAgent,
       agentName: socialGraph.agentName,
@@ -212,6 +309,20 @@ export async function POST(request: NextRequest) {
   const data: Array<Record<string, unknown> | null> = [];
   let foundCount = 0;
 
+  /**
+   * Negative knowledge for the misses, keyed by wallet.
+   *
+   * A miss stays `null` in `data`, because "an entry is a record or null" is
+   * the published contract and a client that branches on `if (entry)` must not
+   * start reading a checked-negative as a match. What was missing is the
+   * distinction the single lookup already makes in `meta.checked_at`: an
+   * address we checked and found bare versus one we have never seen. It rides
+   * in `meta.previously_checked` as wallet -> ISO timestamp, present only for
+   * misses that were actually checked; absence means never seen, per the
+   * absent-is-not-false rule.
+   */
+  const previouslyChecked: Record<string, string> = {};
+
   for (const wallet of uniqueWallets) {
     const result = resultMap.get(wallet);
     // Persisted negatives (rows with no socials) are "not found" to API
@@ -226,6 +337,9 @@ export async function POST(request: NextRequest) {
     );
     if (!result || !hasSocials) {
       data.push(null);
+      if (result?.lastCheckedAt) {
+        previouslyChecked[wallet] = result.lastCheckedAt.toISOString();
+      }
       continue;
     }
 
@@ -281,6 +395,17 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    /**
+     * Freshness, per row. The single lookup reports these in `meta`; a batch
+     * has one `meta` for many rows, so they ride each record instead. Same
+     * derivation as the single lookup, from lib/staleness.ts, so the two
+     * routes cannot disagree about what stale means. The row's lastUpdatedAt
+     * was already selected (and previously dropped on the floor); the column
+     * is NOT NULL, so `last_updated` is always present on a found row.
+     */
+    item.last_updated = result.lastUpdatedAt.toISOString();
+    item.stale = isRecordStale(result.staleAt, result.lastUpdatedAt);
+
     data.push(item);
   }
 
@@ -306,25 +431,51 @@ export async function POST(request: NextRequest) {
     matches,
   }).catch(console.error);
 
-  return apiSuccess(
-    {
-      data,
-      meta: {
-        requested: uniqueWallets.length,
-        found: foundCount,
-        not_found: uniqueWallets.length - foundCount,
-        /**
-         * What this call was billed: the same `matches` the debit above uses.
-         *
-         * `found` is larger. It counts a row with only an ENS name, Lens or
-         * GitHub as found, and none of those cost anything. Without this
-         * field the response carried no number a caller could reconcile
-         * against their balance, on a product sold as "you only pay for
-         * matches".
-         */
-        matched: matches,
-      },
+  const payload = {
+    data,
+    meta: {
+      requested: uniqueWallets.length,
+      found: foundCount,
+      not_found: uniqueWallets.length - foundCount,
+      /**
+       * What this call was billed: the same `matches` the debit above uses.
+       *
+       * `found` is larger. It counts a row with only an ENS name, Lens or
+       * GitHub as found, and none of those cost anything. Without this
+       * field the response carried no number a caller could reconcile
+       * against their balance, on a product sold as "you only pay for
+       * matches".
+       */
+      matched: matches,
+      // Misses we have checked before, wallet -> when. Absent when every miss
+      // is an address we have never seen; see the comment where it is built.
+      ...(Object.keys(previouslyChecked).length > 0
+        ? { previously_checked: previouslyChecked }
+        : {}),
     },
-    { ...context.rateLimitHeaders, ...corsHeaders }
-  );
+  };
+
+  /**
+   * Awaited, not fire-and-forget: the caller's next retry may arrive the
+   * moment this response does, and a store still in flight would re-run and
+   * re-bill the exact request the header exists to protect. Only a 200 is
+   * stored, so a failed request never consumes its key.
+   */
+  if (idemKey !== null) {
+    try {
+      await storeIdempotentResponse(
+        context.key.id,
+        idemKey,
+        idempotencyBodyHash(raw),
+        200,
+        payload
+      );
+    } catch (error) {
+      // The answer is correct and already paid for; losing the replay row
+      // costs a future retry its dedup, not this caller their response.
+      console.error('Failed to store idempotent response:', error);
+    }
+  }
+
+  return apiSuccess(payload, { ...context.rateLimitHeaders, ...corsHeaders });
 }

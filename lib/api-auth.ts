@@ -136,12 +136,21 @@ export async function authenticateApiRequest(
    * A balance check, not a debit. What a call costs is not known until it
    * resolves, so the debit belongs where the matches are counted, exactly as it
    * does for a job. This refuses the call when nothing is left.
+   *
+   * A declared cost of zero skips the refusal, never the read. `/v1/stats` and
+   * `/v1/usage` declare `credits: 0`, resolve nothing and bill nothing, and
+   * refusing them at zero balance locked an agent out of its own meter: the
+   * zero reading is the argument for buying again, and the endpoint that
+   * reports it was the one answering 402. The balance is still read on the
+   * zero-cost path, because it was already being read here to decide the
+   * refusal, and it feeds the X-Matches-Available header either way. The rate
+   * limiter below still runs for every call, at the declared weight.
    */
   const tier = await effectiveTierForUserId(key.userId);
   let matchesAvailable: number | undefined;
   if (!legacyTierIsUnmetered(tier)) {
     const balance = await getBalance(key.userId);
-    if (balance.available <= 0) {
+    if (credits > 0 && balance.available <= 0) {
       return {
         error: apiError(
           /**
@@ -167,7 +176,13 @@ export async function authenticateApiRequest(
         ),
       };
     }
-    matchesAvailable = balance.available;
+    /**
+     * Clamped for the same reason the 402 clamps: a zero-cost call now gets
+     * this far with an empty (or, after a concurrent overspend, negative)
+     * balance, and a negative number in the header is bookkeeping, not
+     * something a caller can act on.
+     */
+    matchesAvailable = Math.max(0, balance.available);
   }
 
   // Check rate limits

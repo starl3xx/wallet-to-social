@@ -1001,6 +1001,90 @@ async function main() {
     );
   }
 
+  // --------------------------------------------- the zero-cost gate's edge
+  // Free endpoints answer a drained key, and metered ones refuse it. Both
+  // halves live in one character of lib/api-auth.ts: `credits > 0` gates the
+  // refusal on a positive declared cost. A regression to `>= 0` silently
+  // re-refuses the free endpoints and re-falsifies ZERO_BALANCE_SENTENCE and
+  // four docs pages; deleting the balance clause opens every metered endpoint
+  // to a zero-balance key. Asserted on the exact condition, so either edit
+  // fails here; the guard reintroduces both.
+  {
+    const auth = withoutComments(readFileSync('lib/api-auth.ts', 'utf8'));
+    ok(
+      'the balance refusal is gated on a positive declared cost, exactly',
+      /if \(credits > 0 && balance\.available <= 0\) \{/.test(auth)
+    );
+    ok(
+      'and the refusal it gates is still the 402',
+      /if \(credits > 0 && balance\.available <= 0\) \{[\s\S]{0,900}?NO_CREDITS/.test(
+        auth
+      )
+    );
+  }
+
+  // ------------------------------------------------- reissue requires proof
+  // The recovery POST's revoke_others_and_reissue path revokes every active
+  // key an account holds. The claim is that only current wallet control can
+  // order it: the reissue must sit behind BOTH the signature refusal and the
+  // spent-challenge refusal, and the wholesale revoke must be scoped to the
+  // proven owner and spare OAuth grant rows. Asserted on the source in call
+  // order, so deleting either refusal (turning it into `if (false)`) removes
+  // the call text these look for and fails here. The guard reintroduces each
+  // of those deletions.
+  {
+    const route = withoutComments(
+      readFileSync('app/api/x402/recover/route.ts', 'utf8')
+    );
+    const post = route.slice(route.indexOf('export async function POST'));
+    const proofAt = post.indexOf('if (!proof.ok)');
+    const spendAt = post.indexOf('await consumeChallenge(');
+    const reissueAt = post.indexOf('revokeAllAndReissueKey(');
+
+    ok(
+      'the wholesale reissue sits after the signature refusal',
+      proofAt !== -1 && reissueAt > proofAt
+    );
+    ok(
+      'the wholesale reissue sits after the challenge is spent',
+      spendAt !== -1 && reissueAt > spendAt
+    );
+    // The refusal carries its remedy: the challenge is spent by the time the
+    // cap refuses, so the message must send the caller to a FRESH challenge
+    // with the flag, or they retry the dead one into CHALLENGE_SPENT.
+    ok(
+      'the key-cap refusal names revoke_others_and_reissue as the way out',
+      /fresh challenge[\s\S]{0,120}revoke_others_and_reissue[\s\S]{0,200}KEY_CAP_REACHED/.test(
+        post
+      )
+    );
+
+    const keys = withoutComments(readFileSync('lib/api-keys.ts', 'utf8'));
+    const from = keys.indexOf('export async function revokeAllAndReissueKey');
+    const next = keys.indexOf('\nexport ', from + 1);
+    const fn = keys.slice(from, next === -1 ? undefined : next);
+    const flat = fn.replace(/\s+/g, ' ');
+
+    // The exact clause, whole: dropping the owner scope revokes strangers'
+    // keys on a signature over your own wallet, and dropping the grant filter
+    // kills a person's connected client as a side effect. Either edit breaks
+    // this string.
+    ok(
+      'the wholesale revoke is scoped to the proven owner and spares grant rows',
+      flat.includes(
+        'WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL AND oauth_grant_id IS NULL'
+      )
+    );
+    // One statement, so a failure between revoke and mint cannot leave an
+    // account with zero keys: the two travel in one data-modifying CTE.
+    ok(
+      'the wholesale revoke and the mint are one atomic statement',
+      fn.split('db.execute').length - 1 === 1 &&
+        flat.includes('UPDATE api_keys') &&
+        flat.includes('INSERT INTO api_keys')
+    );
+  }
+
   // ------------------------------------------------------------ backup lists
   // migrate-grant-readonly.ts says these "must agree" and nothing checked it.
   {

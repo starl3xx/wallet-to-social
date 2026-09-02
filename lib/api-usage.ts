@@ -81,7 +81,10 @@ export async function trackApiUsage(usage: {
    * Keyed on the api_usage row rather than a job, so a retried request is
    * charged again. That is correct: a retry is a second resolution and it cost
    * us a second time. Job debits are idempotent because a *resumed* job is one
-   * piece of work; two API calls are two.
+   * piece of work; two API calls are two. The one exception is a `POST
+   * /v1/batch` retry under an Idempotency-Key: a replay inside the window is
+   * served from the stored response, resolves nothing, and reaches this
+   * function with `matches: null`, so nothing is debited (lib/idempotency.ts).
    *
    * Never fatal, for the same reason as the job path: the caller already has
    * their answer, and one uncharged call beats a successful response reported

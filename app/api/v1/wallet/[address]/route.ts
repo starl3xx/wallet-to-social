@@ -16,6 +16,7 @@ import {
   alsoOnXForWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
+import { isRecordStale } from '@/lib/staleness';
 
 export const runtime = 'nodejs';
 
@@ -212,12 +213,8 @@ export async function GET(
     last_verified: result.lastVerificationAt?.toISOString() ?? null,
   };
 
-  // Check staleness
-  const now = new Date();
-  const isStale = result.staleAt && now > result.staleAt;
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const isOld = result.lastUpdatedAt && result.lastUpdatedAt < thirtyDaysAgo;
-  const dataIsStale = isStale || isOld;
+  // Check staleness. One derivation, shared with /v1/batch: see lib/staleness.ts
+  const dataIsStale = isRecordStale(result.staleAt, result.lastUpdatedAt);
 
   // Build headers with staleness info if needed
   const stalenessHeaders = dataIsStale

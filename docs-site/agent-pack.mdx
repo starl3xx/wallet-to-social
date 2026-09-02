@@ -66,7 +66,11 @@ that matches well and is not wasted on one that does not. See
 [credits](/api-reference/introduction#credits).
 
 The key works on the whole [REST API](/api-reference/introduction) and on the
-[MCP server](/mcp-server).
+[MCP server](/mcp-server). When the pack runs dry, the metered endpoints answer
+`402 NO_CREDITS`, but [`/v1/usage`](/api-reference/usage) and
+[`/v1/stats`](/api-reference/stats) keep answering at zero balance: a drained
+key can always read its own meter, and that zero reading is the signal to buy
+again.
 
 |                        |              |
 | ---------------------- | ------------ |
@@ -116,7 +120,22 @@ curl -X POST https://walletlink.social/api/x402/recover   -H "Content-Type: appl
 ```
 
 The credits are untouched: they belong to the account, not to the key. Up to
-three active keys per wallet; revoke one before issuing a fourth.
+three active keys per wallet.
+
+At the cap, ask for a clean slate instead: request a fresh challenge, sign it,
+and POST it with `revoke_others_and_reissue: true`. That revokes every active
+key the account holds and issues one new key in a single atomic step, and the
+response lists the revoked prefixes:
+
+```bash
+curl -X POST https://walletlink.social/api/x402/recover   -H "Content-Type: application/json"   -d '{"wallet":"0xYOURWALLET","issued_at":…,"token":"…","signature":"0x…","revoke_others_and_reissue":true}'
+```
+
+The signature is the authority for the revocation, the same way it is for the
+reissue: a wallet account has no email session to revoke keys from, so wallet
+control is the only proof there could be. Send the flag only when you mean it;
+every previously issued key stops working the moment it runs. A plain recovery
+at the cap answers `409 KEY_CAP_REACHED` and names this flag as the way out.
 
 **Why signing is required, and why replaying your payment is not enough.** Once
 a payment settles, every field of it is public: the authorization is in USDC's

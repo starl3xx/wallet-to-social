@@ -43,7 +43,9 @@ it draws on the same balance the app does. There is no API-only plan.
 
 These are rate limits: they bound how fast you can call, not how much you can
 resolve in total. What you can resolve is bounded by your credit balance, and a
-call made with no credits left returns `402` with code `NO_CREDITS`.
+metered call made with no credits left returns `402` with code `NO_CREDITS`.
+The two free endpoints, [`/v1/stats`](/api-reference/stats) and
+[`/v1/usage`](/api-reference/usage), keep answering at zero balance.
 
 <Note>
   Responses from [`/v1/usage`](/api-reference/usage) report the internal plan
@@ -76,7 +78,9 @@ the app.
 A record that carries only an ENS name, a Lens profile or a GitHub account is
 returned but not billed: a match means X or Farcaster.
 
-A call made with no match credits left returns `402` with code `NO_CREDITS`.
+A metered call made with no match credits left returns `402` with code
+`NO_CREDITS`. The two zero-credit endpoints answer at any balance, so a drained
+key can always read its own meter.
 
 **Rate-limit units** are separate, are not bought, and reset on their own
 schedule. They bound how fast you may call, never how much you may resolve.

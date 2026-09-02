@@ -567,6 +567,42 @@ const MUTATIONS: Mutation[] = [
     to: 'if (false) {',
   },
   {
+    name: 'the zero-cost gate starts refusing the free endpoints again',
+    file: 'lib/api-auth.ts',
+    from: 'if (credits > 0 && balance.available <= 0) {',
+    to: 'if (balance.available <= 0) {',
+  },
+  {
+    name: 'the balance gate is deleted and metered calls run at zero balance',
+    file: 'lib/api-auth.ts',
+    from: 'if (credits > 0 && balance.available <= 0) {',
+    to: 'if (false) {',
+  },
+  {
+    name: 'the wholesale reissue answers a proof that failed',
+    file: 'app/api/x402/recover/route.ts',
+    from: '  if (!proof.ok) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'the wholesale reissue stops spending the challenge first',
+    file: 'app/api/x402/recover/route.ts',
+    from: '  if (!(await consumeChallenge(token, wallet, issuedAt))) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'the wholesale revoke loses its owner scope, revoking every account at once',
+    file: 'lib/api-keys.ts',
+    from: 'WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL AND oauth_grant_id IS NULL',
+    to: 'WHERE is_active = true AND revoked_at IS NULL AND oauth_grant_id IS NULL',
+  },
+  {
+    name: 'the wholesale revoke sweeps up OAuth grant rows as a side effect',
+    file: 'lib/api-keys.ts',
+    from: 'WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL AND oauth_grant_id IS NULL',
+    to: 'WHERE user_id = ${userId} AND is_active = true AND revoked_at IS NULL',
+  },
+  {
     name: 'the Agent pack leaks into PACKS, reaching Stripe checkout',
     file: 'lib/packs.ts',
     from: 'export const PACKS: Record<PackId, Pack> = {',

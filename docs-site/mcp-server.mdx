@@ -171,11 +171,25 @@ multi-batch runs a minute apart and read the reset time from `quota`.
 resolves more than you have left is allowed to finish and the next one fails
 with no credits. That is the same behaviour the REST API and the app have.
 
+**A retry is a second purchase.** The debit is keyed on the call, so a tool
+call resent by a retrying framework bills its matches again; the tools declare
+`idempotentHint: false` for exactly this reason. A tool call cannot carry an
+idempotency key; the REST [batch endpoint](/api-reference/batch) can, so a
+pipeline that must retry safely should call REST with an `Idempotency-Key`
+header instead. At zero balance the two free tools keep answering, so a
+drained agent can always read its own meter.
+
 ## What the tools return
 
 Not the raw API record. The 40-odd fields per wallet are trimmed to the identity,
 whether the owner attested it, and whether the X handle still reaches anyone,
-which is the field no competing source publishes.
+which is the field no competing source publishes. A Farcaster identity keeps its
+`fid` through the trim, because Farcaster DMs address accounts by fid rather
+than by username; a username can be renamed out from under a campaign, the fid
+cannot. Resolved records carry a `stale` flag when the index has measured their
+freshness, and a missed address reports `previously_checked`: a timestamp means
+we looked and found nothing, `null` means we have never looked. Absent is not
+false, at every layer.
 
 ```json
 {
@@ -197,9 +211,14 @@ which is the field no competing source publishes.
         "reaches_someone": true,
         "reachability": "live"
       },
-      "evidence": ["onchain", "farcaster"]
+      "evidence": ["onchain", "farcaster"],
+      "stale": false
     },
-    { "address": "0x0000000000000000000000000000000000000001", "found": false }
+    {
+      "address": "0x0000000000000000000000000000000000000001",
+      "found": false,
+      "previously_checked": null
+    }
   ]
 }
 ```

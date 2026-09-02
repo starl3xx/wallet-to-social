@@ -265,6 +265,10 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
     out.farcaster = {
       username: farcaster.username,
       url: farcaster.url,
+      // The fid survives the trim because the Farcaster DM rail is addressed
+      // by fid, not by username: dropping it dead-ended the one handoff this
+      // record exists to enable. A username can be renamed; the fid cannot.
+      fid: farcaster.fid ?? null,
       followers: farcaster.followers ?? null,
       attested,
     };
@@ -337,6 +341,7 @@ const handler = createMcpHandler(
           `COST: one match credit per address that resolves to an X handle or a Farcaster account. An address that resolves to nothing is free, and so is one carrying only an ENS name, a Lens profile or a GitHub account. Up to ${MAX_ADDRESSES} addresses per call. ${PACING_SENTENCE}`,
           'Each identity reports whether the address owner attested it rather than it being correlated by a third party, and each X handle reports whether it still reaches anyone: a handle can be attested and suspended, or freed and since taken by a stranger.',
           'Send every address you need in one call. Duplicates are removed before you are charged, but each copy still costs throughput.',
+          'A retried call bills again: duplicates are removed inside one call, never across calls, and a tool call cannot carry an idempotency key. Before resending a call that may have gone through, read the balance instead of guessing.',
         ].join('\n\n'),
         inputSchema: z.object({
           addresses: z
@@ -347,7 +352,17 @@ const handler = createMcpHandler(
               'Ethereum addresses, each 0x followed by 40 hex characters. Case does not matter.'
             ),
         }),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        /**
+         * `idempotentHint: false` on every metered tool, deliberately. The
+         * hint's contract is "repeating the same call has no additional
+         * effect", and a repeat here debits the same matches again; declaring
+         * it true invited frameworks to retry on any timeout, billing the
+         * caller for each attempt. The REST batch endpoint takes an
+         * Idempotency-Key header for retry-safe batches; a tool call has
+         * nowhere to carry one, so the honest annotation is false and the
+         * description says why.
+         */
+        annotations: { readOnlyHint: true, idempotentHint: false },
       },
       async ({ addresses }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -355,9 +370,9 @@ const handler = createMcpHandler(
 
         const unique = [...new Set(addresses.map((a) => a.toLowerCase()))];
 
-        // One address goes to the single lookup, which returns more: a quality
-        // score, a staleness flag, and whether we have checked the address
-        // before. The batch endpoint returns none of those.
+        // One address goes to the single lookup, which still returns one
+        // thing the batch does not: the quality score. Staleness and
+        // previously-checked now come back from both.
         if (unique.length === 1) {
           const result = await callRouteWithParams(
             walletGet,
@@ -403,9 +418,24 @@ const handler = createMcpHandler(
         if (result.status !== 200) return failed(result);
 
         const { data, meta } = envelope(result);
+        // Negative knowledge for the misses: the batch meta maps wallet to
+        // when it was last checked, for misses that were actually checked.
+        const checkedMisses = asObject(meta.previously_checked) ?? {};
         const rows = asArray(data).map((row, i) => {
           const shaped = shapeRecord(row);
-          return shaped ?? { address: unique[i], found: false };
+          if (!shaped) {
+            return {
+              address: unique[i],
+              found: false,
+              // Same shape as the single-address path below: a timestamp
+              // means checked and found bare, null means never seen.
+              previously_checked: checkedMisses[unique[i]] ?? null,
+            };
+          }
+          // Per-row staleness, passed through when the API measured it.
+          const raw = asObject(row);
+          if (typeof raw?.stale === 'boolean') shaped.stale = raw.stale;
+          return shaped;
         });
 
         return ok({
@@ -425,7 +455,7 @@ const handler = createMcpHandler(
         title: 'Find wallets behind an X handle',
         description: [
           'Find every wallet in the index attested to an X account. The reverse of resolving an address.',
-          'COST: one match credit per wallet returned, and a page holds up to 100. A handle nobody holds returns an empty list and is free. The free allowance is 100 matches per 30 days, so a single widely held handle can spend all of it in one call. Check the balance first with walletlink_account_balance if that matters.',
+          'COST: one match credit per wallet returned, and a page holds up to 100. A handle nobody holds returns an empty list and is free. The free allowance is 100 matches per 30 days, so a single widely held handle can spend all of it in one call. Check the balance first with walletlink_account_balance if that matters. A retried call bills its returned wallets again.',
           'Results are ordered by Farcaster follower count, highest first. When more_pages is true, pass next_cursor back to continue.',
         ].join('\n\n'),
         inputSchema: z.object({
@@ -442,7 +472,8 @@ const handler = createMcpHandler(
               'The next_cursor from a previous call, passed back unchanged. Omit for the first page.'
             ),
         }),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        // idempotentHint false: a repeat bills again. See the resolve tool.
+        annotations: { readOnlyHint: true, idempotentHint: false },
       },
       async ({ handle, cursor }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -480,7 +511,7 @@ const handler = createMcpHandler(
         title: 'Find wallets behind a Farcaster username',
         description: [
           'Find every wallet in the index attested to a Farcaster account.',
-          'COST: one match credit per wallet returned, and a page holds up to 100. A username nobody holds returns an empty list and is free.',
+          'COST: one match credit per wallet returned, and a page holds up to 100. A username nobody holds returns an empty list and is free. A retried call bills its returned wallets again.',
           'Pass the username whole, including any .eth suffix: an ENS name attached to a Farcaster account is a large share of the index, and stripping the suffix will find nothing. Results are ordered by follower count, highest first.',
         ].join('\n\n'),
         inputSchema: z.object({
@@ -497,7 +528,8 @@ const handler = createMcpHandler(
               'The next_cursor from a previous call, passed back unchanged. Omit for the first page.'
             ),
         }),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        // idempotentHint false: a repeat bills again. See the resolve tool.
+        annotations: { readOnlyHint: true, idempotentHint: false },
       },
       async ({ username, cursor }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -536,7 +568,7 @@ const handler = createMcpHandler(
         description: [
           'How much of the index carries each identity type. Use it to judge whether a lookup is worth making before making it.',
           `COST: free on both meters. It resolves no wallet and consumes no rate limit. ${ZERO_BALANCE_SENTENCE}`,
-          'addresses_with_an_identity over addresses_checked is the coverage rate. The second number is larger because it counts addresses we have looked at and found bare. This runs a live count over the whole index, so it is slow enough not to poll.',
+          'addresses_with_an_identity over addresses_checked is the coverage rate. The second number is larger because it counts addresses we have looked at and found bare. The counts are refreshed daily rather than counted live; as_of says when they were taken, and asking twice in a day returns the same numbers.',
         ].join('\n\n'),
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -550,11 +582,15 @@ const handler = createMcpHandler(
         });
         if (result.status !== 200) return failed(result);
 
-        const d = asObject(envelope(result).data) ?? {};
+        const { data, meta } = envelope(result);
+        const d = asObject(data) ?? {};
         return ok({
           addresses_with_an_identity: asNumber(d.total_wallets, 0),
           addresses_checked: asNumber(d.wallets_checked, 0),
           carrying: asObject(d.coverage) ?? {},
+          // When the materialized counts were computed, not when this call
+          // ran. See lib/coverage-stats.ts.
+          as_of: asString(meta.as_of) ?? null,
           note: 'The carrying buckets overlap: one address can hold several identities.',
         });
       }
@@ -568,7 +604,7 @@ const handler = createMcpHandler(
         description: [
           'How many match credits the configured key has left, and how much of the request allowance it has used.',
           'COST: free on both meters. Call it before a reverse lookup, which can spend up to 100 credits in one go.',
-          'matches_available is the meter that stops a call: at zero, every tool here answers that there are no credits left. rate_limit_units_used is a separate count of requests and is not a credit figure.',
+          'matches_available is the meter that stops a metered call: at zero, the resolve and reverse tools refuse, while this tool and the coverage tool keep answering, so a drained key can always read its own meter. rate_limit_units_used is a separate count of requests and is not a credit figure.',
         ].join('\n\n'),
         annotations: { readOnlyHint: true, idempotentHint: true },
       },

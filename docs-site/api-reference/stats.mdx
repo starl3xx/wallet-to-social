@@ -4,7 +4,9 @@ description: 'GET /v1/stats'
 api: 'GET https://walletlink.social/api/v1/stats'
 ---
 
-Live totals for the whole index. Costs no credits, but it still needs a valid key **and a non-zero balance**: an exhausted account gets `402 NO_CREDITS` on every endpoint, including this one.
+Totals for the whole index, refreshed daily. Costs no credits and needs a valid key, **not** a balance: this endpoint answers even when your credits are at zero, so an exhausted key can still plan its next purchase. Only the metered endpoints return `402 NO_CREDITS`.
+
+The counts are materialized once a day rather than counted live, and `meta.as_of` says when they were taken. Poll it as often as you like; two calls inside a day return the same numbers.
 
 Use it to check coverage claims for yourself rather than trusting a number on a marketing page, and to monitor whether the index is growing in the dimension you care about.
 
@@ -49,9 +51,15 @@ curl https://walletlink.social/api/v1/stats \
     },
     "farcaster_stats": { "avg_followers": 210, "max_followers": 1200000 }
   },
-  "meta": { "generated_at": "2026-08-14T12:00:00.000Z" }
+  "meta": {
+    "generated_at": "2026-08-14T12:00:00.000Z",
+    "as_of": "2026-08-14T04:30:00.000Z"
+  }
 }
 ```
+
+`meta.as_of` is when the counts were computed; `meta.generated_at` is when this
+response was built. Read `as_of` when you quote a number.
 
 <Warning>
   Figures above are illustrative. Call the endpoint for real ones.
