@@ -240,9 +240,8 @@ fixture-first) to refuse drift the way figures drift is refused today.
     normally. Backed by `getEnrichedWalletsSince` plus
     `x_accounts` status transitions (which today never touch
     `last_updated_at`, so include them explicitly). Scope strictly to wallets
-    the account was previously billed for. **Constraint: the right-to-removal
-    suppression design must be honoured in v1 of this endpoint, not
-    retrofitted.** _Decided (2026-09-01):_ the watch call (counts of changed
+    the account was previously billed for. **Constraint: principle 8 applies
+    from v1.** _Decided (2026-09-01):_ the watch call (counts of changed
     wallets since the watermark) is free and rate-limited normally; expanding
     bills one credit per changed wallet that is a match; an unchanged wallet
     is never re-billed through the watch. “You pay when a watched wallet
