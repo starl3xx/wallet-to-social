@@ -132,6 +132,7 @@ wallet-to-social/
 │   ├── neynar.ts             # Neynar API client (Farcaster)
 │   ├── ens.ts                # ENS onchain lookups
 │   ├── packs.ts              # The pack ladder: prices, free window, guards
+│   ├── canonical-sentences.ts # The semantic contract's load-bearing sentences, one authority
 │   ├── starter-collections.ts # Seed corpus as a first action; seeded contracts only
 │   ├── credits.ts            # The match ledger: balance, canSubmit, charge
 │   ├── access.ts             # Legacy tiers, whitelist, per-lookup limits
