@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiRequest, apiSuccess, apiError } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { readCoverageStats } from '@/lib/coverage-stats';
+import {
+  CHAIN_MATCH_RATES,
+  CHAIN_MATCH_RATES_MEASURED_ON,
+  CHAIN_MATCH_RATE_OVERALL_PCT,
+} from '@/lib/public-figures';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +25,24 @@ const corsHeaders = {
 // balance refusal for a declared cost of zero, so this answers at zero
 // balance; see lib/api-auth.ts.
 const CREDITS_COST = 0;
+
+/**
+ * The measured per-chain match rates, served where an agent plans a spend
+ * (docs/AGENT-SYSTEM.md, gap 19). Constants, not database counts: they come
+ * from the dated 26-collection measurement recorded in the coverage docs and
+ * registered in scripts/check-published-figures.ts, which is also what keeps
+ * them from being quoted after they age out. Percentages are of holders with
+ * an X or Farcaster account, the billable predicate; `either_pct` is the
+ * planning number, and the overall figure is holders-weighted across the
+ * whole sample, so it describes no single collection.
+ */
+const MATCH_RATES = {
+  measured_on: CHAIN_MATCH_RATES_MEASURED_ON,
+  basis:
+    'Measured across 26 real collections and 72,318 holders, against the index alone. The chain decides this more than anything else about a collection; use the row for your chain, not the overall figure.',
+  overall_either_pct: CHAIN_MATCH_RATE_OVERALL_PCT,
+  by_chain: CHAIN_MATCH_RATES,
+};
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
@@ -69,7 +92,7 @@ export async function GET(request: NextRequest) {
 
   return apiSuccess(
     {
-      data: materialized.stats,
+      data: { ...materialized.stats, match_rates: MATCH_RATES },
       meta: {
         generated_at: new Date().toISOString(),
         as_of: materialized.asOf.toISOString(),

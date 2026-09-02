@@ -234,7 +234,7 @@ The Agent pack lives in `X402_PACKS`, never `PACKS`, so `isPackId()` refuses it 
 
 ## MCP server
 
-`https://walletlink.social/api/mcp`, seven tools over the same eight endpoints. Remote, on the same balance as the REST API. Listed in the official MCP registry as `social.walletlink/wallet-identity`, verified by DNS rather than by GitHub, so the namespace is the domain.
+`https://walletlink.social/api/mcp`, eight tools over the same nine endpoints. Remote, on the same balance as the REST API. Listed in the official MCP registry as `social.walletlink/wallet-identity`, verified by DNS rather than by GitHub, so the namespace is the domain.
 
 ### Two ways in
 
@@ -242,7 +242,7 @@ A bearer key, which is what a server you run yourself should use, and an OAuth 2
 
 The OAuth half is a full authorization server, not a delegation: `/.well-known/oauth-protected-resource` (RFC 9728) names the issuer, `/.well-known/oauth-authorization-server` (RFC 8414) names the endpoints, and both are rewrites in `next.config.ts` because the App Router will not route a directory whose name begins with a dot. Clients register through client ID metadata documents or dynamic registration (RFC 7591); both are public clients, so PKCE with `S256` is required and no secret is issued. The consent screen is `/oauth/authorize`.
 
-**The access token is an `api_keys` row.** That is the design rather than a shortcut: metering, the three rate-limit windows, the balance check and the usage ledger all key off that table, and a second credential type would have needed a second copy of every one of them, which is where the meter starts disagreeing with itself. What an access token needs was already columns there. `expires_at` bounds it to an hour, `revoked_at` ends it, and the one new column, `oauth_grant_id`, is what tells it from a key somebody pasted into a config file. The consequence, written down rather than implied: an access token also authenticates a plain REST call, because it is the same credential type. The seven tools are the eight endpoints, so there is nothing on one surface that is not on the other.
+**The access token is an `api_keys` row.** That is the design rather than a shortcut: metering, the three rate-limit windows, the balance check and the usage ledger all key off that table, and a second credential type would have needed a second copy of every one of them, which is where the meter starts disagreeing with itself. What an access token needs was already columns there. `expires_at` bounds it to an hour, `revoked_at` ends it, and the one new column, `oauth_grant_id`, is what tells it from a key somebody pasted into a config file. The consequence, written down rather than implied: an access token also authenticates a plain REST call, because it is the same credential type. The eight tools are the nine endpoints, so there is nothing on one surface that is not on the other.
 
 Refusing has to happen at the transport. A tool call with no credential, or with an expired or revoked token, answers 401 with `WWW-Authenticate`; a 200 carrying a tool error is read by a client as a tool that failed, so no token is refreshed and nobody is offered a way to connect. A mistyped bearer key is deliberately not treated that way: it reaches the API and comes back as readable text, which is what somebody who has just pasted one needs.
 

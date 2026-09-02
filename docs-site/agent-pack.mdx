@@ -12,13 +12,15 @@ POST https://walletlink.social/api/x402/buy
 
 That is roughly 51 resolvable addresses at our measured rate, which is one full
 [`/v1/batch`](/api-reference/batch) call: the smallest purchase that is still a
-whole unit of work.
+whole unit of work. One settlement can buy up to 25 packs at once; see
+[quantity](#buying-more-than-one-pack) below.
 
 One pacing rule matters before spending it: a batch call spends one
-request-unit per address of the 60-per-minute rate window, so a full 50-address
-call is nearly a whole minute, and a second full batch inside the same minute
-is refused rather than queued. Pace multi-batch runs a minute apart and read
-the reset time from the response headers. See
+request-unit per address of the per-minute rate window, and a full batch fills
+most of a minute on every plan (60 units and 50-address batches on the default
+plan a fresh key starts on), so a second full batch inside the same minute is
+refused rather than queued. Pace multi-batch runs a minute apart and read the
+reset time from the response headers. See
 [rate limits](/api-reference/rate-limits).
 
 ## How it works
@@ -45,6 +47,8 @@ this for you. On success:
 {
   "api_key": "wts_live_…",
   "shown_once": true,
+  "matches_added": 12,
+  "quantity": 1,
   "matches_available": 12,
   "pack": "Agent",
   "newly_granted": true
@@ -75,13 +79,63 @@ completes. When the pack runs dry, the metered endpoints answer
 zero balance: a drained key can always read its own meter and collect a
 finished job, and that zero reading is the signal to buy again.
 
-|                        |              |
-| ---------------------- | ------------ |
-| Price                  | $1.00 USDC   |
-| Matches                | 12           |
-| Per resolvable address | ~$0.0198     |
-| Network                | Base mainnet |
-| Credits last           | 12 months    |
+|                        |                            |
+| ---------------------- | -------------------------- |
+| Price                  | $1.00 USDC per pack        |
+| Matches                | 12 per pack                |
+| Per resolvable address | ~$0.0198                   |
+| Quantity               | 1 to 25 packs a settlement |
+| Network                | Base mainnet               |
+| Credits last           | 12 months                  |
+
+## Buying more than one pack
+
+Send `{"quantity": N}` in the request body, 1 to 25, and one settlement buys N
+packs at linear price: the `402` challenge asks for N dollars, and the grant is
+N × 12 matches. There is no volume discount; what quantity saves is
+signatures. Send the same body on the paid retry (an x402 client does this by
+itself), because the payment is verified against the amount the quantity
+decided: a payment signed for one pack does not verify against a three-pack
+request.
+
+```bash
+curl -X POST https://walletlink.social/api/x402/buy \
+  -H "Content-Type: application/json" \
+  -d '{"quantity": 5}'
+```
+
+## Topping up an existing account
+
+A buy that carries a valid `wts_live_` key in the `Authorization` header is a
+top-up: the credits land on **that key’s** account instead of the paying
+wallet’s, and no new key is minted. This is how an agent recovers from a
+`402 NO_CREDITS` mid-session without a second credential to manage: pay with
+whatever wallet it holds, present the key it is already using, keep working.
+
+```bash
+curl -X POST https://walletlink.social/api/x402/buy \
+  -H "Authorization: Bearer wts_live_YOUR_KEY" \
+  -H "PAYMENT-SIGNATURE: ..."
+```
+
+The response says which account was credited by the key’s own prefix
+(`credited_to_key_prefix`) and carries `api_key: null`; the account is proven
+by the key alone, and nothing in the request body can name one. Two refusals
+happen **before any money moves**: an OAuth token (`wts_mcp_`) answers `403
+OAUTH_CANNOT_BUY`, because an [OAuth connection](/mcp-server) is promised
+never to buy or spend, and an `Authorization` header that does not validate as
+a key answers `401 INVALID_TOPUP_KEY` rather than silently crediting the
+wallet account, because guessing at intent after settlement would put paid
+credits where the buyer cannot see them.
+
+## Every tenth purchase is on us
+
+Every 10th settled purchase from the same wallet grants one bonus Agent pack
+of matches, on top of what the settlement bought, to whichever account that
+settlement credited. The count is the wallet’s own settlement history: bonus
+credits carry no settlement record, so they never count toward the next bonus,
+and a replayed payment cannot add to the count. The response names it when it
+happens (`loyalty_bonus`, with the running purchase count).
 
 ## Paying twice for the same thing
 

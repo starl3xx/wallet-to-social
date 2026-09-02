@@ -32,7 +32,8 @@
  */
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { users } from '@/db/schema';
+import { creditLots, users } from '@/db/schema';
+import { BASE_MAINNET } from '@/lib/x402';
 
 /** RFC 2606 reserved. Guaranteed never to resolve. */
 const SYNTHETIC_EMAIL_DOMAIN = 'x402.walletlink.invalid';
@@ -88,4 +89,42 @@ export async function getOrCreateWalletAccount(
   }
 
   return { userId: existing[0].id, created: false };
+}
+
+/**
+ * How many settled x402 purchases this wallet has ever made, for the loyalty
+ * bonus (docs/AGENT-SYSTEM.md, gap 18).
+ *
+ * Counted from `credit_lots.settlement_id`, which is
+ * `<network>:<from>:<nonce>` with the paying wallet as `from`. That makes the
+ * count the WALLET'S history rather than any account's: a top-up credits the
+ * key holder's account, not the wallet's, and the loyalty count must follow
+ * the wallet that pays. It also makes the count farm-resistant by
+ * construction:
+ *
+ *  - a bonus lot has no settlement id (`grantCredits` leaves it null), so a
+ *    bonus can never count toward the next bonus;
+ *  - a replayed authorization cannot add a row, because the settlement id is
+ *    unique and the grant is idempotent on it;
+ *  - expiry does not shrink the count, because loyalty is about what was
+ *    bought, not what is left.
+ *
+ * The wallet is embedded with its delimiters on both sides, so one address can
+ * never prefix-match another (addresses are fixed-width anyway; the delimiter
+ * makes it structural rather than incidental).
+ */
+export async function countSettledPurchases(wallet: string): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const prefix = `${BASE_MAINNET}:${wallet.toLowerCase()}:`;
+  const rows = (
+    await db.execute(sql`
+      SELECT count(*)::int AS settled
+      FROM ${creditLots}
+      WHERE ${creditLots.settlementId} LIKE ${prefix + '%'}
+    `)
+  ).rows as Array<{ settled: number }>;
+
+  return Number(rows[0]?.settled ?? 0);
 }

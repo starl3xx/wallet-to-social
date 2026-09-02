@@ -228,7 +228,9 @@ paths:
       summary: Look up many wallets
       tags: [Lookups]
       description: |
-        Resolves up to 50 addresses in one request. `data` is an array
+        Resolves up to your plan’s `max_batch_size` addresses in one request:
+        50 on the default plan, 200 with a live Scale pack, 1,000 with a live
+        Index pack (see the introduction’s plan ladder). `data` is an array
         positionally aligned with the deduplicated address list, holding `null`
         wherever nothing is attached.
 
@@ -735,6 +737,112 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /estimate:
+    post:
+      operationId: estimateList
+      summary: Estimate a list before spending on it
+      tags: [Lookups]
+      description: |
+        A dry run: counts, never identities. How many of these addresses are
+        in the index, how many were checked and found bare, how many have
+        never been seen, and the band a resolve would bill inside.
+
+        Free on the match meter, at any balance, so a drained key can plan
+        the purchase that refills it. It weighs the rate window exactly like
+        the `/batch` it previews, one unit per address submitted, and the
+        list is capped at your plan’s `max_batch_size`. The minimum is 10
+        distinct addresses, because the counts are aggregates by design; for
+        one address, resolve it.
+
+        Reading the band: `low` is exact for a `/batch` of this list today
+        (the addresses already holding an X handle or a Farcaster account).
+        `high` adds the never-checked addresses at the measured overall rate,
+        which is what a [job](/api-reference/jobs) resolving misses live could
+        reach. Match rates differ several-fold by chain; take the per-chain
+        table from [`GET /stats`](/api-reference/stats) `match_rates`.
+      x-match-credits: 0
+      x-rate-limit-units: 1 per address submitted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EstimateRequest' }
+            example:
+              wallets:
+                - '0x00000000000000000000000000000000000000a1'
+                - '0x00000000000000000000000000000000000000a2'
+                - '0x00000000000000000000000000000000000000a3'
+                - '0x00000000000000000000000000000000000000a4'
+                - '0x00000000000000000000000000000000000000a5'
+                - '0x00000000000000000000000000000000000000a6'
+                - '0x00000000000000000000000000000000000000a7'
+                - '0x00000000000000000000000000000000000000a8'
+                - '0x00000000000000000000000000000000000000a9'
+                - '0x0000000000000000000000000000000000000001'
+      responses:
+        '200':
+          description: The counts, and the billing band.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/XRateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/XRateLimitReset' }
+            X-Matches-Available:
+              { $ref: '#/components/headers/XMatchesAvailable' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/Estimate' }
+                  meta:
+                    type: object
+                    required: [generated_at, billable_predicate]
+                    properties:
+                      generated_at:
+                        type: string
+                        format: date-time
+                      billable_predicate:
+                        type: string
+                        description: |
+                          Always `x_or_farcaster`: `in_index` counts wallets
+                          holding ANY identity, and only the X-or-Farcaster
+                          subset bills, which is why `low` can sit below
+                          `in_index`.
+              example:
+                data:
+                  requested: 10
+                  in_index: 4
+                  previously_checked_empty: 3
+                  never_checked: 3
+                  would_bill_estimate:
+                    low: 3
+                    high: 4
+                    note: low is exact for a /v1/batch of this list; high adds never-checked wallets at the measured overall rate.
+                meta:
+                  generated_at: '2026-09-01T12:00:00.000Z'
+                  billable_predicate: x_or_farcaster
+        '400':
+          description: |
+            `INVALID_REQUEST`, `INVALID_ADDRESS`, `BATCH_SIZE_EXCEEDED`, or
+            `LIST_TOO_SMALL` (fewer than 10 distinct addresses).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: An estimate needs at least 10 distinct wallets. The counts are aggregates by design; for one address, resolve it.
+                code: LIST_TOO_SMALL
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: '`INVALID_REQUEST`. The body is over 1 MB.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /reverse/twitter/{handle}:
     get:
       operationId: reverseTwitter
@@ -955,6 +1063,12 @@ paths:
         the same numbers, so polling is harmless. Still requires a valid key,
         but not a balance: this endpoint answers at zero credits, so it never
         returns 402.
+
+        `match_rates` is different in kind from the counts around it: a dated
+        measurement of real collections, served as constants so an agent can
+        plan a spend without reading a docs page. The chain decides a list’s
+        match rate more than anything else about it; use the row for your
+        chain with [`POST /estimate`](/api-reference/estimate).
       x-match-credits: 0
       x-rate-limit-units: 0
       responses:
@@ -1002,6 +1116,23 @@ paths:
                   farcaster_stats:
                     avg_followers: 210
                     max_followers: 1200000
+                  match_rates:
+                    measured_on: '2026-08-17'
+                    basis: Measured across 26 real collections and 72,318 holders, against the index alone.
+                    overall_either_pct: 30.8
+                    by_chain:
+                      base:
+                        collections: 8
+                        holders: 35294
+                        farcaster_pct: 44.4
+                        x_pct: 32.1
+                        either_pct: 46.2
+                      ethereum:
+                        collections: 9
+                        holders: 17462
+                        farcaster_pct: 12.2
+                        x_pct: 12.6
+                        either_pct: 16.6
                 meta:
                   generated_at: '2026-08-14T12:00:00.000Z'
                   as_of: '2026-08-14T04:30:00.000Z'
@@ -1387,6 +1518,7 @@ components:
             - INVALID_CURSOR
             - INVALID_REQUEST
             - BATCH_SIZE_EXCEEDED
+            - LIST_TOO_SMALL
             - SUBMISSION_LIMIT_EXCEEDED
             - JOB_ALREADY_ACTIVE
             - JOB_NOT_FOUND
@@ -1779,13 +1911,80 @@ components:
             before billing, but each copy still counts against your rate limit,
             so deduplicating costs you nothing and saves throughput.
 
-            `maxItems` is the limit every credit pack carries. The enforced
-            value is your plan’s `max_batch_size`, reported by `GET /usage`.
+            `maxItems` is the largest any plan allows. The enforced value is
+            your plan’s `max_batch_size`, reported by `GET /usage`: 50 on the
+            default plan, raised for the pack’s lifetime by a live Scale (200)
+            or Index (1,000) pack.
           minItems: 1
-          maxItems: 50
+          maxItems: 1000
           items:
             type: string
             pattern: '^0x[a-fA-F0-9]{40}$'
+
+    EstimateRequest:
+      type: object
+      required: [wallets]
+      properties:
+        wallets:
+          type: array
+          description: |
+            Addresses to estimate. Duplicates are removed before counting; at
+            least 10 distinct addresses must remain, and the ceiling is your
+            plan’s `max_batch_size`, the same as `/batch`.
+          minItems: 10
+          maxItems: 1000
+          items:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+
+    Estimate:
+      type: object
+      description: Counts only. No identities leave this endpoint.
+      required:
+        [
+          requested,
+          in_index,
+          previously_checked_empty,
+          never_checked,
+          would_bill_estimate,
+        ]
+      properties:
+        requested:
+          type: integer
+          description: Distinct addresses after deduplication.
+        in_index:
+          type: integer
+          description: |
+            Addresses holding at least one identity (X, Farcaster, ENS, Lens
+            or GitHub).
+        previously_checked_empty:
+          type: integer
+          description: |
+            Addresses we checked and found bare. Resolving these is free and
+            unlikely to find anything until the negative record ages out.
+        never_checked:
+          type: integer
+          description: |
+            Addresses the index has never seen. A plain `/batch` returns null
+            for these; a job resolves them against live sources.
+        would_bill_estimate:
+          type: object
+          required: [low, high, note]
+          properties:
+            low:
+              type: integer
+              description: |
+                Exact for a `/batch` of this list today: addresses already
+                holding an X handle or a Farcaster account.
+            high:
+              type: integer
+              description: |
+                `low` plus the never-checked addresses at the measured
+                overall match rate. A band, not a quote; the chain decides
+                the real rate.
+            note:
+              type: string
+              description: How to read the band, with the measured basis.
 
     JobsRequest:
       type: object
@@ -1943,7 +2142,8 @@ components:
 
     Stats:
       type: object
-      required: [total_wallets, wallets_checked, coverage, farcaster_stats]
+      required:
+        [total_wallets, wallets_checked, coverage, farcaster_stats, match_rates]
       properties:
         total_wallets:
           type: integer
@@ -1971,6 +2171,42 @@ components:
           properties:
             avg_followers: { type: integer }
             max_followers: { type: integer }
+        match_rates:
+          type: object
+          description: |
+            The measured per-chain match rates, for planning a spend before
+            making it. Constants from a dated measurement of real collections
+            against the index alone, not live counts; `measured_on` says when.
+            Percentages are of holders with an X or Farcaster account, the
+            billable predicate.
+          required: [measured_on, basis, overall_either_pct, by_chain]
+          properties:
+            measured_on:
+              type: string
+              description: The measurement date, ISO 8601.
+            basis:
+              type: string
+              description: What was measured, and how to read the rows.
+            overall_either_pct:
+              type: number
+              description: |
+                Holders-weighted across the whole sample. It describes no
+                single collection; use the row for your chain.
+            by_chain:
+              type: object
+              description: One row per measured chain.
+              additionalProperties:
+                type: object
+                required:
+                  [collections, holders, farcaster_pct, x_pct, either_pct]
+                properties:
+                  collections: { type: integer }
+                  holders: { type: integer }
+                  farcaster_pct: { type: number }
+                  x_pct: { type: number }
+                  either_pct:
+                    type: number
+                    description: The planning number for that chain.
 
     Usage:
       type: object
@@ -1988,8 +2224,10 @@ components:
             plan:
               type: string
               description: |
-                The internal plan name, which is not the pack you bought. Every
-                pack reports `Developer`.
+                The rate-limit preset your requests are currently served
+                under, not the pack you bought. `Developer` by default;
+                `Startup` while a Scale pack is unexpired, `Enterprise` while
+                an Index pack is.
             created_at: { type: string, format: date-time }
             last_used_at:
               type: string

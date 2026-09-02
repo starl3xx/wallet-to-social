@@ -82,8 +82,15 @@ export const ZERO_BALANCE_SENTENCE =
 
 /**
  * The batch pacing rule, stated where an agent decides. Both numbers are the
- * credit plan's, interpolated so the sentence cannot drift from what the
- * limiter enforces: `/v1/batch` weighs one request-unit per address against
- * the per-minute window (`checkRateLimit` is called with `wallets.length`).
+ * default credit plan's, interpolated so the sentence cannot drift from what
+ * the limiter enforces: `/v1/batch` weighs one request-unit per address
+ * against the per-minute window (`checkRateLimit` is called with
+ * `wallets.length`).
+ *
+ * Reworded 2026-09-01 with the plan ladder (gap 17), in the same PR as the
+ * behavior, per the rule above: the old sentence presented the developer
+ * numbers as the only numbers, and a live Scale or Index pack now raises
+ * them. The per-address weighing and the pace-a-minute-apart advice hold at
+ * every rung, because a full batch fills most of its plan's minute on each.
  */
-export const PACING_SENTENCE = `A batch call spends one request-unit per address of the ${API_PLANS[CREDIT_API_PLAN].requestsPerMinute}-per-minute window, so a full ${API_PLANS[CREDIT_API_PLAN].maxBatchSize}-address call is nearly a whole minute: pace multi-batch runs a minute apart and read the reset time from the quota.`;
+export const PACING_SENTENCE = `A batch call spends one request-unit per address of the per-minute window, and a full batch fills most of a minute on every plan: the default plan gives ${API_PLANS[CREDIT_API_PLAN].requestsPerMinute} units per minute and ${API_PLANS[CREDIT_API_PLAN].maxBatchSize}-address batches, and a live Scale or Index pack raises both. Pace multi-batch runs a minute apart and read the reset time from the quota.`;

@@ -227,6 +227,34 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
   };
 }
 
+/**
+ * The distinct packs behind an account's unexpired lots, spent or not.
+ *
+ * This feeds the plan ladder (`ladderedPlanId` in lib/api-plans.ts, gap 17 of
+ * docs/AGENT-SYSTEM.md), and it deliberately does NOT filter on remaining
+ * credits: what a pack buys is twelve months of its rate-limit preset, the
+ * same twelve months its credits live, so a Scale buyer keeps startup limits
+ * after the last credit is spent and loses them when the lot expires. The
+ * balance gate is a separate and stricter check; an account with packs and no
+ * credits still refuses every metered call.
+ *
+ * Distinct pack names, not lots, because the ladder only needs to know which
+ * rungs the account has bought.
+ */
+export async function unexpiredPackIds(userId: string): Promise<string[]> {
+  const db = getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .selectDistinct({ pack: creditLots.pack })
+    .from(creditLots)
+    .where(
+      and(eq(creditLots.userId, userId), gt(creditLots.expiresAt, new Date()))
+    );
+
+  return rows.map((r) => r.pack);
+}
+
 export interface SubmissionVerdict {
   allowed: boolean;
   /** Why not, for the UI. Empty when allowed. */
@@ -669,6 +697,12 @@ export async function lotForSettlement(
  * the key exists to cover. The authorization is fixed before settlement is
  * attempted, and USDC refuses to honour it twice.
  *
+ * `quantity` scales one settlement to N packs at linear price (gap 18):
+ * `granted` and `amountCents` both scale by it, and it comes from the SAME
+ * request body the payment requirements were built from, so a payload that
+ * verified against a 3-pack requirement can only ever grant 3 packs. One lot
+ * rather than N, because the lot is the record of one settlement.
+ *
  * Returns false only for "this settlement was already granted". Everything else
  * throws, so a caller that has taken somebody's money finds out.
  */
@@ -676,7 +710,8 @@ export async function grantPackBySettlement(
   userId: string,
   pack: X402PackId,
   settlementId: string,
-  amountCents: number
+  amountCents: number,
+  quantity: number = 1
 ): Promise<boolean> {
   const db = getDb();
   if (!db) throw new Error('No database: cannot record a settled payment.');
@@ -688,7 +723,7 @@ export async function grantPackBySettlement(
   try {
     await db.insert(creditLots).values({
       userId,
-      granted: X402_PACKS[pack].matches,
+      granted: X402_PACKS[pack].matches * quantity,
       pack,
       amountCents,
       settlementId,

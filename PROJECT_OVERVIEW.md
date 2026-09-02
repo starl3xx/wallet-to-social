@@ -366,15 +366,33 @@ Main page orchestrating:
 | `/api/v1/usage`                        | GET    | 0                                                     | API key usage             |
 | `/api/v1/jobs`                         | POST   | 1/match at completion via `chargeForJob`; misses free | Submit async lookup job   |
 | `/api/v1/jobs/[id]`                    | GET    | 0                                                     | Poll job, read results    |
+| `/api/v1/estimate`                     | POST   | 0, at any balance                                     | Dry-run counts for a list |
 
-Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted, a job submission weighs 1 for the whole list, a job poll weighs 0); see `docs-site/api-reference/introduction.mdx`, "Two meters".
+Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted, an estimate weighs 1 per address like the batch it previews, a job submission weighs 1 for the whole list, a job poll weighs 0); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
-The zero-credit endpoints (`/v1/stats`, `/v1/usage`, `GET /v1/jobs/[id]`) skip
+Which rate-limit preset serves a request is the plan ladder (gap 17 of
+`docs/AGENT-SYSTEM.md`): every credit key is stored on `developer`, and
+`authenticateApiRequest` substitutes the preset of the account's highest
+UNEXPIRED pack per request (`PACK_API_PLAN` / `ladderedPlanId` in
+`lib/api-plans.ts`: Trial/Campaign/Agent stay developer, Scale serves startup,
+Index serves enterprise, never demoting a hand-raised plan). The entitlement
+follows the pack's twelve-month life, spent down or not; credits still bound
+totals, and the legacy pro/unlimited keys keep their `TIER_API_PLAN` mapping.
+
+The zero-credit endpoints (`/v1/stats`, `/v1/usage`, `/v1/estimate`,
+`GET /v1/jobs/[id]`) skip
 the balance refusal (`authenticateApiRequest` refuses only when the declared
-cost is above zero), so a drained key can always read its own meter and collect
-a finished job. `/v1/stats` serves counts materialized daily into
-`ingest_state` by `/api/cron/refresh-coverage` (`lib/coverage-stats.ts`) and
-reports `meta.as_of`. `/v1/batch` accepts an `Idempotency-Key` header: a resend
+cost is above zero), so a drained key can always read its own meter, estimate
+its next list, and collect
+a finished job. `/v1/estimate` (gap 19) returns counts only, minimum 10
+distinct wallets, capped at the plan's `maxBatchSize`, rate-weighted per
+wallet via the `rateWeight` option; its `{low, high}` band is exact-for-batch
+plus never-checked at `MEASURED_MATCH_RATE`. `/v1/stats` serves counts
+materialized daily into
+`ingest_state` by `/api/cron/refresh-coverage` (`lib/coverage-stats.ts`),
+reports `meta.as_of`, and carries `match_rates`, the measured per-chain table
+from `CHAIN_MATCH_RATES` in `lib/public-figures.ts` (registered as a dated
+measurement in `scripts/check-published-figures.ts`). `/v1/batch` accepts an `Idempotency-Key` header: a resend
 of the identical request inside 24 hours replays the stored response
 (`idempotency_keys` table, `lib/idempotency.ts`) with `Idempotency-Replayed:
 true` and bills nothing. Batch rows carry `last_updated` and `stale`
@@ -398,13 +416,25 @@ exposes both as `walletlink_submit_job` and `walletlink_job_status`.
 
 ### Onchain rail (x402)
 
-`app/api/x402/buy/route.ts` sells a $1 Agent pack for USDC on Base with no
+`app/api/x402/buy/route.ts` sells the $1 Agent pack for USDC on Base with no
 account: pay, and the response carries a fresh API key. Off unless `X402_PAY_TO`
 is set. `lib/x402.ts` holds the protocol layer (`@x402/core` plus `@x402/evm`,
 no Next peer requirement so no framework upgrade), `lib/x402-account.ts` mints
 the wallet-keyed account, and `grantPackBySettlement` in `lib/credits.ts` is
 idempotent on `credit_lots.settlement_id`, which holds the EIP-3009
 authorization rather than the transaction hash.
+
+Three growth affordances (gap 18, 2026-09-01): `{"quantity": N}` in the buy
+body buys 1-25 packs in one settlement at linear price (`quantityFrom` in
+`lib/x402.ts` parses strictly; the requirements, verification and grant all
+scale from the one number). A valid `wts_live_` key in the Authorization
+header makes the buy a top-up: credits land on that key's account, no key is
+minted, and the OAuth / invalid-key refusals land before any money moves.
+Every 10th settled purchase from the same wallet grants one bonus Agent pack
+via `grantCredits` (`countSettledPurchases` in `lib/x402-account.ts` counts
+settlement ids naming the wallet, so bonus lots never count and a replay
+cannot reach the branch). Constants `X402_MAX_QUANTITY` and
+`X402_LOYALTY_EVERY_N` live in `lib/packs.ts`.
 
 The Agent pack lives in `X402_PACKS`, never in `PACKS`, so it cannot reach
 Stripe checkout and cannot appear on the nine surfaces `PACK_IDS` drives.
@@ -421,7 +451,7 @@ Accounts with `users.origin = 'x402'` get no free allowance.
 
 ### MCP server (for agents)
 
-`app/api/mcp/route.ts` exposes seven tools over those eight endpoints at
+`app/api/mcp/route.ts` exposes eight tools over those nine endpoints at
 `https://walletlink.social/api/mcp`. It bills nothing of its own: each tool
 builds a request carrying the caller's credential and hands it to the v1 handler
 through `lib/mcp-call.ts`, and the handler keeps ownership of authentication,
@@ -482,8 +512,8 @@ Four things worth knowing before touching any of it:
 **The access token is an `api_keys` row**, carrying `oauth_grant_id`. Metering,
 the three rate-limit windows, the balance check and the usage ledger all key off
 that table, so this is the only shape that avoids a second copy of each. It
-follows that an access token also authenticates a REST call: the seven tools are
-the eight endpoints, so the two surfaces reach the same data on the same balance,
+follows that an access token also authenticates a REST call: the eight tools are
+the nine endpoints, so the two surfaces reach the same data on the same balance,
 and `lib/oauth/grants.ts` says so rather than implying a boundary.
 
 **The discovery documents are rewrites, not routes.** The App Router does not

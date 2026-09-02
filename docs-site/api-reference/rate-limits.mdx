@@ -5,7 +5,7 @@ description: 'Three windows, the headers that report them, and how to back off c
 
 Limits apply in three windows at once: per minute, per day, and per month. Exceeding any one of them returns `429`, even if the other two have room.
 
-See [plans](/api-reference/introduction#plans) for your request limits. Rate limits are counted in their own units, not in match credits: a 50-wallet batch consumes 50 of your per-minute allowance while billing only the wallets that resolved. A [job](/api-reference/jobs) submission weighs one unit however long its list, and its status poll weighs nothing. [Credits](/api-reference/introduction#credits) shows both meters side by side.
+See [plans](/api-reference/introduction#plans) for your request limits; which preset serves you follows the largest unexpired pack the account holds. Rate limits are counted in their own units, not in match credits: a 50-wallet batch consumes 50 of your per-minute allowance while billing only the wallets that resolved, and a free [estimate](/api-reference/estimate) weighs identically to the batch it previews. A [job](/api-reference/jobs) submission weighs one unit however long its list, and its status poll weighs nothing. [Credits](/api-reference/introduction#credits) shows both meters side by side.
 
 ## Headers
 

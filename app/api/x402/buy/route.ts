@@ -1,9 +1,35 @@
 /**
- * Buy an Agent pack with USDC on Base. No account, no card, no email.
+ * Buy Agent packs with USDC on Base. No account, no card, no email.
  *
  * POST with no payment answers 402 and a `PAYMENT-REQUIRED` header describing
  * what to pay. POST again with a `PAYMENT-SIGNATURE` header and the response
  * carries a fresh API key and the balance behind it.
+ *
+ * ## Three growth affordances, decided 2026-09-01 (docs/AGENT-SYSTEM.md, 18)
+ *
+ * **Quantity.** The body may carry `{"quantity": N}`, 1 to X402_MAX_QUANTITY.
+ * One settlement buys N packs at linear price: the payment requirements demand
+ * N times the pack price, and the grant is N times the matches. The quantity
+ * is read from the same body on the unpaid 402 and on the paid retry, so the
+ * amount the buyer signs is the amount the grant is computed from; a payload
+ * signed for a different quantity fails verification against the requirements.
+ *
+ * **Top-up.** A buy that arrives with a valid `wts_live_` key in the
+ * Authorization header credits THAT key's account instead of the wallet's, and
+ * mints no key: a 402 mid-session becomes recoverable without a second
+ * credential to manage. The credited account is proven by the key alone; the
+ * body cannot name one. An OAuth token (`wts_mcp_`) is refused before any
+ * money moves, because the docs promise an OAuth connection cannot buy or
+ * spend on a person's behalf. An Authorization header that is neither is also
+ * refused before settlement: guessing at intent after money moved would credit
+ * someone the caller did not choose.
+ *
+ * **Loyalty.** Every X402_LOYALTY_EVERY_N-th settled purchase from the same
+ * wallet grants one bonus Agent pack of matches, to whichever account that
+ * settlement credited. The count is the wallet's settlement history in
+ * `credit_lots` (see countSettledPurchases): bonus lots carry no settlement id
+ * so they never count, and a replayed authorization cannot add a row, so the
+ * bonus is not reachable by replay.
  *
  * ## This path never touches the v1 contract
  *
@@ -29,16 +55,27 @@ import {
   payToAddress,
   settlementIdFor,
   payerFrom,
+  quantityFrom,
   BASE_MAINNET,
 } from '@/lib/x402';
-import { X402_PACKS } from '@/lib/packs';
+import {
+  X402_PACKS,
+  X402_MAX_QUANTITY,
+  X402_LOYALTY_EVERY_N,
+} from '@/lib/packs';
 import {
   grantPackBySettlement,
+  grantCredits,
   getBalance,
   lotForSettlement,
 } from '@/lib/credits';
-import { getOrCreateWalletAccount } from '@/lib/x402-account';
-import { createApiKeyIfUnderCap } from '@/lib/api-keys';
+import {
+  getOrCreateWalletAccount,
+  countSettledPurchases,
+} from '@/lib/x402-account';
+import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
+import { readBodyCapped } from '@/lib/api-auth';
+import { looksLikeAccessToken } from '@/lib/oauth/grants';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 
 export const runtime = 'nodejs';
@@ -52,6 +89,13 @@ const PACK = X402_PACKS.agent;
  * payload; a buyer needs one key, and a second is a rotation.
  */
 const X402_MAX_KEYS = 3;
+
+/**
+ * The body is one optional integer; a kilobyte holds it a hundred times over.
+ * The endpoint took no body at all before quantity, so anything large here is
+ * not a buyer.
+ */
+const MAX_BODY_BYTES = 1_000;
 
 function b64(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
@@ -72,11 +116,106 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * The quantity, read BEFORE the requirements are built, because it decides
+   * the amount the payment must verify against. It is read identically on the
+   * unpaid 402 and on the paid retry, so the challenge an agent signs and the
+   * verification its payment meets are built from the same number; an x402
+   * client resends the same body with its payment, which is what keeps the
+   * two in step.
+   */
+  // No body at all is the pre-quantity shape and stays valid; readBodyCapped
+  // returns null for BOTH a missing stream and an over-cap one, so the two
+  // are told apart here.
+  const rawBody = request.body
+    ? await readBodyCapped(request, MAX_BODY_BYTES)
+    : '';
+  if (rawBody === null) {
+    return NextResponse.json(
+      { error: 'Request body too large.', code: 'INVALID_REQUEST' },
+      { status: 400 }
+    );
+  }
+  let parsedBody: unknown = undefined;
+  if (rawBody.trim().length > 0) {
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body is not JSON.', code: 'INVALID_REQUEST' },
+        { status: 400 }
+      );
+    }
+  }
+  const quantity = quantityFrom(parsedBody);
+  if (quantity === null) {
+    return NextResponse.json(
+      {
+        error: `quantity must be an integer from 1 to ${X402_MAX_QUANTITY}. Omit it to buy one pack.`,
+        code: 'INVALID_QUANTITY',
+      },
+      { status: 400 }
+    );
+  }
+  const totalCents = PACK.priceCents * quantity;
+  const totalMatches = PACK.matches * quantity;
+
+  /**
+   * The top-up credential, resolved BEFORE anything verifies or settles.
+   *
+   * Money must never move down a path this endpoint will then refuse, so
+   * every refusal that depends on the Authorization header happens here:
+   *
+   *  - an OAuth access token is refused outright. The MCP docs promise a
+   *    connection cannot buy credits or spend money, and that promise binds
+   *    this endpoint, not just the tools.
+   *  - a header that does not validate as a `wts_live_` key is refused rather
+   *    than ignored. The caller plainly meant to bind this purchase to an
+   *    account; crediting the wallet-derived account instead would put paid
+   *    credits where the buyer cannot see them.
+   *
+   * When the key validates, the credited account is the KEY'S account, read
+   * from the validated row. Nothing in the body can name an account, so the
+   * top-up can only ever credit an account the presented key proves.
+   */
+  const authHeader = request.headers.get('Authorization');
+  let topUp: { userId: string; keyPrefix: string } | null = null;
+  if (authHeader) {
+    const bearer = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
+    if (looksLikeAccessToken(bearer)) {
+      return NextResponse.json(
+        {
+          error:
+            'An OAuth connection cannot buy credits. Top-ups bind to a wts_live_ API key; send one in the Authorization header, or send no header to buy wallet-keyed credits.',
+          code: 'OAUTH_CANNOT_BUY',
+        },
+        { status: 403 }
+      );
+    }
+    const keyResult = await validateApiKey(bearer);
+    if (!keyResult) {
+      return NextResponse.json(
+        {
+          error:
+            'The Authorization header did not validate as an API key, so this purchase was not settled: a top-up must credit the account the key proves. Fix the key, or remove the header to buy wallet-keyed credits.',
+          code: 'INVALID_TOPUP_KEY',
+        },
+        { status: 401 }
+      );
+    }
+    topUp = {
+      userId: keyResult.key.userId,
+      keyPrefix: keyResult.key.keyPrefix,
+    };
+  }
+
   const server = await getResourceServer();
 
   const resourceInfo = {
     url: 'https://walletlink.social/api/x402/buy',
-    description: `${PACK.name} pack: ${PACK.matches} match credits for wallet identity lookups.`,
+    description: `${PACK.name} pack: ${PACK.matches} match credits for wallet identity lookups. One settlement buys 1 to ${X402_MAX_QUANTITY} packs at linear price via {"quantity": N}.`,
     mimeType: 'application/json',
     serviceName: 'walletlink.social',
     // Free-text, and the only thing a discovery index can filter on. There is
@@ -113,8 +252,8 @@ export async function POST(request: NextRequest) {
           type: 'http',
           method: 'POST',
           bodyType: 'json',
-          // Deliberately empty. The payment is a header, not a payload.
-          body: {},
+          // One optional field. The payment itself is a header, not a payload.
+          body: { quantity: 1 },
         },
         output: {
           type: 'json',
@@ -152,9 +291,17 @@ export async function POST(request: NextRequest) {
               body: {
                 type: 'object',
                 additionalProperties: false,
-                properties: {},
+                properties: {
+                  quantity: {
+                    type: 'integer',
+                    minimum: 1,
+                    maximum: X402_MAX_QUANTITY,
+                    description:
+                      'Packs to buy in this one settlement, at linear price. Omit for one. The 402 challenge scales to it, so send the same body with the payment.',
+                  },
+                },
                 description:
-                  'Empty. The signed payment travels in the PAYMENT-SIGNATURE header, not in the body, so an agent that posts a payload gets nothing for it.',
+                  'Optionally {"quantity": N}. The signed payment travels in the PAYMENT-SIGNATURE header, not in the body.',
               },
             },
           },
@@ -204,8 +351,12 @@ export async function POST(request: NextRequest) {
      * Base mainnet USDC is "USD Coin" version "2". It is "USDC" on Base
      * Sepolia, so this is also the detail that makes a testnet-verified rail
      * fail on mainnet.
+     *
+     * Scaled by the quantity from the request body, so the amount the buyer
+     * is challenged for, the amount the payment verifies against, and the
+     * amount the grant is computed from are all the same multiplication.
      */
-    price: `$${(PACK.priceCents / 100).toFixed(2)}`,
+    price: `$${(totalCents / 100).toFixed(2)}`,
     maxTimeoutSeconds: 120,
   });
 
@@ -223,7 +374,7 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json(
       {
-        error: `Payment required: ${PACK.matches} match credits for $${(PACK.priceCents / 100).toFixed(2)} in USDC on Base.`,
+        error: `Payment required: ${totalMatches} match credits for $${(totalCents / 100).toFixed(2)} in USDC on Base${quantity > 1 ? ` (${quantity} packs, one settlement)` : ''}.`,
         code: 'PAYMENT_REQUIRED',
       },
       { status: 402, headers: { 'PAYMENT-REQUIRED': b64(required) } }
@@ -304,6 +455,28 @@ export async function POST(request: NextRequest) {
   const already = await lotForSettlement(settlementId);
   if (already) {
     const balance = await getBalance(already.userId);
+    /**
+     * A replayed TOP-UP is a success report, not a key-loss condition: no key
+     * ever existed for this payment, the credits are on the account the
+     * presented key proves, and the retrying client is most likely the same
+     * one whose success response was lost in transit. Recognised only when
+     * the replay itself carries the key that owns the credited account;
+     * without that proof the reply must not name where the credits live.
+     */
+    if (topUp && topUp.userId === already.userId) {
+      return NextResponse.json({
+        api_key: null,
+        credited_to_key_prefix: topUp.keyPrefix,
+        newly_granted: false,
+        matches_added: 0,
+        matches_available: balance.available,
+        pack: PACK.name,
+        note: 'This payment was already honoured as a top-up to this account. Nothing was charged this time; the balance above is current.',
+        code: 'ALREADY_HONOURED',
+        settlement: settlementId,
+        docs: 'https://docs.walletlink.social/agent-pack',
+      });
+    }
     return NextResponse.json({
       api_key: null,
       // Already paid for. Nothing was charged this time.
@@ -311,11 +484,41 @@ export async function POST(request: NextRequest) {
       matches_available: balance.available,
       pack: PACK.name,
       error:
-        'This payment has already been honoured. Its key was shown once and cannot be reissued from the payment, because every field of a settled payment is public. Contact help@walletlink.social with the settlement reference.',
+        'This payment has already been honoured. If it minted a key, that key was shown once and cannot be reissued from the payment, because every field of a settled payment is public; if it was a top-up, the credits are already on the account of the key presented with the purchase. Contact help@walletlink.social with the settlement reference.',
       code: 'ALREADY_HONOURED',
       settlement: settlementId,
       docs: 'https://docs.walletlink.social/agent-pack',
     });
+  }
+
+  /**
+   * The signed amount is asserted HERE, not only at the facilitator. The
+   * reference facilitator enforces authorization.value === requirements.amount
+   * strictly, but with quantity in play a swapped or broken facilitator URL
+   * would turn that remote check into the only thing standing between a $1
+   * signature and a $25 grant. USDC carries six decimals, so cents scale by
+   * 10,000. Refused before verify so money never moves down a mismatch.
+   */
+  const signedValue = (
+    payload as { payload?: { authorization?: { value?: unknown } } }
+  )?.payload?.authorization?.value;
+  const expectedValue = BigInt(totalCents) * BigInt(10_000);
+  let signedMatches = false;
+  try {
+    signedMatches =
+      signedValue !== undefined &&
+      BigInt(String(signedValue)) === expectedValue;
+  } catch {
+    signedMatches = false;
+  }
+  if (!signedMatches) {
+    return NextResponse.json(
+      {
+        error: `The signed amount does not match the price of this purchase ($${(totalCents / 100).toFixed(2)}). Sign the exact amount the 402 requirements name.`,
+        code: 'PAYMENT_INVALID',
+      },
+      { status: 402 }
+    );
   }
 
   const verification = await server.verifyPayment(
@@ -348,13 +551,81 @@ export async function POST(request: NextRequest) {
 
   // Money has moved. Everything below is recorded or reported loudly.
   try {
-    const { userId } = await getOrCreateWalletAccount(payer);
+    /**
+     * Who the credits land on. A top-up proves an account with the validated
+     * key and touches no wallet account at all; otherwise the wallet's own
+     * account is found or created exactly as before.
+     */
+    const { userId } = topUp ?? (await getOrCreateWalletAccount(payer));
     const granted = await grantPackBySettlement(
       userId,
       'agent',
       settlementId,
-      PACK.priceCents
+      totalCents,
+      quantity
     );
+
+    /**
+     * The loyalty bonus (gap 18). Only on a grant that actually wrote:
+     * `granted` is false exactly when this settlement was already honoured,
+     * so a replay can never reach this branch and the bonus is not grantable
+     * by replay. The count is the paying WALLET's settled history, whichever
+     * account each settlement credited, and the bonus lands on the account
+     * this settlement credited. Two genuinely concurrent settlements at the
+     * boundary could in principle both read the milestone count; that costs
+     * one bonus pack and requires two real paid settlements in the same
+     * instant, which is a price list, not a hole.
+     */
+    let loyalty: { bonus_matches: number; settled_purchases: number } | null =
+      null;
+    if (granted) {
+      /**
+       * Its own try, deliberately. The pack lot above is already written, so
+       * a failure HERE must not turn the response into GRANT_FAILED: the
+       * retry would then read ALREADY_HONOURED and the buyer would count a
+       * real purchase as lost. A missed bonus is a support line item, logged
+       * with the settlement reference; a misreported purchase is a refund.
+       */
+      try {
+        const settled = await countSettledPurchases(payer);
+        if (settled > 0 && settled % X402_LOYALTY_EVERY_N === 0) {
+          await grantCredits(
+            userId,
+            PACK.matches,
+            `x402 loyalty bonus: settled purchase ${settled} from ${payer}`
+          );
+          loyalty = { bonus_matches: PACK.matches, settled_purchases: settled };
+        }
+      } catch (error) {
+        console.error(
+          `x402 loyalty bonus failed for settlement ${settlementId}; grant by hand if the milestone stands:`,
+          error
+        );
+      }
+    }
+
+    /**
+     * A top-up mints nothing. The buyer already holds the credential the
+     * credits landed behind; a fresh key would be a second secret to lose,
+     * and the account is named only by the prefix the caller already knows.
+     */
+    if (topUp) {
+      const balance = await getBalance(userId);
+      return NextResponse.json(
+        {
+          api_key: null,
+          credited_to_key_prefix: topUp.keyPrefix,
+          matches_added: granted ? totalMatches : 0,
+          quantity,
+          matches_available: balance.available,
+          pack: PACK.name,
+          newly_granted: granted,
+          ...(loyalty ? { loyalty_bonus: loyalty } : {}),
+          docs: 'https://docs.walletlink.social/agent-pack',
+        },
+        { status: 200, headers: { 'PAYMENT-RESPONSE': b64(settlement) } }
+      );
+    }
 
     const created = await createApiKeyIfUnderCap(
       userId,
@@ -380,9 +651,12 @@ export async function POST(request: NextRequest) {
           api_key: null,
           key_cap_reached: true,
           error: `The pack was added. This wallet already holds ${X402_MAX_KEYS} active keys, so no new one was issued; use an existing key, or revoke one and replay this payment.`,
+          matches_added: granted ? totalMatches : 0,
+          quantity,
           matches_available: balance.available,
           pack: PACK.name,
           newly_granted: granted,
+          ...(loyalty ? { loyalty_bonus: loyalty } : {}),
           docs: 'https://docs.walletlink.social/agent-pack',
         },
         { status: 200, headers: { 'PAYMENT-RESPONSE': b64(settlement) } }
@@ -395,11 +669,14 @@ export async function POST(request: NextRequest) {
         // Said plainly, because this is the only time the key exists in
         // readable form and the buyer has no email to recover it through.
         shown_once: true,
+        matches_added: granted ? totalMatches : 0,
+        quantity,
         matches_available: balance.available,
         pack: PACK.name,
         // False means this authorization had already bought a pack. The key is
         // still fresh; the credits are the ones already paid for.
         newly_granted: granted,
+        ...(loyalty ? { loyalty_bonus: loyalty } : {}),
         docs: 'https://docs.walletlink.social/agent-pack',
       },
       {

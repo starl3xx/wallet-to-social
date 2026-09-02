@@ -128,9 +128,10 @@ export async function POST(request: NextRequest) {
 
   const { context } = authResult;
 
-  // Check batch size limit. Nothing a caller can buy raises it: every pack
-  // maps to the same plan (lib/api-plans.ts CREDIT_API_PLAN), so the only
-  // honest advice is to split the list.
+  // Check batch size limit. The plan is the laddered one (lib/api-plans.ts
+  // PACK_API_PLAN via lib/api-auth.ts): every pack's key is stored on the
+  // developer plan, and a live Scale or Index pack raises the ceiling served
+  // here to 200 or 1,000. Over it, the honest advice is still to split.
   const maxBatchSize = context.plan.maxBatchSize;
   if (body.wallets.length > maxBatchSize) {
     return apiError(

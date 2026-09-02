@@ -4087,6 +4087,299 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------------- the plan ladder
+  // Gap 17: a pack raises rate limits for its unexpired lifetime. The claims
+  // an attacker cares about: nothing a caller SENDS can pick a plan, a plan
+  // name smuggled in as a pack id ladders nowhere, and the ladder never
+  // demotes a plan support raised by hand.
+  {
+    const { planForPacks, ladderedPlanId, CREDIT_API_PLAN } =
+      await import('@/lib/api-plans');
+
+    ok(
+      'an account with no packs ladders to the default plan',
+      planForPacks([]) === CREDIT_API_PLAN
+    );
+    ok(
+      'trial and campaign stay on developer',
+      planForPacks(['trial', 'campaign']) === 'developer'
+    );
+    ok('scale ladders to startup', planForPacks(['scale']) === 'startup');
+    ok('index ladders to enterprise', planForPacks(['index']) === 'enterprise');
+    ok(
+      'the highest unexpired pack decides',
+      planForPacks(['trial', 'scale', 'index']) === 'enterprise'
+    );
+    // The refusal: a string that NAMES a plan is not a pack and buys nothing.
+    ok(
+      'a plan name presented as a pack id ladders nowhere',
+      planForPacks(['enterprise', 'startup']) === CREDIT_API_PLAN
+    );
+    ok(
+      'the onchain and hand-grant packs ladder nowhere',
+      planForPacks(['agent', 'grant']) === CREDIT_API_PLAN
+    );
+    ok(
+      'the ladder never demotes a hand-raised plan',
+      ladderedPlanId('enterprise', ['trial']) === 'enterprise' &&
+        ladderedPlanId('startup', []) === 'startup'
+    );
+    ok(
+      'the ladder raises a stored developer plan for a scale buyer',
+      ladderedPlanId('developer', ['scale']) === 'startup'
+    );
+
+    // The packs feeding the ladder come from credit_lots rows this server
+    // read, inside the metered branch, and never from anything in the request.
+    const auth = withoutComments(readFileSync('lib/api-auth.ts', 'utf8'));
+    const flat = auth.replace(/\s+/g, ' ');
+    ok(
+      'the served plan derives from unexpiredPackIds and the stored plan id only',
+      /const packs = await unexpiredPackIds\(key\.userId\);/.test(flat) &&
+        /ladderedPlanId\(plan\.id, packs\)/.test(flat)
+    );
+    const meteredIdx = flat.indexOf('if (!legacyTierIsUnmetered(tier)) {');
+    const ladderIdx = flat.indexOf('unexpiredPackIds(key.userId)');
+    ok(
+      'the ladder runs inside the metered branch, so the two legacy tiers keep their stored mapping',
+      meteredIdx !== -1 && ladderIdx > meteredIdx
+    );
+
+    // "An expired pack entitles nothing" is a WHERE clause, and dropping the
+    // expiry condition there would hand a lapsed Scale buyer startup limits
+    // forever while every mapping assertion above still passed.
+    const creditsFlat = withoutComments(
+      readFileSync('lib/credits.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const packFnStart = creditsFlat.indexOf(
+      'export async function unexpiredPackIds'
+    );
+    const packFnEnd = creditsFlat.indexOf(
+      'return rows.map((r) => r.pack);',
+      packFnStart
+    );
+    const packFn =
+      packFnStart === -1 || packFnEnd === -1
+        ? ''
+        : creditsFlat.slice(packFnStart, packFnEnd);
+    ok(
+      'an expired pack entitles nothing: the ladder reads only unexpired lots, for the one account',
+      packFn.includes('eq(creditLots.userId, userId)') &&
+        packFn.includes('gt(creditLots.expiresAt, new Date())')
+    );
+  }
+
+  // -------------------------------------------------- x402 growth: quantity
+  // Gap 18a. The quantity decides the amount a payment must verify against
+  // and the matches a grant hands out, so a value the parser cannot stand
+  // behind must never survive it, and both multiplications must come from the
+  // one parsed number.
+  {
+    const { quantityFrom } = await import('@/lib/x402');
+    const { X402_MAX_QUANTITY } = await import('@/lib/packs');
+
+    ok('no body means one pack', quantityFrom(undefined) === 1);
+    ok('an absent quantity means one pack', quantityFrom({}) === 1);
+    ok(
+      'a quantity over the cap is refused',
+      quantityFrom({ quantity: X402_MAX_QUANTITY + 1 }) === null
+    );
+    ok('a zero quantity is refused', quantityFrom({ quantity: 0 }) === null);
+    ok(
+      'a fractional quantity is refused',
+      quantityFrom({ quantity: 1.5 }) === null
+    );
+    ok(
+      'a numeric string is refused rather than coerced',
+      quantityFrom({ quantity: '5' }) === null
+    );
+    ok('an array body is refused', quantityFrom([{ quantity: 1 }]) === null);
+    ok(
+      'the cap itself is accepted',
+      quantityFrom({ quantity: X402_MAX_QUANTITY }) === X402_MAX_QUANTITY
+    );
+
+    const buySrc = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+    const flat = buySrc.replace(/\s+/g, ' ');
+    ok(
+      'the payment requirements demand the quantity-scaled amount',
+      /const totalCents = PACK\.priceCents \* quantity;/.test(flat) &&
+        /price: `\$\$\{\(totalCents \/ 100\)\.toFixed\(2\)\}`/.test(flat)
+    );
+    ok(
+      'the grant is computed from the same quantity the requirements were built from',
+      /grantPackBySettlement\( userId, 'agent', settlementId, totalCents, quantity \)/.test(
+        flat
+      )
+    );
+    // The body is read for quantity alone: declared, parsed, handed to
+    // quantityFrom, and never touched again, so it cannot name an account or
+    // anything else.
+    const parsedBodyUses = flat.match(/parsedBody/g)?.length ?? 0;
+    ok(
+      'the request body is read for quantity alone',
+      parsedBodyUses === 3 && /quantityFrom\(parsedBody\)/.test(flat)
+    );
+  }
+
+  // ---------------------------------------------------- x402 growth: top-up
+  // Gap 18b. The attacker claims: a top-up must not credit an account the
+  // presented key does not prove, an OAuth token must not buy, and every
+  // refusal that depends on the Authorization header happens before money
+  // moves.
+  {
+    const buySrc = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+    const flat = buySrc.replace(/\s+/g, ' ');
+
+    ok(
+      'the top-up account comes from the validated key row, nowhere else',
+      /topUp = \{ userId: keyResult\.key\.userId, keyPrefix: keyResult\.key\.keyPrefix, \};/.test(
+        flat
+      )
+    );
+    const settleIdx = flat.indexOf('server.settlePayment');
+    // Gap 18a's local half: the route itself must compare the SIGNED value
+    // to the quantity-scaled price before verify/settle. The facilitator
+    // enforces the same equality remotely, but with quantity in play a
+    // swapped or broken facilitator URL would make that remote check the
+    // only thing between a one-pack signature and a 25-pack grant. -1 is
+    // less than every real index, so both positions are required to exist.
+    const verifyIdx = flat.indexOf('server.verifyPayment');
+    // The REFUSAL is the anchor, not the comparison: `if (false)` leaves the
+    // comparison text intact while the guard it fed is gone, which is the
+    // exact trap this file's docstring warns about, and the guard proved it
+    // by beating the comparison-anchored first draft of this assertion.
+    const localRefusalIdx = flat.indexOf('if (!signedMatches) {');
+    ok(
+      'the signed amount is asserted locally against the scaled price',
+      localRefusalIdx !== -1 &&
+        flat.includes('BigInt(String(signedValue)) === expectedValue') &&
+        /expectedValue = BigInt\(totalCents\) \* BigInt\(10_000\)/.test(flat)
+    );
+    ok(
+      'and the mismatch refusal runs before any money moves',
+      verifyIdx !== -1 &&
+        settleIdx !== -1 &&
+        localRefusalIdx !== -1 &&
+        localRefusalIdx < verifyIdx &&
+        localRefusalIdx < settleIdx
+    );
+    const oauthIdx = flat.indexOf('looksLikeAccessToken(bearer)');
+    const invalidIdx = flat.indexOf("code: 'INVALID_TOPUP_KEY'");
+    ok(
+      'an OAuth token is refused before any money moves',
+      oauthIdx !== -1 && settleIdx !== -1 && oauthIdx < settleIdx
+    );
+    ok(
+      'an Authorization header that is not a valid key is refused before any money moves',
+      invalidIdx !== -1 && invalidIdx < settleIdx
+    );
+    // The refusal side of "mint NO new key": the top-up branch returns before
+    // the mint, with api_key null.
+    const topUpBranchStart = flat.indexOf('if (topUp) {');
+    const mintIdx = flat.indexOf(
+      'const created = await createApiKeyIfUnderCap'
+    );
+    const topUpBranch = flat.slice(topUpBranchStart, mintIdx);
+    ok(
+      'a top-up mints no key and says so with api_key null',
+      topUpBranchStart !== -1 &&
+        mintIdx !== -1 &&
+        topUpBranch.includes('api_key: null') &&
+        !topUpBranch.includes('createApiKeyIfUnderCap')
+    );
+    ok(
+      'a top-up never creates a wallet account as a side effect',
+      /topUp \?\? \(await getOrCreateWalletAccount\(payer\)\)/.test(flat)
+    );
+  }
+
+  // --------------------------------------------------- x402 growth: loyalty
+  // Gap 18c. The bonus must not be grantable by replay, and the count that
+  // triggers it must be the wallet's settled history alone: bonus lots carry
+  // no settlement id, so they can never count toward the next bonus.
+  {
+    const buySrc = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+    const flat = buySrc.replace(/\s+/g, ' ');
+    ok(
+      'the loyalty bonus is unreachable by replay: it runs only when the grant actually wrote',
+      /if \(granted\) \{ try \{ const settled = await countSettledPurchases\(payer\);/.test(
+        flat
+      )
+    );
+    ok(
+      'the bonus fires on the milestone count and grants one pack of matches',
+      /settled % X402_LOYALTY_EVERY_N === 0/.test(flat) &&
+        /grantCredits\( userId, PACK\.matches,/.test(flat)
+    );
+
+    const acct = withoutComments(
+      readFileSync('lib/x402-account.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the loyalty count is keyed on settlement ids naming the paying wallet',
+      /\$\{BASE_MAINNET\}:\$\{wallet\.toLowerCase\(\)\}:/.test(acct) &&
+        /settlementId\} LIKE \$\{prefix \+ '%'\}/.test(acct)
+    );
+  }
+
+  // -------------------------------------------------------- the free dry run
+  // Gap 19. The claims: the estimate can never bill, cannot be used as a
+  // weightless index scan, never returns an identity, and its zod ceiling at
+  // the MCP layer cannot refuse a list the caller's real plan would accept.
+  {
+    const { ESTIMATE_MIN_WALLETS, MAX_PLAN_BATCH_SIZE, API_PLANS } =
+      await import('@/lib/api-plans');
+
+    ok(
+      'the estimate minimum keeps its counts aggregate',
+      ESTIMATE_MIN_WALLETS >= 10
+    );
+    ok(
+      'the syntactic batch ceiling is derived from the plans, not typed',
+      MAX_PLAN_BATCH_SIZE ===
+        Math.max(...Object.values(API_PLANS).map((p) => p.maxBatchSize))
+    );
+
+    const est = withoutComments(
+      readFileSync('app/api/v1/estimate/route.ts', 'utf8')
+    );
+    const flat = est.replace(/\s+/g, ' ');
+    ok(
+      'the estimate declares zero cost and weighs the window per submitted wallet',
+      /authenticateApiRequest\(request, 0, \{ rateWeight: body\.wallets\.length, \}\)/.test(
+        flat
+      )
+    );
+    ok(
+      'the minimum applies to distinct wallets, so duplicates cannot shrink the aggregate',
+      /uniqueWallets\.length < ESTIMATE_MIN_WALLETS/.test(flat)
+    );
+    // Counts out, never rows: the response carries no per-wallet array and no
+    // handle field. The note may SAY the words; no key can carry them.
+    const success = flat.slice(flat.indexOf('return apiSuccess'));
+    ok(
+      'the estimate response carries no per-wallet rows and no identity keys',
+      success.length > 0 &&
+        !/results:/.test(success) &&
+        !/wallets:/.test(success) &&
+        !/handle:/.test(success) &&
+        /in_index: inIndex/.test(success)
+    );
+
+    const mcp = withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8'));
+    ok(
+      'the MCP resolve schema is capped at the largest plan batch, so zod cannot refuse what a plan allows',
+      /const MAX_ADDRESSES = MAX_PLAN_BATCH_SIZE;/.test(mcp)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

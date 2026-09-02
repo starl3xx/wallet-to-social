@@ -79,8 +79,10 @@ the layer with the largest gaps:
 
 - **Self-remedying refusals**, partial: the 402 names no purchase path, and
   the x402 rail is invisible from inside MCP.
-- **Spend planning**, missing: no total-cost surface, no dry run, no per-chain
-  rates on the free tools.
+- **Spend planning**, shipped 2026-09-01 (gap 19): `/v1/estimate` is the dry
+  run (free, counts only, weighed like the batch it previews) and `/v1/stats`
+  carries the measured per-chain rates. The record of the gap: no total-cost
+  surface, no dry run, no per-chain rates on the free tools.
 - **Async work**, shipped 2026-09-01 (gap 15, `/v1/jobs`). The record of the
   gap: the resumable job pipeline was reachable only from the web surface (a
   session, or an anonymous browser bounded by IP rate limits); the
@@ -260,7 +262,17 @@ fixture-first) to refuse drift the way figures drift is refused today.
     `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
     Trial and Campaign stay on developer; Scale maps to the startup preset;
     Index maps to the enterprise preset. Credits keep bounding totals, so the
-    export-licence hole stays closed.
+    export-licence hole stays closed. _Shipped (2026-09-01):_ the account’s
+    highest-tier UNEXPIRED pack decides, spent down or not (what $299 buys is
+    twelve months of the preset, the same twelve months the credits live),
+    decided per request in `authenticateApiRequest` from `credit_lots` via
+    `PACK_API_PLAN`/`ladderedPlanId` (lib/api-plans.ts), never from anything a
+    caller sends, and never demoting a hand-raised plan. Keys stay stored on
+    developer; legacy pro/unlimited keep their TIER_API_PLAN mapping
+    untouched. The MCP zod cap moved to the largest plan batch so the schema
+    cannot refuse a list the caller’s real plan accepts; the v1 handler
+    enforces the served plan’s ceiling. Asserted in `check-invariants.ts`
+    (a plan name smuggled as a pack id ladders nowhere).
 18. **x402 rail growth.** Quantity on the buy (one settlement, N packs,
     per-match price unchanged, capped); top-up bound to the presented key so
     a 402 is recoverable mid-session; spend-based accretion (every Nth
@@ -268,12 +280,37 @@ fixture-first) to refuse drift the way figures drift is refused today.
     per settlement at linear price; top-up credits the account behind a valid
     `wts_live_` key presented with the payment (OAuth stays excluded); every
     10th settlement from the same wallet grants one bonus pack of matches.
+    _Shipped (2026-09-01):_ `{"quantity": N}` in the buy body scales the
+    requirements, the verification and the grant from the one parsed number
+    (`quantityFrom`, strict, no coercion); replay idempotency stays keyed on
+    the authorization. A valid `wts_live_` key in the Authorization header
+    redirects the grant to that key’s account with no key minted; the two
+    header refusals (OAuth `403 OAUTH_CANNOT_BUY`, invalid key
+    `401 INVALID_TOPUP_KEY`) both land before verify/settle, so money never
+    moves down a refused path. Loyalty counts the wallet’s settlement ids in
+    `credit_lots` (`countSettledPurchases`): bonus lots have no settlement id
+    and never count, and the grant runs only when `grantPackBySettlement`
+    actually wrote, so the bonus is unreachable by replay. All three carry
+    assertions in `check-invariants.ts`.
 19. **Dry-run estimate.** Counts-only pre-spend quote (how many of these
     addresses are in the index; how many would bill), per-chain rates on
     stats. Same disclosure class as the free reverse count. _Decided
     (2026-09-01):_ free; counts only; minimum list size 10; weighed against
     the rate window like a batch; per-chain match rates added to `/v1/stats`
-    from the measured table.
+    from the measured table. _Shipped (2026-09-01):_ `POST /v1/estimate`
+    (credits 0, rate weight one unit per wallet via the new
+    `authenticateApiRequest` rateWeight option, list capped at the plan’s
+    `maxBatchSize`, minimum 10 DISTINCT wallets so duplicates cannot shrink
+    the aggregate back into a membership oracle). Response is four counts
+    plus a `{low, high}` band: low is exact for a batch of the list, high
+    adds never-checked wallets at the measured overall rate. The 16-46%
+    table left prose for `lib/public-figures.ts` (`CHAIN_MATCH_RATES`,
+    registered as a dated measurement in `check-published-figures.ts`) and
+    now rides `/v1/stats` as `match_rates`; llms.txt interpolates it. MCP
+    gains `walletlink_estimate_list`, free, weighed like the batch.
+    Asserted in `check-invariants.ts` (the response can carry no identity
+    keys and no per-wallet rows; the declared cost is zero with per-wallet
+    weight).
 20. **The paid rail must not lose to the free demo.** Today `/v1` is strictly
     index-read-only while the anonymous web job runs the live pipeline, so
     for a one-off 500-address job the free path is better than the $6-10 the
@@ -316,8 +353,11 @@ Phase 2 (ergonomics): tier B plus tier D. Small, independent PRs.
 
 Phase 3 (capability): tier C in the order 15 → 16 → 17, then 18 and 19.
 Phase 3 starts with 15, and 20 is closed by it: jobs run the live pipeline,
-so no separate deep-scan tier ships. 16 waits on principle 8 by constraint,
-not by preference.
+so no separate deep-scan tier ships. 15, 17, 18 and 19 shipped on
+2026-09-01, their records inline above, so 16 is the phase’s remaining item.
+It waits on the removal system (the right-to-removal suppression design,
+principle 8) by constraint, not by preference: a watch surface must honour a
+removal from its first day, so 16 does not start until that system exists.
 
 The tier C decisions were taken on 2026-09-01 and are recorded inline above,
 marked _Decided (2026-09-01):_. Nothing in phase 1 or 2 touches pricing or

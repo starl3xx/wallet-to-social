@@ -1,7 +1,7 @@
 /**
  * The walletlink.social MCP server.
  *
- * Seven tools over the eight `/v1` endpoints, so an agent can resolve a wallet
+ * Eight tools over the nine `/v1` endpoints, so an agent can resolve a wallet
  * to its social identities without a human first reading an API reference.
  *
  * ## It authenticates nothing and bills nothing
@@ -46,7 +46,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
-import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
+import {
+  API_PLANS,
+  CREDIT_API_PLAN,
+  MAX_PLAN_BATCH_SIZE,
+  ESTIMATE_MIN_WALLETS,
+} from '@/lib/api-plans';
 import {
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
@@ -75,6 +80,7 @@ import { GET as reverseTwitterGet } from '@/app/api/v1/reverse/twitter/[handle]/
 import { GET as reverseFarcasterGet } from '@/app/api/v1/reverse/farcaster/[username]/route';
 import { GET as statsGet } from '@/app/api/v1/stats/route';
 import { GET as usageGet } from '@/app/api/v1/usage/route';
+import { POST as estimatePost } from '@/app/api/v1/estimate/route';
 import { POST as jobsPost } from '@/app/api/v1/jobs/route';
 import { GET as jobStatusGet } from '@/app/api/v1/jobs/[id]/route';
 import { looksLikeAccessToken, validateAccessToken } from '@/lib/oauth/grants';
@@ -84,11 +90,19 @@ import { callsATool, isMetered } from '@/lib/mcp-gate';
 export const runtime = 'nodejs';
 
 /**
- * The batch ceiling every credit pack carries, imported rather than written as
- * 50. The API enforces `context.plan.maxBatchSize`, and a literal here would
- * be a second copy of a number that lives in `lib/api-plans.ts`.
+ * Two batch ceilings, both imported rather than written as numbers, because
+ * the plan ladder (lib/api-plans.ts, gap 17) split what used to be one.
+ *
+ * `DEFAULT_MAX_ADDRESSES` is the default plan's ceiling, quoted in copy. The
+ * input schema is capped at `MAX_PLAN_BATCH_SIZE`, the largest any plan
+ * allows, because a zod cap at the default would refuse a list that a Scale
+ * or Index caller's real plan accepts before the API ever saw it. The v1
+ * handler enforces the caller's actual plan ceiling and refuses over it with
+ * BATCH_SIZE_EXCEEDED naming the number, so the effective cap is always the
+ * plan's; the schema bound is syntax, not entitlement.
  */
-const MAX_ADDRESSES = API_PLANS[CREDIT_API_PLAN].maxBatchSize;
+const DEFAULT_MAX_ADDRESSES = API_PLANS[CREDIT_API_PLAN].maxBatchSize;
+const MAX_ADDRESSES = MAX_PLAN_BATCH_SIZE;
 
 /**
  * What a client is told this server is for, before it calls anything.
@@ -121,8 +135,8 @@ const MAX_ADDRESSES = API_PLANS[CREDIT_API_PLAN].maxBatchSize;
 const INSTRUCTIONS = [
   'This server answers two questions about an Ethereum address: which social accounts its owner published, and which addresses a given X handle or Farcaster account is attested to. Balances, transfers and prices are a block explorer\u2019s job.',
   `${ATTESTED_SENTENCE} Nothing is inferred from a display name or a bio.`,
-  `${MATCH_SENTENCE} Billing is per address, not per identity: an address carrying both an X handle and a Farcaster account costs one credit. An unpromising list is cheap to try, and splitting one saves no credits. The ceiling is ${MAX_ADDRESSES} addresses per call.`,
-  `The reverse direction is the expensive one: one page of the wallets behind a handle can spend 100 credits, and the free allowance is ${FREE_MATCHES_PER_WINDOW} matches per ${FREE_WINDOW_DAYS} days. Reading the balance or the coverage figures is free. ${ZERO_BALANCE_SENTENCE}`,
+  `${MATCH_SENTENCE} Billing is per address, not per identity: an address carrying both an X handle and a Farcaster account costs one credit. An unpromising list is cheap to try, and splitting one saves no credits. The ceiling is ${DEFAULT_MAX_ADDRESSES} addresses per call on the default plan; a live Scale or Index pack raises it (the balance tool reports yours).`,
+  `The reverse direction is the expensive one: one page of the wallets behind a handle can spend 100 credits, and the free allowance is ${FREE_MATCHES_PER_WINDOW} matches per ${FREE_WINDOW_DAYS} days. Reading the balance, the coverage figures or a list estimate costs no credits. ${ZERO_BALANCE_SENTENCE}`,
   `${REACHABILITY_SENTENCE} ${ABSENT_SENTENCE}`,
 ].join('\n\n');
 
@@ -344,7 +358,7 @@ const handler = createMcpHandler(
         title: 'Resolve wallets to social identities',
         description: [
           'Resolve one or more Ethereum addresses to the social identities attached to them: X handle, Farcaster account, ENS name, Lens profile, GitHub account.',
-          `COST: one match credit per address that resolves to an X handle or a Farcaster account. An address that resolves to nothing is free, and so is one carrying only an ENS name, a Lens profile or a GitHub account. Up to ${MAX_ADDRESSES} addresses per call. ${PACING_SENTENCE}`,
+          `COST: one match credit per address that resolves to an X handle or a Farcaster account. An address that resolves to nothing is free, and so is one carrying only an ENS name, a Lens profile or a GitHub account. Up to ${DEFAULT_MAX_ADDRESSES} addresses per call on the default plan; a live Scale pack raises the ceiling to ${API_PLANS.startup.maxBatchSize} and Index to ${API_PLANS.enterprise.maxBatchSize}, and the API refuses over YOUR ceiling with BATCH_SIZE_EXCEEDED naming it. ${PACING_SENTENCE}`,
           'Each identity reports whether the address owner attested it rather than it being correlated by a third party, and each X handle reports whether it still reaches anyone: a handle can be attested and suspended, or freed and since taken by a stranger.',
           'Send every address you need in one call. Duplicates are removed before you are charged, but each copy still costs throughput.',
           'A retried call bills again: duplicates are removed inside one call, never across calls, and a tool call cannot carry an idempotency key. Before resending a call that may have gone through, read the balance instead of guessing.',
@@ -635,7 +649,7 @@ const handler = createMcpHandler(
           requests_per_minute: limits.requests_per_minute ?? null,
           max_addresses_per_call: asNumber(
             limits.max_batch_size,
-            MAX_ADDRESSES
+            DEFAULT_MAX_ADDRESSES
           ),
           rate_limit_units_used: asNumber(usage.total_credits, 0),
           requests_last_month: asNumber(usage.total_requests, 0),
@@ -759,7 +773,7 @@ const handler = createMcpHandler(
         };
         if (typeof d.error === 'string') out.error = d.error;
 
-        const wallets = asArray(d.wallets);
+        const jobWallets = asArray(d.wallets);
         const rawResults = asArray(d.results);
         if (asString(d.status) === 'completed') {
           /**
@@ -770,7 +784,7 @@ const handler = createMcpHandler(
           const rows = rawResults.map((row, i) => {
             const shaped = shapeRecord(row);
             if (!shaped) {
-              return { address: asString(wallets[i]) ?? null, found: false };
+              return { address: asString(jobWallets[i]) ?? null, found: false };
             }
             return shaped;
           });
@@ -787,6 +801,61 @@ const handler = createMcpHandler(
         }
 
         return ok(out);
+      }
+    );
+
+    // 8 --------------------------------------------------------------------
+    server.registerTool(
+      'walletlink_estimate_list',
+      {
+        title: 'Estimate a list before spending on it',
+        description: [
+          'A dry run over a list of addresses: how many are in the index, how many were checked and found bare, how many have never been seen, and the band a resolve would bill inside. Counts only, no identities. Use it to decide whether a list is worth resolving, and which tool to spend on.',
+          `COST: free on the match meter, always, even at zero balance. It weighs the rate window exactly like resolving the same list (one request-unit per address), so it previews a batch at the batch’s own pace. Minimum ${ESTIMATE_MIN_WALLETS} distinct addresses, because the counts are aggregates by design; the ceiling is your plan’s batch ceiling.`,
+          'Reading the band: low is exact for resolving this list now (the addresses already holding an X handle or a Farcaster account). high adds never-checked addresses at the measured overall rate; a background job resolves those against live sources, a plain resolve does not. Match rates differ several-fold by chain; the coverage tool and /v1/stats carry the measured per-chain table.',
+        ].join('\n\n'),
+        inputSchema: z.object({
+          addresses: z
+            .array(z.string().regex(/^0x[a-fA-F0-9]{40}$/))
+            .min(ESTIMATE_MIN_WALLETS)
+            .max(MAX_ADDRESSES)
+            .describe(
+              'Ethereum addresses, each 0x followed by 40 hex characters. Case does not matter.'
+            ),
+        }),
+        // Free and read-only. idempotentHint true is honest here: a repeat
+        // bills nothing, it only spends rate window.
+        annotations: { readOnlyHint: true, idempotentHint: true },
+      },
+      async ({ addresses }, ctx) => {
+        const authorization = ctx.http?.req?.headers.get('authorization');
+        if (!authorization) return missingKey();
+
+        const unique = [...new Set(addresses.map((a) => a.toLowerCase()))];
+
+        const result = await callRoute(estimatePost, '/api/v1/estimate', {
+          method: 'POST',
+          authorization,
+          body: JSON.stringify({ wallets: unique }),
+        });
+        if (result.status !== 200) return failed(result);
+
+        const { data } = envelope(result);
+        const d = asObject(data) ?? {};
+        const band = asObject(d.would_bill_estimate) ?? {};
+        return ok({
+          requested: asNumber(d.requested, unique.length),
+          in_index: asNumber(d.in_index, 0),
+          previously_checked_empty: asNumber(d.previously_checked_empty, 0),
+          never_checked: asNumber(d.never_checked, 0),
+          would_bill_estimate: {
+            low: asNumber(band.low, 0),
+            high: asNumber(band.high, 0),
+            note: asString(band.note) ?? null,
+          },
+          billed_matches: 0,
+          quota: quotaFrom(result),
+        });
       }
     );
   },
