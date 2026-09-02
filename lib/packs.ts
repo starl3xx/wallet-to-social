@@ -221,3 +221,29 @@ export const X402_PACKS: Record<
 export function isX402PackId(value: string): value is X402PackId {
   return Object.prototype.hasOwnProperty.call(X402_PACKS, value);
 }
+
+/**
+ * The most Agent packs one settlement may buy (docs/AGENT-SYSTEM.md, gap 18).
+ *
+ * Quantity scales the pack linearly: N packs cost N times the price and grant
+ * N times the matches, with no volume discount, so the per-match price the
+ * Agent pack was positioned at (above Campaign, below Trial) holds at every
+ * quantity. 25 caps a single settlement at $25 and 300 matches: enough that an
+ * agent with a real list stops paying a signature per $1, small enough that
+ * the rail stays the small-ticket machine rail rather than a discount route
+ * around the card packs.
+ */
+export const X402_MAX_QUANTITY = 25;
+
+/**
+ * Every Nth settled purchase from the same wallet grants one bonus Agent pack
+ * of matches (gap 18: spend-based accretion, principle 7).
+ *
+ * Keyed strictly on the single wallet's settled history: a settlement is a
+ * `credit_lots` row with a settlement id naming that wallet, so bonus lots
+ * (which have no settlement id) never count toward the next bonus, and a
+ * replayed authorization cannot add a row (the settlement id is unique).
+ * Farming it means making nine real paid settlements per free pack, which is
+ * just buying at a 10% discount from wallet number one.
+ */
+export const X402_LOYALTY_EVERY_N = 10;

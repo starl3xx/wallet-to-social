@@ -48,7 +48,11 @@
           },
           {
             "group": "Lookups",
-            "pages": ["api-reference/wallet", "api-reference/batch"]
+            "pages": [
+              "api-reference/wallet",
+              "api-reference/batch",
+              "api-reference/estimate"
+            ]
           },
           {
             "group": "Jobs",

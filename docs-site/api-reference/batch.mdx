@@ -8,7 +8,7 @@ Resolves many addresses in one request. Costs **1 match credit per address that 
 
 This is the endpoint to build on. Fifty single lookups and one fifty-wallet batch cost the same match credits, but the batch is one request instead of fifty and returns in a fraction of the time.
 
-Batch answers from the index, which is why it returns in milliseconds. For a list larger than a batch, or when the misses are worth re-checking against live sources, submit an [async job](/api-reference/jobs) instead: same billing rule, no 50-address ceiling, and live resolution on wallets the index has not checked.
+Batch answers from the index, which is why it returns in milliseconds. For a list larger than a batch, or when the misses are worth re-checking against live sources, submit an [async job](/api-reference/jobs) instead: same billing rule, no per-request address ceiling, and live resolution on wallets the index has not checked. To know what a list would cost before sending it, run the free [estimate](/api-reference/estimate) first.
 
 ## Headers
 
@@ -22,7 +22,9 @@ Batch answers from the index, which is why it returns in milliseconds. For a lis
 ## Body
 
 <ParamField body="wallets" type="string[]" required>
-  Addresses to resolve. Up to 50. The whole body is capped at 1 MB.
+  Addresses to resolve, up to your plan’s `max_batch_size`: 50 on the default
+  plan, 200 with a live Scale pack, 1,000 with a live Index pack (see
+  [plans](/api-reference/introduction#plans)). The whole body is capped at 1 MB.
 </ParamField>
 
 ## Request

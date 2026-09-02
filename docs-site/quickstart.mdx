@@ -91,7 +91,7 @@ Every response is `{ data, meta }`. Fields with no value are omitted rather than
 
 ### Go bigger
 
-One address at a time gets slow quickly. [`POST /api/v1/batch`](/api-reference/batch) takes up to 50 addresses per request:
+One address at a time gets slow quickly. [`POST /api/v1/batch`](/api-reference/batch) takes up to 50 addresses per request on the default plan (a live Scale or Index pack raises the ceiling):
 
 ```bash
 curl -X POST https://walletlink.social/api/v1/batch \

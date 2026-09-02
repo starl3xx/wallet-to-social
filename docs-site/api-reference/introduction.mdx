@@ -31,26 +31,33 @@ Keys are prefixed `wts_live_` and are stored only as hashes. A lost key is repla
 ## Plans
 
 API access is included with every credit pack rather than sold separately, and
-it draws on the same balance the app does. There is no API-only plan.
+it draws on the same balance the app does. There is no API-only plan. Which
+rate-limit preset serves your requests is decided by the largest pack the
+account holds that has not yet expired, for the twelve months the pack lives,
+spent down or not:
 
-|                            | **Any pack** |
-| -------------------------- | ------------ |
-| Plan name in API responses | `Developer`  |
-| Requests per minute        | 60           |
-| Requests per day           | 5,000        |
-| Requests per month         | 50,000       |
-| Max batch size             | 50           |
+|                            | **Trial, Campaign, Agent** | **Scale** | **Index**    |
+| -------------------------- | -------------------------- | --------- | ------------ |
+| Plan name in API responses | `Developer`                | `Startup` | `Enterprise` |
+| Requests per minute        | 60                         | 300       | 1,000        |
+| Requests per day           | 5,000                      | 50,000    | unlimited    |
+| Requests per month         | 50,000                     | 500,000   | unlimited    |
+| Max batch size             | 50                         | 200       | 1,000        |
 
 These are rate limits: they bound how fast you can call, not how much you can
-resolve in total. What you can resolve is bounded by your credit balance, and a
-metered call made with no credits left returns `402` with code `NO_CREDITS`.
-The free endpoints, [`/v1/stats`](/api-reference/stats),
-[`/v1/usage`](/api-reference/usage) and the
+resolve in total. What you can resolve is bounded by your credit balance at
+every rung, and a metered call made with no credits left returns `402` with
+code `NO_CREDITS`. The free endpoints, [`/v1/stats`](/api-reference/stats),
+[`/v1/usage`](/api-reference/usage),
+[`/v1/estimate`](/api-reference/estimate) and the
 [job status poll](/api-reference/jobs#polling), keep answering at zero balance.
 
 <Note>
-  Responses from [`/v1/usage`](/api-reference/usage) report the internal plan
-  name rather than the pack you purchased. Every pack reports `Developer`.
+  The ladder follows the pack, not the key. Buying Scale raises your existing
+  key’s limits on the next request; when the pack expires, twelve months after
+  purchase, the limits return to `Developer` with no key change. Responses from
+  [`/v1/usage`](/api-reference/usage) report the preset currently serving you
+  under `key.plan`.
 </Note>
 
 Higher limits are available. Email [help@walletlink.social](mailto:help@walletlink.social).
@@ -73,6 +80,7 @@ the app.
 | `POST /v1/batch`                       | 1 per address that resolves to an X handle or a Farcaster account, after duplicates are removed |
 | `POST /v1/jobs`                        | 1 per address that resolves, debited once when the job completes; nothing at submission         |
 | `GET /v1/jobs/{id}`                    | 0                                                                                               |
+| `POST /v1/estimate`                    | 0, at any balance                                                                               |
 | `GET /v1/reverse/twitter/{handle}`     | 1 per wallet returned, up to 100                                                                |
 | `GET /v1/reverse/farcaster/{username}` | 1 per wallet returned, up to 100                                                                |
 | `GET /v1/stats`                        | 0                                                                                               |
@@ -95,6 +103,7 @@ schedule. They bound how fast you may call, never how much you may resolve.
 | `POST /v1/batch`                       | 1 per address submitted |
 | `POST /v1/jobs`                        | 1 per submission        |
 | `GET /v1/jobs/{id}`                    | 0                       |
+| `POST /v1/estimate`                    | 1 per address submitted |
 | `GET /v1/reverse/twitter/{handle}`     | 2                       |
 | `GET /v1/reverse/farcaster/{username}` | 2                       |
 | `GET /v1/stats`                        | 0                       |
@@ -103,7 +112,9 @@ schedule. They bound how fast you may call, never how much you may resolve.
 Reverse lookups weigh double here because they scan the index by identity rather
 than by key. A [job](/api-reference/jobs) submission weighs one unit however
 long its list, because the request only queues the work; the work itself is
-billed as matches when the job completes.
+billed as matches when the job completes. An
+[estimate](/api-reference/estimate) weighs exactly like the batch it previews,
+one unit per address, so it costs the same throughput and none of the credits.
 
 Deduplicating your list still helps, but not for the reason it used to: a
 duplicate is billed once in match credits, and counts twice against your rate

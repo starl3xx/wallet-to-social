@@ -22,7 +22,7 @@ import {
   Trash as Trash2,
   Terminal,
 } from '@phosphor-icons/react';
-import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
+import { API_PLANS, apiPlanForAccount, CREDIT_API_PLAN } from '@/lib/api-plans';
 import {
   claudeCodeCommand,
   cursorInstallLink,
@@ -378,6 +378,18 @@ export function ApiKeysModal({
                   : `${plan.requestsPerDay.toLocaleString()}/day`}{' '}
                 · batch up to {plan.maxBatchSize}
               </p>
+              {/* The plan ladder (lib/api-plans.ts PACK_API_PLAN): a live
+                  Scale or Index pack is served higher limits at request time,
+                  which this client cannot see from tier and entitlement
+                  alone. Said rather than guessed; /v1/usage reports the
+                  limits actually serving the account. */}
+              {planId === CREDIT_API_PLAN && (
+                <p className="mt-1 text-muted-foreground">
+                  These are the starting limits. A live Scale or Index pack is
+                  served higher ones for its 12 months; /v1/usage reports the
+                  limits serving you.
+                </p>
+              )}
             </div>
 
             {/* The one inline error shape; see components/ui/inline-error.tsx. */}

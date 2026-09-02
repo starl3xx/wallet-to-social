@@ -127,7 +127,7 @@ curl "https://walletlink.social/api/v1/usage?period=week" \
 
 ## Notes
 
-`plan` reports the internal plan name, not the pack you bought. Every pack reports `Developer`. See [plans](/api-reference/introduction#plans).
+`plan` reports the rate-limit preset currently serving this account, not the pack you bought: `Developer` by default, `Startup` while a Scale pack is unexpired, `Enterprise` while an Index pack is. See [plans](/api-reference/introduction#plans).
 
 `total_credits` counts rate-limit units, not match credits, and it is not your bill: a 50-wallet batch is one request and 50 rate-limit units, while what it costs you is one match credit per wallet that resolved. `total_credits` exceeding `total_requests` is expected. For what you have left to spend, read `credits.available`.
 

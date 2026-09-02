@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBalance, legacyTierIsUnmetered } from '@/lib/credits';
+import {
+  getBalance,
+  legacyTierIsUnmetered,
+  unexpiredPackIds,
+} from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 import { validateApiKey } from './api-keys';
 import { checkRateLimit, type RateLimitHeaders } from './rate-limiter';
 import { trackApiUsage, routeTemplate } from './api-usage';
+import { API_PLANS, ladderedPlanId } from '@/lib/api-plans';
 import type { ApiKey, ApiPlan } from '@/db/schema';
 
 export interface AuthenticatedContext {
@@ -93,10 +98,18 @@ export function apiSuccess<T>(
 /**
  * Authenticates an API request
  * Returns either an error response or the authenticated context
+ *
+ * `credits` is the declared cost: above zero it arms the balance refusal, and
+ * it is the default rate-limit weight. `options.rateWeight` separates the two
+ * for a call that is free on the match meter but must still pay for its size
+ * on the request meter: `/v1/estimate` declares `credits: 0` with a weight of
+ * one unit per wallet, so a zero-balance agent can plan a spend but cannot use
+ * planning as an unmetered scan (gap 19 of docs/AGENT-SYSTEM.md).
  */
 export async function authenticateApiRequest(
   request: NextRequest,
-  credits: number = 1
+  credits: number = 1,
+  options?: { rateWeight?: number }
 ): Promise<{ error: NextResponse } | { context: AuthenticatedContext }> {
   const rawKey = extractApiKey(request);
 
@@ -119,7 +132,8 @@ export async function authenticateApiRequest(
     };
   }
 
-  const { key, plan } = keyResult;
+  const { key } = keyResult;
+  let plan = keyResult.plan;
 
   /**
    * The API draws on the same credit balance as the app.
@@ -149,6 +163,31 @@ export async function authenticateApiRequest(
   const tier = await effectiveTierForUserId(key.userId);
   let matchesAvailable: number | undefined;
   if (!legacyTierIsUnmetered(tier)) {
+    /**
+     * The plan ladder (docs/AGENT-SYSTEM.md, gap 17). Every credit key is
+     * STORED on the developer plan; the limits a request is served under come
+     * from the account's unexpired packs, decided here on every request so
+     * the entitlement tracks the pack's twelve-month life: buying Scale
+     * raises the next request, and the pack expiring lowers it, with no key
+     * rotation either way.
+     *
+     * Derived strictly from `credit_lots` rows this server reads. Nothing in
+     * the request can name a plan, and `ladderedPlanId` only ever raises the
+     * stored plan, so a hand-raised key keeps what support gave it. The two
+     * legacy unmetered tiers never reach this branch: their keys carry the
+     * `TIER_API_PLAN` mapping (pro on developer, unlimited on startup),
+     * unchanged.
+     *
+     * Credits still bound totals: this substitutes rate-limit ceilings only,
+     * and the balance gate below is unchanged, so the ladder cannot reopen
+     * the export-licence hole the account-level balance check closed.
+     */
+    const packs = await unexpiredPackIds(key.userId);
+    const servedPlanId = ladderedPlanId(plan.id, packs);
+    if (servedPlanId !== plan.id && API_PLANS[servedPlanId]) {
+      plan = { ...plan, ...API_PLANS[servedPlanId] };
+    }
+
     const balance = await getBalance(key.userId);
     if (credits > 0 && balance.available <= 0) {
       return {
@@ -185,8 +224,12 @@ export async function authenticateApiRequest(
     matchesAvailable = Math.max(0, balance.available);
   }
 
-  // Check rate limits
-  const rateLimitResult = await checkRateLimit(key, plan, credits);
+  // Check rate limits, at the declared weight (which defaults to the cost).
+  const rateLimitResult = await checkRateLimit(
+    key,
+    plan,
+    options?.rateWeight ?? credits
+  );
 
   if (!rateLimitResult.allowed) {
     return {

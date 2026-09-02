@@ -659,6 +659,193 @@ const MEASUREMENTS: Measurement[] = [
       },
     ],
   },
+  {
+    /**
+     * The per-chain table, promoted from prose to constants when gap 19 put
+     * it on `/v1/stats` (lib/public-figures.ts CHAIN_MATCH_RATES). The dated
+     * record stays the coverage docs table, which is where the measurement
+     * was first published; the constants must equal it, and `/v1/stats` and
+     * llms.txt interpolate the constants, so one drift check covers every
+     * surface that can import.
+     */
+    what: 'per-chain match rates, by collection sample',
+    recordedIn: 'docs-site/concepts/coverage.mdx',
+    datePattern:
+      /measured 26 collections across three chains on ([0-9]{4}-[0-9]{2}-[0-9]{2})/,
+    // Same window and same reasoning as the pipeline sample above: expensive
+    // enough that monthly is a chore nobody will do, and the index grows fast
+    // enough that a year-old sample describes a different product.
+    maxAgeDays: 120,
+    by: 'npx tsx --env-file=.env.local scripts/benchmark-match-rate.ts <chain>, per chain; the dated table in docs-site/concepts/coverage.mdx is the record to update',
+    rates: {
+      baseEither: /\| Base\s*\|(?:[^|]*\|){4}\s*\*\*([0-9]+\.[0-9])%\*\*/,
+      baseFarcaster: /\| Base\s*\|(?:[^|]*\|){2}\s*([0-9]+\.[0-9])%/,
+      baseX: /\| Base\s*\|(?:[^|]*\|){3}\s*([0-9]+\.[0-9])%/,
+      ethereumEither:
+        /\| Ethereum\s*\|(?:[^|]*\|){4}\s*\*\*([0-9]+\.[0-9])%\*\*/,
+      ethereumFarcaster: /\| Ethereum\s*\|(?:[^|]*\|){2}\s*([0-9]+\.[0-9])%/,
+      ethereumX: /\| Ethereum\s*\|(?:[^|]*\|){3}\s*([0-9]+\.[0-9])%/,
+      robinhoodEither:
+        /\| Robinhood Chain\s*\|(?:[^|]*\|){4}\s*\*\*([0-9]+\.[0-9])%\*\*/,
+      robinhoodFarcaster:
+        /\| Robinhood Chain\s*\|(?:[^|]*\|){2}\s*([0-9]+\.[0-9])%/,
+      robinhoodX: /\| Robinhood Chain\s*\|(?:[^|]*\|){3}\s*([0-9]+\.[0-9])%/,
+      overallEither:
+        /\| \*\*All three\*\*\s*\|(?:[^|]*\|){4}\s*\*\*([0-9]+\.[0-9])%\*\*/,
+    },
+    published: [
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /base: \{[\s\S]*?either_pct: ([0-9]+\.[0-9]),/,
+        rate: 'baseEither',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /base: \{[\s\S]*?farcaster_pct: ([0-9]+\.[0-9]),/,
+        rate: 'baseFarcaster',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /base: \{[\s\S]*?x_pct: ([0-9]+\.[0-9]),/,
+        rate: 'baseX',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /ethereum: \{[\s\S]*?either_pct: ([0-9]+\.[0-9]),/,
+        rate: 'ethereumEither',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /ethereum: \{[\s\S]*?farcaster_pct: ([0-9]+\.[0-9]),/,
+        rate: 'ethereumFarcaster',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /ethereum: \{[\s\S]*?x_pct: ([0-9]+\.[0-9]),/,
+        rate: 'ethereumX',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /robinhood: \{[\s\S]*?either_pct: ([0-9]+\.[0-9]),/,
+        rate: 'robinhoodEither',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /robinhood: \{[\s\S]*?farcaster_pct: ([0-9]+\.[0-9]),/,
+        rate: 'robinhoodFarcaster',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /robinhood: \{[\s\S]*?x_pct: ([0-9]+\.[0-9]),/,
+        rate: 'robinhoodX',
+      },
+      {
+        file: 'lib/public-figures.ts',
+        pattern: /CHAIN_MATCH_RATE_OVERALL_PCT = ([0-9]+\.[0-9])/,
+        rate: 'overallEither',
+      },
+      /**
+       * The stats reference page repeats the table in its worked example.
+       * MDX cannot import, so the literals are declared, the same trade the
+       * markdown surfaces above make.
+       */
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"base": \{[\s\S]*?"either_pct": ([0-9]+\.[0-9])/,
+        rate: 'baseEither',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"ethereum": \{[\s\S]*?"either_pct": ([0-9]+\.[0-9])/,
+        rate: 'ethereumEither',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"robinhood": \{[\s\S]*?"either_pct": ([0-9]+\.[0-9])/,
+        rate: 'robinhoodEither',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"base": \{[\s\S]*?"farcaster_pct": ([0-9]+\.[0-9])/,
+        rate: 'baseFarcaster',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"base": \{[\s\S]*?"x_pct": ([0-9]+\.[0-9])/,
+        rate: 'baseX',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"ethereum": \{[\s\S]*?"farcaster_pct": ([0-9]+\.[0-9])/,
+        rate: 'ethereumFarcaster',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"ethereum": \{[\s\S]*?"x_pct": ([0-9]+\.[0-9])/,
+        rate: 'ethereumX',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"robinhood": \{[\s\S]*?"farcaster_pct": ([0-9]+\.[0-9])/,
+        rate: 'robinhoodFarcaster',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"robinhood": \{[\s\S]*?"x_pct": ([0-9]+\.[0-9])/,
+        rate: 'robinhoodX',
+      },
+      {
+        file: 'docs-site/api-reference/stats.mdx',
+        pattern: /"overall_either_pct": ([0-9]+\.[0-9])/,
+        rate: 'overallEither',
+      },
+      /**
+       * The OpenAPI description repeats the measured table in its `/stats`
+       * worked example, and it is published at
+       * docs.walletlink.social/openapi.yaml. YAML cannot import either, so
+       * the literals are declared like the MDX ones. The example carries
+       * only Base, Ethereum and the overall figure; the schema rows carry
+       * no literals.
+       */
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern: /by_chain:[\s\S]*?base:[\s\S]*?farcaster_pct: ([0-9]+\.[0-9])/,
+        rate: 'baseFarcaster',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern: /by_chain:[\s\S]*?base:[\s\S]*?x_pct: ([0-9]+\.[0-9])/,
+        rate: 'baseX',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern: /by_chain:[\s\S]*?base:[\s\S]*?either_pct: ([0-9]+\.[0-9])/,
+        rate: 'baseEither',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern:
+          /by_chain:[\s\S]*?ethereum:[\s\S]*?farcaster_pct: ([0-9]+\.[0-9])/,
+        rate: 'ethereumFarcaster',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern: /by_chain:[\s\S]*?ethereum:[\s\S]*?x_pct: ([0-9]+\.[0-9])/,
+        rate: 'ethereumX',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern:
+          /by_chain:[\s\S]*?ethereum:[\s\S]*?either_pct: ([0-9]+\.[0-9])/,
+        rate: 'ethereumEither',
+      },
+      {
+        file: 'docs-site/openapi.yaml',
+        pattern: /overall_either_pct: ([0-9]+\.[0-9])/,
+        rate: 'overallEither',
+      },
+    ],
+  },
 ];
 
 /**

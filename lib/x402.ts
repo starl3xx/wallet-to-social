@@ -27,6 +27,7 @@
  */
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
 import { registerExactEvmScheme } from '@x402/evm/exact/server';
+import { X402_MAX_QUANTITY } from '@/lib/packs';
 
 /** Base mainnet, CAIP-2. Protocol v2 identifies networks this way. */
 export const BASE_MAINNET = 'eip155:8453';
@@ -122,6 +123,28 @@ export function settlementIdFor(payload: unknown): string | null {
     typeof auth?.nonce === 'string' ? auth.nonce.toLowerCase() : null;
   if (!from || !nonce) return null;
   return `${BASE_MAINNET}:${from}:${nonce}`;
+}
+
+/**
+ * The pack quantity a buy request asks for, from its parsed JSON body.
+ *
+ * `1` when the body is absent or carries no `quantity`, because a body was
+ * never required on this endpoint and the single pack stays the default. `null`
+ * for anything present and malformed, which the route refuses BEFORE building
+ * payment requirements: the quantity decides the amount the payment must
+ * verify against, so a value this function cannot stand behind must never
+ * reach the requirements. Strictly a number, strictly an integer, strictly
+ * 1 to X402_MAX_QUANTITY; a string "3" is refused rather than coerced, because
+ * coercion is how "3e2" becomes a quantity.
+ */
+export function quantityFrom(body: unknown): number | null {
+  if (body === undefined || body === null) return 1;
+  if (typeof body !== 'object' || Array.isArray(body)) return null;
+  const quantity = (body as { quantity?: unknown }).quantity;
+  if (quantity === undefined) return 1;
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity)) return null;
+  if (quantity < 1 || quantity > X402_MAX_QUANTITY) return null;
+  return quantity;
 }
 
 /** The payer's address from a payload, for the account the pack belongs to. */

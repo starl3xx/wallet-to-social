@@ -579,6 +579,12 @@ const MUTATIONS: Mutation[] = [
     to: 'if (false) {',
   },
   {
+    name: 'the local signed-amount assertion is deleted, trusting the facilitator alone',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (!signedMatches) {',
+    to: '  if (false) {',
+  },
+  {
     name: 'the wholesale reissue answers a proof that failed',
     file: 'app/api/x402/recover/route.ts',
     from: '  if (!proof.ok) {',

@@ -1,0 +1,95 @@
+---
+title: 'Estimate'
+description: 'POST /v1/estimate'
+api: 'POST https://walletlink.social/api/v1/estimate'
+---
+
+A dry run over a list: how many of these addresses are in the index, how many
+we checked and found bare, how many we have never seen, and the band a resolve
+would bill inside. Counts only, never identities. Use it to decide whether a
+list is worth spending on, and which endpoint to spend on, before anything
+bills.
+
+It costs no match credits, at any balance, so a drained key can plan the
+purchase that refills it. It weighs the rate window exactly like the
+[batch](/api-reference/batch) it previews, one unit per address, and the list
+is capped at your plan’s `max_batch_size`. The minimum is 10 distinct
+addresses, because the counts are aggregates by design; for one address,
+[resolve it](/api-reference/wallet).
+
+## Request
+
+```bash
+curl -X POST https://walletlink.social/api/v1/estimate \
+  -H "Authorization: Bearer wts_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"wallets": ["0xd8da6bf26964af9d7eed9e03e53415d37aa96045", "..."]}'
+```
+
+<ParamField body="wallets" type="string[]" required>
+  10 to `max_batch_size` addresses. Duplicates are removed before counting; at
+  least 10 distinct addresses must remain.
+</ParamField>
+
+## Response
+
+<ResponseField name="data.requested" type="number">
+  Distinct addresses after deduplication.
+</ResponseField>
+<ResponseField name="data.in_index" type="number">
+  Addresses holding at least one identity: X, Farcaster, ENS, Lens or GitHub.
+</ResponseField>
+<ResponseField name="data.previously_checked_empty" type="number">
+  Addresses we checked and found bare. Resolving these is free and unlikely to
+  find anything until the negative record ages out.
+</ResponseField>
+<ResponseField name="data.never_checked" type="number">
+  Addresses the index has never seen. A plain batch returns `null` for these; a
+  [job](/api-reference/jobs) resolves them against live sources.
+</ResponseField>
+<ResponseField name="data.would_bill_estimate" type="object">
+  `low`, `high` and a `note` saying how to read them.
+</ResponseField>
+
+```json
+{
+  "data": {
+    "requested": 500,
+    "in_index": 138,
+    "previously_checked_empty": 214,
+    "never_checked": 148,
+    "would_bill_estimate": {
+      "low": 121,
+      "high": 157,
+      "note": "low is exact for a /v1/batch of this list: the wallets already holding an X handle or a Farcaster account. high adds never-checked wallets resolving at the measured overall rate..."
+    }
+  },
+  "meta": {
+    "generated_at": "2026-09-01T12:00:00.000Z",
+    "billable_predicate": "x_or_farcaster"
+  }
+}
+```
+
+## Reading the band
+
+`low` is exact, not an estimate: it is what a [batch](/api-reference/batch) of
+this list bills today, because a batch bills the addresses already holding an
+X handle or a Farcaster account. It can sit below `in_index`, because an
+address carrying only an ENS name, a Lens profile or a GitHub account is
+returned and [never billed](/api-reference/introduction#credits).
+
+`high` adds the never-checked addresses at the measured overall match rate. A
+[job](/api-reference/jobs) resolves those against live sources, so `high` is
+the job-shaped ceiling; a plain batch stays at `low`. It is a band, not a
+quote: match rates differ several-fold by chain, and an address does not say
+which chain its holder community lives on. Take the measured per-chain table
+from [`GET /v1/stats`](/api-reference/stats) `match_rates` and use the row for
+your chain.
+
+## Errors
+
+The [standard errors](/api-reference/errors), plus `LIST_TOO_SMALL` (400) when
+fewer than 10 distinct addresses remain after deduplication, and
+`BATCH_SIZE_EXCEEDED` (400) when the list is over your plan’s ceiling; the
+message names it.

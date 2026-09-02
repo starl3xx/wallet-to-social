@@ -9,6 +9,8 @@ import {
   X_UNCLAIMED_PCT,
   KNOWN_AGENTS,
   CHAIN_COUNT_WORD,
+  CHAIN_MATCH_RATES,
+  CHAIN_MATCH_RATES_MEASURED_ON,
 } from '@/lib/public-figures';
 import {
   PACKS,
@@ -19,7 +21,12 @@ import {
   SUBMISSION_MULTIPLIER,
 } from '@/lib/packs';
 import { API_PLANS, CREDIT_API_PLAN } from '@/lib/api-plans';
-import { X402_PACKS, MEASURED_MATCH_RATE } from '@/lib/packs';
+import {
+  X402_PACKS,
+  X402_MAX_QUANTITY,
+  X402_LOYALTY_EVERY_N,
+  MEASURED_MATCH_RATE,
+} from '@/lib/packs';
 import {
   MATCH_SENTENCE,
   ATTESTED_SENTENCE,
@@ -170,7 +177,7 @@ The handle export leaves out the ones we checked and found dead, so a campaign i
 
 ## Coverage, in two numbers rather than one
 
-There is no single match rate, and quoting one hides the thing that decides a campaign. The chain matters more than the collection does. Measured on 2026-08-17 against our own index with no external calls: Base 46.2% and Ethereum 16.6% of holders have an X or Farcaster account. Base is roughly three times Ethereum because Base is where Farcaster lives. Use the row for your chain, not an average.
+There is no single match rate, and quoting one hides the thing that decides a campaign. The chain matters more than the collection does. Measured on ${CHAIN_MATCH_RATES_MEASURED_ON} against our own index with no external calls: Base ${CHAIN_MATCH_RATES.base.either_pct}% and Ethereum ${CHAIN_MATCH_RATES.ethereum.either_pct}% of holders have an X or Farcaster account. Base is roughly three times Ethereum because Base is where Farcaster lives. Use the row for your chain, not an average; the full measured table is machine-readable as match_rates on GET /api/v1/stats.
 
 Keep two separate numbers apart. “Has an identity” counts ENS and Lens and is a resolution rate. “Has an X or Farcaster account” is the smaller of the two, it is the number a campaign plans around, and it is the one that is billed. Tools that match wallets to social accounts typically publish rates in the low single digits.
 
@@ -180,11 +187,11 @@ Having an account and reaching it are different claims again, which is what the 
 
 The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any account holding live credits.
 
-Eight endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request, an async job submission with a free status poll, reverse lookup by X handle, reverse lookup by Farcaster username, index statistics, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
+Nine endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request on the default plan, an async job submission with a free status poll, a free dry-run estimate over a list (counts only: how many are in the index and the band a resolve would bill inside), reverse lookup by X handle, reverse lookup by Farcaster username, index statistics with the measured per-chain match rates, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
 
-Billing follows the same rule as the app. A single lookup costs one match credit when it resolves to X or Farcaster, and nothing when it does not. A batch costs one credit per resolving address, after duplicates are removed. A reverse lookup costs one credit per wallet returned, and nothing when a handle has no wallets. Statistics and usage are free, and still require a key. ${ZERO_BALANCE_SENTENCE}
+Billing follows the same rule as the app. A single lookup costs one match credit when it resolves to X or Farcaster, and nothing when it does not. A batch costs one credit per resolving address, after duplicates are removed. A reverse lookup costs one credit per wallet returned, and nothing when a handle has no wallets. Statistics, usage and the estimate are free of credits, and still require a key; the estimate weighs the rate window like the batch it previews. ${ZERO_BALANCE_SENTENCE}
 
-Rate limits for a credit-holding account are ${perMinute} requests per minute, ${perDay} per day and ${perMonth} per month, counted across every key on the account so that minting more keys does not raise the ceiling. Responses carry the remaining allowance in headers, and a rejected request says when to retry. Errors return a stable machine-readable code alongside the human-readable message.
+Rate limits for a credit-holding account start at ${perMinute} requests per minute, ${perDay} per day and ${perMonth} per month, counted across every key on the account so that minting more keys does not raise the ceiling. A live Scale pack raises the account to the ${API_PLANS.startup.requestsPerMinute}-per-minute preset with ${API_PLANS.startup.maxBatchSize}-address batches, and a live Index pack to ${API_PLANS.enterprise.requestsPerMinute} per minute with ${API_PLANS.enterprise.maxBatchSize}-address batches, for the twelve months the pack lives; credits still bound what can be resolved in total. Responses carry the remaining allowance in headers, and a rejected request says when to retry. Errors return a stable machine-readable code alongside the human-readable message.
 
 Full request and response shapes, every error code and the exact header semantics are in the API reference, linked below, rather than repeated here. The machine-readable form is an OpenAPI 3.1 description at https://docs.walletlink.social/openapi.yaml.
 
@@ -192,7 +199,7 @@ Full request and response shapes, every error code and the exact header semantic
 
 There is a remote MCP server at https://walletlink.social/api/mcp, so an agent can resolve wallets without a person first reading an API reference. Streamable HTTP, drawing the same credits as everything else. It is listed in the official MCP registry as social.walletlink/wallet-identity, verified by DNS.
 
-Seven tools: resolve one to ${batchSize} addresses to their social identities, submit a background job that resolves unchecked wallets against live sources, poll that job for progress and results, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The job poll, the coverage tool and the balance tool are free on both meters. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
+Eight tools: resolve addresses to their social identities (up to the key’s plan ceiling per call), estimate a list before spending on it (free counts: what is in the index and what a resolve would bill), submit a background job that resolves unchecked wallets against live sources, poll that job for progress and results, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance on the key. The job poll, the coverage tool, the balance tool and the estimate cost no credits. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
 
 Two ways to authenticate. OAuth 2.1, which is what a client with a person behind it should use: add the URL, and the first tool call opens a consent screen rather than asking for a key. The server is an OAuth resource server, discovery starts at https://walletlink.social/.well-known/oauth-protected-resource, and it registers clients through both client ID metadata documents and dynamic client registration at https://walletlink.social/api/oauth/register. Every client is public, so PKCE with S256 is required and no client secret is issued. Access tokens last an hour and refresh themselves; a person ends a connection from their account and it stops on the next call.
 
@@ -203,6 +210,8 @@ Tool discovery needs neither: a client can connect and list the tools before buy
 ## For agents: buying credits with USDC, no account
 
 An agent can buy its own credits over x402, with no account, no card and no email. POST to https://walletlink.social/api/x402/buy and it answers 402 with a payment challenge; pay ${agentPrice} in USDC on Base and the response carries a fresh API key with ${agentMatches} match credits behind it. That is roughly ${agentAddresses} resolvable addresses at our measured rate, or one full batch call, at about $${agentPerAddress} an address.
+
+One settlement can buy more: send {"quantity": N}, 1 to ${X402_MAX_QUANTITY}, and the challenge, the payment and the grant all scale linearly, so N packs cost N signatures’ worth of nothing extra. A buy that carries a valid wts_live_ key in the Authorization header is a top-up: the credits land on that key’s account and no new key is minted, which is how an agent recovers from a 402 mid-session without a second credential. An OAuth token cannot buy, there or anywhere. Every ${X402_LOYALTY_EVERY_N}th settled purchase from the same wallet grants one bonus pack of matches, on the settlement history of that wallet alone.
 
 The credits are the same ones a card buys and are metered the same way, so an address that resolves to nobody still costs nothing. The key works on the whole REST API and on the MCP server.
 
@@ -227,7 +236,7 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 - [Coverage](https://docs.walletlink.social/concepts/coverage.md): what fraction of a wallet list resolves, per chain, and what the number actually means.
 - [Data quality](https://docs.walletlink.social/concepts/data-quality.md): evidence classes, the quality score, reachability states, and when a record goes stale.
 - [API reference](https://docs.walletlink.social/api-reference/introduction.md): base URL, authentication and conventions, then one page per endpoint.
-- [MCP server](https://docs.walletlink.social/mcp-server.md): seven tools for agents, what each costs, and the config block for Claude and Cursor.
+- [MCP server](https://docs.walletlink.social/mcp-server.md): eight tools for agents, what each costs, and the config block for Claude and Cursor.
 - [Agent pack over x402](https://docs.walletlink.social/agent-pack.md): buy credits with USDC on Base, no account, and how to recover a lost key.
 - [OpenAPI description](https://docs.walletlink.social/openapi.yaml): the whole REST surface as OpenAPI 3.1, for SDK generation and tool discovery.
 - [Full docs for LLMs](https://docs.walletlink.social/llms-full.txt): the complete documentation in one file.

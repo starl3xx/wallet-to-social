@@ -1,6 +1,6 @@
 ---
 title: 'MCP server'
-description: 'Seven tools that let an agent resolve wallets to social identities, over the same API and the same balance.'
+description: 'Eight tools that let an agent resolve wallets to social identities, over the same API and the same balance.'
 ---
 
 An agent can call walletlink.social directly, without a human first reading this
@@ -133,11 +133,12 @@ Keys are self-serve from the account menu for any account holding credits.
 An OAuth connection is better for a person using a client. A key is better for
 a server you run yourself, where there is no browser to sign in with.
 
-## The seven tools
+## The eight tools
 
 | Tool                                       | Answers                                      | Match credits                              |
 | ------------------------------------------ | -------------------------------------------- | ------------------------------------------ |
 | `walletlink_resolve_wallets`               | Who is behind these addresses?               | 1 per address that resolves                |
+| `walletlink_estimate_list`                 | What would resolving this list cost?         | 0                                          |
 | `walletlink_submit_job`                    | Run a big list, or re-check the misses, live | 1 per address that resolves, at completion |
 | `walletlink_job_status`                    | How is that job doing, and what did it find? | 0                                          |
 | `walletlink_wallets_by_x_handle`           | Which wallets belong to this X account?      | 1 per wallet returned, up to 100           |
@@ -145,10 +146,16 @@ a server you run yourself, where there is no browser to sign in with.
 | `walletlink_index_coverage`                | How much of the index carries each identity? | 0                                          |
 | `walletlink_account_balance`               | What is left on this key?                    | 0                                          |
 
-Eight endpoints become seven tools because the single and batch lookups answer
+Nine endpoints become eight tools because the single and batch lookups answer
 the same question at two sizes and bill by the same rule.
-`walletlink_resolve_wallets` takes 1 to 50 addresses and picks the endpoint for
-you.
+`walletlink_resolve_wallets` takes 1 address up to your plan’s batch ceiling
+(50 on the default plan; a live Scale or Index pack raises it, see
+[plans](/api-reference/introduction#plans)) and picks the endpoint for you.
+
+`walletlink_estimate_list` is the [dry run](/api-reference/estimate): counts
+of what is in the index and the band a resolve would bill inside, free at any
+balance, weighed against the rate window like the batch it previews. Have an
+agent call it before spending on an unknown list.
 
 `walletlink_submit_job` is the async surface: it submits a background
 [job](/api-reference/jobs) that resolves wallets the index has not checked
@@ -175,9 +182,11 @@ page-size parameter. Have the agent call `walletlink_account_balance` first,
 which is free.
 
 **A batch spends its size in rate limit.** A batch call spends one request-unit
-per address of the 60-per-minute window, so a full 50-address call is nearly a
-whole minute, and a second full batch inside the same minute is refused. Pace
-multi-batch runs a minute apart and read the reset time from `quota`.
+per address of the per-minute window, and a full batch fills most of a minute
+on every plan (60 units and 50-address batches on the default plan; a live
+Scale or Index pack raises both), so a second full batch inside the same
+minute is refused. Pace multi-batch runs a minute apart and read the reset
+time from `quota`.
 
 **Nothing is reserved.** The balance is checked, not held, so a call that
 resolves more than you have left is allowed to finish and the next one fails
@@ -190,7 +199,7 @@ idempotency key; the REST [batch endpoint](/api-reference/batch) can, so a
 pipeline that must retry safely should call REST with an `Idempotency-Key`
 header instead. A job submission is half-covered on its own: a resend while
 the job runs is refused with the active id, and only a resend after
-completion runs and bills again. At zero balance the three free tools keep
+completion runs and bills again. At zero balance the four free tools keep
 answering, so a drained agent can always read its own meter and collect a
 finished job.
 

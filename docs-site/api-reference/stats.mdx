@@ -34,6 +34,12 @@ curl https://walletlink.social/api/v1/stats \
     <ResponseField name="farcaster_stats" type="object">
       `avg_followers` and `max_followers` across indexed Farcaster accounts.
     </ResponseField>
+    <ResponseField name="match_rates" type="object">
+      The measured per-chain match rates: `measured_on`, `basis`,
+      `overall_either_pct`, and `by_chain` rows each carrying `collections`,
+      `holders`, `farcaster_pct`, `x_pct` and `either_pct`. Constants from a
+      dated measurement, not live counts; see below.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -49,7 +55,35 @@ curl https://walletlink.social/api/v1/stats \
       "lens": 42000,
       "github": 31000
     },
-    "farcaster_stats": { "avg_followers": 210, "max_followers": 1200000 }
+    "farcaster_stats": { "avg_followers": 210, "max_followers": 1200000 },
+    "match_rates": {
+      "measured_on": "2026-08-17",
+      "basis": "Measured across 26 real collections and 72,318 holders, against the index alone. The chain decides this more than anything else about a collection; use the row for your chain, not the overall figure.",
+      "overall_either_pct": 30.8,
+      "by_chain": {
+        "base": {
+          "collections": 8,
+          "holders": 35294,
+          "farcaster_pct": 44.4,
+          "x_pct": 32.1,
+          "either_pct": 46.2
+        },
+        "ethereum": {
+          "collections": 9,
+          "holders": 17462,
+          "farcaster_pct": 12.2,
+          "x_pct": 12.6,
+          "either_pct": 16.6
+        },
+        "robinhood": {
+          "collections": 9,
+          "holders": 19562,
+          "farcaster_pct": 11.5,
+          "x_pct": 12.2,
+          "either_pct": 15.6
+        }
+      }
+    }
   },
   "meta": {
     "generated_at": "2026-08-14T12:00:00.000Z",
@@ -62,8 +96,23 @@ curl https://walletlink.social/api/v1/stats \
 response was built. Read `as_of` when you quote a number.
 
 <Warning>
-  Figures above are illustrative. Call the endpoint for real ones.
+  The counts above are illustrative; call the endpoint for real ones. The
+  `match_rates` block is the real measured table.
 </Warning>
+
+## The match-rate table
+
+`match_rates` is different in kind from the counts around it: a dated
+measurement of 26 real collections against the index, served as constants so
+an agent can plan a spend at decision time instead of reading
+[coverage](/concepts/coverage). The chain decides a list’s match rate more
+than anything else about it, several-fold between Ethereum and Base, so use
+`by_chain` and the row for your chain; `overall_either_pct` describes no
+collection in particular. `either_pct` is the planning number: the share of
+holders with an X or Farcaster account, which is exactly what
+[bills](/api-reference/introduction#credits). Pair it with
+[`POST /v1/estimate`](/api-reference/estimate), which reports what your
+specific list would bill.
 
 ## Reading the two totals
 

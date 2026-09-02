@@ -177,3 +177,57 @@ export const CHAIN_COUNT_WORD =
 export const KNOWN_AGENTS = '13,622';
 /** The same fact at display size, for stat tiles. */
 export const KNOWN_AGENTS_SHORT = '13K+';
+
+/**
+ * The per-chain match rates, from the 26-collection measurement.
+ *
+ * These are not properties of the database, so no query can verify them
+ * (`scripts/check-published-figures.ts` explains the class). They came from
+ * measuring 26 real collections, 72,318 holders, across three chains on
+ * 2026-08-17, against the index alone with no external calls; the dated record
+ * is the table in `docs-site/concepts/coverage.mdx`, and the figures check
+ * compares these constants against that record and fails when the measurement
+ * is too old to keep quoting.
+ *
+ * They existed only as prose until gap 19 (docs/AGENT-SYSTEM.md) put them on
+ * `/v1/stats`: an agent planning a spend was told "the chain decides, 16% to
+ * 46%" on a docs page it cannot read at decision time. Percentages are of
+ * holders with an X or Farcaster account, the billable predicate; `either_pct`
+ * is the campaign-planning number.
+ *
+ * `MEASURED_MATCH_RATE` in lib/packs.ts is a different measurement (matches
+ * per submitted wallet on a random 600-holder sample, used for pack sizing)
+ * and deliberately stays separate: one is what a pack is worth, this is what
+ * a chain's list will match.
+ */
+export const CHAIN_MATCH_RATES_MEASURED_ON = '2026-08-17';
+export const CHAIN_MATCH_RATES = {
+  base: {
+    collections: 8,
+    holders: 35294,
+    farcaster_pct: 44.4,
+    x_pct: 32.1,
+    either_pct: 46.2,
+  },
+  ethereum: {
+    collections: 9,
+    holders: 17462,
+    farcaster_pct: 12.2,
+    x_pct: 12.6,
+    either_pct: 16.6,
+  },
+  robinhood: {
+    collections: 9,
+    holders: 19562,
+    farcaster_pct: 11.5,
+    x_pct: 12.2,
+    either_pct: 15.6,
+  },
+} as const;
+
+/**
+ * The holders-weighted either-rate across all 26 collections. The honest
+ * summary of the sample and a description of no collection in particular,
+ * which is why the per-chain rows above travel with it everywhere it goes.
+ */
+export const CHAIN_MATCH_RATE_OVERALL_PCT = 30.8;

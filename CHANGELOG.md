@@ -2,6 +2,58 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-01 (a pack buys its limits, the rail grows, and spend gets a dry run)
+
+Gaps 17, 18 and 19 of `docs/AGENT-SYSTEM.md` (tier C, decided 2026-09-01),
+shipped with their docs in the same wave.
+
+- **Plan laddering (gap 17).** The account's highest UNEXPIRED pack decides
+  the rate-limit preset a request is served under, spent down or not:
+  Trial/Campaign/Agent stay on `developer`, a live Scale pack serves `startup`
+  (300/min, 200-address batches), a live Index pack serves `enterprise`
+  (1,000/min, 1,000-address batches). Decided per request in
+  `authenticateApiRequest` from `credit_lots` (`PACK_API_PLAN` and
+  `ladderedPlanId` in `lib/api-plans.ts`), never from anything a caller
+  sends, never demoting a plan support raised by hand; keys stay stored on
+  `developer` and legacy pro/unlimited keep their mapping. Credits still
+  bound totals. The MCP resolve schema's cap moved to the largest plan batch
+  so zod cannot refuse a list the caller's real plan accepts; the v1 handler
+  enforces the served ceiling.
+- **x402 growth (gap 18).** `{"quantity": N}` on the buy body, 1-25 packs in
+  one settlement at linear price: the challenge, the verification and the
+  grant all scale from the one strictly parsed number (`quantityFrom`), and
+  replay idempotency stays keyed on the authorization. A valid `wts_live_`
+  key presented with the payment makes the buy a top-up: credits land on that
+  key's account, no key is minted, and the account is named only by the key's
+  own prefix; an OAuth token answers `403 OAUTH_CANNOT_BUY` and an invalid
+  key `401 INVALID_TOPUP_KEY`, both before any money moves. Every 10th
+  settled purchase from the same wallet grants one bonus Agent pack of
+  matches (`countSettledPurchases` counts settlement ids naming the wallet,
+  so bonus lots never count and a replay cannot reach the branch).
+- **`POST /v1/estimate` (gap 19).** The dry run: free on the match meter at
+  any balance, weighed against the rate window like the batch it previews
+  (one unit per address, via the new `rateWeight` option on
+  `authenticateApiRequest`), capped at the plan's batch ceiling, minimum 10
+  distinct wallets. Counts only, never identities: `in_index`,
+  `previously_checked_empty`, `never_checked`, and a `{low, high}` band
+  where low is exact for a batch of the list and high adds never-checked
+  wallets at the measured overall rate. New `LIST_TOO_SMALL` error code.
+- **Per-chain match rates on `/v1/stats`.** The 16-46% table left prose:
+  `CHAIN_MATCH_RATES` in `lib/public-figures.ts` (registered as a dated
+  measurement in `scripts/check-published-figures.ts`, with the coverage
+  docs table as the record) now rides `data.match_rates`, and llms.txt
+  interpolates it.
+- **MCP: eight tools.** `walletlink_estimate_list` joins the seven, free,
+  described honestly, weighed like the batch. Tool copy now states the
+  plan-dependent batch ceiling, and the canonical pacing sentence was
+  reworded (in the same PR as the behavior) to hold at every rung.
+- **Invariants.** New adversarial assertions for all three: a plan name
+  smuggled as a pack id ladders nowhere and the ladder never demotes; the
+  quantity parser refuses coercion and the cap; the top-up cannot credit an
+  account the key does not prove and refuses before settlement; the loyalty
+  bonus is unreachable by replay; the estimate declares zero cost with
+  per-wallet weight and its response can carry no identity keys.
+
 ### 2026-09-01 (the paid rail gets the async surface)
 
 Gap 15 of `docs/AGENT-SYSTEM.md` (tier C, decided 2026-09-01), which also

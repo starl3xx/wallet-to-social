@@ -41,6 +41,12 @@ move your reachable audience more than the size of your collection does.
 Use the row for your chain rather than the average. The average is the honest
 summary of these 26 collections and it describes no collection in particular.
 
+The same table is machine-readable as `match_rates` on
+[`GET /v1/stats`](/api-reference/stats), so an agent can plan a spend from it
+at decision time; pair it with the free
+[`POST /v1/estimate`](/api-reference/estimate), which reports what a specific
+list would bill.
+
 For context, tools that match wallets to social accounts typically publish
 rates in the low single digits. Even the lowest chain here clears that by a
 wide margin.
