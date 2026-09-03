@@ -728,10 +728,31 @@ export function calculateQualityScore(
         // de-stack rule as farcaster_sweep/neynar)
         if (!sources.includes('ens')) score += 30;
         break;
+      case 'basename_record':
+        // The same evidence one chain down: a name record written to an L2
+        // resolver by the only address allowed to write it. Scored as its L1
+        // twin, and it de-stacks against BOTH of them for the reason they
+        // de-stack against each other: twitter(20) + ens(30) +
+        // basename_record(30) = 80 would cross the 70 trust line for a wallet
+        // whose Farcaster side was never checked, on the strength of one owner
+        // publishing the same unverified handle in two places.
+        if (!sources.includes('ens') && !sources.includes('ens_onchain'))
+          score += 30;
+        break;
       case 'neynar': // Neynar provides verified Farcaster data with linked socials
         score += 25;
         break;
       case 'web3bio': // Aggregated data - good but less direct
+        score += 15;
+        break;
+      case 'zora_profile':
+        // Aggregated, not attested, and scored with the other aggregated
+        // source rather than with the attested ones below. The creator
+        // platform evidences the ACCOUNT half with a dated link event and
+        // evidences the WALLET half not at all: a linked wallet arrives as a
+        // type and an address, with no signature, event or timestamp. A pair
+        // is worth its weaker half. twitter(20) + 15 = 35 keeps it well below
+        // the 70 trust line, which is the honest place for corroboration.
         score += 15;
         break;
       case 'eas':
@@ -800,7 +821,9 @@ function isTwitterVerified(sources: string[]): boolean {
       s === 'debank_tweet' ||
       s === 'sybil_list' ||
       s === 'snapshot_profile' ||
-      s === 'opensea_profile'
+      s === 'opensea_profile' ||
+      s === 'basename_record' ||
+      s === 'zora_profile'
   );
 }
 

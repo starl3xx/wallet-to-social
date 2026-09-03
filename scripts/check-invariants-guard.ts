@@ -1254,6 +1254,255 @@ const MUTATIONS: Mutation[] = [
     from: '    handleSuppressed = (await isSuppressed(platform, [handle])).size > 0;',
     to: '    handleSuppressed = false;',
   },
+
+  {
+    // 44.5% of the name corpus is expired and still resolving. Without this
+    // block the harvest emits pairs for names anybody can buy today.
+    name: 'the expiry filter is deleted, so expired names emit pairs again',
+    file: 'lib/basenames.ts',
+    from:
+      '      if (expires <= BigInt(nowSeconds)) {\n' +
+      '        drops.expired++;\n' +
+      '        return;\n' +
+      '      }\n',
+    to: '',
+  },
+  {
+    // Fail-open, the shape this repo keeps finding: an expiry that could not
+    // be read is treated as an expiry that passed.
+    name: 'an unreadable expiry becomes a pass instead of a refusal',
+    file: 'lib/basenames.ts',
+    from:
+      '      if (expires === null) {\n' +
+      '        drops.expiryUnreadable++;\n' +
+      '        return;\n' +
+      '      }\n',
+    to: '',
+  },
+  {
+    // The filter still runs, on the wrong name. An owner whose primary name is
+    // a different name of theirs gets THAT name's expiry checked, and the
+    // guard reports a clean pass over a name nobody owns.
+    name: 'the recovered label is no longer hashed back to the node it came from',
+    file: 'lib/basenames.ts',
+    from: '      if (!name || !match || rawBaseNode(match[1]) !== n.node) {',
+    to: '      if (!name || !match) {',
+  },
+  {
+    // Back to repairing free text: `x.com/name` becomes `xcom` and an email
+    // becomes a handle belonging to somebody else.
+    name: 'the record normaliser stops refusing values that are not handles',
+    file: 'lib/basenames.ts',
+    from: '  if (!/^[A-Za-z0-9_]{1,15}$/.test(candidate))\n',
+    to: '  if (false)\n',
+  },
+  {
+    // A normaliser nothing consults is a pure function with a passing test and
+    // no effect on the index.
+    name: 'the pipeline stops acting on what the normaliser refused',
+    file: 'lib/basenames.ts',
+    from:
+      '      if (normalisedRecord.handle === null) {\n' +
+      "        if (normalisedRecord.reject === 'numeric') drops.handleNumeric++;\n" +
+      "        else if (normalisedRecord.reject === 'tooShort') drops.handleTooShort++;\n" +
+      "        else if (normalisedRecord.reject === 'reservedPath')\n" +
+      '          drops.handleReservedPath++;\n' +
+      '        else drops.handleMalformed++;\n' +
+      '        onReject?.(raw, normalisedRecord.reject);\n' +
+      '        return;\n' +
+      '      }\n',
+    to: '',
+  },
+  {
+    // The defect the raw-label derivation exists for. `namehash` normalises
+    // and this registrar does not, so it silently reads a DIFFERENT
+    // registration's expiry: `SemperAltius` and `semperaltius` are two live
+    // names with two different expiry dates.
+    name: 'the label is hashed with namehash again, so the expiry is read for the wrong registration',
+    file: 'lib/basenames.ts',
+    from: 'const rawBaseNode = (label: string): string =>\n',
+    to:
+      'const rawBaseNode = (label: string): string =>\n' +
+      '  ethers.namehash(`${label}.base.eth`) ??\n',
+  },
+  {
+    // ~770 wrong pairs, each landing on a real stranger: nine of the ten
+    // commonest short values in the corpus are live X accounts.
+    name: 'one to three character records are accepted again',
+    file: 'lib/basenames.ts',
+    from: '  if (candidate.length < MIN_HANDLE_LENGTH)\n',
+    to: '  if (false)\n',
+  },
+  {
+    // `x.com/intent/user?screen_name=victim` becomes `@intent`: the right
+    // answer discarded and a different real account substituted for it.
+    name: 'a link to a page of X is read as a handle again',
+    file: 'lib/basenames.ts',
+    from: '  if (url && X_RESERVED_PATHS.has(url[1].toLowerCase()))\n',
+    to: '  if (false)\n',
+  },
+  {
+    // Relying on the trigger alone is what attaches this source's name to a
+    // handle it never attested: the trigger nulls the handle, the CASE arm is
+    // not taken, and the ELSE appends the source anyway.
+    name: 'the name-record harvest stops filtering suppressed identifiers',
+    file: 'lib/basenames.ts',
+    from: '    const links = await dropSuppressed(candidateLinks, stats.dropped);',
+    to: '    const links = candidateLinks;',
+  },
+  {
+    // 42P18. The same defect that turned the Neynar credit ceiling off for 19
+    // days: the checkpoint never advances and every run reports clean.
+    name: 'the name-record checkpoint parameter loses its cast',
+    file: 'lib/basenames.ts',
+    from: "jsonb_build_object('lastBlock', ${lastBlock}::bigint)",
+    to: "jsonb_build_object('lastBlock', ${lastBlock})",
+  },
+  {
+    // 20 + 30 + 30 = 80 crosses the 70 trust line on the strength of one owner
+    // publishing the same unverified handle in two places.
+    name: 'a name record stacks with an ENS record and crosses the trust line',
+    file: 'lib/social-graph.ts',
+    from:
+      "        if (!sources.includes('ens') && !sources.includes('ens_onchain'))\n" +
+      '          score += 30;',
+    to: '        score += 30;',
+  },
+  {
+    // The class that says a service checked the account, for evidence where
+    // nobody checked the handle at all.
+    name: 'a name record is published as a service attestation',
+    file: 'lib/api-sources.ts',
+    from: "  basename_record: 'onchain',",
+    to: "  basename_record: 'attested-social',",
+  },
+  {
+    // The inflation review caught: the upstream evidences the ACCOUNT half
+    // with a dated ledger and the WALLET half with nothing, so publishing the
+    // pair as owner-attested claims a proof nobody has. It would also inflate
+    // the published owner-attested share with rows nobody attested.
+    name: 'the creator profile is published as owner-attested again',
+    file: 'lib/api-sources.ts',
+    from: "  zora_profile: 'aggregated',",
+    to: "  zora_profile: 'attested-social',",
+  },
+  {
+    // The score half of the same claim: 45 puts it with the attested sources
+    // instead of with the other correlated one.
+    name: 'the creator profile is scored as an attestation rather than as corroboration',
+    file: 'lib/social-graph.ts',
+    from: "      case 'zora_profile':\n",
+    to: "      case 'zora_profile_moved':\n",
+  },
+
+  {
+    // The ENS-reverse-name trap, verified live: an address the platform never
+    // saw returns a record whose `handle` is a stranger's ENS name. Trusting
+    // it writes that stranger into the index as an attested account name.
+    name: 'the account gate falls back to the handle field, so a stranger name is read as an identity',
+    file: 'lib/zora-profiles.ts',
+    from:
+      '  const username = asString(profile.username);\n' +
+      '  const linkedWallets = profile.linkedWallets;\n' +
+      '  if (\n' +
+      '    username === null ||\n' +
+      '    !isRecord(profile.socialAccounts) ||\n' +
+      '    !isRecord(linkedWallets) ||\n' +
+      '    !Array.isArray(linkedWallets.edges)\n' +
+      '  ) {\n' +
+      '    refusals.not_an_account++;\n' +
+      '    return empty;\n' +
+      '  }\n',
+    to:
+      '  const username = asString(profile.username) ?? asString(profile.handle);\n' +
+      '  const linkedWallets = isRecord(profile.linkedWallets)\n' +
+      '    ? profile.linkedWallets\n' +
+      '    : { edges: [] };\n',
+  },
+  {
+    // A custodial address the person never chose, asserted to belong to their
+    // X account.
+    name: 'a platform-provisioned wallet is emitted beside the account',
+    file: 'lib/zora-profiles.ts',
+    from: "    if (node.walletType !== 'EXTERNAL') continue;\n",
+    to: '',
+  },
+  {
+    name: 'a blocked profile is harvested anyway',
+    file: 'lib/zora-profiles.ts',
+    from: '  if (profile.platformBlocked === true) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'a blocked list row is no longer skipped at enumeration',
+    file: 'lib/zora-profiles.ts',
+    from:
+      '    if (node.platformBlocked === true || creator?.platformBlocked === true) {\n' +
+      '      refusals.platform_blocked++;\n' +
+      '      continue;\n' +
+      '    }\n',
+    to: '',
+  },
+  {
+    // The ledger is the whole attestation. Without an entry behind it, an
+    // account merely sitting on a profile is an unexplained record.
+    name: 'an account with no link event behind it counts as attested',
+    file: 'lib/zora-profiles.ts',
+    from: '  return latest !== null && latest.linked;',
+    to: '  return latest === null || latest.linked;',
+  },
+  {
+    name: 'a malformed username is repaired into a plausible stranger rather than refused',
+    file: 'lib/zora-profiles.ts',
+    from: '  } else if (!X_HANDLE.test(xUsername)) {',
+    to: '  } else if (false) {',
+  },
+  {
+    // Asking a third party about a suppressed address is re-collection whether
+    // or not the answer is ever stored.
+    name: 'the address walk asks about suppressed addresses and filters afterwards',
+    file: 'scripts/harvest-zora-profiles.ts',
+    from:
+      '      const askable = wallets.filter(\n' +
+      "        (w) => !isKindSuppressed(sets, 'wallet', w)\n" +
+      '      );',
+    to: '      const askable = wallets;',
+  },
+  {
+    // What the Sybil import really did on 2026-08-22: a new attested source
+    // that the figure's own list does not name makes the published share fall
+    // as the index improves.
+    name: 'an attested source is dropped from the published-share list',
+    file: 'scripts/check-published-figures.ts',
+    from: "'opensea_profile','basename_record']",
+    to: "'opensea_profile']",
+  },
+  {
+    // The opposite direction, and the one that matters more now that the two
+    // lists have legitimately diverged. Dropping an attested source makes the
+    // share fall, which looks like a regression and gets investigated. ADDING
+    // a correlated source makes it RISE, which looks like good news while
+    // inflating a published claim that the owner attested those rows.
+    name: 'a correlated source is counted towards the published owner-attested share',
+    file: 'scripts/check-published-figures.ts',
+    from: "'opensea_profile','basename_record']",
+    to: "'opensea_profile','basename_record','zora_profile']",
+  },
+  {
+    // The refused platform gets somewhere to land. Nothing else has to change
+    // for a Discord identity to start reaching the graph.
+    name: 'the shared link shape grows a field for the platform that was refused',
+    file: 'lib/attested-links.ts',
+    from:
+      'export interface AttestedLink {\n' +
+      '  wallet: string;\n' +
+      '  handle: string;',
+    to:
+      'export interface AttestedLink {\n' +
+      '  wallet: string;\n' +
+      '  discord: string | null;\n' +
+      '  handle: string;',
+  },
 ];
 
 function invariantsPass(): boolean {

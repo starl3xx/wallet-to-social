@@ -1,0 +1,62 @@
+# Weekly creator-profile harvest: walks a creator list newest-first, reads each
+# account through the keyless profile API, and ingests the wallet-to-X pairs
+# that survive both mandatory filters through the shared attested-link ingest
+# (source 'zora_profile').
+#
+# A workflow rather than a Vercel cron because the measured ceiling is about
+# one request per second with no reset header to read, so a useful pass is tens
+# of minutes and a 300-second serverless cron cannot hold one.
+#
+# Checkpointed in ingest_state, so a budgeted run resumes where the last one
+# stopped. The second walk (--mode wallets, which asks about addresses the
+# index already holds) is deliberately not scheduled here: it is a much longer
+# sweep over five million rows and belongs on its own cadence once the
+# discovery walk has reported real numbers.
+#
+# Required repository secrets: DATABASE_URL. The role behind it needs the
+# ingestLinks write set (social_graph, handle_conflicts, ingest_state), granted
+# to sweep_runner by scripts/migrate-grant-harvest-writes.ts, plus read on
+# suppressed_identifiers for the removal pre-filter.
+name: zora-profile-harvest
+
+on:
+  schedule:
+    # Sunday 07:30 UTC. The Sunday harvest band fills up early: Snapshot runs
+    # at 06:00 and the marketplace enrich at 06:30, and this run is ~22 minutes
+    # of paced requests plus ingest, so 06:30 would have overlapped the whole
+    # of the marketplace run with a third writer on the same table.
+    - cron: '30 7 * * 0'
+  workflow_dispatch:
+    inputs:
+      max_requests:
+        description: 'Request budget (list pages plus profile reads)'
+        required: false
+        default: '1200'
+        type: string
+
+concurrency:
+  group: zora-profile-harvest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    # 1200 requests at 1.1s spacing is ~22 minutes plus ingest time.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: that form is shell injection with
+      # secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/harvest-zora-profiles.ts --commit --max-requests "$MAX_REQUESTS"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_REQUESTS: ${{ inputs.max_requests || '1200' }}

@@ -21,6 +21,10 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/basenames-harvest",
+      "schedule": "20 5 * * *"
+    },
+    {
       "path": "/api/cron/seed-collections",
       "schedule": "0 7 * * *"
     },

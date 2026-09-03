@@ -39,6 +39,58 @@ pipelines: an upper layer may **commission** collection (a job, a deep scan)
 but never writes directly; the pipeline writes, and the row carries provenance
 like any other. Commissioning a fact is not inventing one.
 
+**Two ingest routes added 2026-09-02, with the evidence-class decisions that
+came with them.** Both are L0 and nothing else: they add facts and provenance,
+and move no verb, no price and no response shape. Naming the layer is the
+requirement this document sets, so it is named here rather than in a
+changelog entry alone.
+
+- **Basenames text records (`basename_record`).** `com.twitter` written to a
+  Base name the wallet owner controls. The two resolvers’ own `TextChanged`
+  logs enumerate the candidate names and nothing else; the value is then read
+  through the registry, so a name that has since moved between the resolvers
+  publishes what it says today rather than what it said on the resolver it
+  left. Public class `onchain`: the same class and the same
+  score as the mainnet name records, because it is the same mechanism one
+  chain down. That places it inside `ATTESTED_SOURCES`, and that is the
+  deliberate half. The owner did publish the record, so the row is
+  owner-attested and counts in the owner-attested share; the handle beside it
+  is still free text nobody checked, which is exactly what a score below the
+  trust line says. Two filters are load-bearing rather than tidy, because
+  without them the row is about somebody else: expired names still resolve on
+  this registry, so a name past `nameExpires` is dropped, and a raw value is
+  validated then rejected, never stripped into shape.
+- **Creator profiles (`zora_profile`).** The X account is attached through a
+  flow the platform records as a dated link event, and wallets are connected
+  to the same account. Public class `aggregated`, quality 35.
+
+  It was written as `attested-social` and downgraded on review, which is the
+  more useful thing to record. `attested-social` means the owner proved the
+  wallet with a signature and the account with a sign-in. The link ledger
+  evidences the ACCOUNT half and covers social accounts only; a linked wallet
+  arrives as a type and an address with no timestamp, event or signature, and
+  the upstream documents the field as "connected wallets" without mentioning
+  a proof anywhere. It is likely their UI asks for a signature, and that is
+  the point: an inference about an unobservable flow is not evidence, and if
+  the platform ever admitted an address another way nothing in the response
+  would change. A pair is worth its weaker half, so this sits outside
+  `ATTESTED_SOURCES`. Only wallets the person brought themselves are
+  ingested, which keeps platform-provisioned addresses out, but that is a
+  category rather than evidence. Upgrading the class needs a per-wallet proof
+  record in the payload, not a rereading of the same fields. This source
+  supplies no numeric X account id, so it adds reach without adding rename
+  detection.
+
+**`ATTESTED_SENTENCE` does not change, and that was checked rather than
+assumed.** Its onchain clause reads “an onchain ENS record”, and a Base name
+is an ENS name: the record is an ENS text record written to an L2 resolver
+under `base.eth`. Naming a fifth route would be a distinction without a
+difference to a reader, and the sentence rides four surfaces. The published
+enumerations that describe the route in their own words, `docs-site`’s
+coverage page and the OpenAPI `PublicSource` description, were widened to say
+that an onchain name record may sit on Ethereum or on an L2 registry, since
+those two spell the route out and would otherwise have quietly narrowed.
+
 ### L1. The semantic contract
 
 The meaning of the facts: what a **match** is (billable: an X handle or a

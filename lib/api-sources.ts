@@ -33,6 +33,22 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   ens: 'onchain',
   ens_onchain: 'onchain',
 
+  /**
+   * The same mechanism one chain down: a name record written to an L2
+   * resolver, where only the name's owner can set the text value. Same class
+   * as the two above, and the same caveat: the wallet half is published
+   * onchain by the owner, the handle half is free text nobody checked, so the
+   * score stays below the trust line.
+   *
+   * What the class buys is a deliberate decision rather than a side effect.
+   * `onchain` is inside `ATTESTED_SOURCES` below, so these rows count as
+   * owner-attested on the public API. That is the treatment `ens_onchain`
+   * already has and it is the honest one: the owner did publish the record.
+   * It is not a claim that the handle was checked, and nothing here says it
+   * was.
+   */
+  basename_record: 'onchain',
+
   // Farcaster's own account verifications. Both of these read the same
   // protocol-level attestation, so they collapse to one public class.
   neynar: 'farcaster',
@@ -103,6 +119,27 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
    * account is attached by OAuth sign-in: both halves owner-established.
    */
   opensea_profile: 'attested-social',
+
+  /**
+   * A creator profile where the social account is attached through a flow the
+   * platform records as a dated link event, and wallets are connected to the
+   * same account.
+   *
+   * `aggregated` rather than `attested-social`, deliberately and after
+   * review. The account half is evidenced by that dated ledger; the WALLET
+   * half is not evidenced at all. The upstream returns each linked wallet as a
+   * type and an address with no timestamp, no event and no signature record,
+   * and documents the field as "connected wallets" without ever mentioning a
+   * proof. Only wallets the person brought are read, which keeps
+   * platform-provisioned addresses out, but that is a category, not evidence.
+   *
+   * A pair is worth its weaker half, so this sits outside `ATTESTED_SOURCES`:
+   * a customer filtering for owner-attested evidence must not be shown a
+   * binding nobody can show the owner made. Corroborating, and honest about
+   * being corroboration. Upgrading it needs a per-wallet proof record in the
+   * payload, not a fresh reading of the same fields.
+   */
+  zora_profile: 'aggregated',
 
   // Reviewed by us. Doubles as the identity mapping below.
   manual: 'manual',
