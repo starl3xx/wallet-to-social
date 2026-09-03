@@ -114,6 +114,13 @@ const JOBS: Array<{
     reportsOutcome: false,
   },
   {
+    name: 'Basename harvest',
+    schedule: '05:20 daily',
+    subtype: 'basenames_harvest_incremental',
+    maxAgeHours: 48,
+    reportsOutcome: true,
+  },
+  {
     name: 'Attestation sweep',
     schedule: '06:00 daily',
     subtype: 'ethos_sweep',

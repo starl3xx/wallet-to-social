@@ -538,15 +538,29 @@ export const CLAIMS: Claim[] = [
     // \s+ rather than a space: JSX wraps "99.9%" and "of" across lines.
     pattern: /over ([0-9]{2}\.[0-9])%\s+of/i,
     actual: async () => {
-      // Every id here must stay in step with the attested set in
-      // lib/social-graph.ts (isTwitterVerified): a new attested source that
-      // is missing from this list makes the share DROP as that source adds
-      // genuinely attested rows, which is exactly what the 2026-08-22 Sybil
-      // import did to this check (99.9 → 99.8 with nothing wrong).
+      // This list is the OWNER-PUBLISHED set: the ids whose public evidence
+      // class is in ATTESTED_SOURCES (everything except 'aggregated'). The
+      // sentence it guards enumerates the attested routes by name, so a
+      // source counted here is a source we publicly claim the owner
+      // published.
+      //
+      // A genuinely attested source MISSING from this list makes the share
+      // drop as it adds attested rows, which is what the 2026-08-22 Sybil
+      // import did (99.9 → 99.8 with nothing wrong). An 'aggregated' source
+      // PRESENT in it is the opposite error and the worse one: it inflates a
+      // published claim about owner attestation with rows nobody attested.
+      //
+      // That is why 'zora_profile' is deliberately absent while it appears in
+      // isTwitterVerified. The two lists answer different questions and this
+      // is the first source where they diverge: it goes through
+      // lib/attested-links.ts, which writes twitter_verified = true, so the
+      // recompute list must name it or a later merge silently unverifies the
+      // handle. But its wallet half carries no evidence, so its public class
+      // is 'aggregated' and it is not part of this claim.
       const attested = await one(sql`
         SELECT count(*)::int FROM social_graph
         WHERE twitter_handle IS NOT NULL
-          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual','debank_tweet','sybil_list','snapshot_profile','opensea_profile']`);
+          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual','debank_tweet','sybil_list','snapshot_profile','opensea_profile','basename_record']`);
       const total = await one(
         sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`
       );

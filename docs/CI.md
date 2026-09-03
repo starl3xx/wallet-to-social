@@ -22,8 +22,11 @@ map of _what to do when one fails_.
 | `Vercel`                 | (external)            | live DB at build time (production builds only) | **no**         | preview builds no longer touch Neon: they serve the `lib/public-figures.ts` constants, an empty starter list, and prerender no holder pages (guarded in `scripts/check-invariants.ts`), so the old failure (**two concurrent branch pushes starving each other’s build-time DB reads**) is structurally gone. One-release caution: if a preview still goes red under concurrent pushes, stagger them and report it, since that path is supposed to be closed | `npm run build` (uses your `.env.local`)                           |
 | `Mintlify`               | (external)            | n/a                                            | n/a            | shows `skipping` on PRs; deploys docs-site on merge to main                                                                                                                                                                                                                                                                                                                                                                                                  | n/a                                                                |
 
-Scheduled, not PR gates: `db-backup.yml` (daily), `snapshot-harvest.yml` and
-`opensea-enrich.yml` (Sundays), `farcaster-sweep.yml` (the 2nd of each month).
+Scheduled, not PR gates: `db-backup.yml` (daily), `snapshot-harvest.yml`,
+`opensea-enrich.yml` and `zora-profile-harvest.yml` (Sundays, at 06:00, 06:30
+and 07:30 UTC respectively, deliberately staggered because all three write
+`social_graph` through the same ingest), `holder-fallback.yml` (Mondays) and
+`farcaster-sweep.yml` (the 2nd of each month).
 `published-figures.yml` runs both ways: Mondays as the drift catcher, plus a
 path-filtered PR trigger when published copy, `lib/public-figures.ts` or the
 checker changes; `holder-fallback.yml` likewise lands on PRs touching its own

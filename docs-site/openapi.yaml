@@ -1533,11 +1533,13 @@ components:
         How the link was attested, never who told us.
 
         `onchain` is a record the address owner published themselves, such as
-        an ENS text record. `farcaster` is a protocol-level account
+        the text field on a name they own, written on Ethereum or on a Layer 2
+        name registry. `farcaster` is a protocol-level account
         verification. `attested-social` is a platform where the owner proved
         both halves, the wallet by signature and the account by sign-in.
-        `manual` was reviewed by us. `aggregated` is the weakest: correlated by
-        a third-party index rather than attested by anyone. The first four
+        `manual` was reviewed by us. `aggregated` is the weakest: correlated
+        rather than attested, either by a third-party index or by a platform
+        that evidences one half of the pair and not the other. The first four
         classes are the attested ones, and any of them present means the
         owner published the link; `aggregated` alone is correlation.
 

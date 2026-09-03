@@ -36,6 +36,7 @@ import { execSync } from 'child_process';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { privateKeyToAccount } from 'viem/accounts';
+import { namehash as ethersNamehash } from 'ethers';
 import { ERC20_SUPPORTED_CHAINS, SUPPORTED_CHAINS } from '../lib/chains';
 import {
   API_TIMEOUT_MS,
@@ -2897,6 +2898,12 @@ async function main() {
       'lib/holder-index-budget.ts',
       'lib/clanker.ts',
       'lib/ens-harvest.ts',
+      // Both new corpora checkpoint through `ingest_state`, so both are
+      // exposed to 42P18. Named here rather than trusted: the list is the
+      // whole coverage of this assertion, and a file left off it is a file
+      // the check silently says nothing about.
+      'lib/basenames.ts',
+      'lib/zora-profiles.ts',
     ];
     for (const file of files) {
       const src = withoutComments(readFileSync(file, 'utf8'));
@@ -5200,6 +5207,853 @@ async function main() {
         .length -
         1 ===
         2
+    );
+  }
+
+  // ------------------------------- Basenames: an expired name is not a claim
+  /**
+   * An expired basename keeps resolving. That is the whole hazard: the
+   * registry still names a resolver, `addr(node)` still returns an address and
+   * the text record is still readable, so an unfiltered harvest emits pairs
+   * for names anybody can buy today. A uniform sample put the expired share of
+   * the corpus at 44.5%, so this is not an edge case, it is nearly half the
+   * input.
+   *
+   * The refusal is asserted where it actually decides, not merely as text
+   * somewhere in the file: the drop-and-return sits immediately before the
+   * ONLY `out.push` in the module, and that push is asserted to be the only
+   * one. Deleting the filter, or adding a second emit path that skips it,
+   * fails here.
+   */
+  {
+    const basenames = withoutComments(readFileSync('lib/basenames.ts', 'utf8'));
+    const flat = basenames.replace(/\s+/g, ' ');
+
+    ok(
+      'an expired basename cannot become a link: the refusal is the last thing before the only emit',
+      flat.includes(
+        'if (expires <= BigInt(nowSeconds)) { ' +
+          'drops.expired++; return; } out.push(c); });'
+      ) && (basenames.match(/out\.push\(/g) ?? []).length === 1
+    );
+    /**
+     * `<=` rather than `<`, which is the registrar's own test: its
+     * `onlyNonExpired` modifier reverts when `nameExpires[id] <=
+     * block.timestamp`. A name inside its 90-day grace period is expired by
+     * this test, and the owner has not renewed, so the record is no longer a
+     * live claim.
+     *
+     * An unreadable expiry is the other direction of the same rule: a call
+     * that failed to decode is a name whose expiry is UNKNOWN, and an unknown
+     * expiry must drop rather than pass. A guard that treats a failed read as
+     * a pass is the fail-open shape this repo keeps finding.
+     *
+     * It is counted apart from a genuine expiry, and that separation is
+     * asserted too. `nameExpires` of an unregistered id returns 0, which is
+     * `<= now`, so a derivation bug that computes the wrong labelhash for
+     * every name would present as a high `expired` count and nothing else.
+     * That is precisely how the `namehash` defect hid, and `expired` is the
+     * figure the docs quote to justify the filter existing at all.
+     */
+    ok(
+      'an expiry that could not be read is a refusal, not a pass',
+      flat.includes(
+        'if (expires === null) { drops.expiryUnreadable++; return; }'
+      )
+    );
+    ok(
+      'the expiry is asked of the registrar, keyed on the labelhash',
+      flat.includes(
+        "registrarIface.encodeFunctionData('nameExpires', [ c.labelhash, ])"
+      )
+    );
+    /**
+     * And it must be the labelhash of THIS name. `nameExpires` is keyed on the
+     * label while the node is one-way, so the label is recovered through the
+     * reverse record. Without the node equality an owner whose primary name is
+     * a different name of theirs would have that OTHER name's expiry checked:
+     * a filter that reports on the wrong name and passes.
+     *
+     * The equality must be rebuilt from the RAW label, never `namehash`.
+     * `namehash` applies ENSIP-15 normalisation and this registrar does not,
+     * so `SemperAltius` and `semperaltius` are two separately registerable
+     * names that `namehash` collapses into one. An earlier version of this
+     * very assertion certified the guarantee while checking it with the
+     * function that breaks it, which is why the rule is asserted twice: the
+     * refusal must use `rawBaseNode`, AND `namehash` must not be reachable
+     * from any chain-read string in the module.
+     */
+    ok(
+      'a label that does not hash back to this node is dropped rather than expiry-checked against the wrong name',
+      flat.includes(
+        'if (!name || !match || rawBaseNode(match[1]) !== n.node) { ' +
+          'drops.labelUnrecovered++; continue; }'
+      )
+    );
+    /**
+     * `namehash` is allowed exactly twice, on the two constants at the top of
+     * the file (`80002105.reverse` and `base.eth`), which are written here and
+     * already normalised. A third call means something read off the chain is
+     * being normalised before it is compared, which both mis-derives and
+     * throws on labels ENSIP-15 rejects.
+     */
+    ok(
+      'no chain-read string reaches namehash: it is used only on the two literal constants',
+      (basenames.match(/ethers\.namehash\(/g) ?? []).length === 2 &&
+        flat.includes("ethers.namehash('80002105.reverse')") &&
+        flat.includes("ethers.namehash('base.eth')")
+    );
+    /**
+     * And the derivation itself, checked against the chain rather than
+     * restated: these are three live Base registrations whose raw and
+     * lowercased labels are DIFFERENT names with different expiries. If
+     * `rawBaseNode` ever agreed with `namehash` on them, the recovery would be
+     * back to comparing against a node that does not exist.
+     */
+    const { rawBaseNodeForLabel } = await import('@/lib/basenames');
+    for (const label of ['SemperAltius', 'DaanCrypto', 'Loopify']) {
+      ok(
+        `the node for the mixed-case label ${label} is built from the raw label, not its normalised form`,
+        rawBaseNodeForLabel(label) !== ethersNamehash(`${label}.base.eth`) &&
+          rawBaseNodeForLabel(label.toLowerCase()) ===
+            ethersNamehash(`${label.toLowerCase()}.base.eth`)
+      );
+    }
+  }
+
+  // --------------------------- Basenames: junk is refused, never repaired
+  /**
+   * The record is free text an owner typed into a name. `cleanTwitterHandle`,
+   * which every source passes through inside the ingest, DELETES invalid
+   * characters and keeps what is left, so it turns a URL into `xcom` and an
+   * email into a handle that belongs to a stranger. That is the right trade
+   * for a value that arrived already believing it was a handle, and the wrong
+   * one here.
+   *
+   * Asserted through `normaliseTwitterRecord` itself, and paired with what the
+   * naive cleaner returns for the same input, so this cannot pass by matching
+   * nothing: the assertion states both that the strict rule refuses and that
+   * the lenient one invents.
+   */
+  {
+    const { normaliseTwitterRecord } = await import('@/lib/basenames');
+    const { cleanTwitterHandle } = await import('@/lib/twitter-cleaner');
+
+    /** Every shape observed in the live corpus that is not a handle. */
+    const refused: Array<[string, string]> = [
+      ['', 'empty'],
+      ['   ', 'empty'],
+      ['bob@mail.com', 'malformed'],
+      ['emrah28.base.eth', 'malformed'],
+      ['@', 'malformed'],
+      ['sixteencharacters', 'malformed'],
+      ['1212312121', 'numeric'],
+      ['666', 'numeric'],
+    ];
+    for (const [raw, reason] of refused) {
+      const result = normaliseTwitterRecord(raw);
+      ok(
+        `a basename record of ${JSON.stringify(raw)} is refused as ${reason}, not repaired`,
+        result.handle === null && result.reject === reason
+      );
+    }
+
+    /**
+     * The two forms that ARE recovered. The refusal being asserted is that the
+     * raw string never survives as the handle: an `@` prefix and a profile URL
+     * are unwrapped to the account they name, and anything the unwrap does not
+     * leave as a bare handle still fails the shape gate above.
+     */
+    ok(
+      'a leading @ is unwrapped rather than stored',
+      normaliseTwitterRecord('@starl3xx').handle === 'starl3xx'
+    );
+    ok(
+      'a profile URL yields the account it names, in either spelling and with or without a scheme',
+      normaliseTwitterRecord('https://x.com/Cristhianrg12').handle ===
+        'cristhianrg12' &&
+        normaliseTwitterRecord('x.com/someone').handle === 'someone' &&
+        normaliseTwitterRecord('twitter.com/someone').handle === 'someone' &&
+        normaliseTwitterRecord('https://twitter.com/fooo?ref=1').handle ===
+          'fooo'
+    );
+    /**
+     * A URL whose first segment is a PAGE of the site, not a profile. Without
+     * this the unwrap hands back the segment as a handle, and every one of
+     * these belongs to a real and unrelated account: `x.com/logout` and
+     * `x.com/home` are already in the live corpus.
+     *
+     * The last case is the one that matters most. `x.com/intent/user` carries
+     * the correct handle in its query string, so the old rule did not merely
+     * fail to read it: it discarded the right answer and substituted a
+     * different real account.
+     */
+    const reservedPaths = [
+      'https://x.com/logout',
+      'https://x.com/home',
+      'x.com/hashtag/Bitcoin',
+      'x.com/i/spaces/1abcd',
+      'twitter.com/search?q=eth',
+      'x.com/settings/profile',
+      'X.COM/Share?url=a',
+      'x.com/intent/user?screen_name=realvictim',
+    ];
+    for (const raw of reservedPaths) {
+      const result = normaliseTwitterRecord(raw);
+      ok(
+        `the site URL ${JSON.stringify(raw)} is refused rather than read as a handle`,
+        result.handle === null && result.reject === 'reservedPath'
+      );
+    }
+    /**
+     * One to three characters. X requires four for a new username, so these
+     * exist only as rare legacy accounts, and in a hand-typed record they are
+     * placeholders that land on a stranger: nine of the ten commonest short
+     * values in the corpus resolve to live X accounts. Roughly 770 wrong pairs
+     * if unrefused, against 1.9% of the corpus to refuse them.
+     */
+    for (const raw of ['y', 'b', 'jb', 'npx', 'iii', '@ada']) {
+      const result = normaliseTwitterRecord(raw);
+      ok(
+        `the short record ${JSON.stringify(raw)} is refused rather than landing on a stranger`,
+        result.handle === null && result.reject === 'tooShort'
+      );
+    }
+    ok(
+      'four characters is still accepted, so the length rule is a floor and not a filter on real handles',
+      normaliseTwitterRecord('jack').handle === 'jack' &&
+        normaliseTwitterRecord('@jack').handle === 'jack'
+    );
+    /**
+     * The load-bearing half. If these two ever agree, the strict normaliser has
+     * stopped doing anything the ingest would not have done anyway, and the
+     * assertions above would keep passing while a stranger's handle is written.
+     */
+    ok(
+      'the NAIVE cleaner invents a handle for the bare-host URL, so the strict rule is load-bearing',
+      cleanTwitterHandle('x.com/someone') === 'xcom' &&
+        normaliseTwitterRecord('x.com/someone').handle === 'someone'
+    );
+    ok(
+      'the NAIVE cleaner invents a handle for an email address, and this one refuses it',
+      cleanTwitterHandle('bob@mail.com') === 'bobmailcom' &&
+        normaliseTwitterRecord('bob@mail.com').handle === null
+    );
+    ok(
+      'the NAIVE cleaner invents a handle for a name record, and this one refuses it',
+      cleanTwitterHandle('emrah28.base.eth') === 'emrah28baseeth' &&
+        normaliseTwitterRecord('emrah28.base.eth').handle === null
+    );
+
+    // Wired in with a refusal that returns. A normaliser nothing calls is a
+    // pure function with a passing test and no effect on the index.
+    const flat = withoutComments(
+      readFileSync('lib/basenames.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the pipeline drops a record the normaliser refused instead of falling through',
+      flat.includes(
+        'if (normalisedRecord.handle === null) { ' +
+          "if (normalisedRecord.reject === 'numeric') drops.handleNumeric++; " +
+          "else if (normalisedRecord.reject === 'tooShort') drops.handleTooShort++; " +
+          "else if (normalisedRecord.reject === 'reservedPath') drops.handleReservedPath++; " +
+          'else drops.handleMalformed++; ' +
+          'onReject?.(raw, normalisedRecord.reject); return; }'
+      )
+    );
+  }
+
+  // ------------------------- Basenames: removal reaches this ingest path too
+  /**
+   * The storage triggers sit underneath every writer, so it is tempting to
+   * treat a harvester-side suppression filter as belt and braces. For THIS
+   * path it is not, and the way it fails is quiet.
+   *
+   * For a suppressed HANDLE the trigger nulls `NEW.twitter_handle` before the
+   * `ON CONFLICT`, so the handle CASE in `lib/attested-links.ts` compares
+   * against NULL, evaluates NULL rather than true, and is not taken. Control
+   * reaches the ELSE, which appends this source to the `sources` of a row
+   * whose handle came from somewhere else entirely. Because `basename_record`
+   * maps to `onchain`, and `onchain` is inside `ATTESTED_SOURCES`, the public
+   * API would then report an owner-published onchain attestation for a handle
+   * this source never attested: the defect `lib/attested-links.ts` exists to
+   * prevent, triggered by the act of suppressing an identifier.
+   *
+   * Anchored on the refusal and on its position: the filter must run BEFORE
+   * the branch that writes, not merely appear in the file.
+   */
+  {
+    const flat = withoutComments(
+      readFileSync('lib/basenames.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'basename pairs pass the suppression filter before anything is written',
+      flat.includes(
+        'const links = await dropSuppressed(candidateLinks, stats.dropped); if (dryRun) {'
+      )
+    );
+    ok(
+      'the basename suppression filter refuses both a suppressed wallet and a suppressed handle',
+      flat.includes(
+        "!isKindSuppressed(sets, 'wallet', link.wallet) && " +
+          "!isKindSuppressed(sets, 'twitter', link.handle)"
+      )
+    );
+  }
+
+  // ------------------------- Basenames: the class and the score it is worth
+  /**
+   * The claim in `lib/basenames.ts` is parity with `ens_onchain`: the same
+   * evidence mechanism one chain down, so the same public class and the same
+   * score, deliberately below the 70 trust line because the handle half is
+   * free text nobody checked.
+   *
+   * Both halves are asserted THROUGH the functions that decide them rather
+   * than against numbers copied out of a comment, and the declared floor in
+   * the adapter is compared with what the scorer computes. Those two numbers
+   * disagreeing is not hypothetical: it is what shipped, at 50 declared
+   * against 25 computed, with `GREATEST` in the upsert hiding it.
+   */
+  {
+    const { publicSources, ATTESTED_SOURCES } =
+      await import('@/lib/api-sources');
+    const { calculateQualityScore } = await import('@/lib/social-graph');
+    const classOf = (id: string) => JSON.stringify(publicSources([id]));
+
+    ok(
+      'basename_record carries exactly the public class its L1 twin carries',
+      classOf('basename_record') === classOf('ens_onchain') &&
+        classOf('basename_record') !== JSON.stringify(undefined)
+    );
+    /**
+     * It is an owner-published record, so it is not `aggregated`; and it is
+     * NOT the class that says a service checked the account, which is the one
+     * misreading that would overstate this corpus. `onchain` sits inside
+     * `ATTESTED_SOURCES` and that is deliberate: the owner did publish the
+     * record. The claim the score carries, not the class, is that the handle
+     * beside it was never verified.
+     */
+    ok(
+      'basename_record is never classed as a service attestation or as correlated third-party data',
+      !(publicSources(['basename_record']) ?? []).some(
+        (c) =>
+          c === 'attested-social' || c === 'farcaster' || c === 'aggregated'
+      )
+    );
+    ok(
+      'the public class of a name record is one the vocabulary already treats as owner-published',
+      (publicSources(['basename_record']) ?? []).every((c) =>
+        ATTESTED_SOURCES.has(c)
+      )
+    );
+
+    const declared = Number(
+      /id: 'basename_record',\s*quality: (\d+),/.exec(
+        withoutComments(readFileSync('lib/basenames.ts', 'utf8'))
+      )?.[1]
+    );
+    const computed = calculateQualityScore(['basename_record'], true, false);
+    ok(
+      'the score the adapter writes is the score the scorer computes, so a wallet cannot hold two',
+      Number.isFinite(declared) && declared === computed
+    );
+    ok(
+      'a name record scores exactly what its L1 twin scores',
+      computed === calculateQualityScore(['ens_onchain'], true, false)
+    );
+    ok(
+      'a wallet known only by a name record stays below the 70 trust line',
+      computed < 70
+    );
+    /**
+     * De-stacking. The same owner publishing the same unverified handle on L1
+     * and on L2 is one claim written twice, so the second must add nothing:
+     * 20 + 30 + 30 = 80 would cross the trust line and mark a wallet fully
+     * known when its Farcaster side was never looked at.
+     */
+    ok(
+      'a name record does not stack with either ENS record, in any combination',
+      calculateQualityScore(['ens', 'basename_record'], true, false) < 70 &&
+        calculateQualityScore(['ens_onchain', 'basename_record'], true, false) <
+          70 &&
+        calculateQualityScore(
+          ['ens', 'ens_onchain', 'basename_record'],
+          true,
+          false
+        ) < 70
+    );
+    /**
+     * The control that stops the assertion above passing for the wrong reason.
+     * Two INDEPENDENT attestations really do stack and really do reach the
+     * line, so the flat 50 above is a decision this code makes rather than a
+     * scorer that ignores whatever it is handed.
+     */
+    ok(
+      'independent attestations DO stack, so the de-stacking above is a decision rather than an artifact',
+      calculateQualityScore(['eas', 'clanker'], true, false) >= 70
+    );
+
+    // Same contract, same reasoning, for the creator-profile source.
+    const { ZORA_PROFILE_SOURCE } = await import('@/lib/zora-profiles');
+    ok(
+      'the creator-profile adapter writes the score the scorer computes for it',
+      ZORA_PROFILE_SOURCE.quality ===
+        calculateQualityScore([ZORA_PROFILE_SOURCE.id], true, false)
+    );
+    ok(
+      'a wallet known only by a creator profile stays below the 70 trust line',
+      calculateQualityScore([ZORA_PROFILE_SOURCE.id], true, false) < 70
+    );
+    /**
+     * And it is CORROBORATION, not attestation, which is the decision review
+     * turned over. The upstream evidences the account half with a dated link
+     * ledger and the wallet half with nothing at all: a linked wallet is a
+     * type and an address, no signature, no event, no timestamp. A pair is
+     * worth its weaker half, so the public class must stay outside
+     * `ATTESTED_SOURCES` and the score must sit with the other aggregated
+     * source rather than with the attested ones.
+     *
+     * Asserted through `publicSources` and `ATTESTED_SOURCES` rather than
+     * against the literal string, so re-labelling the map fails here.
+     */
+    const sourcesModule = await import('@/lib/api-sources');
+    const zoraClass = sourcesModule.publicSources([
+      ZORA_PROFILE_SOURCE.id,
+    ])?.[0];
+    ok(
+      'the creator-profile source is published as correlated, not as owner-attested',
+      zoraClass === 'aggregated' &&
+        !sourcesModule.ATTESTED_SOURCES.has(zoraClass)
+    );
+    ok(
+      'it scores with the other correlated source, not with the attested ones',
+      calculateQualityScore([ZORA_PROFILE_SOURCE.id], true, false) ===
+        calculateQualityScore(['web3bio'], true, false) &&
+        calculateQualityScore([ZORA_PROFILE_SOURCE.id], true, false) <
+          calculateQualityScore(['opensea_profile'], true, false)
+    );
+  }
+
+  // ------------------ The attested set is written down in two places, in step
+  /**
+   * `scripts/check-published-figures.ts` carries a hand-written list of the
+   * source ids that count as attested, and its own comment says it must stay
+   * in step with `isTwitterVerified`. Nothing enforced that, and the failure it
+   * describes has already happened once: the Sybil import added genuinely
+   * attested rows that the list did not name, and the published share fell from
+   * 99.9 to 99.8 with nothing actually wrong.
+   *
+   * A published figure that drops when the index IMPROVES is the worst kind of
+   * check, because the correct response looks like the incorrect one. So the
+   * two lists are read out of the two files and compared, in the direction the
+   * failure runs: every source `isTwitterVerified` counts must appear in the
+   * figure's list. The reverse does not hold and must not be asserted, since
+   * the figure also counts the Farcaster-attested ids that live in
+   * `isFarcasterVerified`.
+   */
+  {
+    const graph = withoutComments(readFileSync('lib/social-graph.ts', 'utf8'));
+    const verifiedBody = graph.slice(
+      graph.indexOf('function isTwitterVerified('),
+      graph.indexOf('function isFarcasterVerified(')
+    );
+    const attested = [...verifiedBody.matchAll(/s === '([a-z_0-9]+)'/g)].map(
+      (m) => m[1]
+    );
+    const figures = withoutComments(
+      readFileSync('scripts/check-published-figures.ts', 'utf8')
+    );
+    const published = [
+      ...(/AND sources && ARRAY\[([^\]]*)\]/.exec(figures)?.[1] ?? '').matchAll(
+        /'([a-z_0-9]+)'/g
+      ),
+    ].map((m) => m[1]);
+
+    /**
+     * Both extractions must find something. A regex that matches nothing would
+     * make the comparison below vacuously true, which is the way a
+     * source-reading assertion usually stops working.
+     */
+    ok(
+      'both attested lists were actually read, so the comparison below is not vacuous',
+      attested.length >= 10 && published.length >= 10
+    );
+    /**
+     * The two lists answer different questions, and until 2026-09-02 every
+     * source made them agree, which hid the difference.
+     *
+     * `isTwitterVerified` decides the `twitter_verified` COLUMN, and every
+     * source ingested through `lib/attested-links.ts` must be named there or a
+     * later recompute silently unverifies a handle nothing disproved. The
+     * published figure states that the owner PUBLISHED the link, enumerating
+     * the attested routes by name, so it may only count sources whose public
+     * class is in `ATTESTED_SOURCES`.
+     *
+     * `zora_profile` is the first source where those diverge: it goes through
+     * the shared ingest, so it is verified, and its wallet half carries no
+     * evidence, so it is `aggregated` and must NOT inflate the published
+     * claim. So the rule is no longer "the lists match": it is that a source
+     * appears in the published figure exactly when its class is attested.
+     * Read out of `lib/api-sources.ts` rather than restated here.
+     */
+    const sourcesFile = withoutComments(
+      readFileSync('lib/api-sources.ts', 'utf8')
+    );
+    const classOf = (id: string): string | null =>
+      new RegExp(`(?:^|\\s)'?${id}'?:\\s*'([a-z-]+)'`, 'm').exec(
+        sourcesFile
+      )?.[1] ?? null;
+
+    ok(
+      'the evidence class of every verified source was actually read, so the rule below is not vacuous',
+      attested.filter((id) => classOf(id) !== null).length >= 10
+    );
+    for (const id of attested) {
+      const cls = classOf(id);
+      if (cls === null) continue;
+      const isAttestedClass = cls !== 'aggregated';
+      ok(
+        `${id} is counted by the published attested-share figure exactly when its class (${cls}) is attested`,
+        published.includes(id) === isAttestedClass
+      );
+    }
+    ok(
+      'the onchain corpus counts towards the published claim and the aggregated one does not',
+      published.includes('basename_record') &&
+        !published.includes('zora_profile') &&
+        attested.includes('zora_profile')
+    );
+  }
+
+  // ------------------ Creator profiles: a wallet-shaped record is not a person
+  /**
+   * The poisoning bug this gate exists for, verified live on 2026-09-02: an
+   * address the platform has never seen returns HTTP 200 with a record that
+   * has no `username`, no `socialAccounts` and no `linkedWallets`, and whose
+   * `handle` field holds THAT ADDRESS'S ENS REVERSE NAME. Reading `handle` as
+   * an identity value writes an unrelated stranger's name into the index as an
+   * attested account name.
+   *
+   * The fixture below is the live shape with the stranger's name replaced, and
+   * it is exercised through `readProfile` rather than described.
+   */
+  {
+    const { readProfile } = await import('@/lib/zora-profiles');
+
+    const EXTERNAL = '0x1111111111111111111111111111111111111111';
+    const PROVISIONED = '0x2222222222222222222222222222222222222222';
+    const SMART = '0x3333333333333333333333333333333333333333';
+
+    /** The live account shape, field for field. */
+    const account = (over: Record<string, unknown> = {}) => ({
+      profile: {
+        handle: 'creatorname',
+        username: 'creatorname',
+        platformBlocked: false,
+        linkedWallets: {
+          edges: [
+            { node: { walletType: 'EXTERNAL', walletAddress: EXTERNAL } },
+            { node: { walletType: 'PRIVY', walletAddress: PROVISIONED } },
+            { node: { walletType: 'SMART_WALLET', walletAddress: SMART } },
+          ],
+        },
+        socialAccounts: {
+          instagram: null,
+          tiktok: null,
+          twitter: { username: 'creator_x', followerCount: 12, id: null },
+          farcaster: { username: 'creatorfc', followerCount: 3, id: '8' },
+        },
+        socialAccountLinkedEvents: {
+          edges: [
+            {
+              node: {
+                platform: 'TWITTER',
+                socialAccountUsername: 'creator_x',
+                occurredAt: '2024-04-24T15:55:23+00:00',
+                eventType: 'LINK',
+              },
+            },
+          ],
+        },
+        ...over,
+      },
+    });
+
+    /**
+     * The live wallet-shaped record: four fields, one of them a trap.
+     *
+     * The name is invented rather than copied from the probe. It belongs to a
+     * real person who has nothing to do with this repository, and this file is
+     * public. Only the SHAPE is load-bearing: a dotted reverse name sitting in
+     * the field an unwary parser reads as an account handle.
+     */
+    const STRANGERS_NAME = 'stranger.notarealname.eth';
+    const walletShaped = {
+      profile: {
+        handle: STRANGERS_NAME,
+        bio: '',
+        platformBlocked: false,
+        avatar: null,
+      },
+    };
+
+    const trap = readProfile(walletShaped);
+    ok(
+      'an address the platform never saw yields no link at all',
+      trap.links.length === 0 && trap.refusals.not_an_account === 1
+    );
+    ok(
+      "the stranger's ENS name in the handle field never becomes a handle or a username",
+      trap.username === null &&
+        !JSON.stringify(trap.links).includes(STRANGERS_NAME) &&
+        !JSON.stringify(trap.farcaster).includes(STRANGERS_NAME)
+    );
+    /**
+     * Structural, and the reason the trap cannot come back by a different
+     * route: the profile parser never reads `handle` at all. The list walk
+     * does read it, but there it is an identifier to look an account up BY,
+     * never a value written to the graph.
+     */
+    {
+      const zora = withoutComments(
+        readFileSync('lib/zora-profiles.ts', 'utf8')
+      );
+      const body = zora.slice(
+        zora.indexOf('export function readProfile('),
+        zora.indexOf('export interface ZoraListEntry')
+      );
+      ok(
+        'the profile parser never reads the handle field, so it cannot be mistaken for an identity',
+        body.length > 500 && !/\.handle\b/.test(body)
+      );
+    }
+    ok(
+      'a record whose typename says it is not an account is refused where the field is present',
+      readProfile({
+        profile: { ...account().profile, __typename: 'GraphQLIdentityProfile' },
+      }).links.length === 0
+    );
+    /**
+     * The control. A gate that refused everything would satisfy every
+     * assertion above, and would be indistinguishable from a corpus that
+     * simply produced nothing.
+     */
+    ok(
+      'a real account still produces exactly one pair, so the gate is not refusing everything',
+      readProfile(account()).links.length === 1 &&
+        readProfile(account()).links[0].handle === 'creator_x'
+    );
+
+    // ------------------ Creator profiles: a provisioned wallet is not theirs
+    /**
+     * `linkedWallets` mixes three types and only EXTERNAL is a wallet the
+     * person brought. PRIVY and SMART_WALLET are provisioned by the platform,
+     * so a pair built from one asserts that a custodial address the person
+     * never chose belongs to their X account. Both provisioned addresses are
+     * in the fixture, so a filter that stops working emits them.
+     */
+    const real = readProfile(account());
+    ok(
+      'a platform-provisioned wallet is never emitted beside an account',
+      real.links.every((l) => l.wallet !== PROVISIONED && l.wallet !== SMART) &&
+        real.farcaster.every(
+          (f) => f.wallet !== PROVISIONED && f.wallet !== SMART
+        )
+    );
+    ok(
+      'only the wallet the person brought is emitted',
+      real.links.length === 1 && real.links[0].wallet === EXTERNAL
+    );
+    ok(
+      'an account holding only provisioned wallets yields nothing and says why',
+      (() => {
+        const r = readProfile(
+          account({
+            linkedWallets: {
+              edges: [
+                { node: { walletType: 'PRIVY', walletAddress: PROVISIONED } },
+                { node: { walletType: 'SMART_WALLET', walletAddress: SMART } },
+              ],
+            },
+          })
+        );
+        return r.links.length === 0 && r.refusals.no_external_wallet === 1;
+      })()
+    );
+
+    // --------------------------- Creator profiles: platformBlocked is honoured
+    /**
+     * What a true value means upstream is unverified: it was false in every
+     * observation. An unknown exclusion flag has one safe reading, and it is
+     * exclude.
+     */
+    ok(
+      'a blocked profile yields no pair, whatever else it carries',
+      (() => {
+        const r = readProfile(account({ platformBlocked: true }));
+        return r.links.length === 0 && r.refusals.platform_blocked === 1;
+      })()
+    );
+    ok(
+      'a blocked list row is skipped before its profile is ever fetched',
+      withoutComments(readFileSync('lib/zora-profiles.ts', 'utf8'))
+        .replace(/\s+/g, ' ')
+        .includes(
+          'if (node.platformBlocked === true || creator?.platformBlocked === true) ' +
+            '{ refusals.platform_blocked++; continue; }'
+        )
+    );
+
+    // ------------------------ Creator profiles: the ledger is the attestation
+    /**
+     * The evidence is the platform's own dated record that the account was
+     * attached. An account present on the profile but with no LINK entry, or
+     * with an UNLINK as its latest entry, is not attested and must not be
+     * written.
+     */
+    ok(
+      'an account whose latest ledger entry is an UNLINK yields no pair',
+      (() => {
+        const r = readProfile(
+          account({
+            socialAccountLinkedEvents: {
+              edges: [
+                {
+                  node: {
+                    platform: 'TWITTER',
+                    socialAccountUsername: 'creator_x',
+                    occurredAt: '2024-04-24T15:55:23+00:00',
+                    eventType: 'LINK',
+                  },
+                },
+                {
+                  node: {
+                    platform: 'TWITTER',
+                    socialAccountUsername: 'creator_x',
+                    occurredAt: '2025-01-02T00:00:00+00:00',
+                    eventType: 'UNLINK',
+                  },
+                },
+              ],
+            },
+          })
+        );
+        return r.links.length === 0 && r.refusals.unlinked_x_account === 1;
+      })()
+    );
+    ok(
+      'an account with no ledger entry behind it is refused rather than assumed',
+      (() => {
+        const r = readProfile(
+          account({ socialAccountLinkedEvents: { edges: [] } })
+        );
+        return r.links.length === 0 && r.refusals.unlinked_x_account === 1;
+      })()
+    );
+    /**
+     * A username arriving from an OAuth connection is already a real handle,
+     * so anything failing the shape test is a parse surprise. It is refused
+     * rather than repaired, for the same reason as the name records above: the
+     * lenient cleaner would turn it into somebody else's account.
+     */
+    ok(
+      'a username that cannot be a handle is refused, not cleaned into a stranger',
+      (() => {
+        const r = readProfile(
+          account({
+            socialAccounts: {
+              instagram: null,
+              tiktok: null,
+              farcaster: null,
+              twitter: { username: 'x.com/someone', id: null },
+            },
+          })
+        );
+        return r.links.length === 0 && r.refusals.malformed_x_handle === 1;
+      })()
+    );
+  }
+
+  // ------------------------ Creator profiles: removal is a pre-flight, not a filter
+  /**
+   * Asking a third party about a suppressed address is re-collection whether
+   * or not the answer is stored. The address walk knows the addresses before
+   * it asks, so it must filter first; the list walk cannot, and filters the
+   * pairs instead. Asserted as an ORDERING, because both lines existing in the
+   * same file proves nothing about which one runs first.
+   */
+  {
+    const cli = withoutComments(
+      readFileSync('scripts/harvest-zora-profiles.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const filtered = cli.indexOf(
+      "const askable = wallets.filter( (w) => !isKindSuppressed(sets, 'wallet', w) );"
+    );
+    const asked = cli.indexOf('payload = await fetchProfile(wallet);');
+    ok(
+      'the address walk drops suppressed addresses BEFORE it asks about them',
+      filtered !== -1 && asked !== -1 && filtered < asked
+    );
+  }
+
+  // ------------------------------------- Neither corpus can carry a Discord id
+  /**
+   * A product decision, asserted where it is structurally impossible to
+   * violate rather than as a promise in a comment.
+   *
+   * Three layers, and the first two are the ones that hold. `social_graph` has
+   * no column any Discord identity could land in, and `AttestedLink`, the only
+   * shape either adapter can hand to the shared ingest, carries a wallet, an X
+   * handle and an X account id and nothing else. So even an upstream that
+   * started returning Discord accounts tomorrow has nowhere to put one. The
+   * third layer is that neither module reads such a field today, which is the
+   * weakest of the three on its own: an absence can pass by matching nothing,
+   * which is exactly why it is not the assertion this rests on.
+   */
+  {
+    const schema = readFileSync('db/schema.ts', 'utf8');
+    const table =
+      /export const socialGraph = pgTable\([\s\S]*?\n\);/.exec(schema)?.[0] ??
+      '';
+    ok(
+      'the graph table has no column a Discord identity could be written to',
+      table.length > 1000 && !/discord/i.test(table)
+    );
+
+    const attested = withoutComments(
+      readFileSync('lib/attested-links.ts', 'utf8')
+    );
+    const fields = [
+      ...(
+        /export interface AttestedLink \{([\s\S]*?)\n\}/.exec(attested)?.[1] ??
+        ''
+      ).matchAll(/^\s*([A-Za-z0-9_]+)\??:/gm),
+    ].map((m) => m[1]);
+    ok(
+      'the only shape either corpus can emit carries an X handle and nothing else',
+      JSON.stringify(fields) ===
+        JSON.stringify(['wallet', 'handle', 'twitterUserId'])
+    );
+
+    for (const file of ['lib/basenames.ts', 'lib/zora-profiles.ts']) {
+      ok(
+        `${file} reads no Discord field`,
+        !/discord/i.test(withoutComments(readFileSync(file, 'utf8')))
+      );
+    }
+    /**
+     * And on the Basenames side the scan is narrowed at the source: one key
+     * hash in the topic filter, one key string read back from the resolver. A
+     * wider scan is how a key nobody asked for arrives.
+     */
+    const basenames = withoutComments(readFileSync('lib/basenames.ts', 'utf8'));
+    ok(
+      'the name-record scan asks for exactly one text key, at the log filter and at the read',
+      basenames
+        .replace(/\s+/g, ' ')
+        .includes('topics: [TEXT_CHANGED_4, null, [KEY_TWITTER]],') &&
+        basenames.includes("const KEY_TWITTER = ethers.id('com.twitter');") &&
+        (basenames.match(/com\.twitter/g) ?? []).length === 2
     );
   }
 

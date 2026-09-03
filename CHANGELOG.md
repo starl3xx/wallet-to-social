@@ -2,6 +2,68 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-02 (two new corpora: L2 name records, and creator profiles)
+
+Two ingest routes join the index. Both are L0 truth inputs: they add facts and
+provenance and move no verb, no price and no response shape. The evidence-class
+decisions behind them are recorded under L0 in `docs/AGENT-SYSTEM.md`, and the
+running posture of each is in `docs/OPERATIONS.md`.
+
+- **Basenames text records, `basename_record`.** `com.twitter` written to a
+  Base name by the wallet that owns it. Public class `onchain`, quality 50,
+  identical to the mainnet ENS harvest because it is identical evidence one
+  chain down: the wallet half is published onchain by the owner, the handle
+  half is free text nobody checked, and the score below the trust line is what
+  says so. It de-stacks against `ens` and `ens_onchain` for the reason those
+  two de-stack against each other: three name records read as three
+  independent facts would put a wallet over the trust line on one mechanism
+  read twice.
+- **Creator profiles, `zora_profile`.** The X account is attached through a
+  flow the platform records as a dated link event, and wallets are connected
+  to the same account. Public class `aggregated`, quality 35, alongside the
+  other corroborating source rather than with the attested ones. The ledger
+  evidences the account half and covers social accounts only; a linked wallet
+  arrives as a type and an address with no signature, event or timestamp, so
+  the wallet half is unevidenced and the pair is worth its weaker half. Only
+  wallets the person brought are read, which keeps platform-provisioned
+  addresses out. It carries no numeric X account id, so it adds reach and no
+  rename detection.
+
+Two filters on each are load-bearing rather than tidy, because without them
+the row is about a different person, and each was measured rather than
+assumed. On Base, an expired name still resolves: on a uniform 500-name
+sample, 44.5% of the names carrying a social record were already past
+expiry, so a name past `nameExpires` is dropped rather than harvested for
+whoever buys it next. And the handle is re-read through the registry instead
+of taken from the log, because a name moved between the two resolvers leaves
+an old write in the logs of the one it left (5.0% of sampled names), which
+would publish a handle its owner has retired. On the profile side, only
+wallets the person brought themselves are ingested, since the platform
+provisions wallets of its own on the same profile, and an unknown address
+answers with a wallet-shaped record whose handle field holds a reverse name,
+which is rejected before anything treats it as a social handle.
+
+Raw record values are validated and then rejected, never stripped into shape.
+The existing handle cleaner strips invalid characters, which turns
+`x.com/somebody` into the handle `xcom` and a name ending `.base.eth` into a
+handle nobody holds; both are accepted today by a rule that only strips. The
+harvest gate recovers the forms that are recoverable (a leading `@`, a profile
+URL) and rejects the rest.
+
+The public evidence-class vocabulary is unchanged: both ids map to classes
+that already existed, so the `sources` enum, its five values and the
+`attested` derivation are exactly as they were. Two published enumerations
+that spell the onchain route out in their own words were widened to say that
+an owner-published name record may sit on Ethereum or on an L2 registry
+(`docs-site/concepts/coverage.mdx`, and the `PublicSource` description in
+`docs-site/openapi.yaml`). `ATTESTED_SENTENCE` is unchanged and that was
+checked rather than assumed: a Base name is an ENS name, so “an onchain ENS
+record” already names the route.
+
+No migration and no grant. `social_graph.sources` is a plain `text[]`, and
+both checkpoints are new rows in the existing `ingest_state` table, which
+`sweep_runner` can already write.
+
 ### 2026-09-02 (right-to-removal stage 1: the promise becomes true)
 
 The privacy page has promised since 2026-08-30 that a removal request needs
