@@ -13,7 +13,7 @@ was a raw contract address, and that contract does have a report, which is the
 single piece of positive evidence in the set.
 
 **The seeding fix.** `lib/recognized-contracts.ts` now leads both discovery
-queues with 63 contracts across all seven chains, chosen on one criterion only:
+queues with 64 contracts across all eight chains, chosen on one criterion only:
 would a person type this name next to a word like "holders" or "owners". It is
 finite by design, so once every entry is seeded the novelty filter empties it
 and discovery falls back to the trending feeds, and thirty days later the oldest
@@ -149,7 +149,7 @@ description: "Find Twitter & Farcaster profiles from Ethereum wallet addresses. 
 
 **2. One Price, Credits That Last a Year**
 
-> Packs from $29 (250 matches) to $899 (25,000 matches). You pay for matches, never for wallets that resolve to nothing. Every pack includes all seven chains, uncapped export and API access. Credits last 12 months. No monthly fees. No enterprise contracts.
+> Packs from $29 (250 matches) to $899 (25,000 matches). You pay for matches, never for wallets that resolve to nothing. Every pack includes all eight chains, uncapped export and API access. Credits last 12 months. No monthly fees. No enterprise contracts.
 
 **3. All Major Sources**
 

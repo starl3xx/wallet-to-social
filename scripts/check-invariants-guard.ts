@@ -1509,6 +1509,92 @@ const MUTATIONS: Mutation[] = [
     from: "      allow: ['/api/public-stats', '/_next/static', '/_next/image', '/'],",
     to: "      allow: ['/api/public-stats', '/'],",
   },
+
+  {
+    // The defect corrected on 2026-09-07, put back exactly. Three numbers were
+    // in public circulation while the server answered eight to anyone who
+    // asked it, with no credential.
+    name: 'a comparison page undercounts the MCP tools again',
+    file: 'app/vs/formo/page.tsx',
+    from: '(eight tools, on every pack and the free allowance)',
+    to: '(seven tools, on every pack and the free allowance)',
+  },
+  {
+    // Proves the count is DERIVED. A guard holding a hardcoded 8 passes this,
+    // because every copy surface still says eight while the server registers
+    // seven: the tool is renamed out of the `walletlink_` namespace and stays
+    // valid TypeScript.
+    name: 'a tool leaves the namespace the published count is derived from',
+    file: 'app/api/mcp/route.ts',
+    from: "      'walletlink_account_balance',\n",
+    to: "      'account_balance',\n",
+  },
+  {
+    // The other half, and the one a stale-number check cannot catch on its
+    // own: a surface stops stating the count at all. Nothing then disagrees
+    // with anything, the assertion above passes over it, and that surface is
+    // silently outside the guard from that day on.
+    name: 'a surface stops stating the tool count, leaving nothing to be stale',
+    file: 'components/ApiKeysModal.tsx',
+    from: 'eight tools over the same balance.',
+    to: 'tools over the same balance.',
+  },
+
+  {
+    // Exactly how the fabricated dates shipped the first time, removed on
+    // 2026-08-22 (CHANGELOG.md:2523): every crawler was told all 29 posts had
+    // been edited today, on every request.
+    name: 'the blog modification date goes back to being read from the clock',
+    file: 'app/blog/[slug]/page.tsx',
+    from: '    ...(post.updatedAt ? { dateModified: post.updatedAt } : {}),\n',
+    to: '    dateModified: new Date().toISOString(),\n',
+  },
+  {
+    // The value check passes over a page carrying no dates at all, so a
+    // deletion has to fail separately or the structured data can quietly lose
+    // the field that stops it contradicting the prose.
+    name: 'a comparison page loses its publication date entirely',
+    file: 'app/vs/formo/page.tsx',
+    from: "  datePublished: '2026-08-22',\n",
+    to: '',
+  },
+
+  {
+    // The defect itself: the listing that feeds the hub, the sitemap and
+    // generateStaticParams filtering on NULL alone, which published two
+    // reports titled "Unknown Token holders on ...".
+    name: 'the holder listing goes back to filtering on NULL alone',
+    file: 'lib/holder-pages.ts',
+    from: 'WHERE sc.holders_imported > 0 AND ${namedContract}',
+    to: 'WHERE sc.holders_imported > 0',
+  },
+  {
+    // The same defect one level down, where every filter in the file keeps its
+    // shape: the predicate both queries call stops refusing the placeholder.
+    name: 'the shared name rule decays to a NULL check',
+    file: 'lib/holder-pages.ts',
+    from: '  return Boolean(name && !PLACEHOLDER_NAME.test(name));',
+    to: '  return Boolean(name);',
+  },
+  {
+    // Dropping a page from the listing does not deindex it: it stays live at
+    // its own URL, and a URL already submitted in a sitemap does not leave the
+    // index by being withdrawn from one.
+    name: 'a placeholder-named report loses the noindex that keeps it out of the index',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '    ...(isNamed(collection.name) ? {} : { robots: { index: false } }),\n',
+    to: '',
+  },
+  {
+    // The form that reads correctly and is not. `robots: undefined` is a
+    // present key, and Next merges metadata key by key, so it overrides the
+    // ancestor rather than inheriting from it. This shipped once and stripped
+    // the directive from all 123 named reports while looking right.
+    name: 'the noindex becomes a conditional value, which strips inheritance from the named reports',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '    ...(isNamed(collection.name) ? {} : { robots: { index: false } }),',
+    to: '    robots: isNamed(collection.name) ? undefined : { index: false },',
+  },
 ];
 
 function invariantsPass(): boolean {

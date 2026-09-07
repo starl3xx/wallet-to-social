@@ -122,7 +122,7 @@ Then the recipes above stop being scripts:
 
 > Here is a CSV of 400 addresses from our last mint. Who are the ten with the largest Farcaster followings, and which of them have a live X account?
 
-The model resolves the batch, sorts, filters on reachability, and hands back a table. Five tools cover it: resolve wallets in either direction, read index coverage, and check the balance. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
+The model resolves the batch, sorts, filters on reachability, and hands back a table. Eight tools cover it: resolve addresses to their social identities, estimate a list before spending on it, submit a background job that resolves unchecked wallets against live sources, poll that job for progress and results, find the wallets behind an X handle, find the wallets behind a Farcaster username, read index coverage, and read the remaining balance. Every tool description states its own cost, because an agent that cannot see the price cannot spend responsibly.
 
 ## 8. Name the address in front of you, mid-incident
 

@@ -234,7 +234,7 @@ If walletlink.social showed you real matches, here’s the price:
 
 The Trial pack is $29, once. It covers 250 matches (one list, once), and misses are still free. No subscription; credits last 12 months.
 
-Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all seven chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they do not hold more product.
+Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all eight chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they do not hold more product.
 
 If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.
 
@@ -247,10 +247,17 @@ Rewritten 2026-08-26, though the rendered text is unchanged. It named
 the first key, not the named one. Every figure above, and the pack name in the
 button, now comes from `PACKS[PACK_IDS[0]]`, so this email asks for whatever the
 entry rung is rather than for the rung that was the entry when it was written.
-`scripts/check-invariants.ts` asserts it still names that rung. The feature paragraph
-is why the smallest pack is the right ask: `hasPaidAccess` is binary, so the
-cheapest pack opens exactly what the largest one opens. The footnote promise
-holds, because there is no email 6.
+`scripts/check-invariants.ts` asserts it still names that rung. One figure in it
+comes from elsewhere: the chain count is `CHAIN_COUNT_WORD` from
+`lib/public-figures.ts`, interpolated in `lib/welcome-sequence.ts` and derived
+from `SUPPORTED_CHAINS`. This mirror of the copy was hand-typed, so it kept the
+old count, "seven", from the day HyperEVM shipped until 2026-09-07: the sent
+email was right and the record of it was not, which is the failure mode every
+hand-typed mirror has. The phrase itself is not repeated here, so a grep for the
+stale string keeps finding only the files that still say it.
+The feature paragraph is why the smallest pack is the right ask: `hasPaidAccess`
+is binary, so the cheapest pack opens exactly what the largest one opens. The
+footnote promise holds, because there is no email 6.
 
 ## Implementation state
 

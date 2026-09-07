@@ -26,13 +26,23 @@ import {
  * figures are how the /vs pages once drifted, and this page repeats none of
  * that.
  *
- * The FAQ here is visible prose for the reader on this page. The site-wide
- * FAQPage JSON-LD in `app/layout.tsx` already carries the pricing answer for
- * crawlers, so this page adds no second structured-data block to disagree
- * with it.
+ * The FAQ here is visible prose for the reader on this page, and it stays
+ * prose only: this page emits no FAQPage JSON-LD of its own. An answer
+ * marked up for crawlers on a page that renders it differently is a
+ * disagreement waiting to be found, and the pricing answer a search engine
+ * wants is the pack table itself, rendered from PACKS a few lines below.
+ *
+ * The `<title>` names the product and the priced unit, because the title is
+ * what an answer engine prints on a citation card and what a retrieval
+ * pipeline prepends to every chunk of this page. "Pricing" identifies
+ * nothing: it is the title of one page on every site there has ever been.
+ * The fix is this one page, not a `title.template` in the root layout, which
+ * would push "walletlink.social vs Addressable: Comparison (2026)" to 71
+ * characters and turn the blog into "Blog - walletlink.social -
+ * walletlink.social".
  */
 export const metadata: Metadata = {
-  title: 'Pricing',
+  title: 'walletlink.social pricing: what a match costs',
   description: `Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window.`,
   alternates: { canonical: 'https://walletlink.social/pricing' },
   openGraph: {
