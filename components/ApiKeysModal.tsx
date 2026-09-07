@@ -465,7 +465,7 @@ export function ApiKeysModal({
                   <p className="mt-2 text-xs text-caution">
                     Installs as{' '}
                     <code className="font-mono">{MCP_SERVER_NAME}</code>, with
-                    five tools over the same balance.{' '}
+                    eight tools over the same balance.{' '}
                     <a
                       href="https://docs.walletlink.social/mcp-server"
                       target="_blank"

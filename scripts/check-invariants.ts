@@ -31,7 +31,7 @@
  *
  * Run: npx tsx scripts/check-invariants.ts
  */
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
@@ -3680,12 +3680,85 @@ async function main() {
       'no unbounded GROUP BY survives in the overlap query',
       !/GROUP BY sc\.address, sc\.chain, sc\.name\s*ORDER BY/.test(overlapSql)
     );
-    // An unnamed counterparty reaches a page as the string "Unknown Token",
-    // which is both useless to a reader and a tell that the name check is only
-    // testing for NULL.
+    /**
+     * An unnamed contract reaches a page as the string "Unknown Token", which
+     * is both useless to a reader and a tell that the name check is only
+     * testing for NULL.
+     *
+     * This assertion used to read `sc.name <> 'Unknown Token'` out of the
+     * overlap query, and it passed for as long as that literal sat there while
+     * the LISTING query, which feeds the hub, the sitemap and
+     * generateStaticParams, filtered on NULL alone and published two
+     * placeholder-named reports. A guard aimed at the one site that was
+     * already correct: the literal was written twice and the rule was written
+     * nowhere.
+     *
+     * So it moves with the refactor and gains the two halves it was missing.
+     * The predicate is `isNamed` and its `sc` fragment in lib/holder-pages.ts;
+     * both queries are asserted to filter on the fragment rather than on a
+     * spelling of their own, the predicate itself is then tried on the
+     * placeholder, and the module is asserted to hold no surviving copy of the
+     * literal for a third site to be written from.
+     */
     ok(
-      'a placeholder-named counterparty is excluded by name, not only by NULL',
-      /sc\.name <> 'Unknown Token'/.test(overlapSql)
+      'the overlap query filters on the shared named-contract predicate',
+      /\$\{namedContract\}/.test(overlapSql)
+    );
+    const listingSql = holderSrc.slice(
+      holderSrc.indexOf('export async function listHolderCollections'),
+      holderSrc.indexOf('export async function getHolderCollection')
+    );
+    ok(
+      'the listing query filters on it too, which is where the defect was',
+      listingSql.length > 200 && /\$\{namedContract\}/.test(listingSql)
+    );
+
+    // Through the code, not around it: the rule itself, tried on the
+    // placeholder the seeder writes when every RPC read of name() failed.
+    const { isNamed } = await import('@/lib/holder-pages');
+    ok(
+      'the placeholder is refused, in either case, and so is an absent name',
+      !isNamed('Unknown Token') &&
+        !isNamed('unknown token') &&
+        !isNamed('Unknown') &&
+        !isNamed(null) &&
+        !isNamed(undefined) &&
+        !isNamed('')
+    );
+    // The refusal has to stop at the word. A collection really called
+    // "Unknowable Machines" is a named collection, and a rule that swallows it
+    // deindexes a page that answers its query.
+    ok(
+      'a real name still passes, including one that merely starts with those letters',
+      isNamed('Pepe') && isNamed('Unknowable Machines')
+    );
+
+    /**
+     * The listing filter is not deindexing. A page dropped from the listing
+     * stays live at its own URL through getHolderCollection, and a URL already
+     * submitted in a sitemap does not leave the index by being withdrawn from
+     * one, so the directive has to ride on the page.
+     *
+     * Asserted as a conditional SPREAD, not a conditional value. `robots:
+     * isNamed(...) ? undefined : {...}` reads the same and is not: an
+     * explicit `robots: undefined` is a present key, and Next merges metadata
+     * key by key, so it overrides the ancestor's value rather than inheriting
+     * it. That form silently stripped the directive from the 123 named
+     * reports while looking correct. Inverting the condition also fails here,
+     * which is the mistake a one-character edit makes.
+     */
+    const holderPage = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    );
+    ok(
+      'a placeholder-named report carries its own noindex, which the listing cannot supply',
+      /\.\.\.\(isNamed\(collection\.name\)\s*\?\s*\{\}\s*:\s*\{\s*robots:\s*\{\s*index:\s*false\s*\}\s*\}\)/.test(
+        holderPage
+      )
+    );
+    ok(
+      'no copy of the placeholder literal survives for a third rule to be written from',
+      !/Unknown Token/.test(holderSrc) && !/Unknown Token/.test(holderPage)
     );
 
     /**
@@ -3834,13 +3907,13 @@ async function main() {
      * because the page compared the two counts itself; if that comparison
      * comes back, the prose can disagree with the node again.
      */
-    const holderPage = withoutComments(
+    const holderBasisPage = withoutComments(
       readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
     );
     ok(
       'the holder page derives its measured set rather than recomputing it',
-      !/totalHolders\s*[><]/.test(holderPage) &&
-        (holderPage.match(/holderBasisPhrase\(/g) ?? []).length >= 2
+      !/totalHolders\s*[><]/.test(holderBasisPage) &&
+        (holderBasisPage.match(/holderBasisPhrase\(/g) ?? []).length >= 2
     );
 
     const { measurementInProgress, MEASUREMENT_IN_PROGRESS_BELOW } =
@@ -6221,6 +6294,249 @@ async function main() {
         .includes('topics: [TEXT_CHANGED_4, null, [KEY_TWITTER]],') &&
         basenames.includes("const KEY_TWITTER = ethers.id('com.twitter');") &&
         (basenames.match(/com\.twitter/g) ?? []).length === 2
+    );
+  }
+
+  // ------------------------------------ the published MCP tool count is real
+  /**
+   * On 2026-09-07 three different numbers were in public circulation: seven on
+   * /vs/formo, five in the key modal and in a published post, seven in the
+   * OAuth grant rationale, eight everywhere else. The server answers eight,
+   * with no credential, to anyone who asks it. An engine asked how many tools
+   * the server has could reach three pages giving three answers.
+   *
+   * Correcting the four sentences was the small half. A ninth tool can be
+   * registered today and every one of those sentences stays stale with no
+   * diff, nothing failing and nobody to notice: the shape this repo already
+   * paid for on the handshake version, which reported 1.0.0 while the public
+   * registry had moved to 1.2.0 twice over (CHANGELOG.md:753). So the count is
+   * DERIVED from the registrations, and each surface is required to state it.
+   *
+   * Two halves, and the second is the load-bearing one:
+   *
+   *   - every number word standing beside `tools` must equal the derived
+   *     count, which catches a sentence left behind
+   *   - every surface must still carry such a sentence at all, which catches
+   *     the easier failure: a reworded or deleted line passing because the
+   *     check found nothing to disagree with
+   *
+   * The copy is read RAW. Two of these surfaces state the count inside a block
+   * comment (`lib/oauth/grants.ts` and the header of `app/api/mcp/route.ts`),
+   * and those are the sentences a maintainer reads before touching the
+   * surface, so they are copy like any other. The derivation reads the source
+   * with comments stripped, so a commented-out registration cannot inflate it.
+   *
+   * CHANGELOG.md is excluded deliberately: "five tools are the six endpoints"
+   * is dated history there, and correcting it would falsify the record.
+   */
+  {
+    const names = [
+      ...withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8')).matchAll(
+        /server\.registerTool\(\s*'(walletlink_[a-z_]+)'/g
+      ),
+    ].map((m) => m[1]);
+
+    // A count of zero would let every assertion below pass by matching
+    // nothing, which is how a regex-derived figure fails silently.
+    ok('the MCP server registers tools this check can count', names.length > 0);
+    ok(
+      'no tool name is registered twice, so the count cannot be inflated',
+      new Set(names).size === names.length
+    );
+
+    /**
+     * Spelled from the same list `CHAIN_COUNT_WORD` is spelled from, read out
+     * of lib/public-figures.ts rather than retyped here: that file keeps
+     * `COUNT_WORDS` module-private, and a second copy is a second thing to
+     * drift. A silent mis-parse would hand back `undefined` and spell the
+     * count as a bare numeral, so the parse is proved against the exported
+     * constant before it is used.
+     */
+    const words = [
+      ...(
+        /const COUNT_WORDS = \[([\s\S]*?)\];/.exec(
+          readFileSync('lib/public-figures.ts', 'utf8')
+        )?.[1] ?? ''
+      ).matchAll(/'([a-z]+)'/g),
+    ].map((m) => m[1]);
+    const { CHAIN_COUNT_WORD } = await import('@/lib/public-figures');
+    ok(
+      'the number words parse out of lib/public-figures.ts',
+      words[0] === 'zero' && words.length > names.length
+    );
+    ok(
+      'the parsed list is the one the published chain count is spelled from',
+      words[SUPPORTED_CHAINS.length] === CHAIN_COUNT_WORD
+    );
+    const word = words[names.length] ?? String(names.length);
+
+    /**
+     * Every place the count is published or explained. Anchored on the plural
+     * `tools`, so "bill the caller twice for one tool call" and "one tool that
+     * picks the endpoint" are not read as counts, and permitting an optional
+     * "MCP" between the two words for `lib/oauth/grants.ts`.
+     */
+    const surfaces = [
+      'app/llms.txt/route.ts',
+      'README.md',
+      'PROJECT_OVERVIEW.md',
+      'docs-site/mcp-server.mdx',
+      'app/api/mcp/route.ts',
+      'app/vs/formo/page.tsx',
+      'content/published/nine-things-to-build.md',
+      'components/ApiKeysModal.tsx',
+      'lib/oauth/grants.ts',
+    ];
+    const counted = new RegExp(
+      `\\b(${words.join('|')})\\s+(MCP\\s+)?tools\\b`,
+      'gi'
+    );
+    for (const file of surfaces) {
+      const stated = [...readFileSync(file, 'utf8').matchAll(counted)].map(
+        (m) => m[1].toLowerCase()
+      );
+      ok(
+        `${file} still states how many tools the server has`,
+        stated.length > 0
+      );
+      ok(
+        `${file} states the count the server actually registers (${word})`,
+        stated.every((s) => s === word)
+      );
+    }
+  }
+
+  // --------------------------- no structured-data date comes from the clock
+  /**
+   * Removed twice, on both surfaces this now covers, and reintroduced on
+   * 2026-09-07 as dates a person wrote beside the edit they made:
+   *
+   *   - the blog JSON-LD stopped stamping `dateModified` with render time on
+   *     2026-08-22 (CHANGELOG.md:2523). It was `new Date()`, so every crawler
+   *     was told all 29 posts had been edited today, on every request.
+   *   - the six comparison pages stopped stamping it with `new Date()` at
+   *     build on 2026-08-30 (CHANGELOG.md:775), which told crawlers every one
+   *     of them changed on the day of any deploy.
+   *
+   * The failure this refuses is invisible in review, because a date field
+   * whose value is a clock read looks exactly like one whose value is a fact.
+   * So it is asserted as an ALLOWLIST over the value rather than as a scan for
+   * `new Date(`: a scan is satisfied by hiding the clock behind a local const,
+   * and `app/blog/[slug]/page.tsx` legitimately calls `new Date(...)` a few
+   * lines below to render an authored date for a reader.
+   *
+   * The emitters are discovered rather than listed, so a comparison page added
+   * next month is covered on the day it ships.
+   */
+  {
+    const emitters = execSync('git ls-files', { encoding: 'utf8' })
+      .split('\n')
+      .filter((f) => /\.tsx$/.test(f))
+      .filter((f) => {
+        try {
+          return readFileSync(f, 'utf8').includes('application/ld+json');
+        } catch {
+          return false;
+        }
+      });
+    ok('the structured-data emitters were found at all', emitters.length >= 8);
+
+    const dateField =
+      /\b(datePublished|dateModified|dateCreated|uploadDate)\s*:\s*('[^']*'|[A-Za-z_$][\w$.]*)/g;
+    // The only reads permitted. Two are dates carried on the post, from
+    // frontmatter a person wrote. The third is the holder set's own
+    // confirmation day, `max(last_seen_at)` over the imported holdings: it is
+    // measured rather than authored, but it is a property of the data and not
+    // of the request, so it does not move when nothing changed. It is named
+    // rather than inlined precisely so it has to appear here to be used.
+    // `new Date().toISOString()` captures as `new`, which is in none of the
+    // three, and so is any local const standing in for it.
+    const authoredReads = new Set([
+      'post.publishedAt',
+      'post.updatedAt',
+      'holderSetConfirmedIso',
+    ]);
+    let dated = 0;
+    for (const file of emitters) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      for (const [, field, value] of src.matchAll(dateField)) {
+        dated++;
+        ok(
+          `${file}: ${field} is an authored date, never a clock read`,
+          /^'\d{4}-\d{2}-\d{2}'$/.test(value) || authoredReads.has(value)
+        );
+      }
+    }
+
+    /**
+     * The other half: the loop above passes over a page whose dates were
+     * deleted. Each comparison page carries both, and the count is derived
+     * from the pages found rather than typed, so dropping one page is a
+     * deliberate edit here and losing a date from one is not.
+     *
+     * The holder reports are deliberately not in this set. Their date is the
+     * day the holder set was last confirmed onchain, which every report shows
+     * in its copy and publishes as `lastmod`, so it is measured rather than
+     * authored and there is no second date to lose. What the loop above still
+     * enforces there is the part that matters: that the value comes from the
+     * measurement and never from the clock.
+     */
+    const comparisons = emitters.filter((f) =>
+      /^app\/vs\/[^/]+\/page\.tsx$/.test(f)
+    );
+    ok(
+      'the comparison pages are still where this expects them',
+      comparisons.length >= 6
+    );
+    for (const file of comparisons) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} states when it was published and when it was last edited`,
+        /datePublished:\s*'\d{4}-\d{2}-\d{2}'/.test(src) &&
+          /dateModified:\s*'\d{4}-\d{2}-\d{2}'/.test(src)
+      );
+    }
+    ok(
+      'the structured data still carries dates at all',
+      dated >= comparisons.length * 2 + 2
+    );
+
+    // Spread in, not set to undefined: an unrevised post publishes no
+    // modification key rather than a null one.
+    const blogPage = withoutComments(
+      readFileSync('app/blog/[slug]/page.tsx', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'a post publishes a modification date only when a person wrote one',
+      blogPage.includes(
+        '...(post.updatedAt ? { dateModified: post.updatedAt } : {}),'
+      )
+    );
+
+    /**
+     * And the reader behind it cannot invent one. Through the code: the posts
+     * are parsed, and the number carrying a modification date has to equal the
+     * number of files whose frontmatter carries the key. A default of today
+     * would make that 29 against 2.
+     */
+    const { getAllPosts } = await import('@/lib/blog');
+    const posts = getAllPosts();
+    const revised = posts.filter((p) => p.updatedAt);
+    const authored = readdirSync('content/published').filter(
+      (f) =>
+        f.endsWith('.md') &&
+        /^updated_date:/m.test(readFileSync(`content/published/${f}`, 'utf8'))
+    );
+    ok(
+      'every published modification date is written in a post’s frontmatter',
+      posts.length > 0 &&
+        authored.length > 0 &&
+        revised.length === authored.length
+    );
+    ok(
+      'a published date is a day, not a timestamp taken from a clock',
+      posts.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.publishedAt)) &&
+        revised.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.updatedAt ?? ''))
     );
   }
 

@@ -20,15 +20,20 @@
  *
  * A token issued for the MCP server also authenticates a plain REST call to
  * `/v1/*`. It is the same credential type, so it must. That is not a hole
- * being tolerated: the seven MCP tools are the eight `/v1` endpoints, reached
- * through the same handlers, drawing on the same balance. There is nothing on
- * one surface that is not on the other, so the audience separation RFC 8707
- * describes would separate two names for one resource.
+ * being tolerated: the eight MCP tools are the nine `/v1` endpoints, reached
+ * through the same handlers, drawing on the same balance. The counts differ by
+ * one only because the single and batch lookups are one tool that picks the
+ * endpoint by list length. There is nothing on one surface that is not on the
+ * other, so the audience separation RFC 8707 describes would separate two names
+ * for one resource.
  *
  * It is written down here because the alternative is a consent screen implying
  * a boundary that no code enforces, and this repository has shipped four
  * comments that asserted a security property with nothing able to contradict
- * them. `scripts/check-invariants.ts` asserts the surfaces are the same size.
+ * them. `scripts/check-invariants.ts` derives the MCP tool count from the
+ * `registerTool` calls and asserts every surface that states it agrees. It
+ * does not assert parity between the two surfaces, because they are not the
+ * same size: the sentence above explains why the counts differ by one.
  *
  * ## The key cap
  *

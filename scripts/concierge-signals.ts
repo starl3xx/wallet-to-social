@@ -55,6 +55,7 @@ import {
   measurementInProgress,
   meetsListingFloor,
   chainLabel,
+  isNamed,
   type HolderStats,
   type HolderCollection,
 } from '../lib/holder-pages';
@@ -239,18 +240,13 @@ async function resolveContract(address: string | null): Promise<{
 }
 
 /**
- * The seeder writes a placeholder when a contract exposes no name, and a
- * placeholder is never a display name.
- *
- * The index lane rejected these from the start. Then the other lanes learned to
- * resolve collections and started preferring `collection.name` over the handle,
- * so a placeholder began beating a perfectly good `@username`: a reply
- * addressed to "Unknown Token". The rule belongs in one function that every
- * lane calls, not in the one lane that happened to think of it.
+ * `isNamed` used to be defined here, a second copy of the predicate that
+ * `lib/holder-pages.ts` also carried. Two copies of a rule are two rules, and
+ * this one drifted the moment the page lane learned to deindex placeholders:
+ * this file kept its own and knew nothing about it. It is imported now, so
+ * the comment in `lib/holder-pages.ts` calling itself the one authority is
+ * true rather than aspirational.
  */
-function isNamed(name: string | null | undefined): boolean {
-  return Boolean(name && !/^unknown\b/i.test(name));
-}
 
 /** Best available label: a real collection name, else whoever posted. */
 function displayName(

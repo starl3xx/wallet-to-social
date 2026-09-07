@@ -35,7 +35,7 @@ figure below is quoted against matches rather than wallets submitted.
 | Scale    | $299  | 6,000                   | Several lists, or one large one             |
 | Index    | $899  | 25,000                  | Agencies and repeat work                    |
 
-Every pack carries all seven chains, the X list export, the wallet addresses
+Every pack carries all eight chains, the X list export, the wallet addresses
 behind a handle, contract import, Farcaster DMs, priority score and follower
 counts, deep scan with onchain ENS, and API and MCP access on the same credits.
 One-time payments, not subscriptions. Credits last 12 months.

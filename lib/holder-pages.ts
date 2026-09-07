@@ -148,9 +148,50 @@ export interface HolderOverlap {
 }
 
 /**
- * Every collection above the listing floor; the page list, the sitemap and
- * generateStaticParams. Below-floor pages stay live at their direct URLs
- * through getHolderCollection, they just are not pointed at. The reachable
+ * The seeder writes a placeholder when a contract exposes no name, and a
+ * placeholder is never a display name.
+ *
+ * `lib/contract-holders.ts` returns 'Unknown Token' when every RPC endpoint
+ * failed, or when name() and symbol() both reverted. The string records a
+ * failed read, not a fact about the contract, so a report titled with it
+ * answers no query and contradicts /llms.txt, which tells agents these
+ * reports cover named collections.
+ *
+ * The rule was already written twice: once as this predicate in
+ * scripts/concierge-signals.ts, which the reply lanes call so a placeholder
+ * cannot beat a real @username, and once as a bare `<> 'Unknown Token'` in
+ * getHolderOverlap below. The listing query had neither and filtered only on
+ * NULL, so two placeholder-named reports were listed, sitemapped and
+ * prerendered (verified against production on 2026-09-07: exactly two, both
+ * clearing the listing floor). This is the one authority now.
+ */
+const PLACEHOLDER_NAME = /^unknown\b/i;
+
+export function isNamed(name: string | null | undefined): boolean {
+  return Boolean(name && !PLACEHOLDER_NAME.test(name));
+}
+
+/**
+ * The same rule for the `sc` alias, so the listing and the overlap query
+ * filter on the rule rather than on a literal each.
+ *
+ * The word boundary is spelled as a character class rather than as Postgres's
+ * own `\y` because drizzle's `sql` tag reads the cooked template strings, not
+ * `.raw`: JavaScript drops the backslash of an unrecognised escape before any
+ * tag sees it, so `'^unknown\y'` would reach Postgres as `^unknowny` and match
+ * nothing, silently. That is not hypothetical; the first version of this
+ * predicate was written that way and returned zero rows against a corpus
+ * holding two. Checked live on 2026-09-07 over all 260 seeded_contracts names:
+ * this predicate and isNamed classify every one of them the same way.
+ */
+const namedContract = sql`sc.name IS NOT NULL AND sc.name !~* '^unknown([^a-z0-9_]|$)'`;
+
+/**
+ * Every named collection above the listing floor; the page list, the sitemap
+ * and generateStaticParams. Below-floor and placeholder-named pages stay live
+ * at their direct URLs through getHolderCollection, they just are not pointed
+ * at, so a placeholder-named page also carries its own noindex (the
+ * generateMetadata in app/holders/[chain]/[address]/page.tsx). The reachable
  * count is the same expression getHolderStats uses over the same
  * current-batch window, so the hub label and the page figure agree.
  */
@@ -198,7 +239,7 @@ export async function listHolderCollections(): Promise<
     FROM seeded_contracts sc
     JOIN reach r ON r.contract = sc.address AND r.chain = sc.chain
     JOIN latest l ON l.contract = sc.address AND l.chain = sc.chain
-    WHERE sc.holders_imported > 0 AND sc.name IS NOT NULL
+    WHERE sc.holders_imported > 0 AND ${namedContract}
       AND r.reachable >= ${LISTING_MIN_REACHABLE}
       -- The float cast is load-bearing: bound beside an int multiplication
       -- the parameter infers as integer and 0.05 fails to parse.
@@ -453,8 +494,7 @@ export async function getHolderOverlap(
     JOIN other_latest ol ON ol.contract = wh.contract AND ol.chain = wh.chain
     JOIN seeded_contracts sc
       ON sc.address = wh.contract AND sc.chain = wh.chain
-     AND sc.holders_imported > 0 AND sc.name IS NOT NULL
-     AND sc.name <> 'Unknown Token'
+     AND sc.holders_imported > 0 AND ${namedContract}
     WHERE NOT (wh.contract = ${address.toLowerCase()} AND wh.chain = ${chain})
       AND wh.last_seen_at >= ol.at - interval '1 hour'
     GROUP BY sc.address, sc.chain, sc.name
@@ -469,7 +509,63 @@ export function chainLabel(chain: string): string {
   return CHAIN_LABELS[chain as SupportedChain] ?? chain;
 }
 
-/** 'ERC-721' as itself; the legacy lowercase markers never reach pages. */
-export function standardLabel(contractType: string): string {
+/**
+ * Contracts whose stored `contract_type` is wrong by construction, because
+ * they predate the standard that would have answered the detector.
+ *
+ * `detectContractType` (lib/contract-holders.ts) asks ERC-165 for ERC-721,
+ * then for ERC-1155, and treats a revert as "no ERC-165, so ERC-20". That is
+ * the right default: a contract that answers neither interface and does
+ * answer decimals() is almost always a token. CryptoPunks is the case where
+ * it is wrong and cannot be right. The contract predates ERC-721: there is
+ * no ERC-165, `ownerOf` does not exist, ownership lives in
+ * `punkIndexToAddress`, and the detector therefore records ERC-20 without
+ * ever making a mistake. The page then published the guess as a fact, in a
+ * sentence a model can quote with us as the source: "the wallets holding
+ * this ERC-20 on Ethereum". Seen live on 2026-09-07 at the one holder report
+ * /llms.txt cites by hand.
+ *
+ * Keyed by `chain:address` because a stored type is only ever wrong for a
+ * specific deployment, and the address is the same one app/llms.txt/route.ts
+ * links (checked against the seeded_contracts row: name CRYPTOPUNKS, chain
+ * ethereum, contract_type ERC-20).
+ *
+ * ## Why this is an allowlist and not a rule
+ *
+ * The tempting general rule, "say `collection` wherever the type was inferred
+ * rather than read", cannot be written against this data: the detector
+ * collapses "ERC-165 answered false" and "ERC-165 reverted" into the same
+ * string, so the rule would strip an accurate label from nearly every real
+ * ERC-20 we publish. Measured 2026-09-07 by calling all thirteen seeded
+ * Ethereum contracts stored as ERC-20: every one reverts or answers false on
+ * supportsInterface(ERC-721) and every one reverts ownerOf, punks included.
+ * Nothing the corpus records separates punks from a genuine token, which is
+ * why this is a list of contracts somebody read rather than a heuristic.
+ * An entry is added only after somebody can say why the detector could not
+ * have got it right.
+ *
+ * Nothing here changes what the ingest stores, and the entry does not make
+ * the page correct in every other respect: lib/recognized-contracts.ts still
+ * refuses to seed CryptoPunks until the ingest has a punks-specific ownership
+ * reader.
+ */
+const PRE_ERC721_COLLECTIONS = new Set([
+  'ethereum:0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb',
+]);
+
+/**
+ * 'ERC-721' as itself; the legacy lowercase markers never reach pages.
+ *
+ * Takes the chain and address as well as the type, so the sentence on the
+ * page can be right about a contract the detector could not classify.
+ */
+export function standardLabel(
+  contractType: string,
+  chain: string,
+  address: string
+): string {
+  if (PRE_ERC721_COLLECTIONS.has(`${chain}:${address.toLowerCase()}`)) {
+    return 'collection';
+  }
   return contractType.startsWith('ERC') ? contractType : 'token';
 }

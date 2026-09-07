@@ -16,6 +16,7 @@ import {
   getHolderCollection,
   getHolderStats,
   getHolderOverlap,
+  isNamed,
   measurementInProgress,
   chainLabel,
   standardLabel,
@@ -66,6 +67,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical },
+    /**
+     * A placeholder name is a failed read, so this page answers no query and
+     * must not be indexed. Dropping it from listHolderCollections stops the
+     * hub, the sitemap and prerendering pointing at it, and that is all it
+     * stops: the page stays live at its own URL through getHolderCollection,
+     * and a URL already submitted in a sitemap does not leave the index by
+     * being withdrawn from one. So the directive rides on the page itself,
+     * the shape /admin and /success already settled on: a page-level
+     * noindex, deliberately not a robots.txt Disallow, because a disallowed
+     * URL can still be indexed from a link and Google cannot read a noindex
+     * on a page it may not fetch.
+     *
+     * `follow` is left at its default. The overlap section links real
+     * reports, and those links should still be crawled.
+     */
+    // Spread rather than `robots: cond ? undefined : {...}`: an explicit
+    // `robots: undefined` is still a present key, and Next merges metadata
+    // key by key, so a present-but-undefined value overrides what an ancestor
+    // set instead of inheriting it. The 123 real reports must keep whatever
+    // the root layout gives them, so the key is absent for them entirely.
+    ...(isNamed(collection.name) ? {} : { robots: { index: false } }),
     openGraph: {
       title,
       description,
@@ -328,8 +350,13 @@ export default async function HolderPage({ params }: Props) {
         </h1>
         <p className="mb-2 text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
           Every holder ranking shows addresses. This one shows how many of the
-          wallets holding this {standardLabel(collection.contractType)} on{' '}
-          {chainLabel(collection.chain)} resolve to an X or Farcaster account
+          wallets holding this{' '}
+          {standardLabel(
+            collection.contractType,
+            collection.chain,
+            collection.address
+          )}{' '}
+          on {chainLabel(collection.chain)} resolve to an X or Farcaster account
           the owner published, and how many of those you can still reach.
         </p>
         <p className="mb-8 text-sm text-muted-foreground">

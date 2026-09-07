@@ -98,6 +98,10 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/cookie3',
   },
   datePublished: '2026-08-20',
+  // The file's last authored change (`git log -1 -- app/vs/cookie3/page.tsx`),
+  // not the render date: a dateModified taken from the clock tells a crawler
+  // every page changed today, on every request. Move it when the copy moves.
+  dateModified: '2026-08-30',
   keywords:
     'Cookie3 alternative, Twitter wallet matching, wallet to social, web3 analytics',
 };

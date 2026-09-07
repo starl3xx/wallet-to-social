@@ -71,6 +71,10 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/holder',
   },
   datePublished: '2026-08-13',
+  // The file's last authored change (`git log -1 -- app/vs/holder/page.tsx`),
+  // not the render date: a dateModified taken from the clock tells a crawler
+  // every page changed today, on every request. Move it when the copy moves.
+  dateModified: '2026-08-30',
   keywords:
     'holder.xyz alternative, holder xyz shut down, web3 CRM, wallet lookup',
 };

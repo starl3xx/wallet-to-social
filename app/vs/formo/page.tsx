@@ -99,6 +99,10 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/formo',
   },
   datePublished: '2026-08-22',
+  // The file's last authored change (`git log -1 -- app/vs/formo/page.tsx`),
+  // not the render date: a dateModified taken from the clock tells a crawler
+  // every page changed today, on every request. Move it when the copy moves.
+  dateModified: '2026-09-01',
   keywords:
     'Formo alternative, wallet profiles, wallet to social, DeFi analytics',
 };
@@ -343,7 +347,7 @@ export default function FormoComparison() {
                           className="mt-0.5 h-4 w-4 flex-none text-attested"
                         />
                         <span className="text-xs text-muted-foreground">
-                          (seven tools, on every pack and the free allowance)
+                          (eight tools, on every pack and the free allowance)
                         </span>
                       </span>
                     </td>
