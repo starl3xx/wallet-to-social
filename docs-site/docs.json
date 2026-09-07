@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "walletlink.social",
-  "description": "Resolve wallet addresses to Farcaster, X and ENS identities, in both directions.",
+  "description": "Resolve wallet addresses to the X and Farcaster accounts their owners published, and back again. Every match is labelled with the evidence behind it, attested or correlated, and every X handle carries a state saying whether it still reaches a person. Sold as one-time credit packs, metered only on matches, with a USDC rail that needs no account. Product overview at https://walletlink.social/llms.txt and full docs at https://docs.walletlink.social/llms-full.txt.",
   "colors": {
     "primary": "#4131B0",
     "light": "#8585FF",

@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
   title:
@@ -35,12 +36,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/airstack',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Airstack alternative for Farcaster lookups',
     description:
       'Airstack is no longer available. Here’s where to migrate your Farcaster identity lookups.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/airstack',
@@ -73,12 +78,21 @@ const jsonLd = {
     'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
 };
 
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Airstack', path: '/vs/airstack' },
+]);
+
 export default function AirstackComparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

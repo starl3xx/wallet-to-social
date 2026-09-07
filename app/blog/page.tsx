@@ -18,12 +18,18 @@ export const metadata: Metadata = {
     type: 'website',
     url: 'https://walletlink.social/blog',
     siteName: 'walletlink.social',
+    // A page that declares its own openGraph block does not inherit the root
+    // segment's opengraph-image file, so every /blog card unfurled with no
+    // image at all. Relative, resolved against the apex metadataBase: a card
+    // URL must never be the www host or anything that redirects.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Blog - walletlink.social',
     description:
       'Insights on wallet identity, token holder outreach, AI agent detection, and Web3 marketing.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/blog',

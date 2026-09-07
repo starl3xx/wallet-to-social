@@ -6,6 +6,8 @@ import {
   FREE_WINDOW_DAYS,
   CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
+import { CHAIN_LIST } from '@/lib/faq';
+import { LEGAL_ENTITY, PRODUCTION_URL } from '@/lib/site-url';
 import { Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { PageViewTracker } from '@/components/PageViewTracker';
@@ -14,18 +16,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
 import { UpgradeModalProvider } from '@/components/UpgradeModalProvider';
 import './globals.css';
-import {
-  INDEXED_WALLETS,
-  INDEXED_WALLETS_LONG,
-  WALLETS_WITH_X,
-  CHAIN_COUNT_WORD,
-} from '@/lib/public-figures';
-import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
-
-// The chain list, derived so a new chain cannot leave this copy behind.
-const CHAIN_LIST = SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c])
-  .join(', ')
-  .replace(/, ([^,]+)$/, ' and $1');
+import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
 // is no Google Fonts request for the body face any more. Geist Mono stays:
@@ -96,12 +87,77 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
+/**
+ * The entity nodes, in one graph.
+ *
+ * ## Why an Organization exists at all now
+ *
+ * `sameAs` returned zero hits across the whole repo. `sameAs` and `@id` are the
+ * documented entity-reconciliation inputs for Google's Knowledge Graph and
+ * Bing's schema ingestion, and until this landed the only complete Organization
+ * on the property was Mintlify's, anchored at the docs subdomain with no logo
+ * and no `sameAs`, while eight `publisher` stubs on /vs, /blog and /holders had
+ * nothing to resolve to.
+ *
+ * Scope it honestly: this does nothing for ChatGPT search, Perplexity or
+ * Claude, which text-extract and typically drop script tags. The visible FAQ on
+ * the homepage is the half that reaches those.
+ *
+ * ## The rules this block follows
+ *
+ * `legalName` and every URL come from `lib/site-url.ts`, never typed: that
+ * file's header records the day the entity name was written from memory as
+ * "Starl3xx Labs" on the one page where it is a legal claim. The three `sameAs`
+ * profiles were each fetched and each returned 200, and each links back here,
+ * which is what makes them evidence rather than assertion. The docs subdomain
+ * is deliberately NOT among them: `sameAs` is for a reference page identifying
+ * the entity elsewhere, not for your own site.
+ */
+const ORGANIZATION_ID = `${PRODUCTION_URL}/#organization`;
+const WEBSITE_ID = `${PRODUCTION_URL}/#website`;
+const APPLICATION_ID = `${PRODUCTION_URL}/#software`;
+const PRICING_URL = `${PRODUCTION_URL}/pricing`;
+
+const organization = {
+  '@type': 'Organization',
+  '@id': ORGANIZATION_ID,
   name: 'walletlink.social',
-  applicationCategory: 'WebApplication',
+  legalName: LEGAL_ENTITY,
+  url: PRODUCTION_URL,
+  // public/icon.png, 512x512, well clear of Google's 112px floor.
+  logo: `${PRODUCTION_URL}/icon.png`,
+  disambiguatingDescription:
+    'An identity index for EVM wallet addresses: it resolves an address to the X and Farcaster accounts its owner published, and a handle back to its wallets. It is not a wallet connector and not an analytics suite.',
+  sameAs: [
+    'https://x.com/walletlinkETH',
+    'https://farcaster.xyz/walletlink',
+    'https://github.com/starl3xx/wallet-to-social',
+  ],
+};
+
+const website = {
+  '@type': 'WebSite',
+  '@id': WEBSITE_ID,
+  url: PRODUCTION_URL,
+  name: 'walletlink.social',
+  publisher: { '@id': ORGANIZATION_ID },
+};
+
+const softwareApplication = {
+  '@type': 'SoftwareApplication',
+  '@id': APPLICATION_ID,
+  name: 'walletlink.social',
+  url: PRODUCTION_URL,
+  /**
+   * "WebApplication" is a schema.org TYPE, not a category, and it is absent
+   * from Google's enumerated `applicationCategory` list, so the field carried
+   * no meaning for the one consumer it was written for.
+   */
+  applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
+  publisher: { '@id': ORGANIZATION_ID },
+  provider: { '@id': ORGANIZATION_ID },
+  isPartOf: { '@id': WEBSITE_ID },
   description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
   /**
    * Credit packs. A match is a wallet resolved to an X or Farcaster account,
@@ -110,7 +166,11 @@ const jsonLd = {
    *
    * Still one-time payments. That is a real differentiator against every priced
    * competitor in the category and it is load-bearing for the /vs/ pages, so it
-   * is stated in the FAQ answer below rather than left to be inferred.
+   * is stated in the FAQ answer (`lib/faq.ts`) rather than left to be inferred.
+   *
+   * Every offer carries the pricing page as its `url`, because an Offer with no
+   * URL gives a consumer nowhere to send anyone, and the packs are derived from
+   * `PACK_IDS` so a new pack arrives here with the rest of the site.
    */
   offers: [
     {
@@ -118,6 +178,7 @@ const jsonLd = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
+      url: PRICING_URL,
       description: `${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window`,
     },
     ...PACK_IDS.map((id) => ({
@@ -125,7 +186,8 @@ const jsonLd = {
       name: PACKS[id].name,
       price: String(PACKS[id].priceCents / 100),
       priceCurrency: 'USD',
-      description: `${PACKS[id].matches.toLocaleString()} matches, one-time payment, credits last ${CREDIT_LIFETIME_MONTHS} months`,
+      url: PRICING_URL,
+      description: `${PACKS[id].matches.toLocaleString('en-US')} matches, one-time payment, credits last ${CREDIT_LIFETIME_MONTHS} months`,
     })),
   ],
   /**
@@ -142,75 +204,13 @@ const jsonLd = {
    */
 };
 
-const faqSchema = {
+/**
+ * One graph, so the `@id` references above resolve inside the same document
+ * rather than hoping a consumer merges three separate blocks.
+ */
+const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: 'What is walletlink.social?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'walletlink.social is a wallet-to-social lookup tool that helps you find Twitter handles and Farcaster profiles for Ethereum wallet addresses. Upload a list of wallets and instantly get their linked social accounts for token holder outreach, airdrop campaigns, and community engagement.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'What is the match rate for wallet-to-social lookups?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'There is no single match rate, and the chain matters more than anything else. Measured across 26 collections and 72,318 holders on 2026-08-17, against our own index with no external calls: Base 46.2%, Ethereum 16.6%, Robinhood Chain 15.6%. Use the figure for your chain rather than an average: an average of these 26 collections describes no collection in particular. Base is roughly three times Ethereum because Base is where Farcaster lives. Tools that match wallets to social accounts typically publish rates in the low single digits, so even the lowest chain here clears that by a wide margin. Farcaster matches are deterministic: the index covers the complete Farcaster protocol (every account’s verified and custody addresses, refreshed daily), so if a wallet belongs to a Farcaster user, we find it. Twitter matches are resolved through several independent routes and every match is labelled with the evidence behind it. Over 99.9% come from owner-attested routes: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. The remainder is correlated from identity indexes and labelled as such. Nothing is inferred from display names, bios or timing.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How much does walletlink.social cost?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: `walletlink.social charges for matches, not for wallets: a match is a wallet we resolve to an X or Farcaster account, and a wallet we cannot resolve costs nothing. The free tier gives ${FREE_MATCHES_PER_WINDOW} matches every ${FREE_WINDOW_DAYS} days. Credit packs are ${PACK_IDS.map((id) => `${PACKS[id].name} at $${PACKS[id].priceCents / 100} for ${PACKS[id].matches.toLocaleString()} matches`).join(', ')}. Every pack includes contract import on all ${CHAIN_COUNT_WORD} chains, the X list export, the wallet addresses behind a handle, priority score and follower counts, deep scan with onchain ENS, and API and MCP access on the same credits. The CSV export and X reachability are not gated: a free lookup exports every row it produced. All packs are one-time payments, not subscriptions, and credits last ${CREDIT_LIFETIME_MONTHS} months.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How is walletlink.social different from Addressable?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over 99.9% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labelled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS} wallets with complete Farcaster coverage.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Does walletlink.social support Farcaster?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes. Farcaster is walletlink.social’s deepest coverage. The index includes the complete Farcaster protocol: every account’s verified and custody addresses with usernames and follower counts, refreshed daily. Lookups return usernames, follower counts, and FIDs, and reverse lookup (handle → wallets) works for any Farcaster user.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How many wallets does walletlink.social cover?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: `The index covers ${INDEXED_WALLETS_LONG} wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over ${WALLETS_WITH_X} wallets have a linked Twitter handle, nearly all of them owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Which blockchains does walletlink.social support?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: `walletlink.social supports ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. You can upload a wallet list from any of them, or import every holder of an NFT collection or ERC-20 token directly from its contract address. Both import types work on every supported network.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Can walletlink.social identify AI agent wallets?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes, walletlink.social automatically identifies AI agent wallets from platforms like Virtuals Protocol, ElizaOS, and Olas. Agent wallets are flagged with their name, framework, and token symbol. This helps you distinguish between human users and AI agents in your wallet lists.',
-      },
-    },
-  ],
+  '@graph': [organization, website, softwareApplication],
 };
 
 export default function RootLayout({
@@ -227,13 +227,13 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* The entity graph is site-wide because the entity is. The FAQPage
+            that used to sit beside it is not: it shipped on all 165 URLs,
+            `/privacy` included, and it now renders with the answers on the
+            homepage (`components/HomeFaq.tsx`). */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
         />
       </head>
       <body className={`${geistMono.variable} antialiased`}>

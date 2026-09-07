@@ -3121,6 +3121,7 @@ async function main() {
       'lib/welcome-sequence.ts',
       'app/llms.txt/route.ts',
       'app/layout.tsx',
+      'lib/faq.ts',
       'app/check/page.tsx',
     ];
     for (const file of tsCopy) {
@@ -3697,6 +3698,58 @@ async function main() {
      * renders a lower bound as the collection's rate with the note suppressed.
      * Seen live on a collection at 239 of 764 checked.
      */
+    /**
+     * The import cap exists twice: once in the seeding pipeline that enforces
+     * it, once in `lib/holder-pages.ts` so a rendered route can recognise a
+     * reported total that is really the cap without importing the ingest.
+     *
+     * Two copies of a number drift, and this one decides whether a machine
+     * readable `totalHolders` is published at all. If the seeder ever raises
+     * its cap and this copy stays, the page starts asserting the old cap as a
+     * real holder base for every collection that hits the new one.
+     */
+    /**
+     * The /mcp page lists every tool with its cost, so it keeps its own copy
+     * of the roster, and every count it states is derived from that copy.
+     * That makes one assertion enough: if the two lists hold the same names
+     * in the same order, the four counts on the page are right by
+     * construction, and a ninth tool shipped without touching the page fails
+     * here rather than being discovered by a reader.
+     */
+    const mcpRoute = withoutComments(
+      readFileSync('app/api/mcp/route.ts', 'utf8')
+    );
+    const registered = [
+      ...mcpRoute.matchAll(/registerTool\(\s*'(walletlink_[a-z_]+)'/g),
+    ].map((m) => m[1]);
+    const mcpPage = withoutComments(readFileSync('app/mcp/page.tsx', 'utf8'));
+    const listed = [...mcpPage.matchAll(/name:\s*'(walletlink_[a-z_]+)'/g)].map(
+      (m) => m[1]
+    );
+    ok(
+      'the MCP tools were found on both surfaces at all',
+      registered.length >= 8 && listed.length >= 8
+    );
+    // Set equality, not order: the page groups the tools by what a reader
+    // reaches for first, which is an editorial choice and not a drift. What
+    // must never differ is the membership, because every count on the page is
+    // derived from the length of this list.
+    ok(
+      'the /mcp page lists exactly the tools the server registers, no more and no fewer',
+      registered.length === listed.length &&
+        [...registered].sort().join(',') === [...listed].sort().join(',')
+    );
+
+    const { HOLDER_IMPORT_CAP } = await import('@/lib/holder-pages');
+    const seedSrc = withoutComments(
+      readFileSync('lib/seed-collections.ts', 'utf8')
+    );
+    const seedCap = seedSrc.match(/const HOLDER_CAP = (\d+);/);
+    ok(
+      'the seeder cap and the copy the holder page reads are the same number',
+      Boolean(seedCap) && Number(seedCap![1]) === HOLDER_IMPORT_CAP
+    );
+
     const { measurementInProgress, MEASUREMENT_IN_PROGRESS_BELOW } =
       await import('@/lib/holder-pages');
     const partial = {
@@ -3917,6 +3970,7 @@ async function main() {
   {
     const surfaces = [
       'app/layout.tsx',
+      'lib/faq.ts',
       'app/llms.txt/route.ts',
       'README.md',
       'app/pricing/page.tsx',

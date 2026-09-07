@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 // Revalidate every hour so scheduled posts appear on time
 export const revalidate = 3600;
@@ -69,16 +70,41 @@ export default async function BlogPost({ params }: Props) {
       '@type': 'WebPage',
       '@id': `https://walletlink.social/blog/${slug}`,
     },
-    // No dateModified: stamping render time claimed every post was edited
-    // today, on every request, in structured data served to crawlers.
     datePublished: post.publishedAt,
+    /**
+     * `dateModified` is emitted only for a post that carries an authored
+     * `updated_date` in its frontmatter, and it is spread in rather than set
+     * to `undefined`, so an unrevised post has no such key at all.
+     *
+     * This is not the field that was removed on 2026-08-22. That one was
+     * `new Date()`, which told every crawler that all 29 posts had been
+     * edited today, on every request. This one is a date a person wrote next
+     * to the edit they made. Two posts have one: both carry a visible
+     * "Update, August 2026" note that the published `datePublished` of March
+     * contradicted by five months.
+     *
+     * A date here must never come from the clock. If a future edit needs a
+     * modification date, add `updated_date` to the post.
+     */
+    ...(post.updatedAt ? { dateModified: post.updatedAt } : {}),
   };
+
+  // "Blog" is the label the eyebrow above the headline already carries, and
+  // the leaf is the post's own title.
+  const breadcrumbJson = breadcrumbJsonLd([
+    { name: 'Blog', path: '/blog' },
+    { name: post.title, path: `/blog/${slug}` },
+  ]);
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* One column for the whole document. The header was `max-w-[68ch]` at

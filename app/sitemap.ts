@@ -74,6 +74,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      // The agent-consumption answer on the apex. Every other route that
+      // could have carried it (/agents, /api-docs, /docs, /api, /developers,
+      // /x402) still 404s, and the apex's own AI-agent pages answer the
+      // opposite sense: an agent as the subject of a lookup, never as the
+      // caller. Ranked with the comparison hub rather than with /check and
+      // /pricing, because it is an entry point for a build decision rather
+      // than a page a stranger acts on in one click.
+      url: `${baseUrl}/mcp`,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       // The hub over the comparisons. Without it the six pages below have no
       // crawl entry point: /vs itself returned 404 until 2026-08-30, so they
       // were reachable only from the sitemap and from each other.

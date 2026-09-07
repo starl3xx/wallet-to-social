@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
   title:
@@ -35,12 +36,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/blaze',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Blaze alternative for wallet-to-X lookups',
     description:
       'Blaze is no longer available. Here’s where to migrate your wallet-to-X lookups.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/blaze',
@@ -73,12 +78,21 @@ const jsonLd = {
     'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
 };
 
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Blaze', path: '/vs/blaze' },
+]);
+
 export default function BlazeComparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

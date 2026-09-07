@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
  * Formo (formo.so) is a product-analytics and attribution platform for DeFi
@@ -61,12 +62,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/formo',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'walletlink.social vs Formo comparison',
     description:
       'Wallet-to-social lookups priced once, by the match, against a DeFi analytics subscription with wallet profiles inside it.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/formo',
@@ -132,12 +137,21 @@ const AGENT_PER_ADDRESS =
   (X402_PACKS.agent.matches / MEASURED_MATCH_RATE);
 const AGENT_UNDERCUT = FORMO_X402_USDC_PER_REQUEST / AGENT_PER_ADDRESS;
 
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Formo', path: '/vs/formo' },
+]);
+
 export default function FormoComparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

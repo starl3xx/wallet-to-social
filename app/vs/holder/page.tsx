@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Holder alternative for wallet-based CRM (Holder shut down)',
@@ -33,12 +34,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/holder',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Holder alternative for wallet-based CRM',
     description:
       'Holder shut down in June 2024. Here’s where to migrate your holder outreach.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/holder',
@@ -70,12 +75,21 @@ const jsonLd = {
     'holder.xyz alternative, holder xyz shut down, web3 CRM, wallet lookup',
 };
 
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Holder', path: '/vs/holder' },
+]);
+
 export default function HolderComparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

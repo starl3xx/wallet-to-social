@@ -29,16 +29,27 @@ export interface HolderCollection {
   contractType: string;
   totalHolders: number | null;
   holdersImported: number;
+  /**
+   * When this collection's holder set was last confirmed onchain: the same
+   * `max(last_seen_at)` that defines its current batch. The sitemap publishes
+   * it as `lastmod`, the report states it in a sentence a reader can see, and
+   * the report's Dataset node carries it as `dateModified`. Three surfaces,
+   * one fact about the data, so none of them can drift into stamping the
+   * time a page happened to render.
+   *
+   * Null only for a seeded contract with no holdings rows at all, which is
+   * the same condition `getHolderStats` returns null for. The report 404s
+   * there, so nothing has to invent a date to fill the gap.
+   */
+  lastSeenAt: string | null;
 }
 
 /** A collection above the listing floor, carrying the number that earned it. */
 export interface ListedHolderCollection extends HolderCollection {
   reachableAny: number;
   /**
-   * When this collection's holder set was last confirmed onchain: the same
-   * `max(last_seen_at)` that defines its current batch. The sitemap publishes
-   * it as `lastmod`, so the value has to be a fact about the data rather than
-   * the time the page was rendered.
+   * Narrowed: the listing joins `latest`, so a collection with no holdings
+   * cannot appear here at all.
    */
   lastSeenAt: string;
 }
@@ -197,6 +208,24 @@ export async function listHolderCollections(): Promise<
   return result.rows;
 }
 
+/**
+ * One seeded collection, with the date its holder set was last confirmed
+ * onchain.
+ *
+ * That date is the same `max(last_seen_at)` the stats and overlap queries
+ * anchor their current-batch window on, computed here by the same `latest`
+ * CTE rather than read from `seeded_contracts.last_seeded_at`: a re-seed
+ * commits that column in an earlier separate statement, so it can outrun the
+ * holdings it describes. The report publishes this value in its copy and in
+ * its `dateModified`, and both must name the batch the figures beside them
+ * were measured over.
+ *
+ * A cross join, not an inner one. The aggregate returns a row whatever the
+ * holdings table holds, so a seeded contract whose holdings have not landed
+ * yet still resolves to a collection with a null date, exactly as it did
+ * before this column existed; the 404 for that case stays where it already
+ * was, in `getHolderStats`.
+ */
 export async function getHolderCollection(
   chain: string,
   address: string
@@ -204,18 +233,41 @@ export async function getHolderCollection(
   const db = getDb();
   if (!db) return null;
   const result = (await db.execute(sql`
-    SELECT address, chain, name, symbol, contract_type AS "contractType",
-           total_holders AS "totalHolders", holders_imported AS "holdersImported"
-    FROM seeded_contracts
-    WHERE address = ${address.toLowerCase()} AND chain = ${chain}
-      AND holders_imported > 0
+    WITH latest AS (
+      SELECT max(last_seen_at) AS at FROM wallet_holdings
+      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+    )
+    SELECT sc.address, sc.chain, sc.name, sc.symbol,
+           sc.contract_type AS "contractType",
+           sc.total_holders AS "totalHolders",
+           sc.holders_imported AS "holdersImported",
+           latest.at AS "lastSeenAt"
+    FROM seeded_contracts sc, latest
+    WHERE sc.address = ${address.toLowerCase()} AND sc.chain = ${chain}
+      AND sc.holders_imported > 0
   `)) as unknown as { rows: HolderCollection[] };
   return result.rows[0] ?? null;
 }
 
 /**
- * The page's numbers, one aggregate over at most HOLDER_CAP (2,000) wallets.
- * x_accounts joins on the lowercased handle, the same rule as
+ * The number of holders the seeder stops importing at.
+ *
+ * The value lives here as well as in `lib/seed-collections.ts` because the
+ * page needs it and that module is the whole seeding pipeline: importing one
+ * constant from it would pull the ingest into a rendered route. The two are
+ * asserted equal in `scripts/check-invariants.ts`, so this is a second copy
+ * of a number rather than a second opinion about it.
+ *
+ * It matters on the page because `seeded_contracts.total_holders` is the
+ * source's reported total, and for some contracts that total came back as
+ * exactly the cap. A reported total equal to the cap and equal to what we
+ * imported is not a total, and must not be published as one.
+ */
+export const HOLDER_IMPORT_CAP = 2000;
+
+/**
+ * The page's numbers, one aggregate over at most HOLDER_IMPORT_CAP (2,000)
+ * wallets. x_accounts joins on the lowercased handle, the same rule as
  * lib/handle-reachability.ts.
  */
 export async function getHolderStats(

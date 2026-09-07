@@ -23,6 +23,10 @@ export const metadata: Metadata = {
     description:
       'A third of X handles verified on Farcaster reach nobody. Check any one of them here, free and without an account.',
     url: 'https://walletlink.social/check',
+    // Declaring an openGraph block is what cost this page the root segment's
+    // opengraph-image file, so the image has to be named here. Relative,
+    // resolved against the apex metadataBase, never a redirecting host.
+    images: ['/opengraph-image'],
   },
   /**
    * X reads `twitter:*` in preference to `og:*`, so without this block the card
@@ -35,6 +39,7 @@ export const metadata: Metadata = {
     title: 'Check whether an X handle still reaches anyone',
     description:
       'A third of X handles verified on Farcaster reach nobody. Free, no account, no key.',
+    images: ['/twitter-image'],
   },
 };
 
