@@ -3750,6 +3750,99 @@ async function main() {
       Boolean(seedCap) && Number(seedCap![1]) === HOLDER_IMPORT_CAP
     );
 
+    /**
+     * The holder page states its measured set twice, in prose and in the
+     * Dataset node, and the two used to be computed separately. They
+     * disagreed on the six contracts whose reported total came back as
+     * exactly the cap: the Dataset said the real base may be larger while
+     * the visible sentence said "all 2,000". An answer engine quotes the
+     * prose, so the page shipped the over-claim the Dataset existed to
+     * prevent.
+     *
+     * Run against the real shapes rather than grepped, so a refactor that
+     * keeps the call sites but breaks the classification still fails. The
+     * inputs are the four cases production actually holds, measured on
+     * 2026-09-07 over the 177 named contracts that carry imported wallets.
+     */
+    const { holderBasis, holderBasisPhrase, holderBasisCaveat } =
+      await import('@/lib/holder-pages');
+    const basisFor = (holdersImported: number, totalHolders: number | null) =>
+      holderBasis({ holdersImported, totalHolders });
+    ok(
+      'a reported total equal to the cap and to what we imported is refused as a total',
+      basisFor(2000, 2000).kind === 'capped' &&
+        basisFor(2000, null).kind === 'capped' &&
+        basisFor(2000, 0).kind === 'capped'
+    );
+    ok(
+      'a zero total is read as absent, never published as a holder count',
+      basisFor(659, 0).kind === 'unknownTotal' &&
+        basisFor(659, null).kind === 'unknownTotal'
+    );
+    ok(
+      'a genuine total is still a total',
+      basisFor(2000, 16582).kind === 'sample' &&
+        basisFor(1327, 1327).kind === 'complete'
+    );
+    /**
+     * The cap phrasing must appear only where the cap was actually hit.
+     * Before the shared predicate, every contract with no usable total was
+     * described as capped at 2,000, including 44 that imported far fewer.
+     */
+    const caveatFor = (n: number, t: number | null) =>
+      holderBasisCaveat(basisFor(n, t)) ?? '';
+    ok(
+      'only a run that hit the cap is described as capped',
+      caveatFor(2000, 0).includes('import cap') &&
+        !caveatFor(659, 0).includes('import cap') &&
+        caveatFor(1327, 1327) === '' &&
+        caveatFor(2000, 16582) === ''
+    );
+    /**
+     * The two partial cases must not read as complete. Anchored on the
+     * caveat existing rather than on its wording, so a rewrite of the
+     * sentence keeps the assertion meaningful.
+     */
+    ok(
+      'a measured set that is not the holder base always says so',
+      caveatFor(2000, 0) !== '' && caveatFor(659, 0) !== ''
+    );
+    /**
+     * The phrase stays a noun phrase in every case. It reads inside a
+     * sentence that continues after it, and burying the hedge there is
+     * what produced "the first 2,000 holders, which is the import cap, so
+     * the full holder base may be larger, against the walletlink.social
+     * index".
+     */
+    const phraseFor = (n: number, t: number | null) =>
+      holderBasisPhrase(basisFor(n, t), {
+        measuredNoun: 'holders',
+        ofCollection: '',
+      });
+    ok(
+      'the measured-set phrase carries no trailing clause of its own',
+      [
+        phraseFor(2000, 16582),
+        phraseFor(1327, 1327),
+        phraseFor(2000, 0),
+        phraseFor(659, 0),
+        // Not a comma test: toLocaleString puts commas inside the numbers.
+      ].every((p) => !/ which | so |, with /.test(p))
+    );
+    /**
+     * Anchored on the absence of a second opinion. The drift was possible
+     * because the page compared the two counts itself; if that comparison
+     * comes back, the prose can disagree with the node again.
+     */
+    const holderPage = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder page derives its measured set rather than recomputing it',
+      !/totalHolders\s*[><]/.test(holderPage) &&
+        (holderPage.match(/holderBasisPhrase\(/g) ?? []).length >= 2
+    );
+
     const { measurementInProgress, MEASUREMENT_IN_PROGRESS_BELOW } =
       await import('@/lib/holder-pages');
     const partial = {

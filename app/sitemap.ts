@@ -40,7 +40,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = getAllPosts();
   const blogEntries: MetadataRoute.Sitemap = posts.map((post) => ({
     url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: new Date(post.publishedAt),
+    // The authored update date when the post carries one, so lastmod agrees
+    // with the dateModified the page emits. Both come from the same
+    // frontmatter key; a post without one keeps its publish date, which is
+    // still the last day its content changed.
+    lastModified: new Date(post.updatedAt ?? post.publishedAt),
     changeFrequency: 'monthly',
     priority: 0.7,
   }));

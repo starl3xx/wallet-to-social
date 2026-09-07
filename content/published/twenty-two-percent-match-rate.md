@@ -3,6 +3,10 @@ title: 'The 22% match rate: how we got far past single digits'
 meta_description: 'Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, measured by chain.'
 published: true
 publish_date: '2026-03-26'
+# The day the update note below was written, from git log for this file.
+# Authored, never the clock: scripts/check-invariants.ts refuses a
+# structured-data date that comes from a clock read.
+updated_date: '2026-08-13'
 ---
 
 # The 22% match rate: how we got far past single digits

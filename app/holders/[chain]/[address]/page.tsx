@@ -19,7 +19,9 @@ import {
   measurementInProgress,
   chainLabel,
   standardLabel,
-  HOLDER_IMPORT_CAP,
+  holderBasis,
+  holderBasisPhrase,
+  holderBasisCaveat,
 } from '@/lib/holder-pages';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -130,22 +132,22 @@ export default async function HolderPage({ params }: Props) {
   ]);
   if (!stats) notFound();
 
-  const capped =
-    collection.totalHolders !== null &&
-    collection.totalHolders > collection.holdersImported;
-  // Whether the reported total is a total at all. The seeder stops at
-  // HOLDER_IMPORT_CAP, and for six seeded contracts the source's reported
-  // total came back as exactly that number, equal to what we imported. Those
-  // are the cap wearing a total's clothes: CryptoPunks is one of them, and
-  // reading punkIndexToAddress onchain finds well over 2,000 distinct owners.
-  // Publishing that as the holder base would be a measurably false claim in
-  // machine-readable form, so the figure is withheld instead of asserted.
+  // What the measured set is, decided once in lib/holder-pages.ts and used
+  // by both the visible sentence and the Dataset node. They computed it
+  // separately before and disagreed on the six contracts whose reported
+  // total came back as exactly the cap: the prose claimed "all 2,000" while
+  // the Dataset said the real base may be larger. CryptoPunks is one of
+  // those, and reading punkIndexToAddress onchain finds well over 2,000
+  // distinct owners, so the prose was the false half.
+  const basis = holderBasis(collection);
+  // Only a genuine total may be published as one. `unknownTotal` is the
+  // seeder writing 0 because the source reported nothing, which is 44 of
+  // the 177 named contracts.
   const totalHoldersIsKnown =
-    collection.totalHolders !== null &&
-    !(
-      collection.totalHolders === collection.holdersImported &&
-      collection.totalHolders === HOLDER_IMPORT_CAP
-    );
+    basis.kind === 'sample' || basis.kind === 'complete';
+  // The hedge the phrase deliberately leaves out, so both the sentence and
+  // the Dataset description carry it as a sentence of its own.
+  const basisCaveat = holderBasisCaveat(basis);
   const reachablePct =
     stats.holderCount > 0
       ? Math.round((stats.reachableAny / stats.holderCount) * 1000) / 10
@@ -208,17 +210,20 @@ export default async function HolderPage({ params }: Props) {
    * carry, so the three cannot contradict each other.
    */
   const measuredHolders = stats.holderCount.toLocaleString();
-  const population = capped
-    ? `the top ${measuredHolders} of ${collection.totalHolders!.toLocaleString()} addresses holding ${collection.name}`
-    : totalHoldersIsKnown
-      ? `all ${measuredHolders} indexed addresses holding ${collection.name}`
-      : `the first ${measuredHolders} addresses holding ${collection.name} that the index imported, which is the import cap, so the full holder base may be larger`;
+  const population = holderBasisPhrase(basis, {
+    measuredNoun: 'addresses',
+    ofCollection: ` holding ${collection.name}`,
+  });
   const datasetLd = {
     '@context': 'https://schema.org',
     '@type': 'Dataset',
     name: `${collection.name} holder reachability on ${chainLabel(collection.chain)}`,
     description: [
       `Reachability measured over ${population} on ${chainLabel(collection.chain)}: how many resolve to an X handle or a Farcaster account their owner published, and how many of those still reach somebody.`,
+      // The same sentence the visible copy carries, from the same predicate,
+      // so the node and the prose cannot say different things about what was
+      // measured.
+      basisCaveat,
       measurementInProgress(stats)
         ? `${stats.checked.toLocaleString()} of the ${measuredHolders} sampled addresses have been checked so far, so every rate here is a lower bound that rises as the rest are checked.`
         : null,
@@ -241,9 +246,10 @@ export default async function HolderPage({ params }: Props) {
       {
         '@type': 'PropertyValue',
         name: 'measuredHolders',
-        description: capped
-          ? 'Addresses sampled from the top of the holder list. Every rate here is measured over this sample, never over the full holder base.'
-          : 'Addresses holding the collection that the index has imported. Every rate here is measured over these.',
+        description:
+          basis.kind === 'sample' || basis.kind === 'capped'
+            ? 'Addresses sampled from the top of the holder list. Every rate here is measured over this sample, never over the full holder base.'
+            : 'Addresses holding the collection that the index has imported. Every rate here is measured over these.',
         value: stats.holderCount,
       },
       ...(totalHoldersIsKnown
@@ -327,19 +333,20 @@ export default async function HolderPage({ params }: Props) {
           the owner published, and how many of those you can still reach.
         </p>
         <p className="mb-8 text-sm text-muted-foreground">
-          {capped ? (
-            <>
-              Measured over the top{' '}
-              {collection.holdersImported.toLocaleString()} of{' '}
-              {collection.totalHolders!.toLocaleString()} holders, against the
-              walletlink.social index.
-            </>
-          ) : (
-            <>
-              Measured over all {collection.holdersImported.toLocaleString()}{' '}
-              indexed holders, against the walletlink.social index.
-            </>
-          )}{' '}
+          {/* Derived from the same predicate as the Dataset node, not
+              restated. This sentence is the half an answer engine quotes,
+              so when the two disagreed it was this one that shipped the
+              over-claim. */}
+          Measured over{' '}
+          {holderBasisPhrase(basis, {
+            measuredNoun: 'holders',
+            ofCollection: '',
+          })}
+          , against the walletlink.social index.{' '}
+          {/* Its own sentence, not a trailing clause: this is the half that
+              says the measured count is not the holder base, and it has to
+              survive being quoted on its own. */}
+          {basisCaveat ? `${basisCaveat} ` : ''}
           {/* The one dated sentence on the page, and the half of the dating
               work that matters: the sitemap has published this date as
               lastmod for every report all along, and a date carried only in a
