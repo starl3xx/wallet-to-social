@@ -1503,6 +1503,12 @@ const MUTATIONS: Mutation[] = [
       '  discord: string | null;\n' +
       '  handle: string;',
   },
+  {
+    name: 'robots.txt blocks the stylesheet, fonts and JavaScript every page renders with',
+    file: 'app/robots.ts',
+    from: "      allow: ['/api/public-stats', '/_next/static', '/_next/image', '/'],",
+    to: "      allow: ['/api/public-stats', '/'],",
+  },
 ];
 
 function invariantsPass(): boolean {

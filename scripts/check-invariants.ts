@@ -4391,6 +4391,26 @@ async function main() {
       'the MCP resolve schema is capped at the largest plan batch, so zod cannot refuse what a plan allows',
       /const MAX_ADDRESSES = MAX_PLAN_BATCH_SIZE;/.test(mcp)
     );
+
+    /**
+     * Blocking the resources a page renders with is the one edit to robots.ts
+     * that fails silently: the HTML still serves, every check still passes,
+     * and Googlebot quietly judges the site on a build with no stylesheet and
+     * no fonts. Search Console reports it against `/_next/static/...` URLs,
+     * which look like machinery rather than pages, so it reads as noise.
+     *
+     * Anchored on the pairing, not on either list alone. `Disallow: /_next/`
+     * is correct and should stay; what must never exist is that disallow
+     * WITHOUT the two allows that carve the render path back out of it.
+     */
+    const robotsFile = withoutComments(readFileSync('app/robots.ts', 'utf8'));
+    const blocksNext = /disallow: \[[^\]]*'\/_next\/'/.test(robotsFile);
+    ok(
+      'robots.ts cannot block /_next/ without allowing the resources pages render with',
+      !blocksNext ||
+        (/allow: \[[^\]]*'\/_next\/static'/.test(robotsFile) &&
+          /allow: \[[^\]]*'\/_next\/image'/.test(robotsFile))
+    );
   }
 
   // ------------------------------------------- preview builds and Neon
