@@ -16,6 +16,7 @@ import {
 } from '@/components/StarterCollections';
 import { RecentWins } from '@/components/RecentWins';
 import { PageShell } from '@/components/ui/page-shell';
+import { HomeFaq } from '@/components/HomeFaq';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Figure } from '@/components/ui/figure';
 import { Card } from '@/components/ui/card';
@@ -2381,6 +2382,13 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* The answers as prose, below the tool. They existed only inside a
+          script tag until now, which meant the apex stripped to about 1,100
+          characters of chrome for anything that text-extracts. The copy lives
+          in `lib/faq.ts` and the FAQPage JSON-LD is built from the same array,
+          so the visible and structured halves cannot disagree. */}
+      <HomeFaq />
     </PageShell>
   );
 }

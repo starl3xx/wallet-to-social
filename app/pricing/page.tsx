@@ -49,6 +49,12 @@ export const metadata: Metadata = {
     title: 'walletlink.social pricing',
     description: `Packs from $${PACKS[PACK_IDS[0]].priceCents / 100}, bought once. You are charged for matches, not for wallets, and misses cost nothing.`,
     type: 'website',
+    // A page declaring its own openGraph block loses the root segment's
+    // opengraph-image file, so this card had no image. Relative, resolved
+    // against the apex metadataBase, never a host that redirects. No twitter
+    // block is declared here, and the X card is fine: with nothing to
+    // override it, the root twitter-image still reaches this route.
+    images: ['/opengraph-image'],
   },
 };
 

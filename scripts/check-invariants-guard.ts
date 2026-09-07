@@ -1509,6 +1509,33 @@ const MUTATIONS: Mutation[] = [
     from: "      allow: ['/api/public-stats', '/_next/static', '/_next/image', '/'],",
     to: "      allow: ['/api/public-stats', '/'],",
   },
+  {
+    name: 'a source that reported no total has its zero published as a holder count',
+    file: 'lib/holder-pages.ts',
+    from:
+      '  const total =\n' +
+      '    collection.totalHolders !== null && collection.totalHolders > 0\n' +
+      '      ? collection.totalHolders\n' +
+      '      : null;',
+    to: '  const total = collection.totalHolders;',
+  },
+  {
+    name: 'a run that hit the import cap is described as a complete holder set',
+    file: 'lib/holder-pages.ts',
+    from: "  if (measured >= HOLDER_IMPORT_CAP) return { kind: 'capped', measured };",
+    to: '',
+  },
+  {
+    name: 'the holder page compares the two counts itself again, so prose and Dataset can drift',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from:
+      '  const totalHoldersIsKnown =\n' +
+      "    basis.kind === 'sample' || basis.kind === 'complete';",
+    to:
+      '  const totalHoldersIsKnown =\n' +
+      '    collection.totalHolders !== null &&\n' +
+      '    collection.totalHolders > collection.holdersImported;',
+  },
 
   {
     // The defect corrected on 2026-09-07, put back exactly. Three numbers were
@@ -1594,6 +1621,15 @@ const MUTATIONS: Mutation[] = [
     file: 'app/holders/[chain]/[address]/page.tsx',
     from: '    ...(isNamed(collection.name) ? {} : { robots: { index: false } }),',
     to: '    robots: isNamed(collection.name) ? undefined : { index: false },',
+  },
+  {
+    // The defect Bugbot caught on 2026-09-07, put back exactly. It read
+    // correctly in the visible sentence, which passes an empty suffix, and
+    // garbled the Dataset node, which is what a machine reads.
+    name: 'a trailing clause follows the collection suffix and garbles the Dataset phrase',
+    file: 'lib/holder-pages.ts',
+    from: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection}`;',
+    to: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection} the index imported`;',
   },
 ];
 

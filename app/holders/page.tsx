@@ -7,6 +7,7 @@ import {
   type ListedHolderCollection,
 } from '@/lib/holder-pages';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
  * The hub over the per-collection reports: every collection above the
@@ -28,14 +29,28 @@ export const metadata: Metadata = {
     description: `How many holders of each collection resolve to reachable people, measured against a ${INDEXED_WALLETS} wallet identity index.`,
     url: 'https://walletlink.social/holders',
     siteName: 'walletlink.social',
+    // The root segment's opengraph-image file does not reach a page that
+    // declares its own openGraph block, so the hub unfurled with no image.
+    // Relative, resolved against the apex metadataBase, never a redirect.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Holder reachability reports',
     description:
       'How many holders of each collection resolve to reachable people.',
+    images: ['/twitter-image'],
   },
 };
+
+/**
+ * The hub is one step below the homepage, and the label is the one the footer
+ * and every report's back link already carry. This page had no ld+json block
+ * of any kind, so this is a new script tag rather than an addition to one.
+ */
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Holder reports', path: '/holders' },
+]);
 
 export default async function HoldersHubPage() {
   const collections = await listHolderCollections();
@@ -49,6 +64,10 @@ export default async function HoldersHubPage() {
 
   return (
     <PageShell>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
+      />
       <div className="max-w-[68ch]">
         <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
           Who holds it, and who can you{' '}

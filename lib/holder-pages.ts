@@ -29,16 +29,27 @@ export interface HolderCollection {
   contractType: string;
   totalHolders: number | null;
   holdersImported: number;
+  /**
+   * When this collection's holder set was last confirmed onchain: the same
+   * `max(last_seen_at)` that defines its current batch. The sitemap publishes
+   * it as `lastmod`, the report states it in a sentence a reader can see, and
+   * the report's Dataset node carries it as `dateModified`. Three surfaces,
+   * one fact about the data, so none of them can drift into stamping the
+   * time a page happened to render.
+   *
+   * Null only for a seeded contract with no holdings rows at all, which is
+   * the same condition `getHolderStats` returns null for. The report 404s
+   * there, so nothing has to invent a date to fill the gap.
+   */
+  lastSeenAt: string | null;
 }
 
 /** A collection above the listing floor, carrying the number that earned it. */
 export interface ListedHolderCollection extends HolderCollection {
   reachableAny: number;
   /**
-   * When this collection's holder set was last confirmed onchain: the same
-   * `max(last_seen_at)` that defines its current batch. The sitemap publishes
-   * it as `lastmod`, so the value has to be a fact about the data rather than
-   * the time the page was rendered.
+   * Narrowed: the listing joins `latest`, so a collection with no holdings
+   * cannot appear here at all.
    */
   lastSeenAt: string;
 }
@@ -238,6 +249,24 @@ export async function listHolderCollections(): Promise<
   return result.rows;
 }
 
+/**
+ * One seeded collection, with the date its holder set was last confirmed
+ * onchain.
+ *
+ * That date is the same `max(last_seen_at)` the stats and overlap queries
+ * anchor their current-batch window on, computed here by the same `latest`
+ * CTE rather than read from `seeded_contracts.last_seeded_at`: a re-seed
+ * commits that column in an earlier separate statement, so it can outrun the
+ * holdings it describes. The report publishes this value in its copy and in
+ * its `dateModified`, and both must name the batch the figures beside them
+ * were measured over.
+ *
+ * A cross join, not an inner one. The aggregate returns a row whatever the
+ * holdings table holds, so a seeded contract whose holdings have not landed
+ * yet still resolves to a collection with a null date, exactly as it did
+ * before this column existed; the 404 for that case stays where it already
+ * was, in `getHolderStats`.
+ */
 export async function getHolderCollection(
   chain: string,
   address: string
@@ -245,18 +274,151 @@ export async function getHolderCollection(
   const db = getDb();
   if (!db) return null;
   const result = (await db.execute(sql`
-    SELECT address, chain, name, symbol, contract_type AS "contractType",
-           total_holders AS "totalHolders", holders_imported AS "holdersImported"
-    FROM seeded_contracts
-    WHERE address = ${address.toLowerCase()} AND chain = ${chain}
-      AND holders_imported > 0
+    WITH latest AS (
+      SELECT max(last_seen_at) AS at FROM wallet_holdings
+      WHERE contract = ${address.toLowerCase()} AND chain = ${chain}
+    )
+    SELECT sc.address, sc.chain, sc.name, sc.symbol,
+           sc.contract_type AS "contractType",
+           sc.total_holders AS "totalHolders",
+           sc.holders_imported AS "holdersImported",
+           latest.at AS "lastSeenAt"
+    FROM seeded_contracts sc, latest
+    WHERE sc.address = ${address.toLowerCase()} AND sc.chain = ${chain}
+      AND sc.holders_imported > 0
   `)) as unknown as { rows: HolderCollection[] };
   return result.rows[0] ?? null;
 }
 
 /**
- * The page's numbers, one aggregate over at most HOLDER_CAP (2,000) wallets.
- * x_accounts joins on the lowercased handle, the same rule as
+ * The number of holders the seeder stops importing at.
+ *
+ * The value lives here as well as in `lib/seed-collections.ts` because the
+ * page needs it and that module is the whole seeding pipeline: importing one
+ * constant from it would pull the ingest into a rendered route. The two are
+ * asserted equal in `scripts/check-invariants.ts`, so this is a second copy
+ * of a number rather than a second opinion about it.
+ *
+ * It matters on the page because `seeded_contracts.total_holders` is the
+ * source's reported total, and for some contracts that total came back as
+ * exactly the cap. A reported total equal to the cap and equal to what we
+ * imported is not a total, and must not be published as one.
+ */
+export const HOLDER_IMPORT_CAP = 2000;
+
+/**
+ * What the measured set actually is, decided once for both surfaces.
+ *
+ * The visible sentence and the Dataset node were computing this separately
+ * and disagreeing. For the six contracts whose reported total came back as
+ * exactly the cap, the prose said "all 2,000 indexed holders" while the
+ * Dataset said the sample was the import cap and the real base may be
+ * larger. An answer engine quotes the prose, so the page shipped the
+ * over-claim the Dataset was added to prevent. One predicate now, four
+ * cases, and the copy for each is derived from it rather than restated.
+ *
+ * Measured against production on 2026-09-07 over the 177 named contracts
+ * that hold imported wallets, so these are the cases that exist rather
+ * than the cases one can imagine:
+ *
+ *   sample        57  total > imported, e.g. 2,000 of 16,582
+ *   complete      70  total reported and equal to imported, under the cap
+ *   capped         6  imported hit the cap; total is the cap or absent
+ *   unknownTotal  44  no usable total, imported under the cap
+ *
+ * `total_holders` is never null in practice: the seeder writes 0 when the
+ * source reported no total, which is why zero is treated as absent here.
+ * Before this predicate those 44 contracts published `totalHolders: 0` as
+ * a machine-readable PropertyValue, a flatly false number for a collection
+ * with hundreds of holders.
+ */
+export type HolderBasis =
+  | { kind: 'sample'; measured: number; total: number }
+  | { kind: 'complete'; measured: number }
+  | { kind: 'capped'; measured: number }
+  | { kind: 'unknownTotal'; measured: number };
+
+export function holderBasis(collection: {
+  holdersImported: number;
+  totalHolders: number | null;
+}): HolderBasis {
+  const measured = collection.holdersImported;
+  // Zero is the seeder's "the source told us nothing", not a holder count.
+  const total =
+    collection.totalHolders !== null && collection.totalHolders > 0
+      ? collection.totalHolders
+      : null;
+
+  if (total !== null && total > measured)
+    return { kind: 'sample', measured, total };
+  // Order matters: a reported total equal to the cap and equal to what we
+  // imported is the cap wearing a total's clothes, so the cap test has to
+  // run before the equal-totals test can call it complete.
+  if (measured >= HOLDER_IMPORT_CAP) return { kind: 'capped', measured };
+  if (total !== null) return { kind: 'complete', measured };
+  return { kind: 'unknownTotal', measured };
+}
+
+/**
+ * The one description of the measured set, in prose an extractor can quote.
+ *
+ * A noun phrase in every case, so a caller can drop it into a sentence
+ * without the grammar depending on which case it got. The hedge the two
+ * partial cases need is a separate sentence from `holderBasisCaveat`,
+ * because reading it inline produced "measured over the first 2,000
+ * holders, which is the import cap, so the full holder base may be larger,
+ * against the walletlink.social index", where the qualifier buries the
+ * clause it qualifies.
+ *
+ * `subject` reads naturally in both places it is used: the visible sentence
+ * says "holders" and the Dataset says "addresses holding <collection>".
+ *
+ * Every case appends `ofCollection` LAST, so nothing may follow it. A
+ * trailing clause reads correctly only when that suffix is empty, which is
+ * the visible sentence, and garbles the Dataset, which is the surface a
+ * machine reads. `unknownTotal` therefore states the count alone and lets
+ * `holderBasisCaveat` say the total was never reported.
+ */
+export function holderBasisPhrase(
+  basis: HolderBasis,
+  subject: { measuredNoun: string; ofCollection: string }
+): string {
+  const n = basis.measured.toLocaleString();
+  switch (basis.kind) {
+    case 'sample':
+      return `the top ${n} of ${basis.total.toLocaleString()} ${subject.measuredNoun}${subject.ofCollection}`;
+    case 'complete':
+      return `all ${n} ${subject.measuredNoun}${subject.ofCollection}`;
+    case 'capped':
+      return `the first ${n} ${subject.measuredNoun}${subject.ofCollection}`;
+    case 'unknownTotal':
+      return `the ${n} ${subject.measuredNoun}${subject.ofCollection}`;
+  }
+}
+
+/**
+ * What the phrase above does not say on its own, as its own sentence.
+ *
+ * Null for the two cases that need no hedge. The two that do are the ones
+ * where the measured count is not the holder base and nothing on the page
+ * would otherwise say so, which is exactly the over-claim this predicate
+ * exists to stop.
+ */
+export function holderBasisCaveat(basis: HolderBasis): string | null {
+  switch (basis.kind) {
+    case 'sample':
+    case 'complete':
+      return null;
+    case 'capped':
+      return `That is the import cap, so the full holder base may be larger.`;
+    case 'unknownTotal':
+      return `No total holder count was reported for the collection, so this may not be all of them.`;
+  }
+}
+
+/**
+ * The page's numbers, one aggregate over at most HOLDER_IMPORT_CAP (2,000)
+ * wallets. x_accounts joins on the lowercased handle, the same rule as
  * lib/handle-reachability.ts.
  */
 export async function getHolderStats(

@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { getPostBySlug, getAllSlugs } from '@/lib/blog';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 // Revalidate every hour so scheduled posts appear on time
 export const revalidate = 3600;
@@ -88,11 +89,22 @@ export default async function BlogPost({ params }: Props) {
     ...(post.updatedAt ? { dateModified: post.updatedAt } : {}),
   };
 
+  // "Blog" is the label the eyebrow above the headline already carries, and
+  // the leaf is the post's own title.
+  const breadcrumbJson = breadcrumbJsonLd([
+    { name: 'Blog', path: '/blog' },
+    { name: post.title, path: `/blog/${slug}` },
+  ]);
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* One column for the whole document. The header was `max-w-[68ch]` at

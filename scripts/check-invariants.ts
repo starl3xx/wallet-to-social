@@ -3121,6 +3121,7 @@ async function main() {
       'lib/welcome-sequence.ts',
       'app/llms.txt/route.ts',
       'app/layout.tsx',
+      'lib/faq.ts',
       'app/check/page.tsx',
     ];
     for (const file of tsCopy) {
@@ -3770,6 +3771,173 @@ async function main() {
      * renders a lower bound as the collection's rate with the note suppressed.
      * Seen live on a collection at 239 of 764 checked.
      */
+    /**
+     * The import cap exists twice: once in the seeding pipeline that enforces
+     * it, once in `lib/holder-pages.ts` so a rendered route can recognise a
+     * reported total that is really the cap without importing the ingest.
+     *
+     * Two copies of a number drift, and this one decides whether a machine
+     * readable `totalHolders` is published at all. If the seeder ever raises
+     * its cap and this copy stays, the page starts asserting the old cap as a
+     * real holder base for every collection that hits the new one.
+     */
+    /**
+     * The /mcp page lists every tool with its cost, so it keeps its own copy
+     * of the roster, and every count it states is derived from that copy.
+     * That makes one assertion enough: if the two lists hold the same names
+     * in the same order, the four counts on the page are right by
+     * construction, and a ninth tool shipped without touching the page fails
+     * here rather than being discovered by a reader.
+     */
+    const mcpRoute = withoutComments(
+      readFileSync('app/api/mcp/route.ts', 'utf8')
+    );
+    const registered = [
+      ...mcpRoute.matchAll(/registerTool\(\s*'(walletlink_[a-z_]+)'/g),
+    ].map((m) => m[1]);
+    const mcpPage = withoutComments(readFileSync('app/mcp/page.tsx', 'utf8'));
+    const listed = [...mcpPage.matchAll(/name:\s*'(walletlink_[a-z_]+)'/g)].map(
+      (m) => m[1]
+    );
+    ok(
+      'the MCP tools were found on both surfaces at all',
+      registered.length >= 8 && listed.length >= 8
+    );
+    // Set equality, not order: the page groups the tools by what a reader
+    // reaches for first, which is an editorial choice and not a drift. What
+    // must never differ is the membership, because every count on the page is
+    // derived from the length of this list.
+    ok(
+      'the /mcp page lists exactly the tools the server registers, no more and no fewer',
+      registered.length === listed.length &&
+        [...registered].sort().join(',') === [...listed].sort().join(',')
+    );
+
+    const { HOLDER_IMPORT_CAP } = await import('@/lib/holder-pages');
+    const seedSrc = withoutComments(
+      readFileSync('lib/seed-collections.ts', 'utf8')
+    );
+    const seedCap = seedSrc.match(/const HOLDER_CAP = (\d+);/);
+    ok(
+      'the seeder cap and the copy the holder page reads are the same number',
+      Boolean(seedCap) && Number(seedCap![1]) === HOLDER_IMPORT_CAP
+    );
+
+    /**
+     * The holder page states its measured set twice, in prose and in the
+     * Dataset node, and the two used to be computed separately. They
+     * disagreed on the six contracts whose reported total came back as
+     * exactly the cap: the Dataset said the real base may be larger while
+     * the visible sentence said "all 2,000". An answer engine quotes the
+     * prose, so the page shipped the over-claim the Dataset existed to
+     * prevent.
+     *
+     * Run against the real shapes rather than grepped, so a refactor that
+     * keeps the call sites but breaks the classification still fails. The
+     * inputs are the four cases production actually holds, measured on
+     * 2026-09-07 over the 177 named contracts that carry imported wallets.
+     */
+    const { holderBasis, holderBasisPhrase, holderBasisCaveat } =
+      await import('@/lib/holder-pages');
+    const basisFor = (holdersImported: number, totalHolders: number | null) =>
+      holderBasis({ holdersImported, totalHolders });
+    ok(
+      'a reported total equal to the cap and to what we imported is refused as a total',
+      basisFor(2000, 2000).kind === 'capped' &&
+        basisFor(2000, null).kind === 'capped' &&
+        basisFor(2000, 0).kind === 'capped'
+    );
+    ok(
+      'a zero total is read as absent, never published as a holder count',
+      basisFor(659, 0).kind === 'unknownTotal' &&
+        basisFor(659, null).kind === 'unknownTotal'
+    );
+    ok(
+      'a genuine total is still a total',
+      basisFor(2000, 16582).kind === 'sample' &&
+        basisFor(1327, 1327).kind === 'complete'
+    );
+    /**
+     * The cap phrasing must appear only where the cap was actually hit.
+     * Before the shared predicate, every contract with no usable total was
+     * described as capped at 2,000, including 44 that imported far fewer.
+     */
+    const caveatFor = (n: number, t: number | null) =>
+      holderBasisCaveat(basisFor(n, t)) ?? '';
+    ok(
+      'only a run that hit the cap is described as capped',
+      caveatFor(2000, 0).includes('import cap') &&
+        !caveatFor(659, 0).includes('import cap') &&
+        caveatFor(1327, 1327) === '' &&
+        caveatFor(2000, 16582) === ''
+    );
+    /**
+     * The two partial cases must not read as complete. Anchored on the
+     * caveat existing rather than on its wording, so a rewrite of the
+     * sentence keeps the assertion meaningful.
+     */
+    ok(
+      'a measured set that is not the holder base always says so',
+      caveatFor(2000, 0) !== '' && caveatFor(659, 0) !== ''
+    );
+    /**
+     * The phrase stays a noun phrase in every case. It reads inside a
+     * sentence that continues after it, and burying the hedge there is
+     * what produced "the first 2,000 holders, which is the import cap, so
+     * the full holder base may be larger, against the walletlink.social
+     * index".
+     */
+    const phraseFor = (n: number, t: number | null) =>
+      holderBasisPhrase(basisFor(n, t), {
+        measuredNoun: 'holders',
+        ofCollection: '',
+      });
+    /**
+     * The same phrase with the suffix the Dataset actually passes.
+     *
+     * Asserting only the empty suffix is how a trailing clause survived
+     * review: it read correctly in the visible sentence and garbled the
+     * node a machine reads, which is the one surface this whole change
+     * exists to get right.
+     */
+    const datasetPhraseFor = (n: number, t: number | null) =>
+      holderBasisPhrase(basisFor(n, t), {
+        measuredNoun: 'addresses',
+        ofCollection: ' holding Example Collection',
+      });
+    ok(
+      'nothing follows the collection suffix, so the Dataset phrase reads as a noun phrase too',
+      [
+        datasetPhraseFor(2000, 16582),
+        datasetPhraseFor(1327, 1327),
+        datasetPhraseFor(2000, 0),
+        datasetPhraseFor(659, 0),
+      ].every((p) => p.endsWith(' holding Example Collection'))
+    );
+    ok(
+      'the measured-set phrase carries no trailing clause of its own',
+      [
+        phraseFor(2000, 16582),
+        phraseFor(1327, 1327),
+        phraseFor(2000, 0),
+        phraseFor(659, 0),
+        // Not a comma test: toLocaleString puts commas inside the numbers.
+      ].every((p) => !/ which | so |, with /.test(p))
+    );
+    /**
+     * Anchored on the absence of a second opinion. The drift was possible
+     * because the page compared the two counts itself; if that comparison
+     * comes back, the prose can disagree with the node again.
+     */
+    const holderBasisPage = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder page derives its measured set rather than recomputing it',
+      !/totalHolders\s*[><]/.test(holderBasisPage) &&
+        (holderBasisPage.match(/holderBasisPhrase\(/g) ?? []).length >= 2
+    );
+
     const { measurementInProgress, MEASUREMENT_IN_PROGRESS_BELOW } =
       await import('@/lib/holder-pages');
     const partial = {
@@ -3990,6 +4158,7 @@ async function main() {
   {
     const surfaces = [
       'app/layout.tsx',
+      'lib/faq.ts',
       'app/llms.txt/route.ts',
       'README.md',
       'app/pricing/page.tsx',

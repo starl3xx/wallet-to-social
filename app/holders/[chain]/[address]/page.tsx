@@ -6,6 +6,7 @@ import { Figure } from '@/components/ui/figure';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Warning } from '@phosphor-icons/react/dist/ssr';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import { PRODUCTION_URL } from '@/lib/site-url';
 import {
   buildStarterHref,
   STARTER_WALLET_CAP,
@@ -19,7 +20,11 @@ import {
   measurementInProgress,
   chainLabel,
   standardLabel,
+  holderBasis,
+  holderBasisPhrase,
+  holderBasisCaveat,
 } from '@/lib/holder-pages';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
  * The per-collection holder reachability report.
@@ -89,11 +94,54 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: canonical,
       type: 'article',
       siteName: 'walletlink.social',
+      // Declaring this block is what drops the root segment's
+      // opengraph-image file, so the image is named here. Relative, resolved
+      // against the apex metadataBase, never a host that redirects.
+      images: ['/opengraph-image'],
     },
     // X reads twitter:* over og:*; a page without the block inherits the
     // root layout card (the /check lesson).
-    twitter: { card: 'summary_large_image', title, description },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/twitter-image'],
+    },
   };
+}
+
+/**
+ * The date this collection's holder set was last confirmed onchain, or null
+ * when there is no date to state.
+ *
+ * `lastSeenAt` is null only for a seeded contract with no holdings rows at
+ * all, which `getHolderStats` already answers with a 404, so a rendered
+ * report has a date in practice. The parse guard covers the other case: an
+ * unreadable value is not an error anywhere downstream, it is a Date that
+ * quietly prints "Invalid Date" in the sentence and NaN into the schema.
+ * Returning null instead drops the clause and publishes neither.
+ */
+function confirmationDate(lastSeenAt: string | null): Date | null {
+  if (!lastSeenAt) return null;
+  const at = new Date(lastSeenAt);
+  return Number.isFinite(at.getTime()) ? at : null;
+}
+
+/**
+ * The same calendar day the sentence above prints, as an ISO date.
+ *
+ * Built from the local components rather than `toISOString`, which converts to
+ * UTC first: the column is a timestamp with no zone, so it parses as local
+ * time, and on a build machine east or west of UTC the ISO conversion can land
+ * on the day either side of the one the reader is shown. Production builds and
+ * revalidations run in UTC, where the two agree, so this costs three lines and
+ * removes the one way the schema could contradict the copy beside it. The
+ * sitemap keeps publishing the full timestamp as `lastmod`; a day is all a
+ * snapshot of a holder set can honestly claim here.
+ */
+function isoDay(at: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 }
 
 export default async function HolderPage({ params }: Props) {
@@ -106,13 +154,43 @@ export default async function HolderPage({ params }: Props) {
   ]);
   if (!stats) notFound();
 
-  const capped =
-    collection.totalHolders !== null &&
-    collection.totalHolders > collection.holdersImported;
+  // What the measured set is, decided once in lib/holder-pages.ts and used
+  // by both the visible sentence and the Dataset node. They computed it
+  // separately before and disagreed on the six contracts whose reported
+  // total came back as exactly the cap: the prose claimed "all 2,000" while
+  // the Dataset said the real base may be larger. CryptoPunks is one of
+  // those, and reading punkIndexToAddress onchain finds well over 2,000
+  // distinct owners, so the prose was the false half.
+  const basis = holderBasis(collection);
+  // Only a genuine total may be published as one. `unknownTotal` is the
+  // seeder writing 0 because the source reported nothing, which is 44 of
+  // the 177 named contracts.
+  const totalHoldersIsKnown =
+    basis.kind === 'sample' || basis.kind === 'complete';
+  // The hedge the phrase deliberately leaves out, so both the sentence and
+  // the Dataset description carry it as a sentence of its own.
+  const basisCaveat = holderBasisCaveat(basis);
   const reachablePct =
     stats.holderCount > 0
       ? Math.round((stats.reachableAny / stats.holderCount) * 1000) / 10
       : 0;
+
+  const canonical = `${PRODUCTION_URL}/holders/${collection.chain}/${collection.address}`;
+
+  // The date the holder set was last confirmed onchain, which the sitemap has
+  // published as this URL's lastmod all along while the report itself carried
+  // no date anywhere a reader or a text extractor could find one.
+  const confirmedAt = confirmationDate(collection.lastSeenAt);
+  // Named rather than inlined: scripts/check-invariants.ts allowlists the
+  // reads a structured-data date may come from, by identifier, so a clock
+  // read cannot hide behind a local const. This one has to appear in that
+  // list to be used, which is the point.
+  const holderSetConfirmedIso = confirmedAt ? isoDay(confirmedAt) : null;
+  const confirmedOn = confirmedAt?.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -130,15 +208,129 @@ export default async function HolderPage({ params }: Props) {
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `https://walletlink.social/holders/${collection.chain}/${collection.address}`,
+      '@id': canonical,
     },
   };
+
+  /**
+   * The Dataset node, beside the Article rather than instead of it.
+   *
+   * The page is both things: a piece of writing about a collection, and the
+   * only published measurement of that collection's reachable population.
+   *
+   * What it must never publish is a bare holder count. `holderCount` is the
+   * capped sample the aggregate ran over, not the collection's holder base,
+   * so the sample and the true total go out as two separately named
+   * variables and the reachable count carries the denominator it was computed
+   * against. A single number here would be read as the whole collection by
+   * exactly the machine readers this node exists for.
+   *
+   * `license` and `temporalCoverage` are absent on purpose: no licence covers
+   * these figures (the repository licence covers code, not measurements), and
+   * a snapshot has no range. `dateModified` is the holder set's own
+   * confirmation date, the same value the visible sentence and the sitemap
+   * carry, so the three cannot contradict each other.
+   */
+  const measuredHolders = stats.holderCount.toLocaleString();
+  const population = holderBasisPhrase(basis, {
+    measuredNoun: 'addresses',
+    ofCollection: ` holding ${collection.name}`,
+  });
+  const datasetLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name: `${collection.name} holder reachability on ${chainLabel(collection.chain)}`,
+    description: [
+      `Reachability measured over ${population} on ${chainLabel(collection.chain)}: how many resolve to an X handle or a Farcaster account their owner published, and how many of those still reach somebody.`,
+      // The same sentence the visible copy carries, from the same predicate,
+      // so the node and the prose cannot say different things about what was
+      // measured.
+      basisCaveat,
+      measurementInProgress(stats)
+        ? `${stats.checked.toLocaleString()} of the ${measuredHolders} sampled addresses have been checked so far, so every rate here is a lower bound that rises as the rest are checked.`
+        : null,
+      confirmedOn
+        ? `Holder set last confirmed onchain on ${confirmedOn}; the identity index behind these figures refreshes daily.`
+        : null,
+      'Aggregates only: no wallet list and no handle list is published.',
+    ]
+      .filter((sentence): sentence is string => sentence !== null)
+      .join(' '),
+    url: canonical,
+    creator: {
+      '@type': 'Organization',
+      name: 'walletlink.social',
+      url: PRODUCTION_URL,
+    },
+    isAccessibleForFree: true,
+    ...(holderSetConfirmedIso ? { dateModified: holderSetConfirmedIso } : {}),
+    variableMeasured: [
+      {
+        '@type': 'PropertyValue',
+        name: 'measuredHolders',
+        description:
+          basis.kind === 'sample' || basis.kind === 'capped'
+            ? 'Addresses sampled from the top of the holder list. Every rate here is measured over this sample, never over the full holder base.'
+            : 'Addresses holding the collection that the index has imported. Every rate here is measured over these.',
+        value: stats.holderCount,
+      },
+      ...(totalHoldersIsKnown
+        ? [
+            {
+              '@type': 'PropertyValue',
+              name: 'totalHolders',
+              description:
+                'Addresses holding the collection in total: the population the measured sample is drawn from.',
+              value: collection.totalHolders,
+            },
+          ]
+        : []),
+      {
+        '@type': 'PropertyValue',
+        name: 'withXHandle',
+        description:
+          'Measured holders carrying an X handle their owner published. Carrying a handle and reaching it are different claims.',
+        value: stats.withTwitter,
+      },
+      {
+        '@type': 'PropertyValue',
+        name: 'withFarcaster',
+        description: 'Measured holders carrying a Farcaster account.',
+        value: stats.withFarcaster,
+      },
+      {
+        '@type': 'PropertyValue',
+        name: 'reachableAny',
+        description: `Measured holders with a live X handle or a Farcaster account, out of the ${measuredHolders} measured. The denominator is that sample, never the full holder base of the collection.`,
+        value: stats.reachableAny,
+      },
+    ],
+  };
+
+  // The trail the page already draws above the headline. The chain rides in
+  // the leaf name rather than becoming a crumb of its own, because there is
+  // no /holders/<chain> route to point a middle crumb at (lib/breadcrumbs.ts).
+  const breadcrumbJson = breadcrumbJsonLd([
+    { name: 'Holder reports', path: '/holders' },
+    {
+      name: `${collection.name} on ${chainLabel(collection.chain)}`,
+      path: `/holders/${collection.chain}/${collection.address}`,
+    },
+  ]);
 
   return (
     <PageShell>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetLd) }}
       />
       <div className="max-w-[68ch]">
         <p className="mb-3 text-sm text-muted-foreground">
@@ -168,20 +360,31 @@ export default async function HolderPage({ params }: Props) {
           the owner published, and how many of those you can still reach.
         </p>
         <p className="mb-8 text-sm text-muted-foreground">
-          {capped ? (
-            <>
-              Measured over the top{' '}
-              {collection.holdersImported.toLocaleString()} of{' '}
-              {collection.totalHolders!.toLocaleString()} holders, against the
-              walletlink.social index, refreshed daily.
-            </>
-          ) : (
-            <>
-              Measured over all {collection.holdersImported.toLocaleString()}{' '}
-              indexed holders, against the walletlink.social index, refreshed
-              daily.
-            </>
-          )}
+          {/* Derived from the same predicate as the Dataset node, not
+              restated. This sentence is the half an answer engine quotes,
+              so when the two disagreed it was this one that shipped the
+              over-claim. */}
+          Measured over{' '}
+          {holderBasisPhrase(basis, {
+            measuredNoun: 'holders',
+            ofCollection: '',
+          })}
+          , against the walletlink.social index.{' '}
+          {/* Its own sentence, not a trailing clause: this is the half that
+              says the measured count is not the holder base, and it has to
+              survive being quoted on its own. */}
+          {basisCaveat ? `${basisCaveat} ` : ''}
+          {/* The one dated sentence on the page, and the half of the dating
+              work that matters: the sitemap has published this date as
+              lastmod for every report all along, and a date carried only in a
+              header or a script tag does not survive the text extraction an
+              answer engine quotes from. The refresh clause rides in the same
+              sentence so a quote of one carries the other, because the two
+              are different facts: the holder set is a snapshot taken on a
+              date, the identity index measured against it is not. */}
+          {confirmedOn
+            ? `Holder set last confirmed onchain on ${confirmedOn}; the identity index behind these figures refreshes daily.`
+            : 'The identity index behind these figures refreshes daily.'}
         </p>
 
         {/* A page whose holders are mostly unchecked is a measurement still
@@ -269,6 +472,16 @@ export default async function HolderPage({ params }: Props) {
             <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
               These holders also hold
             </h2>
+            {/* The list is already on the page; this states its top row as a
+                sentence, which is the form that survives extraction. Nothing
+                new is disclosed: the counterparty is ordered first by the same
+                query, and every row it can name already cleared the overlap
+                floor in lib/holder-pages.ts. */}
+            <p className="mb-4 text-muted-foreground">
+              The strongest overlap is {overlap[0].name}, which{' '}
+              {overlap[0].sharedHolders.toLocaleString()} of these holders also
+              hold.
+            </p>
             <ul className="space-y-2">
               {overlap.map((o) => (
                 <li

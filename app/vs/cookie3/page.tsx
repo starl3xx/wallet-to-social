@@ -18,6 +18,7 @@ import {
   KNOWN_AGENTS_SHORT,
 } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
  * This page used to live at `/vs/cookie` and compare against **Cookie.fun**,
@@ -60,12 +61,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/cookie3',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'walletlink.social vs Cookie3 comparison',
     description:
       'Wallet-to-social lookups priced once, by the match, against a subscription analytics suite.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/cookie3',
@@ -101,12 +106,21 @@ const jsonLd = {
     'Cookie3 alternative, Twitter wallet matching, wallet to social, web3 analytics',
 };
 
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Cookie3', path: '/vs/cookie3' },
+]);
+
 export default function Cookie3Comparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

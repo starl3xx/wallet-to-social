@@ -26,6 +26,11 @@ on:
       # edited, and it was not here: a PR changing only the constants never ran
       # the gate that exists to catch a wrong claim before merge.
       - 'lib/public-figures.ts'
+      # The eight FAQ answers, extracted out of app/layout.tsx so the visible
+      # prose and the FAQPage JSON-LD read one source. Two of them state the
+      # owner-attested share, so this file is published copy even though it
+      # sits under lib/ and would otherwise miss every path filter here.
+      - 'lib/faq.ts'
       - 'components/ReachabilityClaim.tsx'
       - 'README.md'
       - 'docs/AI-SEARCH.md'

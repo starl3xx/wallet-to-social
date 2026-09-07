@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
+import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
  * Addressable (addressable.io) is an enterprise web3 marketing platform: ad
@@ -65,12 +66,16 @@ export const metadata: Metadata = {
     type: 'article',
     url: 'https://walletlink.social/vs/addressable',
     siteName: 'walletlink.social',
+    // Not inherited: declaring an openGraph block drops the root segment's
+    // opengraph-image file, and a comparison page exists to be posted.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'walletlink.social vs Addressable comparison',
     description:
       'One-time payment vs enterprise subscription for wallet-to-social lookups.',
+    images: ['/twitter-image'],
   },
   alternates: {
     canonical: 'https://walletlink.social/vs/addressable',
@@ -109,12 +114,26 @@ const jsonLd = {
     'Addressable alternative, wallet to social, Web3 marketing, crypto marketing',
 };
 
+/**
+ * The trail: the hub at /vs, then this vendor. There is no shared component
+ * over the six comparison pages, so each one carries its own two crumbs. The
+ * leaf label is the one the footer and every related-comparisons nav use.
+ */
+const breadcrumbJson = breadcrumbJsonLd([
+  { name: 'Comparisons', path: '/vs' },
+  { name: 'vs Addressable', path: '/vs/addressable' },
+]);
+
 export default function AddressableComparison() {
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJson) }}
       />
       <PageShell>
         {/* The reading column constrains measure, not position: 68ch, on the

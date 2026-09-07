@@ -40,7 +40,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = getAllPosts();
   const blogEntries: MetadataRoute.Sitemap = posts.map((post) => ({
     url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: new Date(post.publishedAt),
+    // The authored update date when the post carries one, so lastmod agrees
+    // with the dateModified the page emits. Both come from the same
+    // frontmatter key; a post without one keeps its publish date, which is
+    // still the last day its content changed.
+    lastModified: new Date(post.updatedAt ?? post.publishedAt),
     changeFrequency: 'monthly',
     priority: 0.7,
   }));
@@ -72,6 +76,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/pricing`,
       changeFrequency: 'monthly',
       priority: 0.9,
+    },
+    {
+      // The agent-consumption answer on the apex. Every other route that
+      // could have carried it (/agents, /api-docs, /docs, /api, /developers,
+      // /x402) still 404s, and the apex's own AI-agent pages answer the
+      // opposite sense: an agent as the subject of a lookup, never as the
+      // caller. Ranked with the comparison hub rather than with /check and
+      // /pricing, because it is an entry point for a build decision rather
+      // than a page a stranger acts on in one click.
+      url: `${baseUrl}/mcp`,
+      changeFrequency: 'monthly',
+      priority: 0.8,
     },
     {
       // The hub over the comparisons. Without it the six pages below have no

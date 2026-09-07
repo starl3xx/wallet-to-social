@@ -154,7 +154,13 @@ export function SiteFooter() {
             <FooterLink href="/vs/formo">vs Formo</FooterLink>
           </FooterColumn>
 
+          {/* The MCP link is first and internal, ahead of the three that leave
+              the site. Until /mcp existed this column offered an agent
+              operator nothing on the apex at all: the answer lived only on the
+              docs subdomain, so every path to it was a hop off the origin the
+              crawl and the reader had already arrived at. */}
           <FooterColumn title="Developers">
+            <FooterLink href="/mcp">MCP server</FooterLink>
             <FooterLink href="https://docs.walletlink.social" external>
               Documentation
             </FooterLink>

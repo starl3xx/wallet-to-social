@@ -20,24 +20,50 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  /**
-   * The OAuth discovery documents, at the paths the specifications name.
-   *
-   * They are rewrites rather than routes because the App Router will not route
-   * a segment whose directory name begins with a dot. An `app/.well-known/`
-   * route compiles, emits no warning, and is absent from the build output:
-   * confirmed by building it and reading the route list, not by reading a
-   * changelog. A 404 on `/.well-known/oauth-protected-resource` presents to a
-   * client as "could not reach the MCP server", with the authorization server
-   * never seeing a single request, so this is worth the indirection.
-   *
-   * Both protected-resource paths are here. RFC 9728 puts the document at the
-   * root, and a client that lost the `resource_metadata` pointer from our 401
-   * probes the path-suffixed form first, so a rewrite that covered only one
-   * would work until the day the header went missing.
-   */
   async rewrites() {
     return [
+      /**
+       * Blog posts as markdown, at the URL a client guesses: /blog/<slug>.md.
+       *
+       * A rewrite because neither obvious path exists. A dynamic segment is a
+       * whole directory name, so `app/blog/[slug].md/route.ts` is a literal
+       * segment spelled "[slug].md" and matches nothing;
+       * `app/blog/[slug]/route.ts` is the right segment and collides with the
+       * `page.tsx` already there, which is a build error rather than a
+       * fallback. So the handler lives at `app/api/blog-markdown/[slug]` and
+       * this maps the public URL onto it.
+       *
+       * Under /api for tidiness, not for exclusion. A rewrite is resolved
+       * server-side, so a crawler only ever sees /blog/<slug>.md, which
+       * robots.txt allows: the `Disallow: /api/` there never reaches this
+       * request. What keeps the twin out of the index is the rel="canonical"
+       * Link header the handler answers with, naming the HTML page.
+       *
+       * `:slug` stops at the literal `.md`, because the parameter compiles to
+       * a lazy `[^/#?]+?`: /blog/foo.md rewrites with slug=foo, and /blog/foo
+       * does not match this rule at all and is served by the page as before.
+       */
+      {
+        source: '/blog/:slug.md',
+        destination: '/api/blog-markdown/:slug',
+      },
+      /**
+       * The OAuth discovery documents, at the paths the specifications name.
+       *
+       * They are rewrites rather than routes because the App Router will not
+       * route a segment whose directory name begins with a dot. An
+       * `app/.well-known/` route compiles, emits no warning, and is absent
+       * from the build output: confirmed by building it and reading the route
+       * list, not by reading a changelog. A 404 on
+       * `/.well-known/oauth-protected-resource` presents to a client as "could
+       * not reach the MCP server", with the authorization server never seeing
+       * a single request, so this is worth the indirection.
+       *
+       * Both protected-resource paths are here. RFC 9728 puts the document at
+       * the root, and a client that lost the `resource_metadata` pointer from
+       * our 401 probes the path-suffixed form first, so a rewrite that covered
+       * only one would work until the day the header went missing.
+       */
       {
         source: '/.well-known/oauth-protected-resource',
         destination: '/api/oauth/metadata/protected-resource',

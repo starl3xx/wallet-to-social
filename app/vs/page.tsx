@@ -36,12 +36,18 @@ export const metadata: Metadata = {
       'What each tool actually sells, and where a dedicated wallet-to-social lookup fits.',
     url: 'https://walletlink.social/vs',
     siteName: 'walletlink.social',
+    // The root segment's opengraph-image file does not reach a page that
+    // declares its own openGraph block, and a comparison is built to be
+    // posted. Relative, resolved against the apex metadataBase, never a host
+    // that redirects.
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'walletlink.social compared with other wallet-to-social tools',
     description:
       'What each tool actually sells, and where a dedicated wallet-to-social lookup fits.',
+    images: ['/twitter-image'],
   },
 };
 

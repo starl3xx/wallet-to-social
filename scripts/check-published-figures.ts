@@ -517,7 +517,10 @@ export const CLAIMS: Claim[] = [
     what: 'share of X matches that are owner-attested',
     files: [
       'docs-site/concepts/coverage.mdx',
-      'app/layout.tsx',
+      // Was app/layout.tsx until the FAQ answers were extracted so the visible
+      // prose and the FAQPage JSON-LD read one source. The sentence moved with
+      // them; a no-match here is a hard error, so this had to move too.
+      'lib/faq.ts',
       'app/llms.txt/route.ts',
       'lib/welcome-sequence.ts',
       // The README stated this figure unregistered from the start; it was
@@ -1228,6 +1231,7 @@ const COPY_SURFACES = [
   'lib/public-figures.ts',
   'components/ReachabilityClaim.tsx',
   'app/layout.tsx',
+  'lib/faq.ts',
 ];
 
 /** Shapes that read as one of our coverage claims. */

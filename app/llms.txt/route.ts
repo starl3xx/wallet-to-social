@@ -222,7 +222,7 @@ The key is shown once. If it is lost, sign a challenge with the wallet that paid
 - [Wallet lookup](https://walletlink.social/): the app. Upload a holder list or a contract address, get the reachable people behind it, ranked, with the evidence on every row.
 - [Handle check](https://walletlink.social/check): free, no account. Check whether an X handle verified on Farcaster still reaches anyone. Returns how many wallets in the index carry it, never which ones.
 - [Pricing](https://walletlink.social/pricing): the packs, the free allowance, what counts as a match, and the questions people ask before buying.
-- [Holder reports](https://walletlink.social/holders): per-collection reachability reports on named NFT collections, grouped by chain. Aggregates only, never wallet or handle lists.
+- [Holder reports](https://walletlink.social/holders): per-collection reachability reports on named token and NFT contracts, grouped by chain. Aggregates only, never wallet or handle lists.
 - [Blog](https://walletlink.social/blog): guides on holder outreach, airdrop targeting, Farcaster, and wallet identity.
 
 Individual holder reports live at /holders/{chain}/{contract address}, for example [The Warplets on Base](https://walletlink.social/holders/base/0x699727f9e01a822efdcf7333073f0461e5914b4e) and [CRYPTOPUNKS on Ethereum](https://walletlink.social/holders/ethereum/0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb). Each report gives the holder count, how many were measured, the identity and reachability split, follower distribution, and the collections those holders overlap with.
@@ -253,36 +253,38 @@ Claim-by-claim comparisons with the alternatives, maintained and dated:
 - [walletlink vs Blaze](https://walletlink.social/vs/blaze): Blaze is no longer available. The page records the comparison for the searches that still land on it.
 - [walletlink vs Airstack](https://walletlink.social/vs/airstack): Airstack is no longer available, and its Farcaster APIs were deprecated before that. Same treatment.
 
+A note on the name: walletlink.social is not WalletLink, the wallet-connection protocol Coinbase shipped and later renamed to the Coinbase Wallet SDK. This is an identity index, not a connector.
+
 ## Guides
 
-The blog is the question-shaped half of the site. Every post is public, dated and open.
+The blog is the question-shaped half of the site. Every post is public, dated and open. Every post is also served as markdown by appending .md to its URL, which is the form linked below; drop the .md for the page a person reads. The whole corpus is one file at https://walletlink.social/llms-full.txt.
 
-- [The 22% match rate: how we got far past single digits](https://walletlink.social/blog/twenty-two-percent-match-rate): where the number comes from, and why it is a range rather than an average.
-- [How Farcaster verified addresses changed wallet identity](https://walletlink.social/blog/farcaster-verified-addresses): the protocol mechanism the whole deterministic half rests on.
-- [We scraped 13,622 AI agent wallets. Here’s what we found](https://walletlink.social/blog/ai-agent-wallets-what-we-found): the sweep that built the agent list, and what an agent wallet looks like in holder data. The count in the title records that run; the current figure is above.
-- [AI agents on your holder list: why it matters](https://walletlink.social/blog/ai-agents-why-it-matters): why a holder count that includes agents overstates an audience.
-- [How to filter AI agent wallets before your next airdrop](https://walletlink.social/blog/filter-agents-before-airdrop): the exclusion, step by step.
-- [The priority score formula: finding your most valuable holders](https://walletlink.social/blog/priority-score-formula): holdings multiplied by log10 of followers plus one, and why that shape.
-- [The wallet identity stack: ENS, Farcaster, and beyond](https://walletlink.social/blog/wallet-identity-stack): which identity layers exist and what each one can prove.
-- [Airdrop targeting: why identity beats transaction history](https://walletlink.social/blog/airdrop-targeting-identity): targeting people rather than behaviour.
-- [Sybil resistance through identity: a better approach](https://walletlink.social/blog/sybil-resistance-identity): attestation as a filter.
-- [How to reach your token holders on Farcaster](https://walletlink.social/blog/reach-holders-on-farcaster): the reachable subset, and how to use it.
-- [5 ways to use wallet identity for token holder outreach](https://walletlink.social/blog/five-ways-wallet-identity): the campaign patterns.
-- [Wallet identity for NFT collections: a step-by-step guide](https://walletlink.social/blog/nft-collection-wallet-identity-guide): a collection from snapshot to outreach list.
-- [Token launch marketing: reaching your earliest holders](https://walletlink.social/blog/token-launch-marketing): the launch case.
-- [NFT holder engagement: from anonymous wallets to real relationships](https://walletlink.social/blog/nft-holder-engagement): retention after mint.
-- [Community retention: the case for direct holder outreach](https://walletlink.social/blog/community-retention-direct-outreach): why a channel you own beats a feed.
-- [Building an ambassador program with wallet identity data](https://walletlink.social/blog/ambassador-program-wallet-data): finding the holders with an audience.
-- [Why your DAO has a communication problem, not a participation problem](https://walletlink.social/blog/dao-communication-problem): governance turnout, reframed.
-- [Case study: how a DAO increased governance participation from 5% to 22%](https://walletlink.social/blog/dao-governance-case-study): the worked example behind that argument.
-- [From Dune dashboard to DMs: turning analytics into action](https://walletlink.social/blog/dune-to-dms): the step after the query.
-- [Web3 marketing in 2025: from spray-and-pray to identity-first](https://walletlink.social/blog/web3-marketing-2025): the category argument.
-- [Wallets are the new social profiles: why Web3 identity changes everything](https://walletlink.social/blog/wallet-identity): the premise, stated plainly.
-- [The future of wallet identity: what comes after 22%](https://walletlink.social/blog/future-of-wallet-identity): where coverage can honestly go.
-- [walletlink.social vs Addressable: a practical comparison](https://walletlink.social/blog/walletlink-vs-addressable): the long-form version of the comparison page.
-- [walletlink.social vs Blaze: comparison guide](https://walletlink.social/blog/walletlink-vs-blaze): same, for Blaze.
-- [walletlink.social vs Cookie.fun: which tool fits your workflow?](https://walletlink.social/blog/walletlink-vs-cookie): about Cookie.fun, the attention-analytics product, which is a different company from Cookie3.
-- [walletlink.social now supports Farcaster: 3x more wallet matches](https://walletlink.social/blog/farcaster-integration): the release that made Farcaster the deepest coverage.
+- [The 22% match rate: how we got far past single digits](https://walletlink.social/blog/twenty-two-percent-match-rate.md): where the number comes from, and why it is a range rather than an average.
+- [How Farcaster verified addresses changed wallet identity](https://walletlink.social/blog/farcaster-verified-addresses.md): the protocol mechanism the whole deterministic half rests on.
+- [We scraped 13,622 AI agent wallets. Here’s what we found](https://walletlink.social/blog/ai-agent-wallets-what-we-found.md): the sweep that built the agent list, and what an agent wallet looks like in holder data. The count in the title records that run; the current figure is above.
+- [AI agents on your holder list: why it matters](https://walletlink.social/blog/ai-agents-why-it-matters.md): why a holder count that includes agents overstates an audience.
+- [How to filter AI agent wallets before your next airdrop](https://walletlink.social/blog/filter-agents-before-airdrop.md): the exclusion, step by step.
+- [The priority score formula: finding your most valuable holders](https://walletlink.social/blog/priority-score-formula.md): holdings multiplied by log10 of followers plus one, and why that shape.
+- [The wallet identity stack: ENS, Farcaster, and beyond](https://walletlink.social/blog/wallet-identity-stack.md): which identity layers exist and what each one can prove.
+- [Airdrop targeting: why identity beats transaction history](https://walletlink.social/blog/airdrop-targeting-identity.md): targeting people rather than behaviour.
+- [Sybil resistance through identity: a better approach](https://walletlink.social/blog/sybil-resistance-identity.md): attestation as a filter.
+- [How to reach your token holders on Farcaster](https://walletlink.social/blog/reach-holders-on-farcaster.md): the reachable subset, and how to use it.
+- [5 ways to use wallet identity for token holder outreach](https://walletlink.social/blog/five-ways-wallet-identity.md): the campaign patterns.
+- [Wallet identity for NFT collections: a step-by-step guide](https://walletlink.social/blog/nft-collection-wallet-identity-guide.md): a collection from snapshot to outreach list.
+- [Token launch marketing: reaching your earliest holders](https://walletlink.social/blog/token-launch-marketing.md): the launch case.
+- [NFT holder engagement: from anonymous wallets to real relationships](https://walletlink.social/blog/nft-holder-engagement.md): retention after mint.
+- [Community retention: the case for direct holder outreach](https://walletlink.social/blog/community-retention-direct-outreach.md): why a channel you own beats a feed.
+- [Building an ambassador program with wallet identity data](https://walletlink.social/blog/ambassador-program-wallet-data.md): finding the holders with an audience.
+- [Why your DAO has a communication problem, not a participation problem](https://walletlink.social/blog/dao-communication-problem.md): governance turnout, reframed.
+- [Case study: how a DAO increased governance participation from 5% to 22%](https://walletlink.social/blog/dao-governance-case-study.md): the worked example behind that argument.
+- [From Dune dashboard to DMs: turning analytics into action](https://walletlink.social/blog/dune-to-dms.md): the step after the query.
+- [Web3 marketing in 2025: from spray-and-pray to identity-first](https://walletlink.social/blog/web3-marketing-2025.md): the category argument.
+- [Wallets are the new social profiles: why Web3 identity changes everything](https://walletlink.social/blog/wallet-identity.md): the premise, stated plainly.
+- [The future of wallet identity: what comes after 22%](https://walletlink.social/blog/future-of-wallet-identity.md): where coverage can honestly go.
+- [walletlink.social vs Addressable: a practical comparison](https://walletlink.social/blog/walletlink-vs-addressable.md): the long-form version of the comparison page.
+- [walletlink.social vs Blaze: comparison guide](https://walletlink.social/blog/walletlink-vs-blaze.md): same, for Blaze.
+- [walletlink.social vs Cookie.fun: which tool fits your workflow?](https://walletlink.social/blog/walletlink-vs-cookie.md): about Cookie.fun, the attention-analytics product, which is a different company from Cookie3.
+- [walletlink.social now supports Farcaster: 3x more wallet matches](https://walletlink.social/blog/farcaster-integration.md): the release that made Farcaster the deepest coverage.
 
 ## Who runs it
 
