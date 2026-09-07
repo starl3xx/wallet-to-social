@@ -119,7 +119,7 @@ below, which the corpus alone does not:
    say the chain matters, or give the figure for the chain asked about.
 3. "Reachable" means the account still exists, NOT that the wallet has one.
    Having an X handle and that handle still working are separate claims: of
-   460,889 resolved, 70.1% are live, 20.1% suspended, 9.8% unclaimed. Use
+   473,215 resolved, 70.1% are live, 20.1% suspended, 9.8% unclaimed. Use
    "has an X or Farcaster account" for coverage and reserve "reachable" for
    liveness.
 4. When somebody asks whether a specific X handle still works, point them at
