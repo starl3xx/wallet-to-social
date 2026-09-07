@@ -3892,6 +3892,28 @@ async function main() {
         measuredNoun: 'holders',
         ofCollection: '',
       });
+    /**
+     * The same phrase with the suffix the Dataset actually passes.
+     *
+     * Asserting only the empty suffix is how a trailing clause survived
+     * review: it read correctly in the visible sentence and garbled the
+     * node a machine reads, which is the one surface this whole change
+     * exists to get right.
+     */
+    const datasetPhraseFor = (n: number, t: number | null) =>
+      holderBasisPhrase(basisFor(n, t), {
+        measuredNoun: 'addresses',
+        ofCollection: ' holding Example Collection',
+      });
+    ok(
+      'nothing follows the collection suffix, so the Dataset phrase reads as a noun phrase too',
+      [
+        datasetPhraseFor(2000, 16582),
+        datasetPhraseFor(1327, 1327),
+        datasetPhraseFor(2000, 0),
+        datasetPhraseFor(659, 0),
+      ].every((p) => p.endsWith(' holding Example Collection'))
+    );
     ok(
       'the measured-set phrase carries no trailing clause of its own',
       [

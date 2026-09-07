@@ -1622,6 +1622,15 @@ const MUTATIONS: Mutation[] = [
     from: '    ...(isNamed(collection.name) ? {} : { robots: { index: false } }),',
     to: '    robots: isNamed(collection.name) ? undefined : { index: false },',
   },
+  {
+    // The defect Bugbot caught on 2026-09-07, put back exactly. It read
+    // correctly in the visible sentence, which passes an empty suffix, and
+    // garbled the Dataset node, which is what a machine reads.
+    name: 'a trailing clause follows the collection suffix and garbles the Dataset phrase',
+    file: 'lib/holder-pages.ts',
+    from: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection}`;',
+    to: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection} the index imported`;',
+  },
 ];
 
 function invariantsPass(): boolean {

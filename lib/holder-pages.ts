@@ -372,6 +372,12 @@ export function holderBasis(collection: {
  *
  * `subject` reads naturally in both places it is used: the visible sentence
  * says "holders" and the Dataset says "addresses holding <collection>".
+ *
+ * Every case appends `ofCollection` LAST, so nothing may follow it. A
+ * trailing clause reads correctly only when that suffix is empty, which is
+ * the visible sentence, and garbles the Dataset, which is the surface a
+ * machine reads. `unknownTotal` therefore states the count alone and lets
+ * `holderBasisCaveat` say the total was never reported.
  */
 export function holderBasisPhrase(
   basis: HolderBasis,
@@ -386,7 +392,7 @@ export function holderBasisPhrase(
     case 'capped':
       return `the first ${n} ${subject.measuredNoun}${subject.ofCollection}`;
     case 'unknownTotal':
-      return `the ${n} ${subject.measuredNoun}${subject.ofCollection} the index imported`;
+      return `the ${n} ${subject.measuredNoun}${subject.ofCollection}`;
   }
 }
 
