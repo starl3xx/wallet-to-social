@@ -69,6 +69,10 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/blaze',
   },
   datePublished: '2026-01-17',
+  // The file's last authored change (`git log -1 -- app/vs/blaze/page.tsx`),
+  // not the render date: a dateModified taken from the clock tells a crawler
+  // every page changed today, on every request. Move it when the copy moves.
+  dateModified: '2026-08-30',
   keywords:
     'Blaze alternative, withblaze shut down, wallet to Twitter, wallet lookup',
 };

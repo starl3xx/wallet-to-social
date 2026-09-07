@@ -29,6 +29,10 @@
  */
 
 import { neon } from '@neondatabase/serverless';
+// Safe to import statically, unlike `lib/email` below: `lib/public-figures`
+// pulls in `lib/chains` and nothing else, reads no environment variable, and
+// so cannot be affected by the NEXT_PUBLIC_URL pin that follows.
+import { CHAIN_COUNT_WORD } from '../lib/public-figures';
 
 // The unsubscribe links in delivered mail must carry the production origin,
 // unconditionally: `.env.local` legitimately sets NEXT_PUBLIC_URL to
@@ -47,7 +51,11 @@ function campaignContent() {
     paragraphs: [
       'You signed up for walletlink.social a while back. The product has grown up since, and we would like you to see it, so we put a Trial pack on your account: 250 matches, the pack we sell for $29. Nothing to claim and no card to enter: sign in and the credits are there. They last 12 months like any pack.',
       'What changed since you signed up: the identity index reached 4.8 million wallets. Farcaster coverage is complete and refreshed daily. Every X handle carries a reachability label, live, suspended, or unclaimed, so you can drop the dead ones before you send. And reverse lookup answers the other direction: an X handle or Farcaster username in, the wallets behind it out.',
-      'A match is a wallet we resolve to an X or Farcaster account, and misses cost nothing, so a low-match list barely spends the pack. Paste a contract address or upload a CSV. The pack unlocks priority ranking, the X list export, reverse lookup, deep scan, and all seven chains.',
+      // The chain count is interpolated, never typed. This paragraph held the
+      // old count, "seven", after HyperEVM made it eight, and email is the one
+      // surface a later deploy cannot correct: a wrong number here is wrong in
+      // an inbox permanently.
+      `A match is a wallet we resolve to an X or Farcaster account, and misses cost nothing, so a low-match list barely spends the pack. Paste a contract address or upload a CSV. The pack unlocks priority ranking, the X list export, reverse lookup, deep scan, and all ${CHAIN_COUNT_WORD} chains.`,
     ],
     // The ref tag lands in page_view metadata, so arrivals from this email
     // are countable next to the grant redemptions in relaunch-report.ts.

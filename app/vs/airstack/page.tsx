@@ -69,6 +69,10 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/airstack',
   },
   datePublished: '2026-08-13',
+  // The file's last authored change (`git log -1 -- app/vs/airstack/page.tsx`),
+  // not the render date: a dateModified taken from the clock tells a crawler
+  // every page changed today, on every request. Move it when the copy moves.
+  dateModified: '2026-08-30',
   keywords:
     'airstack alternative, airstack api deprecated, farcaster wallet index, reverse farcaster lookup',
 };

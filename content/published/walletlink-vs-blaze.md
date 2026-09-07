@@ -3,6 +3,7 @@ title: 'walletlink.social vs Blaze: comparison guide'
 meta_description: 'Blaze left web3 in 2026. An archived comparison of walletlink.social and Blaze for wallet-to-social resolution, with guidance for migrating from Blaze.'
 published: true
 publish_date: '2026-04-02'
+updated_date: '2026-08-22'
 ---
 
 # walletlink.social vs Blaze: comparison guide

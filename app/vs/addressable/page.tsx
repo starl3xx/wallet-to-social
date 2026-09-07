@@ -15,6 +15,34 @@ import {
 import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 
+/**
+ * Addressable (addressable.io) is an enterprise web3 marketing platform: ad
+ * attribution, audience segmentation and CRM integrations, with
+ * wallet-to-social resolution as one feature inside it. So this page compares
+ * one feature of their product with the whole of ours, and the copy says so
+ * rather than tallying capabilities as though the two purchases matched.
+ *
+ * ## Where the 23M comes from
+ *
+ * Their homepage carries two counters written 23M+, one labelled Matched
+ * Wallet Owners and one labelled Social accounts. The figure quoted on this
+ * page is the matched-owners one, read from addressable.io on 7 September
+ * 2026 and dated in the copy: a competitor claim is the fact on a comparison
+ * page that goes stale with no commit and no diff.
+ *
+ * ## The price has no source, and the copy says that instead of a date
+ *
+ * There is no price sheet to read, so there is nothing to date.
+ * addressable.io/pricing returned 404 on 7 September 2026 and no plan table
+ * appears anywhere else on the site; the price comes from a sales call. Every
+ * dollar figure attributed to Addressable here is therefore a user report,
+ * marked as one at each place it appears, and nothing is computed from it.
+ *
+ * The panel at the foot of the pricing section used to subtract our real pack
+ * price from their reported $1,000 a month and print an exact year-one
+ * saving. That number was more precise than either of its inputs, and one of
+ * the inputs was a rumour.
+ */
 export const metadata: Metadata = {
   title: 'walletlink.social vs Addressable: Comparison (2026)',
   description:
@@ -28,8 +56,12 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: 'walletlink.social vs Addressable: which is right for you?',
-    description:
-      'Compare wallet-to-social lookup tools. Credit packs from $29, no subscription, against enterprise pricing that starts near $1,000/month. See which is right for your crypto marketing needs.',
+    // The pack price interpolates `lib/packs.ts`, which is the only place a
+    // price of ours lives. Theirs carries the hedge the page carries: they
+    // publish no price sheet, so $1,000/month is a user report and is
+    // labelled one here too, where the sentence travels furthest from its
+    // sourcing line.
+    description: `Compare wallet-to-social lookup tools. Credit packs from $${PACKS.trial.priceCents / 100}, bought once, against a subscription users report near $1,000/month. Addressable publishes no price sheet.`,
     type: 'article',
     url: 'https://walletlink.social/vs/addressable',
     siteName: 'walletlink.social',
@@ -66,6 +98,13 @@ const jsonLd = {
     '@id': 'https://walletlink.social/vs/addressable',
   },
   datePublished: '2026-01-17',
+  // The file's last authored change, not the render date: a dateModified
+  // taken from the clock tells a crawler every page changed today, on every
+  // request. Every sibling carries its own `git log` date, and so does this
+  // one: the commit that rewrites these pricing claims is dated 2026-09-07,
+  // so the two agree rather than this being a reflexive stamp of today. Move
+  // it when the copy moves, and only then.
+  dateModified: '2026-09-07',
   keywords:
     'Addressable alternative, wallet to social, Web3 marketing, crypto marketing',
 };
@@ -201,7 +240,8 @@ export default function AddressableComparison() {
                       {INDEXED_WALLETS} wallets, complete Farcaster coverage
                     </td>
                     <td className="py-4 pl-4">
-                      23M claimed (methodology undisclosed)
+                      23M+ matched wallet owners claimed (methodology
+                      undisclosed)
                     </td>
                   </tr>
                   <tr className="border-b">
@@ -213,7 +253,15 @@ export default function AddressableComparison() {
                       </span>{' '}
                       one-time
                     </td>
-                    <td className="py-4 pl-4">$1,000s/month subscription</td>
+                    {/* The hedge travels with the number. A retrieval hit
+                        returns this row on its own, and the sourcing line
+                        under the table is a different chunk. */}
+                    <td className="py-4 pl-4">
+                      $1,000s/month subscription{' '}
+                      <span className="text-xs text-muted-foreground">
+                        (user reports, no published price sheet)
+                      </span>
+                    </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Access</td>
@@ -424,6 +472,20 @@ export default function AddressableComparison() {
                 </tbody>
               </table>
             </div>
+            {/* The sourcing line the five sibling /vs pages carry, and the one
+                thing this page could not copy from them: there is no price
+                sheet to date, so the second half records the absence rather
+                than a reading. The /vs hub tells the reader every page below
+                dates its claims, and this page is listed first. */}
+            <p className="mt-4 text-xs text-muted-foreground">
+              Addressable figures read from addressable.io on 7 September 2026.
+              Their homepage carries two counters written 23M+; the one quoted
+              here is &ldquo;Matched Wallet Owners&rdquo;, not the &ldquo;Social
+              accounts&rdquo; figure beside it. The prices below are not from
+              Addressable: addressable.io/pricing returned 404 that day and no
+              plan table appears elsewhere on the site, so every dollar figure
+              attributed to them here is a user report, with no date to give it.
+            </p>
           </section>
 
           {/* What is Addressable */}
@@ -468,7 +530,8 @@ export default function AddressableComparison() {
               Matches are deterministic and user-attested (Farcaster verified
               accounts and onchain ENS records), backed by a {INDEXED_WALLETS}
               -wallet index covering the complete Farcaster protocol.
-              Addressable advertises 23M matched owners built with probabilistic
+              Addressable advertises 23M+ matched wallet owners on
+              addressable.io, read 7 September 2026, built with probabilistic
               &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of
               our X matches are links the wallet owner created themselves, and
               every match is labelled with the evidence behind it.
@@ -564,27 +627,39 @@ export default function AddressableComparison() {
             <div className="rounded-lg border border-border bg-muted p-6">
               <h3 className="font-semibold mb-4">Addressable</h3>
               <p className="text-muted-foreground text-sm mb-2">
-                Custom enterprise pricing. Based on public information and user
-                reports:
+                Addressable publishes no price sheet: addressable.io/pricing
+                returned 404 on 7 September 2026 and no plan table appears
+                elsewhere on the site, so there is nothing here to date. What
+                follows is what customers report, not what Addressable says:
               </p>
               <ul className="list-disc pl-6 text-sm text-muted-foreground space-y-2">
-                <li>Typically starts at $1,000+/month</li>
-                <li>Annual contracts common</li>
-                <li>Requires sales call for exact pricing</li>
+                <li>Reported to start around $1,000/month</li>
+                <li>Annual contracts are common</li>
+                <li>A sales call is the only route to an exact number</li>
               </ul>
             </div>
 
+            {/* This panel used to state a year-one saving to the dollar,
+                computed as twelve of their reported months minus our real
+                pack price. Our half is a constant; their half is a rumour,
+                and the subtraction gave the pair a precision only the
+                constant had. What survives is the comparison a reader can
+                check: one price, paid once, beside a subscription we can
+                only say is reported. */}
             <div className="p-6 border rounded-lg bg-accent-brand-tint border-accent-brand">
               <p className="text-sm">
-                <span className="font-medium">ROI example:</span> If you pay $
-                {PACKS.index.priceCents / 100} once for the walletlink.social{' '}
-                {PACKS.index.name} pack instead of $1,000/month for Addressable,
-                you save{' '}
+                <span className="font-medium">
+                  One-time against a subscription:
+                </span>{' '}
+                the {PACKS.index.name} pack is{' '}
                 <span className="font-semibold text-accent-brand">
-                  ${(12 * 1000 - PACKS.index.priceCents / 100).toLocaleString()}{' '}
-                  in year one
+                  ${(PACKS.index.priceCents / 100).toLocaleString()}, paid once
                 </span>
-                , assuming you only need wallet-to-social lookups.
+                , and it does not renew. Addressable is a subscription customers
+                report near $1,000/month (estimated: they publish no price
+                sheet). We do not turn that into a year-one saving, because
+                subtracting our real price from their reported one gives a
+                number more exact than the figures behind it.
               </p>
             </div>
           </section>

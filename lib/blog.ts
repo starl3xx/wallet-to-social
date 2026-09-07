@@ -40,6 +40,34 @@ export interface BlogPost {
   content: string;
   html: string;
   publishedAt: string;
+  /**
+   * The date this post was last edited, from the optional `updated_date`
+   * frontmatter key. Absent on a post nobody has revised, and absent is the
+   * honest answer: `app/blog/[slug]/page.tsx` emits `dateModified` only when
+   * this holds a value, so an unrevised post publishes no modification date
+   * at all rather than one computed at render time.
+   *
+   * It is an authored date, written by whoever made the edit, and it is not
+   * the file's mtime: a reformat, a rename or a checkout moves an mtime and
+   * changes nothing a reader can see.
+   */
+  updatedAt?: string;
+}
+
+/**
+ * The optional `updated_date` frontmatter key, read the same way in both
+ * readers below.
+ *
+ * `gray-matter` parses an unquoted YAML date into a `Date`, and every post
+ * quotes its dates, so this normalises both spellings to the ISO day the
+ * frontmatter meant. Anything else, including an empty string, reads as
+ * absent.
+ */
+function readUpdatedDate(data: Record<string, unknown>): string | undefined {
+  const raw = data.updated_date;
+  if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  return undefined;
 }
 
 function slugify(filename: string): string {
@@ -62,8 +90,12 @@ function isPublishable(data: Record<string, unknown>): boolean {
 
 export function getAllPosts(): BlogPost[] {
   const files = getMarkdownFiles(PUBLISHED_DIR);
-  const today = new Date();
 
+  // No `const today = new Date()` here any more. It was unused, ESLint said
+  // so, and a spare clock reading sitting in the module that supplies every
+  // published date is the exact ingredient of the render-time dates this
+  // route had to remove. `isPublishable` reads the clock where a schedule
+  // genuinely needs it, and nothing else in this file does.
   return (
     files
       .map((filename) => {
@@ -84,6 +116,7 @@ export function getAllPosts(): BlogPost[] {
             (data.publish_date as string) ||
             (data.date as string) ||
             '2025-01-01',
+          updatedAt: readUpdatedDate(data),
         };
       })
       .filter(Boolean)
@@ -148,6 +181,7 @@ export function getPostBySlug(slug: string): BlogPost | null {
     html: markdown.parse(stripLeadingH1(content)) as string,
     publishedAt:
       (data.publish_date as string) || (data.date as string) || '2025-01-01',
+    updatedAt: readUpdatedDate(data),
   };
 }
 
