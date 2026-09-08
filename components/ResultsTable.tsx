@@ -1390,9 +1390,11 @@ export const ResultsTable = memo(function ResultsTable({
                     {/* X handle. `py-1` is now the row-wide padding (the old
                         py-2 special case generalised): the row centres its
                         cells, and this is the one cell that can hold two
-                        lines, which is what forced py-1 at 44px and would
-                        again at 38. */}
-                    <div role="cell" className="px-4 py-1 font-mono text-xs">
+                        lines. At 38px the arithmetic tightens again: two
+                        16px lines plus py-1 is 40px, painting 2px into the
+                        absolutely-stacked neighbour row, so this one cell
+                        drops to py-0.5 (2x16+4 = 36, inside the pitch). */}
+                    <div role="cell" className="px-4 py-0.5 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
                       ) : (

@@ -616,7 +616,12 @@ export default async function HolderPage({ params }: Props) {
                 },
                 {
                   q: `Why ${stats.holderCount.toLocaleString()} holders, and not the full holder base?`,
-                  a: `The measurement runs over ${holderBasisPhrase(basis, { measuredNoun: 'holders', ofCollection: '' })}. ${basisCaveat ?? 'That is the full imported holder set for this collection.'}`,
+                  // The completeness sentence rides ONLY on the kinds that
+                  // earned it: `holderBasisCaveat` is also null for a sample of
+                  // a larger known total, and these answers are written to be
+                  // quoted alone, so a fallback claim would over-claim exactly
+                  // the way the old prose did.
+                  a: `The measurement runs over ${holderBasisPhrase(basis, { measuredNoun: 'holders', ofCollection: '' })}.${basisCaveat ? ` ${basisCaveat}` : basis.kind === 'complete' ? ' That is the full imported holder set for this collection.' : ''}`,
                 },
                 {
                   q: 'When was this measured?',
