@@ -35,7 +35,7 @@ export function Eyebrow({
    * document outline matches what a reader sees. Default is a div, because most
    * eyebrows label a control or a tile rather than a region.
    */
-  as?: 'div' | 'span' | 'h2' | 'h3';
+  as?: 'div' | 'span' | 'h2' | 'h3' | 'dt';
 }) {
   return (
     <Tag

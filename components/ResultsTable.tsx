@@ -186,7 +186,13 @@ type SortField =
   | 'priority_score';
 type SortDirection = 'asc' | 'desc';
 
-const ROW_HEIGHT = 44; // Fixed row height for virtualization
+/**
+ * Fixed row height for virtualization. 38, matcha's borderless-row density
+ * (+16%: ~15.8 rows per 600px scroller against 13.6 at the old 44). Row
+ * delimiting is hover fill plus column alignment, not a border-b per row: the
+ * frame and the sticky header keep their hairlines, the rows do not carry one.
+ */
+const ROW_HEIGHT = 38;
 
 /**
  * The header's height, fixed for the same reason the rows' is. The header
@@ -203,11 +209,13 @@ const HEADER_HEIGHT = 34;
 const GUTTER_WIDTH = 18;
 
 /**
- * The details column: one 34px icon control with 8px each side. Fixed like the
- * gutter, because a track holding a single control must not stretch with the
- * grid; every stretchy column is a data column.
+ * The details column: one 28px compact icon control with 8px each side. Fixed
+ * like the gutter, because a track holding a single control must not stretch
+ * with the grid; every stretchy column is a data column. Compact is the
+ * table-row tier of the control ladder: 28 in a 38px row leaves 5px each
+ * side, and a hit-area inset of -5px tiles the row pitch exactly.
  */
-const DETAIL_WIDTH = 50;
+const DETAIL_WIDTH = 44;
 
 /**
  * The one empty-cell mark, an en dash. Every empty cell renders this constant:
@@ -223,9 +231,13 @@ const EMPTY_CELL = '–';
  * them. A translucent fill lets those columns show through the pinned cells,
  * so each tint is composited on the page here instead. Hover is `hover:`, not
  * a class toggled in JS, so touch devices never latch it.
+ *
+ * The plain row hovers on `--fill-row-hover`, the ONE sanctioned virtualized
+ * row hover: the subtle wash flattened opaque against the page for exactly
+ * this sticky-column reason (see globals.css). This used to be a hand-rolled
+ * color-mix; the token is that hand-roll, named.
  */
-const ROW_FILL =
-  'bg-background hover:bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]';
+const ROW_FILL = 'bg-background hover:bg-fill-row-hover';
 const ROW_FILL_ENRICHED =
   'bg-[color-mix(in_oklab,var(--accent-brand-tint)_30%,var(--background))] hover:bg-accent-brand-tint dark:hover:bg-[color-mix(in_oklab,var(--accent-brand-tint)_50%,var(--background))]';
 
@@ -1204,7 +1216,7 @@ export const ResultsTable = memo(function ResultsTable({
                        virtualised row may animate. The duration and curve are
                        stated because Tailwind's bare default is 150ms on its own
                        ease, neither of which the system has. */
-                    className={`absolute top-0 left-0 grid w-full items-center border-b border-border transition-[background-color] duration-[var(--duration-fast)] ease-[var(--ease-out-soft)] ${
+                    className={`absolute top-0 left-0 grid w-full items-center transition-[background-color] duration-[var(--duration-fast)] ease-[var(--ease-out-soft)] ${
                       isEnriched ? ROW_FILL_ENRICHED : ROW_FILL
                     }`}
                     style={{
@@ -1344,7 +1356,7 @@ export const ResultsTable = memo(function ResultsTable({
                     {/* ENS */}
                     <div
                       role="cell"
-                      className="px-4 py-2 font-mono text-xs truncate"
+                      className="px-4 py-1 font-mono text-xs truncate"
                     >
                       {result.ens_name || EMPTY_CELL}
                     </div>
@@ -1358,7 +1370,7 @@ export const ResultsTable = memo(function ResultsTable({
                     {hasHoldings && (
                       <div
                         role="cell"
-                        className="px-4 py-2 text-sm font-medium tabular-nums"
+                        className="px-4 py-1 text-sm font-medium tabular-nums"
                       >
                         {formatHoldings(result.holdings)}
                       </div>
@@ -1369,18 +1381,17 @@ export const ResultsTable = memo(function ResultsTable({
                       <div
                         key={col}
                         role="cell"
-                        className="px-4 py-2 text-sm truncate"
+                        className="px-4 py-1 text-sm truncate"
                       >
                         {(result[col] as string) || EMPTY_CELL}
                       </div>
                     ))}
 
-                    {/* X handle. `py-1` where every other cell has `py-2`:
-                        the row centres its cells, so vertical padding on a
-                        one-line cell changes nothing you can see, and this is
-                        the one cell that can hold two lines. Two lines at
-                        16px plus `py-2` is 48px inside a 44px row, and the
-                        second line would cross the row's border. */}
+                    {/* X handle. `py-1` is now the row-wide padding (the old
+                        py-2 special case generalised): the row centres its
+                        cells, and this is the one cell that can hold two
+                        lines, which is what forced py-1 at 44px and would
+                        again at 38. */}
                     <div role="cell" className="px-4 py-1 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
@@ -1390,7 +1401,7 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Farcaster */}
-                    <div role="cell" className="px-4 py-2 font-mono text-xs">
+                    <div role="cell" className="px-4 py-1 font-mono text-xs">
                       {result.farcaster ? (
                         <Button
                           asChild
@@ -1425,7 +1436,7 @@ export const ResultsTable = memo(function ResultsTable({
                         column's one upgrade control is in its header. */}
                     <div
                       role="cell"
-                      className="px-4 py-2 text-sm font-medium tabular-nums"
+                      className="px-4 py-1 text-sm font-medium tabular-nums"
                     >
                       {isPaidTier ? (
                         result.fc_followers !== undefined ? (
@@ -1439,7 +1450,7 @@ export const ResultsTable = memo(function ResultsTable({
                     </div>
 
                     {/* Priority */}
-                    <div role="cell" className="px-4 py-2 text-sm">
+                    <div role="cell" className="px-4 py-1 text-sm">
                       {isPaidTier ? (
                         <PriorityIndicator score={result.priority_score} />
                       ) : (
@@ -1463,8 +1474,8 @@ export const ResultsTable = memo(function ResultsTable({
                     >
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground"
+                        size="icon-compact"
+                        className="relative text-muted-foreground after:absolute after:-inset-y-[5px] after:-inset-x-1 after:content-['']"
                         aria-label={`Details for ${rowDisplayName(result)}`}
                         aria-haspopup="dialog"
                         title="Details"

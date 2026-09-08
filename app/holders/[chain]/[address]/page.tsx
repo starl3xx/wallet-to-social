@@ -3,8 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageShell } from '@/components/ui/page-shell';
 import { Figure } from '@/components/ui/figure';
-import { Button } from '@/components/ui/button';
-import { ArrowRight, Warning } from '@phosphor-icons/react/dist/ssr';
+import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { CHAIN_MARKS } from '@/components/ui/chain-marks';
+import { CopyAddress } from '@/components/CopyAddress';
+import { ArrowRight, CaretDown, Warning } from '@phosphor-icons/react/dist/ssr';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { PRODUCTION_URL } from '@/lib/site-url';
 import {
@@ -310,6 +313,11 @@ export default async function HolderPage({ params }: Props) {
   // The trail the page already draws above the headline. The chain rides in
   // the leaf name rather than becoming a crumb of its own, because there is
   // no /holders/<chain> route to point a middle crumb at (lib/breadcrumbs.ts).
+  // The 24px chain mark, rendered twice (entity header and rail); resolved
+  // once. Keyed access is total: getHolderCollection only returns chains from
+  // lib/chains.ts.
+  const ChainMark = CHAIN_MARKS[collection.chain];
+
   const breadcrumbJson = breadcrumbJsonLd([
     { name: 'Holder reports', path: '/holders' },
     {
@@ -319,7 +327,10 @@ export default async function HolderPage({ params }: Props) {
   ]);
 
   return (
-    <PageShell>
+    // `wide`, the admin exception's second caller, same reason: the report
+    // carries a 384px action rail beside dense content, and inside the
+    // default shell the rail would squeeze the column to 688px.
+    <PageShell wide>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -332,199 +343,128 @@ export default async function HolderPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetLd) }}
       />
-      <div className="max-w-[68ch]">
-        <p className="mb-3 text-sm text-muted-foreground">
-          {/* The link variant at inline size: the one treatment for a text
-              link inside a sentence, with the underline affordance and focus
-              ring a bare anchor lacked. Button renders the Link via Slot, so
-              it works in a server component. */}
-          <Button asChild variant="link" size="inline">
-            <Link href="/holders">Holder reports</Link>
-          </Button>{' '}
-          / {chainLabel(collection.chain)}
-        </p>
-        <h1 className="mb-4 max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)] sm:text-5xl">
-          {collection.name} holders, resolved to{' '}
-          <em className="font-semibold not-italic text-accent-brand">people</em>
-          .
-        </h1>
-        <p className="mb-2 text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-          Every holder ranking shows addresses. This one shows how many of the
-          wallets holding this{' '}
-          {standardLabel(
-            collection.contractType,
-            collection.chain,
-            collection.address
-          )}{' '}
-          on {chainLabel(collection.chain)} resolve to an X or Farcaster account
-          the owner published, and how many of those you can still reach.
-        </p>
-        <p className="mb-8 text-sm text-muted-foreground">
-          {/* Derived from the same predicate as the Dataset node, not
-              restated. This sentence is the half an answer engine quotes,
-              so when the two disagreed it was this one that shipped the
-              over-claim. */}
-          Measured over{' '}
-          {holderBasisPhrase(basis, {
-            measuredNoun: 'holders',
-            ofCollection: '',
-          })}
-          , against the walletlink.social index.{' '}
-          {/* Its own sentence, not a trailing clause: this is the half that
-              says the measured count is not the holder base, and it has to
-              survive being quoted on its own. */}
-          {basisCaveat ? `${basisCaveat} ` : ''}
-          {/* The one dated sentence on the page, and the half of the dating
-              work that matters: the sitemap has published this date as
-              lastmod for every report all along, and a date carried only in a
-              header or a script tag does not survive the text extraction an
-              answer engine quotes from. The refresh clause rides in the same
-              sentence so a quote of one carries the other, because the two
-              are different facts: the holder set is a snapshot taken on a
-              date, the identity index measured against it is not. */}
-          {confirmedOn
-            ? `Holder set last confirmed onchain on ${confirmedOn}; the identity index behind these figures refreshes daily.`
-            : 'The identity index behind these figures refreshes daily.'}
-        </p>
+      {/* The data-page opening: an ENTITY, not a sentence. Marketing pages
+          keep the 200-weight display h1 with its emphasis span; a report
+          opens with the thing measured (30px/600 name at the title tracking,
+          a muted qualifier, the machine row) and puts the four numbers a
+          searcher came for directly beneath, in the operational figure tier.
+          The prose that used to sit above them moves below the strip; the
+          Dataset node and the dated sentence are unchanged.
 
-        {/* A page whose holders are mostly unchecked is a measurement still
-            running, not a measured rate, and must say so: without this note
-            the numbers below read as a finding about the collection when they
-            are a lower bound over whatever share has been asked about. The
-            caution panel is the app's one warning idiom (app/page.tsx
-            mergeWarning). A fully checked page skips it, whether it cleared
-            the listing floor or not, because there the numbers are the
-            finding. */}
-        {measurementInProgress(stats) && (
-          <div className="mb-8 flex items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
-            <Warning
-              className="mt-0.5 h-4 w-4 flex-none text-caution"
-              aria-hidden
-            />
-            <p className="text-sm text-caution">
-              Measurement in progress: {stats.checked.toLocaleString()} of{' '}
-              {stats.holderCount.toLocaleString()} holders checked so far. Every
-              reachable person shown was really found, so the numbers here are
-              lower bounds; they rise as the remaining holders are checked.
-            </p>
-          </div>
-        )}
-
-        <dl className="grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-          <Figure
-            value={stats.holderCount.toLocaleString()}
-            label="holders measured"
-          />
-          <Figure
-            value={stats.withTwitter.toLocaleString()}
-            label="with an X handle"
-          />
-          <Figure
-            value={stats.withFarcaster.toLocaleString()}
-            label="on Farcaster"
-          />
-          <Figure
-            value={`${stats.reachableAny.toLocaleString()} (${reachablePct}%)`}
-            label="reachable people"
-            attested
-          />
-        </dl>
-
-        <section className="mt-12">
-          <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
-            Having a handle and reaching it are different claims
-          </h2>
-          <p className="mb-4 text-muted-foreground">
-            Each X handle here was published by the wallet&rsquo;s owner, and
-            each carries a reachability state checked against X itself. A
-            campaign sent to the full handle list would mail accounts that no
-            longer reach anyone; the reachable number above already excludes
-            them.
+          The report carries the action rail on the wide shell (the admin
+          exception, second caller, same reason: 1232px splits into content +
+          32px gap + a 384px rail). The grid places the rail in the right
+          column from lg; below lg the DOM order IS the mobile order: header
+          and strip, then the rail, then the evidence. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-x-8">
+        <div className="lg:col-start-1 lg:row-start-1">
+          <p className="mb-3 text-sm text-muted-foreground">
+            {/* The link variant at inline size: the one treatment for a text
+                link inside a sentence, with the underline affordance and focus
+                ring a bare anchor lacked. Button renders the Link via Slot, so
+                it works in a server component. */}
+            <Button asChild variant="link" size="inline">
+              <Link href="/holders">Holder reports</Link>
+            </Button>{' '}
+            / {chainLabel(collection.chain)}
           </p>
-          <dl className="grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
+          {/* Wrapping is the phone pass: the qualifier and badge drop to
+              their own lines under the name in wrap order, so no element
+              changes a fixed row's height and nothing is joined into a
+              string that could dangle a separator. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <ChainMark className="h-6 w-6 flex-none" />
+            <h1 className="text-3xl font-semibold leading-[1.2] tracking-[var(--tracking-title)]">
+              {collection.name} holders
+            </h1>
+            <span className="text-2xl font-normal tracking-[var(--tracking-title)] text-muted-foreground">
+              {standardLabel(
+                collection.contractType,
+                collection.chain,
+                collection.address
+              )}
+            </span>
+            <span className="text-2xl font-normal tracking-[var(--tracking-title)] text-muted-foreground">
+              {chainLabel(collection.chain)}
+            </span>
+            <Badge tone="attested" className="max-w-none">
+              {reachablePct}% reachable
+            </Badge>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <CopyAddress address={collection.address} />
+          </div>
+
+          <dl className="mt-7 flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-8">
             <Figure
-              value={stats.xLive.toLocaleString()}
-              label="X handles live"
+              variant="stat"
+              value={stats.holderCount.toLocaleString()}
+              label="holders measured"
+            />
+            <Figure
+              variant="stat"
+              value={stats.withTwitter.toLocaleString()}
+              label="with an X handle"
+            />
+            <Figure
+              variant="stat"
+              value={stats.withFarcaster.toLocaleString()}
+              label="on Farcaster"
+            />
+            <Figure
+              variant="stat"
+              value={`${stats.reachableAny.toLocaleString()} (${reachablePct}%)`}
+              label="reachable people"
               attested
             />
-            <Figure
-              value={stats.xSuspended.toLocaleString()}
-              label="suspended"
-            />
-            <Figure
-              value={stats.xUnclaimed.toLocaleString()}
-              label="names nobody holds"
-            />
-            {/* No data is not a median of zero; n/a says which claim this is. */}
-            <Figure
-              value={
-                stats.medianFcFollowers !== null
-                  ? stats.medianFcFollowers.toLocaleString()
-                  : 'n/a'
-              }
-              label="median Farcaster followers"
-            />
           </dl>
-        </section>
 
-        {overlap.length > 0 && (
-          <section className="mt-12">
-            <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
-              These holders also hold
-            </h2>
-            {/* The list is already on the page; this states its top row as a
-                sentence, which is the form that survives extraction. Nothing
-                new is disclosed: the counterparty is ordered first by the same
-                query, and every row it can name already cleared the overlap
-                floor in lib/holder-pages.ts. */}
-            <p className="mb-4 text-muted-foreground">
-              The strongest overlap is {overlap[0].name}, which{' '}
-              {overlap[0].sharedHolders.toLocaleString()} of these holders also
-              hold.
+          {/* A page whose holders are mostly unchecked is a measurement still
+              running, not a measured rate, and must say so directly under the
+              strip it qualifies. The caution panel is the app's one warning
+              idiom. A fully checked page skips it. */}
+          {measurementInProgress(stats) && (
+            <div className="mt-6 flex max-w-[68ch] items-start gap-3 rounded-lg border border-caution bg-caution-tint p-4">
+              <Warning
+                className="mt-0.5 h-4 w-4 flex-none text-caution"
+                aria-hidden
+              />
+              <p className="text-sm text-caution">
+                Measurement in progress: {stats.checked.toLocaleString()} of{' '}
+                {stats.holderCount.toLocaleString()} holders checked so far.
+                Every reachable person shown was really found, so the numbers
+                here are lower bounds; they rise as the remaining holders are
+                checked.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* The action rail: the tool stays on screen while the evidence
+            scrolls. One hero button, the view's only filled action; the
+            free-allowance sentence rides with it so the price question is
+            answered where the button is. */}
+        <aside className="mt-10 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+          <div className="rounded-lg border border-border bg-card p-6 lg:sticky lg:top-8">
+            <div className="flex items-center gap-2">
+              <ChainMark className="h-6 w-6 flex-none" />
+              <span className="text-base font-semibold tracking-[var(--tracking-lead)]">
+                {collection.name}
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Runs {collection.name} itself, on up to {STARTER_WALLET_CAP} of
+              the holders measured here: we hold the list, so there is nothing
+              to upload. A wallet we cannot resolve costs nothing.
             </p>
-            <ul className="space-y-2">
-              {overlap.map((o) => (
-                <li
-                  key={`${o.chain}:${o.address}`}
-                  className="text-muted-foreground"
-                >
-                  <Button asChild variant="link" size="inline">
-                    <Link href={`/holders/${o.chain}/${o.address}`}>
-                      {o.name}
-                    </Link>
-                  </Button>{' '}
-                  <span className="tabular-nums">
-                    ({o.sharedHolders.toLocaleString()} shared holders,{' '}
-                    {chainLabel(o.chain)})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section className="mt-12 border-t border-border pt-8">
-          <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
-            Run this collection, or your own list
-          </h2>
-          <p className="mb-6 text-muted-foreground">
-            The button below runs {collection.name} itself, on up to{' '}
-            {STARTER_WALLET_CAP} of the holders measured above: we hold the
-            list, so there is nothing to upload. Or bring your own wallets, by
-            upload or paste, and get the people behind them ranked by holdings
-            times reach. Free covers {FREE_MATCHES_PER_WINDOW} matches in a
-            rolling {FREE_WINDOW_DAYS}-day window, and a wallet we cannot
-            resolve costs nothing.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {/* Carries the collection the reader has just read about. It used
-                to be a bare link to the homepage, which dropped it and asked
-                them to go and find a list of their own.
-
-                buildStarterHref, not buildContractDeepLink: that one targets
+            <p className="mb-4 mt-2 text-xs text-muted-foreground">
+              Free covers {FREE_MATCHES_PER_WINDOW} matches in a rolling{' '}
+              {FREE_WINDOW_DAYS}-day window.
+            </p>
+            {/* buildStarterHref, not buildContractDeepLink: that one targets
                 the paid importer and would meet a reader without credits with
                 a price. */}
-            <Button asChild>
+            <Button asChild size="hero" className="w-full">
               <Link
                 href={buildStarterHref(collection.chain, collection.address)}
               >
@@ -532,11 +472,180 @@ export default async function HolderPage({ params }: Props) {
                 <ArrowRight aria-hidden />
               </Link>
             </Button>
-            <Button variant="outline" asChild>
-              <Link href="/pricing">Pricing</Link>
-            </Button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="soft" asChild>
+                <Link href="/pricing">Pricing</Link>
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Or bring your own wallets, by upload or paste, on the{' '}
+              <Button asChild variant="link" size="inline">
+                <Link href="/">homepage</Link>
+              </Button>
+              .
+            </p>
           </div>
-        </section>
+        </aside>
+
+        <div className="mt-12 max-w-[68ch] lg:col-start-1 lg:row-start-2">
+          <p className="text-sm text-muted-foreground">
+            {/* Derived from the same predicate as the Dataset node, not
+              restated. This sentence is the half an answer engine quotes,
+              so when the two disagreed it was this one that shipped the
+              over-claim. */}
+            Measured over{' '}
+            {holderBasisPhrase(basis, {
+              measuredNoun: 'holders',
+              ofCollection: '',
+            })}
+            , against the walletlink.social index.{' '}
+            {/* Its own sentence, not a trailing clause: this is the half that
+              says the measured count is not the holder base, and it has to
+              survive being quoted on its own. */}
+            {basisCaveat ? `${basisCaveat} ` : ''}
+            {/* The one dated sentence on the page, and the half of the dating
+              work that matters: the sitemap has published this date as
+              lastmod for every report all along, and a date carried only in a
+              header or a script tag does not survive the text extraction an
+              answer engine quotes from. The refresh clause rides in the same
+              sentence so a quote of one carries the other, because the two
+              are different facts: the holder set is a snapshot taken on a
+              date, the identity index measured against it is not. */}
+            {confirmedOn
+              ? `Holder set last confirmed onchain on ${confirmedOn}; the identity index behind these figures refreshes daily.`
+              : 'The identity index behind these figures refreshes daily.'}
+          </p>
+
+          <section className="mt-12">
+            <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
+              Having a handle and reaching it are different claims
+            </h2>
+            <p className="mb-4 text-muted-foreground">
+              Each X handle here was published by the wallet&rsquo;s owner, and
+              each carries a reachability state checked against X itself. A
+              campaign sent to the full handle list would mail accounts that no
+              longer reach anyone; the reachable number above already excludes
+              them.
+            </p>
+            <dl className="grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
+              <Figure
+                value={stats.xLive.toLocaleString()}
+                label="X handles live"
+                attested
+              />
+              <Figure
+                value={stats.xSuspended.toLocaleString()}
+                label="suspended"
+              />
+              <Figure
+                value={stats.xUnclaimed.toLocaleString()}
+                label="names nobody holds"
+              />
+              {/* No data is not a median of zero; n/a says which claim this is. */}
+              <Figure
+                value={
+                  stats.medianFcFollowers !== null
+                    ? stats.medianFcFollowers.toLocaleString()
+                    : 'n/a'
+                }
+                label="median Farcaster followers"
+              />
+            </dl>
+          </section>
+
+          {overlap.length > 0 && (
+            <section className="mt-12">
+              <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
+                These holders also hold
+              </h2>
+              {/* The list is already on the page; this states its top row as a
+                sentence, which is the form that survives extraction. Nothing
+                new is disclosed: the counterparty is ordered first by the same
+                query, and every row it can name already cleared the overlap
+                floor in lib/holder-pages.ts. */}
+              <p className="mb-4 text-muted-foreground">
+                The strongest overlap is {overlap[0].name}, which{' '}
+                {overlap[0].sharedHolders.toLocaleString()} of these holders
+                also hold.
+              </p>
+              {/* A chip cloud, the named exception to "a row of buttons never
+                wraps": a collection of equivalent navigational chips, not an
+                action row, so it wraps by design and no member is filled.
+                Each chip is a soft Button carrying the neighbouring report;
+                the count stays muted and tabular beside the name. */}
+              <div className="flex flex-wrap gap-2">
+                {overlap.map((o) => (
+                  <Button
+                    key={`${o.chain}:${o.address}`}
+                    variant="soft"
+                    asChild
+                  >
+                    <Link
+                      href={`/holders/${o.chain}/${o.address}`}
+                      title={`${o.sharedHolders.toLocaleString()} shared holders on ${chainLabel(o.chain)}`}
+                    >
+                      {o.name}
+                      <span className="font-normal tabular-nums text-muted-foreground">
+                        {o.sharedHolders.toLocaleString()}
+                      </span>
+                    </Link>
+                  </Button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* The measurement, as questions a reader actually asks, each answer a
+            complete quotable sentence: these pages exist for extraction, and
+            details content is present in the extracted text whether open or
+            closed. Native disclosure, no JS: the caret rotates (and under
+            reduced motion arrives instantly, still rotated), the trigger is a
+            real summary with the focus ring, and rows divide on hairlines
+            inside one card. The 48px trigger is a list row, named beside the
+            card footer row and the network tile as the ladder's list-row
+            exceptions. */}
+          <section className="mt-12">
+            <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
+              About this measurement
+            </h2>
+            <div className="rounded-lg border border-border bg-card px-4">
+              {[
+                {
+                  q: 'What does “reachable” mean here?',
+                  a: 'A holder counts as reachable when the wallet resolves to an X handle that is live today, or to a Farcaster account. A handle that is suspended, or a name nobody holds any more, was really found but reaches nobody, so it is excluded from the reachable count above.',
+                },
+                {
+                  q: `Why ${stats.holderCount.toLocaleString()} holders, and not the full holder base?`,
+                  a: `The measurement runs over ${holderBasisPhrase(basis, { measuredNoun: 'holders', ofCollection: '' })}. ${basisCaveat ?? 'That is the full imported holder set for this collection.'}`,
+                },
+                {
+                  q: 'When was this measured?',
+                  a: confirmedOn
+                    ? `Holder set last confirmed onchain on ${confirmedOn}; the identity index behind these figures refreshes daily.`
+                    : 'The identity index behind these figures refreshes daily.',
+                },
+              ].map(({ q, a }) => (
+                <details
+                  key={q}
+                  className="group border-t border-border first:border-t-0"
+                >
+                  <summary
+                    className={`flex h-12 cursor-pointer list-none items-center justify-between gap-4 text-base font-medium tracking-[var(--tracking-lead)] transition-control hover:bg-fill-subtle [&::-webkit-details-marker]:hidden ${FOCUS_RING}`}
+                  >
+                    {q}
+                    <CaretDown
+                      className="acc-caret h-4 w-4 flex-none text-muted-foreground group-open:rotate-180"
+                      aria-hidden
+                    />
+                  </summary>
+                  <p className="max-w-[62ch] pb-4 text-sm text-muted-foreground">
+                    {a}
+                  </p>
+                </details>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </PageShell>
   );
