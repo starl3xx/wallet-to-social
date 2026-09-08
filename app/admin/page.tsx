@@ -695,7 +695,7 @@ export default function AdminPage() {
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         onClick={() => handleDelete(entry.id)}
                         disabled={deletingId === entry.id}
                         aria-label="Remove from whitelist"
@@ -860,7 +860,7 @@ export default function AdminPage() {
                         {job.processedCount > 0 && (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             onClick={() => fetchJobResults(job.id)}
                             disabled={
                               viewingJobId === job.id && jobResultsLoading
@@ -878,7 +878,7 @@ export default function AdminPage() {
                         {job.status === 'completed' && (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             onClick={() => handleJobAction(job.id, 'rerun')}
                             disabled={actioningJobId === job.id}
                             title="Rerun job"
@@ -894,7 +894,7 @@ export default function AdminPage() {
                         {job.status === 'failed' && (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             onClick={() => handleJobAction(job.id, 'retry')}
                             disabled={actioningJobId === job.id}
                             title="Retry"
@@ -911,7 +911,7 @@ export default function AdminPage() {
                           job.status === 'processing') && (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             onClick={() => handleJobAction(job.id, 'cancel')}
                             disabled={actioningJobId === job.id}
                             title="Cancel"
@@ -1161,7 +1161,7 @@ export default function AdminPage() {
                   <TableCell>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-compact"
                       onClick={() => handleDeleteHistory(entry.id)}
                       disabled={deletingHistoryId === entry.id}
                       aria-label="Delete lookup"

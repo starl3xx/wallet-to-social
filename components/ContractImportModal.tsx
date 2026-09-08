@@ -203,7 +203,7 @@ export function ContractImportModal({
             // Import siblings of equal size, and the affordance rule is that
             // alternates are never that.
             <ModalFooter>
-              <Button variant="outline" onClick={handleBack}>
+              <Button variant="soft" onClick={handleBack}>
                 Back
               </Button>
               <Button onClick={handleImport}>
@@ -322,7 +322,7 @@ export function ContractImportModal({
                         exists because Tailwind sorts `hover:` after
                         `peer-checked:`, so without it hovering the selected
                         tile painted it grey. */}
-                      <span className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-lg border border-input px-2 text-center text-xs leading-tight transition-control hover:bg-muted peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                      <span className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-lg border border-input px-2 text-center text-xs leading-tight transition-control hover:bg-fill-subtle peer-checked:border-accent-brand peer-checked:bg-accent-brand-tint peer-checked:font-medium peer-checked:text-accent-brand peer-checked:hover:bg-accent-brand-tint peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background">
                         <Mark className="h-6 w-6" />
                         {CHAIN_LABELS[c]}
                       </span>
@@ -367,7 +367,7 @@ export function ContractImportModal({
         {step === 'preview' && result && (
           <div className="space-y-4">
             {/* Token info */}
-            <div className="p-4 bg-muted rounded-lg space-y-3">
+            <div className="rounded-lg bg-fill-well p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{result.tokenName}</span>

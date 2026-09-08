@@ -417,7 +417,7 @@ export function ApiKeysModal({
                   </code>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="soft"
                     onClick={handleCopy}
                     aria-label="Copy API key"
                   >
@@ -443,7 +443,7 @@ export function ApiKeysModal({
                     Or send it straight to an agent. Both carry this key.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" asChild>
+                    <Button size="sm" variant="soft" asChild>
                       <a href={cursorInstallLink(revealedKey)}>
                         <ArrowSquareOut className="h-4 w-4" aria-hidden />
                         Add to Cursor
@@ -451,7 +451,7 @@ export function ApiKeysModal({
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="soft"
                       onClick={handleCopyCommand}
                     >
                       {copiedCommand ? (

@@ -409,7 +409,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button
-                      variant="outline"
+                      variant="soft"
                       size="sm"
                       onClick={() => {
                         setEditTwitter(walletData?.twitterHandle || '');
@@ -511,7 +511,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="compact"
                         onClick={() => handleViewWallet(edit.wallet)}
                       >
                         View

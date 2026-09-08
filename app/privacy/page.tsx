@@ -60,7 +60,7 @@ function Section({
 }) {
   return (
     <section id={id} className="mt-10 scroll-mt-24">
-      <h2 className="text-xl font-semibold tracking-[var(--tracking-title)]">
+      <h2 className="text-2xl font-light tracking-[var(--tracking-title)]">
         {title}
       </h2>
       <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
     <PageShell>
       <div className="mx-auto max-w-[68ch] py-12">
         <Eyebrow className="text-muted-foreground">Legal</Eyebrow>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[var(--tracking-title)]">
+        <h1 className="mt-3 text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)]">
           Privacy policy
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

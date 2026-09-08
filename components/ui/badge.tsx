@@ -34,7 +34,10 @@ const TONES = {
   /** A failed job, a revoked key. The only red badge there is. */
   destructive: 'bg-destructive-tint text-destructive',
   /** Everything else, which is most of them. */
-  muted: 'bg-muted text-muted-foreground',
+  /** The wash, not opaque bg-muted: a badge sits ON surfaces (header,
+   *  cards, wells) and an opaque muted field paints itself out on any
+   *  muted-family panel; the well fill cannot. */
+  muted: 'bg-fill-well text-muted-foreground',
 } as const;
 
 export function Badge({

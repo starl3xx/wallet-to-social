@@ -111,7 +111,7 @@ export default function PricingPage() {
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <BuyCreditsButton>Buy credits</BuyCreditsButton>
-          <Button variant="outline" asChild>
+          <Button variant="soft" asChild>
             <Link href="/">
               Run a free lookup
               <ArrowRight aria-hidden />

@@ -352,7 +352,7 @@ export function UpgradeModal({
 
                   <Button
                     className="w-full flex-none"
-                    variant={isSuggested ? 'default' : 'outline'}
+                    variant={isSuggested ? 'default' : 'soft'}
                     onClick={() => handleBuy(id)}
                     disabled={loading !== null}
                   >

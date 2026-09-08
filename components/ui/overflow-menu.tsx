@@ -71,7 +71,7 @@ export function OverflowMenu({
           aria-expanded={open}
           title={label}
           onClick={() => setOpen((v) => !v)}
-          className="transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:text-accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:bg-fill-subtle hover:text-accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <DotsThree className="h-5 w-5" weight="bold" aria-hidden />
         </button>
@@ -101,7 +101,7 @@ export function MenuItem({
   href?: string;
 }) {
   const cls =
-    'transition-control flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+    'transition-control flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-fill-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   if (href) {
     return (
       <a

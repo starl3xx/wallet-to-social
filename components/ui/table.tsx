@@ -8,10 +8,13 @@ import { cn } from '@/lib/utils';
  * The data table, used by the admin panes.
  *
  * Adapted from the shadcn paste in the two places it still carried the
- * library's hover: a row hovered to `bg-muted/50` and the footer sat on the same
- * wash, both with `transition-colors`. A translucent fill reads differently on
- * every surface it lands on, and the design language has one grey for a rested
- * surface, `--muted`, at full opacity. `transition-control` carries the 120ms
+ * library's hover: a row hovered to `bg-muted/50` and the footer sat on the
+ * same wash, both with `transition-colors`. Interior layering on a static
+ * table is the NAMED washes now: rows hover on `--fill-subtle`, a selected
+ * row and the footer sit on `--fill-well` (the well's stated jobs), and an
+ * unnamed `/NN` remains banned. These are static rows, not the virtualized
+ * grid, so the translucent tokens are correct here where ResultsTable must
+ * use the opaque `--fill-row-hover`. `transition-control` carries the 120ms
  * colour duration the tokens define; `transition-colors` brought Tailwind's.
  *
  * Separation stays on the decorative hairline: a row rule is not a control, so
@@ -58,7 +61,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        'bg-muted border-t font-medium [&>tr]:last:border-b-0',
+        'bg-fill-well border-t font-medium [&>tr]:last:border-b-0',
         className
       )}
       {...props}
@@ -71,7 +74,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     <tr
       data-slot="table-row"
       className={cn(
-        'hover:bg-muted data-[state=selected]:bg-muted border-b transition-control',
+        'hover:bg-fill-subtle data-[state=selected]:bg-fill-well border-b transition-control',
         className
       )}
       {...props}

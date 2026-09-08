@@ -209,7 +209,7 @@ function SuccessContent() {
 
           {state === 'success' && pack && (
             <>
-              <div className="flex items-center justify-center gap-2 rounded-lg bg-muted py-4">
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-fill-well py-4">
                 <Lightning className="h-5 w-5 text-accent-brand" aria-hidden />
                 <span className="text-lg font-semibold">{pack.name} pack</span>
               </div>
@@ -294,7 +294,7 @@ function SuccessContent() {
               product any more. */}
           {state === 'success' && tier && !pack && (
             <>
-              <div className="flex items-center justify-center gap-2 py-4 bg-muted rounded-lg">
+              <div className="flex items-center justify-center gap-2 py-4 bg-fill-well rounded-lg">
                 <TierIcon className={`h-5 w-5 ${tierColor}`} aria-hidden />
                 <span className="text-lg font-semibold capitalize">
                   {tier} account
@@ -326,7 +326,7 @@ function SuccessContent() {
                   Check your email: <span className="font-medium">{email}</span>
                 </p>
               )}
-              {/* One primary action, with the alternate as an outline pill
+              {/* One primary action, with the alternate as a soft pill
                   beneath it rather than a sibling of equal width. Retry is the
                   action the state is asking for; leaving is the fallback. The
                   label for "/" is the signed-out one from the success branch,
@@ -341,7 +341,7 @@ function SuccessContent() {
                 >
                   Retry
                 </Button>
-                <Button variant="outline" asChild className="w-full">
+                <Button variant="soft" asChild className="w-full">
                   <Link href="/">Back to walletlink.social</Link>
                 </Button>
               </div>

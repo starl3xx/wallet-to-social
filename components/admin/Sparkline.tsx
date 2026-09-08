@@ -50,7 +50,9 @@ export const Sparkline = memo(function Sparkline({
   }, [data, width, height]);
 
   if (data.length < 2) {
-    return <div style={{ width, height }} className="rounded-sm bg-muted" />;
+    return (
+      <div style={{ width, height }} className="rounded-sm bg-fill-well" />
+    );
   }
 
   return (

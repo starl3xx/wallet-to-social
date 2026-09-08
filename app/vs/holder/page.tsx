@@ -126,7 +126,7 @@ export default function HolderComparison() {
                   Run a lookup
                 </Link>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="soft">
                 <a
                   href="https://docs.walletlink.social"
                   target="_blank"

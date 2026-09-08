@@ -323,10 +323,10 @@ function getLifecycleEmailHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${content.subject}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0c; background-color: #f6f6fa; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
     <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 9px; margin-bottom: 16px;">
-    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #737373;">.social</span></h1>
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #68696c;">.social</span></h1>
   </div>
 
 ${paragraphs}
@@ -338,16 +338,16 @@ ${paragraphs}
     </a>
   </div>
 
-  <p style="font-size: 14px; color: #737373; margin-top: 32px;">
+  <p style="font-size: 14px; color: #68696c; margin-top: 32px;">
     ${content.footnote}
   </p>
 
-  <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
+  <hr style="border: none; border-top: 1px solid #e4e5e9; margin: 32px 0;">
 
-  <p style="font-size: 12px; color: #737373; text-align: center;">
+  <p style="font-size: 12px; color: #68696c; text-align: center;">
     walletlink.social: turn your wallet list into Twitter handles and Farcaster profiles
     <br>
-    <a href="${unsub}" style="color: #737373;">Unsubscribe from emails like this</a>
+    <a href="${unsub}" style="color: #68696c;">Unsubscribe from emails like this</a>
   </p>
 </body>
 </html>
@@ -385,10 +385,10 @@ function getMagicLinkEmailHtml(magicLink: string, copy: MagicLinkCopy): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${copy.subject}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0c; background-color: #f6f6fa; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
     <img src="https://walletlink.social/icon.png" alt="walletlink.social" width="48" height="48" style="border-radius: 9px; margin-bottom: 16px;">
-    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #737373;">.social</span></h1>
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0;"><span style="color: #4131b0;">walletlink</span><span style="color: #68696c;">.social</span></h1>
   </div>
 
   <p style="font-size: 16px; margin-bottom: 24px;">
@@ -402,19 +402,19 @@ function getMagicLinkEmailHtml(magicLink: string, copy: MagicLinkCopy): string {
     </a>
   </div>
 
-  <p style="font-size: 14px; color: #737373; margin-top: 32px;">
+  <p style="font-size: 14px; color: #68696c; margin-top: 32px;">
     ${copy.footnote}
   </p>
 
-  <p style="font-size: 14px; color: #737373;">
+  <p style="font-size: 14px; color: #68696c;">
     If the button doesn’t work, copy and paste this link into your browser:
     <br>
-    <a href="${magicLink}" style="color: #737373; word-break: break-all;">${magicLink}</a>
+    <a href="${magicLink}" style="color: #68696c; word-break: break-all;">${magicLink}</a>
   </p>
 
-  <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
+  <hr style="border: none; border-top: 1px solid #e4e5e9; margin: 32px 0;">
 
-  <p style="font-size: 12px; color: #737373; text-align: center;">
+  <p style="font-size: 12px; color: #68696c; text-align: center;">
     walletlink.social: turn your wallet list into Twitter handles and Farcaster profiles
   </p>
 </body>

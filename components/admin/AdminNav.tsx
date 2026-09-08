@@ -119,7 +119,7 @@ function NavGroup({
           return (
             <Button
               key={item.value}
-              variant={current ? 'default' : 'outline'}
+              variant={current ? 'default' : 'soft'}
               size="sm"
               // `aria-current` states which destination you are on. The filled
               // variant says it visually; without this it says it only to

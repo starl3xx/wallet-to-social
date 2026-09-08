@@ -102,7 +102,7 @@ export const OG = {
     'radial-gradient(120% 140% at 12% 8%, #2A1F72 0%, #14122E 45%, #0B0D16 100%)',
 
   // Dark card. Values mirror the dark theme.
-  text: '#fafafa', // --foreground
+  text: '#f9fafd', // --foreground (dark, violet undertone 0.985 0.005 280)
   textMuted: '#a0a0a4', // --muted-foreground (violet undertone, chroma 0.005)
   brand: '#8585ff', // --accent-brand
   attested: '#39bf89', // --attested
@@ -116,8 +116,8 @@ export const OG = {
   attestedTint: 'rgba(57,191,137,0.20)',
 
   // Paper card. Values mirror the light theme.
-  paper: '#fafafa', // near-white ground, achromatic
-  ink: '#0a0a0a', // --foreground
+  paper: '#f6f6fa', // --background (light, 0.975 0.005 280)
+  ink: '#0a0a0c', // --foreground (light, retoned 0.145 0.005 280)
   paperMuted: '#68696c', // --muted-foreground (light, retoned 0.52 / 0.005 / 280)
   paperBrand: '#4131b0', // --accent-brand
   paperBrandTint: '#eff1ff', // --accent-brand-tint

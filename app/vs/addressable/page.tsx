@@ -166,7 +166,7 @@ export default function AddressableComparison() {
                   Run a lookup
                 </Link>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="soft">
                 <a
                   href="https://docs.walletlink.social"
                   target="_blank"
@@ -643,7 +643,7 @@ export default function AddressableComparison() {
                 with outside markers and the 24px hanging indent the prose
                 plugin uses; they were typed "- " inside unstyled `li`s, a
                 third list treatment beside the two on this page. */}
-            <div className="rounded-lg border border-border bg-muted p-6">
+            <div className="rounded-lg border border-border bg-fill-well p-6">
               <h3 className="font-semibold mb-4">Addressable</h3>
               <p className="text-muted-foreground text-sm mb-2">
                 Addressable publishes no price sheet: addressable.io/pricing
