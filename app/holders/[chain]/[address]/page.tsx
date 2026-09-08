@@ -5,7 +5,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { Figure } from '@/components/ui/figure';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CHAIN_MARKS } from '@/components/ui/chain-marks';
+import { ChainMark } from '@/components/ui/chain-marks';
 import { CopyAddress } from '@/components/CopyAddress';
 import { ArrowRight, CaretDown, Warning } from '@phosphor-icons/react/dist/ssr';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
@@ -313,11 +313,6 @@ export default async function HolderPage({ params }: Props) {
   // The trail the page already draws above the headline. The chain rides in
   // the leaf name rather than becoming a crumb of its own, because there is
   // no /holders/<chain> route to point a middle crumb at (lib/breadcrumbs.ts).
-  // The 24px chain mark, rendered twice (entity header and rail); resolved
-  // once. Keyed access is total: getHolderCollection only returns chains from
-  // lib/chains.ts.
-  const ChainMark = CHAIN_MARKS[collection.chain];
-
   const breadcrumbJson = breadcrumbJsonLd([
     { name: 'Holder reports', path: '/holders' },
     {
@@ -373,7 +368,7 @@ export default async function HolderPage({ params }: Props) {
               changes a fixed row's height and nothing is joined into a
               string that could dangle a separator. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <ChainMark className="h-6 w-6 flex-none" />
+            <ChainMark chain={collection.chain} className="h-6 w-6 flex-none" />
             <h1 className="text-3xl font-semibold leading-[1.2] tracking-[var(--tracking-title)]">
               {collection.name} holders
             </h1>
@@ -447,7 +442,10 @@ export default async function HolderPage({ params }: Props) {
         <aside className="mt-10 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
           <div className="rounded-lg border border-border bg-card p-6 lg:sticky lg:top-8">
             <div className="flex items-center gap-2">
-              <ChainMark className="h-6 w-6 flex-none" />
+              <ChainMark
+                chain={collection.chain}
+                className="h-6 w-6 flex-none"
+              />
               <span className="text-base font-semibold tracking-[var(--tracking-lead)]">
                 {collection.name}
               </span>
