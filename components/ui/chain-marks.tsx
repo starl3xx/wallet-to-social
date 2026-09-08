@@ -348,3 +348,23 @@ export const CHAIN_PLATES: Record<
   bsc: { hex: '#F0B90B', light: null, dark: 14 },
   hyperevm: { hex: '#072723', light: 10, dark: null },
 };
+
+/**
+ * The one RSC-safe way to render a mark by chain id.
+ *
+ * `CHAIN_MARKS` is a plain object exported from this 'use client' module, and
+ * a SERVER component importing it receives an opaque client reference:
+ * property access on it yields undefined, and React reports "Element type is
+ * invalid ... got: undefined" only at prerender time, after typecheck and
+ * lint have passed. A client COMPONENT crosses the boundary correctly with
+ * serializable props, so server pages (the holder reports) render
+ * `<ChainMark chain={...}/>` and never touch the record. Client components
+ * may keep using the record directly.
+ */
+export function ChainMark({
+  chain,
+  className,
+}: MarkProps & { chain: SupportedChain }) {
+  const Mark = CHAIN_MARKS[chain];
+  return <Mark className={className} />;
+}

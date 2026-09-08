@@ -1768,25 +1768,27 @@ export default function Home() {
                   rather than hidden on accounts without credits, so the layout
                   is stable and the feature is discoverable before it is
                   bought. */}
-            <InputMethodPicker
-              onFileLoaded={handleFileLoaded}
-              onPasteClick={handlePasteToggle}
-              pasteActive={showPasteInput}
-              // Yielding to open dialogs is handled inside the component by
-              // asking the DOM, not enumerated here: dialogs also open from
-              // the access banner and lookup history, which this file does
-              // not track, and any list would go stale on the next one added
-              contractLocked={!entitled}
-              onContractClick={handleContractCardClick}
-            />
+            {/* The lookup widget: ONE card holding the drop target, the
+                alternates and, when open, the paste panel, the way a swap
+                widget is one object. The pieces used to be a bare picker
+                above a separate paste Card: two surfaces for one decision. */}
+            <Card className="gap-4 p-6">
+              <InputMethodPicker
+                onFileLoaded={handleFileLoaded}
+                onPasteClick={handlePasteToggle}
+                pasteActive={showPasteInput}
+                // Yielding to open dialogs is handled inside the component by
+                // asking the DOM, not enumerated here: dialogs also open from
+                // the access banner and lookup history, which this file does
+                // not track, and any list would go stale on the next one added
+                contractLocked={!entitled}
+                onContractClick={handleContractCardClick}
+              />
 
-            {/* Paste panel, opened by the middle card */}
-            {/* A Card, not a `bg-muted/30` wash with a hairline: that tint
-                was an unnamed surface, and in dark mode it read as the page
-                with a line round it. Card stack `gap-4`. */}
-            <div className="text-center">
+              {/* Paste panel, opened by the middle pill. Inside the widget
+                  card rather than a Card of its own. */}
               {showPasteInput && (
-                <Card className="gap-4 p-6 text-left">
+                <div className="flex flex-col gap-4 text-left">
                   <Textarea
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
@@ -1829,9 +1831,9 @@ export default function Home() {
                       </Button>
                     </div>
                   </div>
-                </Card>
+                </div>
               )}
-            </div>
+            </Card>
 
             {/* The fourth way in, and the only one that asks for nothing.
                   It sits with the three input methods rather than lower down
@@ -2111,8 +2113,13 @@ export default function Home() {
                   </label>
                 )}
                 <div className="flex-1" />
-                <Button onClick={startLookup}>
-                  <MagnifyingGlass className="h-4 w-4" aria-hidden />
+                {/* The view's single primary action, at the hero tier: the
+                    size gap against every 34px control around it IS the
+                    hierarchy ("one primary action per view, stated at a
+                    different scale"), and this is the one place on the page
+                    that earns it. Icon steps up with the tier. */}
+                <Button size="hero" onClick={startLookup}>
+                  <MagnifyingGlass className="h-5 w-5" aria-hidden />
                   Start lookup
                 </Button>
               </div>

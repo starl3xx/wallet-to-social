@@ -229,14 +229,29 @@ Söhne, self-hosted in `public/fonts`. Geist Mono via `next/font`, already wired
 **The emphasis span is the signature.** One 600-weight word inside a 200-weight
 line. It costs nothing: both cuts are already loaded.
 
-**Every page opens the same way.** An h1 at the display tier
+**Two named openings.** Marketing pages, /vs, the blog and the homepage open
+the display way: an h1 at the display tier
 (`text-4xl font-extralight tracking-[var(--tracking-display)]`, `sm:text-5xl`
 on the marketing pages only) carrying one emphasis span, then a 300 lede
 (`text-lg font-light tracking-[var(--tracking-lead)] text-muted-foreground`),
-then a `Figure` row where figures exist. Section h2 is
-`text-2xl font-light tracking-[var(--tracking-title)]`; a card title is
-`text-lg font-semibold`. Home, /check, the blog and admin were each opening
-differently; now only the words differ.
+then a `Figure` row where figures exist.
+
+**A data-entity page opens as an entity, not a sentence.** Holder reports
+(and any future handle or wallet page) open with the EntityHeader: the 24px
+chain mark, the name at `text-3xl font-semibold tracking-[var(--tracking-title)]`
+(30px/600), a muted qualifier at 24px/400 beside it, the reachable Badge, a
+mono machine row (truncated address + copy), then the stat strip in the
+operational figure tier. No display weight, no emphasis span: the essay
+opening buried the four numbers a searcher came for. Display weight 200 is
+thereby formally bound to marketing and opening surfaces at 32px and above,
+which makes the 200+600 signature MORE distinctive, because it now appears
+only where it means the marketing register. The header row is `flex
+flex-wrap`: below `sm` the qualifier and badge drop to their own lines in
+wrap order, so no element changes a fixed row's height.
+
+Section h2 is `text-2xl font-light tracking-[var(--tracking-title)]`; a card
+title is `text-lg font-semibold`. Home, /check, the blog and admin were each
+opening differently; now only the words differ within each register.
 
 ### Tracking — bound to size, four steps
 
@@ -425,8 +440,14 @@ One shell, owned by `PageShell`: `mx-auto w-full max-w-6xl px-6`. Pages declare 
 container, no header, no footer and no `max-w-*` of their own. The shell renders
 the whole header row itself on every page: lockup, tier or balance chip, Buy
 credits, the theme control, the account control, and one viewport-wide hairline
-beneath. **One exception, named:** admin passes `wide` for `max-w-7xl`, because
-dense tables genuinely need more than 1152px.
+beneath. **One exception, two named callers:** admin passes `wide` for
+`max-w-7xl`, because dense tables genuinely need more than 1152px, and holder
+reports pass it for the same reason: the 1232px splits into content, a 32px
+gap and the 384px action rail, and inside the default shell the rail would
+squeeze the report to 688px. The rail is the report's one sticky element (the
+tool stays on screen while the evidence scrolls; the header does not stick),
+it carries the view's only filled button at the hero height, and below `lg`
+it un-sticks and lands after the stat strip, which is simply its DOM order.
 
 Reading columns constrain **measure**, not the shell: prose sits in a
 `max-w-[68ch]` column, left-aligned inside the shell on every page. (/vs and
@@ -677,6 +698,22 @@ Farcaster usernames, FIDs, API keys, chain IDs, timestamps.
 `tabular-nums` on every figure that stacks in a column, animates in place, or acts
 as a hero stat.
 
+**Two figure tiers, and the caption side is part of the tier** (see
+`components/ui/figure.tsx`): display figures are 24px/200 with the caption
+BELOW (the number is the object; the caption is a footnote); operational
+figures (`variant="stat"`) are 16px/500 tabular at the lead tracking with the
+11px mono label ABOVE, because a stat strip is scanned by label first. Two
+caption anatomies for one object would be an unnamed second value, so both
+are named here with their reasons. Amounts and stats a user acts on take
+label weight; the 200 cut is reserved for display moments.
+
+**Row delimiting inside a virtualized table is hover fill plus column
+alignment**, at 38px rows; the table's frame and sticky header keep their
+hairlines, the rows carry none, and the hover is the opaque
+`--fill-row-hover` (see Interior fills). Static tables stay at their current
+~36-40px: already at parity, recorded so a "make tables breathe" pass does
+not undo it.
+
 **Söhne carries `tnum`.** All eight cuts substitute `.lt` glyphs at a uniform 608
 units against defaults spanning 376–623. An audit claimed the feature was absent
 and that the declarations were inert; parsing the shipped `woff2` files disproved
@@ -736,7 +773,13 @@ Further:
 - **One primary action per view**, stated at a different scale. Alternates are
   pills beneath it, never siblings of equal size.
 - **One filled button per action row**; the fourth control onward goes into an
-  overflow menu. A row of buttons never wraps.
+  overflow menu. A row of buttons never wraps, with one named exception: a
+  **chip cloud** is a collection, not an action row. It wraps by design
+  (`flex-wrap gap-2`), carries no filled variant, and no member is the view's
+  primary action; the rule was written for action rows, where a wrapped
+  second line reads as a second rank of actions, and a collection of
+  equivalent navigational chips has no rank to corrupt. The holder report's
+  "These holders also hold" row is the first citizen.
 - **A card you can click is a control, and must be reachable by keyboard.** The
   six tiles on the admin Pulse pane carried `onClick` on the card `div` and
   nothing else: no role, no tab stop, no Enter or Space. They _looked_ like

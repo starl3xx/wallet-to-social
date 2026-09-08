@@ -156,13 +156,14 @@ export function InputMethodPicker({
       : 'hover:border-accent-brand-hover ');
 
   /**
-   * The alternates are Button's outline variant, not a hand-rolled pill. The
-   * hand-rolled one drew its edge in `--border`, which is decorative and read at
-   * 1.26:1 in light, so both pills were barely outlined. The variant carries
-   * `border-input` (the 3:1 control edge), `h-control`, the icon gap and the
-   * focus ring. Only what is specific to this row goes through className: the
-   * resting text tone and the brand hover, and `cn` lets those win over the
-   * variant's own.
+   * The alternates are Button's soft variant, the default secondary: no edge,
+   * resting on the subtle fill, identified by icon + label + pill enclosure.
+   * They were outline pills before the fills existed; inside the lookup
+   * widget's card an edged pill competed with the dashed drop target, and the
+   * soft rest is exactly matcha's preset-pill treatment. Only what is
+   * specific to this row goes through className: the resting text tone (the
+   * named /75, because these are actionable and muted means cannot-act), the
+   * selected state, and `cn` lets those win over the variant's own.
    *
    * **`sm:flex-1`, never a bare `flex-1`.** `flex-1` is `flex: 1 1 0%`, and on a
    * flex item the basis supplies the main size, so `height` is not consulted.
@@ -180,8 +181,7 @@ export function InputMethodPicker({
    * `/75` is the wash the design language names (DESIGN-LANGUAGE.md, Shape:
    * "Unselected sits at `text-foreground/75`"). `/80` was a second unnamed one.
    */
-  const altClass =
-    'text-foreground/75 hover:border-accent-brand hover:text-accent-brand sm:flex-1';
+  const altClass = 'text-foreground/75 hover:text-accent-brand sm:flex-1';
 
   return (
     <div>
@@ -245,13 +245,15 @@ export function InputMethodPicker({
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <Button
           type="button"
-          variant="outline"
+          variant="soft"
           onClick={onPasteClick}
           disabled={disabled}
           aria-expanded={pasteActive}
           className={cn(
             altClass,
-            pasteActive && 'border-accent-brand text-accent-brand'
+            // Selected carries the well fill and the accent, the segmented
+            // control's answer to state: the fill alone cannot carry it.
+            pasteActive && 'bg-fill-well text-accent-brand'
           )}
         >
           <ClipboardList className="h-4 w-4" aria-hidden />
@@ -260,7 +262,7 @@ export function InputMethodPicker({
 
         <Button
           type="button"
-          variant="outline"
+          variant="soft"
           onClick={onContractClick}
           disabled={disabled}
           className={altClass}

@@ -647,6 +647,14 @@
   transition: transform var(--duration-base) var(--ease-in-out-soft);
 }
 
+/* The accordion caret rotates between closed and open: the same rule as the
+   sort arrow (a selected state moves, it does not teleport), the same curve,
+   and the same reduced-motion stop below, which removes the transition and
+   never the rotation, or a closed accordion would report itself open. */
+.acc-caret {
+  transition: transform var(--duration-base) var(--ease-in-out-soft);
+}
+
 /* Feedback that appears in place fades in over --d-fast. One class for the
    copy toast, the inline error and a button's label swap, so mount fades
    stay a single mechanism; @starting-style is what lets the transition fire
@@ -665,6 +673,7 @@
      rotated: remove the transition, never the rotate class, or the header
      reports the wrong sort direction. */
   .sort-arrow,
+  .acc-caret,
   .fade-in-fast {
     transition: none;
   }

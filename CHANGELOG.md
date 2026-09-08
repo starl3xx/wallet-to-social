@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-08 (matcha data surfaces: table density, entity pages, the lookup widget)
+
+Third matcha design PR: the surfaces that use the fills and the ladder.
+
+- **ResultsTable at matcha density.** 38px virtualized rows (+16% visible
+  rows), no per-row hairline: delimiting is the opaque `--fill-row-hover`
+  plus column alignment; the frame and sticky header keep their lines. The
+  details control drops to the compact tier with a hit-area inset that tiles
+  the row pitch exactly.
+- **Holder reports open as an entity, not a sentence.** EntityHeader (chain
+  mark, 30px/600 name, muted qualifier, reachable badge, mono address with
+  copy), the stat strip in the new operational figure tier
+  (`Figure variant="stat"`: 16px/500 value under an 11px mono label), and a
+  sticky 384px action rail carrying the view's only filled button at the
+  hero height. The report passes `wide` (the admin exception's second
+  caller). Overlap becomes a chip cloud of soft buttons (the named exception
+  to "a row of buttons never wraps"), and the measurement gets a native
+  accordion of three quotable answers.
+- **The homepage lookup is one widget.** The drop target, the alternates
+  (now soft pills with the well-fill selected state) and the paste panel
+  live in one Card; "Start lookup" moves to the 48px hero tier, the view's
+  single primary action stated at a different scale.
+- `Figure` gains the stat variant with both caption anatomies named; the
+  accordion caret joins the sort arrow's motion rule and reduced-motion
+  stop.
+
 ### 2026-09-08 (matcha controls: the height ladder, soft buttons, brand chips)
 
 Second matcha design PR. Control primitives and their guards; the surfaces
