@@ -26,8 +26,9 @@
  *
  * ## What it asserts
  *
- * 1. Every visible element carrying `h-control` renders at exactly that token's
- *    value. Every element carrying `size-control` does so in both dimensions.
+ * 1. Every visible element declaring a ladder token (`h-control`,
+ *    `h-control-hero`, `h-control-compact`, `h-control-micro`, and the `size-`
+ *    twins) renders at exactly that token's value; `size-` in both dimensions.
  * 2. The page never scrolls sideways ("No horizontal scrollbar on a content
  *    strip, ever").
  *
@@ -124,16 +125,40 @@ const MIN_CONTROLS_PER_PAGE = 5;
  * From `globals.css`, not from a copy here, for the reason `check-contrast.mjs`
  * gives: a guard holding its own copy of a value cannot fail when the value
  * moves, which is the one time it needed to.
+ *
+ * The whole ladder, not just the base step. A guard that read only
+ * `--height-control` would bless a hero button rendering 22px, which is the
+ * 2026-08-23 defect arriving through a newer door: every ladder size is a
+ * declared contract, so every ladder size gets its rendered height asserted.
  */
-function controlHeightPx() {
+function ladderPx() {
   const css = readFileSync('app/globals.css', 'utf8');
-  const m = css.match(/--height-control:\s*([0-9.]+)(rem|px)\s*;/);
-  if (!m) {
-    fail(
-      'No --height-control in app/globals.css. Either it was renamed, in which case rename it here too, or the token is gone, in which case this guard has nothing to check.'
-    );
-  }
-  return m[2] === 'rem' ? parseFloat(m[1]) * 16 : parseFloat(m[1]);
+  const px = (suffix) => {
+    const name = `--height-control${suffix ? '-' + suffix : ''}`;
+    const m = css.match(new RegExp(`${name}:\\s*([0-9.]+)(rem|px)\\s*;`));
+    if (!m) {
+      fail(
+        `No ${name} in app/globals.css. Either it was renamed, in which case rename it here too, or the ladder lost a step, and a guard that silently skips a missing token blesses whatever replaced it.`
+      );
+    }
+    return m[2] === 'rem' ? parseFloat(m[1]) * 16 : parseFloat(m[1]);
+  };
+  const base = px('');
+  const hero = px('hero');
+  const compact = px('compact');
+  const micro = px('micro');
+  // Class name -> the px its box must measure. `has()` in MEASURE matches
+  // whole class names, so `h-control` never swallows `h-control-hero`.
+  return {
+    'h-control': base,
+    'w-control': base,
+    'size-control': base,
+    'h-control-hero': hero,
+    'size-control-hero': hero,
+    'h-control-compact': compact,
+    'size-control-compact': compact,
+    'h-control-micro': micro,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -148,8 +173,8 @@ function controlHeightPx() {
  * not rendered must be skipped, and an element that has collapsed to zero must
  * be reported. Those are the same number and opposite outcomes.
  */
-const MEASURE = (expected, tolerance) => `(() => {
-  const EXPECTED = ${expected};
+const MEASURE = (ladder, tolerance) => `(() => {
+  const LADDER = ${JSON.stringify(ladder)};
   const TOL = ${tolerance};
   const has = (el, token) => {
     const cls = typeof el.className === 'string' ? el.className : el.getAttribute('class') || '';
@@ -164,17 +189,21 @@ const MEASURE = (expected, tolerance) => `(() => {
   const violations = [];
   let checked = 0;
   for (const el of document.querySelectorAll('*')) {
-    const wantsHeight = has(el, 'h-control') || has(el, 'size-control');
-    const wantsWidth = has(el, 'size-control') || has(el, 'w-control');
-    if (!wantsHeight && !wantsWidth) continue;
+    let hToken = null, wToken = null;
+    for (const t of Object.keys(LADDER)) {
+      if (!has(el, t)) continue;
+      if (t !== 'w-control' && hToken === null) hToken = t;
+      if ((t === 'w-control' || t.startsWith('size-control')) && wToken === null) wToken = t;
+    }
+    if (hToken === null && wToken === null) continue;
     if (typeof el.checkVisibility === 'function' && !el.checkVisibility()) continue;
     const r = el.getBoundingClientRect();
     checked++;
-    if (wantsHeight && Math.abs(r.height - EXPECTED) > TOL) {
-      violations.push({ axis: 'height', got: +r.height.toFixed(2), el: describe(el) });
+    if (hToken !== null && Math.abs(r.height - LADDER[hToken]) > TOL) {
+      violations.push({ axis: 'height', want: LADDER[hToken], got: +r.height.toFixed(2), el: describe(el) });
     }
-    if (wantsWidth && Math.abs(r.width - EXPECTED) > TOL) {
-      violations.push({ axis: 'width', got: +r.width.toFixed(2), el: describe(el) });
+    if (wToken !== null && Math.abs(r.width - LADDER[wToken]) > TOL) {
+      violations.push({ axis: 'width', want: LADDER[wToken], got: +r.width.toFixed(2), el: describe(el) });
     }
   }
   const doc = document.documentElement;
@@ -313,10 +342,14 @@ function fixtureHtml(broken) {
   const flex = broken ? 'flex-1' : 'sm-flex-1';
   return `<!doctype html><meta name="viewport" content="width=device-width">
 <style>
-  :root { --height-control: 2.125rem; }
+  :root { --height-control: 2.125rem; --height-control-hero: 3rem;
+          --height-control-compact: 1.75rem; --height-control-micro: 1.5rem; }
   body { margin: 0; font: 400 14px/1.43 system-ui, sans-serif; }
   .h-control { height: var(--height-control); }
   .size-control { height: var(--height-control); width: var(--height-control); }
+  .h-control-hero { height: var(--height-control-hero); }
+  .h-control-compact { height: var(--height-control-compact); }
+  .h-control-micro { height: var(--height-control-micro); }
   .row { display: flex; flex-direction: column; gap: 8px; width: 342px; }
   .flex-1 { flex: 1 1 0%; }
   @media (min-width: 640px) { .sm-flex-1 { flex: 1 1 0%; } }
@@ -327,25 +360,30 @@ function fixtureHtml(broken) {
   <button class="h-control ${flex}">Paste a list</button>
   <button class="h-control ${flex}">Import from a contract</button>
 </div>
-<div class="row"><button class="size-control">+</button></div>`;
+<div class="row"><button class="size-control">+</button></div>
+<div class="row">
+  <button class="h-control-hero">Start lookup</button>
+  <button class="h-control-compact">Details</button>
+  <button class="h-control-micro">7D</button>
+</div>`;
 }
 
-async function selfTest(cdp, expected, tmp) {
+async function selfTest(cdp, ladder, tmp) {
   const cases = [
     { name: 'the 2026-08-23 bug', broken: true, mustFlag: true },
     { name: 'the corrected form', broken: false, mustFlag: false },
   ];
   const viewport = { width: 390, height: 844, mobile: true };
-  const expression = MEASURE(expected, TOLERANCE);
+  const expression = MEASURE(ladder, TOLERANCE);
 
   for (const c of cases) {
     const file = join(tmp, `fixture-${c.broken ? 'broken' : 'fixed'}.html`);
     writeFileSync(file, fixtureHtml(c.broken));
     const r = await measure(cdp, `file://${file}`, viewport, expression);
 
-    if (r.checked !== 3) {
+    if (r.checked !== 6) {
       fail(
-        `Fixture "${c.name}" offered 3 controls and the check looked at ${r.checked}. ` +
+        `Fixture "${c.name}" offered 6 controls and the check looked at ${r.checked}. ` +
           'The selector has stopped finding what it is for, so a clean result on the app would mean nothing.'
       );
     }
@@ -361,7 +399,7 @@ async function selfTest(cdp, expected, tmp) {
       );
     }
     console.log(
-      `  ${GREEN}ok${RESET}  fixture: ${c.name} ${DIM}(${c.mustFlag ? `caught ${r.violations.length}` : 'clean'}, 3 controls seen)${RESET}`
+      `  ${GREEN}ok${RESET}  fixture: ${c.name} ${DIM}(${c.mustFlag ? `caught ${r.violations.length}` : 'clean'}, 6 controls seen)${RESET}`
     );
   }
 }
@@ -458,9 +496,9 @@ async function main() {
     );
   }
 
-  const expected = controlHeightPx();
+  const ladder = ladderPx();
   console.log(
-    `--height-control is ${expected}px, read from app/globals.css.\n`
+    `control ladder: ${ladder['h-control-hero']}/${ladder['h-control']}/${ladder['h-control-compact']}/${ladder['h-control-micro']}px (hero/standard/compact/micro), read from app/globals.css.\n`
   );
 
   const chrome = findChrome();
@@ -566,13 +604,13 @@ async function main() {
   const cdp = await Cdp.attach(port);
 
   console.log('The guard catches what it claims to:');
-  await selfTest(cdp, expected, tmp);
+  await selfTest(cdp, ladder, tmp);
   console.log();
 
   const base = process.env.CHECK_BASE_URL || (app = await startApp()).base;
   console.log(`Measuring ${base}\n`);
 
-  const expression = MEASURE(expected, TOLERANCE);
+  const expression = MEASURE(ladder, TOLERANCE);
   let totalChecked = 0;
 
   /**
@@ -599,11 +637,11 @@ async function main() {
 
       if (
         r.tokenOnPage &&
-        parseFloat(r.tokenOnPage) * 16 !== expected &&
-        r.tokenOnPage !== `${expected}px`
+        parseFloat(r.tokenOnPage) * 16 !== ladder['h-control'] &&
+        r.tokenOnPage !== `${ladder['h-control']}px`
       ) {
         console.log(
-          `  ${RED}fail${RESET}  ${where}: the page computes --height-control as ${r.tokenOnPage}, globals.css says ${expected}px`
+          `  ${RED}fail${RESET}  ${where}: the page computes --height-control as ${r.tokenOnPage}, globals.css says ${ladder['h-control']}px`
         );
         counts.token++;
         failures++;
@@ -628,7 +666,7 @@ async function main() {
 
       for (const v of r.violations) {
         console.log(
-          `  ${RED}fail${RESET}  ${where}: ${v.axis} ${v.got}px, expected ${expected}px — ${v.el}`
+          `  ${RED}fail${RESET}  ${where}: ${v.axis} ${v.got}px, expected ${v.want}px — ${v.el}`
         );
         counts.height++;
         failures++;
@@ -638,7 +676,7 @@ async function main() {
       // height one.
       if (failures === before) {
         console.log(
-          `  ${GREEN}ok${RESET}    ${where} ${DIM}(${r.checked} controls at ${expected}px)${RESET}`
+          `  ${GREEN}ok${RESET}    ${where} ${DIM}(${r.checked} controls on the ladder)${RESET}`
         );
       }
     }
@@ -680,7 +718,7 @@ async function main() {
 
   console.log(
     `${GREEN}control height holds${RESET} — ${totalChecked} rendered controls across ` +
-      `${PATHS.length} pages and ${VIEWPORTS.length} widths, all at ${expected}px, no page scrolls sideways.`
+      `${PATHS.length} pages and ${VIEWPORTS.length} widths, every declared ladder height rendered, no page scrolls sideways.`
   );
 
   /**

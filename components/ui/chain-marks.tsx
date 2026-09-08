@@ -308,3 +308,43 @@ export const CHAIN_MARKS: Record<
   bsc: BnbMark,
   hyperevm: HyperEvmMark,
 };
+
+/**
+ * The plate hex behind each mark, and the measured tint mix a ChainChip may
+ * derive from it, per theme.
+ *
+ * `light` / `dark` are the color-mix percentage of plate over `--card`, or
+ * `null` where the chip's field falls back to `--fill-subtle` and the mark
+ * alone carries identity. Every number and every null here is MEASURED, and
+ * `check-contrast.mjs` re-measures them on every run:
+ *
+ * - A tint is the smallest candidate percentage whose mix sits at least 0.015
+ *   from the card in OKLab (visible at all) and more than 0.04 from BOTH
+ *   reserved tints, `--attested-tint` and `--accent-brand-tint` (the green
+ *   fence: a chip field must never be mistakable for an attested mark or an
+ *   affordance; hue in a background is identity, hue in a foreground is
+ *   semantics).
+ * - A null means no candidate percentage cleared, and the guard asserts THAT
+ *   too, so an unnecessary fallback is as loud as a missing one.
+ *
+ * The measured shape is worth reading once: in LIGHT the reserved tints are
+ * pale, so the yellow-green plates (Robinhood's lime, BNB's gold) land inside
+ * the attested JND; in DARK the reserved tints are deep, so the violet-family
+ * plates (Base, Polygon) land inside the brand JND, and HyperEVM's near-black
+ * teal plate cannot even reach the visibility floor on the dark card. Each
+ * falls back only in the theme where it actually fails. Polygon's hex is the
+ * dominant stop of its gradient plate.
+ */
+export const CHAIN_PLATES: Record<
+  SupportedChain,
+  { hex: string; light: number | null; dark: number | null }
+> = {
+  ethereum: { hex: '#000000', light: 10, dark: 14 },
+  base: { hex: '#0000FF', light: 14, dark: null },
+  robinhood: { hex: '#CCFF00', light: null, dark: 14 },
+  arbitrum: { hex: '#213147', light: 12, dark: 14 },
+  polygon: { hex: '#803BDF', light: 16, dark: null },
+  optimism: { hex: '#FE0420', light: 12, dark: 14 },
+  bsc: { hex: '#F0B90B', light: null, dark: 14 },
+  hyperevm: { hex: '#072723', light: 10, dark: null },
+};

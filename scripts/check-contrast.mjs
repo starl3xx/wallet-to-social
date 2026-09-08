@@ -23,6 +23,8 @@
 // `check-og-palette.mjs` uses the same ones. The fixtures below stay here: this
 // script owns them, runs them before anything else, and both guards run in the
 // same CI job, so a drifted conversion fails here first.
+import { readFileSync } from 'fs';
+
 import { oklchToRgb, hex, readTokens } from './lib/oklch.mjs';
 
 const relLuminance = ([r, g, b]) =>
@@ -163,6 +165,119 @@ for (const [theme, body] of Object.entries(THEMES)) {
       hits.push(
         `dark hairline on card: composite ${r.toFixed(2)}:1, must stay >= 1.32:1 (what the old white/10% measured)`
       );
+    }
+  }
+}
+
+/* ---------- the green fence: chip tints vs the reserved tints ---------- */
+/**
+ * A ChainChip's field is mixed from the chain's plate colour
+ * (`CHAIN_PLATES` in components/ui/chain-marks.tsx). Green marks an attested
+ * fact and violet marks an affordance, so a chip field that resolves within a
+ * just-noticeable distance of `--attested-tint` or `--accent-brand-tint`
+ * would let a brand impersonate the one distinction the product is sold on.
+ *
+ * Every declared percentage is re-measured here, per theme, and every `null`
+ * (the fallback to `--fill-subtle`) is re-justified: an unnecessary fallback
+ * is as loud as a missing one, so the table cannot rot in either direction.
+ * The math proves itself first on Robinhood's lime plate, which measurably
+ * sits inside the attested JND in light at every candidate percentage: if the
+ * fence stops detecting that collision, it has stopped detecting collisions.
+ */
+const srgbToOklab = ([r8, g8, b8]) => {
+  const [r, g, b] = [r8, g8, b8].map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+};
+const hexToRgb = (h) => {
+  h = h.replace('#', '');
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+};
+const okMix = (a, b, t) => a.map((v, i) => v * t + b[i] * (1 - t));
+const okDist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+const FENCE = 0.04; // JND with margin; oklab distance
+const FLOOR = 0.015; // below this the tint is not visibly a tint at all
+const CANDIDATES = { light: [10, 12, 14, 16], dark: [14, 16, 18, 22] };
+
+{
+  const src = readFileSync('components/ui/chain-marks.tsx', 'utf8');
+  const plateRe =
+    /(\w+):\s*\{\s*hex:\s*'(#[0-9A-Fa-f]{3,6})',\s*light:\s*(\d+|null),\s*dark:\s*(\d+|null)\s*\}/g;
+  const plates = [...src.matchAll(plateRe)].map(
+    ([, chain, hex, light, dark]) => ({
+      chain,
+      hex,
+      light: light === 'null' ? null : parseInt(light, 10),
+      dark: dark === 'null' ? null : parseInt(dark, 10),
+    })
+  );
+  if (plates.length < 8) {
+    hits.push(
+      `chip tints: parsed only ${plates.length} CHAIN_PLATES entries from chain-marks.tsx; the table moved or changed shape, so the fence is guarding nothing`
+    );
+  }
+
+  const clears = (plateLab, card, reserved, pct) => {
+    const tint = okMix(plateLab, card, pct / 100);
+    return (
+      okDist(tint, card) >= FLOOR &&
+      reserved.every((r) => okDist(tint, r) > FENCE)
+    );
+  };
+
+  // The self-test: Robinhood's lime at 10% light must register as a
+  // collision, or the fence math is broken and everything below is noise.
+  {
+    const lime = srgbToOklab(hexToRgb('#CCFF00'));
+    const card = srgbToOklab(token(THEMES.light, 'card'));
+    const att = srgbToOklab(token(THEMES.light, 'attested-tint'));
+    const tint = okMix(lime, card, 0.1);
+    if (okDist(tint, att) > FENCE) {
+      console.error(
+        'FIXTURE FAIL  the green fence no longer detects the lime/attested collision it was built on. The fence math is wrong, so every verdict below would be too.'
+      );
+      process.exit(1);
+    }
+  }
+
+  for (const theme of ['light', 'dark']) {
+    const body = THEMES[theme];
+    const card = srgbToOklab(token(body, 'card'));
+    const reserved = [
+      srgbToOklab(token(body, 'attested-tint')),
+      srgbToOklab(token(body, 'accent-brand-tint')),
+    ];
+    for (const p of plates) {
+      const plateLab = srgbToOklab(hexToRgb(p.hex));
+      const declared = p[theme];
+      const smallest =
+        CANDIDATES[theme].find((pct) =>
+          clears(plateLab, card, reserved, pct)
+        ) ?? null;
+      if (declared !== smallest) {
+        hits.push(
+          declared === null
+            ? `chip tint ${p.chain} (${theme}): declared fallback, but ${smallest}% clears the fence and the floor — an unnecessary fallback hides a working tint`
+            : smallest === null
+              ? `chip tint ${p.chain} (${theme}): declares ${declared}%, but no candidate percentage clears the green fence and visibility floor — this chain must fall back to --fill-subtle (null)`
+              : `chip tint ${p.chain} (${theme}): declares ${declared}%, measured smallest clearing candidate is ${smallest}%`
+        );
+      }
     }
   }
 }

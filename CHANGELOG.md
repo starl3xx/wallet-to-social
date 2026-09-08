@@ -2,6 +2,37 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-08 (matcha controls: the height ladder, soft buttons, brand chips)
+
+Second matcha design PR. Control primitives and their guards; the surfaces
+that use them land next.
+
+- **The control-height ladder.** `--height-control` grows three named
+  siblings with placements: hero 48px (the single primary action of a view,
+  body content only, never the header), compact 28px (table rows), micro
+  24px (chart filter rows; the WCAG 2.2 floor). Button gains the matching
+  sizes (`hero`, `compact`, `micro`, `icon-hero`, `icon-compact`), and
+  `check-control-height.mjs` now asserts the rendered height of every
+  element declaring ANY ladder token, with ladder steps in its fixtures.
+- **The `soft` variant is the default secondary**: no border, rests on
+  `--fill-subtle`, hovers to `--fill-hover`; `outline` is demoted to
+  arbitrary surfaces and both it and `ghost` hover on the subtle fill, so
+  one wash mechanism serves all three.
+- **`FOCUS_RING_WITHIN`**: the one wrapper spelling of the focus ring
+  (`has-[:focus-visible]`), for a container whose child holds focus.
+- **Brand chips with the green fence.** `ChainChip`/`PlatformChip`
+  (components/ui/chip.tsx) tint their field from the chain's plate via
+  `color-mix`. Every tint percentage in `CHAIN_PLATES` is measured per theme
+  against a 0.04 OKLab fence from `--attested-tint` and
+  `--accent-brand-tint` plus a 0.015 visibility floor, and
+  `check-contrast.mjs` re-measures the table on every run, fallbacks
+  included (Robinhood and BNB fall back in light, Base and Polygon in dark,
+  HyperEVM in dark for visibility). Hue in a background is identity; hue in
+  a foreground is semantics, so no chain can impersonate attestation.
+- The 11px fence widens to `Eyebrow` / `Badge` / `Button size="micro"`, and
+  the affordance table gains the micro-pill row that keeps chips and badges
+  visually distinct.
+
 ### 2026-09-08 (matcha-informed surfaces: fills, elevation, retoned neutrals)
 
 First of the matcha design PRs, from the measured matcha.xyz deep-dive. Tokens

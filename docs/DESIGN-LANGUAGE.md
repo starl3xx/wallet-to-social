@@ -41,11 +41,30 @@ confirmation**, which is the distinction the product is sold on.
 `source` — that field holds pipeline stage markers like `graph` and `cache` on the
 forward path.
 
-**Exception, platform marks.** A selected platform in a segmented control takes
-that platform's own colours: 𝕏 is white on `#0F1419`, Farcaster is white on
-`#8A63D2`. In dark mode the 𝕏 pill inverts, because a black pill on a near-black
-ground disappears. These identify a platform, not an affordance. A wrong-coloured
-brand mark is a worse error than an inconsistent one.
+**Exception, brand marks (platform and chain).** A selected platform in a
+segmented control takes that platform's own colours: 𝕏 is white on `#0F1419`,
+Farcaster is white on `#8A63D2`. In dark mode the 𝕏 pill inverts, because a
+black pill on a near-black ground disappears. These identify a platform, not
+an affordance. A wrong-coloured brand mark is a worse error than an
+inconsistent one.
+
+The exception extends to chain chips (`components/ui/chip.tsx`), whose FIELD
+is tinted by `color-mix` from the chain's plate hex, under one sentence and
+one fence. The sentence: **hue in a background is identity; hue in a
+foreground is semantics.** The fence: a chip field may never resolve within
+0.04 OKLab of `--attested-tint` or `--accent-brand-tint` in either theme, and
+must sit at least 0.015 from the card (visible at all). Every percentage in
+`CHAIN_PLATES` is the smallest candidate that clears both, measured per
+theme, and `check-contrast.mjs` re-measures the whole table on every run,
+including the fallbacks: a chain that cannot clear (Robinhood's lime inside
+the attested JND in light; Base and Polygon inside the brand JND in dark;
+HyperEVM's near-black plate invisible on the dark card) drops its field to
+`--fill-subtle` in that theme and the mark alone carries identity. The mark
+keeps its true colour; only the FIELD may not wear a reserved hue, so a brand
+can never impersonate attestation. The attested anatomy (gutter dot, green
+foreground) never appears on a chip. The chip's hairline is decorative
+separation for tint-on-tint grounds, deliberately NOT a control boundary, so
+the translucent-boundary guard's scope is intact.
 
 Tokens live in `app/globals.css`. **Never a raw Tailwind palette class.** The guard
 covers all 22 shaded families including the neutrals (`gray`, `slate`, `zinc`,
@@ -326,8 +345,37 @@ Before shipping a control, ask what it looks like on `--background`, on
 
 ### Control height
 
-`--height-control: 34px`. **Every control in a row resolves to it** — button, segmented,
-input, avatar. Heights derived from padding can never agree across different font
+One value became a **four-step ladder**, each step with a placement, because
+"one primary action per view, stated at a different scale" was unenforceable
+while no larger scale existed. The size gap IS the hierarchy.
+
+| Token                      | px  | Placement                                                                |
+| -------------------------- | --- | ------------------------------------------------------------------------ |
+| `--height-control-hero`    | 48  | the single primary action of a view. Body content only, never the header |
+| `--height-control`         | 34  | every header control, and the default: button, segmented, input, avatar  |
+| `--height-control-compact` | 28  | table-row and dense admin controls                                       |
+| `--height-control-micro`   | 24  | chart timeframe/filter rows only; the WCAG 2.2 floor exactly             |
+
+**The header is standard-tier by arithmetic**, stated here so no reskin raises
+it: two 34px squares put the phone header at 316px against 320. Hero never
+enters the header, which is why the arithmetic survives the ladder. 48 rather
+than 52 because 48 is on the nine-step spacing scale.
+
+**Hit areas are bought per axis**, and the `::after` inset may never exceed
+half the smallest gap to a neighbouring target on that axis. In a table the
+vertical neighbour is the next row: a compact control inside a 38px row takes
+`inset-y` −5px (28+10 tiles the pitch exactly, zero overlap), and −8px
+survives only outside tables with measured clearance. A uniform 44px purchase
+inside a 38px pitch is arithmetically impossible without overlapping the next
+row's controls, and 24px is the WCAG 2.5.8 floor; 44 is Apple guidance, which
+this document already declines at the standard tier.
+
+**List rows are not controls in a control row.** The 48px accordion trigger,
+the 48px card footer row and the 64px network tile declare no ladder token and
+the guard does not read them; they are named here so the ladder cannot be
+"applied" to them.
+
+Heights derived from padding can never agree across different font
 sizes, which is how three heights ended up in one header.
 
 **It is a width as much as a height.** `size-control` takes both from the same
@@ -644,12 +692,29 @@ number visibly wobble.
 **Actions and labels may never share a treatment.** They differ on four axes at
 once, so no single one has to carry it:
 
-|       | Action               | Label | Badge           |
-| ----- | -------------------- | ----- | --------------- |
-| Case  | sentence             | upper | upper           |
-| Face  | sans                 | mono  | mono            |
-| Icon  | leading              | none  | none            |
-| Shape | bordered/filled pill | none  | tint, no border |
+|       | Action                    | Micro pill (24px) | Label | Badge           |
+| ----- | ------------------------- | ----------------- | ----- | --------------- |
+| Case  | sentence                  | sentence          | upper | upper           |
+| Face  | sans                      | sans              | mono  | mono            |
+| Icon  | leading                   | optional leading  | none  | none            |
+| Shape | soft/filled/bordered pill | pill, subtle fill | none  | tint, no border |
+
+The micro-pill column exists because it shares the Badge's 11px font size and
+nothing else, and stating the axes is what keeps a chip from ever being
+mistaken for a badge (matcha exhibits exactly that collision). A SELECTED
+micro pill carries `bg-fill-well` + weight 600 + `text-accent-brand`, never
+the fill alone: the enclosure measures ~1.1:1 and cannot carry state under
+WCAG 1.4.11; the segmented control already answered this (the selected one
+carries weight and the accent).
+
+**The default secondary is the `soft` variant**: no border, resting on
+`--fill-subtle`, hovering to `--fill-hover`, identified by its label, leading
+icon and pill enclosure, which 1.4.11 permits for a text-identified component.
+`outline` is demoted to controls that must read on arbitrary surfaces; it
+keeps the opaque 3:1 `--input` edge, and text fields keep theirs everywhere,
+with the panel-as-field the only named exception (see its entry when it
+ships). Preset and percentage pills rest at `text-foreground/75`, never
+muted: muted is the colour of text you cannot act on.
 
 An icon **inside an enclosure** reads as a control. An icon **beside bare text**
 reads as identification, so a section heading may carry one and a badge may not.
@@ -730,6 +795,11 @@ Three durations, two curves.
 - **Press is the only transform**: `scale(0.97)`. It is also the only feedback that
   works on touch.
 - **Focus never animates.** A ring that fades in is a ring that is not there yet.
+  `FOCUS_RING` (components/ui/button.tsx) is the one treatment for the element
+  that holds focus, and `FOCUS_RING_WITHIN` is its one wrapper spelling
+  (`has-[:focus-visible]`, so a mouse click paints no ring) for a container
+  whose child holds focus. Two spellings, one treatment; a hand-rolled wrapper
+  ring is how the pre-consolidation history restarts.
 - **Never animate `width`, `height`, `top`, `left`** — they force layout every
   frame. Use `transform` and `opacity`.
 - **Never animate a virtualised row** beyond `background-color`.
@@ -876,13 +946,13 @@ and the second implementation would have hidden that.
 Four CI jobs and an ESLint rule. Three of them guard what a grep can see; the
 fourth opens a browser, because the other three cannot see a rendered box:
 
-| Guard                               | Covers                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                              |
-| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px label may be written only inside `Eyebrow` and `Badge`), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
-| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                    |
-| `scripts/check-control-height.mjs`  | **rendered** height: every visible element carrying `h-control` or `size-control` measures the token, on three pages at six widths, plus no sideways scroll                                                                                                                                                                              |
-| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                          |
+| Guard                               | Covers                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                                                      |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px size may be written only inside `Eyebrow`, `Badge` and the micro `Button` size), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
+| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                                            |
+| `scripts/check-control-height.mjs`  | **rendered** height: every visible element declaring any ladder token (`h-control`, `-hero`, `-compact`, `-micro`, `size-` twins) measures that token, on three pages at six widths, plus no sideways scroll                                                                                                                                                     |
+| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                                                  |
 
 Every guard runs its **own fixtures first**, so one that has stopped working
 fails before it can report a clean codebase. They must be tested against fixtures,
