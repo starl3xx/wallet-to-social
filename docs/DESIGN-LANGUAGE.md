@@ -52,6 +52,58 @@ covers all 22 shaded families including the neutrals (`gray`, `slate`, `zinc`,
 `neutral`, `stone`) — it originally listed only the 17 chromatic ones and reported
 clean over 18 live violations.
 
+### The neutral undertone
+
+Every neutral carries chroma 0.005 at hue 280: a violet undertone at quarter
+the strength `--surface-inverse` already committed to. The chrome stays 99%
+achromatic, which is what makes the two meaningful hues louder per use, and it
+reads as this product's grey rather than the browser's. Lightness was left
+untouched wherever a contrast had been measured, and the whole set re-measures
+in `check-contrast.mjs`. `--input` is deliberately excluded: a control boundary
+is semantics, not chrome.
+
+### Both themes share one elevation sentence
+
+**Surfaces lighten as they rise.** Dark always worked this way (page 0.145,
+card 0.205). Light now does too: the page ground is `oklch(0.975 0.005 280)`
+under pure-white cards, with `--muted` at 0.955 so the stack stays ordered:
+card 1.0 > page 0.975 > muted 0.955. Before this, a light card was invisible
+without the deliberately quiet 1.26:1 hairline.
+
+**Moving a ground re-opens every ratio solved against it.** The retone dragged
+two more tokens with it, both re-solved rather than grandfathered:
+`--muted-foreground` to 0.52 (4.74:1 had dipped under 4.5:1 on the new ground;
+now 5.49:1 on card, 5.09:1 on the page) and `--input` to 0.615 (the old 0.64
+was solved at 3.08:1 against the old muted and measured 2.95:1 against the new
+one; now 3.28:1). That sentence is the trap to remember: a token that was
+"solved, guarded, excluded" stops being solved the moment the surface under it
+moves.
+
+### Interior fills
+
+A boundary is one hairline; **interior layering is one named alpha wash**, with
+one depth per job:
+
+| Token           | Light / dark             | The one job                                                     |
+| --------------- | ------------------------ | --------------------------------------------------------------- |
+| `--fill-subtle` | ink 4% / tinted white 5% | where soft controls rest; ghost hover                           |
+| `--fill-well`   | 6% / 9%                  | wells: dialog inset panels, search fields, a selected enclosure |
+| `--fill-hover`  | 10% / 13%                | the one hover step. **No rest state may sit on a hover token.** |
+
+These three are the only sanctioned translucent fills. A `/NN` on a surface
+token is still an unnamed tint and still banned. `bg-muted` remains for
+surfaces that are themselves grounds; anything sitting _on_ a surface takes a
+fill. The wash is structural, not aesthetic: a translucent fill cannot paint
+itself out on a matching surface, which retires the recorded segmented-track
+failure (`bg-muted` erasing itself on a `bg-muted` panel) as a bug class.
+
+**One carve-out, and it points the other way.** Inside a virtualized table
+whose sticky columns paint `bg-inherit`, every row background must be OPAQUE:
+the surface behind a cell is other moving cells, and a value that depends on
+the surface is a value that is wrong on one of them. `--fill-row-hover` is the
+subtle recipe flattened against `--background` for exactly that case. Wash
+tokens are for static surfaces.
+
 **`primary` is not one of these tokens.** `--primary` is `oklch(0.205 0 0)`, a
 shadcn default that nothing here ever adapted: near-black in light mode,
 near-white in dark. It survived because its _name_ reads like a brand token, and
@@ -85,18 +137,21 @@ the numbers cannot drift from what ships.
 
 |             | dark    | light   |
 | ----------- | ------- | ------- |
-| body text   | 18.97:1 | 19.80:1 |
-| muted text  | 7.66:1  | 4.74:1  |
-| brand       | 6.41:1  | 9.17:1  |
-| attested    | 8.47:1  | 6.15:1  |
-| destructive | 5.01:1  | —       |
+| body text   | 18.95:1 | 18.35:1 |
+| muted text  | 7.59:1  | 5.09:1  |
+| brand       | 6.40:1  | 8.50:1  |
+| attested    | 8.47:1  | 5.70:1  |
+| destructive | 5.00:1  | 5.91:1  |
 
 **A control's edge is not decoration, and needs 3:1.** WCAG 1.4.11 asks for 3:1
 on anything required to identify a component. `--input`, which draws the
 boundary on text fields and on the outline button, was **1.26:1 in light and
 1.48:1 in dark**: an empty field was a rectangle you had to already know was
-there. It is now `oklch(0.64 0 0)` and `oklch(0.55 0 0)`, solved against the
-worst surface each theme puts a control on rather than picked by eye.
+there. It is now `oklch(0.615 0 0)` and `oklch(0.55 0 0)`, solved against the
+worst surface each theme puts a control on rather than picked by eye, and
+re-solved when the light ground moved (see "Both themes share one elevation
+sentence"): light measures 3.28:1 on `--muted`, 3.47:1 on the page and 3.74:1
+on card; dark 3.09/3.67/4.05.
 
 **Decorative separation is exempt, and stays quiet.** A card border and a table
 rule are not controls, so `--border` keeps its 1.26:1 and the hairline aesthetic
@@ -200,15 +255,34 @@ Banned: `rounded-md`, `rounded-xl`, `rounded-2xl`, bare `rounded`.
 
 ### Elevation
 
-Separation is carried by **one hairline**: `border border-border` at full token
-opacity. Shadows appear only on the floating layer (modals, dropdowns, popovers)
-at `shadow-lg`, and on the segmented control's active thumb. Border opacity
+Boundaries are carried by **one hairline**: `border border-border` at full token
+opacity. Interior layering is carried by the three named fills (see "Interior
+fills" under Colour), never by a border and never by an unnamed wash. Shadows
+appear only on the floating layer (modals, dropdowns, popovers) at
+`shadow-float`, and on the segmented control's active thumb. Border opacity
 modifiers (`/60`, `/50`, `/30`) are banned. `border-2` only with `border-dashed`,
 on a dropzone.
 
+**`shadow-float` is one named two-part value**, not a library default: a soft
+lift (`0 2px 12px` at 12% light, `0 2px 16px` at 55% dark) plus a tight 1px
+edge (56% / 90%). It is the same anatomy the segmented thumb documents: the
+wide shadow lifts, the tight one draws the edge. Matcha.xyz independently
+arrives at both the posture (shadows only on the floating layer) and this
+exact pair, which is the convergence that earned it a token. `shadow-lg` is
+now a rejected spelling in the guard, because after the token lands the
+library default is the off-system value.
+
+In dark mode the hairline is a **tinted white**, `oklch(0.9 0.03 280 / 12%)`,
+retoned with its composite measured rather than asserted: 1.34:1 on the dark
+card against 1.32:1 for the old `white / 10%`, so the undertone family arrived
+with no net dimming, and `check-contrast.mjs` asserts the composite stays at
+or above 1.32:1. It is still deliberately translucent: this is decorative
+separation, exempt from the control-boundary opacity rule, and the exemption
+is named here so the guard's scope stays honest.
+
 That rule was stated here and broken in the one place it mattered most: `Card`,
 the primitive nearly every surface is built from, carried `border-border/60`. In
-dark mode `--border` is already `oklch(1 0 0 / 10%)`, so sixty percent of it is a
+dark mode `--border` was already a 10% white line, so sixty percent of it was a
 6% white line, which is to say no line at all. Six further faded borders sat
 behind it. The `border-opacity` rule now enforces what this paragraph already
 said, which is the useful shape of the lesson: **a rule nobody can check is a
@@ -447,7 +521,8 @@ hand-roll a dialog out of `fixed inset-0`.
 credits keeps a display-size title as the one named exception: the purchase
 moment earns display type; decided 2026-08-22); actions in `ModalFooter`,
 which has one layout; inset panels on
-`bg-muted` at `p-4`; an error beside a control is `InlineError`
+`bg-fill-well` at `p-4` (the well cannot self-erase on a muted context the way
+the old `bg-muted` panel could); an error beside a control is `InlineError`
 (`components/ui/inline-error.tsx`): a 14px destructive line with the 16px
 warning glyph, announced as an alert, never a box. The panel arrives by fade
 and `scale(0.97)` over `--duration-base` and leaves over `--duration-fast`; the close is a

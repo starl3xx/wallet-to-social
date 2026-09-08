@@ -2,6 +2,34 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-08 (matcha-informed surfaces: fills, elevation, retoned neutrals)
+
+First of the matcha design PRs, from the measured matcha.xyz deep-dive. Tokens
+and surfaces only; controls, tables and page anatomy follow in their own PRs.
+
+- **Interior fills.** Three named translucent washes replace ad-hoc surface
+  use: `--fill-subtle` (soft-control rest), `--fill-well` (dialog insets,
+  wells), `--fill-hover` (the one hover step), plus the opaque
+  `--fill-row-hover` for virtualized rows whose sticky columns paint
+  `bg-inherit`. Dialog inset panels move from `bg-muted` to `bg-fill-well`.
+- **One elevation sentence for both themes.** The light page ground drops to
+  `oklch(0.975 0.005 280)` under pure-white cards; `--muted` to 0.955 so the
+  stack stays ordered. Re-solved in the same change: `--muted-foreground` to
+  0.52 (5.09:1 on the new ground) and `--input` to 0.615 (3.28:1 on the new
+  muted), because moving a ground re-opens every ratio solved against it.
+- **The neutral undertone.** Every neutral gains chroma 0.005 at hue 280,
+  the `--surface-inverse` precedent at quarter strength; lightness untouched.
+  The dark hairline retones to `oklch(0.9 0.03 280 / 12%)` with its composite
+  measured (1.34:1 on card, vs 1.32:1 before).
+- **`shadow-float`.** The floating layer's one shadow becomes a named
+  two-part token (soft lift + tight 1px edge); `shadow-lg` is now a rejected
+  spelling in the design-language guard.
+- **Guards updated in the same change**: `check-contrast.mjs` re-measures the
+  retoned set and gains the dark-hairline composite assertion (>= 1.32:1 on
+  card); `check-design-language.mjs` adds `shadow-lg` to the elevation rule's
+  rejected list with fixtures both ways. `docs/DESIGN-LANGUAGE.md` records the
+  new sections and the re-measured contrast table.
+
 ### 2026-09-02 (two new corpora: L2 name records, and creator profiles)
 
 Two ingest routes join the index. Both are L0 truth inputs: they add facts and

@@ -131,6 +131,42 @@ for (const [theme, body] of Object.entries(THEMES)) {
   }
 }
 
+/* ---------- the dark hairline, composited ---------- */
+// Dark `--border` is translucent BY DESIGN (decorative separation, exempt from
+// the 3:1 control rule), so the pair table above cannot hold it: the pair loop
+// rejects any translucent token because its contrast depends on the surface.
+// The hairline's aesthetic IS a function of composite contrast on the card, so
+// that is what gets asserted. The floor is the measurement the old value set:
+// white at 10% composited to 1.32:1 on the dark card, and the tinted-white
+// retone may not dim below it. Composited in gamma-encoded sRGB, which is how
+// a browser blends normal content.
+{
+  const body = THEMES.dark;
+  const m = body.match(/--border:\s*oklch\(([^)]+)\)/);
+  if (!m) {
+    hits.push('dark hairline: --border not found as an oklch value');
+  } else {
+    const [colour, rawAlpha] = m[1].split('/').map((s) => s.trim());
+    const [L, C, h] = colour.split(/\s+/).map(parseFloat);
+    const alpha = rawAlpha
+      ? rawAlpha.endsWith('%')
+        ? parseFloat(rawAlpha) / 100
+        : parseFloat(rawAlpha)
+      : 1;
+    const card = token(body, 'card');
+    const line = oklchToRgb(L, C || 0, h || 0);
+    const composited = line.map((v, i) =>
+      Math.round(v * alpha + card[i] * (1 - alpha))
+    );
+    const r = contrast(composited, card);
+    if (r < 1.32) {
+      hits.push(
+        `dark hairline on card: composite ${r.toFixed(2)}:1, must stay >= 1.32:1 (what the old white/10% measured)`
+      );
+    }
+  }
+}
+
 if (hits.length) {
   console.error('Contrast failures:\n');
   for (const h of hits) console.error('  ' + h);

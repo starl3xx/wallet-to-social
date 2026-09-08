@@ -489,7 +489,7 @@ const RowDetailModal = memo(function RowDetailModal({
             each with a mark plus a title and sr-only text; here the same mark
             gets its words beside it, visibly, so nothing depends on
             distinguishing two colours. */}
-        <div className="space-y-3 rounded-lg border border-border bg-muted p-4 text-sm">
+        <div className="space-y-3 rounded-lg border border-border bg-fill-well p-4 text-sm">
           <Eyebrow as="h3">Evidence</Eyebrow>
           <div className="flex gap-2">
             {/* A fixed mark slot keeps the text column aligned across rows,

@@ -118,6 +118,27 @@
   --color-surface-inverse: var(--surface-inverse);
   --color-surface-inverse-foreground: var(--surface-inverse-foreground);
   --color-surface-inverse-muted: var(--surface-inverse-muted);
+  /* Interior layering: three translucent washes on one violet-toned ink, one
+     job each. `subtle` is where soft controls rest, `well` is the one well
+     depth (search fields, dialog inset panels), `hover` is the one hover step
+     and no rest state may sit on it. Translucency is the point: a wash cannot
+     paint itself out on a matching surface, which is the recorded failure of
+     the segmented track (`bg-muted` on a `bg-muted` panel). Boundaries stay
+     opaque; see --input.
+     The one place a wash is banned is row hover inside a virtualized table:
+     sticky columns paint `bg-inherit`, so the surface behind a cell is other
+     moving cells, and a value that depends on the surface is wrong on one of
+     them. --fill-row-hover is the subtle recipe flattened against
+     --background for exactly that case. */
+  --color-fill-subtle: var(--fill-subtle);
+  --color-fill-well: var(--fill-well);
+  --color-fill-hover: var(--fill-hover);
+  --color-fill-row-hover: var(--fill-row-hover);
+  /* The floating layer's one shadow: a soft lift plus a tight 1px edge, the
+     same two-part anatomy the segmented thumb documents below. `shadow-float`
+     replaces the library's `shadow-lg`, which was the last unadapted default
+     on that layer. */
+  --shadow-float: var(--float-shadow);
   /* Five radii, and only five. See docs/DESIGN-LANGUAGE.md.
      `initial` rather than deletion is load-bearing: deleting a radius token does
      NOT remove its utility in Tailwind v4. It keeps emitting
@@ -170,22 +191,37 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* The ground sits off-white under pure-white cards, so both themes share one
+     elevation sentence: surfaces lighten as they rise. Dark already worked
+     this way (0.145 page, 0.205 card); light used to be white-on-white, and a
+     card was invisible without the deliberately quiet 1.26:1 hairline.
+     Chroma 0.005 at hue 280 is the neutral undertone: the --surface-inverse
+     precedent at quarter strength, so a 99%-achromatic chrome still reads as
+     this product's. Lightness is untouched wherever a contrast was measured.
+     Moving a ground re-opens every ratio solved against it: --muted-foreground
+     and --input are re-solved below in this same change. */
+  --background: oklch(0.975 0.005 280);
+  --foreground: oklch(0.145 0.005 280);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  /* 0.955, not the old 0.97: with the page at 0.975 a 0.97 well would sit
+     0.005 from the ground and read as the same surface. The stack stays
+     ordered: card 1.0 > page 0.975 > muted 0.955. */
+  --secondary: oklch(0.955 0.005 280);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.955 0.005 280);
+  /* 0.52, one step darker than the old 0.556: 4.74:1 on white dipped under
+     4.5:1 on the new 0.975 ground. Measured: 5.51:1 on card, 5.13:1 on the
+     ground, 4.83:1 on muted. check-contrast.mjs is the acceptance gate. */
+  --muted-foreground: oklch(0.52 0.005 280);
+  --accent: oklch(0.955 0.005 280);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.51 0.19 27);
-  --border: oklch(0.922 0 0);
+  --border: oklch(0.922 0.005 280);
   /* The boundary that says "this is a control": inputs, and the outline button.
      Not the decorative hairline, which stays `--border`.
 
@@ -196,8 +232,12 @@
      table rules keep the quieter `--border` and only controls move.
 
      Solved rather than picked, against the worst surface each theme puts a
-     control on. Light clears 3.08:1 on `--muted` and 3.36:1 on white. */
-  --input: oklch(0.64 0 0);
+     control on, and RE-SOLVED when a surface moves: the old 0.64 was solved at
+     3.08:1 against the old 0.97 muted, and measured 2.95:1 against the new
+     0.955 muted, under the floor. 0.615 restores the margin: 3.26:1 on the new
+     --muted, 3.4+:1 on the new background and on card. Deliberately excluded
+     from the neutral undertone: a control boundary is semantics, not chrome. */
+  --input: oklch(0.615 0 0);
   --ring: oklch(0.42 0.19 280);
 
   /* Brand. One stop deeper than the violet this replaced, so it survives small
@@ -217,6 +257,20 @@
 
   --caution: oklch(0.52 0.11 70);
   --caution-tint: oklch(0.96 0.04 70);
+
+  /* Interior layering: subtracted violet-toned ink over light surfaces. The
+     dark theme adds tinted white instead, mirroring the light/dark alpha-ramp
+     symmetry. One job per depth; see the @theme comment. */
+  --fill-subtle: oklch(0.25 0.03 280 / 4%);
+  --fill-well: oklch(0.25 0.03 280 / 6%);
+  --fill-hover: oklch(0.25 0.03 280 / 10%);
+  --fill-row-hover: color-mix(
+    in oklab,
+    oklch(0.25 0.03 280) 4%,
+    var(--background)
+  );
+  /* Soft lift + tight 1px edge. Floating layer only. */
+  --float-shadow: 0 2px 12px rgb(0 0 0 / 0.12), 0 0 1px rgb(0 0 0 / 0.56);
 
   /* Paired foregrounds. Every fill token needs one: these hues lift in dark
      mode so a hardcoded white on top of them fails there, and a *-foreground
@@ -254,22 +308,31 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  /* Same neutral undertone as light (chroma 0.005, hue 280), same lightness
+     as before it: #0a0a0a-class page and #fafafa-class body keep their
+     recorded taste choices, and every measured ratio holds to two decimals. */
+  --background: oklch(0.145 0.005 280);
+  --foreground: oklch(0.985 0.005 280);
+  --card: oklch(0.205 0.005 280);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.205 0.005 280);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.269 0.005 280);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.269 0.005 280);
+  --muted-foreground: oklch(0.708 0.005 280);
+  --accent: oklch(0.269 0.005 280);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.62 0.18 27);
-  --border: oklch(1 0 0 / 10%);
+  /* A tinted-white hairline (the alphadark family), not a plain white wash.
+     Retoned with the composite measured, not asserted: oklch(0.9 0.03 280) at
+     12% composites to 1.34:1 on the dark card against 1.32:1 for the old
+     white/10%, so the family arrives with no net dimming. check-contrast.mjs
+     asserts the composite stays >= 1.32. Still deliberately quiet: decorative
+     separation is exempt from the 3:1 control rule. */
+  --border: oklch(0.9 0.03 280 / 12%);
   /* See the light-theme note. Opaque rather than a white wash: a translucent
      border changes with whatever is behind it, so it met the ratio on the page
      and missed it on a card. This clears 4.06:1 on the page, 3.67:1 on a card
@@ -299,6 +362,19 @@
   --caution: oklch(0.78 0.13 70);
   --caution-tint: oklch(0.28 0.05 70);
 
+  /* Interior layering: added violet-tinted white over dark surfaces. Slightly
+     stronger alphas than light, because an added white reads quieter on a
+     dark ground than a subtracted ink does on a light one. */
+  --fill-subtle: oklch(0.9 0.03 280 / 5%);
+  --fill-well: oklch(0.9 0.03 280 / 9%);
+  --fill-hover: oklch(0.9 0.03 280 / 13%);
+  --fill-row-hover: color-mix(
+    in oklab,
+    oklch(0.9 0.03 280) 5%,
+    var(--background)
+  );
+  --float-shadow: 0 2px 16px rgb(0 0 0 / 0.55), 0 0 1px rgb(0 0 0 / 0.9);
+
   /* Dark inverts these: the fills are light here, so their text must be dark. */
   --caution-foreground: oklch(0.2 0.03 70);
   --destructive-foreground: oklch(0.18 0.03 27);
@@ -310,7 +386,7 @@
   --x-fg: #0f1419;
 
   /* Lifts above --muted (0.269), where --background (0.145) sinks below it. */
-  --surface-raised: oklch(0.37 0 0);
+  --surface-raised: oklch(0.37 0.005 280);
 
   /* Identical to :root on purpose. See the note there. */
   --surface-inverse: oklch(0.16 0.02 280);

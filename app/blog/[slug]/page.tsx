@@ -212,9 +212,10 @@ export default async function BlogPost({ params }: Props) {
                 the /vs pages use, instead of a hand-rolled foreground pill. The
                 label is the one every marketing CTA for "/" carries, so the
                 destination has one name wherever it is offered. */}
-            {/* The one inset surface, `bg-muted` at full opacity: `/50` was
-                an unnamed wash. The title is a card title, 18px at 600. */}
-            <div className="mt-8 rounded-lg bg-muted p-6 text-center">
+            {/* The inset well, `bg-fill-well`: the one named wash for interior
+                panels (`/50` was an unnamed one, `bg-muted` an opaque surface
+                that could self-erase). The title is a card title, 18px/600. */}
+            <div className="mt-8 rounded-lg bg-fill-well p-6 text-center">
               <h3 className="mb-2 text-lg font-semibold">
                 Ready to find your holders?
               </h3>

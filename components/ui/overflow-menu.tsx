@@ -80,7 +80,7 @@ export function OverflowMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[13rem] rounded-lg border border-border bg-popover p-1 shadow-lg"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[13rem] rounded-lg border border-border bg-popover p-1 shadow-float"
           onClick={() => setOpen(false)}
         >
           {children}

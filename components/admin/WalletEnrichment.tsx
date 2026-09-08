@@ -280,10 +280,10 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               {/* Current Data Display. Each value sits in its own cell beside
                   its label, so the machine data (ENS name, handles, the
                   timestamp) is mono. */}
-              {/* The one inset surface: `bg-muted` at full opacity, `p-4`.
-                  These two were `/30` washes. */}
+              {/* The inset well: `bg-fill-well` at `p-4`, the one named wash
+                  for interior panels. These two were `/30` washes. */}
               {walletData ? (
-                <div className="rounded-lg border border-border bg-muted p-4">
+                <div className="rounded-lg border border-border bg-fill-well p-4">
                   <h4 className="font-medium mb-3">Current data</h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -362,7 +362,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border bg-muted p-4">
+                <div className="rounded-lg border border-border bg-fill-well p-4">
                   <p className="text-sm text-muted-foreground">
                     No existing data for this wallet. Add social data below.
                   </p>

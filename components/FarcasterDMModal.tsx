@@ -363,10 +363,10 @@ export function FarcasterDMModal({
                 </label>
               </div>
 
-              {/* Instructions. `bg-muted p-4`: the one inset surface at the
+              {/* Instructions. `bg-fill-well p-4`: the one inset surface at the
                   one inset padding, which this dialog had at p-3 and p-4
                   and at `/50` with a border. */}
-              <div className="space-y-2 rounded-lg bg-muted p-4 text-sm">
+              <div className="space-y-2 rounded-lg bg-fill-well p-4 text-sm">
                 <p className="font-medium">How to get your API key:</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                   <li>
@@ -475,7 +475,7 @@ export function FarcasterDMModal({
         {step === 'preview' && (
           <div className="space-y-6">
             {/* Summary */}
-            <div className="space-y-2 rounded-lg bg-muted p-4">
+            <div className="space-y-2 rounded-lg bg-fill-well p-4">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Recipients</span>
                 <span className="font-medium">
@@ -498,7 +498,7 @@ export function FarcasterDMModal({
               {/* The same inset as the summary above it, not a `/50` wash
                   under a hairline: one surface, and the fill is what says
                   "panel" so the border said it twice. */}
-              <div className="whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
+              <div className="whitespace-pre-wrap rounded-lg bg-fill-well p-4 text-sm">
                 {previewMessage || (
                   <span className="text-muted-foreground italic">
                     Empty message
@@ -580,19 +580,19 @@ export function FarcasterDMModal({
             {/* Stats. Sent is the outcome and is green: a DM that went is a
                 measured fact, and violet would have called it an affordance. */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg bg-muted p-4 text-center">
+              <div className="rounded-lg bg-fill-well p-4 text-center">
                 <div className={`${TILE_FIGURE} text-attested`}>
                   {progress.sent}
                 </div>
                 <div className="text-xs text-muted-foreground">Sent</div>
               </div>
-              <div className="rounded-lg bg-muted p-4 text-center">
+              <div className="rounded-lg bg-fill-well p-4 text-center">
                 <div className={`${TILE_FIGURE} text-destructive`}>
                   {progress.failed}
                 </div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
-              <div className="rounded-lg bg-muted p-4 text-center">
+              <div className="rounded-lg bg-fill-well p-4 text-center">
                 <div className={TILE_FIGURE}>
                   {progress.total - progress.sent - progress.failed}
                 </div>

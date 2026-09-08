@@ -73,7 +73,7 @@ const ModalContent = React.forwardRef<
         // because exits run shorter than entrances. `duration-*` sets the
         // `--tw-duration` that tw-animate reads, and the reduced-motion block
         // in globals.css collapses the animation to nothing.
-        'fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col rounded-lg border bg-background shadow-lg ease-[var(--ease-out-soft)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-97 data-[state=open]:duration-[var(--duration-base)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-97 data-[state=closed]:duration-[var(--duration-fast)] max-h-[calc(100dvh-2rem)]',
+        'fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col rounded-lg border bg-background shadow-float ease-[var(--ease-out-soft)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-97 data-[state=open]:duration-[var(--duration-base)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-97 data-[state=closed]:duration-[var(--duration-fast)] max-h-[calc(100dvh-2rem)]',
         className
       )}
       {...props}
