@@ -35,8 +35,13 @@ const RULES = [
   },
   {
     name: 'elevation',
-    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*shadow-(?:xs|sm|md|2xl)(?=[\s"'`/]|$)/,
-    msg: 'Separation is a hairline border. shadow-lg only, and only on the floating layer.',
+    // `shadow-lg` joined the rejected list when the floating layer moved to
+    // the named `--float-shadow` token (soft lift + tight 1px edge, the same
+    // two-part anatomy the segmented thumb documents). After that swap the
+    // library default IS the off-system spelling, and a guard that still
+    // blessed it would bless drift.
+    re: /(^|[\s"'`])(?:[a-z0-9-]+:)*shadow-(?:xs|sm|md|lg|2xl)(?=[\s"'`/]|$)/,
+    msg: 'Separation is a hairline border. shadow-float only, and only on the floating layer.',
   },
   {
     name: 'arbitrary-type',
@@ -221,8 +226,8 @@ const FIXTURES = {
     good: ['rounded-sm', 'rounded-lg', 'rounded-full'],
   },
   elevation: {
-    bad: ['shadow-sm', 'hover:shadow-md', 'shadow-xs'],
-    good: ['shadow-lg', 'shadow-none', 'text-shadow-lg'],
+    bad: ['shadow-sm', 'hover:shadow-md', 'shadow-xs', 'shadow-lg'],
+    good: ['shadow-float', 'shadow-none', 'text-shadow-lg'],
   },
   'arbitrary-type': {
     bad: ['text-[10px]', 'sm:text-[13px]', 'text-[0.5625rem]'],

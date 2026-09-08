@@ -238,10 +238,10 @@ export function DependencyHealth({ password }: { password: string }) {
             </TableBody>
           </Table>
 
-          {/* The one inset surface: `bg-muted` at full opacity, `p-4`. It
-              was a `/40` wash, which is a second surface by another name. */}
+          {/* The inset well: `bg-fill-well` at `p-4`, the one named wash for
+              interior panels. It was a `/40` wash, an unnamed tint. */}
           {data.unscheduled.length > 0 && (
-            <div className="rounded-lg border border-border bg-muted p-4 space-y-3">
+            <div className="rounded-lg border border-border bg-fill-well p-4 space-y-3">
               <h3 className="text-sm font-medium">
                 Real work that runs on no schedule
               </h3>

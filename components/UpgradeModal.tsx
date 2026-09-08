@@ -394,10 +394,11 @@ export function UpgradeModal({
               `attested`, so the product shipped two greens and said it had
               one.
 
-              The panel is `bg-muted` whole, the one inset surface, at `p-4`,
-              the one inset padding. It was `bg-muted/40`, a 4% lift in dark
-              mode that read as a smudge rather than a surface. */}
-          <div className="flex-none rounded-lg bg-muted p-4">
+              The panel is `bg-fill-well` at `p-4`, the one named wash for
+              interior panels at the one inset padding. It was `bg-muted/40`,
+              an unnamed tint; the well token is the named version of the same
+              idea and cannot self-erase on a muted context. */}
+          <div className="flex-none rounded-lg bg-fill-well p-4">
             <p className="mb-2 text-sm font-medium">Every pack includes</p>
             <ul className="grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
               {INCLUDED.map((item) => (

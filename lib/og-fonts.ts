@@ -103,7 +103,7 @@ export const OG = {
 
   // Dark card. Values mirror the dark theme.
   text: '#fafafa', // --foreground
-  textMuted: '#a1a1a1', // --muted-foreground
+  textMuted: '#a0a0a4', // --muted-foreground (violet undertone, chroma 0.005)
   brand: '#8585ff', // --accent-brand
   attested: '#39bf89', // --attested
 
