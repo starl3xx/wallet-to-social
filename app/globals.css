@@ -155,12 +155,33 @@
   --radius-3xl: initial;
   --radius-4xl: initial;
 
-  /* Control height. Every control in a row resolves to this: button, segmented,
-     input, avatar. The doc has specified 34px since the design language landed
-     and the code never had the token, so controls arrived at 32, 40 and 28px and
-     the header read as four unrelated chips. A badge is NOT a control and must
-     stay visibly shorter, never within 2px of this. */
+  /* The control-height ladder. One value became four, each with a placement:
+
+     hero (48px)     the single primary action of a view. Body content only,
+                     never the header: two 34px squares put the phone header at
+                     316px against 320, and that arithmetic is the header's
+                     whole defence. The hero/standard gap IS the mechanism for
+                     "one primary action per view, stated at a different
+                     scale". 48 rather than matcha's 52 because 48 is on the
+                     nine-step spacing scale.
+     standard (34px) every header control and the default. Button, segmented,
+                     input, avatar: every control in a row resolves to it.
+     compact (28px)  table-row and dense admin controls. Above the 24px WCAG
+                     2.2 floor. Hit area is bought per axis with the ::after
+                     inset, capped at half the smallest gap to a neighbouring
+                     target on that axis: inside a 38px row that is inset-y
+                     -5px (28+10 tiles the pitch exactly); -8px survives only
+                     outside tables with measured clearance.
+     micro (24px)    chart timeframe/filter rows only. The WCAG floor exactly.
+
+     A badge is NOT a control and must stay visibly shorter than standard,
+     never within 2px of it. The 48px accordion trigger, the 48px card footer
+     row and the 64px network tile are list rows, not controls in a control
+     row; they declare no ladder token and the guard does not read them. */
   --height-control: 2.125rem; /* 34px */
+  --height-control-hero: 3rem; /* 48px */
+  --height-control-compact: 1.75rem; /* 28px */
+  --height-control-micro: 1.5rem; /* 24px */
 
   /* Tracking, bound to size. Four steps, nothing between. `tracking-tight`
      (-0.025em) is not one of them. */
@@ -407,6 +428,44 @@
   .size-control {
     height: var(--height-control);
     width: var(--height-control);
+  }
+  .h-control-hero {
+    height: var(--height-control-hero);
+  }
+  .size-control-hero {
+    height: var(--height-control-hero);
+    width: var(--height-control-hero);
+  }
+  .h-control-compact {
+    height: var(--height-control-compact);
+  }
+  .size-control-compact {
+    height: var(--height-control-compact);
+    width: var(--height-control-compact);
+  }
+  .h-control-micro {
+    height: var(--height-control-micro);
+  }
+
+  /* Brand-chip fields (components/ui/chip.tsx). The two themes ship DIFFERENT
+     measured tint percentages (see CHAIN_PLATES), so the chip publishes four
+     custom properties and this class picks per theme. The var() fallbacks are
+     the green-fence fallback: a chip that declares no tint for a theme rests
+     on the subtle fill and hovers on the named hover step, so a fenced chain
+     degrades to a soft button with a coloured mark rather than to nothing. */
+  .chip-tint {
+    background-color: var(--chip-tint-light, var(--fill-subtle));
+  }
+  .dark .chip-tint {
+    background-color: var(--chip-tint-dark, var(--fill-subtle));
+  }
+  @media (hover: hover) {
+    .chip-tint:hover {
+      background-color: var(--chip-tint-light-hover, var(--fill-hover));
+    }
+    .dark .chip-tint:hover {
+      background-color: var(--chip-tint-dark-hover, var(--fill-hover));
+    }
   }
 
   /* One transition for every control. Colour and press want different durations,

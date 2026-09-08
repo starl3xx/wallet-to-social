@@ -28,6 +28,21 @@ import { cn } from '@/lib/utils';
 export const FOCUS_RING =
   'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
+/**
+ * The one WRAPPER spelling of the same ring, for a container whose CHILD holds
+ * focus: the panel-as-field card, a chip rendered as a link wrapper. FOCUS_RING
+ * is a `focus-visible:` string and does nothing on an element that never holds
+ * focus itself, and a builder left without this spelling hand-rolls a fourth
+ * treatment, which is how the pre-consolidation history started.
+ *
+ * `has-[:focus-visible]` rather than `focus-within` so a mouse click into the
+ * field paints no ring, matching focus-visible semantics. The inner input
+ * carries `outline-none` explicitly; it does not inherit this one's. Two
+ * spellings, one treatment, both never animated.
+ */
+export const FOCUS_RING_WITHIN =
+  'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background';
+
 const buttonVariants = cva(
   // Press is the only transform, and every variant gets it: it is the one
   // feedback that works on touch, and a pill that presses while the link beside
@@ -59,15 +74,50 @@ const buttonVariants = cva(
         // whatever sat behind it. The same argument that makes a control
         // boundary opaque makes its fill opaque: a value that depends on the
         // surface is a value that is wrong on one of them.
+        // The default secondary. No border: identification is carried by the
+        // label, the leading icon and the pill enclosure (the four-axis
+        // affordance table), which WCAG 1.4.11 permits for a text-identified
+        // component; the fill is hover-ground, not identification. Rests on
+        // the subtle wash, hovers one named step deeper. A wash cannot paint
+        // itself out on a matching surface, which is what retired the opaque
+        // alternative.
+        soft: 'bg-fill-subtle text-foreground hover:bg-fill-hover',
+        // Demoted from default secondary to the variant for arbitrary or
+        // unknown surfaces: this is the one whose entire affordance is its
+        // edge, so it keeps the opaque 3:1 `--input` boundary. Its hover
+        // moved to the subtle wash so one mechanism serves all three
+        // fill-hovering variants.
         outline:
-          'border border-input bg-transparent hover:bg-muted hover:text-foreground',
-        ghost: 'hover:bg-muted hover:text-foreground',
+          'border border-input bg-transparent hover:bg-fill-subtle hover:text-foreground',
+        ghost: 'hover:bg-fill-subtle hover:text-foreground',
         link: 'text-accent-brand underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-control px-5 has-[>svg]:px-4',
         sm: 'h-control gap-2 px-4 has-[>svg]:px-3',
+        /**
+         * The single primary action of a view, at the scale that makes it one.
+         * Body content only, never the header (the 320px arithmetic). 16px
+         * label at the lead tracking step, because 16-19px is the lead tier.
+         * At most one per view; the guard measures it at 48px rendered.
+         */
+        hero: 'h-control-hero px-6 text-base tracking-[var(--tracking-lead)] has-[>svg]:px-5',
+        /** Table-row and dense admin controls. Hit area per axis; see the
+         *  ladder comment in globals.css before adding an ::after inset. */
+        compact: 'h-control-compact px-3 has-[>svg]:px-2.5',
+        /**
+         * Chart timeframe/filter rows only: the WCAG 2.2 floor exactly. Sans,
+         * sentence case, pill: the affordance table's micro-pill row is what
+         * keeps it from impersonating the mono/uppercase Badge at the same
+         * font size. A SELECTED micro pill takes `bg-fill-well
+         * text-accent-brand font-semibold` at the call site: the enclosure
+         * alone measures ~1.1:1 and cannot carry state under 1.4.11; the
+         * segmented control already answered this (weight plus the accent).
+         */
+        micro: 'h-control-micro gap-1 px-2 text-[11px]',
         icon: 'size-control',
+        'icon-hero': 'size-control-hero',
+        'icon-compact': 'size-control-compact',
         /**
          * The same box as `icon`. The name is kept because seven admin rows and
          * one field toggle ask for it; the 32px box it used to name was the
@@ -96,10 +146,12 @@ const buttonVariants = cva(
 );
 
 /**
- * `secondary`, `lg`, `icon-lg` are gone. None had a caller, and each was a
- * shadcn value the design language has no row for: `bg-secondary` is a token
- * that states nothing, and 48px is not a control height. A size that nothing
- * uses is still a size the next person can reach for.
+ * `secondary` and `lg` are gone; `hero` is not `lg` returned. `lg` was a
+ * shadcn size with no placement rule, which is exactly what let it spread;
+ * `hero` is 48px WITH a placement (the single primary action of a view, body
+ * content only) and a guard that measures it. `bg-secondary` stays gone: a
+ * token that states nothing. The `soft` variant is the default secondary now;
+ * `outline` survives for controls that must read on arbitrary surfaces.
  */
 function Button({
   className,

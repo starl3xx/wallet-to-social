@@ -48,10 +48,13 @@ const RULES = [
     // px or rem: `text-[0.5625rem]` walked past the px-only form and rendered a
     // 9px label for a release.
     re: /(^|[\s"'`])(?:[a-z0-9-]+:)*text-\[[\d.]+(?:px|rem)\]/,
-    // The one 11px in the product is the uppercase label, and it lives in
-    // exactly two primitives. Anywhere else, use <Eyebrow> or <Badge>.
-    files: /components\/ui\/(?:eyebrow|badge)\.tsx$/,
-    msg: 'Arbitrary sizes sit between the scale steps by definition. Use the scale, or <Eyebrow> / <Badge> for the 11px label.',
+    // The 11px size lives in exactly three primitives: the uppercase label in
+    // <Eyebrow> and <Badge>, and the micro Button size (chart filter pills).
+    // The affordance table is what keeps the third from colliding with the
+    // first two: micro pills are sans, sentence case and enclosed; labels are
+    // mono, uppercase and bare. Anywhere else, use one of those primitives.
+    files: /components\/ui\/(?:eyebrow|badge|button)\.tsx$/,
+    msg: 'Arbitrary sizes sit between the scale steps by definition. Use the scale, or <Eyebrow> / <Badge> / Button size="micro" for the 11px label.',
   },
   {
     name: 'shadcn-primary',
