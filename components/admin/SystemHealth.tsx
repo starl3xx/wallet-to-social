@@ -135,7 +135,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
     return (
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
-        <Button variant="outline" onClick={fetchData}>
+        <Button variant="soft" onClick={fetchData}>
           <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
@@ -278,7 +278,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
               {errors.map((err) => (
                 <div
                   key={err.id}
-                  className="p-3 rounded-lg border border-border bg-muted"
+                  className="rounded-lg border border-border bg-fill-well p-4"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium capitalize">

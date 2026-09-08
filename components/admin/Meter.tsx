@@ -45,7 +45,7 @@ export function Meter({
   return (
     <div
       className={cn(
-        'min-w-0 overflow-hidden rounded-sm bg-muted',
+        'min-w-0 overflow-hidden rounded-sm bg-fill-well',
         bar ? 'h-4' : 'h-1.5',
         className
       )}

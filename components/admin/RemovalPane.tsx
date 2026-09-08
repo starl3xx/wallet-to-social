@@ -249,7 +249,7 @@ export function RemovalPane({ password }: { password: string }) {
     return (
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
-        <Button variant="outline" onClick={fetchData}>
+        <Button variant="soft" onClick={fetchData}>
           <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>
@@ -404,7 +404,7 @@ export function RemovalPane({ password }: { password: string }) {
                 Lift the block anyway
               </Button>
               <Button
-                variant="outline"
+                variant="soft"
                 size="sm"
                 onClick={() => setPurgedPrompt(null)}
               >
@@ -513,8 +513,8 @@ export function RemovalPane({ password }: { password: string }) {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="soft"
+                          size="compact"
                           disabled={unsuppressing !== null}
                           onClick={() => unsuppress(s.kind, s.identifier)}
                         >

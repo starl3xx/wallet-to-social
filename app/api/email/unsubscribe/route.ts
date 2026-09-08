@@ -65,7 +65,7 @@ function page(title: string, body: string, status: number): NextResponse {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0a; max-width: 600px; margin: 0 auto; padding: 64px 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #0a0a0c; background-color: #f6f6fa; max-width: 600px; margin: 0 auto; padding: 64px 20px;">
   <h1 style="font-size: 24px; font-weight: 600;">${title}</h1>
   <p style="font-size: 16px;">${body}</p>
   <p style="font-size: 14px;"><a href="https://walletlink.social" style="color: #4131b0;">walletlink.social</a></p>

@@ -178,13 +178,13 @@ export const LookupHistory = memo(function LookupHistory({
             <p className="text-sm text-muted-foreground mb-3">
               Sign in to save and view your lookup history.
             </p>
-            {/* Outline, not the filled primary. The header already carries the
+            {/* Soft, not the filled primary. The header already carries the
                 page's one filled Buy credits and a Sign in of its own, and this
                 card repeated that action at primary weight, which made three
                 filled violet buttons in one view. */}
             <Button
               size="sm"
-              variant="outline"
+              variant="soft"
               onClick={() => setShowAuthModal(true)}
             >
               <SignIn className="h-4 w-4" aria-hidden />
@@ -285,7 +285,7 @@ export const LookupHistory = memo(function LookupHistory({
                   </Button>
                 )}
                 <Button
-                  variant="outline"
+                  variant="soft"
                   size="sm"
                   onClick={() => handleLoadLookup(lookup.id, lookup.name)}
                   disabled={loadingId === lookup.id}

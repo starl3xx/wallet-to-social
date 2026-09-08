@@ -211,7 +211,6 @@
 }
 
 :root {
-  --radius: 0.625rem;
   /* The ground sits off-white under pure-white cards, so both themes share one
      elevation sentence: surfaces lighten as they rise. Dark already worked
      this way (0.145 page, 0.205 card); light used to be white-on-white, and a
@@ -224,9 +223,9 @@
   --background: oklch(0.975 0.005 280);
   --foreground: oklch(0.145 0.005 280);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.145 0.005 280);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.145 0.005 280);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   /* 0.955, not the old 0.97: with the page at 0.975 a 0.97 well would sit
@@ -335,9 +334,9 @@
   --background: oklch(0.145 0.005 280);
   --foreground: oklch(0.985 0.005 280);
   --card: oklch(0.205 0.005 280);
-  --card-foreground: oklch(0.985 0 0);
+  --card-foreground: oklch(0.985 0.005 280);
   --popover: oklch(0.205 0.005 280);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover-foreground: oklch(0.985 0.005 280);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0.005 280);
@@ -360,14 +359,6 @@
      and 3.10:1 on a muted panel. */
   --input: oklch(0.55 0 0);
   --ring: oklch(0.68 0.19 280);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
   /* Both hues lift on a dark ground or they disappear into it. Same rule,
      different values, which is the whole reason these are tokens and not
      hexes in components. */

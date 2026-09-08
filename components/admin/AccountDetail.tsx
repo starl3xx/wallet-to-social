@@ -109,7 +109,7 @@ export function AccountDetail({
   }, [fetchData]);
 
   const back = (
-    <Button variant="outline" size="sm" onClick={onBack}>
+    <Button variant="soft" size="sm" onClick={onBack}>
       <ArrowLeft className="h-4 w-4" aria-hidden />
       Back
     </Button>

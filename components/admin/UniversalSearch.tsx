@@ -176,7 +176,7 @@ export function UniversalSearch({
                 type="button"
                 aria-label="Clear search"
                 onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground transition-control hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -201,13 +201,13 @@ export function UniversalSearch({
               <Empty>No results found for &ldquo;{query}&rdquo;</Empty>
             ) : (
               <div className="space-y-2">
-                {/* `hover:bg-muted`, the fill every outline and ghost control
-                    hovers to. `accent` is the unadapted shadcn token, a grey
-                    under a name that reads like a brand one. */}
+                {/* `hover:bg-fill-subtle`, the named wash every outline and
+                    ghost control hovers on. `accent` is the unadapted shadcn
+                    token, a grey under a name that reads like a brand one. */}
                 {results.map((result) => (
                   <button
                     key={`${result.type}-${result.id}`}
-                    className="w-full text-left p-3 rounded-lg border border-input hover:bg-muted transition-control"
+                    className="w-full text-left p-3 rounded-lg border border-input hover:bg-fill-subtle transition-control"
                     onClick={() => onResultClick?.(result)}
                   >
                     <div className="flex items-start gap-3">

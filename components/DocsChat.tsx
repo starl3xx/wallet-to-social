@@ -169,6 +169,9 @@ export function DocsChat() {
             // every page.
             '--chat-bubble-button-size': '48px',
             '--chat-bubble-button-icon-color': 'var(--accent-brand-foreground)',
+            // The bubble is a floating-layer element; without this it wears
+            // the widget's library-default shadow, the class shadow-float retired.
+            '--chat-bubble-shadow': 'var(--float-shadow)',
           } as React.CSSProperties
         }
       />

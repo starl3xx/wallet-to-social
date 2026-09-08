@@ -185,7 +185,7 @@ export default function FormoComparison() {
                   Run a lookup
                 </Link>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="soft">
                 <a
                   href="https://docs.walletlink.social"
                   target="_blank"
@@ -490,7 +490,7 @@ export default function FormoComparison() {
               price the X and Farcaster accounts behind it. Formo figures read
               on 2026-08-22.
             </p>
-            <div className="rounded-lg border border-border bg-muted p-6">
+            <div className="rounded-lg border border-border bg-fill-well p-6">
               <dl className="space-y-4 text-sm">
                 <div>
                   <dt className="font-medium">Formo Scale</dt>
@@ -653,7 +653,7 @@ export default function FormoComparison() {
             {/* The competitor's tier block takes the same inset surface as
                 PackPricing above it: `bg-muted` at full opacity behind the one
                 hairline, one panel for one meaning. */}
-            <div className="rounded-lg border border-border bg-muted p-6">
+            <div className="rounded-lg border border-border bg-fill-well p-6">
               <h3 className="font-semibold mb-4">Formo</h3>
               <p className="text-muted-foreground text-sm mb-3">
                 Three plans metered in monthly active users, plus a

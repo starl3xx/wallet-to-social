@@ -208,7 +208,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   Use a different email
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="soft"
                   className="tabular-nums"
                   onClick={handleResend}
                   disabled={loading || cooldown > 0}

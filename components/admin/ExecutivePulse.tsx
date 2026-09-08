@@ -119,7 +119,7 @@ export function ExecutivePulse({
     return (
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
-        <Button variant="outline" onClick={fetchPulse}>
+        <Button variant="soft" onClick={fetchPulse}>
           <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>

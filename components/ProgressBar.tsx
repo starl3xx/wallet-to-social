@@ -139,11 +139,11 @@ export const ProgressBar = memo(function ProgressBar({
               </p>
             </div>
 
-            {/* The primitive as it comes: `sm` is already `h-control`, and the
-                outline edge is `border-input` so it clears 3:1. No destructive
-                hover: cancelling a job is not revoking or deleting anything. */}
+            {/* The default secondary: soft, on the card, identified by its
+                label and pill enclosure. No destructive hover: cancelling a
+                job is not revoking or deleting anything. */}
             {isProcessing && onCancel && (
-              <Button variant="outline" size="sm" onClick={onCancel}>
+              <Button variant="soft" size="sm" onClick={onCancel}>
                 Cancel
               </Button>
             )}
@@ -281,7 +281,7 @@ export const ProgressBar = memo(function ProgressBar({
         {/* Footer. One sentence, no icon: the arrow was a hand-drawn svg where
             icons are Phosphor, and the three-part flex row split into two
             ragged columns at 375px. The band is `bg-muted` at full opacity. */}
-        <div className="px-6 py-3 bg-muted border-t border-border">
+        <div className="px-6 py-3 bg-fill-well border-t border-border">
           <p className="text-xs text-muted-foreground text-center">
             Runs in the background. You can close this tab and find it in My
             lookups later.

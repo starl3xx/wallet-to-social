@@ -6,7 +6,10 @@
   "colors": {
     "primary": "#4131B0",
     "light": "#8585FF",
-    "dark": "#372897"
+    "dark": "#36239A"
+  },
+  "background": {
+    "color": { "light": "#F6F6FA", "dark": "#0A0A0C" }
   },
   "navigation": {
     "tabs": [

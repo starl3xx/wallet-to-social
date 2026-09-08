@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-08 (matcha sweep: every remaining surface)
+
+Fourth and final matcha design PR, from a five-auditor sweep over every
+surface the first three did not touch. Nothing here changes a rule; it
+finishes applying them.
+
+- **Soft is the secondary everywhere now**: 36 outline secondaries move to
+  the soft variant across admin (all eight retry blocks, nav pills, form
+  cancels), the six /vs heroes, /pricing, /success and every dialog
+  (Upgrade, Auth, ApiKeys, FarcasterDM, ContractImport, ProgressBar,
+  LookupHistory). Outline survives where a control must read on an
+  arbitrary surface.
+- **The named fills reach the stragglers**: PackPricing and the /vs tier
+  panels, the success banners, ContractImportModal's preview inset,
+  ProgressBar's footer band, Meter and Sparkline tracks, the Progress
+  primitive, static TableRow hover (subtle) and selected/footer (well),
+  the overflow-menu item hover, and the muted Badge tone, which was the
+  last opaque `bg-muted` chip that could self-erase on a well.
+- **Dense admin rows drop to the compact tier**: the jobs table's four
+  per-row controls, the whitelist and saved-lookup deletes, the
+  recent-edits View, RemovalPane's Un-suppress, and the DM modal's key
+  toggle (which had hand-rolled 28px before the ladder named it).
+- **Emails and their landing page follow the retone**: every `#737373`
+  becomes `#68696c`, `#e5e5e5` becomes `#e4e5e9`, body ink `#0a0a0c`, and
+  both templates (plus /api/email/unsubscribe) gain the off-white
+  `#f6f6fa` ground.
+- **Share cards stop lying**: the OG palettes' `text`, `ink` and `paper`
+  literals follow their retoned tokens (`#f9fafd`, `#0a0a0c`, `#f6f6fa`).
+- **docs.walletlink.social** gains the retoned grounds
+  (`background.color` light `#F6F6FA` / dark `#0A0A0C`) and an honest
+  dark primary (`#36239A`, --accent-brand-hover); the AI bubble takes
+  `--chat-bubble-shadow: var(--float-shadow)`, retiring its library
+  default. The logo is untouched everywhere.
+- globals.css sheds the unused shadcn `--sidebar-*` block and the dead
+  `--radius`; `--card-foreground`/`--popover-foreground` join the
+  undertone set so the product ships one body ink. /privacy joins the
+  display opening and the one section-h2 register. Modals paint
+  `bg-popover` (surfaces lighten as they rise; the panel was on the page
+  ground, below the card it floats over).
+
 ### 2026-09-08 (matcha data surfaces: table density, entity pages, the lookup widget)
 
 Third matcha design PR: the surfaces that use the fills and the ladder.

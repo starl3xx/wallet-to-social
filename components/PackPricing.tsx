@@ -31,16 +31,15 @@ import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
  *
  * ## The surface
  *
- * One inset panel: `bg-muted` at full token opacity behind the one hairline.
- * This sat on `bg-muted/30` with no border while the claim beside it used
- * `bg-muted/40` with one and the blog CTA used `bg-muted/50`, four fills for
- * one meaning. The token is already theme-aware, and a wash whose contrast
- * depends on what is behind it is the same mistake the control boundary
- * made. The competitor tier block on each page takes this same string.
+ * One inset panel: `bg-fill-well` behind the one hairline, the named wash for
+ * interior panels. It was opaque `bg-muted` (and before that three unnamed
+ * `/NN` washes, four fills for one meaning); the well is the named form and
+ * cannot paint itself out on a muted-family ground. The competitor tier
+ * block on each /vs page takes this same string.
  */
 export function PackPricing() {
   return (
-    <div className="rounded-lg border border-border bg-muted p-6">
+    <div className="rounded-lg border border-border bg-fill-well p-6">
       <h3 className="mb-1 font-semibold">walletlink.social</h3>
       <p className="mb-4 text-sm text-muted-foreground">
         You are charged for matches, not for wallets. A match is a wallet we

@@ -35,7 +35,7 @@ const ASK_AI = [
 ];
 
 const SOCIAL =
-  'transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:text-accent-brand';
+  'transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:bg-fill-subtle hover:text-accent-brand';
 
 /**
  * One footer for every page.
@@ -275,7 +275,7 @@ function FooterLink({
   external?: boolean;
 }) {
   const className =
-    'transition-control inline-flex items-center gap-2 text-sm text-foreground/80 hover:text-accent-brand';
+    'transition-control inline-flex items-center gap-2 text-sm text-foreground/75 hover:text-accent-brand';
   if (external) {
     return (
       <a

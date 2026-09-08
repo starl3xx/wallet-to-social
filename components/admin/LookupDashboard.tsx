@@ -167,7 +167,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
     return (
       <div className="text-center py-8">
         <p className="text-destructive mb-4">{error}</p>
-        <Button variant="outline" onClick={fetchDashboard}>
+        <Button variant="soft" onClick={fetchDashboard}>
           <RefreshCw className="h-4 w-4" aria-hidden />
           Retry
         </Button>

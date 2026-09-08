@@ -307,17 +307,17 @@ export function FarcasterDMModal({
                   {/* Named by function, not by the icon: a screen reader hears
                       "Show API key", and aria-pressed says whether it is. The
                       ghost Button brings the focus ring and transition-control
-                      with it. `h-7 w-7` rather than the 34px icon control: a
+                      with it. The compact tier (28px), not the 34px icon control: a
                       control nested inside a 34px field needs air on both
-                      edges, and a utility beats the components-layer height. */}
+                      edges, and the ladder now names that height. */}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-compact"
                     onClick={() => setShowApiKey(!showApiKey)}
                     aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                     aria-pressed={showApiKey}
-                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
                   >
                     {showApiKey ? (
                       <EyeOff className="h-4 w-4" />
@@ -327,7 +327,7 @@ export function FarcasterDMModal({
                   </Button>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="soft"
                   onClick={handleTestKey}
                   disabled={!apiKey.trim() || testingKey}
                 >
@@ -431,8 +431,8 @@ export function FarcasterDMModal({
                 </span>
               </div>
 
-              {/* These insert text, so they are controls and take the outline
-                  pill: border, focus ring, press. They wore the Badge recipe
+              {/* These insert text, so they are controls and take the soft
+                  pill: fill, focus ring, press. They wore the Badge recipe
                   (chip radius, tint, no border, mono), which says "fact" to
                   anyone who has learned the product's other badges. Mono
                   stays, because a template token is machine data in its own
@@ -444,7 +444,7 @@ export function FarcasterDMModal({
                     <Button
                       key={v}
                       type="button"
-                      variant="outline"
+                      variant="soft"
                       size="sm"
                       className="font-mono text-xs"
                       onClick={() => setMessage((m) => m + v)}
@@ -460,7 +460,7 @@ export function FarcasterDMModal({
                 the body: one layout, primary at the right, stacking on a
                 phone. No margin on the icons; Button's `gap-2` owns that. */}
             <ModalFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="soft" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button onClick={handleContinueToPreview} disabled={!canContinue}>
@@ -533,7 +533,7 @@ export function FarcasterDMModal({
             </div>
 
             <ModalFooter>
-              <Button variant="outline" onClick={() => setStep('configure')}>
+              <Button variant="soft" onClick={() => setStep('configure')}>
                 <ChevronLeft className="h-4 w-4" />
                 Back
               </Button>
@@ -626,7 +626,7 @@ export function FarcasterDMModal({
             </div>
 
             <ModalFooter>
-              <Button variant="outline" onClick={handleCancel}>
+              <Button variant="soft" onClick={handleCancel}>
                 <Square className="h-4 w-4" />
                 Stop sending
               </Button>
@@ -686,17 +686,17 @@ export function FarcasterDMModal({
               </div>
             </div>
 
-            {/* One action row: the two outline alternates to the left of the
+            {/* One action row: the two soft alternates to the left of the
                 one filled primary. They were a centred cluster with Done
                 centred on its own row beneath. At most three controls, so no
                 overflow menu is needed. */}
             <ModalFooter>
-              <Button variant="outline" onClick={handleDownloadLog}>
+              <Button variant="soft" onClick={handleDownloadLog}>
                 <Download className="h-4 w-4" />
                 Download log (CSV)
               </Button>
               {progress.failedRecipients.length > 0 && (
-                <Button variant="outline" onClick={handleRetryFailed}>
+                <Button variant="soft" onClick={handleRetryFailed}>
                   <RefreshCw className="h-4 w-4" />
                   Retry {progress.failedRecipients.length} failed
                 </Button>
