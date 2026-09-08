@@ -118,7 +118,7 @@ export const OG = {
   // Paper card. Values mirror the light theme.
   paper: '#fafafa', // near-white ground, achromatic
   ink: '#0a0a0a', // --foreground
-  paperMuted: '#737373', // --muted-foreground
+  paperMuted: '#68696c', // --muted-foreground (light, retoned 0.52 / 0.005 / 280)
   paperBrand: '#4131b0', // --accent-brand
   paperBrandTint: '#eff1ff', // --accent-brand-tint
   paperAttested: '#00704a', // --attested
