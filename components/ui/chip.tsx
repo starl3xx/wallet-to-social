@@ -93,13 +93,39 @@ export function ChainChip({
 }
 
 /**
- * The platform pair, on the platform-mark exception that already covers the
- * segmented control: 𝕏 takes `--x-bg` (which inverts in dark, because a
- * near-black tint on a near-black card vanishes) and Farcaster takes its
- * violet. These identify a platform, not an affordance, and the field is a
- * quiet mix over the card, never the solid plate: the solid treatment stays
- * reserved for the segmented control's selected thumb.
+ * The platform plates go through the SAME green fence as the chains, with the
+ * same measured shape, because the fence guards the FIELD, not the brand: the
+ * ratified platform-colour exception covers the segmented thumb's SOLID
+ * treatment, where white text on the full plate is unmistakable, and does not
+ * license a translucent wash that resolves next to a reserved tint.
+ *
+ * Measured (check-contrast.mjs re-measures on every run): 𝕏's ink clears at
+ * 10% light, and its dark plate is the inverted white (`--x-bg` flips in
+ * dark), clearing at 14%. Farcaster's violet is the one brand the fence
+ * exists for: its field lands 0.020 OKLab from `--accent-brand-tint` in
+ * light and 0.035 in dark, inside the JND in BOTH themes, so a Farcaster
+ * chip field would read as the affordance wash. It falls back to
+ * `--fill-subtle` everywhere and its mark and label carry the identity, the
+ * same degradation HyperEVM takes in dark.
  */
+export const PLATFORM_PLATES: Record<
+  'x' | 'farcaster',
+  {
+    lightHex: string;
+    darkHex: string;
+    light: number | null;
+    dark: number | null;
+  }
+> = {
+  x: { lightHex: '#0F1419', darkHex: '#FFFFFF', light: 10, dark: 14 },
+  farcaster: {
+    lightHex: '#8A63D2',
+    darkHex: '#8A63D2',
+    light: null,
+    dark: null,
+  },
+};
+
 interface PlatformChipProps extends React.ComponentProps<'button'> {
   platform: 'x' | 'farcaster';
   selected?: boolean;
@@ -112,12 +138,18 @@ export function PlatformChip({
   children,
   ...props
 }: PlatformChipProps) {
-  const plate = platform === 'x' ? 'var(--x-bg)' : 'var(--fc-bg)';
+  const p = PLATFORM_PLATES[platform];
+  const l = pctVar(p.lightHex, p.light, 4);
+  const d = pctVar(p.darkHex, p.dark, 4);
   const style = {
-    '--chip-tint-light': `color-mix(in oklab, ${plate} ${selected ? 18 : 14}%, var(--card))`,
-    '--chip-tint-light-hover': `color-mix(in oklab, ${plate} 18%, var(--card))`,
-    '--chip-tint-dark': `color-mix(in oklab, ${plate} ${selected ? 18 : 14}%, var(--card))`,
-    '--chip-tint-dark-hover': `color-mix(in oklab, ${plate} 18%, var(--card))`,
+    ...(l.rest && {
+      '--chip-tint-light': selected ? l.hover : l.rest,
+      '--chip-tint-light-hover': l.hover,
+    }),
+    ...(d.rest && {
+      '--chip-tint-dark': selected ? d.hover : d.rest,
+      '--chip-tint-dark-hover': d.hover,
+    }),
   } as React.CSSProperties;
 
   return (

@@ -217,7 +217,7 @@ const CANDIDATES = { light: [10, 12, 14, 16], dark: [14, 16, 18, 22] };
 {
   const src = readFileSync('components/ui/chain-marks.tsx', 'utf8');
   const plateRe =
-    /(\w+):\s*\{\s*hex:\s*'(#[0-9A-Fa-f]{3,6})',\s*light:\s*(\d+|null),\s*dark:\s*(\d+|null)\s*\}/g;
+    /(\w+):\s*\{\s*hex:\s*'(#[0-9A-Fa-f]{3,6})',\s*light:\s*(\d+|null),\s*dark:\s*(\d+|null),?\s*\}/g;
   const plates = [...src.matchAll(plateRe)].map(
     ([, chain, hex, light, dark]) => ({
       chain,
@@ -255,6 +255,34 @@ const CANDIDATES = { light: [10, 12, 14, 16], dark: [14, 16, 18, 22] };
     }
   }
 
+  // The platform pair goes through the same fence with the same rules; its
+  // plate hex differs per theme (the X plate inverts in dark), so entries
+  // carry lightHex/darkHex. Parsed from chip.tsx, where the table lives.
+  const chipSrc = readFileSync('components/ui/chip.tsx', 'utf8');
+  const platformRe =
+    /(\w+):\s*\{\s*lightHex:\s*'(#[0-9A-Fa-f]{3,6})',\s*darkHex:\s*'(#[0-9A-Fa-f]{3,6})',\s*light:\s*(\d+|null),\s*dark:\s*(\d+|null),?\s*\}/g;
+  const platformPlates = [...chipSrc.matchAll(platformRe)].map(
+    ([, name, lightHex, darkHex, light, dark]) => ({
+      chain: `platform:${name}`,
+      hexByTheme: { light: lightHex, dark: darkHex },
+      light: light === 'null' ? null : parseInt(light, 10),
+      dark: dark === 'null' ? null : parseInt(dark, 10),
+    })
+  );
+  if (platformPlates.length < 2) {
+    hits.push(
+      `chip tints: parsed only ${platformPlates.length} PLATFORM_PLATES entries from chip.tsx; the table moved or changed shape, so the fence is guarding nothing there`
+    );
+  }
+
+  const all = [
+    ...plates.map((p) => ({
+      ...p,
+      hexByTheme: { light: p.hex, dark: p.hex },
+    })),
+    ...platformPlates,
+  ];
+
   for (const theme of ['light', 'dark']) {
     const body = THEMES[theme];
     const card = srgbToOklab(token(body, 'card'));
@@ -262,8 +290,8 @@ const CANDIDATES = { light: [10, 12, 14, 16], dark: [14, 16, 18, 22] };
       srgbToOklab(token(body, 'attested-tint')),
       srgbToOklab(token(body, 'accent-brand-tint')),
     ];
-    for (const p of plates) {
-      const plateLab = srgbToOklab(hexToRgb(p.hex));
+    for (const p of all) {
+      const plateLab = srgbToOklab(hexToRgb(p.hexByTheme[theme]));
       const declared = p[theme];
       const smallest =
         CANDIDATES[theme].find((pct) =>
@@ -274,7 +302,7 @@ const CANDIDATES = { light: [10, 12, 14, 16], dark: [14, 16, 18, 22] };
           declared === null
             ? `chip tint ${p.chain} (${theme}): declared fallback, but ${smallest}% clears the fence and the floor — an unnecessary fallback hides a working tint`
             : smallest === null
-              ? `chip tint ${p.chain} (${theme}): declares ${declared}%, but no candidate percentage clears the green fence and visibility floor — this chain must fall back to --fill-subtle (null)`
+              ? `chip tint ${p.chain} (${theme}): declares ${declared}%, but no candidate percentage clears the green fence and visibility floor — this entry must fall back to --fill-subtle (null)`
               : `chip tint ${p.chain} (${theme}): declares ${declared}%, measured smallest clearing candidate is ${smallest}%`
         );
       }
