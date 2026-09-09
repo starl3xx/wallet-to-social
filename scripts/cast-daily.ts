@@ -75,7 +75,10 @@ async function lastCastDate(): Promise<string | null> {
 
 async function markCast(today: string, slug: string): Promise<void> {
   const db = getDb();
-  if (!db) return;
+  // Throwing, not returning: a cast that cannot be checkpointed would be
+  // re-sent by the next retry, and the send path refuses to start without a
+  // database for exactly that reason, so reaching here without one is a bug.
+  if (!db) throw new Error('no database; checkpoint cannot be written');
   await db.execute(sql`
     INSERT INTO ingest_state (name, value, updated_at)
     VALUES (
@@ -143,6 +146,17 @@ async function main() {
   const signerUuid = process.env.NEYNAR_SIGNER_UUID;
   if (!process.env.NEYNAR_API_KEY || !signerUuid) {
     console.error('NEYNAR_API_KEY and NEYNAR_SIGNER_UUID are required');
+    process.exit(1);
+  }
+
+  // No database means no idempotency checkpoint and no budget counter: the
+  // budget guard fails open by design, so without this gate a missing
+  // DATABASE_URL would publish AND forget it published, and the next retry
+  // would send the same day again. Dry runs stay allowed; sending does not.
+  if (!getDb()) {
+    console.error(
+      'refused: DATABASE_URL is not set, so the daily checkpoint cannot be written and a retry would double-post'
+    );
     process.exit(1);
   }
 

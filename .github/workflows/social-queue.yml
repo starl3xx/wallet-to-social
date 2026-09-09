@@ -1,0 +1,36 @@
+# Fails a PR whose social queue would publish something wrong later.
+#
+# check-social-queue.ts is the PR-time gate for content/social/queue.json
+# (lengths, CTAs, house style, the figures allowlist) and it only guards if
+# it runs where merges are decided. A queue-only PR touches none of the
+# design-token paths, so this is its own workflow rather than a job there:
+# the failure mode it exists for is exactly the PR that changes nothing but
+# the queue.
+name: social-queue
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'content/social/**'
+      - 'lib/social-cards.tsx'
+      - 'lib/public-figures.ts'
+      - 'lib/packs.ts'
+      - 'scripts/check-social-queue.ts'
+      - '.github/workflows/social-queue.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:social

@@ -107,9 +107,14 @@ for (const d of queue.days) {
   const fcBytes = Buffer.byteLength(d.fc.text, 'utf8');
   if (fcBytes > 320)
     fail(`day ${d.day} cast is ${fcBytes} bytes; max 320 (display window)`);
-  const hasLink = URL_RE.test(d.fc.text) || /^https:\/\//.test(d.fc.link);
-  URL_RE.lastIndex = 0;
-  if (!hasLink) fail(`day ${d.day} Farcaster entry carries no https CTA link`);
+  // The link must be IN the text: cast-daily publishes fc.text plus the card
+  // image, and a card CTA is pixels, not a tap target. fc.link existing
+  // elsewhere in the entry proves nothing about what a reader can click.
+  if (!d.fc.text.includes(d.fc.link) || !/^https:\/\//.test(d.fc.link)) {
+    fail(
+      `day ${d.day} cast text does not contain its https CTA link ${d.fc.link}`
+    );
+  }
 }
 
 /* ---------- 4. house style ---------- */
