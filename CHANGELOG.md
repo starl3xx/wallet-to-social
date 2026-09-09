@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-09 (the daily social pipeline: one post per platform per day)
+
+The X and Farcaster pipeline, reworked around three rules: standalone posts
+only (no threads), a CTA on every post, and an on-brand image on every post.
+
+- **`content/social/queue.json`** holds the 14-day runway, both platforms,
+  reviewed by PR like any other published copy. `scripts/check-social-queue.ts`
+  (now in preflight as `check:social`) enforces lengths (one tweet; the
+  320-byte cast display window), CTA presence, the grep-visible house style,
+  and a figures allowlist built from `lib/public-figures.ts` and
+  `lib/packs.ts`: an unknown number in a post fails the build, which makes
+  adding it the figure review.
+- **`/social-card/[slug]`** renders each post's 1200x675 card live (Satori,
+  Soehne, the OG palette), so a card shows the figures of the day it is
+  VIEWED, not the day it was written; the registry in `lib/social-cards.tsx`
+  interpolates constants and the checker rejects figure literals. Green
+  appears only behind measured facts, per the colour law.
+- **`daily-cast.yml` + `scripts/cast-daily.ts`**: the Farcaster half casts as
+  @walletlink at 17:35 UTC with the card embedded and the CTA link in the
+  text. One cast per UTC day, checkpointed in `ingest_state`; the same
+  background budget guard as every other Neynar cron; a GitHub warning from
+  three days out when the queue runs low. The X half is scheduled in
+  Typefully at 17:00 UTC with the same cards attached as media.
+
 ### 2026-09-08 (matcha sweep: every remaining surface)
 
 Fourth and final matcha design PR, from a five-auditor sweep over every

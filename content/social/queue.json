@@ -1,0 +1,173 @@
+{
+  "start": "2026-09-10",
+  "days": [
+    {
+      "day": 1,
+      "slug": "dead-handles",
+      "x": {
+        "text": "nearly a third of the X handles on wallet lists reach nobody\nwe resolved 473,215 distinct handles against X itself: 70.1% live, 20.1% suspended, 9.8% unclaimed\n\ncheck any handle before you spend anything\nhttps://walletlink.social/check",
+        "link": "https://walletlink.social/check"
+      },
+      "fc": {
+        "text": "we resolved 473,215 distinct X handles against X itself\n\n70.1% live\n20.1% suspended\n9.8% unclaimed\n\nroughly a third of the X handles in any holder list reach nobody\n\ncheck any handle, free, no account\nhttps://walletlink.social/check",
+        "link": "https://walletlink.social/check"
+      }
+    },
+    {
+      "day": 2,
+      "slug": "hyperevm",
+      "x": {
+        "text": "no indexer covers HyperEVM, so we stopped waiting for one\nwe read every NFT owner straight off the contract, then resolve the socials\n\nif we can’t walk a collection to the end we refuse the report, we don’t ship a partial one\n\nhow it works: https://walletlink.social/blog/hyperevm-no-holder-index",
+        "link": "https://walletlink.social/blog/hyperevm-no-holder-index"
+      },
+      "fc": {
+        "text": "nothing indexes HyperEVM, our eighth chain\n\nno holder APIs, no token balance index, nothing to query\n\nso we read NFT owners straight off the contract, and if we can’t enumerate the full set we refuse the job\n\nno partial lists, ever\n\nhttps://walletlink.social/blog/hyperevm-no-holder-index",
+        "link": "https://walletlink.social/blog/hyperevm-no-holder-index"
+      }
+    },
+    {
+      "day": 3,
+      "slug": "reverse-lookup",
+      "x": {
+        "text": "forward: a list of wallets in, the accounts behind them out\nreverse: paste an X handle or a Farcaster name, get the wallets its owner attested to\n\nsame index, both directions\n\ntry it at https://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "lookups run both ways here\n\npaste an X handle or a Farcaster username, get the wallets attested to it\n\nlists in, people out\npeople in, wallets out\n\ntry your own handle: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    },
+    {
+      "day": 4,
+      "slug": "x402-agent-rail",
+      "x": {
+        "text": "an agent hits our API, gets a 402, pays $1 in USDC on Base and the response carries a working key\n12 matches, no account, no card, no email, no human in the loop\n\nnine things to build on that rail: https://walletlink.social/blog/nine-things-to-build",
+        "link": "https://walletlink.social/blog/nine-things-to-build"
+      },
+      "fc": {
+        "text": "your agent doesn’t need you to buy it access\n\n$1 of USDC on Base settles over x402 and returns 12 matches\n\nno account, no card, no email, no human in the loop\n\nnine things to build on it: https://walletlink.social/blog/nine-things-to-build",
+        "link": "https://walletlink.social/blog/nine-things-to-build"
+      }
+    },
+    {
+      "day": 5,
+      "slug": "free-tier",
+      "x": {
+        "text": "the free tier is 100 matches per rolling 30 days\na match is a wallet we resolve to an X or Farcaster account\na wallet we can’t resolve costs you nothing, ever\n\nbring a list and find out what’s on it\nhttps://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "free covers 100 matches per rolling 30 days\n\na match is a wallet resolved to an X or Farcaster account, and a wallet we can’t resolve costs you nothing\n\nso an unpromising list is free to try\n\npaste one: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    },
+    {
+      "day": 6,
+      "slug": "holder-reports",
+      "x": {
+        "text": "holder reports: pick a collection, see how many holders link to an X or Farcaster account that still exists\nmeasured daily against the live index, not estimated\n\nbrowse them at https://walletlink.social/holders",
+        "link": "https://walletlink.social/holders"
+      },
+      "fc": {
+        "text": "every collection we index gets a holder report\n\nhow many holders map to an X or Farcaster account, and whether those accounts still exist, measured daily\n\nper collection, in the open\n\nfind yours: https://walletlink.social/holders",
+        "link": "https://walletlink.social/holders"
+      }
+    },
+    {
+      "day": 7,
+      "slug": "attested-vs-inferred",
+      "x": {
+        "text": "an identity is attested when the owner published it: a Farcaster verification, an onchain ENS record, a social sign-in\nanything else is labelled correlated, nothing is guessed off a bio or a display name\n\nrun your list against it at https://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "attested means the owner published the link, onchain or via a verification\n\nnothing inferred from a bio, a display name or a cluster\n\nanything else is labelled correlated, so you always know which is which\n\nsee how it works: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    },
+    {
+      "day": 8,
+      "slug": "mcp-oauth",
+      "x": {
+        "text": "add walletlink to Claude or Cursor and there’s nothing to paste\nthe first tool call opens a consent screen, OAuth does the rest\neight tools, both directions, same balance as the REST API\n\nsetup takes a minute: https://docs.walletlink.social/mcp-server",
+        "link": "https://docs.walletlink.social/mcp-server"
+      },
+      "fc": {
+        "text": "walletlink is an MCP server\n\npoint Claude or Cursor at it, OAuth handles the rest, nothing to paste\n\nyour agent resolves wallets to handles and handles to wallets mid-conversation\n\nconnect yours: https://docs.walletlink.social/mcp-server",
+        "link": "https://docs.walletlink.social/mcp-server"
+      }
+    },
+    {
+      "day": 9,
+      "slug": "filter-agents",
+      "x": {
+        "text": "13,622+ known AI agent wallets are flagged in the index, and the count only grows\nan airdrop that doesn’t filter them pays bots to farm it\n\nhow to screen a list before you send anything: https://walletlink.social/blog/filter-agents-before-airdrop",
+        "link": "https://walletlink.social/blog/filter-agents-before-airdrop"
+      },
+      "fc": {
+        "text": "the index flags 13,622+ known AI agent wallets\n\nagents mint, farm and pass snapshot checks like anyone else\n\nif your airdrop is meant for people, filter them out first\n\nhere’s how: https://walletlink.social/blog/filter-agents-before-airdrop",
+        "link": "https://walletlink.social/blog/filter-agents-before-airdrop"
+      }
+    },
+    {
+      "day": 10,
+      "slug": "farcaster-coverage",
+      "x": {
+        "text": "4.7 million wallets in the index carry a Farcaster identity\nif a wallet has one, we have it: Farcaster coverage is complete, not sampled\n\nhand us a holder list and see who’s already on the network\nhttps://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "if you’ve ever verified an address on Farcaster, it’s in our index, because you published that link yourself\n\n4.7 million wallets carry a Farcaster identity and coverage is complete\n\nyour holder list has more casters in it than you think\n\nlook it up: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    },
+    {
+      "day": 11,
+      "slug": "matches-not-wallets",
+      "x": {
+        "text": "you don’t pay per wallet here, you pay per match\nif we can’t resolve a wallet, it isn’t billed\na long-shot list is cheap to try, and coverage gaps are our problem, not your invoice\n\npacks from $29: https://walletlink.social/pricing",
+        "link": "https://walletlink.social/pricing"
+      },
+      "fc": {
+        "text": "you pay for found people, not list length\n\na match is a wallet resolved to an X or Farcaster account, and misses cost nothing\n\npacks start at $29 for 250 matches, credits last 12 months, no subscription\n\nprice a list: https://walletlink.social/pricing",
+        "link": "https://walletlink.social/pricing"
+      }
+    },
+    {
+      "day": 12,
+      "slug": "two-rates",
+      "x": {
+        "text": "two rates, kept apart on purpose\n~23% of a real list resolves to some identity: ENS, Lens, anything\n~13% resolves to an X or Farcaster account, the one a campaign can plan on\nswap them and your audience nearly doubles\n\nsee both measured: https://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "one list, two honest numbers\n\n~23% of a submitted list resolves to some identity: ENS, Lens, anything\n\n~13% resolves to an X or Farcaster account\n\nthe first flatters a slide, the second plans a campaign\n\nwe publish both: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    },
+    {
+      "day": 13,
+      "slug": "priority-score",
+      "x": {
+        "text": "a 10k-wallet list is not 10k conversations\npriority score ranks every match by holdings × reach, so the whale with an audience sits at row one and the quiet holders sink\n\nthe formula, in full: https://walletlink.social/blog/priority-score-formula",
+        "link": "https://walletlink.social/blog/priority-score-formula"
+      },
+      "fc": {
+        "text": "6,000 holders is a queue, not an audience\n\npriority score ranks holders by holdings × log of followers, so the whale people follow outranks the whale nobody does\n\nthe formula, with real numbers: https://walletlink.social/blog/priority-score-formula",
+        "link": "https://walletlink.social/blog/priority-score-formula"
+      }
+    },
+    {
+      "day": 14,
+      "slug": "eight-chains",
+      "x": {
+        "text": "eight chains, one index, one upload\nyour holder list doesn’t care where it came from and neither do we\n\nstart with any CSV: https://walletlink.social",
+        "link": "https://walletlink.social"
+      },
+      "fc": {
+        "text": "eight chains, one index\n\nEthereum, Base, Robinhood, Arbitrum, Polygon, Optimism, BNB, HyperEVM\n\n4.8M wallets with at least one identity behind one paste box\n\nbring a list from any of them: https://walletlink.social",
+        "link": "https://walletlink.social"
+      }
+    }
+  ]
+}

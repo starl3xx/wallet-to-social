@@ -1,0 +1,43 @@
+# The Farcaster half of the daily social pipeline: casts the day's queued
+# post as @walletlink with its on-brand card embedded. The X half is
+# scheduled in Typefully and never runs here.
+#
+# One cast per UTC day, idempotent (checkpointed in ingest_state), budget-
+# guarded like every other Neynar cron, and loud when the queue runs low.
+# The queue itself lives in content/social/queue.json and changes by PR,
+# so every post that will ever be cast has been through review.
+#
+# Required repository secrets: DATABASE_URL (sweep_runner; needs the
+# ingest_state write the harvest grant script already gave it),
+# NEYNAR_API_KEY, and NEYNAR_SIGNER_UUID (the approved managed signer for
+# @walletlink; revocable in the Farcaster app if it ever leaks).
+name: daily-cast
+
+on:
+  schedule:
+    - cron: '35 17 * * *' # 17:35 UTC, half an hour after the X slot
+  workflow_dispatch: {}
+
+concurrency:
+  group: daily-cast
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/cast-daily.ts --send
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
+          NEYNAR_SIGNER_UUID: ${{ secrets.NEYNAR_SIGNER_UUID }}
