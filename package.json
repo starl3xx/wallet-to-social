@@ -18,7 +18,7 @@
     "check:invariants-guard": "npx tsx scripts/check-invariants-guard.ts",
     "check:figures": "npx tsx --env-file=.env.local scripts/check-published-figures.ts",
     "check:height": "node scripts/check-control-height.mjs",
-    "preflight": "prettier --check . && npm run typecheck && npm run check:palette && npm run check:design && npm run check:contrast && npm run check:og && npm run check:invariants",
+    "preflight": "prettier --check . && npm run typecheck && npm run check:palette && npm run check:design && npm run check:contrast && npm run check:og && npm run check:invariants && npm run check:social",
     "db:generate": "drizzle-kit generate",
     "db:push": "node scripts/db-push-refuses.mjs",
     "db:push:unsafe": "drizzle-kit push",
@@ -28,7 +28,8 @@
     "ralph:reset": "rm -f data/content.db && npm run ralph:init && npm run ralph:seed",
     "ralph:status": "node src/db/status.js",
     "ralph:content": "node src/content/list.js",
-    "ralph:test": "node src/test.js"
+    "ralph:test": "node src/test.js",
+    "check:social": "npx tsx scripts/check-social-queue.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
