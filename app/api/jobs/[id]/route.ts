@@ -43,13 +43,23 @@ export async function GET(
     // only its progress/stats are public. Previously a null userId skipped both
     // branches and fell through to returning full partialResults to anyone.
     let isOwner = false;
+    const queryUserId = request.nextUrl.searchParams.get('userId');
     if (session.user) {
-      if (job.userId && job.userId !== session.user.id) {
+      /**
+       * A session does not forfeit the anonymous proof. A job run before
+       * signing up carries the browser's local id as `userId`, which no
+       * session ever matches, and the unlock funnel ends with exactly this
+       * read: sign up, pay, refetch the same job. Refusing the proof here
+       * because a session is present made that refetch a 404 — credits
+       * spent, locked rows still on screen. The proof grants no more than
+       * it grants a signed-out caller: this one job, by possession.
+       */
+      const anonProof = !!queryUserId && queryUserId === job.userId;
+      if (job.userId && job.userId !== session.user.id && !anonProof) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
       }
-      isOwner = !!job.userId && job.userId === session.user.id;
+      isOwner = !!job.userId && (job.userId === session.user.id || anonProof);
     } else if (job.userId) {
-      const queryUserId = request.nextUrl.searchParams.get('userId');
       if (!queryUserId || queryUserId !== job.userId) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
       }
