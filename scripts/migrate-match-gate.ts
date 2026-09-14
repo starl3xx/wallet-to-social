@@ -54,9 +54,14 @@ async function main() {
   console.log('lookup_history_job_id_idx: ok');
 
   /**
-   * The index swap, only if the live index is still the unpartitioned one.
-   * Checked by predicate rather than by name, because the name survives the
-   * swap: an index that already carries WHERE has already been migrated.
+   * The index swap, only if the live predicate does not already exclude
+   * unlock rows. Checked for the predicate itself rather than for WHERE,
+   * because production already carries a WHERE this migration did not write:
+   * the live index reads `WHERE (job_id IS NOT NULL)`, drift the Drizzle
+   * schema never recorded (found 2026-09-14, the first run of this script
+   * skipped the swap on exactly that). The null clause is kept in the new
+   * predicate; NULL job ids never conflict in a btree unique index either
+   * way, it just keeps the index off the API-call rows.
    */
   const [jobIdx] = (await sql`
     SELECT indexdef FROM pg_indexes
@@ -68,14 +73,16 @@ async function main() {
     process.exit(1);
   }
 
-  if (jobIdx.indexdef.includes('WHERE')) {
-    console.log('credit_ledger_job_idx: already partial, skipping swap');
+  if (jobIdx.indexdef.includes('unlock')) {
+    console.log(
+      'credit_ledger_job_idx: already excludes unlock, skipping swap'
+    );
   } else {
     await sql.transaction([
       sql`DROP INDEX credit_ledger_job_idx`,
-      sql`CREATE UNIQUE INDEX credit_ledger_job_idx ON credit_ledger (job_id) WHERE paid_from <> 'unlock'`,
+      sql`CREATE UNIQUE INDEX credit_ledger_job_idx ON credit_ledger (job_id) WHERE job_id IS NOT NULL AND paid_from <> 'unlock'`,
     ]);
-    console.log('credit_ledger_job_idx: swapped to partial');
+    console.log('credit_ledger_job_idx: swapped to partial, unlock excluded');
   }
 
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_job_unlock_idx ON credit_ledger (job_id) WHERE paid_from = 'unlock'`;

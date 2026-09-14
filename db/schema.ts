@@ -488,9 +488,13 @@ export const creditLedger = pgTable(
      * gives the unlock the same shape of protection: at most one per job, so
      * a double-clicked unlock button cannot draw a lot down twice.
      */
+    // The null clause predates the gate: production carried
+    // `WHERE (job_id IS NOT NULL)` that this schema never recorded (drift
+    // found 2026-09-14). It changes nothing about uniqueness, NULLs never
+    // conflict in a btree unique index; it keeps the index off API-call rows.
     uniqueIndex('credit_ledger_job_idx')
       .on(table.jobId)
-      .where(sql`paid_from <> 'unlock'`),
+      .where(sql`job_id IS NOT NULL AND paid_from <> 'unlock'`),
     uniqueIndex('credit_ledger_job_unlock_idx')
       .on(table.jobId)
       .where(sql`paid_from = 'unlock'`),
