@@ -248,6 +248,28 @@ export async function PATCH(
     }
 
     /**
+     * A gated lookup refuses the merge outright.
+     *
+     * The client can only ever hold the gated view (locked rows with the
+     * billable identities stripped), so accepting its PATCH would overwrite
+     * the stored full payload with the stripped one: the locked X and
+     * Farcaster identities would be gone from history for good, and an
+     * unlock could null the gate but never restore them. Refusing also
+     * keeps newly paid matches out of an old gate's counting. The way
+     * forward is the one the message names: unlock first, then grow it.
+     */
+    if (validation.lookup!.matchesDelivered !== null) {
+      return NextResponse.json(
+        {
+          error:
+            'This lookup has locked matches. Unlock it from the results view before adding addresses.',
+          upgradeRequired: true,
+        },
+        { status: 409 }
+      );
+    }
+
+    /**
      * The same scrub the GET applies on the way out, applied on the way
      * in. Without it a customer re-upload (this endpoint merges results
      * from the browser) could put a suppressed identifier back at rest

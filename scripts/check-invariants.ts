@@ -3261,7 +3261,10 @@ async function main() {
     );
     ok(
       'the inngest pipeline emits it too',
-      /saveLookup\([\s\S]{0,400}?trackEvent\('history_saved'/.test(
+      // 600, not 400: the save call grew the match-gate argument, which sits
+      // between the call and the event. The assertion is proximity, not
+      // adjacency; deleting the event still fails it.
+      /saveLookup\([\s\S]{0,600}?trackEvent\('history_saved'/.test(
         readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
       )
     );
@@ -6642,6 +6645,28 @@ async function main() {
       'the v1 route gates its pages against the whole-job match count',
       v1Route.includes('countMatchedBefore(') &&
         v1Route.includes('lockedOnPage')
+    );
+
+    // A gated lookup refuses the merge PATCH, and the refusal stands before
+    // the write: the client only ever holds the stripped view, so accepting
+    // its payload would overwrite the stored identities for good.
+    ok(
+      'the history PATCH refuses to write over a gated lookup',
+      historyRoute.includes('This lookup has locked matches') &&
+        historyRoute.indexOf('This lookup has locked matches') <
+          historyRoute.indexOf('updateLookup(')
+    );
+
+    // The unlock clears the history mirror before the job column: the job
+    // column is the retry ticket, so a clear that dies must stay reachable.
+    const unlockRoute = withoutComments(
+      readFileSync('app/api/jobs/[id]/unlock/route.ts', 'utf8')
+    );
+    ok(
+      'the unlock clears the mirror while the retry ticket still stands',
+      unlockRoute.indexOf('clearLookupGate(') > 0 &&
+        unlockRoute.indexOf('clearLookupGate(') <
+          unlockRoute.indexOf('matchesDelivered: null')
     );
   }
 

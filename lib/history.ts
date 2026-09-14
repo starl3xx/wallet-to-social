@@ -39,7 +39,13 @@ export async function saveLookup(
   results: WalletSocialResult[],
   name?: string,
   userId?: string,
-  inputSource?: InputSource
+  inputSource?: InputSource,
+  /**
+   * The match gate, written with the row rather than mirrored afterwards: a
+   * mirror that failed after the save left an ungated saved copy of a gated
+   * job, which is the history bypass this column exists to close.
+   */
+  gate?: { jobId: string; matchesDelivered: number }
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
@@ -57,6 +63,8 @@ export async function saveLookup(
       farcasterFound,
       results: results,
       inputSource: inputSource ?? null,
+      jobId: gate?.jobId ?? null,
+      matchesDelivered: gate?.matchesDelivered ?? null,
     })
     .returning();
 
@@ -171,27 +179,6 @@ export async function getLookupById(id: string): Promise<SavedLookup | null> {
     matchesDelivered: row.matchesDelivered,
     jobId: row.jobId,
   };
-}
-
-/**
- * Mirror a job's match gate onto its saved lookup.
- *
- * Called by the worker right after `chargeForJob` decides the gate. The
- * history row was written moments earlier with the full payload, so without
- * this mirror, "save to history" would serve everything the job route locks.
- */
-export async function markLookupGated(
-  lookupId: string,
-  jobId: string,
-  matchesDelivered: number
-): Promise<void> {
-  const db = getDb();
-  if (!db) return;
-
-  await db
-    .update(lookupHistory)
-    .set({ jobId, matchesDelivered })
-    .where(eq(lookupHistory.id, lookupId));
 }
 
 /**

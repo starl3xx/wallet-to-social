@@ -28,7 +28,7 @@
 import { getDb } from '@/db';
 import { trackEvent } from '@/lib/analytics';
 import { creditLots, creditLedger, users } from '@/db/schema';
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, ne, sql } from 'drizzle-orm';
 import {
   CREDIT_LIFETIME_DAYS,
   FREE_MATCHES_PER_WINDOW,
@@ -454,9 +454,29 @@ export async function chargeForJob(
       walletsSubmitted,
       paidFrom,
     });
-  } catch {
-    // Unique violation on job_id: this job has already been charged.
-    return { billed: 0, duplicate: true, paidFrom };
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    /**
+     * This job already carries a debit: a resumed job reaching the charge
+     * twice. Recover what the first pass decided rather than answering
+     * zero, because the caller rebuilds the gate from this answer on its
+     * retry path and a zero would serve a gated job ungated.
+     */
+    const [existing] = await db
+      .select({
+        matches: creditLedger.matches,
+        paidFrom: creditLedger.paidFrom,
+      })
+      .from(creditLedger)
+      .where(
+        and(eq(creditLedger.jobId, jobId), ne(creditLedger.paidFrom, 'unlock'))
+      )
+      .limit(1);
+    return {
+      billed: existing?.matches ?? 0,
+      duplicate: true,
+      paidFrom: (existing?.paidFrom as JobCharge['paidFrom']) ?? null,
+    };
   }
 
   if (paidFrom === 'lots') {
@@ -559,9 +579,14 @@ export async function unlockJobMatches(
       walletsSubmitted: 0,
       paidFrom: 'unlock',
     });
-  } catch {
-    // Unique violation: this job was already unlocked and already paid for.
-    return { ok: true, reason: '' };
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      // This job was already unlocked and already paid for; the caller may
+      // still need to finish the clears, so this is ok, not a refusal.
+      return { ok: true, reason: '' };
+    }
+    console.error('Unlock ledger write failed:', error);
+    return { ok: false, reason: 'Unlock failed. Retry shortly.' };
   }
 
   await drawDown(userId, matches);

@@ -5,7 +5,7 @@ import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
-import { saveLookup, markLookupGated, type InputSource } from '@/lib/history';
+import { saveLookup, type InputSource } from '@/lib/history';
 import { stampReachability, stampAlsoOnX } from '@/lib/handle-reachability';
 import {
   upsertSocialGraphWithRetry,
@@ -967,15 +967,60 @@ async function finalizeJobWithResults(
     ).length;
   }
 
+  /**
+   * Charge before anything durable is written, so the gate is decided by
+   * the time the history row and the completion row are built: both carry
+   * `matches_delivered` in their own insert/update, and there is no window
+   * where a job is completed-but-ungated or saved-but-unmirrored (the shape
+   * Bugbot caught: a debit that landed, a gate write that failed, and every
+   * match served on a job the worker will never revisit).
+   *
+   * A resumed job that reaches this twice recovers the first pass's
+   * decision: the ledger insert is unique per job, and the duplicate path
+   * reads the row back, so the gate is rebuilt identically on retry. The
+   * inverse crash (charged, then the completion write dies for good) leaves
+   * a billed job the worker retries until it completes; the debit is never
+   * doubled.
+   *
+   * `anySocialFound` is the meter: wallets carrying an X handle or a
+   * Farcaster account. Misses are free, which is the whole pricing
+   * position. Called for every job by a signed-in account, including
+   * zero-match ones: legacy accounts are never charged but their
+   * submitted-wallet counts feed the daily anti-enumeration ceiling. A
+   * charge that throws is never fatal; the cost is one uncharged, ungated
+   * job, strictly better than a completed job that reports as failed.
+   */
+  let matchesDelivered: number | null = null;
+  let gateIsFresh = false;
+  if (options.meteredUserId) {
+    try {
+      const charge = await chargeForJob(
+        options.meteredUserId,
+        job.id,
+        anySocialFound,
+        job.wallets.length,
+        options.tier ?? 'free'
+      );
+      if (charge.paidFrom === 'free' && charge.billed < anySocialFound) {
+        matchesDelivered = charge.billed;
+        gateIsFresh = !charge.duplicate;
+      }
+    } catch (error) {
+      console.error('Credit charge failed (job still succeeded):', error);
+    }
+  }
+
   // Save to history if requested
-  let historyLookupId: string | null = null;
   if (options.saveToHistory) {
     try {
       const lookupId = await saveLookup(
         results,
         options.historyName,
         options.userId || job.userId || undefined,
-        options.inputSource
+        options.inputSource,
+        matchesDelivered !== null
+          ? { jobId: job.id, matchesDelivered }
+          : undefined
       );
 
       /**
@@ -1001,7 +1046,6 @@ async function finalizeJobWithResults(
           walletCount: results.length,
         },
       });
-      historyLookupId = lookupId;
     } catch (error) {
       console.error('History save error:', error);
     }
@@ -1089,86 +1133,24 @@ async function finalizeJobWithResults(
       socialGraphWriteStatus,
       socialGraphWriteErrors:
         socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
+      // The match gate, atomic with completion: a job is never readable as
+      // completed-but-ungated when the allowance covered only part of it.
+      matchesDelivered,
     })
     .where(eq(lookupJobs.id, job.id));
 
-  /**
-   * Charge for the matches, after the job is marked complete.
-   *
-   * Deliberately after. A job that fails partway is not charged, and the debit
-   * is keyed on the job id, so a resumed job that reaches here twice inserts
-   * once and the second attempt is swallowed by the unique index.
-   *
-   * `anySocialFound` is the meter: wallets carrying an X handle or a Farcaster
-   * account. Misses are free, which is the whole pricing position, so this must
-   * not be `processedCount` however tempting the symmetry.
-   *
-   * Never fatal. A ledger write that fails must not fail a lookup the caller
-   * has already waited for; the work is done and the results are theirs. The
-   * cost of a missed debit is one uncharged job, which is strictly better than
-   * a completed job that reports as failed.
-   */
-  /**
-   * Called for every job by a signed-in account, including zero-match ones.
-   *
-   * The earlier `anySocialFound > 0` guard skipped the cheap case, and that was
-   * wrong once legacy accounts started recording usage: they are never charged
-   * but their submitted-wallet counts feed the daily anti-enumeration ceiling,
-   * and a run that matched nothing is exactly the shape enumeration takes.
-   * `chargeForJob` returns early for the metered zero-match case, so the only
-   * cost here is one function call.
-   */
-  if (options.meteredUserId) {
-    try {
-      const charge = await chargeForJob(
-        options.meteredUserId,
-        job.id,
-        anySocialFound,
-        job.wallets.length,
-        options.tier ?? 'free'
-      );
-
-      /**
-       * The match gate. When the free allowance covered fewer matches than
-       * the job found, record how many were paid for: the results routes
-       * serve exactly that many matched rows in full and lock the billable
-       * identities on the rest, until an unlock debit clears the column.
-       *
-       * Only a fresh `free` charge can gate. A duplicate means a resumed job
-       * whose first pass already decided delivery, and lots/legacy always
-       * bill (or waive) the full count.
-       */
-      if (
-        !charge.duplicate &&
-        charge.paidFrom === 'free' &&
-        charge.billed < anySocialFound
-      ) {
-        await db
-          .update(lookupJobs)
-          .set({ matchesDelivered: charge.billed })
-          .where(eq(lookupJobs.id, job.id));
-
-        // History stored the full payload moments ago; without the mirror,
-        // "save to history" is a free bypass of the lock.
-        if (historyLookupId) {
-          await markLookupGated(historyLookupId, job.id, charge.billed);
-        }
-
-        trackEvent('limit_hit', {
-          userId: options.userId || job.userId || undefined,
-          sessionId: job.sessionId ?? undefined,
-          metadata: {
-            reason: 'match_gate',
-            jobId: job.id,
-            matchesFound: anySocialFound,
-            matchesDelivered: charge.billed,
-            matchesLocked: anySocialFound - charge.billed,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Credit charge failed (job still succeeded):', error);
-    }
+  if (matchesDelivered !== null && gateIsFresh) {
+    trackEvent('limit_hit', {
+      userId: options.userId || job.userId || undefined,
+      sessionId: job.sessionId ?? undefined,
+      metadata: {
+        reason: 'match_gate',
+        jobId: job.id,
+        matchesFound: anySocialFound,
+        matchesDelivered,
+        matchesLocked: anySocialFound - matchesDelivered,
+      },
+    });
   }
 
   // Track lookup completed event

@@ -18,10 +18,13 @@ export const runtime = 'nodejs';
  * param: the param proves enough ownership to read what was already paid
  * for, but an unlock spends lot credits, and credits belong to accounts.
  *
- * Ordering: debit first, clear `matches_delivered` second. If the clear
- * dies, the retry's debit is swallowed by the unlock's unique index and the
- * clear runs again — the customer can never pay twice, and can never end up
- * paid-but-locked for longer than one retry.
+ * Ordering: debit, then the history mirror, then the job column, LAST.
+ * The job column is what makes a retry possible: while it is set, a retry
+ * runs the whole sequence again (the debit is swallowed by the unlock's
+ * unique index), so a clear that dies is finished by the next attempt. Were
+ * the job column cleared first, a failed history clear would be
+ * unreachable: the retry would answer "nothing locked" over a saved lookup
+ * still serving locked rows the customer has paid for.
  */
 export async function POST(
   request: NextRequest,
@@ -72,13 +75,14 @@ export async function POST(
       );
     }
 
+    // The saved-lookup mirror first; the job column last, because it is
+    // the retry ticket (see the route docblock).
+    await clearLookupGate(job.id);
+
     await db
       .update(lookupJobs)
       .set({ matchesDelivered: null })
       .where(eq(lookupJobs.id, job.id));
-
-    // The saved-lookup mirror of the same gate.
-    await clearLookupGate(job.id);
 
     trackEvent('match_gate_unlocked', {
       userId: session.user.id,
