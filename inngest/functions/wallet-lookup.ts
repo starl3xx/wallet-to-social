@@ -7,6 +7,8 @@ import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
+import { chargeForJob } from '@/lib/credits';
+import type { UserTier } from '@/lib/access';
 import {
   upsertSocialGraph,
   getSocialGraphData,
@@ -29,6 +31,10 @@ interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
+  // Billing identity, mirrored from lib/job-processor.ts JobOptions: the
+  // options JSONB always carried these, this pipeline just never read them.
+  meteredUserId?: string;
+  tier?: UserTier;
 }
 
 // Define the event type
@@ -432,13 +438,55 @@ export const walletLookup = inngest.createFunction(
 
       const allResults = Array.from(resultsMap.values());
 
+      // Count final stats before anything durable is written: the charge
+      // needs the meter, and the history row carries the gate.
+      let twitterFound = 0;
+      let farcasterFound = 0;
+      let anySocialFound = 0;
+      for (const result of allResults) {
+        if (result.twitter_handle) twitterFound++;
+        if (result.farcaster) farcasterFound++;
+        if (result.twitter_handle || result.farcaster) anySocialFound++;
+      }
+
+      /**
+       * Charge and gate, mirrored from lib/job-processor.ts and in the same
+       * order: charge first, so the gate rides the history insert and the
+       * completion update rather than trailing them. This pipeline
+       * previously billed nothing at all (no chargeForJob, no
+       * anySocialFound); both pipelines must bill, for the reason the
+       * history_saved comment below records: this one is registered and
+       * therefore live.
+       */
+      let matchesDelivered: number | null = null;
+      let gateIsFresh = false;
+      if (options.meteredUserId) {
+        try {
+          const charge = await chargeForJob(
+            options.meteredUserId,
+            jobId,
+            anySocialFound,
+            allWallets.length,
+            options.tier ?? 'free'
+          );
+          if (charge.paidFrom === 'free' && charge.billed < anySocialFound) {
+            matchesDelivered = charge.billed;
+            gateIsFresh = !charge.duplicate;
+          }
+        } catch (error) {
+          console.error('Credit charge failed (job still succeeded):', error);
+        }
+      }
+
       // Save to history if requested
       if (options.saveToHistory) {
         try {
           const lookupId = await saveLookup(
             allResults,
             options.historyName,
-            options.userId
+            options.userId,
+            undefined,
+            matchesDelivered !== null ? { jobId, matchesDelivered } : undefined
           );
 
           // Both pipelines emit this, for the reason CHANGELOG records twice:
@@ -472,15 +520,7 @@ export const walletLookup = inngest.createFunction(
         console.error('Social graph persist error:', error);
       }
 
-      // Count final stats
-      let twitterFound = 0;
-      let farcasterFound = 0;
-      for (const result of allResults) {
-        if (result.twitter_handle) twitterFound++;
-        if (result.farcaster) farcasterFound++;
-      }
-
-      // Mark job as complete
+      // Mark job as complete, the gate atomic with completion.
       await db
         .update(lookupJobs)
         .set({
@@ -489,11 +529,27 @@ export const walletLookup = inngest.createFunction(
           partialResults: allResults,
           twitterFound,
           farcasterFound,
+          anySocialFound,
           cacheHits: cachedCount,
           completedAt: new Date(),
           updatedAt: new Date(),
+          matchesDelivered,
         })
         .where(eq(lookupJobs.id, jobId));
+
+      if (matchesDelivered !== null && gateIsFresh) {
+        trackEvent('limit_hit', {
+          userId: options.userId,
+          sessionId: job.sessionId ?? undefined,
+          metadata: {
+            reason: 'match_gate',
+            jobId,
+            matchesFound: anySocialFound,
+            matchesDelivered,
+            matchesLocked: anySocialFound - matchesDelivered,
+          },
+        });
+      }
     });
 
     return {

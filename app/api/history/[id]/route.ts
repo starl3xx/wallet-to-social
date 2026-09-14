@@ -7,12 +7,14 @@ import {
   markLookupViewed,
   getLookupLastViewedAt,
   deleteLookup,
+  clearLookupGateById,
 } from '@/lib/history';
 import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
 import { scrubSuppressed } from '@/lib/suppression';
+import { gateResults } from '@/lib/match-gate';
 import type { WalletSocialResult } from '@/lib/types';
 
 /**
@@ -144,16 +146,31 @@ export async function GET(
     const scrub = await scrubSuppressed([
       lookup.results as WalletSocialResult[],
     ]);
-    const servedResults = scrub.rowSets[0];
+    let servedResults = scrub.rowSets[0];
     if (scrub.suppressedWallets.size > 0) {
       enrichedWallets = enrichedWallets.filter(
         (w) => !scrub.suppressedWallets.has(w.toLowerCase())
       );
     }
 
+    /**
+     * The match gate, mirrored from the job that saved this lookup. History
+     * stores the full payload, so without this the save-to-history checkbox
+     * would serve everything the job's own results route locks. Cleared by
+     * the unlock endpoint through the row's job_id.
+     */
+    let lockedMatches = 0;
+    if (lookup.matchesDelivered !== null) {
+      const gate = gateResults(servedResults, lookup.matchesDelivered);
+      servedResults = gate.results;
+      lockedMatches = gate.locked;
+    }
+
     return NextResponse.json({
       results: servedResults,
       enrichedWallets, // wallets that were updated since last view
+      // The job behind the gate rides along so the client can key an unlock.
+      ...(lockedMatches > 0 ? { lockedMatches, jobId: lookup.jobId } : {}),
     });
   } catch (error) {
     console.error('History fetch error:', error);
@@ -229,6 +246,48 @@ export async function PATCH(
         },
         { status: 403 }
       );
+    }
+
+    /**
+     * A gated lookup refuses the merge outright.
+     *
+     * The client can only ever hold the gated view (locked rows with the
+     * billable identities stripped), so accepting its PATCH would overwrite
+     * the stored full payload with the stripped one: the locked X and
+     * Farcaster identities would be gone from history for good, and an
+     * unlock could null the gate but never restore them. Refusing also
+     * keeps newly paid matches out of an old gate's counting. The way
+     * forward is the one the message names: unlock first, then grow it.
+     */
+    if (validation.lookup!.matchesDelivered !== null) {
+      /**
+       * Refuse only while something is actually locked. Suppression can
+       * empty a gate: removals eat the matched rows until the billed quota
+       * covers everything that remains, at which point the GET shows no
+       * locked rows and no unlock control, and a refusal here would leave
+       * the merge blocked with nothing visible to clear. The stored gate is
+       * recomputed the same way the GET computes it, and an emptied gate is
+       * cleared rather than stepped over, so the next add does not re-lock
+       * newly paid matches against a dead number.
+       */
+      const storedScrub = await scrubSuppressed([
+        validation.lookup!.results as WalletSocialResult[],
+      ]);
+      const storedGate = gateResults(
+        storedScrub.rowSets[0],
+        validation.lookup!.matchesDelivered
+      );
+      if (storedGate.locked > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'This lookup has locked matches. Unlock it from the results view before adding addresses.',
+            upgradeRequired: true,
+          },
+          { status: 409 }
+        );
+      }
+      await clearLookupGateById(id);
     }
 
     /**

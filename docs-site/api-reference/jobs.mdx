@@ -135,11 +135,29 @@ ship.
 
 <ResponseField name="meta" type="object">
   `found` and `not_found` count this page; `requested` and `matched` are
-  whole-job totals, with the batch arithmetic: `matched` is the number the job
-  billed at completion, never more than the sum of `found` across pages, because
-  ENS, Lens and GitHub identities are free. `offset`, `limit` and `next_offset`
-  place the page.
+  whole-job totals, with the batch arithmetic: `matched` is the number of
+  wallets the job resolved to an X handle or a Farcaster account, never more
+  than the sum of `found` across pages, because ENS, Lens and GitHub identities
+  are free. On an ungated job it is also what the job billed. `offset`, `limit`
+  and `next_offset` place the page.
 </ResponseField>
+
+### Locked matches on the free allowance
+
+A job on the free allowance can find more matches than the allowance has left,
+because submission is bounded in addresses. The job still completes, and you
+are billed only for what the allowance covered. Those matches serve in full;
+every match past them serves as a **locked entry**: `{ wallet, locked: true }`
+plus anything never billed (`ens_name`, `lens`, `github`, `sources`), with the
+X and Farcaster identities withheld. A locked entry counts in `found`; it is
+not `null`, because `null` is a checked negative and a locked match is the
+opposite claim.
+
+A gated job carries two extra `meta` fields: `matches_delivered` (what was
+billed and is open) and `matches_locked` (what is withheld). Unlocking is done
+from the app’s results view with pack credits; once unlocked, the same poll
+serves every entry in full and the two fields disappear. Jobs run on pack
+credits are never gated.
 
 Two things about completed results are worth knowing:
 
@@ -161,7 +179,7 @@ A job interrupted mid-run is resumed by the worker and is never billed twice: th
 
 ## Cost
 
-Match credits are charged once, at completion, on the addresses that **resolved to an X handle or a Farcaster account** after deduplication. `meta.matched` is exactly that count. An address that carries only an ENS name, a Lens profile or a GitHub account is returned, counted in `found`, and not billed. A failed job is charged nothing.
+Match credits are charged once, at completion, on the addresses that **resolved to an X handle or a Farcaster account** after deduplication. `meta.matched` is exactly that count on a pack, and on the free allowance the charge is capped at what the allowance has left (see locked matches above). An address that carries only an ENS name, a Lens profile or a GitHub account is returned, counted in `found`, and not billed. A failed job is charged nothing.
 
 Because a job resolves live, an address the index had never seen can come back as a match and be billed, which is the point: you are paying for resolution, not for a read of what was already known.
 

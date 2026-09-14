@@ -105,6 +105,21 @@ The ten-times rule is a guard against submitting a million junk addresses to
 burn our upstream credits for free, not a quota. At a typical match rate a real
 list needs about four times, so it will not affect you.
 
+### When a lookup finds more than the allowance covers
+
+Because addresses are bounded at ten times your remaining matches, a
+high-hit-rate list on the free allowance can find more matches than the
+allowance has left. The lookup still runs in full. The matches your allowance
+covered are open in the result; the rest appear as **locked rows**: the wallet
+stays, along with anything never billed (an ENS name, a Lens or GitHub
+account), and the X handle or Farcaster account is withheld. You are charged
+only for the open matches.
+
+Locked matches stay with the lookup. Buy a pack and unlock them from the
+results view: the unlock draws one credit per locked match and opens the same
+rows, in the live result and in the saved copy alike. The rolling allowance
+does not open them by itself; the way through the gate is a pack.
+
 ## Choosing how hard to look
 
 Before starting, pick **Fast** or **Deep scan**. Deep is the default and finds the most; fast answers from [the walletlink index](/#the-index) alone and returns in seconds. The estimate on screen follows the choice.
@@ -143,7 +158,7 @@ On the free allowance a saved lookup is a fixed record: you can open it, rename 
 
 Priority score ranks by holdings weighted by Farcaster reach, so the top of a priority-ranked list is the part worth contacting first. It comes with any pack, along with the follower counts it draws on: on the free allowance both columns are blank, in the table and in the export alike.
 
-The CSV export itself is not gated. A free lookup downloads every row it produced, with your original columns and every identity we resolved. What a pack adds to the file is those two ranking columns; what it adds beside the file is the handle list export.
+The CSV export itself is not gated. A free lookup downloads every row it produced, with your original columns and every open identity. A locked row exports like any other, minus the identities it is holding; unlock the lookup and the next export carries them. What a pack adds to the file is those two ranking columns; what it adds beside the file is the handle list export.
 
 ## Reaching people directly
 

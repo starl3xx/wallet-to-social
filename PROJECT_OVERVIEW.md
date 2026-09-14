@@ -347,16 +347,17 @@ Main page orchestrating:
 
 ### User-Facing
 
-| Endpoint                    | Method     | Purpose                               |
-| --------------------------- | ---------- | ------------------------------------- |
-| `/api/jobs`                 | POST       | Create new lookup job                 |
-| `/api/starter-collections`  | GET        | Collections offered as a first action |
-| `/api/jobs/[id]`            | GET        | Get job status/results                |
-| `/api/history`              | GET/POST   | List/save lookup history              |
-| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup            |
-| `/api/checkout`             | POST       | Create Stripe checkout                |
-| `/api/auth/send-magic-link` | POST       | Send login email                      |
-| `/api/auth/verify`          | GET        | Verify magic link token               |
+| Endpoint                    | Method     | Purpose                                             |
+| --------------------------- | ---------- | --------------------------------------------------- |
+| `/api/jobs`                 | POST       | Create new lookup job                               |
+| `/api/starter-collections`  | GET        | Collections offered as a first action               |
+| `/api/jobs/[id]`            | GET        | Get job status/results                              |
+| `/api/jobs/[id]/unlock`     | POST       | Open a gated job's locked matches with pack credits |
+| `/api/history`              | GET/POST   | List/save lookup history                            |
+| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup                          |
+| `/api/checkout`             | POST       | Create Stripe checkout                              |
+| `/api/auth/send-magic-link` | POST       | Send login email                                    |
+| `/api/auth/verify`          | GET        | Verify magic link token                             |
 
 ### Public API (for external developers)
 
@@ -908,6 +909,14 @@ not the price alone.
 signed-in accounts: 100 matches per rolling 30 days, measured over `credit_ledger`.
 Anonymous lookups keep the per-lookup cap and the IP rate limit, because there is no
 account to meter. See the reasoning in `lib/packs.ts` under `FREE_MATCHES_PER_WINDOW`.
+
+**The match gate (2026-09-14).** The allowance bills what it delivers: a job that
+finds more matches than the window has left is billed for the remainder only, and
+the serve routes (`lib/match-gate.ts`) lock the rest (wallet and never-billed
+identities kept, X and Farcaster withheld) until `POST /api/jobs/[id]/unlock`
+pays for them from a pack. The gate lives on `lookup_jobs.matches_delivered`,
+mirrored to `lookup_history`; the unlock is a second, once-per-job ledger row
+(`paid_from = 'unlock'`, partial unique indexes on `credit_ledger`).
 
 ---
 

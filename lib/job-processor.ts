@@ -967,6 +967,49 @@ async function finalizeJobWithResults(
     ).length;
   }
 
+  /**
+   * Charge before anything durable is written, so the gate is decided by
+   * the time the history row and the completion row are built: both carry
+   * `matches_delivered` in their own insert/update, and there is no window
+   * where a job is completed-but-ungated or saved-but-unmirrored (the shape
+   * Bugbot caught: a debit that landed, a gate write that failed, and every
+   * match served on a job the worker will never revisit).
+   *
+   * A resumed job that reaches this twice recovers the first pass's
+   * decision: the ledger insert is unique per job, and the duplicate path
+   * reads the row back, so the gate is rebuilt identically on retry. The
+   * inverse crash (charged, then the completion write dies for good) leaves
+   * a billed job the worker retries until it completes; the debit is never
+   * doubled.
+   *
+   * `anySocialFound` is the meter: wallets carrying an X handle or a
+   * Farcaster account. Misses are free, which is the whole pricing
+   * position. Called for every job by a signed-in account, including
+   * zero-match ones: legacy accounts are never charged but their
+   * submitted-wallet counts feed the daily anti-enumeration ceiling. A
+   * charge that throws is never fatal; the cost is one uncharged, ungated
+   * job, strictly better than a completed job that reports as failed.
+   */
+  let matchesDelivered: number | null = null;
+  let gateIsFresh = false;
+  if (options.meteredUserId) {
+    try {
+      const charge = await chargeForJob(
+        options.meteredUserId,
+        job.id,
+        anySocialFound,
+        job.wallets.length,
+        options.tier ?? 'free'
+      );
+      if (charge.paidFrom === 'free' && charge.billed < anySocialFound) {
+        matchesDelivered = charge.billed;
+        gateIsFresh = !charge.duplicate;
+      }
+    } catch (error) {
+      console.error('Credit charge failed (job still succeeded):', error);
+    }
+  }
+
   // Save to history if requested
   if (options.saveToHistory) {
     try {
@@ -974,7 +1017,10 @@ async function finalizeJobWithResults(
         results,
         options.historyName,
         options.userId || job.userId || undefined,
-        options.inputSource
+        options.inputSource,
+        matchesDelivered !== null
+          ? { jobId: job.id, matchesDelivered }
+          : undefined
       );
 
       /**
@@ -1087,47 +1133,24 @@ async function finalizeJobWithResults(
       socialGraphWriteStatus,
       socialGraphWriteErrors:
         socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
+      // The match gate, atomic with completion: a job is never readable as
+      // completed-but-ungated when the allowance covered only part of it.
+      matchesDelivered,
     })
     .where(eq(lookupJobs.id, job.id));
 
-  /**
-   * Charge for the matches, after the job is marked complete.
-   *
-   * Deliberately after. A job that fails partway is not charged, and the debit
-   * is keyed on the job id, so a resumed job that reaches here twice inserts
-   * once and the second attempt is swallowed by the unique index.
-   *
-   * `anySocialFound` is the meter: wallets carrying an X handle or a Farcaster
-   * account. Misses are free, which is the whole pricing position, so this must
-   * not be `processedCount` however tempting the symmetry.
-   *
-   * Never fatal. A ledger write that fails must not fail a lookup the caller
-   * has already waited for; the work is done and the results are theirs. The
-   * cost of a missed debit is one uncharged job, which is strictly better than
-   * a completed job that reports as failed.
-   */
-  /**
-   * Called for every job by a signed-in account, including zero-match ones.
-   *
-   * The earlier `anySocialFound > 0` guard skipped the cheap case, and that was
-   * wrong once legacy accounts started recording usage: they are never charged
-   * but their submitted-wallet counts feed the daily anti-enumeration ceiling,
-   * and a run that matched nothing is exactly the shape enumeration takes.
-   * `chargeForJob` returns early for the metered zero-match case, so the only
-   * cost here is one function call.
-   */
-  if (options.meteredUserId) {
-    try {
-      await chargeForJob(
-        options.meteredUserId,
-        job.id,
-        anySocialFound,
-        job.wallets.length,
-        options.tier ?? 'free'
-      );
-    } catch (error) {
-      console.error('Credit charge failed (job still succeeded):', error);
-    }
+  if (matchesDelivered !== null && gateIsFresh) {
+    trackEvent('limit_hit', {
+      userId: options.userId || job.userId || undefined,
+      sessionId: job.sessionId ?? undefined,
+      metadata: {
+        reason: 'match_gate',
+        jobId: job.id,
+        matchesFound: anySocialFound,
+        matchesDelivered,
+        matchesLocked: anySocialFound - matchesDelivered,
+      },
+    });
   }
 
   // Track lookup completed event
@@ -1211,6 +1234,8 @@ export interface JobStatusRow {
   startedAt: Date | null;
   completedAt: Date | null;
   anySocialFound: number;
+  /** The match gate; see `lookup_jobs.matches_delivered`. Null = ungated. */
+  matchesDelivered: number | null;
   walletCount: number;
 }
 
@@ -1231,6 +1256,7 @@ export async function getJobStatus(
       startedAt: lookupJobs.startedAt,
       completedAt: lookupJobs.completedAt,
       anySocialFound: lookupJobs.anySocialFound,
+      matchesDelivered: lookupJobs.matchesDelivered,
       walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
     })
     .from(lookupJobs)
@@ -1288,6 +1314,46 @@ export async function getJobResultsPage(
     | undefined;
   if (!first) return null;
   return { wallets: first.wallets ?? [], rows: first.rows ?? [] };
+}
+
+/**
+ * How many billable matches sit before a page boundary, for the match gate.
+ *
+ * The v1 route serves one page at a time, and whether a page's match is open
+ * depends on how many matches precede it in the whole job. Counted in
+ * Postgres for the same reason the page itself is: a gated job is bounded by
+ * the free submission cap, but there is no reason to ship the whole payload
+ * to count a prefix. The predicate is the billing predicate: an X handle or
+ * a Farcaster account.
+ */
+export async function countMatchedBefore(
+  jobId: string,
+  offset: number
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  if (offset <= 0) return 0;
+
+  const rows = await db.execute(sql`
+    SELECT count(*)::int AS n
+    FROM lookup_jobs j,
+         jsonb_array_elements(j.partial_results) AS elem
+    WHERE j.id = ${jobId}::uuid
+      AND lower(elem->>'wallet') IN (
+        SELECT lower(w.value)
+        FROM lookup_jobs j2,
+             jsonb_array_elements_text(j2.wallets) WITH ORDINALITY AS w
+        WHERE j2.id = ${jobId}::uuid
+          AND w.ordinality <= ${offset}::int)
+      AND (coalesce(elem->>'twitter_handle', '') <> ''
+        OR coalesce(elem->>'farcaster', '') <> '')
+  `);
+
+  const raw = rows as unknown as { rows?: unknown[] } | unknown[];
+  const first = (Array.isArray(raw) ? raw[0] : raw.rows?.[0]) as
+    | { n: number }
+    | undefined;
+  return first?.n ?? 0;
 }
 
 export async function getJob(jobId: string): Promise<LookupJob | null> {

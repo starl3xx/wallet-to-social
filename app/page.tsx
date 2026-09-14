@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useCredits } from '@/lib/use-credits';
 import dynamic from 'next/dynamic';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -129,6 +129,18 @@ export default function Home() {
     return localStorage.getItem('notifyOnComplete') === 'true';
   });
   const [jobId, setJobIdState] = useState<string | null>(null);
+
+  /**
+   * The match gate, client side. Locked rows arrive marked by the server
+   * (`locked: true`, billable identities already stripped), so the count is
+   * derived rather than plumbed through every path that can set results:
+   * live polls, resumes, merges and history loads all agree by construction.
+   * `unlockJobId` is the job the unlock endpoint needs; it survives the
+   * post-completion `setJobId(null)` and rides along on a history load.
+   */
+  const [unlockJobId, setUnlockJobId] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   // Live index size for the header stat strip.
   // The constant is the fallback when the live stats fetch fails. It is the
@@ -355,6 +367,7 @@ export default function Home() {
           if (data.status === 'completed') {
             // Job finished while away - show results
             setResults(data.results || []);
+            setUnlockJobId(savedJobId);
             setCacheHits(data.stats?.cacheHits || 0);
             // Note: We don't have the lookup ID here, but the name would need to be stored
             // For now, load from history to get full edit/add functionality
@@ -427,6 +440,66 @@ export default function Home() {
     },
     [upgradeModal, wallets.length]
   );
+
+  /**
+   * The match gate's client half: rows the server marked locked, and the
+   * matches it left open. `lockedMatches` drives the banner; `openMatches`
+   * is the "covered" number beside it. Derived from the rows so every path
+   * that sets results (poll, resume, merge, history) agrees for free.
+   */
+  const lockedMatches = useMemo(
+    () => results.reduce((n, r) => n + (r.locked ? 1 : 0), 0),
+    [results]
+  );
+  const openMatches = useMemo(
+    () =>
+      results.reduce(
+        (n, r) => n + (r.twitter_handle || r.farcaster ? 1 : 0),
+        0
+      ),
+    [results]
+  );
+  const canUnlockNow =
+    entitled &&
+    (credits.available === null || credits.available >= lockedMatches);
+
+  const handleUnlock = useCallback(async () => {
+    if (!unlockJobId) return;
+    setUnlocking(true);
+    setUnlockError(null);
+    try {
+      const res = await fetch(`/api/jobs/${unlockJobId}/unlock`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.upgradeRequired) {
+          handleOpenUpgradeModal('match_gate');
+        }
+        setUnlockError(
+          typeof data.error === 'string'
+            ? data.error
+            : 'Unlock failed. Retry shortly.'
+        );
+        return;
+      }
+      // Reload from whichever surface is on screen; both serve the full
+      // payload once the gate is cleared.
+      const refreshed = currentLookupId
+        ? await fetch(`/api/history/${currentLookupId}`)
+        : await fetch(
+            `/api/jobs/${unlockJobId}?userId=${encodeURIComponent(getUserId())}`
+          );
+      if (refreshed.ok) {
+        const payload = await refreshed.json();
+        setResults(payload.results || []);
+      }
+    } catch {
+      setUnlockError('Unlock failed. Retry shortly.');
+    } finally {
+      setUnlocking(false);
+    }
+  }, [unlockJobId, currentLookupId, handleOpenUpgradeModal]);
 
   const handlePasteToggle = useCallback(() => setShowPasteInput((v) => !v), []);
 
@@ -1018,6 +1091,7 @@ export default function Home() {
             pollingRef.current = null;
           }
 
+          setUnlockJobId(jobId);
           setJobId(null); // Clear localStorage
 
           // Check if we need to merge with an existing lookup
@@ -1306,10 +1380,14 @@ export default function Home() {
       loadedResults: WalletSocialResult[],
       lookupId?: string,
       lookupName?: string | null,
-      enrichedWalletsArray?: string[]
+      enrichedWalletsArray?: string[],
+      gatedJobId?: string | null
     ) => {
       // Show results immediately
       setResults(loadedResults);
+      // A gated saved lookup carries the job its unlock is keyed on.
+      setUnlockJobId(gatedJobId ?? null);
+      setUnlockError(null);
       setExtraColumns([]);
       setCacheHits(0);
       setCurrentLookupId(lookupId || null);
@@ -2375,6 +2453,39 @@ export default function Home() {
               </div>
             )}
 
+            {lockedMatches > 0 && (
+              <div className="flex flex-col gap-3 rounded-lg border border-caution bg-caution-tint p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle
+                    className="mt-0.5 h-4 w-4 flex-none text-caution"
+                    aria-hidden
+                  />
+                  <p className="text-sm text-caution">
+                    This lookup found {openMatches + lockedMatches} matches.
+                    Your free allowance covered {openMatches};{' '}
+                    {lockedMatches.toLocaleString()} more{' '}
+                    {lockedMatches === 1 ? 'is' : 'are'} locked.
+                    {unlockError ? ` ${unlockError}` : ''}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="flex-none"
+                  disabled={unlocking || !unlockJobId}
+                  onClick={
+                    canUnlockNow
+                      ? handleUnlock
+                      : () => handleOpenUpgradeModal('match_gate')
+                  }
+                >
+                  {unlocking
+                    ? 'Unlocking…'
+                    : canUnlockNow
+                      ? `Unlock ${lockedMatches.toLocaleString()} matches`
+                      : 'Buy a pack to unlock'}
+                </Button>
+              </div>
+            )}
             <StatsCards results={results} />
             <ResultsTable
               results={results}

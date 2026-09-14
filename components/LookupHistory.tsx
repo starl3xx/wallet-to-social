@@ -28,7 +28,9 @@ interface LookupHistoryProps {
     results: WalletSocialResult[],
     lookupId?: string,
     lookupName?: string | null,
-    enrichedWallets?: string[]
+    enrichedWallets?: string[],
+    /** Set when the saved lookup is match-gated: the job its unlock is keyed on. */
+    gatedJobId?: string | null
   ) => void;
   /**
    * Whether paid features are unlocked: a live pack or a legacy tier, from
@@ -138,8 +140,8 @@ export const LookupHistory = memo(function LookupHistory({
       try {
         const res = await fetch(`/api/history/${id}`);
         if (!res.ok) throw new Error('Failed to load');
-        const { results, enrichedWallets } = await res.json();
-        onLoadLookup(results, id, name, enrichedWallets || []);
+        const { results, enrichedWallets, jobId } = await res.json();
+        onLoadLookup(results, id, name, enrichedWallets || [], jobId ?? null);
         // Clear the enrichment count for this lookup since user just viewed it
         setEnrichmentCounts((prev) => ({ ...prev, [id]: 0 }));
       } catch (err) {

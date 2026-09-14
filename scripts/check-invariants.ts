@@ -3261,7 +3261,10 @@ async function main() {
     );
     ok(
       'the inngest pipeline emits it too',
-      /saveLookup\([\s\S]{0,400}?trackEvent\('history_saved'/.test(
+      // 600, not 400: the save call grew the match-gate argument, which sits
+      // between the call and the event. The assertion is proximity, not
+      // adjacency; deleting the event still fails it.
+      /saveLookup\([\s\S]{0,600}?trackEvent\('history_saved'/.test(
         readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
       )
     );
@@ -6559,6 +6562,111 @@ async function main() {
       'a published date is a day, not a timestamp taken from a clock',
       posts.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.publishedAt)) &&
         revised.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.updatedAt ?? ''))
+    );
+  }
+
+  /**
+   * The match gate cannot be out-earned.
+   *
+   * The claim in `lib/match-gate.ts` and `lib/credits.ts`: a job on the free
+   * allowance delivers exactly the matches it billed, so a curated list of
+   * known-good wallets is worth its billing cap and not ten times it (the
+   * 2026-09-14 shape: 1 probe wallet, then 224 with a 99% hit rate, 223
+   * matches out of a 100-match window). As the attacker: hand the gate a
+   * page of pure matches and count what comes back open.
+   */
+  {
+    const { gateResults } = await import('@/lib/match-gate');
+    const curated = Array.from({ length: 224 }, (_, i) => ({
+      wallet: `0x${String(i).padStart(40, '0')}`,
+      twitter_handle: `handle${i}`,
+      farcaster: `caster${i}`,
+      fc_fid: i,
+      priority_score: i,
+      ens_name: `name${i}.eth`,
+      source: ['graph'],
+    }));
+
+    const gate = gateResults(curated, 100);
+    ok(
+      'a gated job serves exactly the matches it billed, however many it found',
+      gate.results.filter((r) => r.twitter_handle || r.farcaster).length ===
+        100 && gate.locked === 124
+    );
+    ok(
+      'a locked row carries no billable identity, not a hidden one',
+      gate.results
+        .slice(100)
+        .every(
+          (r) =>
+            r.locked === true &&
+            !('twitter_handle' in r) &&
+            !('farcaster' in r) &&
+            !('fc_fid' in r) &&
+            !('priority_score' in r)
+        )
+    );
+    ok(
+      'a locked row keeps what was never billed',
+      gate.results.slice(100).every((r) => r.ens_name && r.wallet)
+    );
+
+    // Paging is not a reset button: a page that starts past the boundary
+    // opens nothing, whatever its own contents.
+    const page2 = gateResults(curated.slice(0, 50), 100, 100);
+    ok(
+      'a paged read past the boundary cannot re-open the gate',
+      page2.results.filter((r) => r.twitter_handle || r.farcaster).length ===
+        0 && page2.locked === 50
+    );
+
+    // And every serve surface actually stands behind the transform. Source
+    // level, comments stripped, because a gate that exists but is not called
+    // is the bcc lesson again.
+    const jobRoute = withoutComments(
+      readFileSync('app/api/jobs/[id]/route.ts', 'utf8')
+    );
+    const historyRoute = withoutComments(
+      readFileSync('app/api/history/[id]/route.ts', 'utf8')
+    );
+    const v1Route = withoutComments(
+      readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+    );
+    ok(
+      'the job results route gates on matches_delivered',
+      jobRoute.includes('gateResults(') && jobRoute.includes('matchesDelivered')
+    );
+    ok(
+      'the history route gates on the mirrored matches_delivered',
+      historyRoute.includes('gateResults(') &&
+        historyRoute.includes('matchesDelivered')
+    );
+    ok(
+      'the v1 route gates its pages against the whole-job match count',
+      v1Route.includes('countMatchedBefore(') &&
+        v1Route.includes('lockedOnPage')
+    );
+
+    // A gated lookup refuses the merge PATCH, and the refusal stands before
+    // the write: the client only ever holds the stripped view, so accepting
+    // its payload would overwrite the stored identities for good.
+    ok(
+      'the history PATCH refuses to write over a gated lookup',
+      historyRoute.includes('This lookup has locked matches') &&
+        historyRoute.indexOf('This lookup has locked matches') <
+          historyRoute.indexOf('updateLookup(')
+    );
+
+    // The unlock clears the history mirror before the job column: the job
+    // column is the retry ticket, so a clear that dies must stay reachable.
+    const unlockRoute = withoutComments(
+      readFileSync('app/api/jobs/[id]/unlock/route.ts', 'utf8')
+    );
+    ok(
+      'the unlock clears the mirror while the retry ticket still stands',
+      unlockRoute.indexOf('clearLookupGate(') > 0 &&
+        unlockRoute.indexOf('clearLookupGate(') <
+          unlockRoute.indexOf('matchesDelivered: null')
     );
   }
 
