@@ -8,6 +8,7 @@ import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup } from '@/lib/history';
 import { chargeForJob } from '@/lib/credits';
+import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import type { UserTier } from '@/lib/access';
 import {
   upsertSocialGraph,
@@ -476,6 +477,11 @@ export const walletLookup = inngest.createFunction(
         } catch (error) {
           console.error('Credit charge failed (job still succeeded):', error);
         }
+      } else if (job.userId && anySocialFound > ANON_MATCHES_PER_JOB) {
+        // The anonymous per-job gate, mirrored from lib/job-processor.ts;
+        // job.userId excludes system jobs, which serve no rows to anyone.
+        matchesDelivered = ANON_MATCHES_PER_JOB;
+        gateIsFresh = true;
       }
 
       // Save to history if requested

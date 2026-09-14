@@ -6668,6 +6668,37 @@ async function main() {
         unlockRoute.indexOf('clearLookupGate(') <
           unlockRoute.indexOf('matchesDelivered: null')
     );
+
+    /**
+     * And staying anonymous is never the better deal. The anonymous gate is
+     * per job with no meter behind it, so if it ever rises to the signed-in
+     * window, the account gate selects for anonymity: the attacker's move
+     * becomes logging out. Asserted against the imported constants, so a
+     * future repricing of either side re-litigates this on its own.
+     */
+    const { ANON_MATCHES_PER_JOB } = await import('@/lib/match-gate');
+    const { FREE_MATCHES_PER_WINDOW } = await import('@/lib/packs');
+    ok(
+      'an anonymous job opens fewer matches than a free account can earn',
+      ANON_MATCHES_PER_JOB < FREE_MATCHES_PER_WINDOW
+    );
+
+    // Both pipelines apply it; the inngest finalize has shipped without a
+    // billing block once already.
+    const processorSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    const inngestSrc = withoutComments(
+      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
+    );
+    ok(
+      'the worker gates anonymous jobs',
+      processorSrc.includes('ANON_MATCHES_PER_JOB')
+    );
+    ok(
+      'the inngest pipeline gates anonymous jobs too',
+      inngestSrc.includes('ANON_MATCHES_PER_JOB')
+    );
   }
 
   if (!failures.length) {

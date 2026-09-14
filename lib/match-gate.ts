@@ -24,6 +24,18 @@ import type { WalletSocialResult } from '@/lib/types';
  * existing suppression trade-off, not a new one.
  */
 
+/**
+ * Matches an anonymous job serves open, per job.
+ *
+ * There is no account to meter across jobs, so per-job is the honest unit.
+ * The number must stay below `FREE_MATCHES_PER_WINDOW` (an invariant
+ * asserts it), or not signing in becomes the better deal and the account
+ * gate upstream of this one selects for anonymity: 3 IP-limited jobs an
+ * hour at 500 wallets each was worth up to 1,500 ungated matches, against
+ * the 100 per 30 days an account gets.
+ */
+export const ANON_MATCHES_PER_JOB = 50;
+
 const LOCKED_FIELDS = [
   'twitter_handle',
   'twitter_url',
