@@ -11,6 +11,14 @@ export interface SavedLookup {
   farcasterFound: number;
   results: WalletSocialResult[];
   createdAt: Date;
+  /**
+   * The match gate mirrored from the job that saved this lookup. Null means
+   * ungated; a number means the serve route locks every matched row past it,
+   * exactly as the job's own results route does.
+   */
+  matchesDelivered: number | null;
+  /** The job behind a gated lookup, which the unlock endpoint is keyed on. */
+  jobId: string | null;
 }
 
 export type InputSource =
@@ -81,6 +89,8 @@ export async function getLookupHistory(
     farcasterFound: row.farcasterFound,
     results: row.results as WalletSocialResult[],
     createdAt: row.createdAt,
+    matchesDelivered: row.matchesDelivered,
+    jobId: row.jobId,
   }));
 }
 
@@ -158,7 +168,45 @@ export async function getLookupById(id: string): Promise<SavedLookup | null> {
     farcasterFound: row.farcasterFound,
     results: row.results as WalletSocialResult[],
     createdAt: row.createdAt,
+    matchesDelivered: row.matchesDelivered,
+    jobId: row.jobId,
   };
+}
+
+/**
+ * Mirror a job's match gate onto its saved lookup.
+ *
+ * Called by the worker right after `chargeForJob` decides the gate. The
+ * history row was written moments earlier with the full payload, so without
+ * this mirror, "save to history" would serve everything the job route locks.
+ */
+export async function markLookupGated(
+  lookupId: string,
+  jobId: string,
+  matchesDelivered: number
+): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+
+  await db
+    .update(lookupHistory)
+    .set({ jobId, matchesDelivered })
+    .where(eq(lookupHistory.id, lookupId));
+}
+
+/**
+ * Clear the gate mirror after an unlock. Keyed on the job, not the lookup,
+ * because the unlock endpoint holds the job and the history row is findable
+ * only through it.
+ */
+export async function clearLookupGate(jobId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+
+  await db
+    .update(lookupHistory)
+    .set({ matchesDelivered: null })
+    .where(eq(lookupHistory.jobId, jobId));
 }
 
 export async function updateLookup(

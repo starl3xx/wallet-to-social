@@ -2,6 +2,41 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-14 (the match gate: the free allowance delivers what it bills)
+
+A 224-wallet list on the free allowance was worth 223 matches, because
+submission is bounded in wallets (ten times the remaining balance, since a
+match rate is unknowable in advance) while the meter floored at zero after
+the fact. A curated list of known-good addresses turned that headroom into
+up to ten times the allowance, delivered in full. Found within hours of it
+being exploited: a one-wallet probe, then the full list at a 99% hit rate.
+
+- **`chargeForJob` now bills `min(found, remaining)` on the free allowance**
+  and reports what happened (`billed`, `duplicate`, `paidFrom`); lots and
+  legacy are unchanged. The worker records the gate on
+  `lookup_jobs.matches_delivered` (null = ungated) and mirrors it onto the
+  saved lookup (`lookup_history.job_id` + `matches_delivered`), because
+  history stores the full payload and would otherwise be a free bypass.
+- **Every serve surface applies the gate** (`lib/match-gate.ts`): the job
+  poll, the saved-lookup read, and the paged `/v1/jobs/{id}` (which counts
+  matches before the page boundary in Postgres so paging cannot re-open the
+  gate). A locked row keeps the wallet and the never-billed identities (ENS,
+  Lens, GitHub) and withholds X and Farcaster; on v1 it serves as
+  `locked: true`, never `null`, and gated jobs carry
+  `meta.matches_delivered` / `meta.matches_locked`.
+- **Unlock**: `POST /api/jobs/[id]/unlock` opens the remainder with pack
+  credits (lots only, never the rolling window), idempotent per job via a
+  second partial unique index on `credit_ledger` (`paid_from = 'unlock'`;
+  the per-job debit index is now partial the other way). The results view
+  shows a banner with the locked count and an unlock button, or the pack
+  upsell when credits are short; locked rows carry a chip in the table.
+- **The Inngest pipeline now bills at all.** Its finalize never called
+  `chargeForJob` and never wrote `anySocialFound`, so any job it processed
+  completed unbilled; it now mirrors the worker's charge-and-gate block.
+- Migration: `scripts/migrate-match-gate.ts` (columns + the ledger index
+  split, transactional). Invariants: the gate cannot be out-earned, paging
+  cannot re-open it, and all three serve routes stand behind the transform.
+
 ### 2026-09-09 (the daily social pipeline: one post per platform per day)
 
 The X and Farcaster pipeline, reworked around three rules: standalone posts

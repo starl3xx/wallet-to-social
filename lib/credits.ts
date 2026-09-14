@@ -344,8 +344,13 @@ export async function canSubmit(
  * insert is attempted first for exactly that reason, and a duplicate is
  * swallowed rather than retried.
  *
- * Returns the matches actually debited, which is zero for an unmetered legacy
- * account and zero for a job already charged.
+ * Returns what happened rather than a bare number, because the caller gates
+ * delivery on it: `billed` is the matches actually debited, `duplicate` says
+ * a resumed job reached here twice (nothing was charged and nothing about
+ * delivery may change), and `paidFrom` names the meter. On the free
+ * allowance, `billed` is capped at the remaining window: the caller shows
+ * exactly `billed` matches and locks the rest, so a 224-wallet list cannot
+ * pull 222 matches out of a 100-match allowance.
  */
 /**
  * Wallets this account has submitted since a moment.
@@ -374,13 +379,21 @@ async function walletsSubmittedSince(
   return row?.total ?? 0;
 }
 
+export interface JobCharge {
+  /** Matches actually debited, which is also the number the owner may see. */
+  billed: number;
+  /** True when this job already carries a debit; nothing changed. */
+  duplicate: boolean;
+  paidFrom: 'free' | 'lots' | 'legacy' | null;
+}
+
 export async function chargeForJob(
   userId: string,
   jobId: string,
   matches: number,
   walletsSubmitted: number,
   tier: UserTier
-): Promise<number> {
+): Promise<JobCharge> {
   /**
    * An unmetered account is recorded but never debited.
    *
@@ -391,7 +404,7 @@ export async function chargeForJob(
    */
   if (legacyTierIsUnmetered(tier)) {
     const db = getDb();
-    if (!db) return 0;
+    if (!db) return { billed: 0, duplicate: false, paidFrom: null };
     try {
       await db.insert(creditLedger).values({
         userId,
@@ -402,33 +415,52 @@ export async function chargeForJob(
       });
     } catch {
       // Already recorded for this job.
+      return { billed: 0, duplicate: true, paidFrom: 'legacy' };
     }
-    return 0;
+    return { billed: 0, duplicate: false, paidFrom: 'legacy' };
   }
 
-  if (matches <= 0) return 0;
+  if (matches <= 0) return { billed: 0, duplicate: false, paidFrom: null };
 
   const db = getDb();
-  if (!db) return 0;
+  if (!db) return { billed: 0, duplicate: false, paidFrom: null };
 
   const balance = await getBalance(userId);
   const paidFrom = balance.onFreeAllowance ? 'free' : 'lots';
+
+  /**
+   * The free allowance bills what it delivers and no more.
+   *
+   * `canSubmit` bounds wallets at ten times the remaining balance because a
+   * match rate is unknowable in advance, so a job can legitimately find more
+   * matches than the window has left. The old behavior delivered them all and
+   * floored the meter at zero, which made a curated list worth up to ten
+   * times the allowance. Now the debit is capped at what remains, the caller
+   * locks everything past it, and `billed` can be 0 when a sibling job
+   * drained the window between submit and finish; the row still lands, for
+   * idempotency and the wallets-submitted record.
+   *
+   * Lots are unchanged: a pack buyer is billed in full and shown everything,
+   * and `drawDown` floors at the lot boundary as before.
+   */
+  const billed =
+    paidFrom === 'free' ? Math.min(matches, balance.available) : matches;
 
   try {
     await db.insert(creditLedger).values({
       userId,
       jobId,
-      matches,
+      matches: billed,
       walletsSubmitted,
       paidFrom,
     });
   } catch {
     // Unique violation on job_id: this job has already been charged.
-    return 0;
+    return { billed: 0, duplicate: true, paidFrom };
   }
 
   if (paidFrom === 'lots') {
-    await drawDown(userId, matches);
+    await drawDown(userId, billed);
   }
 
   // `walletsUsed` predates the ledger and is a lifetime record of work run, not
@@ -438,7 +470,7 @@ export async function chargeForJob(
     .set({ walletsUsed: sql`${users.walletsUsed} + ${walletsSubmitted}` })
     .where(eq(users.id, userId));
 
-  return matches;
+  return { billed, duplicate: false, paidFrom };
 }
 
 /**
@@ -479,6 +511,61 @@ export async function chargeForApiCall(
   }
 
   return matches;
+}
+
+export interface UnlockVerdict {
+  ok: boolean;
+  /** Why not, for the UI. Empty when ok. */
+  reason: string;
+}
+
+/**
+ * Pay for the locked remainder of a gated job.
+ *
+ * Draws from lots only, never the free allowance: the gate exists because the
+ * allowance ran out, and a rolling window that refills cannot be allowed to
+ * slow-drip a job past the gate. The way through is a pack, which is what
+ * the lock screen sells.
+ *
+ * Idempotent per job via the partial unique index on `credit_ledger`
+ * (`paid_from = 'unlock'`): a double-clicked button inserts once, and the
+ * duplicate returns ok without a second draw-down so the caller can still
+ * clear `matches_delivered` if the first attempt died between the debit and
+ * the clear.
+ */
+export async function unlockJobMatches(
+  userId: string,
+  jobId: string,
+  matches: number
+): Promise<UnlockVerdict> {
+  if (matches <= 0) return { ok: true, reason: '' };
+
+  const db = getDb();
+  if (!db) return { ok: false, reason: 'Database not configured.' };
+
+  const balance = await getBalance(userId);
+  if (balance.onFreeAllowance || balance.available < matches) {
+    return {
+      ok: false,
+      reason: `Unlocking ${matches.toLocaleString()} matches needs a pack with at least that many left. You have ${balance.onFreeAllowance ? 0 : balance.available.toLocaleString()}.`,
+    };
+  }
+
+  try {
+    await db.insert(creditLedger).values({
+      userId,
+      jobId,
+      matches,
+      walletsSubmitted: 0,
+      paidFrom: 'unlock',
+    });
+  } catch {
+    // Unique violation: this job was already unlocked and already paid for.
+    return { ok: true, reason: '' };
+  }
+
+  await drawDown(userId, matches);
+  return { ok: true, reason: '' };
 }
 
 /**

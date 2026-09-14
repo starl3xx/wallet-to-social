@@ -6562,6 +6562,89 @@ async function main() {
     );
   }
 
+  /**
+   * The match gate cannot be out-earned.
+   *
+   * The claim in `lib/match-gate.ts` and `lib/credits.ts`: a job on the free
+   * allowance delivers exactly the matches it billed, so a curated list of
+   * known-good wallets is worth its billing cap and not ten times it (the
+   * 2026-09-14 shape: 1 probe wallet, then 224 with a 99% hit rate, 223
+   * matches out of a 100-match window). As the attacker: hand the gate a
+   * page of pure matches and count what comes back open.
+   */
+  {
+    const { gateResults } = await import('@/lib/match-gate');
+    const curated = Array.from({ length: 224 }, (_, i) => ({
+      wallet: `0x${String(i).padStart(40, '0')}`,
+      twitter_handle: `handle${i}`,
+      farcaster: `caster${i}`,
+      fc_fid: i,
+      priority_score: i,
+      ens_name: `name${i}.eth`,
+      source: ['graph'],
+    }));
+
+    const gate = gateResults(curated, 100);
+    ok(
+      'a gated job serves exactly the matches it billed, however many it found',
+      gate.results.filter((r) => r.twitter_handle || r.farcaster).length ===
+        100 && gate.locked === 124
+    );
+    ok(
+      'a locked row carries no billable identity, not a hidden one',
+      gate.results
+        .slice(100)
+        .every(
+          (r) =>
+            r.locked === true &&
+            !('twitter_handle' in r) &&
+            !('farcaster' in r) &&
+            !('fc_fid' in r) &&
+            !('priority_score' in r)
+        )
+    );
+    ok(
+      'a locked row keeps what was never billed',
+      gate.results.slice(100).every((r) => r.ens_name && r.wallet)
+    );
+
+    // Paging is not a reset button: a page that starts past the boundary
+    // opens nothing, whatever its own contents.
+    const page2 = gateResults(curated.slice(0, 50), 100, 100);
+    ok(
+      'a paged read past the boundary cannot re-open the gate',
+      page2.results.filter((r) => r.twitter_handle || r.farcaster).length ===
+        0 && page2.locked === 50
+    );
+
+    // And every serve surface actually stands behind the transform. Source
+    // level, comments stripped, because a gate that exists but is not called
+    // is the bcc lesson again.
+    const jobRoute = withoutComments(
+      readFileSync('app/api/jobs/[id]/route.ts', 'utf8')
+    );
+    const historyRoute = withoutComments(
+      readFileSync('app/api/history/[id]/route.ts', 'utf8')
+    );
+    const v1Route = withoutComments(
+      readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+    );
+    ok(
+      'the job results route gates on matches_delivered',
+      jobRoute.includes('gateResults(') && jobRoute.includes('matchesDelivered')
+    );
+    ok(
+      'the history route gates on the mirrored matches_delivered',
+      historyRoute.includes('gateResults(') &&
+        historyRoute.includes('matchesDelivered')
+    );
+    ok(
+      'the v1 route gates its pages against the whole-job match count',
+      v1Route.includes('countMatchedBefore(') &&
+        v1Route.includes('lockedOnPage')
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

@@ -57,12 +57,25 @@ export const lookupHistory = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     lastViewedAt: timestamp('last_viewed_at'), // when user last loaded this lookup
     inputSource: text('input_source'), // 'file_upload' | 'text_input' | 'api'
+
+    /**
+     * The match gate, mirrored from `lookup_jobs.matches_delivered`.
+     *
+     * History stores the full payload, so a gated job's saved lookup must
+     * carry its own gate or "save to history" is a free bypass of the lock.
+     * `jobId` exists solely so an unlock can find and clear this mirror;
+     * history rows predating the gate carry null in both and serve in full.
+     */
+    jobId: uuid('job_id'),
+    matchesDelivered: integer('matches_delivered'),
   },
   (table) => [
     index('lookup_history_created_at_idx').on(table.createdAt),
     index('lookup_history_user_id_idx').on(table.userId),
     // Composite index for user's history sorted by date (most common query pattern)
     index('lookup_history_user_created_idx').on(table.userId, table.createdAt),
+    // The unlock's clear: find the history mirror of a gated job.
+    index('lookup_history_job_id_idx').on(table.jobId),
   ]
 );
 
@@ -206,6 +219,20 @@ export const lookupJobs = pgTable(
 
     // Admin visibility
     hidden: boolean('hidden').default(false).notNull(),
+
+    /**
+     * The match gate. Null means every match on this job is the owner's to
+     * see, which is every job before the gate existed and every job whose
+     * account could pay for all of them. A number means the free allowance
+     * ran out partway: serve the first N matched rows in full and lock the
+     * billable identities on the rest, until an unlock debit clears it back
+     * to null.
+     *
+     * The number is what `chargeForJob` actually debited, so serve and bill
+     * cannot disagree: nobody is shown a match they were not charged for,
+     * and nobody is charged for a match they were not shown.
+     */
+    matchesDelivered: integer('matches_delivered'),
   },
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),
@@ -455,8 +482,18 @@ export const creditLedger = pgTable(
     /**
      * One debit per job. The worker can resume a job after a transport failure,
      * and without this a resumed job charges twice for the same matches.
+     *
+     * Partial, excluding `unlock` rows, because unlocking a gated job is a
+     * second, legitimate debit on the same job id. The companion index below
+     * gives the unlock the same shape of protection: at most one per job, so
+     * a double-clicked unlock button cannot draw a lot down twice.
      */
-    uniqueIndex('credit_ledger_job_idx').on(table.jobId),
+    uniqueIndex('credit_ledger_job_idx')
+      .on(table.jobId)
+      .where(sql`paid_from <> 'unlock'`),
+    uniqueIndex('credit_ledger_job_unlock_idx')
+      .on(table.jobId)
+      .where(sql`paid_from = 'unlock'`),
   ]
 );
 

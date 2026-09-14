@@ -5,7 +5,7 @@ import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
-import { saveLookup, type InputSource } from '@/lib/history';
+import { saveLookup, markLookupGated, type InputSource } from '@/lib/history';
 import { stampReachability, stampAlsoOnX } from '@/lib/handle-reachability';
 import {
   upsertSocialGraphWithRetry,
@@ -968,6 +968,7 @@ async function finalizeJobWithResults(
   }
 
   // Save to history if requested
+  let historyLookupId: string | null = null;
   if (options.saveToHistory) {
     try {
       const lookupId = await saveLookup(
@@ -1000,6 +1001,7 @@ async function finalizeJobWithResults(
           walletCount: results.length,
         },
       });
+      historyLookupId = lookupId;
     } catch (error) {
       console.error('History save error:', error);
     }
@@ -1118,13 +1120,52 @@ async function finalizeJobWithResults(
    */
   if (options.meteredUserId) {
     try {
-      await chargeForJob(
+      const charge = await chargeForJob(
         options.meteredUserId,
         job.id,
         anySocialFound,
         job.wallets.length,
         options.tier ?? 'free'
       );
+
+      /**
+       * The match gate. When the free allowance covered fewer matches than
+       * the job found, record how many were paid for: the results routes
+       * serve exactly that many matched rows in full and lock the billable
+       * identities on the rest, until an unlock debit clears the column.
+       *
+       * Only a fresh `free` charge can gate. A duplicate means a resumed job
+       * whose first pass already decided delivery, and lots/legacy always
+       * bill (or waive) the full count.
+       */
+      if (
+        !charge.duplicate &&
+        charge.paidFrom === 'free' &&
+        charge.billed < anySocialFound
+      ) {
+        await db
+          .update(lookupJobs)
+          .set({ matchesDelivered: charge.billed })
+          .where(eq(lookupJobs.id, job.id));
+
+        // History stored the full payload moments ago; without the mirror,
+        // "save to history" is a free bypass of the lock.
+        if (historyLookupId) {
+          await markLookupGated(historyLookupId, job.id, charge.billed);
+        }
+
+        trackEvent('limit_hit', {
+          userId: options.userId || job.userId || undefined,
+          sessionId: job.sessionId ?? undefined,
+          metadata: {
+            reason: 'match_gate',
+            jobId: job.id,
+            matchesFound: anySocialFound,
+            matchesDelivered: charge.billed,
+            matchesLocked: anySocialFound - charge.billed,
+          },
+        });
+      }
     } catch (error) {
       console.error('Credit charge failed (job still succeeded):', error);
     }
@@ -1211,6 +1252,8 @@ export interface JobStatusRow {
   startedAt: Date | null;
   completedAt: Date | null;
   anySocialFound: number;
+  /** The match gate; see `lookup_jobs.matches_delivered`. Null = ungated. */
+  matchesDelivered: number | null;
   walletCount: number;
 }
 
@@ -1231,6 +1274,7 @@ export async function getJobStatus(
       startedAt: lookupJobs.startedAt,
       completedAt: lookupJobs.completedAt,
       anySocialFound: lookupJobs.anySocialFound,
+      matchesDelivered: lookupJobs.matchesDelivered,
       walletCount: sql<number>`jsonb_array_length(${lookupJobs.wallets})`,
     })
     .from(lookupJobs)
@@ -1288,6 +1332,46 @@ export async function getJobResultsPage(
     | undefined;
   if (!first) return null;
   return { wallets: first.wallets ?? [], rows: first.rows ?? [] };
+}
+
+/**
+ * How many billable matches sit before a page boundary, for the match gate.
+ *
+ * The v1 route serves one page at a time, and whether a page's match is open
+ * depends on how many matches precede it in the whole job. Counted in
+ * Postgres for the same reason the page itself is: a gated job is bounded by
+ * the free submission cap, but there is no reason to ship the whole payload
+ * to count a prefix. The predicate is the billing predicate: an X handle or
+ * a Farcaster account.
+ */
+export async function countMatchedBefore(
+  jobId: string,
+  offset: number
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  if (offset <= 0) return 0;
+
+  const rows = await db.execute(sql`
+    SELECT count(*)::int AS n
+    FROM lookup_jobs j,
+         jsonb_array_elements(j.partial_results) AS elem
+    WHERE j.id = ${jobId}::uuid
+      AND lower(elem->>'wallet') IN (
+        SELECT lower(w.value)
+        FROM lookup_jobs j2,
+             jsonb_array_elements_text(j2.wallets) WITH ORDINALITY AS w
+        WHERE j2.id = ${jobId}::uuid
+          AND w.ordinality <= ${offset}::int)
+      AND (coalesce(elem->>'twitter_handle', '') <> ''
+        OR coalesce(elem->>'farcaster', '') <> '')
+  `);
+
+  const raw = rows as unknown as { rows?: unknown[] } | unknown[];
+  const first = (Array.isArray(raw) ? raw[0] : raw.rows?.[0]) as
+    | { n: number }
+    | undefined;
+  return first?.n ?? 0;
 }
 
 export async function getJob(jobId: string): Promise<LookupJob | null> {

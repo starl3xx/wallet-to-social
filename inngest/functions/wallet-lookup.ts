@@ -6,7 +6,9 @@ import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
-import { saveLookup } from '@/lib/history';
+import { saveLookup, markLookupGated } from '@/lib/history';
+import { chargeForJob } from '@/lib/credits';
+import type { UserTier } from '@/lib/access';
 import {
   upsertSocialGraph,
   getSocialGraphData,
@@ -29,6 +31,10 @@ interface JobOptions {
   saveToHistory?: boolean;
   historyName?: string;
   userId?: string;
+  // Billing identity, mirrored from lib/job-processor.ts JobOptions: the
+  // options JSONB always carried these, this pipeline just never read them.
+  meteredUserId?: string;
+  tier?: UserTier;
 }
 
 // Define the event type
@@ -433,6 +439,7 @@ export const walletLookup = inngest.createFunction(
       const allResults = Array.from(resultsMap.values());
 
       // Save to history if requested
+      let historyLookupId: string | null = null;
       if (options.saveToHistory) {
         try {
           const lookupId = await saveLookup(
@@ -454,6 +461,7 @@ export const walletLookup = inngest.createFunction(
               walletCount: allResults.length,
             },
           });
+          historyLookupId = lookupId;
         } catch (error) {
           console.error('History save error:', error);
         }
@@ -475,9 +483,11 @@ export const walletLookup = inngest.createFunction(
       // Count final stats
       let twitterFound = 0;
       let farcasterFound = 0;
+      let anySocialFound = 0;
       for (const result of allResults) {
         if (result.twitter_handle) twitterFound++;
         if (result.farcaster) farcasterFound++;
+        if (result.twitter_handle || result.farcaster) anySocialFound++;
       }
 
       // Mark job as complete
@@ -489,11 +499,61 @@ export const walletLookup = inngest.createFunction(
           partialResults: allResults,
           twitterFound,
           farcasterFound,
+          anySocialFound,
           cacheHits: cachedCount,
           completedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(lookupJobs.id, jobId));
+
+      /**
+       * Charge and gate, mirrored from lib/job-processor.ts. This pipeline
+       * previously billed nothing at all: it never called `chargeForJob` and
+       * never wrote `anySocialFound`, so any job it finalized was free
+       * regardless of account. Both pipelines must bill, for the reason the
+       * history_saved comment above records: this one is registered and
+       * therefore live.
+       */
+      if (options.meteredUserId) {
+        try {
+          const charge = await chargeForJob(
+            options.meteredUserId,
+            jobId,
+            anySocialFound,
+            allWallets.length,
+            options.tier ?? 'free'
+          );
+
+          if (
+            !charge.duplicate &&
+            charge.paidFrom === 'free' &&
+            charge.billed < anySocialFound
+          ) {
+            await db
+              .update(lookupJobs)
+              .set({ matchesDelivered: charge.billed })
+              .where(eq(lookupJobs.id, jobId));
+
+            if (historyLookupId) {
+              await markLookupGated(historyLookupId, jobId, charge.billed);
+            }
+
+            trackEvent('limit_hit', {
+              userId: options.userId,
+              sessionId: job.sessionId ?? undefined,
+              metadata: {
+                reason: 'match_gate',
+                jobId,
+                matchesFound: anySocialFound,
+                matchesDelivered: charge.billed,
+                matchesLocked: anySocialFound - charge.billed,
+              },
+            });
+          }
+        } catch (error) {
+          console.error('Credit charge failed (job still succeeded):', error);
+        }
+      }
     });
 
     return {

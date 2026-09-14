@@ -60,6 +60,13 @@ export interface WalletSocialResult {
    * both reach someone. See `TwitterAlso`.
    */
   twitter_also?: TwitterAlso;
+  /**
+   * True when this row matched but the free allowance had nothing left to
+   * bill it against: the wallet and the never-billed identities (ENS, Lens,
+   * GitHub) remain, the billable ones are stripped server-side. Set only by
+   * `lib/match-gate.ts` on the way out, never stored.
+   */
+  locked?: boolean;
   // Agent detection metadata
   is_agent?: boolean;
   agent_name?: string;

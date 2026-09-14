@@ -1397,6 +1397,16 @@ export const ResultsTable = memo(function ResultsTable({
                     <div role="cell" className="px-4 py-0.5 font-mono text-xs">
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
+                      ) : result.locked ? (
+                        /* A match the free allowance did not cover: the
+                           identity was stripped server-side, and which
+                           platform it lives on is itself withheld, so the
+                           chip sits in the first identity column and speaks
+                           for the row. */
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          <Lock className="h-3 w-3" aria-hidden />
+                          Locked
+                        </span>
                       ) : (
                         EMPTY_CELL
                       )}

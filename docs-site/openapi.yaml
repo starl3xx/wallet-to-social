@@ -2045,6 +2045,12 @@ components:
         same allowlist as everywhere else, and are omitted where nothing
         classifiable backs the row. The X reachability fields are read at
         poll time, not stored with the job.
+
+        On a job gated by the free allowance, a match past what was billed
+        serves as a locked entry: `locked: true`, the never-billed fields
+        kept (`ens_name`, `lens`, `github`, `sources`), and `twitter` and
+        `farcaster` withheld. A locked entry is not `null`; `null` is a
+        checked negative.
       allOf:
         - $ref: '#/components/schemas/IdentityCore'
         - type: object
@@ -2053,6 +2059,13 @@ components:
               $ref: '#/components/schemas/XIdentityWithAlso'
             farcaster:
               $ref: '#/components/schemas/FarcasterAccount'
+            locked:
+              type: boolean
+              description: |
+                Present and `true` only on a locked entry of a gated job:
+                this wallet matched, the free allowance had nothing left to
+                bill it against, and its X and Farcaster identities are
+                withheld until the job is unlocked with pack credits.
 
     JobStatus:
       type: object
@@ -2120,7 +2133,10 @@ components:
       description: |
         `requested` is always present. The three counts appear only on a
         completed job, and follow the batch meta's arithmetic: `matched` is
-        what the job billed, never more than `found`.
+        the wallets that resolved to an X handle or a Farcaster account,
+        never more than `found`. On an ungated job it is also what the job
+        billed; a job gated by the free allowance carries
+        `matches_delivered` and `matches_locked` beside it.
       required: [requested]
       properties:
         requested:
@@ -2138,9 +2154,20 @@ components:
         matched:
           type: integer
           description: |
-            What the job billed at completion: addresses that resolved to an
-            X handle or a Farcaster account. Reconcile this against your
-            balance.
+            Addresses that resolved to an X handle or a Farcaster account.
+            On an ungated job this is also what was billed at completion;
+            reconcile it against your balance. On a gated job the billed
+            number is `matches_delivered`.
+        matches_delivered:
+          type: integer
+          description: |
+            Present only on a job gated by the free allowance: the matches
+            that were billed and serve in full.
+        matches_locked:
+          type: integer
+          description: |
+            Present only on a gated job: matches serving as locked entries
+            until the job is unlocked with pack credits.
 
     Stats:
       type: object

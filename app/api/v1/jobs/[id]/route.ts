@@ -13,7 +13,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiRequest, apiSuccess, apiError } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
-import { getJobStatus, getJobResultsPage } from '@/lib/job-processor';
+import {
+  getJobStatus,
+  getJobResultsPage,
+  countMatchedBefore,
+} from '@/lib/job-processor';
 import { publicSources, asSourceList } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
@@ -217,12 +221,37 @@ export async function GET(
     const byWallet = new Map<string, WalletSocialResult>();
     for (const r of rows) byWallet.set(r.wallet, r);
 
+    /**
+     * The match gate for a paged read. `matchesDelivered` non-null means the
+     * free allowance covered only part of this job: the first N matches of
+     * the whole job (wallet order) serve in full, and every match past them
+     * serves as a locked entry with the billable identities withheld. The
+     * counter starts at how many matches precede this page, so a page
+     * boundary cannot re-open the gate.
+     */
+    const gated = job.matchesDelivered !== null;
+    let matchesSeen = gated ? await countMatchedBefore(id, offset) : 0;
+    const lockedOnPage = new Set<string>();
+    if (gated) {
+      for (const wallet of page.wallets) {
+        const r = byWallet.get(wallet);
+        if (!r || !(r.twitter_handle || r.farcaster)) continue;
+        matchesSeen += 1;
+        if (matchesSeen > (job.matchesDelivered as number)) {
+          lockedOnPage.add(wallet);
+        }
+      }
+    }
+
     // Reachability and the second attested handle come from the same
     // wallet-keyed reads every other v1 route uses, at read time: the job's
     // own stamp has no checked-at and goes stale the moment the daily cron
     // moves a handle.
+    // Locked rows stay out of the live reads: a reachability check on a
+    // withheld handle would be work nobody was billed for and a side channel
+    // besides.
     const handleRows = rows
-      .filter((r) => r.twitter_handle)
+      .filter((r) => r.twitter_handle && !lockedOnPage.has(r.wallet))
       .map((r) => ({ wallet: r.wallet, handle: r.twitter_handle }));
     const [reach, also] = await Promise.all([
       reachabilityForWallets(handleRows),
@@ -264,6 +293,23 @@ export async function GET(
 
       foundCount++;
       const item: Record<string, unknown> = { wallet: r.wallet };
+
+      /**
+       * A locked entry keeps the never-billed fields (ENS, Lens, GitHub) and
+       * the evidence classes, and withholds the billable identities. It must
+       * not serve as null: null is the checked-negative, and a locked match
+       * is the opposite claim.
+       */
+      if (lockedOnPage.has(wallet)) {
+        if (r.ens_name) item.ens_name = r.ens_name;
+        if (r.lens) item.lens = r.lens;
+        if (r.github) item.github = r.github;
+        const lockedSources = publicSources(r.source);
+        if (lockedSources) item.sources = lockedSources;
+        item.locked = true;
+        results.push(item);
+        continue;
+      }
 
       if (r.ens_name) item.ens_name = r.ens_name;
       if (r.twitter_handle) {
@@ -319,10 +365,18 @@ export async function GET(
     meta.limit = limit;
     meta.next_offset = offset + limit < job.walletCount ? offset + limit : null;
     /**
-     * What the job billed: the number `chargeForJob` debited at finalize, a
-     * wallet carrying an X handle or a Farcaster account.
+     * `matched` is what the job found: wallets carrying an X handle or a
+     * Farcaster account. On an ungated job it is also what `chargeForJob`
+     * debited at finalize. On a gated job the debit was `matches_delivered`,
+     * and `matches_locked` of the found matches serve as locked entries
+     * until an unlock pays for them.
      */
     meta.matched = job.anySocialFound;
+    if (gated) {
+      meta.matches_delivered = job.matchesDelivered;
+      meta.matches_locked =
+        job.anySocialFound - (job.matchesDelivered as number);
+    }
   }
 
   return apiSuccess(

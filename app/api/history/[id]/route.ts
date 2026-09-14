@@ -13,6 +13,7 @@ import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
 import { scrubSuppressed } from '@/lib/suppression';
+import { gateResults } from '@/lib/match-gate';
 import type { WalletSocialResult } from '@/lib/types';
 
 /**
@@ -144,16 +145,31 @@ export async function GET(
     const scrub = await scrubSuppressed([
       lookup.results as WalletSocialResult[],
     ]);
-    const servedResults = scrub.rowSets[0];
+    let servedResults = scrub.rowSets[0];
     if (scrub.suppressedWallets.size > 0) {
       enrichedWallets = enrichedWallets.filter(
         (w) => !scrub.suppressedWallets.has(w.toLowerCase())
       );
     }
 
+    /**
+     * The match gate, mirrored from the job that saved this lookup. History
+     * stores the full payload, so without this the save-to-history checkbox
+     * would serve everything the job's own results route locks. Cleared by
+     * the unlock endpoint through the row's job_id.
+     */
+    let lockedMatches = 0;
+    if (lookup.matchesDelivered !== null) {
+      const gate = gateResults(servedResults, lookup.matchesDelivered);
+      servedResults = gate.results;
+      lockedMatches = gate.locked;
+    }
+
     return NextResponse.json({
       results: servedResults,
       enrichedWallets, // wallets that were updated since last view
+      // The job behind the gate rides along so the client can key an unlock.
+      ...(lockedMatches > 0 ? { lockedMatches, jobId: lookup.jobId } : {}),
     });
   } catch (error) {
     console.error('History fetch error:', error);

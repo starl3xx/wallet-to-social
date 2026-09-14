@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getJob } from '@/lib/job-processor';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { scrubSuppressed } from '@/lib/suppression';
+import { gateResults } from '@/lib/match-gate';
 import type { WalletSocialResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -69,6 +70,12 @@ export async function GET(
         cacheHits: number;
       };
       results?: WalletSocialResult[];
+      /**
+       * Matched rows the free allowance could not cover, present only on a
+       * gated job. The rows are in `results` with `locked: true` and their
+       * billable identities stripped; this count is for the banner.
+       */
+      lockedMatches?: number;
       error?: string;
       createdAt: Date;
       completedAt?: Date | null;
@@ -104,7 +111,19 @@ export async function GET(
         const scrub = await scrubSuppressed([
           job.partialResults as WalletSocialResult[],
         ]);
-        response.results = scrub.rowSets[0];
+        /**
+         * The match gate, after the scrub. A non-null `matchesDelivered`
+         * means the free allowance covered only part of this job: serve that
+         * many matched rows in full and strip the billable identities from
+         * the rest. The unlock endpoint clears the column back to null.
+         */
+        if (job.matchesDelivered !== null) {
+          const gate = gateResults(scrub.rowSets[0], job.matchesDelivered);
+          response.results = gate.results;
+          response.lockedMatches = gate.locked;
+        } else {
+          response.results = scrub.rowSets[0];
+        }
       } catch (error) {
         console.error('Suppression filter failed on job results read:', error);
         return NextResponse.json(
