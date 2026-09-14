@@ -468,9 +468,13 @@ export default function Home() {
     setUnlocking(true);
     setUnlockError(null);
     try {
-      const res = await fetch(`/api/jobs/${unlockJobId}/unlock`, {
-        method: 'POST',
-      });
+      // The userId param is the anonymous-ownership proof: a job run
+      // before signing in carries the browser's local id, and the session
+      // alone matches nothing on it.
+      const res = await fetch(
+        `/api/jobs/${unlockJobId}/unlock?userId=${encodeURIComponent(getUserId())}`,
+        { method: 'POST' }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.upgradeRequired) {
@@ -2462,9 +2466,12 @@ export default function Home() {
                   />
                   <p className="text-sm text-caution">
                     This lookup found {openMatches + lockedMatches} matches.
-                    Your free allowance covered {openMatches};{' '}
-                    {lockedMatches.toLocaleString()} more{' '}
+                    {user
+                      ? ` Your free allowance covered ${openMatches}; `
+                      : ` The first ${openMatches} are open without an account; `}
+                    {lockedMatches.toLocaleString()}{' '}
                     {lockedMatches === 1 ? 'is' : 'are'} locked.
+                    {user ? '' : ' Sign in and buy a pack to open them.'}
                     {unlockError ? ` ${unlockError}` : ''}
                   </p>
                 </div>

@@ -916,7 +916,10 @@ the serve routes (`lib/match-gate.ts`) lock the rest (wallet and never-billed
 identities kept, X and Farcaster withheld) until `POST /api/jobs/[id]/unlock`
 pays for them from a pack. The gate lives on `lookup_jobs.matches_delivered`,
 mirrored to `lookup_history`; the unlock is a second, once-per-job ledger row
-(`paid_from = 'unlock'`, partial unique indexes on `credit_ledger`).
+(`paid_from = 'unlock'`, partial unique indexes on `credit_ledger`). Anonymous
+jobs gate at 50 matches per lookup (`ANON_MATCHES_PER_JOB`), unbilled; the
+unlock accepts the anonymous-ownership proof so the job can be opened after
+signup.
 
 ---
 

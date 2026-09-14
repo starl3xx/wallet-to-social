@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-14 (the anonymous gate: 50 matches per lookup, same machinery)
+
+The match gate below made signing in strictly worse for a freeloader:
+anonymous jobs were never metered and never gated, so 3 IP-limited jobs an
+hour at 500 wallets each was worth up to 1,500 ungated matches against the
+100 per 30 days an account gets.
+
+- Anonymous jobs (no session, real caller; system jobs are exempt) now gate
+  at `ANON_MATCHES_PER_JOB` (50) per job, in both pipelines. Nothing is
+  billed; there is nothing to bill.
+- The unlock accepts the same anonymous-ownership proof the results poll
+  accepts, so a job run before signing up can be unlocked after it, with
+  the new account's pack credits, on that same job.
+- Invariants: the anonymous gate stays below the signed-in window (or the
+  account gate selects for anonymity), and both pipelines carry it.
+
 ### 2026-09-14 (the match gate: the free allowance delivers what it bills)
 
 A 224-wallet list on the free allowance was worth 223 matches, because

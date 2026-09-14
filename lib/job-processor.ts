@@ -21,6 +21,7 @@ import {
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
 import { chargeForJob } from '@/lib/credits';
+import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
@@ -1008,6 +1009,17 @@ async function finalizeJobWithResults(
     } catch (error) {
       console.error('Credit charge failed (job still succeeded):', error);
     }
+  } else if (job.userId && anySocialFound > ANON_MATCHES_PER_JOB) {
+    /**
+     * The anonymous gate: no account means nothing to bill and nothing to
+     * meter across jobs, so the unit is the job. Deterministic, so a
+     * resumed finalize recomputes it identically. `job.userId` (the
+     * caller's local id) is required because a system job — the seed cron,
+     * refresh-stale — has no owner and serves no wallet rows to anyone;
+     * gating it would be a lock on a door nobody can open.
+     */
+    matchesDelivered = ANON_MATCHES_PER_JOB;
+    gateIsFresh = true;
   }
 
   // Save to history if requested

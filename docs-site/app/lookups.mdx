@@ -95,7 +95,9 @@ A few limits are on addresses rather than matches, and which one applies
 depends on how you are signed in.
 
 - **Not signed in:** 500 addresses per lookup, plus a rate limit per IP
-  address. There is no account-wide quota, because there is no account.
+  address. There is no account-wide quota, because there is no account;
+  instead each lookup opens at most 50 matches, and the rest appear as
+  locked rows. Sign in and buy a pack to open them, on that same lookup.
 - **Signed in, on the free allowance:** 500 addresses per lookup, or ten times
   your remaining free matches, whichever is lower.
 - **Holding a pack:** no per-lookup cap. A submission may be at most ten times
@@ -104,6 +106,10 @@ depends on how you are signed in.
 The ten-times rule is a guard against submitting a million junk addresses to
 burn our upstream credits for free, not a quota. At a typical match rate a real
 list needs about four times, so it will not affect you.
+
+Without an account the same gate is per lookup: the first 50 matches are
+open, and everything past them is locked. An account is always the better
+deal, because the allowance meters matches, not lookups.
 
 ### When a lookup finds more than the allowance covers
 

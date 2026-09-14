@@ -55,7 +55,21 @@ export async function POST(
     }
 
     const job = await getJob(id);
-    if (!job || !job.userId || job.userId !== session.user.id) {
+    /**
+     * Ownership: the session, or the anonymous proof the results GET
+     * already accepts. A job run before signing in carries the browser's
+     * local id as `userId`, so after signup the session id matches nothing;
+     * the `?userId=` param is the same possession proof that already reads
+     * the delivered rows, and here it can only spend the CALLER's own
+     * credits, so the session both authenticates the payer and bounds the
+     * damage of a leaked local id to a stranger paying your bill.
+     */
+    const anonProof = request.nextUrl.searchParams.get('userId');
+    const owns =
+      !!job?.userId &&
+      (job.userId === session.user.id ||
+        (!!anonProof && job.userId === anonProof));
+    if (!job || !owns) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
