@@ -196,6 +196,23 @@ export async function clearLookupGate(jobId: string): Promise<void> {
     .where(eq(lookupHistory.jobId, jobId));
 }
 
+/**
+ * Clear the gate on one saved lookup, keyed by the lookup itself.
+ *
+ * The job-keyed clear above serves the unlock; this one serves the PATCH
+ * handler's self-heal, which holds a lookup whose gate suppression has
+ * emptied and no job in hand.
+ */
+export async function clearLookupGateById(lookupId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+
+  await db
+    .update(lookupHistory)
+    .set({ matchesDelivered: null })
+    .where(eq(lookupHistory.id, lookupId));
+}
+
 export async function updateLookup(
   id: string,
   results: WalletSocialResult[]

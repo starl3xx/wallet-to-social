@@ -7,6 +7,7 @@ import {
   markLookupViewed,
   getLookupLastViewedAt,
   deleteLookup,
+  clearLookupGateById,
 } from '@/lib/history';
 import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -259,14 +260,34 @@ export async function PATCH(
      * forward is the one the message names: unlock first, then grow it.
      */
     if (validation.lookup!.matchesDelivered !== null) {
-      return NextResponse.json(
-        {
-          error:
-            'This lookup has locked matches. Unlock it from the results view before adding addresses.',
-          upgradeRequired: true,
-        },
-        { status: 409 }
+      /**
+       * Refuse only while something is actually locked. Suppression can
+       * empty a gate: removals eat the matched rows until the billed quota
+       * covers everything that remains, at which point the GET shows no
+       * locked rows and no unlock control, and a refusal here would leave
+       * the merge blocked with nothing visible to clear. The stored gate is
+       * recomputed the same way the GET computes it, and an emptied gate is
+       * cleared rather than stepped over, so the next add does not re-lock
+       * newly paid matches against a dead number.
+       */
+      const storedScrub = await scrubSuppressed([
+        validation.lookup!.results as WalletSocialResult[],
+      ]);
+      const storedGate = gateResults(
+        storedScrub.rowSets[0],
+        validation.lookup!.matchesDelivered
       );
+      if (storedGate.locked > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'This lookup has locked matches. Unlock it from the results view before adding addresses.',
+            upgradeRequired: true,
+          },
+          { status: 409 }
+        );
+      }
+      await clearLookupGateById(id);
     }
 
     /**
