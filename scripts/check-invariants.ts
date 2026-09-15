@@ -6699,6 +6699,33 @@ async function main() {
       'the inngest pipeline gates anonymous jobs too',
       inngestSrc.includes('ANON_MATCHES_PER_JOB')
     );
+
+    /**
+     * The hour boundary is not a reset button.
+     *
+     * A calendar-hour bucket made "3 an hour" mean "3 before :00 and 3 more
+     * after": on 2026-09-15 one IP pushed 6 lookup jobs through in 17
+     * minutes by filling the 14:xx bucket at 14:58 and starting fresh at
+     * 15:01. As the attacker: replay that exact burst against the sliding
+     * estimate and require the fourth job refused.
+     */
+    const { slidingWindowCount } = await import('@/lib/ip-rate-limiter');
+    const boundaryReplay = slidingWindowCount(
+      3, // the 14:xx bucket they filled by 14:58
+      1, // their next request, at 15:01
+      new Date(Date.UTC(2026, 8, 15, 15, 1, 12))
+    );
+    ok(
+      'a full previous hour still refuses the next request after the boundary',
+      boundaryReplay > 3
+    );
+    ok(
+      'the previous hour decays out instead of vanishing at the boundary',
+      slidingWindowCount(3, 1, new Date(Date.UTC(2026, 8, 15, 15, 59, 0))) <=
+        3 &&
+        slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 30, 0))) <
+          slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 5, 0)))
+    );
   }
 
   if (!failures.length) {
