@@ -21,6 +21,17 @@ drift. Every class involved was on-system, so no grep could see it.
   selected segment, and its self-test fixture reproduces the 61% case and
   requires the thumb assertion (not merely the height one) to catch it.
 
+### 2026-09-15 (the IP window rolls; the hour boundary is not a reset)
+
+The IP limiter's calendar-hour buckets doubled every limit at the
+boundary: one IP pushed 6 lookup jobs through in 17 minutes (three at
+14:47-14:58, three more at 15:01-15:04) because :00 handed it a fresh
+bucket. `checkIpRateLimit` now uses the standard sliding-window estimate:
+the previous hour's bucket counts at the fraction of it still inside the
+rolling window, decaying linearly. No schema change; the status read
+weights the same way; an invariant replays that exact burst and requires
+the fourth job refused.
+
 ### 2026-09-14 (the anonymous gate: 50 matches per lookup, same machinery)
 
 The match gate below made signing in strictly worse for a freeloader:
