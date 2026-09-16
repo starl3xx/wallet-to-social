@@ -599,10 +599,29 @@ export interface SeedCoverage {
   ok: boolean;
   /** Contracts we decided are worth a page: `RECOGNIZED_CONTRACTS`. */
   recognized: number;
-  /** Of those, how many the seeder has ever imported holders for. */
+  /**
+   * Whose MOST RECENT attempt imported holders. Not "has ever imported".
+   *
+   * `markSeedAttempt` resets `holders_imported` to 0 at the start of every
+   * attempt and the success path overwrites it, which is how a failure is told
+   * from a success downstream. So this column is the state of the last try, and
+   * a contract with a live page whose 30-day refresh fails leaves this count
+   * and appears in `failing`. That is the right behaviour for an alarm and the
+   * wrong thing to call "imported", which is why it is written down here.
+   */
   imported: number;
   /** Attempted inside the window and imported nothing. The alarm. */
   failing: SeedTarget[];
+  /**
+   * Attempted before the window, imported nothing, not retried since.
+   *
+   * This bucket exists so the four numbers reconcile with `recognized`. Without
+   * it a contract whose failure aged out of the window belonged to no bucket at
+   * all: not imported, not failing, not untried, simply absent. A coverage
+   * report that silently drops the contracts behind the coverage gap is the
+   * failure mode this whole section was written to end.
+   */
+  stale: SeedTarget[];
   /** Never attempted at all. */
   untried: SeedTarget[];
 }
@@ -644,6 +663,7 @@ export async function getSeedCoverage(days = 7): Promise<SeedCoverage> {
     recognized: RECOGNIZED_CONTRACTS.length,
     imported: 0,
     failing: [],
+    stale: [],
     untried: [],
   };
   const db = getDb();
@@ -686,25 +706,33 @@ export async function getSeedCoverage(days = 7): Promise<SeedCoverage> {
 
     let imported = 0;
     const failing: SeedTarget[] = [];
+    const stale: SeedTarget[] = [];
     const untried: SeedTarget[] = [];
 
+    // Exhaustive by construction: every recognized contract lands in exactly
+    // one bucket, so the four always sum to `recognized`. An earlier version
+    // had no `stale` branch and quietly dropped any contract whose failure had
+    // aged out of the window.
     for (const c of RECOGNIZED_CONTRACTS) {
       const row = seen.get(`${c.chain}:${c.address.toLowerCase()}`);
-      if (!row) {
-        untried.push({ chain: c.chain, label: c.label, lastAttempt: null });
-        continue;
-      }
-      if (row.holdersImported > 0) {
-        imported++;
-        continue;
-      }
-      if (row.recent) {
-        failing.push({
-          chain: c.chain,
-          label: c.label,
-          lastAttempt: row.lastAttempt,
-        });
-      }
+      const target: SeedTarget = {
+        chain: c.chain,
+        label: c.label,
+        lastAttempt: row?.lastAttempt ?? null,
+      };
+      if (!row) untried.push(target);
+      else if (row.holdersImported > 0) imported++;
+      else if (row.recent) failing.push(target);
+      else stale.push(target);
+    }
+
+    const total = imported + failing.length + stale.length + untried.length;
+    if (total !== RECOGNIZED_CONTRACTS.length) {
+      // Cannot happen while the branches above stay exhaustive, which is
+      // exactly why it is worth saying out loud if it ever does.
+      console.error(
+        `Seed coverage buckets do not reconcile: ${total} against ${RECOGNIZED_CONTRACTS.length}`
+      );
     }
 
     return {
@@ -712,6 +740,7 @@ export async function getSeedCoverage(days = 7): Promise<SeedCoverage> {
       recognized: RECOGNIZED_CONTRACTS.length,
       imported,
       failing,
+      stale,
       untried,
     };
   } catch (error) {

@@ -26,6 +26,14 @@ green, because nothing counted what it was supposed to produce.
 - A second invariant asserts the denominator is the list and never a
   literal, so adding the 65th contract cannot leave the count blind to
   the one page that never got built.
+- Four buckets, exhaustive by construction, because the first three were
+  not. `markSeedAttempt` resets `holders_imported` to 0 at the start of
+  every attempt, so that column is the state of the last try and not a
+  running total. A contract whose failure aged out of the window belonged
+  to no bucket at all: not imported, not failing, not untried, simply
+  absent. A coverage report that drops the contracts behind the coverage
+  gap is the exact failure this section was written to end, so `stale` now
+  catches them and the four sum to the named list.
 - Corrected two of my own figures from the day before: the estate holds
   158 holder reports and not 66, and drew 97 entries and not 40. Both
   were copied from an older document instead of the measurement.
