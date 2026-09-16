@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the segmented thumb sits on the segment it marks)
+
+The thumb moved by whole multiples of one segment width, which is only
+true if the segments are equal, and `flex-1 basis-0` does not make them
+equal: a flex item's `min-width` defaults to `auto`, flooring each one at
+its own label. Measured in Chrome, the admin tier filter came out 39.6 /
+52.8 / 45.8 / 82.4px and the thumb covered **61%** of the selected
+segment, spilling into its neighbour; the 7d/28d/90d ranges had the same
+drift. Every class involved was on-system, so no grep could see it.
+
+- `Segmented` is a grid: `grid-auto-columns: 1fr` with `min-w-0` segments,
+  equal by construction at their natural size (N times the widest label)
+  and equal again when a narrow parent squeezes them. The thumb arithmetic
+  is unchanged; it was never the broken half.
+- `scripts/check-control-height.mjs`, the guard that already opens a
+  browser for this class of defect, now asserts the thumb covers the
+  selected segment, and its self-test fixture reproduces the 61% case and
+  requires the thumb assertion (not merely the height one) to catch it.
+
 ### 2026-09-14 (the anonymous gate: 50 matches per lookup, same machinery)
 
 The match gate below made signing in strictly worse for a freeloader:
