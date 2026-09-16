@@ -1166,7 +1166,13 @@ export async function getAcquisitionSources(
       s AS (
         SELECT
           session_id,
-          bool_or(event_type = 'lookup_completed') AS ran_lookup
+          -- lookup_started, the same event the source table above and the
+          -- People funnel count. Two "Ran a lookup" columns on one card that
+          -- count different events are a card that contradicts itself, and
+          -- lookup_completed would silently drop every session that began a
+          -- lookup and left before it finished. (No backticks in here: this
+          -- SQL lives in a template literal and one would end it.)
+          bool_or(event_type = 'lookup_started') AS ran_lookup
         FROM analytics_events
         WHERE session_id IS NOT NULL
           AND created_at >= ${utcBound(startDate)}::timestamp
