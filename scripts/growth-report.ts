@@ -29,6 +29,7 @@ import {
   getChannelSources,
   getContentPerformance,
   getGrowthTotals,
+  getSeedCoverage,
 } from '../lib/growth';
 import {
   CHANNEL_LABELS,
@@ -269,6 +270,59 @@ async function main() {
     );
   }
 
+  const seeds = await getSeedCoverage(7);
+  if (seeds.ok) {
+    say('## Programmatic pages');
+    say();
+    say(
+      `${seeds.imported} of ${seeds.recognized} named contracts imported ` +
+        'holders on their most recent attempt. The seeder resets that count ' +
+        'at the start of every attempt, so this is the state of the last try ' +
+        'rather than a running total, and a failed refresh moves a live page ' +
+        'out of it. Importing holders is also necessary for a page and not ' +
+        'sufficient: a report is listed only once it clears the reachability ' +
+        'floor, so the live page count runs behind this one.'
+    );
+    say();
+    say(
+      `Buckets: ${seeds.imported} imported, ${seeds.failing.length} failing, ` +
+        `${seeds.stale.length} stale, ${seeds.untried.length} untried. ` +
+        'They sum to the named list by construction, so a contract behind the ' +
+        'gap is never simply absent.'
+    );
+    say();
+    if (seeds.failing.length > 0) {
+      say(
+        `**${seeds.failing.length} were attempted in the last 7 days and ` +
+          'imported nothing.** That is a pipeline fault, not a gap.'
+      );
+      say();
+      table(
+        ['Chain', 'Contract', 'Last attempt'],
+        seeds.failing.map((f) => [f.chain, f.label, f.lastAttempt ?? '?'])
+      );
+    }
+    if (seeds.stale.length > 0) {
+      say(
+        `${seeds.stale.length} last failed before the window and have not been ` +
+          'retried since: ' +
+          seeds.stale
+            .map((t) => `${t.label} (${t.lastAttempt ?? '?'})`)
+            .join(', ') +
+          '.'
+      );
+      say();
+    }
+    if (seeds.untried.length > 0) {
+      say(
+        `${seeds.untried.length} have never been attempted: ` +
+          seeds.untried.map((u) => u.label).join(', ') +
+          '.'
+      );
+      say();
+    }
+  }
+
   say('## Watchlist');
   say();
   const runway = socialRunwayDays();
@@ -284,6 +338,13 @@ async function main() {
   if (c.sessions < p.sessions) {
     say(
       `- Sessions fell from ${p.sessions} to ${c.sessions} against the previous window.`
+    );
+  }
+  if (seeds.ok && seeds.failing.length > 0) {
+    say(
+      `- **${seeds.failing.length} named contracts failed to import holders ` +
+        `this week.** The programmatic surface cannot grow into the searches ` +
+        `they answer while that is true.`
     );
   }
   if (c.purchases === 0) {

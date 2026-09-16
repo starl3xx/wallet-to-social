@@ -7,6 +7,7 @@ import {
   type Channel,
   type OriginChannel,
 } from '@/lib/first-touch';
+import { RECOGNIZED_CONTRACTS } from '@/lib/recognized-contracts';
 
 /**
  * The growth ledger: how much traffic arrives, through which channel, what it
@@ -345,8 +346,8 @@ export interface ContentPerformance {
  * and the difference is the finding. A page with many views and no entries is
  * read by people the site already had; a page with entries is doing acquisition
  * work. On 2026-09-16 the whole content estate, 29 posts and 7 comparison pages
- * and 66 holder reports, had 40 entries between them in 30 days, against 1,852
- * on the homepage.
+ * and 158 holder reports, drew 97 entries between them in 30 days, against
+ * 1,852 on the homepage.
  *
  * `pathPrefixes` narrows the query BEFORE the limit, and that order is the
  * point. Ranking every path by views and filtering to content afterwards drops
@@ -583,5 +584,167 @@ export async function getGrowthTotals(days = 28): Promise<GrowthTotals> {
       current: emptyWindow(currentStart, now),
       previous: emptyWindow(previousStart, currentStart),
     };
+  }
+}
+
+export interface SeedTarget {
+  chain: string;
+  label: string;
+  /** `YYYY-MM-DD` of the last attempt, or null if it was never tried. */
+  lastAttempt: string | null;
+}
+
+export interface SeedCoverage {
+  /** False when the query failed and the empty result below is invented. */
+  ok: boolean;
+  /** Contracts we decided are worth a page: `RECOGNIZED_CONTRACTS`. */
+  recognized: number;
+  /**
+   * Whose MOST RECENT attempt imported holders. Not "has ever imported".
+   *
+   * `markSeedAttempt` resets `holders_imported` to 0 at the start of every
+   * attempt and the success path overwrites it, which is how a failure is told
+   * from a success downstream. So this column is the state of the last try, and
+   * a contract with a live page whose 30-day refresh fails leaves this count
+   * and appears in `failing`. That is the right behaviour for an alarm and the
+   * wrong thing to call "imported", which is why it is written down here.
+   */
+  imported: number;
+  /** Attempted inside the window and imported nothing. The alarm. */
+  failing: SeedTarget[];
+  /**
+   * Attempted before the window, imported nothing, not retried since.
+   *
+   * This bucket exists so the four numbers reconcile with `recognized`. Without
+   * it a contract whose failure aged out of the window belonged to no bucket at
+   * all: not imported, not failing, not untried, simply absent. A coverage
+   * report that silently drops the contracts behind the coverage gap is the
+   * failure mode this whole section was written to end.
+   */
+  stale: SeedTarget[];
+  /** Never attempted at all. */
+  untried: SeedTarget[];
+}
+
+/**
+ * How much of the programmatic surface we intended actually exists.
+ *
+ * ## The number nothing was watching
+ *
+ * `lib/recognized-contracts.ts` is a deliberate list: 64 contracts chosen on
+ * one criterion, would a person type this name next to the word "holders". It
+ * leads both discovery queues so those pages get built first. On 2026-09-16,
+ * sixteen days after it shipped, 19 of the 64 had a page and 139 of the 158
+ * published reports were for contracts nobody would search for by name.
+ *
+ * The cause was silent and stayed silent: the metered ERC-20 holder index had
+ * been answering 401 since 2026-08-31, the seed path forbids the public
+ * fallback on purpose, and a failed seed records itself as a
+ * `holders_imported = 0` row and returns. Nothing counted those rows, so a
+ * daily cron failed every day for sixteen days while every check stayed green,
+ * including the one that probes the fallback, which passes because it probes
+ * five hand-picked tokens and proves only that the explorer is reachable.
+ *
+ * So this counts intent against outcome, which is the comparison that was
+ * missing. `failing` is the alarm: a contract tried this week that imported
+ * nothing is a pipeline fault, not a quiet gap.
+ *
+ * ## What it does not claim
+ *
+ * Importing holders is necessary for a page and not sufficient. A report is
+ * only listed once it also clears the reachability floor in
+ * `lib/holder-pages.ts`, so `imported` runs ahead of the number of live pages
+ * (31 against 19 on the day this was written). This measures the seeder, which
+ * is the half that broke.
+ */
+export async function getSeedCoverage(days = 7): Promise<SeedCoverage> {
+  const empty: SeedCoverage = {
+    ok: false,
+    recognized: RECOGNIZED_CONTRACTS.length,
+    imported: 0,
+    failing: [],
+    stale: [],
+    untried: [],
+  };
+  const db = getDb();
+  if (!db) return empty;
+
+  try {
+    /**
+     * The whole table, folded in TypeScript.
+     *
+     * Small enough to read whole (hundreds of rows), and the alternative is
+     * binding 64 addresses as an array parameter, which is the construction
+     * that already failed once here: Drizzle expands a JS array into a
+     * parameter list, so a cast lands on `$1, $2, $3` and Postgres refuses it
+     * at parse time.
+     */
+    const result = (await db.execute(sql`
+      SELECT
+        lower(address) AS "address",
+        chain AS "chain",
+        max(holders_imported)::int AS "holdersImported",
+        to_char(max(last_seeded_at), 'YYYY-MM-DD') AS "lastAttempt",
+        bool_or(
+          last_seeded_at >= now() - make_interval(days => ${days})
+        ) AS "recent"
+      FROM seeded_contracts
+      GROUP BY 1, 2
+    `)) as unknown as {
+      rows: Array<{
+        address: string;
+        chain: string;
+        holdersImported: number;
+        lastAttempt: string | null;
+        recent: boolean;
+      }>;
+    };
+
+    const seen = new Map(
+      (result.rows ?? []).map((r) => [`${r.chain}:${r.address}`, r])
+    );
+
+    let imported = 0;
+    const failing: SeedTarget[] = [];
+    const stale: SeedTarget[] = [];
+    const untried: SeedTarget[] = [];
+
+    // Exhaustive by construction: every recognized contract lands in exactly
+    // one bucket, so the four always sum to `recognized`. An earlier version
+    // had no `stale` branch and quietly dropped any contract whose failure had
+    // aged out of the window.
+    for (const c of RECOGNIZED_CONTRACTS) {
+      const row = seen.get(`${c.chain}:${c.address.toLowerCase()}`);
+      const target: SeedTarget = {
+        chain: c.chain,
+        label: c.label,
+        lastAttempt: row?.lastAttempt ?? null,
+      };
+      if (!row) untried.push(target);
+      else if (row.holdersImported > 0) imported++;
+      else if (row.recent) failing.push(target);
+      else stale.push(target);
+    }
+
+    const total = imported + failing.length + stale.length + untried.length;
+    if (total !== RECOGNIZED_CONTRACTS.length) {
+      // Cannot happen while the branches above stay exhaustive, which is
+      // exactly why it is worth saying out loud if it ever does.
+      console.error(
+        `Seed coverage buckets do not reconcile: ${total} against ${RECOGNIZED_CONTRACTS.length}`
+      );
+    }
+
+    return {
+      ok: true,
+      recognized: RECOGNIZED_CONTRACTS.length,
+      imported,
+      failing,
+      stale,
+      untried,
+    };
+  } catch (error) {
+    console.error('Seed coverage error:', error);
+    return empty;
   }
 }
