@@ -168,6 +168,174 @@
         "text": "eight chains, one index\n\nEthereum, Base, Robinhood, Arbitrum, Polygon, Optimism, BNB, HyperEVM\n\n4.85M wallets with at least one identity behind one paste box\n\nbring a list from any of them: https://walletlink.social",
         "link": "https://walletlink.social"
       }
+    },
+    {
+      "day": 15,
+      "slug": "chain-gap",
+      "x": {
+        "text": "the chain decides a list’s match rate more than anything else about it\n\nBase collections: 46.2% of holders reachable\nEthereum: 16.6%\n\nmeasured across 26 collections on 2026-08-17\n\nfree reports, no account: https://walletlink.social/holders?ref=x-chain-gap",
+        "link": "https://walletlink.social/holders?ref=x-chain-gap"
+      },
+      "fc": {
+        "text": "the chain decides a list’s match rate more than anything else about it\n\nBase: 46.2% of holders reachable on X or Farcaster\nEthereum: 16.6%\n\nmeasured across 26 collections, 2026-08-17\n\nevery report free to read\nhttps://walletlink.social/holders?ref=fc-chain-gap",
+        "link": "https://walletlink.social/holders?ref=fc-chain-gap"
+      }
+    },
+    {
+      "day": 16,
+      "slug": "no-sales-call",
+      "x": {
+        "text": "no sales call, no seat licence, no annual contract\n\nupload a CSV, pay only for the wallets that resolve, export\n\npacks start at $29 for 250 matches and the credits last 12 months\n\nside by side: https://walletlink.social/vs/addressable?ref=x-no-sales-call",
+        "link": "https://walletlink.social/vs/addressable?ref=x-no-sales-call"
+      },
+      "fc": {
+        "text": "no sales call, no seat licence, no annual contract\n\nupload a CSV, pay only for the wallets that resolve, export\n\npacks from $29 for 250 matches, credits good for 12 months\n\nhow we compare\nhttps://walletlink.social/vs/addressable?ref=fc-no-sales-call",
+        "link": "https://walletlink.social/vs/addressable?ref=fc-no-sales-call"
+      }
+    },
+    {
+      "day": 17,
+      "slug": "agent-wallets",
+      "x": {
+        "text": "13,622 wallets in the index belong to agents, not people\n\nthey hold tokens, they trade, and none of them will ever read your DM\n\nwe label them, so you can drop them before you spend on reach\n\nwhat we found: https://walletlink.social/blog/ai-agent-wallets-what-we-found?ref=x-agent-wallets",
+        "link": "https://walletlink.social/blog/ai-agent-wallets-what-we-found?ref=x-agent-wallets"
+      },
+      "fc": {
+        "text": "13,622 wallets in our index belong to agents rather than people\n\nthey hold tokens and they trade, and not one of them will read your DM\n\nwe label them so you can drop them before you pay for reach\n\nhttps://walletlink.social/blog/ai-agent-wallets-what-we-found?ref=fc-agent-wallets",
+        "link": "https://walletlink.social/blog/ai-agent-wallets-what-we-found?ref=fc-agent-wallets"
+      }
+    },
+    {
+      "day": 18,
+      "slug": "agent-can-call",
+      "x": {
+        "text": "your agent can run the lookup itself\n\none MCP server, OAuth or an API key, drawing the same credits your account already holds\n\nno developer plan, no second bill\n\nadd it to your client: https://walletlink.social/mcp?ref=x-agent-can-call",
+        "link": "https://walletlink.social/mcp?ref=x-agent-can-call"
+      },
+      "fc": {
+        "text": "your agent can run the lookup itself\n\none MCP server, OAuth or an API key, drawing the same credits the account already holds\n\nno developer plan and no second bill\n\nadd it to your client\nhttps://walletlink.social/mcp?ref=fc-agent-can-call",
+        "link": "https://walletlink.social/mcp?ref=fc-agent-can-call"
+      }
+    },
+    {
+      "day": 19,
+      "slug": "misses-free",
+      "x": {
+        "text": "you are charged per match, never per wallet submitted\n\na wallet that resolves to nothing costs nothing, and on most lists that is the majority of them\n\nfirst 100 matches every 30 days are free\n\nthe price sheet: https://walletlink.social/pricing?ref=x-misses-free",
+        "link": "https://walletlink.social/pricing?ref=x-misses-free"
+      },
+      "fc": {
+        "text": "charged per match, never per wallet submitted\n\na wallet that resolves to nothing costs nothing, and on most lists that is most of them\n\nfirst 100 matches every 30 days are free, no card\n\nhttps://walletlink.social/pricing?ref=fc-misses-free",
+        "link": "https://walletlink.social/pricing?ref=fc-misses-free"
+      }
+    },
+    {
+      "day": 20,
+      "slug": "handle-vs-person",
+      "x": {
+        "text": "an X handle attested by its owner can still be suspended today\n\nattestation is a fact about the past, reachability is a fact about now, and we publish both\n\ncheck any handle free, no account: https://walletlink.social/check?ref=x-handle-vs-person",
+        "link": "https://walletlink.social/check?ref=x-handle-vs-person"
+      },
+      "fc": {
+        "text": "an X handle attested by its owner can still be suspended today\n\nattestation is a fact about the past\nreachability is a fact about now\n\nwe publish both, and never one as if it were the other\n\ncheck any handle free\nhttps://walletlink.social/check?ref=fc-handle-vs-person",
+        "link": "https://walletlink.social/check?ref=fc-handle-vs-person"
+      }
+    },
+    {
+      "day": 21,
+      "slug": "who-not-what",
+      "x": {
+        "text": "analytics tells you what wallets did\n\nwe tell you who to talk to\n\ndifferent jobs, and if you only need the second one you should not be paying for the first\n\nside by side: https://walletlink.social/vs/cookie3?ref=x-who-not-what",
+        "link": "https://walletlink.social/vs/cookie3?ref=x-who-not-what"
+      },
+      "fc": {
+        "text": "analytics tells you what wallets did\n\nwe tell you who to talk to\n\ndifferent jobs, and if you only need the second one you should not be paying for a suite that does the first\n\nhttps://walletlink.social/vs/cookie3?ref=fc-who-not-what",
+        "link": "https://walletlink.social/vs/cookie3?ref=fc-who-not-what"
+      }
+    },
+    {
+      "day": 22,
+      "slug": "credits-keep",
+      "x": {
+        "text": "credits last 12 months and there is nothing to cancel\n\nbuy once, run a launch this week and the next one in spring, same balance\n\npacks from $29: https://walletlink.social/pricing?ref=x-credits-keep",
+        "link": "https://walletlink.social/pricing?ref=x-credits-keep"
+      },
+      "fc": {
+        "text": "credits last 12 months and there is nothing to cancel\n\nbuy once, run a launch this week and the next one in spring, off the same balance\n\npacks from $29\nhttps://walletlink.social/pricing?ref=fc-credits-keep",
+        "link": "https://walletlink.social/pricing?ref=fc-credits-keep"
+      }
+    },
+    {
+      "day": 23,
+      "slug": "attested-x",
+      "x": {
+        "text": "1.17 million wallets in the index carry an X handle\n\nalmost every one was published by the owner, in an onchain record or a protocol verification\n\nnot one was read off a display name or a bio\n\nhttps://walletlink.social/?ref=x-attested-x",
+        "link": "https://walletlink.social/?ref=x-attested-x"
+      },
+      "fc": {
+        "text": "1.17 million wallets in the index carry an X handle\n\nalmost every one was published by the owner: an onchain record, or a verification made in the protocol\n\nnot one was read off a display name or a bio\n\nhttps://walletlink.social/?ref=fc-attested-x",
+        "link": "https://walletlink.social/?ref=fc-attested-x"
+      }
+    },
+    {
+      "day": 24,
+      "slug": "one-upload",
+      "x": {
+        "text": "drop in a CSV of addresses, get back X handles and Farcaster accounts with follower counts\n\neight chains, one upload, export to CSV or straight into an X list\n\nfirst 100 matches free: https://walletlink.social/?ref=x-one-upload",
+        "link": "https://walletlink.social/?ref=x-one-upload"
+      },
+      "fc": {
+        "text": "drop in a CSV of addresses, get back X handles and Farcaster accounts with their follower counts\n\neight chains, one upload, export to CSV or straight into an X list\n\nfirst 100 matches free, no account needed\nhttps://walletlink.social/?ref=fc-one-upload",
+        "link": "https://walletlink.social/?ref=fc-one-upload"
+      }
+    },
+    {
+      "day": 25,
+      "slug": "read-the-report",
+      "x": {
+        "text": "we publish a standing report for every collection we have already resolved\n\nhow many holders, how many reachable on X or Farcaster, which chain they sit on\n\nno account and no credits to read one: https://walletlink.social/holders?ref=x-read-the-report",
+        "link": "https://walletlink.social/holders?ref=x-read-the-report"
+      },
+      "fc": {
+        "text": "we publish a standing report for every collection already resolved\n\nhow many holders\nhow many reachable on X or Farcaster\nwhich chain they sit on\n\nno account and no credits to read one\nhttps://walletlink.social/holders?ref=fc-read-the-report",
+        "link": "https://walletlink.social/holders?ref=fc-read-the-report"
+      }
+    },
+    {
+      "day": 26,
+      "slug": "labelled-evidence",
+      "x": {
+        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made in the protocol, or a correlation from an index, each labelled as such\n\nso you set the confidence bar: https://walletlink.social/blog/wallet-identity-stack?ref=x-labelled-evidence",
+        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=x-labelled-evidence"
+      },
+      "fc": {
+        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made inside the protocol, or a correlation from an index\n\neach one labelled, so you set the confidence bar rather than trusting ours\n\nhttps://walletlink.social/blog/wallet-identity-stack?ref=fc-labelled-evidence",
+        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=fc-labelled-evidence"
+      }
+    },
+    {
+      "day": 27,
+      "slug": "holder-sunset",
+      "x": {
+        "text": "holder.xyz shut down two years ago and the lists people had built with it went with it\n\nif you are still carrying that CSV around, this is what moving looks like\n\nhttps://walletlink.social/vs/holder?ref=x-holder-sunset",
+        "link": "https://walletlink.social/vs/holder?ref=x-holder-sunset"
+      },
+      "fc": {
+        "text": "holder.xyz shut down two years ago, and the lists people built with it went with it\n\nif you are still carrying that CSV around, this is what moving looks like\n\nhttps://walletlink.social/vs/holder?ref=fc-holder-sunset",
+        "link": "https://walletlink.social/vs/holder?ref=fc-holder-sunset"
+      }
+    },
+    {
+      "day": 28,
+      "slug": "same-balance",
+      "x": {
+        "text": "the API and the app draw the same balance\n\nno developer tier, no separate key price, no monthly minimum\n\nbuy a pack, spend it from a browser or from code, whichever the week calls for\n\nhttps://walletlink.social/mcp?ref=x-same-balance",
+        "link": "https://walletlink.social/mcp?ref=x-same-balance"
+      },
+      "fc": {
+        "text": "the API and the app draw the same balance\n\nno developer tier, no separate key price, no monthly minimum\n\nbuy a pack and spend it from a browser or from code, whichever the week calls for\n\nhttps://walletlink.social/mcp?ref=fc-same-balance",
+        "link": "https://walletlink.social/mcp?ref=fc-same-balance"
+      }
     }
   ]
 }

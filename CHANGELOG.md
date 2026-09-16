@@ -2,6 +2,35 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the social queue runs to 28 days, and its links are tagged)
+
+The queue ran dry on 2026-09-23. It is now 28 days, and every link in it
+carries a tag, because the channel has been posting daily for a week and
+has one measured session to show for it.
+
+- Days 15 to 28, with 14 new cards. Destinations are spread on purpose:
+  two each to `/holders`, `/pricing`, `/mcp`, the blog and the homepage,
+  three to `/vs`, one to `/check`. Fourteen days of posts all pointing at
+  the homepage cannot tell you which page earns a lookup.
+- Every link carries `?ref=x-<slug>` or `?ref=fc-<slug>`. A post on X
+  arrives through `t.co` and a cast opens in an in-app browser, so the
+  referrer is stripped or absent and the arrival reads as `direct`. A tag
+  with no referring host is exactly what the `campaign` channel is for,
+  and the prefix says which platform sent it. That is measurement, not
+  attribution laundering: the tag never claims to be a platform referral,
+  and the invariants still refuse to read one as such.
+- `check:social` had a tokenizer that could not produce the date on its
+  own allowlist. Alternation is first-match, so `2026-08-17` was read as
+  `2026`, `08` and `17`, and `CHAIN_MATCH_RATES_MEASURED_ON` sat there
+  unreachable: no post could carry the date its measurement is stamped
+  with, and the failure named three figures that appear in no copy.
+- It is also case-insensitive now, so `10K` tokenizes as `10K` rather
+  than as a bare `10`.
+- And it self-tests: every allowlisted figure has to be a token the
+  tokenizer can actually emit. An entry it can never produce is dead and
+  reads as permission that was granted. That assertion is what found the
+  second one.
+
 ### 2026-09-16 (the growth ledger)
 
 Nothing here changes the product. It makes the traffic work measurable,
