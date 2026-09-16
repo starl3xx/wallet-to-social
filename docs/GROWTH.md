@@ -182,18 +182,40 @@ one row per surface. That is what makes this a pipeline rather than a checklist.
 
 The best-converting channel the product has, and the cheapest to be present on.
 
-| Surface           | Status 2026-09-16                                    |
-| ----------------- | ---------------------------------------------------- |
-| Official registry | Listed, active, but **v1.2.0 against 1.3.0 shipped** |
-| Glama             | Listed, healthy, 4.5/5 across 8 tools, tested today  |
-| PulseMCP          | **Absent** (0 results in a 21,920-server index)      |
-| mcp.so            | **Absent**                                           |
-| MCP.Directory     | Not yet checked                                      |
-| Smithery          | Not yet checked                                      |
+| Surface           | Status 2026-09-16                                   |
+| ----------------- | --------------------------------------------------- |
+| Official registry | **v1.3.0, active, latest** (published 23:55 UTC)    |
+| Glama             | Listed, healthy, 4.5/5 across 8 tools, tested today |
+| PulseMCP          | **Absent** (0 results in a 21,920-server index)     |
+| mcp.so            | **Absent**                                          |
+| MCP.Directory     | Not yet checked                                     |
+| Smithery          | Not yet checked                                     |
 
-The registry entry is what Glama syncs from, so publishing 1.3.0 refreshes that
-listing for free. It needs the Ed25519 key kept outside the repo, so it is Jake's
-to run.
+### Publishing a registry update
+
+Two commands, and everything they need is already on the machine:
+`mcp-publisher` on PATH, the Ed25519 key at
+`~/.walletlink/mcp-registry-key.pem`, and the DNS proof live on the apex as
+`v=MCPv1; k=ed25519; p=...`.
+
+```bash
+KEY=$(openssl pkey -in ~/.walletlink/mcp-registry-key.pem -outform DER | tail -c 32 | xxd -p -c 64)
+mcp-publisher login dns --domain walletlink.social --private-key "$KEY"
+mcp-publisher publish   # reads server.json from the working directory
+```
+
+**Compare the key against DNS before publishing.** The failure mode otherwise is
+a signature error that says nothing about which half is wrong:
+
+```bash
+openssl pkey -in ~/.walletlink/mcp-registry-key.pem -pubout -outform DER | tail -c 32 | base64
+# must equal the p= value in the apex TXT record
+```
+
+`mcp-publisher validate` checks `server.json` against the live registry and
+publishes nothing, so run it first. Log out afterwards. Glama syncs from this
+registry, so one publish refreshes that listing too; PulseMCP and mcp.so do not,
+which is why they still need their own submissions.
 
 ### Developer marketplaces
 

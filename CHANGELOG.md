@@ -11,9 +11,13 @@ tagging convention that makes each listing measurable.
   propagate everywhere: it reaches Glama, which lists the server as
   healthy at 4.5/5 across 8 tools and tested it today, and it does not
   reach PulseMCP or mcp.so, both of which return nothing for walletlink.
-- The official registry carries **v1.2.0 while `server.json` ships
-  1.3.0**. Publishing refreshes Glama for free, and needs the signing key
-  kept outside the repo.
+- **Published v1.3.0 to the official registry**, which had been serving
+  1.2.0; confirmed active and latest. Glama syncs from that registry so
+  its listing refreshes with it, while PulseMCP and mcp.so do not, which
+  is why they still need their own submissions. The procedure is in
+  `docs/GROWTH.md`, including the preflight that compares the derived
+  public key against the DNS proof, since the failure is otherwise an
+  opaque signature error.
 - Apify owns "find twitter account from ethereum wallet address" today,
   with a competing tool that scrapes X posts and assigns confidence
   scores, which is the weaker method this product is sold against. We do
