@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the card headline measures what it paints)
+
+The emphasis word in a share-card headline sat in a bare `<span>` inside
+the headline's flex container, so Satori measured that run at the
+parent's 200 weight and painted it at 600. Söhne halbfett is wider than
+extraleicht, so every run after the emphasis started early and printed
+through the last bold glyph: "published by the **owner**, never guessed"
+went out on X as `owner` with the comma struck through the r.
+
+- Each headline part is now its own flex box, and a box is measured in
+  the font it is painted in. All thirteen cards were rendered and read
+  after the change; six of them (the ones with text after the emphasis
+  word) were affected, and the other seven looked perfect throughout,
+  which is why it survived a month of posting.
+- The non-breaking spaces at the split, which fixed the *other* half of
+  this in August, are now load-bearing rather than redundant: separate
+  boxes mean Satori really does trim the boundary whitespace.
+- Invariants pin both halves inside the `Headline` function, scoped so
+  the correct weighted spans elsewhere on the card are not swept up.
+
 ### 2026-09-16 (AI assistants are a named channel, read out of what we already store)
 
 One of the three accounts carrying first-touch attribution arrived tagged
