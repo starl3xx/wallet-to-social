@@ -181,7 +181,45 @@ const ALLOWED = new Set<string>(
   ].map((s) => s.toLowerCase())
 );
 
-const NUM_RE = /~?\$?\d[\d,.]*(?:\s?million|[Mk]|%|\+)?|\d{4}-\d{2}-\d{2}/g;
+/**
+ * The ISO date alternative comes FIRST, and the order is the whole point.
+ *
+ * Alternation in JavaScript is first-match, not longest-match, so with the
+ * general number first this regex read "2026-08-17" as three separate tokens,
+ * `2026`, `08` and `17`, none of which is on the allowlist. The effect was that
+ * `CHAIN_MATCH_RATES_MEASURED_ON` sat in the allowlist below unreachable: no
+ * post could ever carry the date its own measurement is stamped with, and the
+ * failure named three figures that do not appear in the copy.
+ *
+ * Case-insensitive for the same class of reason. The allowlist is lowercased
+ * on the way in, so `4.85M` is stored as `4.85m`, and a case-sensitive `[Mk]`
+ * cannot read that back: the self-test below reported the entry unreachable
+ * when it is reachable from real copy and only unreachable from the allowlist.
+ * The flag also makes `10K` tokenize as `10K` rather than as a bare `10`,
+ * which is what a writer typing it would expect.
+ */
+const NUM_RE = /\d{4}-\d{2}-\d{2}|~?\$?\d[\d,.]*(?:\s?million|[Mk]|%|\+)?/gi;
+
+/**
+ * Every allowlisted figure has to be a token this tokenizer can actually
+ * produce.
+ *
+ * The bug above was invisible because the allowlist and the tokenizer were
+ * never checked against each other: an entry the regex can never emit is dead,
+ * and it reads as permission that was granted. Asserted as the refusal, so the
+ * next entry written in a shape `NUM_RE` does not match fails here rather than
+ * at the moment somebody tries to use it.
+ */
+for (const figure of ALLOWED) {
+  const tokens = figure.match(NUM_RE) ?? [];
+  if (tokens.length !== 1 || tokens[0] !== figure) {
+    fail(
+      `allowlisted figure "${figure}" is unreachable: the tokenizer reads it ` +
+        `as ${JSON.stringify(tokens)}, so no post can ever use it`
+    );
+  }
+}
+
 for (const d of queue.days) {
   for (const [platform, text] of [
     ['X', d.x.text],

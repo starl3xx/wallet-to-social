@@ -114,10 +114,39 @@ would silence the watchlist line that exists to notice zero human conversion,
 and nothing would look wrong. The rail is printed on its own line underneath
 whenever it is non-zero, so nothing is hidden either.
 
+## Tagging a link we post ourselves
+
+Every link in `content/social/queue.json` carries `?ref=x-<slug>` or
+`?ref=fc-<slug>`.
+
+Not decoration. A link posted on X arrives through `t.co` and a cast usually
+opens in an in-app browser, so the referring host is stripped or never sent and
+the arrival reads as `direct`. The tag is the only evidence that survives, which
+is precisely the case the `campaign` channel exists for, and the `x-` / `fc-`
+prefix says which platform sent it.
+
+This does not weaken the rule that a tag cannot manufacture a channel. The tag
+lands in `campaign`, under its own name; it never claims to be a platform
+referral, and the invariants still refuse to read one as such. Keep the prefixes
+when you refill the queue, or a month of posting becomes unattributable again.
+
 ## Log
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-09-16 — the social queue, extended and tagged
+
+Days 15 to 28, destinations spread across `/holders`, `/pricing`, `/mcp`, the
+blog, `/vs` and the homepage, every link tagged.
+
+Expected to move: the `campaign` channel, from 8 sessions to something
+legible. The real question it answers is whether daily posting is worth
+continuing at all. Fourteen days of it produced one measured social session,
+and until the links were tagged there was no way to tell whether that was the
+posting or the measurement. By 2026-10-14 the named-sources table should show
+one row per post destination, and if the total is still in single figures the
+channel should be cut rather than refilled.
 
 ### 2026-09-16 — the growth ledger
 
