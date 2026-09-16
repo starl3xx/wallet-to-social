@@ -1,3 +1,5 @@
+import { CaretDown } from '@phosphor-icons/react/dist/ssr';
+import { FOCUS_RING } from '@/components/ui/button';
 import { FAQ, faqPageJsonLd, type FaqBlock } from '@/lib/faq';
 
 /**
@@ -16,6 +18,20 @@ import { FAQ, faqPageJsonLd, type FaqBlock } from '@/lib/faq';
  * than of this file, and it stops being true the moment that page's client body
  * is split out. Nothing here should acquire a hook in the meantime.
  *
+ * ## Why `<details>` rather than state
+ *
+ * The answers collapse, and that is the whole reason this file still has no
+ * hook: `<details>`/`<summary>` is the browser's own disclosure widget, so the
+ * open state, the keyboard behaviour and the expanded/collapsed announcement
+ * come from the platform rather than from an effect. Same pattern, classes and
+ * caret as the holder-report accordion, so the two read as one control.
+ *
+ * It also keeps the answers where they have to be. A closed `<details>` is
+ * collapsed, not absent: every word is still in the HTML for a crawler, for an
+ * assistant reading the page, and for in-page find. Rendering the answers only
+ * once opened would have moved 675 words of the site's best copy out of the
+ * document, which is the opposite of why they were written.
+ *
  * ## Why the FAQPage script is here
  *
  * It was in `app/layout.tsx`, so every URL on the site carried an FAQPage,
@@ -33,27 +49,44 @@ export function HomeFaq() {
         id="faq-heading"
         className="mb-6 text-2xl font-light tracking-[var(--tracking-title)]"
       >
-        Questions people ask
+        Frequently asked questions
       </h2>
 
-      <dl className="space-y-8">
+      {/* Not a `dl` any more. A `dl` may only hold `dt`, `dd` and a wrapping
+          `div`, so a `details` cannot live inside one without inventing
+          markup that validates as neither. The machine-readable pairing was
+          never carried by the tags anyway: the FAQPage script below is built
+          from the same array and says which answer belongs to which
+          question. */}
+      <div>
         {FAQ.map((entry) => (
-          <div
+          <details
             key={entry.id}
             id={entry.id}
-            className="border-b border-border pb-8 last:border-0 last:pb-0"
+            className="group border-b border-border last:border-0"
           >
-            <dt className="mb-2 max-w-[65ch] font-semibold">
-              {entry.question}
-            </dt>
-            <dd className="space-y-3">
+            <summary
+              className={`flex cursor-pointer list-none items-start justify-between gap-4 py-4 font-semibold transition-control hover:bg-fill-subtle [&::-webkit-details-marker]:hidden ${FOCUS_RING}`}
+            >
+              {/* The question wraps, so the row grows rather than sitting at
+                  a fixed control height the way the one-line holder-report
+                  questions can. The caret keeps its own line box so it stays
+                  beside the first line instead of drifting to the middle of
+                  a three-line question. */}
+              <span className="max-w-[65ch]">{entry.question}</span>
+              <CaretDown
+                className="acc-caret mt-1 h-4 w-4 flex-none text-muted-foreground group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <div className="space-y-3 pb-6">
               {entry.answer.map((block, i) => (
                 <AnswerBlock key={i} block={block} />
               ))}
-            </dd>
-          </div>
+            </div>
+          </details>
         ))}
-      </dl>
+      </div>
 
       {/* Built from FAQ above, never typed twice. */}
       <script

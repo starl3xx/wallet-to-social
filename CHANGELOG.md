@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the homepage FAQ collapses)
+
+Nine answers, 675 words, all open at once: the section was a wall, and
+the questions underneath it could not be scanned.
+
+- The heading is "Frequently asked questions", which is what people call
+  it, in the sentence case the house style asks for.
+- Each answer is a native `<details>`, matching the holder-report
+  accordion exactly (same classes, same caret, same focus ring), so the
+  open state, the keyboard handling and the expanded/collapsed
+  announcement come from the browser and this file still has no hook.
+- A closed `<details>` is collapsed, not absent, so every word stays in
+  the HTML for a crawler, for an assistant reading the page, and for
+  in-page find. The FAQPage structured data is unchanged and still built
+  from the same array.
+- The `dl` is gone: it may only hold `dt`, `dd` and a wrapping `div`, so
+  a `details` cannot sit inside one. The question-to-answer pairing was
+  never carried by those tags anyway; the FAQPage script states it.
+
 ### 2026-09-16 (the card headline measures what it paints)
 
 The emphasis word in a share-card headline sat in a bare `<span>` inside
