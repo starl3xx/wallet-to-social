@@ -96,13 +96,23 @@ Actions logs are public. `users.email` is an address and
 `analytics_events.user_id` holds "localStorage ID or email" by its own schema
 comment.
 
-So the report reads two narrow views instead, created by
+So the report reads three narrow views instead, created by
 `scripts/migrate-growth-views.ts`. `growth_page_events` exposes the event type,
 the session, the timestamp and the two metadata keys the rollups need.
 `growth_accounts` exposes the signup timestamp, the acquisition summary and the
 rail, and resolves "did this account ever buy" into a boolean, so it carries no
-account id at all. Neither base table is granted, and an invariant asserts that
+account id at all. `growth_purchases` carries a lot's timestamp and amount with
+the rail beside it. Neither base table is granted, and an invariant asserts that
 neither is ever added to the grant list.
+
+## Two funnels, never added together
+
+`purchases` and `revenue` in the report mean packs bought by people. The x402
+onchain rail is excluded, to match the signup count beside it, which has always
+excluded it. That is not tidying: one agent settlement counted as a purchase
+would silence the watchlist line that exists to notice zero human conversion,
+and nothing would look wrong. The rail is printed on its own line underneath
+whenever it is non-zero, so nothing is hidden either.
 
 ## Log
 

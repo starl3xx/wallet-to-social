@@ -238,7 +238,7 @@ from the nightly dump.
 | `api_metrics`      | External API performance (latency, errors) |
 | `daily_stats`      | Aggregated daily metrics                   |
 
-Two **views** sit over those tables for the growth report, created by
+Three **views** sit over those tables for the growth report, created by
 `scripts/migrate-growth-views.ts`. They exist so the weekly workflow, which
 connects as `sweep_runner` and logs into a public Actions run, can read traffic
 numbers without a grant on a table holding email addresses.
@@ -247,6 +247,7 @@ numbers without a grant on a table holding email addresses.
 | -------------------- | ------------------------------------------------------------ |
 | `growth_page_events` | event type, session, timestamp, `origin` and `path` metadata |
 | `growth_accounts`    | signup timestamp, acquisition, rail, and a `bought` boolean  |
+| `growth_purchases`   | a credit lot's timestamp and amount, with the rail beside it |
 
 Neither exposes `user_id`, an email or an account id. `lib/growth.ts` reads only
 these; an invariant asserts it never reads the base tables and that neither

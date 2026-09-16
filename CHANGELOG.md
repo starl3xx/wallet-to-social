@@ -35,13 +35,27 @@ what that meant.
   were first recorded on 2026-08-18, so the first report's "previous"
   column is mostly the tracker being switched on, and the report says so
   rather than reporting a 329-fold rise.
-- Two narrow views, `growth_page_events` and `growth_accounts`, from
-  `scripts/migrate-growth-views.ts`. The weekly job runs as
-  `sweep_runner` and logs into a public Actions run; `users.email` is an
-  address and `analytics_events.user_id` holds "localStorage ID or
-  email". The views expose nine columns between them, no id and no
-  address, and invariants assert both that the ledger never reads the
-  base tables and that neither is added to the grant list.
+- Three narrow views, `growth_page_events`, `growth_accounts` and
+  `growth_purchases`, from `scripts/migrate-growth-views.ts`. The weekly
+  job runs as `sweep_runner` and logs into a public Actions run;
+  `users.email` is an address and `analytics_events.user_id` holds
+  "localStorage ID or email". The views expose twelve columns between
+  them, no id and no address, and invariants assert both that the ledger
+  never reads the base tables and that neither is added to the grant
+  list.
+- Purchases and revenue mean packs bought by people. The x402 rail is
+  excluded, matching the signup count beside it, which always excluded
+  it: one agent settlement counted as a purchase would silence the
+  watchlist line that exists to notice zero human conversion, and nothing
+  would look wrong. The rail prints on its own line underneath whenever
+  it is non-zero, so nothing is hidden either.
+- The content table filters to content paths inside the query, before the
+  row cap. Capping by views across every path and filtering afterwards
+  discards the quietest content rows first, which are the ones the
+  section exists to show.
+- The social runway counts whole UTC days inclusive of today's post. The
+  timestamp subtraction it replaced reported a queue ending a week today
+  as six days, so the refill warning fired a day late.
 - `docs/GROWTH.md` holds the measured baseline, what each channel means,
   the weekly cadence, and a dated log of interventions with what each
   was expected to move.

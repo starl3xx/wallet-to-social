@@ -75,7 +75,20 @@ function socialRunwayDays(): number | null {
     if (!Number.isFinite(start) || !Array.isArray(queue.days)) return null;
     const lastDay = Math.max(...queue.days.map((d) => d.day));
     const endMs = start + (lastDay - 1) * 86400000;
-    return Math.floor((endMs - Date.now()) / 86400000);
+    /**
+     * Counted in whole UTC days from today, inclusive of today's own post, and
+     * the inclusive part is the correction. Subtracting timestamps reports the
+     * gap between now and the last post's midnight, so a queue whose final post
+     * goes out a week today read as six days and the refill warning fired a day
+     * late. The queue posts once per UTC day, so the unit has to be the day.
+     */
+    const now = new Date();
+    const todayMs = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    );
+    return Math.round((endMs - todayMs) / 86400000) + 1;
   } catch {
     return null;
   }
@@ -111,17 +124,21 @@ async function firstPageViewDay(): Promise<string | null> {
   }
 }
 
-/** Paths that exist to bring strangers in, as opposed to the app itself. */
-function isContentPath(path: string): boolean {
-  return (
-    path.startsWith('/blog') ||
-    path.startsWith('/vs') ||
-    path.startsWith('/holders') ||
-    path === '/check' ||
-    path === '/pricing' ||
-    path === '/mcp'
-  );
-}
+/**
+ * Paths that exist to bring strangers in, as opposed to the app itself.
+ *
+ * Passed to the query as prefixes so the row cap applies to these pages only.
+ * Filtering after a cap shared with the homepage would discard the quietest
+ * content rows first, which are the ones worth reading.
+ */
+const CONTENT_PREFIXES = [
+  '/blog',
+  '/vs',
+  '/holders',
+  '/check',
+  '/pricing',
+  '/mcp',
+] as const;
 
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
@@ -157,6 +174,20 @@ async function main() {
       ],
     ]
   );
+
+  // The onchain rail is a different funnel with a different buyer, so it sits
+  // beside this table rather than inside it. Printed whenever it is non-zero,
+  // because a silent exclusion is how revenue goes missing from a report.
+  if (c.agentPurchases > 0 || p.agentPurchases > 0) {
+    say(
+      `Onchain rail, counted separately and excluded from the rows above: ` +
+        `${c.agentPurchases} settlements worth ` +
+        `$${(c.agentRevenueCents / 100).toFixed(2)} this window, ` +
+        `${p.agentPurchases} worth ` +
+        `$${(p.agentRevenueCents / 100).toFixed(2)} in the previous one.`
+    );
+    say();
+  }
 
   const firstView = await firstPageViewDay();
   if (firstView && firstView > p.start) {
@@ -216,9 +247,9 @@ async function main() {
     );
   }
 
-  const content = await getContentPerformance(30, 200);
+  const content = await getContentPerformance(30, 400, CONTENT_PREFIXES);
   if (content.ok) {
-    const rows = content.rows.filter((r) => isContentPath(r.path));
+    const rows = content.rows;
     const entries = rows.reduce((n, r) => n + r.entries, 0);
     const views = rows.reduce((n, r) => n + r.views, 0);
     say('## Content pages, last 30 days');
@@ -257,7 +288,12 @@ async function main() {
   }
   if (c.purchases === 0) {
     say(
-      `- No purchases in 28 days. ${c.signups} accounts were created in the same window.`
+      `- No purchases in 28 days. ${c.signups} accounts were created in the ` +
+        `same window.${
+          c.agentPurchases > 0
+            ? ` The ${c.agentPurchases} onchain settlements are a different funnel and are not counted here.`
+            : ''
+        }`
     );
   }
 

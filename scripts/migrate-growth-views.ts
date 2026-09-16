@@ -1,5 +1,5 @@
 /**
- * Two views the growth report reads, and the grants that let CI read them.
+ * Three views the growth report reads, and the grants that let CI read them.
  *
  * Run manually with the OWNER `DATABASE_URL`, against the DIRECT endpoint
  * (drop `-pooler` from the host; CLAUDE.md explains the shared-backend SET
@@ -24,10 +24,12 @@
  * drops `user_id` and the rest of the metadata. `growth_accounts` keeps the
  * signup timestamp, the acquisition summary and the rail, resolves "did this
  * account ever buy" into a boolean here, and therefore exposes no account id at
- * all.
+ * all. `growth_purchases` carries a lot's timestamp and amount with the rail
+ * that produced it, so the report can tell a human purchase from an agent
+ * settlement without reading `users` itself.
  *
- * Both are plain views over one table each, so Postgres inlines them and the
- * planner still reaches `analytics_events_created_at_idx`. Measured on
+ * The first two are plain views over one table each, so Postgres inlines them
+ * and the planner still reaches `analytics_events_created_at_idx`. Measured on
  * 2026-09-16: the channel rollup plans identically through the view and the
  * table.
  *
@@ -89,6 +91,32 @@ async function main() {
   console.log('growth_accounts: ok');
 
   /**
+   * Purchases with the rail attached.
+   *
+   * The totals used to read `credit_lots` directly, which counted an x402
+   * settlement as a purchase while the signup side already excluded the x402
+   * rail. An agent paying onchain then appeared as a human buyer and could
+   * silence the watchlist line that exists to notice zero conversion. The rail
+   * has to travel with the lot for the report to tell the two funnels apart,
+   * and that means a join, and a join here rather than in the report is what
+   * keeps `users` out of the query.
+   *
+   * LEFT JOIN, not INNER: a lot whose account has since been erased is still a
+   * payment that happened, and dropping it would quietly reduce revenue.
+   */
+  await sql`DROP VIEW IF EXISTS growth_purchases`;
+  await sql`
+    CREATE VIEW growth_purchases AS
+    SELECT
+      l.created_at,
+      l.amount_cents,
+      u.origin AS rail
+    FROM credit_lots l
+    LEFT JOIN users u ON u.id = l.user_id
+  `;
+  console.log('growth_purchases: ok');
+
+  /**
    * Granted here rather than in `migrate-grant-readonly.ts`, because that
    * script's list is tables and its loop would have to learn the difference.
    * A view's grant is also inseparable from the view: recreating one above
@@ -103,6 +131,8 @@ async function main() {
   console.log('grant growth_page_events to sweep_runner: ok');
   await sql`GRANT SELECT ON growth_accounts TO sweep_runner`;
   console.log('grant growth_accounts to sweep_runner: ok');
+  await sql`GRANT SELECT ON growth_purchases TO sweep_runner`;
+  console.log('grant growth_purchases to sweep_runner: ok');
 
   const verify = (await sql`
     SELECT
@@ -111,15 +141,17 @@ async function main() {
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
-      AND c.relname IN ('growth_page_events', 'growth_accounts')
+      AND c.relname IN (
+        'growth_page_events', 'growth_accounts', 'growth_purchases'
+      )
       AND c.relkind = 'v'
     ORDER BY c.relname
   `) as unknown as Array<{ name: string; readable: boolean }>;
 
   console.table(verify);
-  if (verify.length !== 2 || verify.some((v) => !v.readable)) {
+  if (verify.length !== 3 || verify.some((v) => !v.readable)) {
     console.error(
-      'Both views must exist and be readable by sweep_runner. They are not.'
+      'All three views must exist and be readable by sweep_runner. They are not.'
     );
     process.exit(1);
   }
@@ -132,7 +164,12 @@ async function main() {
   const [accounts] = (await sql`
     SELECT count(*)::int AS n FROM growth_accounts
   `) as unknown as Array<{ n: number }>;
-  console.log(`readback: ${events.n} page views, ${accounts.n} accounts`);
+  const [purchases] = (await sql`
+    SELECT count(*)::int AS n FROM growth_purchases WHERE amount_cents > 0
+  `) as unknown as Array<{ n: number }>;
+  console.log(
+    `readback: ${events.n} page views, ${accounts.n} accounts, ${purchases.n} paid lots`
+  );
 }
 
 main().catch((error) => {

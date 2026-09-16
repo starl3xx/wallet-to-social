@@ -347,10 +347,19 @@ export interface ContentPerformance {
  * work. On 2026-09-16 the whole content estate, 29 posts and 7 comparison pages
  * and 66 holder reports, had 40 entries between them in 30 days, against 1,852
  * on the homepage.
+ *
+ * `pathPrefixes` narrows the query BEFORE the limit, and that order is the
+ * point. Ranking every path by views and filtering to content afterwards drops
+ * the quietest rows first, which are exactly the rows this exists to show: a
+ * post with two entries is the one you are trying to find out about, and it is
+ * the first thing a cap shared with the app's own pages discards. Having the
+ * caller pass its prefixes also keeps the definition of "content" in the report
+ * that reads it rather than buried here.
  */
 export async function getContentPerformance(
   days = 30,
-  limit = 60
+  limit = 60,
+  pathPrefixes?: readonly string[]
 ): Promise<ContentPerformance> {
   const db = getDb();
   if (!db) return { ok: false, rows: [] };
@@ -400,6 +409,20 @@ export async function getContentPerformance(
         coalesce(e.ran, 0) AS "ranLookup"
       FROM views v
       LEFT JOIN entries e ON e.path = v.path
+      WHERE ${
+        pathPrefixes && pathPrefixes.length > 0
+          ? // An OR of bound LIKE clauses, not `LIKE ANY (... ::text[])`.
+            // Drizzle expands a JS array into a parameter list rather than a
+            // single array parameter, so the cast lands on `$1, $2, $3` and
+            // Postgres refuses it at parse time. Each prefix binds on its own
+            // here, which is also what keeps them parameters rather than
+            // string-built SQL.
+            sql.join(
+              pathPrefixes.map((prefix) => sql`v.path LIKE ${prefix + '%'}`),
+              sql` OR `
+            )
+          : sql`true`
+      }
       ORDER BY v.views DESC
       LIMIT ${limit}
     `)) as unknown as { rows: PagePerformance[] };
@@ -417,8 +440,21 @@ export interface GrowthWindow {
   sessions: number;
   lookupSessions: number;
   signups: number;
+  /**
+   * Packs bought by people, with the x402 rail excluded.
+   *
+   * Excluded to match the signup count beside it, which has always excluded
+   * that rail. Counting an agent's onchain settlement here would put an
+   * unrelated funnel's revenue into the human one and, worse, silence the
+   * watchlist line that exists to notice zero conversion: one agent payment
+   * and "no purchases in 28 days" stops printing while no person has bought
+   * anything.
+   */
   purchases: number;
   revenueCents: number;
+  /** The onchain rail, reported beside the funnel rather than inside it. */
+  agentPurchases: number;
+  agentRevenueCents: number;
 }
 
 export interface GrowthTotals {
@@ -435,6 +471,8 @@ const emptyWindow = (start: Date, end: Date): GrowthWindow => ({
   signups: 0,
   purchases: 0,
   revenueCents: 0,
+  agentPurchases: 0,
+  agentRevenueCents: 0,
 });
 
 async function windowTotals(
@@ -474,17 +512,33 @@ async function windowTotals(
           AND rail IS DISTINCT FROM 'x402'
       ) AS "signups",
       (
-        SELECT count(*)::int FROM credit_lots
+        SELECT count(*)::int FROM growth_purchases
         WHERE created_at >= ${a}::timestamp
           AND created_at < ${b}::timestamp
           AND amount_cents > 0
+          AND rail IS DISTINCT FROM 'x402'
       ) AS "purchases",
       (
-        SELECT coalesce(sum(amount_cents), 0)::int FROM credit_lots
+        SELECT coalesce(sum(amount_cents), 0)::int FROM growth_purchases
         WHERE created_at >= ${a}::timestamp
           AND created_at < ${b}::timestamp
           AND amount_cents > 0
-      ) AS "revenueCents"
+          AND rail IS DISTINCT FROM 'x402'
+      ) AS "revenueCents",
+      (
+        SELECT count(*)::int FROM growth_purchases
+        WHERE created_at >= ${a}::timestamp
+          AND created_at < ${b}::timestamp
+          AND amount_cents > 0
+          AND rail = 'x402'
+      ) AS "agentPurchases",
+      (
+        SELECT coalesce(sum(amount_cents), 0)::int FROM growth_purchases
+        WHERE created_at >= ${a}::timestamp
+          AND created_at < ${b}::timestamp
+          AND amount_cents > 0
+          AND rail = 'x402'
+      ) AS "agentRevenueCents"
   `)) as unknown as {
     rows: Array<Omit<GrowthWindow, 'start' | 'end'>>;
   };
