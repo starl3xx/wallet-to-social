@@ -16,7 +16,7 @@ went out on X as `owner` with the comma struck through the r.
   after the change; six of them (the ones with text after the emphasis
   word) were affected, and the other seven looked perfect throughout,
   which is why it survived a month of posting.
-- The non-breaking spaces at the split, which fixed the *other* half of
+- The non-breaking spaces at the split, which fixed the _other_ half of
   this in August, are now load-bearing rather than redundant: separate
   boxes mean Satori really does trim the boundary whitespace.
 - Invariants pin both halves inside the `Headline` function, scoped so
