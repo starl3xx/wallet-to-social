@@ -11,7 +11,12 @@ That is the behaviour `lib/recognized-contracts.ts` exists to correct:
 half cannot take up the slack, because ERC-20 seeding has imported
 nothing since 2026-08-31.
 
-- Ten collections added, taking the NFT side from 22 to 32. Ethereum
+- Ten collections added, taking the NFT side from 22 to 32. Five of them
+  already had published pages, reached by discovery rather than by this
+  list, so naming them moves coverage from 19 to 24 immediately and buys
+  a guaranteed refresh rather than a new page. The five that are genuinely
+  new, and that actually test the path, are Moonbirds, Nakamigos, Lil
+  Pudgys, Parallel Alpha and Loopers. Ethereum
   gains Moonbirds, Nakamigos, Lil Pudgys and Parallel Alpha; Base gains
   Loopers, The Warplets and DX Terminal; Arbitrum gains Footium Players;
   HyperEVM gains Hypurr and PiP & Friends, which matters most because

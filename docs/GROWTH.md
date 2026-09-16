@@ -178,12 +178,24 @@ nobody searches for. Ten added, taking it to 32, weighted to the chains that
 were thinnest: HyperEVM had one entry and token discovery is gated off there, so
 that list was its entire seed queue.
 
-Expected to move: the count of named contracts with a page, from 19 toward 29
-over the next two to three weeks, at roughly one NFT slot per chain per day.
-If it does not, the NFT path is failing quietly too and the next report will say
-so. It will not move search traffic inside a month; indexing and ranking a new
-page takes longer than that, and the figure to watch first is impressions rather
-than clicks.
+Expected to move, stated precisely because half of it is not the seeder's work:
+
+**Five of the ten already had published pages** (The Warplets, DX Terminal,
+Footium Players, Hypurr, PiP & Friends). Discovery had reached them by chance,
+so they counted in the 158 but not in the 19, and naming them moves the coverage
+figure from 19 to 24 the moment the list changes, with nothing seeded. What
+naming them actually buys is a guaranteed 30-day refresh instead of the luck of
+a trending feed.
+
+**Five are genuinely new**: Moonbirds, Nakamigos, Lil Pudgys, Parallel Alpha and
+Loopers. Those are the ones that test the NFT path. If coverage reaches 29 over
+the next two to three weeks, at roughly one NFT slot per chain per day, the path
+works. If it stalls at 24, the NFT side is failing quietly too and the alarm
+above will name which.
+
+It will not move search traffic inside a month either way. Indexing and ranking
+a new page takes longer than that, so the figure to watch first is impressions,
+not clicks.
 
 ### 2026-09-16 — the seed-coverage alarm
 
