@@ -70,7 +70,7 @@ export interface RecognizedContract {
  * the halo of the original, and the communities are a few thousand wallets.
  */
 export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
-  // Ethereum: 7 tokens, 7 collections
+  // Ethereum: 7 tokens, 7 collections (4 more collections in the 2026-09-16 block below)
   {
     address: '0x514910771af9ca656af840dff83e8264ecf986ca',
     chain: 'ethereum',
@@ -156,7 +156,7 @@ export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
     label: 'mfers',
   },
 
-  // Base: 9 tokens, 2 collections
+  // Base: 9 tokens, 2 collections (3 more collections in the 2026-09-16 block below)
   {
     address: '0x4ed4e862860bed51a9570b96d89af5e1b0efefed',
     chain: 'base',
@@ -224,7 +224,7 @@ export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
     label: 'Bankr',
   },
 
-  // Arbitrum: 7 tokens, 2 collections
+  // Arbitrum: 7 tokens, 2 collections (1 more collection in the 2026-09-16 block below)
   {
     address: '0x912ce59144191c1204e64559fe8253a0e49e6548',
     chain: 'arbitrum',
@@ -462,7 +462,7 @@ export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
     label: 'Pons',
   },
 
-  // HyperEVM: 0 tokens, 1 collection.
+  // HyperEVM: 0 tokens, 1 collection here (2 more in the 2026-09-16 block below).
   //
   // Verified onchain 2026-08-31 rather than from a listing: the contract
   // answers supportsInterface(0x80ac58cd) true, name() "HYPE TERMINAL",
@@ -480,6 +480,107 @@ export const RECOGNIZED_CONTRACTS: RecognizedContract[] = [
     chain: 'hyperevm',
     kind: 'nft',
     label: 'HYPE TERMINAL',
+  },
+
+  /* ----------------------------------------------------------------------
+   * Added 2026-09-16, because the NFT half of this list ran out.
+   *
+   * All 22 collections above had been seeded, so the novelty filter emptied
+   * the queue and every NFT slot fell through to the trending feeds, which is
+   * the behaviour this file exists to correct: 139 of the 158 published
+   * reports are for contracts nobody would search by name. The token half
+   * cannot take up the slack, because ERC-20 seeding has imported nothing
+   * since 2026-08-31 (see docs/GROWTH.md), so the NFT path is the only one
+   * that can still grow the searchable surface.
+   *
+   * Two independent sources per entry, as the header requires. Each address
+   * came from OpenSea through the seeder's own discovery rather than being
+   * typed, and each was then re-read onchain: name(), symbol() and
+   * supportsInterface. Every one answered ERC-721 except Parallel Alpha,
+   * which answered ERC-1155, a kind this list already carries and the seeder
+   * already handles.
+   *
+   * Labels are the searchable name rather than the onchain string where the
+   * two differ, which is the only question this list asks. The chain returns
+   * "LilPudgys", "Smol Brain", "FootiumPlayer" and "parallel"; nobody types
+   * those.
+   * -------------------------------------------------------------------- */
+  {
+    address: '0x23581767a106ae21c074b2276d25e5c3e136a68b',
+    chain: 'ethereum',
+    kind: 'nft',
+    label: 'Moonbirds',
+  },
+  {
+    address: '0xd774557b647330c91bf44cfeab205095f7e6c367',
+    chain: 'ethereum',
+    kind: 'nft',
+    label: 'Nakamigos',
+  },
+  {
+    address: '0x524cab2ec69124574082676e6f654a18df49a048',
+    chain: 'ethereum',
+    kind: 'nft',
+    label: 'Lil Pudgys',
+  },
+  {
+    address: '0x76be3b62873462d2142405439777e971754e8e77',
+    chain: 'ethereum',
+    kind: 'nft',
+    label: 'Parallel Alpha',
+  },
+  {
+    // Asked for by name on 2026-09-16, then read onchain like the rest:
+    // name() "Loopers", symbol LOOPER, ERC-721.
+    address: '0x1649cd37f4748807b4882fc48765ba0b2affa94a',
+    chain: 'base',
+    kind: 'nft',
+    label: 'Loopers',
+  },
+  {
+    // The single best-performing holder report in the 30 days to 2026-09-16:
+    // 3 entries, 7 views and one lookup, more than any other. It was reached
+    // by discovery rather than by this list, so nothing guaranteed it would
+    // be refreshed. Now it is.
+    address: '0x699727f9e01a822efdcf7333073f0461e5914b4e',
+    chain: 'base',
+    kind: 'nft',
+    label: 'The Warplets',
+  },
+  {
+    address: '0x41dc69132cce31fcbf6755c84538ca268520246f',
+    chain: 'base',
+    kind: 'nft',
+    label: 'DX Terminal',
+  },
+  {
+    address: '0x1c7b75ffef2ffab57d4a9727003bcd602f978bce',
+    chain: 'arbitrum',
+    kind: 'nft',
+    label: 'Footium Players',
+  },
+  // Smol Brains is NOT here, and it came up again on 2026-09-16 because
+  // discovery offers it and the contract at 0xa7f1462e... answers name() as
+  // "Smol Brain". That is not enough. The 2026-08-30 pass rejected it because
+  // two reputable sources gave different addresses for the same identity, and
+  // an onchain name() does not settle that: an impostor deployment answers its
+  // own name just as confidently, which is the whole reason the rule is to
+  // exclude on disagreement rather than pick the side that replies. It needs
+  // the original disagreement resolved, not a third opinion.
+  {
+    // HyperEVM had exactly one entry, and the note above it says this list is
+    // the whole of that chain's NFT seed queue because token discovery is
+    // gated off there. One entry is a queue that empties in a day.
+    address: '0x9125e2d6827a00b0f8330d6ef7bef07730bac685',
+    chain: 'hyperevm',
+    kind: 'nft',
+    label: 'Hypurr',
+  },
+  {
+    address: '0xbc4a26ba78ce05e8bcbf069bbb87fb3e1dac8df8',
+    chain: 'hyperevm',
+    kind: 'nft',
+    label: 'PiP & Friends',
   },
 ];
 

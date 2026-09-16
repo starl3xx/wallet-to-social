@@ -170,6 +170,21 @@ when you refill the queue, or a month of posting becomes unattributable again.
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
 
+### 2026-09-16 — ten collections, because the NFT queue was empty
+
+All 22 recognized NFT collections had been seeded, so from that day every NFT
+slot fell through to trending discovery, which is what built the 139 reports
+nobody searches for. Ten added, taking it to 32, weighted to the chains that
+were thinnest: HyperEVM had one entry and token discovery is gated off there, so
+that list was its entire seed queue.
+
+Expected to move: the count of named contracts with a page, from 19 toward 29
+over the next two to three weeks, at roughly one NFT slot per chain per day.
+If it does not, the NFT path is failing quietly too and the next report will say
+so. It will not move search traffic inside a month; indexing and ranking a new
+page takes longer than that, and the figure to watch first is impressions rather
+than clicks.
+
 ### 2026-09-16 — the seed-coverage alarm
 
 The weekly report now counts the contracts we decided are worth a page against

@@ -2,6 +2,39 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the NFT seed queue was empty)
+
+All 22 recognized NFT collections had been seeded, so the novelty filter
+emptied the queue and every NFT slot fell through to the trending feeds.
+That is the behaviour `lib/recognized-contracts.ts` exists to correct:
+139 of the 158 published reports answer a name nobody searches. The token
+half cannot take up the slack, because ERC-20 seeding has imported
+nothing since 2026-08-31.
+
+- Ten collections added, taking the NFT side from 22 to 32. Ethereum
+  gains Moonbirds, Nakamigos, Lil Pudgys and Parallel Alpha; Base gains
+  Loopers, The Warplets and DX Terminal; Arbitrum gains Footium Players;
+  HyperEVM gains Hypurr and PiP & Friends, which matters most because
+  that chain's token discovery is gated off, so this list is the whole of
+  its seed queue and it held one entry.
+- Two independent sources each, as the file requires. Every address came
+  from OpenSea through the seeder's own discovery rather than being
+  typed, and every one was re-read onchain for `name()`, `symbol()` and
+  `supportsInterface`. All answered ERC-721 except Parallel Alpha, which
+  answered ERC-1155, a kind this list already carries.
+- The Warplets earns its place on measurement rather than taste: it was
+  the best-performing holder report in the 30 days to 2026-09-16, with
+  more entries and more lookups than any other, and it had been reached
+  by discovery so nothing guaranteed it would refresh.
+- **Smol Brains is still excluded**, and it came up again because
+  discovery offers it and the contract answers `name()` as "Smol Brain".
+  That is not enough. It was rejected on 2026-08-30 because two reputable
+  sources disagreed on its address, and an impostor deployment answers
+  its own name just as confidently, which is exactly why the rule is to
+  exclude on disagreement rather than believe whoever replies. The
+  reasoning is now written at the point where the next person will try to
+  add it.
+
 ### 2026-09-16 (the seed-coverage alarm)
 
 A daily cron failed every day for sixteen days and every check stayed
