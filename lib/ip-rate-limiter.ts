@@ -138,6 +138,53 @@ export function slidingWindowCount(
 }
 
 /**
+ * Seconds until one more request would be ALLOWED, assuming the caller
+ * sends nothing in between.
+ *
+ * The naive answer, "the top of the next hour", lies in both directions
+ * under a rolling window: the previous bucket can still carry enough
+ * weight just after the boundary to refuse a caller who waited as told,
+ * and a current bucket inflated by refused attempts (every attempt
+ * counts, deliberately, so hammering is not free) keeps refusing PAST the
+ * boundary while it decays as next hour's previous bucket. This solves
+ * the decay for the actual admission moment across three regimes: within
+ * this hour, within the next (when today's bucket is the decaying one),
+ * and the boundary after that, by which both buckets have left the
+ * window entirely.
+ */
+export function secondsUntilNextAllowed(
+  previousCount: number,
+  currentCount: number,
+  limit: number,
+  now: Date = new Date()
+): number {
+  const secOfHour = now.getUTCMinutes() * 60 + now.getUTCSeconds();
+
+  // Within this hour: prev decays, cur stands, the request lands as +1.
+  if (currentCount + 1 <= limit) {
+    if (previousCount <= 0) return 0;
+    const fNeeded = (previousCount + currentCount + 1 - limit) / previousCount;
+    if (fNeeded <= 0) return 0;
+    if (fNeeded <= 1) {
+      return Math.max(0, Math.ceil(fNeeded * 3600) - secOfHour);
+    }
+  }
+
+  // The next hour: today's bucket is the decaying one, the request is 1.
+  if (currentCount > 0 && limit >= 1) {
+    const fNext = 1 - (limit - 1) / currentCount;
+    if (fNext <= 1) {
+      return (
+        3600 + Math.min(3600, Math.ceil(Math.max(0, fNext) * 3600)) - secOfHour
+      );
+    }
+  }
+
+  // Two boundaries out, both buckets have left the window entirely.
+  return 2 * 3600 - secOfHour;
+}
+
+/**
  * Gets the hourly bucket key for rate limiting
  * Format: YYYY-MM-DDTHH (hourly granularity)
  */
@@ -273,24 +320,29 @@ export async function checkIpRateLimit(
       )
       .limit(1);
 
-    const effective = slidingWindowCount(
-      previousBucket?.count ?? 0,
-      count,
-      now
-    );
+    const previousCount = previousBucket?.count ?? 0;
+    const effective = slidingWindowCount(previousCount, count, now);
     const remaining = Math.max(0, Math.floor(config.limit - effective));
     const allowed = effective <= config.limit;
+
+    // On refusal, resetAt and retryAfter state the actual admission
+    // moment, not the hour boundary: a rolling window has no single reset,
+    // and the boundary lies in both directions (see secondsUntilNextAllowed).
+    const retryAfterSeconds = allowed
+      ? undefined
+      : Math.max(
+          1,
+          secondsUntilNextAllowed(previousCount, count, config.limit, now)
+        );
 
     return {
       allowed,
       limit: config.limit,
       remaining,
-      // With a rolling window there is no single reset moment; the top of
-      // the next hour is the upper bound, and retryAfter inherits it.
-      resetAt,
-      retryAfter: allowed
-        ? undefined
-        : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+      resetAt: retryAfterSeconds
+        ? new Date(now.getTime() + retryAfterSeconds * 1000)
+        : resetAt,
+      retryAfter: retryAfterSeconds,
     };
   } catch (error) {
     // Fail open on errors but log them
@@ -352,7 +404,11 @@ export async function getIpRateLimitStatus(
     const remaining = Math.max(0, Math.floor(config.limit - effective));
 
     return {
-      allowed: effective < config.limit,
+      // The question status answers is "would a request succeed now", so it
+      // predicts exactly what checkIpRateLimit computes after its
+      // increment: effective plus one unit. A bare `effective < limit`
+      // disagreed in the fractional gap under one unit.
+      allowed: effective + 1 <= config.limit,
       limit: config.limit,
       remaining,
       resetAt,

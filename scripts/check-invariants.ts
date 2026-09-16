@@ -6726,6 +6726,63 @@ async function main() {
         slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 30, 0))) <
           slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 5, 0)))
     );
+
+    /**
+     * retryAfter tells the truth. The claim: a caller who waits exactly as
+     * told and then sends ONE request is admitted, and never a second
+     * sooner. Checked by solving and then replaying: take the burst
+     * refusal, wait the advertised seconds, and require the request that
+     * lands then to pass and the one a minute earlier to fail.
+     */
+    const { secondsUntilNextAllowed } = await import('@/lib/ip-rate-limiter');
+    {
+      const refusedAt = new Date(Date.UTC(2026, 8, 15, 15, 1, 12));
+      const wait = secondsUntilNextAllowed(3, 1, 3, refusedAt);
+      const admitAt = new Date(refusedAt.getTime() + wait * 1000);
+      const early = new Date(admitAt.getTime() - 60 * 1000);
+      ok(
+        'waiting as told admits the next request',
+        slidingWindowCount(3, 1 + 1, admitAt) <= 3
+      );
+      ok('and not a minute sooner', slidingWindowCount(3, 1 + 1, early) > 3);
+    }
+    {
+      // A bucket inflated past the limit by refused attempts keeps
+      // refusing PAST the boundary while it decays; the old top-of-hour
+      // answer expired mid-refusal.
+      const now = new Date(Date.UTC(2026, 8, 15, 15, 30, 0));
+      const wait = secondsUntilNextAllowed(0, 10, 3, now);
+      const boundary = 30 * 60;
+      ok(
+        'an inflated bucket refuses past the hour boundary, and the wait says so',
+        wait > boundary
+      );
+      const admitAt = new Date(now.getTime() + wait * 1000);
+      // At the admission moment the old bucket is the decaying one and the
+      // request lands as the fresh hour's first unit.
+      const f = (admitAt.getUTCMinutes() * 60 + admitAt.getUTCSeconds()) / 3600;
+      ok('and admits exactly then', 10 * (1 - f) + 1 <= 3);
+    }
+
+    // The status read predicts the incrementing check, so the two can
+    // never disagree in the fractional gap under one unit.
+    {
+      const t = new Date(Date.UTC(2026, 8, 15, 15, 45, 0));
+      const statusAllows = slidingWindowCount(1, 2, t) + 1 <= 3;
+      const checkAllows = slidingWindowCount(1, 2 + 1, t) <= 3;
+      ok(
+        'status and check agree in the fractional gap',
+        statusAllows === checkAllows && statusAllows === false
+      );
+      const limiterSrc = withoutComments(
+        readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+      );
+      ok(
+        'the status path actually predicts, and the check path actually solves',
+        limiterSrc.includes('effective + 1 <= config.limit') &&
+          limiterSrc.includes('secondsUntilNextAllowed(previousCount')
+      );
+    }
   }
 
   if (!failures.length) {
