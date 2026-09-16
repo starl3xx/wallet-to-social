@@ -174,6 +174,75 @@ export function summariseOrigin(touch: FirstTouch): string {
 }
 
 /**
+ * The assistants worth telling apart from the rest of the web.
+ *
+ * Keyed by what actually lands in an acquisition summary: a referring host
+ * (`site:` / `via:`), which `referrerHost` has already lowercased and stripped
+ * of `www.`, or a `utm_source`, which ChatGPT sets to `chatgpt.com` and others
+ * set to a bare product name. Both spellings are listed because both are
+ * observed, and a list that only knew one would report half the channel.
+ *
+ * This is deliberately a READ-TIME classification of a value already stored.
+ * `users.acquisition` keeps the measurement (`utm:chatgpt.com/via:chatgpt.com`)
+ * and this decides what it means, so the list can grow as new assistants appear
+ * and every row already in the table is reclassified by the next page load.
+ * Writing a bucket name into the column instead would freeze today's list into
+ * history and lose the host that justified it.
+ *
+ * Bing and DuckDuckGo are absent on purpose. Both mix assistant answers with
+ * ordinary search on hosts that do not distinguish the two, so counting them
+ * here would inflate the channel with traffic that is plainly search.
+ */
+export const AI_ASSISTANTS: ReadonlyArray<{ token: string; name: string }> = [
+  { token: 'chatgpt.com', name: 'ChatGPT' },
+  { token: 'chat.openai.com', name: 'ChatGPT' },
+  { token: 'chatgpt', name: 'ChatGPT' },
+  { token: 'openai.com', name: 'ChatGPT' },
+  { token: 'perplexity.ai', name: 'Perplexity' },
+  { token: 'perplexity', name: 'Perplexity' },
+  { token: 'claude.ai', name: 'Claude' },
+  { token: 'claude', name: 'Claude' },
+  { token: 'gemini.google.com', name: 'Gemini' },
+  { token: 'gemini', name: 'Gemini' },
+  { token: 'copilot.microsoft.com', name: 'Copilot' },
+  { token: 'copilot', name: 'Copilot' },
+  { token: 'grok.com', name: 'Grok' },
+  { token: 'grok', name: 'Grok' },
+  { token: 'x.ai', name: 'Grok' },
+  { token: 'you.com', name: 'You.com' },
+  { token: 'poe.com', name: 'Poe' },
+];
+
+/**
+ * Which assistant sent this arrival, or null for the rest of the web.
+ *
+ * Reads the summary `summariseOrigin` wrote, component by component, rather
+ * than searching the whole string: a substring match would classify the
+ * campaign tag `ref:claude-launch` as an arrival from Claude, which is a
+ * campaign we ran about an assistant, not a visit from one. Only the parts
+ * that name where the browser actually came from are consulted, which is
+ * every part except `ref:`.
+ */
+export function aiAssistantFrom(
+  acquisition: string | null | undefined
+): string | null {
+  if (typeof acquisition !== 'string' || acquisition === '') return null;
+
+  for (const part of acquisition.split('/')) {
+    const colon = part.indexOf(':');
+    if (colon < 0) continue;
+    const kind = part.slice(0, colon);
+    if (kind === 'ref') continue;
+    const value = part.slice(colon + 1);
+    if (value === '') continue;
+    for (const { token, name } of AI_ASSISTANTS) {
+      if (value === token || value.endsWith('.' + token)) return name;
+    }
+  }
+  return null;
+}
+
+/**
  * Where the browser keeps its first touch.
  *
  * `localStorage`, not `sessionStorage`, and the difference is the whole point.

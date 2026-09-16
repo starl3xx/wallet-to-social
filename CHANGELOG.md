@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (AI assistants are a named channel, read out of what we already store)
+
+One of the three accounts carrying first-touch attribution arrived tagged
+`utm:chatgpt.com/via:chatgpt.com`, and nothing surfaced it: the source
+table groups by the raw string and caps at 19 rows, so a channel this size
+sits in the remainder. The data was already on disk and unreadable.
+
+- `aiAssistantFrom` in `lib/first-touch.ts` maps a stored acquisition
+  summary to ChatGPT, Perplexity, Claude, Gemini, Copilot, Grok, You.com or
+  Poe. **Read time, not write time**: the column keeps the measurement, so
+  adding an assistant to the list reclassifies every arrival already
+  recorded. Bing and DuckDuckGo are deliberately absent, mixing assistant
+  answers with ordinary search on one host.
+- An "Of which, AI assistants" table on the admin funnel pane carries
+  sessions, lookups, signups and purchases per assistant, computed from an
+  uncapped grouping so the remainder row cannot hide it.
+- Invariants: a campaign tag naming an assistant (`ref:claude-launch`) is
+  not an arrival from one, a lookalike host (`chatgpt.com.evil.test`) is
+  not either, a real subdomain is, and the roll-up classifies through the
+  shared function rather than a second host list in SQL.
+
 ### 2026-09-16 (the segmented thumb sits on the segment it marks)
 
 The thumb moved by whole multiples of one segment width, which is only

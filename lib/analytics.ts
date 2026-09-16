@@ -10,6 +10,7 @@ import {
   type NewApiMetric,
 } from '@/db';
 import { sql, eq, and, gte, lte, desc, count, avg } from 'drizzle-orm';
+import { aiAssistantFrom } from '@/lib/first-touch';
 
 /**
  * A window bound, as the naive-UTC literal the timestamp columns actually hold.
@@ -1004,13 +1005,34 @@ export interface AcquisitionSources {
     signups: number;
     bought: number;
   }>;
+  /**
+   * The same arrivals, folded to the assistant that sent them.
+   *
+   * A separate roll-up rather than a column on the tables above, because the
+   * tables cap at 19 rows and fold the rest into a remainder: an assistant
+   * sending a handful of people a month is exactly the row that cap hides,
+   * and it is the row this exists to show. Empty when no arrival in the
+   * window came from one, which is a measurement rather than a gap.
+   */
+  assistants: Array<{
+    assistant: string;
+    sessions: number;
+    ranLookup: number;
+    signups: number;
+    bought: number;
+  }>;
 }
 
 export async function getAcquisitionSources(
   startDate: Date,
   endDate: Date
 ): Promise<AcquisitionSources> {
-  const empty: AcquisitionSources = { ok: false, sessions: [], signups: [] };
+  const empty: AcquisitionSources = {
+    ok: false,
+    sessions: [],
+    signups: [],
+    assistants: [],
+  };
   const db = getDb();
   if (!db) return empty;
   try {
@@ -1118,10 +1140,103 @@ export async function getAcquisitionSources(
       ORDER BY (rn <= 19) DESC, sum(signups) DESC
     `)) as unknown as { rows: AcquisitionSources['signups'] };
 
+    /**
+     * The assistant roll-up, grouped by raw origin with no cap and folded in
+     * TypeScript.
+     *
+     * Two decisions worth keeping. Uncapped, because the capped tables above
+     * would hide a small assistant inside their remainder row. And folded
+     * here rather than in SQL, because `aiAssistantFrom` is the one place
+     * that decides what counts as an assistant: a CASE expression repeating
+     * the host list in SQL would be a second implementation of the same rule,
+     * free to drift from the one the invariants actually exercise.
+     */
+    const assistantSessionRows = (await db.execute(sql`
+      WITH first_view AS (
+        SELECT DISTINCT ON (session_id)
+          session_id,
+          coalesce(metadata->>'origin', '') AS source
+        FROM analytics_events
+        WHERE event_type = 'page_view'
+          AND session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+        ORDER BY session_id, created_at
+      ),
+      s AS (
+        SELECT
+          session_id,
+          bool_or(event_type = 'lookup_completed') AS ran_lookup
+        FROM analytics_events
+        WHERE session_id IS NOT NULL
+          AND created_at >= ${utcBound(startDate)}::timestamp
+          AND created_at <= ${utcBound(endDate)}::timestamp
+        GROUP BY session_id
+      )
+      SELECT
+        f.source AS "source",
+        count(*)::int AS "sessions",
+        count(*) FILTER (WHERE s.ran_lookup)::int AS "ranLookup"
+      FROM first_view f
+      JOIN s ON s.session_id = f.session_id
+      GROUP BY f.source
+    `)) as unknown as {
+      rows: Array<{ source: string; sessions: number; ranLookup: number }>;
+    };
+
+    const assistantSignupRows = (await db.execute(sql`
+      SELECT
+        coalesce(u.acquisition, '') AS "source",
+        count(*)::int AS "signups",
+        count(*) FILTER (
+          WHERE EXISTS (
+            SELECT 1 FROM credit_lots l
+            WHERE l.user_id = u.id AND l.amount_cents > 0
+          )
+        )::int AS "bought"
+      FROM users u
+      WHERE u.created_at >= ${utcBound(startDate)}::timestamp
+        AND u.created_at <= ${utcBound(endDate)}::timestamp
+        AND u.origin IS DISTINCT FROM 'x402'
+      GROUP BY 1
+    `)) as unknown as {
+      rows: Array<{ source: string; signups: number; bought: number }>;
+    };
+
+    const byAssistant = new Map<
+      string,
+      AcquisitionSources['assistants'][number]
+    >();
+    const bucket = (assistant: string) => {
+      let row = byAssistant.get(assistant);
+      if (!row) {
+        row = { assistant, sessions: 0, ranLookup: 0, signups: 0, bought: 0 };
+        byAssistant.set(assistant, row);
+      }
+      return row;
+    };
+    for (const r of assistantSessionRows.rows ?? []) {
+      const assistant = aiAssistantFrom(r.source);
+      if (!assistant) continue;
+      const row = bucket(assistant);
+      row.sessions += r.sessions;
+      row.ranLookup += r.ranLookup;
+    }
+    for (const r of assistantSignupRows.rows ?? []) {
+      const assistant = aiAssistantFrom(r.source);
+      if (!assistant) continue;
+      const row = bucket(assistant);
+      row.signups += r.signups;
+      row.bought += r.bought;
+    }
+
     return {
       ok: true,
       sessions: sessionRows.rows ?? [],
       signups: signupRows.rows ?? [],
+      assistants: [...byAssistant.values()].sort(
+        (a, b) => b.sessions - a.sessions || b.signups - a.signups
+      ),
     };
   } catch (error) {
     console.error('Acquisition sources error:', error);

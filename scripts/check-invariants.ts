@@ -6828,6 +6828,62 @@ async function main() {
           /secondsUntilNextAllowed\(\s*previousCount/.test(limiterSrc)
       );
     }
+
+    /**
+     * The assistant classifier reads where somebody CAME FROM, not what we
+     * called the campaign.
+     *
+     * A substring search over the whole acquisition summary would read
+     * `ref:claude-launch` as an arrival from Claude: that is a campaign we
+     * ran about an assistant, and counting it as one would let our own
+     * marketing manufacture the channel it is trying to measure. Asserted
+     * as the refusal, and through `summariseOrigin` rather than a
+     * hand-written string, so the two cannot drift apart.
+     */
+    const { aiAssistantFrom, summariseOrigin: summarise } =
+      await import('@/lib/first-touch');
+    ok(
+      'a campaign tag naming an assistant is not an arrival from one',
+      aiAssistantFrom(summarise({ ref: 'claude-launch' })) === null
+    );
+    ok(
+      'the referring host on that same campaign still counts',
+      aiAssistantFrom(
+        summarise({ ref: 'claude-launch', referrer: 'chatgpt.com' })
+      ) === 'ChatGPT'
+    );
+    ok(
+      'a utm_source an assistant sets is read',
+      aiAssistantFrom(
+        summarise({ source: 'chatgpt.com', referrer: 'chatgpt.com' })
+      ) === 'ChatGPT'
+    );
+    ok(
+      'an ordinary referrer is not an assistant',
+      aiAssistantFrom(summarise({ referrer: 'warpcast.com' })) === null &&
+        aiAssistantFrom(summarise({})) === null
+    );
+    ok(
+      'a lookalike host does not pass for the real one',
+      aiAssistantFrom(summarise({ referrer: 'notchatgpt.com' })) === null &&
+        aiAssistantFrom(summarise({ referrer: 'chatgpt.com.evil.test' })) ===
+          null
+    );
+    ok(
+      'a subdomain of a known assistant does count',
+      aiAssistantFrom(summarise({ referrer: 'www2.perplexity.ai' })) ===
+        'Perplexity'
+    );
+    // Through the analytics module, not around it: the roll-up has to use
+    // this classifier rather than a second copy of the host list in SQL.
+    const analyticsSrc = withoutComments(
+      readFileSync('lib/analytics.ts', 'utf8')
+    );
+    ok(
+      'the acquisition roll-up classifies with the shared function',
+      analyticsSrc.includes('aiAssistantFrom(') &&
+        !/CASE[\s\S]{0,400}chatgpt/i.test(analyticsSrc)
+    );
   }
 
   if (!failures.length) {

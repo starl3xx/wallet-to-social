@@ -127,6 +127,13 @@ interface AcquisitionSources {
     startedCheckout: number;
   }>;
   signups: Array<{ source: string; signups: number; bought: number }>;
+  assistants: Array<{
+    assistant: string;
+    sessions: number;
+    ranLookup: number;
+    signups: number;
+    bought: number;
+  }>;
 }
 
 interface Purchases {
@@ -443,6 +450,54 @@ export function FunnelPane({ password }: { password: string }) {
               </TableBody>
             </Table>
           )}
+          {/* AI assistants, read out of the same first-touch value rather
+              than measured separately: an arrival tagged chatgpt.com is one
+              row in the table above and one line here. It is broken out
+              because the table caps at 19 sources and folds the rest into a
+              remainder, which is where a channel this size would otherwise
+              sit. */}
+          <div className="mt-4 border-t pt-4">
+            <div className="mb-2 text-xs text-muted-foreground">
+              Of which, AI assistants
+            </div>
+            {(sources.assistants ?? []).length === 0 ? (
+              <Empty>
+                No arrival in this window came from an AI assistant we recognise
+              </Empty>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Assistant</TableHead>
+                    <TableHead className="text-right">Sessions</TableHead>
+                    <TableHead className="text-right">Ran a lookup</TableHead>
+                    <TableHead className="text-right">Signed up</TableHead>
+                    <TableHead className="text-right">Bought</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(sources.assistants ?? []).map((r) => (
+                    <TableRow key={r.assistant}>
+                      <TableCell>{r.assistant}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.sessions.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.ranLookup.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.signups.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.bought.toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
           <p className="mt-4 border-t pt-4 text-xs text-muted-foreground">
             One row per session, keyed by the origin on its first page view in
             the window. <span className="font-mono">direct</span> is a
@@ -451,7 +506,10 @@ export function FunnelPane({ password }: { password: string }) {
             first-touch capture shipped on 25 August 2026, so a window reaching
             further back reads low on every named source. Checkout is the last
             step a session carries; payments arrive with no session and cannot
-            be placed in this table.
+            be placed in this table. The assistant lines read the same stored
+            value through a list of known hosts, so a new assistant is one entry
+            in <span className="font-mono">lib/first-touch.ts</span> and every
+            arrival already recorded is reclassified on the next load.
           </p>
         </CardContent>
       </Card>

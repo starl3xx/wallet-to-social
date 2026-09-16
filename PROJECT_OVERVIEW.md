@@ -779,6 +779,17 @@ because the browser holding the first touch is the one
 that requested the link, not necessarily the one that opens it. Only the referring
 **host** is kept, never the full referrer URL.
 
+**AI assistants are classified at read time, not at write time**
+(`aiAssistantFrom`, same file). The stored value keeps the measurement
+(`utm:chatgpt.com/via:chatgpt.com`) and a list of known hosts decides what it
+means, so adding an assistant reclassifies every arrival already recorded
+rather than only the ones after the deploy. The roll-up appears under "Where
+sessions came from" on the admin funnel pane, separate from the source table
+because that table caps at 19 rows and this channel is smaller than the cap.
+The classifier reads only the parts that say where a browser came from, never
+`ref:`, so a campaign named after an assistant cannot manufacture arrivals
+from it.
+
 **The reverse endpoints are the differentiated part.** `handle → wallets` is a question
 the accumulated graph can answer and a CSV export cannot. It draws match credits like
 every other call, one per wallet returned.
