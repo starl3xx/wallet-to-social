@@ -27,7 +27,7 @@
 
 ```
 Wallet list in (CSV · contract address · paste)
-  ├─ Resolve against a 4.8M-wallet identity index
+  ├─ Resolve against a 4.85M-wallet identity index
   ├─ Farcaster: complete protocol coverage, refreshed daily
   ├─ X handles: attested first, labelled always, never inferred
   ├─ Rank by holdings × follower reach
