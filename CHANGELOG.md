@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the discovery surface register)
+
+Where the product can be found, checked rather than assumed, with a
+tagging convention that makes each listing measurable.
+
+- Verified by querying each directory directly. A registry entry does not
+  propagate everywhere: it reaches Glama, which lists the server as
+  healthy at 4.5/5 across 8 tools and tested it today, and it does not
+  reach PulseMCP or mcp.so, both of which return nothing for walletlink.
+- The official registry carries **v1.2.0 while `server.json` ships
+  1.3.0**. Publishing refreshes Glama for free, and needs the signing key
+  kept outside the repo.
+- Apify owns "find twitter account from ethereum wallet address" today,
+  with a competing tool that scrapes X posts and assigns confidence
+  scores, which is the weaker method this product is sold against. We do
+  not appear on that query at all.
+- Every listing carries `?ref=dir-<surface>`. A directory link arrives
+  with a referrer we do not control and often with none, so an untagged
+  listing that works looks exactly like one nobody clicked.
+- The line: a directory listing is product metadata and is submitted as
+  part of the work; a forum post is speech in a person's name and is not.
+
 ### 2026-09-16 (the NFT seed queue was empty)
 
 All 22 recognized NFT collections had been seeded, so the novelty filter
