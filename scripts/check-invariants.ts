@@ -6879,6 +6879,51 @@ async function main() {
     const analyticsSrc = withoutComments(
       readFileSync('lib/analytics.ts', 'utf8')
     );
+    /**
+     * The card headline measures what it paints.
+     *
+     * A bare <span> at a different weight inside the headline's flex
+     * container is measured at the PARENT weight and painted at its own, so
+     * every run after the emphasis word starts early and prints through the
+     * last bold glyph. It shipped to X that way. Source level, because the
+     * output is a PNG rendered by a library this repo cannot call directly:
+     * what is checkable here is that the structure which caused it cannot
+     * come back.
+     */
+    const cardRoute = withoutComments(
+      readFileSync('app/social-card/[slug]/route.tsx', 'utf8')
+    );
+    /**
+     * Scoped to the Headline function, not the whole file. The stat spans
+     * further down carry their own weight too and are correct: each is the
+     * only thing on its line, so nothing is measured against it. The defect
+     * is specifically a weighted run sharing a line with unweighted text,
+     * which is this function and nowhere else.
+     */
+    const headlineFn = cardRoute.slice(
+      cardRoute.indexOf('function Headline('),
+      cardRoute.indexOf('export async function GET')
+    );
+    ok(
+      'the headline function is where this expects it',
+      headlineFn.length > 200 && headlineFn.includes('parts')
+    );
+    ok(
+      'the headline does not put the emphasis word in a bare span',
+      !/<span/.test(headlineFn)
+    );
+    ok(
+      'each headline part is its own measured box',
+      (headlineFn.match(/display: 'flex'/g) ?? []).length >= 3
+    );
+    // And the whitespace half of the same defect stays fixed: the split
+    // still hands back non-breaking spaces, which a plain space would not be.
+    ok(
+      'the split keeps its non-breaking spaces',
+      headlineFn.includes("replace(/ $/, '\u00a0')") &&
+        headlineFn.includes("replace(/^ /, '\u00a0')")
+    );
+
     ok(
       'the acquisition roll-up classifies with the shared function',
       analyticsSrc.includes('aiAssistantFrom(') &&

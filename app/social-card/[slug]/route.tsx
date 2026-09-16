@@ -25,11 +25,34 @@ function Headline({
   emphasis?: string;
   big: boolean;
 }) {
-  // Satori needs explicit spans for the one 600-weight word; split around
-  // the first occurrence and keep the rest at display weight. The spaces at
-  // the split become non-breaking, because Satori trims whitespace at flex
-  // item boundaries and rendered "eight chains, one answer" as
-  // "chains,oneanswer" until they did.
+  /**
+   * The headline, split around its one 600-weight word.
+   *
+   * TWO defects live here, and for a month only one of them was fixed.
+   *
+   * The first is whitespace: Satori trims it at flex item boundaries, so
+   * "eight chains, one answer" rendered as "chains,oneanswer". The
+   * non-breaking spaces below fix that, and the comment that used to sit
+   * here stopped at that sentence.
+   *
+   * The second is measurement, and it survived. With the emphasis in a bare
+   * <span> inside this flex container, Satori measured that run at the
+   * PARENT's 200 weight and painted it at 600. Söhne halbfett is wider than
+   * extraleicht, so every run after the emphasis started early and sat on
+   * top of the last bold glyph: "published by the owner, never guessed"
+   * shipped to X as "owner" with the comma printed through the r. Only
+   * headlines with text after the emphasis word could show it, which is six
+   * of the thirteen cards, and the other seven looked perfect.
+   *
+   * Each part is therefore its own flex box. A box is measured with the
+   * font it is painted in, so the advance widths cannot disagree. Rendering
+   * each part separately makes the boundary whitespace load-bearing rather
+   * than redundant, which is why both fixes have to stay.
+   *
+   * Every headline is one line at 64px today, so nothing relies on a part
+   * wrapping internally; a part is atomic and would not. All thirteen cards
+   * were rendered and read after this change.
+   */
   const at = emphasis ? text.indexOf(emphasis) : -1;
   const parts =
     at === -1 || !emphasis
@@ -55,9 +78,9 @@ function Headline({
         parts[0]
       ) : (
         <>
-          {parts[0]}
-          <span style={{ fontWeight: 600 }}>{parts[1]}</span>
-          {parts[2]}
+          <div style={{ display: 'flex' }}>{parts[0]}</div>
+          <div style={{ display: 'flex', fontWeight: 600 }}>{parts[1]}</div>
+          <div style={{ display: 'flex' }}>{parts[2]}</div>
         </>
       )}
     </div>

@@ -110,7 +110,13 @@ export const CLAIMS: Claim[] = [
      * that was never that claim.
      */
     pattern:
-      /([0-9]+(?:\.[0-9])?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9])?) million wallets that we resolved|([0-9]+(?:\.[0-9])?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9])?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9])?) million'|Resolve against a ([0-9]+(?:\.[0-9])?)M-wallet/,
+      // Two decimals, not one. The index passed 4.85M on 2026-09-16 and a
+      // one-decimal pattern read "85" out of "4.85 million", reporting the
+      // copy as 1652% wrong: a parser too narrow for the honest number turns
+      // a routine refresh into a failure nobody can act on. Rounding to 4.9
+      // to fit the old pattern would have been an over-claim, which is the
+      // one thing this file exists to prevent.
+      /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9]{1,2})?) million wallets that we resolved|([0-9]+(?:\.[0-9]{1,2})?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9]{1,2})?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9]{1,2})?) million'|Resolve against a ([0-9]+(?:\.[0-9]{1,2})?)M-wallet/,
     /**
      * The SAME predicate /api/public-stats uses, and not `count(*)`.
      *
@@ -1237,7 +1243,11 @@ const COPY_SURFACES = [
 /** Shapes that read as one of our coverage claims. */
 export const FIGURE_SHAPES = [
   /\b[0-9]{1,2}(?:\.[0-9])?%\s*(?:match|reachab|of wallets|of the|live|suspended|unclaimed)/gi,
-  /\b[0-9](?:\.[0-9])?\s*(?:M|million)[- ]wallet/gi,
+  // Two decimals here too, and for a sharper reason than the claim pattern
+  // above: this sweep is what finds a figure nobody declared. Left at one
+  // decimal it stops MATCHING "4.85M-wallet" at all, so the number becomes
+  // invisible in both directions rather than merely mis-read.
+  /\b[0-9](?:\.[0-9]{1,2})?\s*(?:M|million)[- ]wallet/gi,
   /\b[0-9](?:\.[0-9]+)? million wallets/gi,
   // A stated count. Without this the sweep could not see "417,872" at all, so a
   // figure written into a page with no declaration was invisible in BOTH

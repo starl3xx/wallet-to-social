@@ -41,10 +41,10 @@ import { SUPPORTED_CHAINS } from '@/lib/chains';
  * a twitter handle, farcaster name, ENS name, lens handle or github. Never
  * `count(*)` on the table.
  */
-export const INDEXED_WALLETS = '4.8M';
+export const INDEXED_WALLETS = '4.85M';
 
 /** The same figure written out, for prose that cannot use an abbreviation. */
-export const INDEXED_WALLETS_LONG = '4.8 million';
+export const INDEXED_WALLETS_LONG = '4.85 million';
 
 /**
  * Wallets carrying an X handle, rounded.
