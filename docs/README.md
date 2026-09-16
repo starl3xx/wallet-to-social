@@ -12,6 +12,7 @@ directory precisely so nothing here reaches docs.walletlink.social.
 | `DESIGN-LANGUAGE.md` | The canonical reference for every visual decision: radius, elevation, type, spacing, colour, motion, per-surface coverage     |
 | `DOCS-SITE.md`       | Mintlify setup, DNS, and what the docs still need                                                                             |
 | `EMAIL-SEQUENCE.md`  | Lifecycle email: the relaunch campaign record and the live welcome sequence                                                   |
+| `GROWTH.md`          | The traffic operating loop: measured baseline, what a channel means, the weekly cadence, and a dated log of interventions     |
 | `OPERATIONS.md`      | Live posture per pipeline, the PR protocol (Bugbot included), and standing constraints                                        |
 | `SEO-STRATEGY.md`    | Keyword targets and messaging guidelines                                                                                      |
 

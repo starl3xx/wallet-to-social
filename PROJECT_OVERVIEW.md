@@ -238,6 +238,21 @@ from the nightly dump.
 | `api_metrics`      | External API performance (latency, errors) |
 | `daily_stats`      | Aggregated daily metrics                   |
 
+Three **views** sit over those tables for the growth report, created by
+`scripts/migrate-growth-views.ts`. They exist so the weekly workflow, which
+connects as `sweep_runner` and logs into a public Actions run, can read traffic
+numbers without a grant on a table holding email addresses.
+
+| View                 | Exposes                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `growth_page_events` | event type, session, timestamp, `origin` and `path` metadata |
+| `growth_accounts`    | signup timestamp, acquisition, rail, and a `bought` boolean  |
+| `growth_purchases`   | a credit lot's timestamp and amount, with the rail beside it |
+
+Neither exposes `user_id`, an email or an account id. `lib/growth.ts` reads only
+these; an invariant asserts it never reads the base tables and that neither
+table is added to `READ_ONLY_TABLES`.
+
 ---
 
 ## External API Integrations
@@ -312,6 +327,16 @@ The meter:
 - `chargeForJob()`: Post-hoc debit when a job completes, idempotent on job id; `chargeForApiCall()`: the same per API call, charged every time
 - `hasPaidAccess(userId, tier)`: The server-side feature gate (legacy tier, whitelist, or a live lot; the free allowance never counts)
 - `legacyTierIsUnmetered(tier)`: `pro` and `unlimited`, which are never debited
+
+### `lib/growth.ts`
+
+The growth ledger, read through the two views above and never the base tables:
+
+- `getChannelTrend(weeks)`: sessions, lookups and signups by channel, one row per ISO week
+- `getChannelSources(days)`: the named source inside each channel, uncapped, because the row worth seeing is the small one
+- `getContentPerformance(days)`: per path, entries against views; an entry is a session that arrived there
+- `getGrowthTotals(days)`: this window beside the previous one of the same length
+- Every rollup groups by the raw acquisition string and folds to a channel in TypeScript through `channelFrom`, so no second copy of the roster exists in SQL. `docs/GROWTH.md` holds the loop these feed.
 
 ### `lib/access.ts`
 

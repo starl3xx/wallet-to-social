@@ -214,32 +214,240 @@ export const AI_ASSISTANTS: ReadonlyArray<{ token: string; name: string }> = [
 ];
 
 /**
- * Which assistant sent this arrival, or null for the rest of the web.
+ * One way of recognising a source, shared by all three rosters below.
  *
- * Reads the summary `summariseOrigin` wrote, component by component, rather
- * than searching the whole string: a substring match would classify the
- * campaign tag `ref:claude-launch` as an arrival from Claude, which is a
- * campaign we ran about an assistant, not a visit from one. Only the parts
- * that name where the browser actually came from are consulted, which is
- * every part except `ref:`.
+ * `roots` matches the host itself or any subdomain of it, and also matches the
+ * bare token a `utm_source` carries, because both spellings are observed.
+ * `pattern` exists for families with more country domains than a list can hold
+ * without rotting: Google alone ships over 190 of them.
  */
+interface SourceRule {
+  name: string;
+  roots: readonly string[];
+  pattern?: RegExp;
+}
+
+/** The AI roster in rule form, so one matcher serves every roster. */
+const AI_RULES: readonly SourceRule[] = AI_ASSISTANTS.map(
+  ({ token, name }) => ({
+    name,
+    roots: [token],
+  })
+);
+
+/**
+ * Ordinary search engines.
+ *
+ * Bing and DuckDuckGo appear here and deliberately not in `AI_ASSISTANTS`:
+ * both mix assistant answers with ordinary results on a host that does not
+ * distinguish the two, so this is the honest bucket for them.
+ *
+ * Google is a pattern rather than a list because of its country domains. The
+ * pattern requires `google` to be a whole label, so `googleusercontent.com`
+ * and `notgoogle.com` do not match it, and the trailing domain is optional so
+ * the bare `google` a `utm_source` carries matches too.
+ */
+export const SEARCH_ENGINES: readonly SourceRule[] = [
+  {
+    name: 'Google',
+    roots: [],
+    pattern: /^(?:[a-z0-9-]+\.)*google(?:\.[a-z]{2,}(?:\.[a-z]{2,})?)?$/,
+  },
+  { name: 'Bing', roots: ['bing.com', 'bing'] },
+  { name: 'DuckDuckGo', roots: ['duckduckgo.com', 'duckduckgo'] },
+  { name: 'Yahoo', roots: ['yahoo.com', 'yahoo'] },
+  { name: 'Yandex', roots: ['yandex.com', 'yandex.ru', 'yandex'] },
+  { name: 'Brave', roots: ['search.brave.com'] },
+  { name: 'Ecosia', roots: ['ecosia.org', 'ecosia'] },
+  { name: 'Startpage', roots: ['startpage.com'] },
+  { name: 'Baidu', roots: ['baidu.com', 'baidu'] },
+  { name: 'Naver', roots: ['naver.com'] },
+];
+
+/**
+ * Social platforms, which for this product means the places a post can send
+ * somebody here from.
+ *
+ * GitHub is deliberately absent. It links here from the plugin and the MCP
+ * registry, which is a citation rather than a post, and it belongs with the
+ * other referrers where its volume can be read as what it is.
+ */
+export const SOCIAL_SOURCES: readonly SourceRule[] = [
+  { name: 'X', roots: ['x.com', 'twitter.com', 't.co', 'twitter'] },
+  {
+    name: 'Farcaster',
+    roots: ['farcaster.xyz', 'warpcast.com', 'supercast.xyz', 'farcaster'],
+  },
+  { name: 'Reddit', roots: ['reddit.com', 'redd.it', 'reddit'] },
+  { name: 'LinkedIn', roots: ['linkedin.com', 'lnkd.in', 'linkedin'] },
+  { name: 'Hacker News', roots: ['news.ycombinator.com'] },
+  { name: 'Telegram', roots: ['t.me', 'telegram.org', 'telegram'] },
+  { name: 'Discord', roots: ['discord.com', 'discord.gg', 'discordapp.com'] },
+  { name: 'YouTube', roots: ['youtube.com', 'youtu.be', 'youtube'] },
+  { name: 'Bluesky', roots: ['bsky.app', 'bsky.social', 'bluesky'] },
+];
+
+/** The first rule this value satisfies, or null. */
+function matchSource(
+  value: string,
+  rules: readonly SourceRule[]
+): string | null {
+  for (const rule of rules) {
+    for (const root of rule.roots) {
+      if (value === root || value.endsWith('.' + root)) return rule.name;
+    }
+    if (rule.pattern?.test(value)) return rule.name;
+  }
+  return null;
+}
+
+/**
+ * The parts of a summary that say where the browser actually came from.
+ *
+ * Every part except `ref:`, and that exclusion is the whole reason this is a
+ * function rather than a `split`. A substring match over the raw summary would
+ * read the campaign tag `ref:claude-launch` as an arrival from Claude, which is
+ * a campaign we ran *about* an assistant, not a visit *from* one. The same trap
+ * is now three rosters wide: `ref:google-ads` is not a Google search and
+ * `ref:farcaster-push` is not a Farcaster referral.
+ */
+function evidenceValues(acquisition: string): string[] {
+  const out: string[] = [];
+  for (const part of acquisition.split('/')) {
+    const colon = part.indexOf(':');
+    if (colon < 0) continue;
+    if (part.slice(0, colon) === 'ref') continue;
+    const value = part.slice(colon + 1);
+    if (value !== '') out.push(value);
+  }
+  return out;
+}
+
+/** One component of a summary, by kind. */
+function partsOfKind(acquisition: string, kind: string): string[] {
+  const prefix = kind + ':';
+  return acquisition
+    .split('/')
+    .filter((p) => p.startsWith(prefix))
+    .map((p) => p.slice(prefix.length))
+    .filter((v) => v !== '');
+}
+
+/** Which assistant sent this arrival, or null for the rest of the web. */
 export function aiAssistantFrom(
   acquisition: string | null | undefined
 ): string | null {
   if (typeof acquisition !== 'string' || acquisition === '') return null;
-
-  for (const part of acquisition.split('/')) {
-    const colon = part.indexOf(':');
-    if (colon < 0) continue;
-    const kind = part.slice(0, colon);
-    if (kind === 'ref') continue;
-    const value = part.slice(colon + 1);
-    if (value === '') continue;
-    for (const { token, name } of AI_ASSISTANTS) {
-      if (value === token || value.endsWith('.' + token)) return name;
-    }
+  for (const value of evidenceValues(acquisition)) {
+    const name = matchSource(value, AI_RULES);
+    if (name) return name;
   }
   return null;
+}
+
+/**
+ * The channels a growth decision is actually made against.
+ *
+ * `unknown` is a separate value from `direct` on purpose, and conflating them
+ * would have been the easy mistake. 1,489 of the last 30 days' sessions carry
+ * no origin at all, because first-touch shipped after the QR auction that
+ * produced most of them. Folding those into `direct` would invent a direct
+ * channel four times the size of the real one and make every rate beneath it
+ * wrong.
+ */
+export type Channel =
+  | 'ai'
+  | 'search'
+  | 'social'
+  | 'referral'
+  | 'campaign'
+  | 'direct'
+  | 'unknown';
+
+export interface OriginChannel {
+  channel: Channel;
+  /** What to print: `ChatGPT`, `Google`, `qrcoin.fun`, a campaign tag. */
+  name: string;
+}
+
+/** Print order, most actionable first. */
+export const CHANNEL_ORDER: readonly Channel[] = [
+  'ai',
+  'search',
+  'social',
+  'referral',
+  'campaign',
+  'direct',
+  'unknown',
+];
+
+export const CHANNEL_LABELS: Record<Channel, string> = {
+  ai: 'AI assistants',
+  search: 'Search',
+  social: 'Social',
+  referral: 'Referral',
+  campaign: 'Campaign',
+  direct: 'Direct',
+  unknown: 'Unattributed',
+};
+
+/** What the unknown channel is called wherever a name is printed. */
+export const UNATTRIBUTED = '(unattributed)';
+
+/**
+ * Which channel an acquisition summary belongs to.
+ *
+ * A read-time classification of a value already stored, for the same reason
+ * `aiAssistantFrom` is: `users.acquisition` keeps the measurement and this
+ * decides what it means, so adding an engine reclassifies every row already in
+ * the table rather than freezing today's roster into history.
+ *
+ * ## The precedence, and why it is this way round
+ *
+ * A recognised platform wins over everything, because it is the only *measured*
+ * statement about where the browser came from. So a tagged link posted on
+ * Farcaster reads as Farcaster: the tag says which post, the host says which
+ * channel, and the channel is what this function is for.
+ *
+ * An unrecognised host comes next, as a plain referral under its own name.
+ *
+ * `campaign` is therefore the residual: a tag or a `utm_source` with no
+ * referring host at all. That is not a leftover, it is exactly the case the
+ * channel is made of. A QR code on a poster, a link in a printed deck and a
+ * link opened from a native app all arrive with no referrer, and the tag we
+ * put on the URL ourselves is the only evidence that exists.
+ */
+export function channelFrom(
+  acquisition: string | null | undefined
+): OriginChannel {
+  if (typeof acquisition !== 'string' || acquisition === '') {
+    return { channel: 'unknown', name: UNATTRIBUTED };
+  }
+
+  for (const value of evidenceValues(acquisition)) {
+    const ai = matchSource(value, AI_RULES);
+    if (ai) return { channel: 'ai', name: ai };
+    const search = matchSource(value, SEARCH_ENGINES);
+    if (search) return { channel: 'search', name: search };
+    const social = matchSource(value, SOCIAL_SOURCES);
+    if (social) return { channel: 'social', name: social };
+  }
+
+  const hosts = [
+    ...partsOfKind(acquisition, 'site'),
+    ...partsOfKind(acquisition, 'via'),
+  ];
+  if (hosts.length > 0) return { channel: 'referral', name: hosts[0] };
+
+  const tag = partsOfKind(acquisition, 'ref')[0];
+  if (tag) return { channel: 'campaign', name: tag };
+
+  const utm = partsOfKind(acquisition, 'utm')[0];
+  if (utm) return { channel: 'campaign', name: utm };
+
+  if (acquisition === DIRECT) return { channel: 'direct', name: DIRECT };
+
+  return { channel: 'unknown', name: UNATTRIBUTED };
 }
 
 /**

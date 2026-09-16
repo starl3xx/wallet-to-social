@@ -1,0 +1,50 @@
+# The weekly growth report, written into the job summary.
+#
+# WHY THIS IS SCHEDULED. Organic traffic moves slowly and in small absolute
+# numbers: at roughly 20 sessions a day, a channel can double and stay invisible
+# to anybody who opens a dashboard when they happen to think of it. The only way
+# a change that size is ever noticed is a measurement that runs whether anyone
+# is looking or not, on a cadence, and leaves a dated record.
+#
+# IT NEVER FAILS ON THE NUMBERS. A red build has to mean something is broken,
+# not that traffic fell, or the signal is trained away within a month. The
+# report states declines in its Watchlist section and exits zero. It exits
+# non-zero only when it could not read the database, which is a real fault.
+#
+# The output is a job summary rather than an issue or a commit, because a
+# summary costs nothing to leave unread. A weekly issue would need closing and a
+# weekly commit would put a bot in the history of a repo whose log is meant to
+# be readable.
+name: growth-report
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Monday 09:00 UTC, an hour after published-figures
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Growth report
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Written to the summary and to the log. The summary is the readable
+        # copy; the log is what survives if the summary is truncated, which it
+        # is at 1MB and the content table can grow without bound.
+        #
+        # `pipefail` is load-bearing. Actions runs this as `bash -e`, which does
+        # not set it, so without the line the step's exit status is tee's and
+        # the one failure this job can have, the report finding no database and
+        # exiting 1, would be swallowed into a green build reporting nothing.
+        run: |
+          set -o pipefail
+          npx tsx scripts/growth-report.ts | tee "$GITHUB_STEP_SUMMARY"

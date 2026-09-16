@@ -2,6 +2,64 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the growth ledger)
+
+Nothing here changes the product. It makes the traffic work measurable,
+because every decision underneath it was otherwise unfalsifiable: the
+database recorded where an arrival came from and nothing anywhere said
+what that meant.
+
+- `channelFrom` in `lib/first-touch.ts` folds one stored acquisition
+  string into one channel, beside the AI assistant roster that was
+  already there. Search engines and social platforms get rosters of
+  their own, matched the same way, and Google is a pattern rather than a
+  list because it ships over 190 country domains.
+- Unattributed is a channel and is never folded into direct. 1,489 of
+  the last 30 days' sessions carry no origin at all, because the tracker
+  shipped after the arrivals that produced them; counting those as
+  direct would invent a direct channel four times the real one and every
+  rate under it would be wrong in the flattering direction.
+- A campaign tag still cannot manufacture a channel. `ref:google-ads` is
+  a campaign, not a Google search, which is the same refusal the
+  assistant classifier already made and now has two more spellings.
+- `lib/growth.ts` reports sessions by channel by week, named sources,
+  per-page entries against views, and this window against the last.
+  Every rollup groups by the raw string and folds in TypeScript, so
+  there is no second copy of the roster in SQL to drift.
+- `scripts/growth-report.ts` prints it, `npm run growth:report` runs it,
+  and `growth-report.yml` runs it every Monday into the job summary. It
+  never fails on the numbers: a red build has to mean something is
+  broken or the signal is trained away inside a month. It states a
+  decline in its watchlist instead.
+- It also refuses to compare against a window it cannot see. Page views
+  were first recorded on 2026-08-18, so the first report's "previous"
+  column is mostly the tracker being switched on, and the report says so
+  rather than reporting a 329-fold rise.
+- Three narrow views, `growth_page_events`, `growth_accounts` and
+  `growth_purchases`, from `scripts/migrate-growth-views.ts`. The weekly
+  job runs as `sweep_runner` and logs into a public Actions run;
+  `users.email` is an address and `analytics_events.user_id` holds
+  "localStorage ID or email". The views expose twelve columns between
+  them, no id and no address, and invariants assert both that the ledger
+  never reads the base tables and that neither is added to the grant
+  list.
+- Purchases and revenue mean packs bought by people. The x402 rail is
+  excluded, matching the signup count beside it, which always excluded
+  it: one agent settlement counted as a purchase would silence the
+  watchlist line that exists to notice zero human conversion, and nothing
+  would look wrong. The rail prints on its own line underneath whenever
+  it is non-zero, so nothing is hidden either.
+- The content table filters to content paths inside the query, before the
+  row cap. Capping by views across every path and filtering afterwards
+  discards the quietest content rows first, which are the ones the
+  section exists to show.
+- The social runway counts whole UTC days inclusive of today's post. The
+  timestamp subtraction it replaced reported a queue ending a week today
+  as six days, so the refill warning fired a day late.
+- `docs/GROWTH.md` holds the measured baseline, what each channel means,
+  the weekly cadence, and a dated log of interventions with what each
+  was expected to move.
+
 ### 2026-09-16 (the homepage FAQ collapses)
 
 Nine answers, 675 words, all open at once: the section was a wall, and
