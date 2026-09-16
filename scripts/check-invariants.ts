@@ -6999,6 +6999,30 @@ async function main() {
         !/'users'/.test(readOnlyList) &&
         !/'analytics_events'/.test(readOnlyList)
     );
+    /**
+     * The seed-coverage alarm needs its grant, and losing it is silent.
+     *
+     * `getSeedCoverage` reads `seeded_contracts`, and its catch returns
+     * `ok: false`, which the report reads as "skip this section". So a missing
+     * grant does not fail the weekly run: it deletes the alarm and leaves a
+     * green build. That is the exact shape of the failure this section exists
+     * to catch, which spent sixteen days invisible for the same reason.
+     */
+    ok(
+      'the seed-coverage alarm has the grant it silently depends on',
+      /'seeded_contracts'/.test(readOnlyList)
+    );
+    /**
+     * And the denominator is the list itself, never a number typed beside it.
+     * A literal 64 would keep reporting 64 after somebody adds the 65th
+     * contract, so the one page that never got built would be the one the
+     * count could not see.
+     */
+    ok(
+      'seed coverage counts against the recognized list, not a literal',
+      growthSrc.includes('RECOGNIZED_CONTRACTS.length') &&
+        !/recognized:\s*\d+/.test(growthSrc)
+    );
     // Through the analytics module, not around it: the roll-up has to use
     // this classifier rather than a second copy of the host list in SQL.
     const analyticsSrc = withoutComments(

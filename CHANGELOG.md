@@ -2,6 +2,34 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the seed-coverage alarm)
+
+A daily cron failed every day for sixteen days and every check stayed
+green, because nothing counted what it was supposed to produce.
+
+- `getSeedCoverage` counts `RECOGNIZED_CONTRACTS`, the 64 contracts
+  chosen on the one criterion of whether a person would type the name
+  next to the word "holders", against the ones the seeder has actually
+  imported holders for. 32 of 64 today.
+- The alarm is the other number: contracts attempted in the last seven
+  days that imported nothing. That is a pipeline fault rather than a gap,
+  and it is 32, every one of them an ERC-20.
+- The cause is recorded in `docs/GROWTH.md`: the metered holder index has
+  answered 401 since 2026-08-31 and the seed path forbids the public
+  fallback by design, so every ERC-20 seed imports zero holders and
+  records a `holders_imported = 0` row. 123 of them exist.
+- `seeded_contracts` is granted to `sweep_runner`. Safe, unlike the
+  tables the growth views exist to avoid: every column is public contract
+  metadata, no wallet and no address. An invariant asserts the grant,
+  because losing it would not fail the weekly run, it would delete the
+  alarm and stay green, which is the same shape as the fault itself.
+- A second invariant asserts the denominator is the list and never a
+  literal, so adding the 65th contract cannot leave the count blind to
+  the one page that never got built.
+- Corrected two of my own figures from the day before: the estate holds
+  158 holder reports and not 66, and drew 97 entries and not 40. Both
+  were copied from an older document instead of the measurement.
+
 ### 2026-09-16 (the social queue runs to 28 days, and its links are tagged)
 
 The queue ran dry on 2026-09-23. It is now 28 days, and every link in it

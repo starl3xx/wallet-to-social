@@ -73,6 +73,18 @@ const READ_ONLY_TABLES = [
   // window, and it is operator-only. migrate-suppression.ts revokes and
   // verifies that.
   'suppressed_identifiers',
+  // Added 2026-09-16 so the weekly growth report can count how many of the
+  // contracts we decided are worth a page actually got one.
+  //
+  // Safe to grant, unlike the two tables the growth views exist to avoid: every
+  // column here is public contract metadata, an address, a chain, a name, a
+  // symbol and two counts. No wallet, no email, no account id.
+  //
+  // It is granted rather than viewed for that reason, and because the number it
+  // answers is the one nothing was watching: ERC-20 seeding imported zero
+  // holders on every chain for sixteen days, and the only trace was a
+  // holders_imported = 0 row that nobody counted.
+  'seeded_contracts',
 ];
 
 /**

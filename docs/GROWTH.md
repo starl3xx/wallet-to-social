@@ -28,8 +28,13 @@ Three things follow from that table and they set the whole plan.
 
 **Discovery is the constraint, not conversion of the traffic we have.** Fourteen
 search sessions a month is not a ranking problem to tune, it is an absence. The
-content estate is not small: 29 blog posts, 7 comparison pages, 66 holder
-reports. It draws three views a day. Pages exist and are not found.
+content estate is not small: 29 blog posts, 7 comparison pages, 158 holder
+reports. It draws nine views a day. Pages exist and are not found.
+
+Worse, most of them answer nothing anybody types. `lib/recognized-contracts.ts`
+names 64 contracts on one criterion, would a person put this name next to the
+word "holders", and only 19 of them have a page. 139 of the 158 published
+reports are for contracts nobody would search by name.
 
 **The best-converting channel is the smallest one.** Four of the ten ChatGPT
 arrivals ran a lookup. Direct converts at 63 of 438. Nothing else has enough
@@ -105,6 +110,36 @@ account id at all. `growth_purchases` carries a lot's timestamp and amount with
 the rail beside it. Neither base table is granted, and an invariant asserts that
 neither is ever added to the grant list.
 
+## The programmatic surface, and why it stopped growing into search
+
+Measured 2026-09-16. The metered ERC-20 holder index has answered `401 "Your
+Moralis Free usage is paused"` since 2026-08-31. The seed path calls
+`getContractHolders` with `allowPublicFallback: false` on purpose, so it never
+reaches the public explorer, and **every ERC-20 seed since that date has
+imported zero holders**. The cron still spends a slot per chain per day on it
+and records each failure as a `holders_imported = 0` row that nothing counted.
+
+That is why the missing 45 are almost all tokens: Chainlink, Pepe, Uniswap,
+Shiba Inu, ENS, Aave, Zora, Clanker, aixbt, GMX, PancakeSwap, FLOKI. The NFT
+path works, which is why every covered entry is a collection, and all 22
+recognized NFT contracts are already seeded. So the searchable surface is capped
+at 22 until the ERC-20 side is decided.
+
+With the fallback allowed, 11 of 42 recognized tokens resolve today: Optimism
+and Polygon fully, Ethereum and Arbitrum partly, Base not at all, BSC has no
+public fallback by design. So allowing it is a partial fix, and it also reverses
+a deliberate policy that keeps background work from spending free infrastructure
+on jobs nobody asked for. Three options, two of which cost something:
+
+1. Pay for Moralis. Restores all of it.
+2. Let seeds use the public explorer. Free, fixes 11 of 42.
+3. Drop ERC-20 seeding and concentrate on NFTs and Robinhood, which work.
+
+`npm run check:holder-fallback` passing is not evidence against any of this. It
+unsets the Moralis key deliberately and probes five hand-picked tokens to prove
+the explorer is reachable; one of the five is a recognized contract that fails
+in the seed path.
+
 ## Two funnels, never added together
 
 `purchases` and `revenue` in the report mean packs bought by people. The x402
@@ -134,6 +169,17 @@ when you refill the queue, or a month of posting becomes unattributable again.
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-09-16 — the seed-coverage alarm
+
+The weekly report now counts the contracts we decided are worth a page against
+the ones that got one, and names every contract attempted this week that
+imported nothing.
+
+Expected to move: nothing on its own. It exists because the thing it measures
+failed every day for sixteen days with every check green, and the next such
+failure should be one Monday old rather than a fortnight. The number to watch is
+"attempted this week and imported nothing": it should be zero, and it is 32.
 
 ### 2026-09-16 — the social queue, extended and tagged
 
