@@ -6820,8 +6820,12 @@ async function main() {
       );
       ok(
         'the status path actually predicts, and the check path actually solves',
+        // Whitespace-tolerant: Prettier wrapped this call across five lines
+        // the moment it grew a fifth argument, and a substring match on the
+        // one-line form then failed over correct code. A source-level
+        // assertion has to survive the formatter that is also enforced in CI.
         limiterSrc.includes('effective + 1 <= config.limit') &&
-          limiterSrc.includes('secondsUntilNextAllowed(previousCount')
+          /secondsUntilNextAllowed\(\s*previousCount/.test(limiterSrc)
       );
     }
   }
