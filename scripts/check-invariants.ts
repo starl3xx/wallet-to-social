@@ -6840,8 +6840,11 @@ async function main() {
      * as the refusal, and through `summariseOrigin` rather than a
      * hand-written string, so the two cannot drift apart.
      */
-    const { aiAssistantFrom, summariseOrigin: summarise } =
-      await import('@/lib/first-touch');
+    const {
+      aiAssistantFrom,
+      channelFrom,
+      summariseOrigin: summarise,
+    } = await import('@/lib/first-touch');
     ok(
       'a campaign tag naming an assistant is not an arrival from one',
       aiAssistantFrom(summarise({ ref: 'claude-launch' })) === null
@@ -6873,6 +6876,128 @@ async function main() {
       'a subdomain of a known assistant does count',
       aiAssistantFrom(summarise({ referrer: 'www2.perplexity.ai' })) ===
         'Perplexity'
+    );
+
+    /**
+     * The channel classifier inherits the same trap, three rosters wide.
+     *
+     * `aiAssistantFrom` already refuses to read a campaign tag as an arrival.
+     * `channelFrom` consults search engines and social platforms as well, so
+     * the same mistake now has two more spellings: `ref:google-ads` is not a
+     * Google search and `ref:farcaster-push` is not a Farcaster referral. Each
+     * would let our own marketing manufacture the organic channel it exists to
+     * measure, and each would look entirely plausible in the table.
+     */
+    ok(
+      'a campaign tag naming a search engine is not a search arrival',
+      channelFrom(summarise({ ref: 'google-ads' })).channel === 'campaign'
+    );
+    ok(
+      'a campaign tag naming a platform is not an arrival from it',
+      channelFrom(summarise({ ref: 'farcaster-push' })).channel === 'campaign'
+    );
+    /**
+     * Unattributed is not direct.
+     *
+     * 1,489 of the 30 days to 2026-09-16 carry no origin at all, because the
+     * tracker shipped after the arrivals that produced them. Folding those into
+     * `direct` would invent a direct channel four times the size of the real
+     * one, and every rate underneath it would be wrong in the flattering
+     * direction. Nothing would error.
+     */
+    ok(
+      'an arrival with nothing recorded is unknown, not direct',
+      channelFrom(null).channel === 'unknown' &&
+        channelFrom('').channel === 'unknown'
+    );
+    ok(
+      'a measured direct arrival is direct',
+      channelFrom(summarise({})).channel === 'direct'
+    );
+    ok(
+      'a lookalike host does not pass for a search engine',
+      channelFrom(summarise({ referrer: 'googleusercontent.com' })).channel ===
+        'referral' &&
+        channelFrom(summarise({ referrer: 'notgoogle.com' })).channel ===
+          'referral'
+    );
+    ok(
+      'a country domain of a search engine still counts',
+      channelFrom(summarise({ referrer: 'google.co.uk' })).name === 'Google'
+    );
+    /**
+     * Bing and DuckDuckGo are search, deliberately, and this is the assertion
+     * that keeps the two rosters from quietly merging. Both serve assistant
+     * answers on the same host as ordinary results, so counting them as
+     * assistants would inflate the one channel whose small numbers are the
+     * whole reason to watch it.
+     */
+    ok(
+      'Bing is search and not an assistant',
+      channelFrom(summarise({ referrer: 'bing.com' })).channel === 'search' &&
+        aiAssistantFrom(summarise({ referrer: 'bing.com' })) === null
+    );
+    ok(
+      'a measured platform beats the tag we put on the link ourselves',
+      channelFrom(summarise({ ref: 'day-3', referrer: 'farcaster.xyz' }))
+        .channel === 'social'
+    );
+    /**
+     * The growth ledger goes through the classifier, not around it.
+     *
+     * A CASE expression naming hosts in SQL would be a second copy of the
+     * roster, and drift between the two is undetectable by inspection: a
+     * misclassified channel produces a plausible number rather than an error.
+     */
+    const growthSrc = withoutComments(readFileSync('lib/growth.ts', 'utf8'));
+    ok(
+      'the growth rollups classify with the shared function',
+      growthSrc.includes('channelFrom(') &&
+        !/CASE[\s\S]{0,400}(chatgpt|google|farcaster)/i.test(growthSrc)
+    );
+    /**
+     * The growth ledger reads the narrow views and never the tables under
+     * them.
+     *
+     * `scripts/migrate-growth-views.ts` argues that CI can read growth numbers
+     * without being granted `users` or `analytics_events`, both of which carry
+     * an email address. That argument holds only while every query here names a
+     * view. Repointing one at a base table would keep working locally, where
+     * the owner role reads everything, and the privacy boundary would be gone
+     * with nothing to say so.
+     */
+    const reportSrc = withoutComments(
+      readFileSync('scripts/growth-report.ts', 'utf8')
+    );
+    ok(
+      'the growth ledger reads only the narrow views',
+      growthSrc.includes('growth_page_events') &&
+        growthSrc.includes('growth_accounts') &&
+        !/\bFROM\s+analytics_events\b/.test(growthSrc) &&
+        !/\bFROM\s+users\b/.test(growthSrc) &&
+        // The report runs the same query for its own caveat, and its catch
+        // swallows a permission error into a missing warning rather than a
+        // failure. Same rule, and it is the file where breaking it is quiet.
+        !/\bFROM\s+analytics_events\b/.test(reportSrc) &&
+        !/\bFROM\s+users\b/.test(reportSrc)
+    );
+    /**
+     * And the boundary is not undone from the other end: neither table may be
+     * added to the read-only grant list. Asserted as the refusal, because
+     * adding one is a two-word edit that nothing else would notice.
+     */
+    const grantSrc = withoutComments(
+      readFileSync('scripts/migrate-grant-readonly.ts', 'utf8')
+    );
+    const readOnlyList = grantSrc.slice(
+      grantSrc.indexOf('const READ_ONLY_TABLES'),
+      grantSrc.indexOf('const BACKUP_TABLES')
+    );
+    ok(
+      'the CI role is not granted the tables holding email addresses',
+      readOnlyList.length > 100 &&
+        !/'users'/.test(readOnlyList) &&
+        !/'analytics_events'/.test(readOnlyList)
     );
     // Through the analytics module, not around it: the roll-up has to use
     // this classifier rather than a second copy of the host list in SQL.
