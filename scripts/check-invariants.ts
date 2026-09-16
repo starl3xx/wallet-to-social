@@ -6764,6 +6764,47 @@ async function main() {
       ok('and admits exactly then', 10 * (1 - f) + 1 <= 3);
     }
 
+    /**
+     * And it tells the truth to a caller whose request costs more than one
+     * unit. `/api/enrich-fids` counts usernames, so a 100-username retry
+     * needs 100 units of headroom; advising the 1-unit wait sends it back
+     * early, and every refused attempt inflates the bucket it is waiting
+     * on. As the attacker-shaped user: wait exactly as told, retry the SAME
+     * batch, and require it admitted.
+     */
+    {
+      const now = new Date(Date.UTC(2026, 8, 16, 10, 20, 0));
+      const limit = 300;
+      const wait = secondsUntilNextAllowed(0, 250, limit, now, 100);
+      const naive = secondsUntilNextAllowed(0, 250, limit, now, 1);
+      ok(
+        'a multi-unit retry is told to wait longer than a single-unit one',
+        wait > naive
+      );
+      const admitAt = new Date(now.getTime() + wait * 1000);
+      const f = (admitAt.getUTCMinutes() * 60 + admitAt.getUTCSeconds()) / 3600;
+      // At the admission moment this hour's bucket is the decaying one and
+      // the retry lands as the fresh hour's first 100 units.
+      ok(
+        'and the batch it was holding actually fits when it gets there',
+        250 * (1 - f) + 100 <= limit
+      );
+      ok(
+        'a request larger than the whole limit is never promised admission',
+        secondsUntilNextAllowed(0, 0, limit, now, limit + 1) >=
+          2 * 3600 - (now.getUTCMinutes() * 60 + now.getUTCSeconds())
+      );
+      const limiterUnits = withoutComments(
+        readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+      );
+      ok(
+        'the limiter passes the units it charged into the wait it advertises',
+        /secondsUntilNextAllowed\(\s*previousCount,\s*count,\s*config\.limit,\s*now,\s*units\s*\)/.test(
+          limiterUnits
+        )
+      );
+    }
+
     // The status read predicts the incrementing check, so the two can
     // never disagree in the fractional gap under one unit.
     {

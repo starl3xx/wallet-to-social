@@ -156,23 +156,35 @@ export function secondsUntilNextAllowed(
   previousCount: number,
   currentCount: number,
   limit: number,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /**
+   * What the retry will cost. Not always 1: `/api/enrich-fids` counts
+   * USERNAMES, so a client retrying the same body spends its whole batch
+   * again. Solving for 1 unit and handing that number to a hundred-unit
+   * caller advises a retry that is refused on arrival, and since every
+   * attempt counts against the bucket, the too-early retry inflates the
+   * very number it is waiting on. The caller passes the same `units` it
+   * was charged.
+   */
+  cost: number = 1
 ): number {
   const secOfHour = now.getUTCMinutes() * 60 + now.getUTCSeconds();
 
-  // Within this hour: prev decays, cur stands, the request lands as +1.
-  if (currentCount + 1 <= limit) {
+  // Within this hour: prev decays, cur stands, the retry lands as `cost`.
+  if (currentCount + cost <= limit) {
     if (previousCount <= 0) return 0;
-    const fNeeded = (previousCount + currentCount + 1 - limit) / previousCount;
+    const fNeeded =
+      (previousCount + currentCount + cost - limit) / previousCount;
     if (fNeeded <= 0) return 0;
     if (fNeeded <= 1) {
       return Math.max(0, Math.ceil(fNeeded * 3600) - secOfHour);
     }
   }
 
-  // The next hour: today's bucket is the decaying one, the request is 1.
-  if (currentCount > 0 && limit >= 1) {
-    const fNext = 1 - (limit - 1) / currentCount;
+  // The next hour: this hour's bucket is the decaying one, the retry is
+  // `cost` against an empty current bucket.
+  if (cost <= limit && currentCount > 0) {
+    const fNext = 1 - (limit - cost) / currentCount;
     if (fNext <= 1) {
       return (
         3600 + Math.min(3600, Math.ceil(Math.max(0, fNext) * 3600)) - secOfHour
@@ -180,7 +192,12 @@ export function secondsUntilNextAllowed(
     }
   }
 
-  // Two boundaries out, both buckets have left the window entirely.
+  /**
+   * Two boundaries out, both buckets have left the window entirely. Also
+   * where a request larger than the whole limit lands: no wait admits it,
+   * and this is the point past which the answer stops improving, which is
+   * the most honest thing a Retry-After can say about it.
+   */
   return 2 * 3600 - secOfHour;
 }
 
@@ -332,7 +349,13 @@ export async function checkIpRateLimit(
       ? undefined
       : Math.max(
           1,
-          secondsUntilNextAllowed(previousCount, count, config.limit, now)
+          secondsUntilNextAllowed(
+            previousCount,
+            count,
+            config.limit,
+            now,
+            units
+          )
         );
 
     return {
