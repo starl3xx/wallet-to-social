@@ -6699,6 +6699,135 @@ async function main() {
       'the inngest pipeline gates anonymous jobs too',
       inngestSrc.includes('ANON_MATCHES_PER_JOB')
     );
+
+    /**
+     * The hour boundary is not a reset button.
+     *
+     * A calendar-hour bucket made "3 an hour" mean "3 before :00 and 3 more
+     * after": on 2026-09-15 one IP pushed 6 lookup jobs through in 17
+     * minutes by filling the 14:xx bucket at 14:58 and starting fresh at
+     * 15:01. As the attacker: replay that exact burst against the sliding
+     * estimate and require the fourth job refused.
+     */
+    const { slidingWindowCount } = await import('@/lib/ip-rate-limiter');
+    const boundaryReplay = slidingWindowCount(
+      3, // the 14:xx bucket they filled by 14:58
+      1, // their next request, at 15:01
+      new Date(Date.UTC(2026, 8, 15, 15, 1, 12))
+    );
+    ok(
+      'a full previous hour still refuses the next request after the boundary',
+      boundaryReplay > 3
+    );
+    ok(
+      'the previous hour decays out instead of vanishing at the boundary',
+      slidingWindowCount(3, 1, new Date(Date.UTC(2026, 8, 15, 15, 59, 0))) <=
+        3 &&
+        slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 30, 0))) <
+          slidingWindowCount(3, 0, new Date(Date.UTC(2026, 8, 15, 15, 5, 0)))
+    );
+
+    /**
+     * retryAfter tells the truth. The claim: a caller who waits exactly as
+     * told and then sends ONE request is admitted, and never a second
+     * sooner. Checked by solving and then replaying: take the burst
+     * refusal, wait the advertised seconds, and require the request that
+     * lands then to pass and the one a minute earlier to fail.
+     */
+    const { secondsUntilNextAllowed } = await import('@/lib/ip-rate-limiter');
+    {
+      const refusedAt = new Date(Date.UTC(2026, 8, 15, 15, 1, 12));
+      const wait = secondsUntilNextAllowed(3, 1, 3, refusedAt);
+      const admitAt = new Date(refusedAt.getTime() + wait * 1000);
+      const early = new Date(admitAt.getTime() - 60 * 1000);
+      ok(
+        'waiting as told admits the next request',
+        slidingWindowCount(3, 1 + 1, admitAt) <= 3
+      );
+      ok('and not a minute sooner', slidingWindowCount(3, 1 + 1, early) > 3);
+    }
+    {
+      // A bucket inflated past the limit by refused attempts keeps
+      // refusing PAST the boundary while it decays; the old top-of-hour
+      // answer expired mid-refusal.
+      const now = new Date(Date.UTC(2026, 8, 15, 15, 30, 0));
+      const wait = secondsUntilNextAllowed(0, 10, 3, now);
+      const boundary = 30 * 60;
+      ok(
+        'an inflated bucket refuses past the hour boundary, and the wait says so',
+        wait > boundary
+      );
+      const admitAt = new Date(now.getTime() + wait * 1000);
+      // At the admission moment the old bucket is the decaying one and the
+      // request lands as the fresh hour's first unit.
+      const f = (admitAt.getUTCMinutes() * 60 + admitAt.getUTCSeconds()) / 3600;
+      ok('and admits exactly then', 10 * (1 - f) + 1 <= 3);
+    }
+
+    /**
+     * And it tells the truth to a caller whose request costs more than one
+     * unit. `/api/enrich-fids` counts usernames, so a 100-username retry
+     * needs 100 units of headroom; advising the 1-unit wait sends it back
+     * early, and every refused attempt inflates the bucket it is waiting
+     * on. As the attacker-shaped user: wait exactly as told, retry the SAME
+     * batch, and require it admitted.
+     */
+    {
+      const now = new Date(Date.UTC(2026, 8, 16, 10, 20, 0));
+      const limit = 300;
+      const wait = secondsUntilNextAllowed(0, 250, limit, now, 100);
+      const naive = secondsUntilNextAllowed(0, 250, limit, now, 1);
+      ok(
+        'a multi-unit retry is told to wait longer than a single-unit one',
+        wait > naive
+      );
+      const admitAt = new Date(now.getTime() + wait * 1000);
+      const f = (admitAt.getUTCMinutes() * 60 + admitAt.getUTCSeconds()) / 3600;
+      // At the admission moment this hour's bucket is the decaying one and
+      // the retry lands as the fresh hour's first 100 units.
+      ok(
+        'and the batch it was holding actually fits when it gets there',
+        250 * (1 - f) + 100 <= limit
+      );
+      ok(
+        'a request larger than the whole limit is never promised admission',
+        secondsUntilNextAllowed(0, 0, limit, now, limit + 1) >=
+          2 * 3600 - (now.getUTCMinutes() * 60 + now.getUTCSeconds())
+      );
+      const limiterUnits = withoutComments(
+        readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+      );
+      ok(
+        'the limiter passes the units it charged into the wait it advertises',
+        /secondsUntilNextAllowed\(\s*previousCount,\s*count,\s*config\.limit,\s*now,\s*units\s*\)/.test(
+          limiterUnits
+        )
+      );
+    }
+
+    // The status read predicts the incrementing check, so the two can
+    // never disagree in the fractional gap under one unit.
+    {
+      const t = new Date(Date.UTC(2026, 8, 15, 15, 45, 0));
+      const statusAllows = slidingWindowCount(1, 2, t) + 1 <= 3;
+      const checkAllows = slidingWindowCount(1, 2 + 1, t) <= 3;
+      ok(
+        'status and check agree in the fractional gap',
+        statusAllows === checkAllows && statusAllows === false
+      );
+      const limiterSrc = withoutComments(
+        readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+      );
+      ok(
+        'the status path actually predicts, and the check path actually solves',
+        // Whitespace-tolerant: Prettier wrapped this call across five lines
+        // the moment it grew a fifth argument, and a substring match on the
+        // one-line form then failed over correct code. A source-level
+        // assertion has to survive the formatter that is also enforced in CI.
+        limiterSrc.includes('effective + 1 <= config.limit') &&
+          /secondsUntilNextAllowed\(\s*previousCount/.test(limiterSrc)
+      );
+    }
   }
 
   if (!failures.length) {

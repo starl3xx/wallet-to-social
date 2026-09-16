@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { ipRateLimitBuckets } from '@/db/schema';
 import { NextRequest } from 'next/server';
@@ -115,6 +115,93 @@ export interface IpRateLimitResult {
 }
 
 /**
+ * The sliding-window estimate over two adjacent hourly buckets.
+ *
+ * A bare hourly bucket resets on the calendar hour, which doubles the burst
+ * at the boundary: "3 an hour" was really "3 before :00 and 3 more after".
+ * Measured, not hypothetical: on 2026-09-15 one IP pushed 6 lookup jobs
+ * through in 17 minutes by hitting the wall at 14:58 and getting a fresh
+ * bucket at 15:00. The estimate counts the previous hour's bucket at the
+ * fraction of it still inside the rolling window, which is the standard
+ * approximation: exact at the boundary, linear decay across the hour, and
+ * never more permissive than a true rolling log by more than the
+ * within-hour distribution error.
+ */
+export function slidingWindowCount(
+  previousCount: number,
+  currentCount: number,
+  now: Date = new Date()
+): number {
+  const elapsedFraction =
+    (now.getUTCMinutes() * 60 + now.getUTCSeconds()) / 3600;
+  return previousCount * (1 - elapsedFraction) + currentCount;
+}
+
+/**
+ * Seconds until one more request would be ALLOWED, assuming the caller
+ * sends nothing in between.
+ *
+ * The naive answer, "the top of the next hour", lies in both directions
+ * under a rolling window: the previous bucket can still carry enough
+ * weight just after the boundary to refuse a caller who waited as told,
+ * and a current bucket inflated by refused attempts (every attempt
+ * counts, deliberately, so hammering is not free) keeps refusing PAST the
+ * boundary while it decays as next hour's previous bucket. This solves
+ * the decay for the actual admission moment across three regimes: within
+ * this hour, within the next (when today's bucket is the decaying one),
+ * and the boundary after that, by which both buckets have left the
+ * window entirely.
+ */
+export function secondsUntilNextAllowed(
+  previousCount: number,
+  currentCount: number,
+  limit: number,
+  now: Date = new Date(),
+  /**
+   * What the retry will cost. Not always 1: `/api/enrich-fids` counts
+   * USERNAMES, so a client retrying the same body spends its whole batch
+   * again. Solving for 1 unit and handing that number to a hundred-unit
+   * caller advises a retry that is refused on arrival, and since every
+   * attempt counts against the bucket, the too-early retry inflates the
+   * very number it is waiting on. The caller passes the same `units` it
+   * was charged.
+   */
+  cost: number = 1
+): number {
+  const secOfHour = now.getUTCMinutes() * 60 + now.getUTCSeconds();
+
+  // Within this hour: prev decays, cur stands, the retry lands as `cost`.
+  if (currentCount + cost <= limit) {
+    if (previousCount <= 0) return 0;
+    const fNeeded =
+      (previousCount + currentCount + cost - limit) / previousCount;
+    if (fNeeded <= 0) return 0;
+    if (fNeeded <= 1) {
+      return Math.max(0, Math.ceil(fNeeded * 3600) - secOfHour);
+    }
+  }
+
+  // The next hour: this hour's bucket is the decaying one, the retry is
+  // `cost` against an empty current bucket.
+  if (cost <= limit && currentCount > 0) {
+    const fNext = 1 - (limit - cost) / currentCount;
+    if (fNext <= 1) {
+      return (
+        3600 + Math.min(3600, Math.ceil(Math.max(0, fNext) * 3600)) - secOfHour
+      );
+    }
+  }
+
+  /**
+   * Two boundaries out, both buckets have left the window entirely. Also
+   * where a request larger than the whole limit lands: no wait admits it,
+   * and this is the point past which the answer stops improving, which is
+   * the most honest thing a Retry-After can say about it.
+   */
+  return 2 * 3600 - secOfHour;
+}
+
+/**
  * Gets the hourly bucket key for rate limiting
  * Format: YYYY-MM-DDTHH (hourly granularity)
  */
@@ -203,8 +290,12 @@ export async function checkIpRateLimit(
     };
   }
 
-  const bucketKey = getHourlyBucketKey();
-  const resetAt = getResetTime();
+  const now = new Date();
+  const bucketKey = getHourlyBucketKey(now);
+  const previousBucketKey = getHourlyBucketKey(
+    new Date(now.getTime() - 60 * 60 * 1000)
+  );
+  const resetAt = getResetTime(now);
 
   try {
     // Use atomic UPSERT to increment and return new count
@@ -231,17 +322,50 @@ export async function checkIpRateLimit(
       .returning();
 
     const count = result[0]?.count ?? units;
-    const remaining = Math.max(0, config.limit - count);
-    const allowed = count <= config.limit;
+
+    // The previous hour still counts for the fraction of it inside the
+    // rolling window; see slidingWindowCount.
+    const [previousBucket] = await db
+      .select({ count: ipRateLimitBuckets.count })
+      .from(ipRateLimitBuckets)
+      .where(
+        and(
+          eq(ipRateLimitBuckets.ipAddress, ipAddress),
+          eq(ipRateLimitBuckets.endpoint, endpoint),
+          eq(ipRateLimitBuckets.bucketKey, previousBucketKey)
+        )
+      )
+      .limit(1);
+
+    const previousCount = previousBucket?.count ?? 0;
+    const effective = slidingWindowCount(previousCount, count, now);
+    const remaining = Math.max(0, Math.floor(config.limit - effective));
+    const allowed = effective <= config.limit;
+
+    // On refusal, resetAt and retryAfter state the actual admission
+    // moment, not the hour boundary: a rolling window has no single reset,
+    // and the boundary lies in both directions (see secondsUntilNextAllowed).
+    const retryAfterSeconds = allowed
+      ? undefined
+      : Math.max(
+          1,
+          secondsUntilNextAllowed(
+            previousCount,
+            count,
+            config.limit,
+            now,
+            units
+          )
+        );
 
     return {
       allowed,
       limit: config.limit,
       remaining,
-      resetAt,
-      retryAfter: allowed
-        ? undefined
-        : Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+      resetAt: retryAfterSeconds
+        ? new Date(now.getTime() + retryAfterSeconds * 1000)
+        : resetAt,
+      retryAfter: retryAfterSeconds,
     };
   } catch (error) {
     // Fail open on errors but log them
@@ -278,23 +402,36 @@ export async function getIpRateLimitStatus(
   const resetAt = getResetTime();
 
   try {
-    const [bucket] = await db
-      .select()
+    const now = new Date();
+    const previousBucketKey = getHourlyBucketKey(
+      new Date(now.getTime() - 60 * 60 * 1000)
+    );
+    const rows = await db
+      .select({
+        bucketKey: ipRateLimitBuckets.bucketKey,
+        count: ipRateLimitBuckets.count,
+      })
       .from(ipRateLimitBuckets)
       .where(
         and(
           eq(ipRateLimitBuckets.ipAddress, ipAddress),
           eq(ipRateLimitBuckets.endpoint, endpoint),
-          eq(ipRateLimitBuckets.bucketKey, bucketKey)
+          inArray(ipRateLimitBuckets.bucketKey, [bucketKey, previousBucketKey])
         )
-      )
-      .limit(1);
+      );
 
-    const count = bucket?.count ?? 0;
-    const remaining = Math.max(0, config.limit - count);
+    const count = rows.find((r) => r.bucketKey === bucketKey)?.count ?? 0;
+    const previousCount =
+      rows.find((r) => r.bucketKey === previousBucketKey)?.count ?? 0;
+    const effective = slidingWindowCount(previousCount, count, now);
+    const remaining = Math.max(0, Math.floor(config.limit - effective));
 
     return {
-      allowed: count < config.limit,
+      // The question status answers is "would a request succeed now", so it
+      // predicts exactly what checkIpRateLimit computes after its
+      // increment: effective plus one unit. A bare `effective < limit`
+      // disagreed in the fractional gap under one unit.
+      allowed: effective + 1 <= config.limit,
       limit: config.limit,
       remaining,
       resetAt,
