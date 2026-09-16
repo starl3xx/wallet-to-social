@@ -109,11 +109,12 @@ const PATHS = ['/', '/check', '/pricing'];
  * shape of silent success the fixtures exist to prevent, reappearing on the half
  * of the run the fixtures do not cover.
  *
- * The observed counts are 11 to 12 on `/`, 9 on `/check` and 8 on `/pricing`.
- * The homepage varies by one at 320 between macOS and the Linux runner, so this
- * is a floor rather than an equality: it is here to tell a rendered page from an
- * empty one, not to pin a number that legitimately moves when a control wraps
- * out of view.
+ * The observed counts are 14 on `/`, 10 on `/check` and 9 on `/pricing`, each
+ * three higher than before 2026-09-16, when the segmented controls on those
+ * pages started being counted alongside the ladder ones. The homepage varies by
+ * one at 320 between macOS and the Linux runner, so this is a floor rather than
+ * an equality: it is here to tell a rendered page from an empty one, not to pin
+ * a number that legitimately moves when a control wraps out of view.
  */
 const MIN_CONTROLS_PER_PAGE = 5;
 
@@ -206,10 +207,41 @@ const MEASURE = (ladder, tolerance) => `(() => {
       violations.push({ axis: 'width', want: LADDER[wToken], got: +r.width.toFixed(2), el: describe(el) });
     }
   }
+  /**
+   * The segmented control's thumb sits on the selected segment.
+   *
+   * Same class of defect as the height one, and it shipped the same way: the
+   * component moved the thumb by whole multiples of one segment width, which
+   * is only true if the segments ARE equal, and \`flex-1 basis-0\` does not
+   * make them equal (min-width defaults to auto, flooring each item at its own
+   * content width). Every string was on-system; only the rendered box was
+   * wrong. Asserted as overlap, because that is the thing a person sees.
+   */
+  const thumbs = [];
+  for (const group of document.querySelectorAll('[role="radiogroup"]')) {
+    const thumb = group.querySelector('[data-thumb]');
+    const selected = group.querySelector('[role="radio"][aria-checked="true"]');
+    if (!thumb || !selected) continue;
+    if (typeof group.checkVisibility === 'function' && !group.checkVisibility()) continue;
+    const t = thumb.getBoundingClientRect();
+    const s = selected.getBoundingClientRect();
+    if (s.width === 0) continue;
+    const overlap = Math.max(0, Math.min(t.right, s.right) - Math.max(t.left, s.left));
+    const covered = (overlap / s.width) * 100;
+    checked++;
+    if (covered < 99) {
+      thumbs.push({
+        covered: +covered.toFixed(1),
+        label: (selected.getAttribute('aria-label') || selected.textContent || '').trim().slice(0, 24),
+        group: describe(group).slice(0, 60),
+      });
+    }
+  }
   const doc = document.documentElement;
   return JSON.stringify({
     checked,
     violations,
+    thumbs,
     scrollWidth: doc.scrollWidth,
     innerWidth: window.innerWidth,
     tokenOnPage: getComputedStyle(doc).getPropertyValue('--height-control').trim(),
@@ -365,7 +397,42 @@ function fixtureHtml(broken) {
   <button class="h-control-hero">Start lookup</button>
   <button class="h-control-compact">Details</button>
   <button class="h-control-micro">7D</button>
-</div>`;
+</div>
+${segmentedFixture(broken)}`;
+}
+
+/**
+ * The 2026-09-16 bug, reduced, and its fix.
+ *
+ * `broken` is the shipped flex version: `flex: 1 1 0%` segments read as equal
+ * and are not, because `min-width` defaults to `auto` and floors each one at
+ * its own label. With "All / Free / Pro / Unlimited" the thumb covered 61% of
+ * the selected segment. The fixed form is the grid the component now uses.
+ * Both put the thumb on index 2, so a guard that has stopped looking at the
+ * thumb fails the broken case loudly rather than reporting nothing.
+ */
+function segmentedFixture(broken) {
+  const track = broken
+    ? 'display: inline-flex;'
+    : 'display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr;';
+  const seg = broken ? 'flex: 1 1 0%;' : 'min-width: 0;';
+  return `<style>
+  .seg { position: relative; ${track} height: var(--height-control);
+         align-items: center; border-radius: 999px; border: 1px solid #ddd;
+         background: #f4f4f5; padding: 4px; }
+  .seg .thumb { position: absolute; top: 4px; bottom: 4px; left: 4px;
+                border-radius: 999px; background: #fff;
+                width: calc((100% - 0.5rem) / 4); transform: translateX(200%); }
+  .seg button { ${seg} position: relative; z-index: 1; height: 100%;
+                border: 0; background: none; padding: 0 12px; font: inherit; }
+</style>
+<div class="row"><div class="seg" role="radiogroup" aria-label="Tier">
+  <span class="thumb" data-thumb></span>
+  <button role="radio" aria-checked="false">All</button>
+  <button role="radio" aria-checked="false">Free</button>
+  <button role="radio" aria-checked="true">Pro</button>
+  <button role="radio" aria-checked="false">Unlimited</button>
+</div></div>`;
 }
 
 async function selfTest(cdp, ladder, tmp) {
@@ -381,25 +448,41 @@ async function selfTest(cdp, ladder, tmp) {
     writeFileSync(file, fixtureHtml(c.broken));
     const r = await measure(cdp, `file://${file}`, viewport, expression);
 
-    if (r.checked !== 6) {
+    // Six ladder controls plus the one segmented control the fixture adds.
+    if (r.checked !== 7) {
       fail(
-        `Fixture "${c.name}" offered 6 controls and the check looked at ${r.checked}. ` +
+        `Fixture "${c.name}" offered 7 controls and the check looked at ${r.checked}. ` +
           'The selector has stopped finding what it is for, so a clean result on the app would mean nothing.'
       );
     }
-    const flagged = r.violations.length > 0;
+    const found = r.violations.length + r.thumbs.length;
+    const flagged = found > 0;
     if (flagged !== c.mustFlag) {
       fail(
         c.mustFlag
-          ? `Fixture "${c.name}" reproduces a 22px control and the check passed it. ` +
+          ? `Fixture "${c.name}" reproduces a 22px control and a thumb off its segment, and the check passed it. ` +
               'This guard does not work; fix it before trusting any run.'
           : `Fixture "${c.name}" is correct markup and the check flagged it: ` +
-              JSON.stringify(r.violations) +
+              JSON.stringify([...r.violations, ...r.thumbs]) +
               '. A guard that cries wolf gets switched off.'
       );
     }
+    // Both defects, named separately: a fixture that reproduced only the
+    // height one would pass this self-test while the thumb assertion was
+    // dead, which is the silent success the fixtures exist to prevent.
+    if (c.mustFlag && r.thumbs.length === 0) {
+      fail(
+        `Fixture "${c.name}" reproduces a thumb covering 61% of its segment and the thumb assertion said nothing. ` +
+          'It is not measuring what it claims to.'
+      );
+    }
+    if (c.mustFlag && r.violations.length === 0) {
+      fail(
+        `Fixture "${c.name}" reproduces a 22px control and the height assertion said nothing.`
+      );
+    }
     console.log(
-      `  ${GREEN}ok${RESET}  fixture: ${c.name} ${DIM}(${c.mustFlag ? `caught ${r.violations.length}` : 'clean'}, 6 controls seen)${RESET}`
+      `  ${GREEN}ok${RESET}  fixture: ${c.name} ${DIM}(${c.mustFlag ? `caught ${r.violations.length} height, ${r.thumbs.length} thumb` : 'clean'}, 7 controls seen)${RESET}`
     );
   }
 }
@@ -626,7 +709,7 @@ async function main() {
    * guard whose whole purpose is that a passing run cannot be mistaken for
    * anything else.
    */
-  const counts = { height: 0, scroll: 0, empty: 0, token: 0 };
+  const counts = { height: 0, scroll: 0, empty: 0, token: 0, thumb: 0 };
 
   for (const path of PATHS) {
     for (const viewport of VIEWPORTS) {
@@ -672,6 +755,14 @@ async function main() {
         failures++;
       }
 
+      for (const t of r.thumbs) {
+        console.log(
+          `  ${RED}fail${RESET}  ${where}: the segmented thumb covers ${t.covered}% of the selected segment ("${t.label}") — ${t.group}`
+        );
+        counts.thumb++;
+        failures++;
+      }
+
       // Green only when this viewport passed every assertion, not merely the
       // height one.
       if (failures === before) {
@@ -695,6 +786,10 @@ async function main() {
       parts.push(
         `${counts.scroll} page render${counts.scroll === 1 ? '' : 's'} scrolled sideways`
       );
+    if (counts.thumb)
+      parts.push(
+        `${counts.thumb} segmented thumb${counts.thumb === 1 ? '' : 's'} did not sit on the selected segment`
+      );
     if (counts.empty)
       parts.push(
         `${counts.empty} page render${counts.empty === 1 ? '' : 's'} had too few controls to be a rendered page`
@@ -717,8 +812,9 @@ async function main() {
   }
 
   console.log(
-    `${GREEN}control height holds${RESET} — ${totalChecked} rendered controls across ` +
-      `${PATHS.length} pages and ${VIEWPORTS.length} widths, every declared ladder height rendered, no page scrolls sideways.`
+    `${GREEN}controls hold${RESET} — ${totalChecked} rendered controls across ` +
+      `${PATHS.length} pages and ${VIEWPORTS.length} widths, every declared ladder height rendered, ` +
+      `every segmented thumb on its selected segment, no page scrolls sideways.`
   );
 
   /**

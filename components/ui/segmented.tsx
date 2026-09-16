@@ -29,13 +29,30 @@ export interface SegmentedOption<T extends string> {
  *
  * The thumb is a single absolutely positioned element translated by whole
  * multiples of its own width, so the maths stays exact regardless of how many
- * options there are: segments are `flex-1` on a zero basis, so every one is the
- * same width and `translateX(index * 100%)` lands precisely.
+ * options there are: every segment is the same width, so `translateX(index *
+ * 100%)` lands precisely.
  *
  * Movement is also why the segments cannot size to their content. The 𝕏 option
  * holds a 14px mark and the Farcaster option holds nine characters; letting them
  * size naturally would mean the thumb has to measure the DOM to know where to
  * stop. Equal widths make it arithmetic.
+ *
+ * **The equal widths have to be real, and with flexbox they were not.** This
+ * was `inline-flex` with `flex-1 basis-0` segments, which reads as equal and
+ * is not: a flex item's `min-width` defaults to `auto`, which floors it at its
+ * own content width, so the control settled at its min-content size with every
+ * segment its natural width. Measured in Chrome, "All / Free / Pro /
+ * Unlimited" came out 39.6 / 52.8 / 45.8 / 82.4 — and the thumb, sized and
+ * stepped by the *average*, covered 61% of the selected segment and spilled
+ * into its neighbour. Constrained or not made no difference; the assumption
+ * was simply false whenever two labels differed in length, which is every
+ * call site with words in it.
+ *
+ * A grid fixes it where the claim is actually made. `grid-auto-columns: 1fr`
+ * with `min-w-0` segments gives columns that are equal by construction: at
+ * their natural size the control is N times the widest label, and squeezed by
+ * a narrow parent they shrink together rather than one at a time. The thumb
+ * arithmetic below is unchanged, because it was never the broken half.
  *
  * `role="radiogroup"` is a behavioural promise, so it is kept: one tab stop,
  * arrows move selection, Home and End jump to the ends.
@@ -105,7 +122,7 @@ export function Segmented<T extends string>({
        * box, which the border does not touch.
        */
       className={cn(
-        'relative inline-flex h-control items-center rounded-full border border-border bg-muted p-1',
+        'relative inline-grid grid-flow-col [grid-auto-columns:1fr] h-control items-center rounded-full border border-border bg-muted p-1',
         className
       )}
     >
@@ -134,7 +151,11 @@ export function Segmented<T extends string>({
           onKeyDown={(e) => onKeyDown(e, i)}
           onClick={() => onChange(o.value)}
           className={cn(
-            'segmented-option relative z-10 flex h-full flex-1 basis-0 items-center justify-center gap-2 rounded-full',
+            // `min-w-0` is load-bearing, not tidying: it is what lets a grid
+            // column shrink below the label inside it, so a squeezed control
+            // narrows every segment together instead of holding the widest at
+            // its content size and unequalising the row.
+            'segmented-option relative z-10 flex h-full min-w-0 items-center justify-center gap-2 rounded-full',
             'px-3 text-sm font-medium',
             // The ring Button and Input draw, from the one string, so the
             // segment beside a button lights up the same way it does.
