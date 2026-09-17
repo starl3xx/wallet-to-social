@@ -61,6 +61,13 @@ export interface JobOptions {
    * nowhere else can.
    */
   meteredUserId?: string;
+  /**
+   * The anonymous gate for THIS job, decided at submit time from the caller's
+   * remaining daily allowance. Absent for a signed-in caller, and absent on
+   * jobs created before the meter shipped, both of which fall back to the
+   * per-job constant.
+   */
+  anonMatchGate?: number;
   tier?: UserTier;
   /**
    * Whether this job gets the paid result fields (priority score, Farcaster
@@ -993,6 +1000,15 @@ async function finalizeJobWithResults(
    */
   let matchesDelivered: number | null = null;
   let gateIsFresh = false;
+  /**
+   * What an anonymous caller is allowed to see from THIS job. Clamped to the
+   * per-job constant so a stale or hand-edited option cannot widen the gate.
+   */
+  const anonGate = Math.min(
+    ANON_MATCHES_PER_JOB,
+    Math.max(0, options.anonMatchGate ?? ANON_MATCHES_PER_JOB)
+  );
+
   if (options.meteredUserId) {
     try {
       const charge = await chargeForJob(
@@ -1009,16 +1025,23 @@ async function finalizeJobWithResults(
     } catch (error) {
       console.error('Credit charge failed (job still succeeded):', error);
     }
-  } else if (job.userId && anySocialFound > ANON_MATCHES_PER_JOB) {
+  } else if (job.userId && anySocialFound > anonGate) {
     /**
-     * The anonymous gate: no account means nothing to bill and nothing to
-     * meter across jobs, so the unit is the job. Deterministic, so a
-     * resumed finalize recomputes it identically. `job.userId` (the
-     * caller's local id) is required because a system job — the seed cron,
-     * refresh-stale — has no owner and serves no wallet rows to anyone;
-     * gating it would be a lock on a door nobody can open.
+     * The anonymous gate. `job.userId` (the caller's local id) is required
+     * because a system job — the seed cron, refresh-stale — has no owner and
+     * serves no wallet rows to anyone; gating it would be a lock on a door
+     * nobody can open.
+     *
+     * The size comes from `options.anonMatchGate`, reserved against the
+     * caller's daily allowance when the job was accepted, because that is the
+     * only moment the address is known. It is stored on the job rather than
+     * recomputed so a resumed finalize rebuilds the same gate: recomputing
+     * would read a different remaining budget and silently move the line.
+     *
+     * The constant is the fallback, for a signed-in caller that never reserved
+     * one and for jobs created before the meter shipped.
      */
-    matchesDelivered = ANON_MATCHES_PER_JOB;
+    matchesDelivered = anonGate;
     gateIsFresh = true;
   }
 

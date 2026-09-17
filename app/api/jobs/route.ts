@@ -9,9 +9,12 @@ import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
 import { trackEvent } from '@/lib/analytics';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { isAnonUserId } from '@/lib/user-id';
+import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import {
   checkIpRateLimit,
   getClientIp,
+  getAnonMatchBudget,
+  consumeAnonMatchBudget,
   formatRateLimitHeaders,
 } from '@/lib/ip-rate-limiter';
 
@@ -68,9 +71,13 @@ export async function POST(request: NextRequest) {
     ? await validateSession(sessionToken)
     : { user: null };
 
+  // Hoisted: the anonymous match meter further down bounds the SAME address
+  // this limiter bounds, and reading the header twice invites the two to
+  // disagree about who the caller is.
+  const clientIp = getClientIp(request);
+
   // Apply IP rate limiting only for unauthenticated requests
   if (!session.user) {
-    const clientIp = getClientIp(request);
     const rateLimitResult = await checkIpRateLimit(clientIp, '/api/jobs');
 
     if (!rateLimitResult.allowed) {
@@ -342,6 +349,35 @@ export async function POST(request: NextRequest) {
     // Use session user ID for authenticated users (ensures history is linked correctly)
     const effectiveUserId = session.user?.id || userId;
 
+    /**
+     * The anonymous day's allowance, decided here because this is the only
+     * place the caller's address is known: the gate is applied later, in a
+     * worker with no request.
+     *
+     * Only for callers with no session. A signed-in account is metered by
+     * credits and the free window, and charging it an address-shaped bound as
+     * well would refuse a customer for sharing an office with a stranger, which
+     * is the same argument `/api/reverse` already makes.
+     */
+    let anonMatchGate: number | undefined;
+    if (!session.user?.id) {
+      const budget = await getAnonMatchBudget(clientIp);
+      if (budget.remaining <= 0) {
+        return NextResponse.json(
+          {
+            error: `You have used today's ${budget.limit} free matches. Create a free account to keep going, or come back after ${budget.resetAt.toISOString().slice(11, 16)} UTC.`,
+            code: 'ANON_DAILY_LIMIT',
+            resetAt: budget.resetAt.toISOString(),
+          },
+          { status: 429 }
+        );
+      }
+      anonMatchGate = Math.min(ANON_MATCHES_PER_JOB, budget.remaining);
+      // Spent on the gate granted, not on what it delivers. The doc on
+      // consumeAnonMatchBudget explains why settling later is the worse trade.
+      await consumeAnonMatchBudget(clientIp, anonMatchGate);
+    }
+
     const jobId = await createJob(wallets, originalData, {
       /**
        * Credits unlock the deep scan, not a tier.
@@ -359,6 +395,8 @@ export async function POST(request: NextRequest) {
       historyName: starter ? `Holders of ${starter.name}` : historyName,
       userId: effectiveUserId,
       sessionId: browserSession,
+      // Undefined for a signed-in caller, which is what keeps the gate off it.
+      anonMatchGate,
       // Only a signed-in account can be debited; see JobOptions.meteredUserId.
       meteredUserId: session.user?.id,
       tier: access.tier,

@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (the anonymous rail is metered)
+
+Signing in made the product roughly a thousand times worse, and that,
+not traffic, is why 43 signups over 90 days produced zero purchases.
+
+- Anonymous callers got 3 jobs an hour times 50 open matches each: about
+  3,600 matches a day, for ever, with no cumulative meter anywhere. A
+  signed-in free account gets 100 per 30 days. The account gate therefore
+  selected for staying anonymous and the free allowance could never
+  become a reason to buy.
+- `ANON_MATCHES_PER_DAY` caps the whole anonymous allowance per address
+  per UTC day. The gate for a job is now the smaller of the per-job
+  ceiling and what the address has left, decided at submit time because
+  that is the only moment the address is known.
+- A fixed daily cap, deliberately, not a sliding window. The limiter above
+  it hardcodes 3600 in both `slidingWindowCount` and
+  `secondsUntilNextAllowed`, so `windowHours` is decorative: 1 is the only
+  value it implements, and writing 24 there would have silently bought a
+  one-hour window. An invariant now asserts every entry is hourly so the
+  field cannot start lying.
+- The budget is spent on the gate GRANTED, not on matches delivered.
+  Settling afterwards would mean storing a visitor's address on a
+  long-lived job row, which is the worse trade. The refusal says so.
+- The old invariant compared a per-job gate with a per-window allowance,
+  which are not comparable quantities, so it reported clean over the whole
+  inversion. It now bounds throughput per unit time, and was negative
+  tested: raising the cap to 99,999 fails it.
+- The Inngest pipeline imported the options type instead of mirroring it.
+  Hand-copying that type is how the two pipelines drifted before, when
+  this one billed nothing at all; a type-only import costs nothing and
+  makes the next added option a compile error rather than a silent
+  omission.
+- `/success` sends a buyer to their lookups rather than offering to "Run a
+  lookup". Somebody who has just paid to unlock a result does not want a
+  new one, and the page previously left the thing they bought behind.
+
 ### 2026-09-16 (the discovery surface register)
 
 Where the product can be found, checked rather than assumed, with a

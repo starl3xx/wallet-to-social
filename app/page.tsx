@@ -1955,11 +1955,18 @@ export default function Home() {
             {/* `entitled`, not the tier: a pack buyer's tier stays 'free', and
                   history depth and growing a lookup are included in every
                   pack. The server applies the same rule on the write. */}
-            <LookupHistory
-              onLoadLookup={handleLoadHistory}
-              entitled={entitled}
-              onAddAddresses={handleOpenAddAddresses}
-            />
+            {/* The anchor /success sends a buyer to. A gated lookup is
+                reached through this panel and nowhere else: saved lookups are
+                in-app state, so there is no URL that opens one directly, and
+                an anchor is the honest amount of plumbing for a one-line
+                routing fix. */}
+            <div id="my-lookups" className="scroll-mt-24">
+              <LookupHistory
+                onLoadLookup={handleLoadHistory}
+                entitled={entitled}
+                onAddAddresses={handleOpenAddAddresses}
+              />
+            </div>
           </div>
         )}
 

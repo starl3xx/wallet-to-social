@@ -274,10 +274,15 @@ function SuccessContent() {
                   and "Go to App" in the error branch, six names for one
                   destination. A signed-out buyer is leaving, not starting,
                   so that branch keeps "Back to walletlink.social". */}
+              {/* A buyer who has just paid usually bought to unlock a lookup
+                  they had already run, and this page used to offer them "Run a
+                  lookup", which is the one thing they do not need: it starts a
+                  new one and leaves the gated result they paid for behind. It
+                  now points at the panel that holds it. */}
               <Button asChild className="w-full">
-                <Link href="/">
+                <Link href={pack.signedInAsBuyer ? '/#my-lookups' : '/'}>
                   {pack.signedInAsBuyer
-                    ? 'Run a lookup'
+                    ? 'Open your lookups'
                     : 'Back to walletlink.social'}
                 </Link>
               </Button>
