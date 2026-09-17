@@ -643,6 +643,65 @@ export async function cleanupRevokedWallets(
     );
   }
 
+  /**
+   * An outcome bound, because every guard above compares the sweep with itself.
+   *
+   * `expectedSeenCount` is `stats.walletsUpserted` from the same run
+   * (scripts/farcaster-sweep.ts), so the 90% ratio is seen against upserted and
+   * both shrink together when upstream under-reports. `coveredRange` is built
+   * from FIDs *requested*, not found. And `fetchUserBatch` maps a 404 and a
+   * response with no `users` key onto an empty array rather than a failure, so
+   * a burst of either raises `failedCalls` by nothing while quietly removing
+   * wallets from the seen set. Nothing upstream of here can tell "we looked and
+   * they are gone" from "we never really looked".
+   *
+   * This is the backstop that does not depend on having enumerated those modes.
+   * Revocations are rare, and measured rather than assumed: on slice 3, 383
+   * rows out of 803,529 candidates in the span, 0.048%. A deficient seen set
+   * does not produce a number near that; it produces a number proportional to
+   * how much of the sweep went missing, so 3% of batches returning empty is
+   * about 3% of the slice cleared. The ceiling therefore sits at 1%, twenty
+   * times the observed rate and still an order of magnitude below any such
+   * scenario.
+   *
+   * Counting first is sound here without a transaction, which matters because
+   * the HTTP driver has none. The predicate is monotone: it selects rows with
+   * `last_updated_at < sweepStartedAt`, and every writer in this codebase sets
+   * `last_updated_at = now()`, which is later than `sweepStartedAt`. A
+   * concurrent write can therefore only remove a row from the set, never add
+   * one, so the count is a guaranteed upper bound on what the UPDATE will
+   * touch, and a racing write makes the bound safer rather than wrong.
+   *
+   * On refusal the seen table is kept, because it is the only record of what
+   * this sweep saw and a corrective pass cannot be reconstructed without it.
+   */
+  const MAX_REVOCATION_SHARE = 0.01;
+  const [revocationRow] = (
+    (await db.execute(sql`
+      SELECT count(*)::int AS n
+      FROM social_graph
+      WHERE 'farcaster_sweep' = ANY(sources)
+        AND NOT (sources && ARRAY['neynar', 'manual'])
+        AND last_updated_at < ${utcWallClock(sweepStartedAt)}
+        AND fc_fid BETWEEN ${startFid} AND ${endFid}
+        AND NOT EXISTS (
+          SELECT 1 FROM ${sql.raw(seenTable)} s
+          WHERE s.wallet = social_graph.wallet
+        )
+    `)) as unknown as { rows: Array<{ n: number }> }
+  ).rows;
+  const wouldClear = revocationRow?.n ?? 0;
+  const clearCeiling = Math.ceil(seenCount * MAX_REVOCATION_SHARE);
+  if (wouldClear > clearCeiling) {
+    throw new Error(
+      `Revocation count implausible: cleanup would clear ${wouldClear.toLocaleString()} rows, ` +
+        `over the ceiling of ${clearCeiling.toLocaleString()} (${MAX_REVOCATION_SHARE * 100}% of ` +
+        `${seenCount.toLocaleString()} seen). Revocations run near 0.05% of a slice, so this says the ` +
+        `seen set is deficient rather than that the network revoked en masse — refusing to clear ` +
+        `(table ${seenTable} kept for the corrective pass)`
+    );
+  }
+
   const cleared = await db.execute(sql`
     UPDATE social_graph
     SET farcaster = NULL,

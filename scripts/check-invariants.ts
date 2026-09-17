@@ -7696,6 +7696,38 @@ async function main() {
         sweepSource
       ) && /function utcWallClock/.test(sweep)
     );
+
+    /**
+     * And it refuses an implausible number of revocations before writing any.
+     *
+     * Every other guard on this path compares the sweep with itself:
+     * `expectedSeenCount` is the same run's `walletsUpserted`, so the 90% ratio
+     * is seen against upserted and both shrink together, and `coveredRange`
+     * counts FIDs requested rather than found. Meanwhile `fetchUserBatch` turns
+     * a 404 and a missing `users` key into an empty array, so a burst of either
+     * removes wallets from the seen set without touching `failedCalls`. Nothing
+     * upstream can tell "checked, and gone" from "never really checked".
+     *
+     * Until 2026-09-17 that did not matter, because the statement had never
+     * completed: the only `--slice` run died in it, and the runs that succeeded
+     * were `--incremental`, which tracks no seen set and never cleans up. Making
+     * it finish in 2.8 seconds is what turns those latent modes live, so the
+     * ceiling ships in the same change as the speed-up, not after it.
+     *
+     * The bound must be checked BEFORE the UPDATE and must keep the seen table,
+     * so assert the ordering and the refusal, not that a ceiling exists
+     * somewhere in the function.
+     */
+    const ceilingIdx = cleanup.indexOf('MAX_REVOCATION_SHARE');
+    const updateIdx = cleanup.indexOf('UPDATE social_graph');
+    ok(
+      'revocation cleanup refuses an implausible clear count before it writes anything',
+      ceilingIdx > 0 &&
+        updateIdx > 0 &&
+        ceilingIdx < updateIdx &&
+        /wouldClear > clearCeiling/.test(cleanup) &&
+        /throw new Error\(\s*`Revocation count implausible/.test(cleanup)
+    );
   }
 
   {

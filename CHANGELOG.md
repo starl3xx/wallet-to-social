@@ -35,6 +35,29 @@ All notable changes to walletlink.social. Newest first.
   moves the cutoff later and clears rows another pipeline legitimately
   refreshed after the sweep began. Now bound through an explicit UTC
   wall-clock helper, and asserted.
+- **An outcome ceiling ships in the same change as the speed-up, deliberately.**
+  Making the statement finish is what turns its latent failure modes live, and
+  it had never once finished: the only `--slice` run died in it, and every run
+  that succeeded was `--incremental`, which tracks no seen set and never cleans
+  up. Every existing guard compares the sweep with itself, so none of them
+  catch a deficient seen set: `expectedSeenCount` is the same run's
+  `walletsUpserted`, so the 90% ratio is seen against upserted and both shrink
+  together, `coveredRange` counts FIDs requested rather than found, and
+  `fetchUserBatch` turns a 404 or a response with no `users` key into an empty
+  array, which raises `failedCalls` by nothing. Nothing upstream can tell
+  "checked, and gone" from "never really looked".
+- So cleanup now counts what it would clear, and refuses above 1% of the seen
+  set without writing anything, keeping the seen table. Argued from the
+  measurement rather than picked: revocations ran 383 of 803,529 candidates on
+  slice 3, or 0.048%, while a deficient seen set clears roughly the fraction of
+  the sweep that went missing. On the real numbers the ceiling is 8,050 against
+  383 actual, twenty times headroom, and it refuses the 24,147 that 3% of
+  batches returning empty would produce. Counting first is sound without a
+  transaction, which matters because the HTTP driver has none: the predicate is
+  monotone, since every writer sets `last_updated_at = now()` and the filter
+  wants `last_updated_at < sweepStartedAt`, so a concurrent write can only
+  remove a row from the set. The count is a guaranteed upper bound and a race
+  makes it safer, not wrong.
 - **Still owed, and recorded in the posture table:** cleanup is bounded to its
   own slice, so the 2026-10-02 run cleans slice 4, not slice 3, whose next
   turn is about 2027-03. 383 rows in slice 3's range still carry a Farcaster
