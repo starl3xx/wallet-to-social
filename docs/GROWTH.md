@@ -243,6 +243,20 @@ speech in Jake's name, so they are his to send. **The line this document draws:*
 a directory listing is product metadata and gets submitted as part of the work;
 a forum post is a person talking and does not.
 
+## Decisions taken, so they are not re-proposed
+
+**The upgrade modal defaults to Campaign ($99), not Trial ($29).** Jake's call,
+2026-09-17, against the audit's recommendation. The audit argued that
+recommending the larger pack before a first sale exists is the wrong ask. The
+decision is to keep Campaign, so treat the default as settled and do not raise it
+again without new evidence. If a first sale arrives on a Trial pack, that is
+evidence; an argument from first principles is not.
+
+**No paid directory listings.** mcp.so is paid-only at $39 for a DR 72 dofollow
+link, confirmed by inspecting both submission forms: the only `type="submit"`
+control is "Pay and submit automatically". Declined 2026-09-16 in favour of
+generating revenue before spending. Free surfaces only.
+
 ## Log
 
 Newest first. One row per intervention, with what it was expected to move, so a
