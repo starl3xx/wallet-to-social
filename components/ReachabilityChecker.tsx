@@ -67,6 +67,14 @@ export function ReachabilityChecker() {
   /** Guards against an earlier request resolving after a later one. */
   const seq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the request. Empty, or the
+   * server answered 400: a 400 is "what you sent is wrong", anything else is
+   * "the request failed" and the handle typed was fine. The earlier spelling
+   * of this never marked a malformed handle, which is the case somebody most
+   * needs pointing at.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
 
   const check = useCallback(async () => {
     const handle = value.trim();
@@ -82,12 +90,14 @@ export function ReachabilityChecker() {
     if (!handle) {
       setError('Enter an X handle to check.');
       setAnswer(null);
+      setFieldInvalid(true);
       inputRef.current?.focus();
       return;
     }
     const mine = ++seq.current;
     setLoading(true);
     setError(null);
+    setFieldInvalid(false);
     try {
       const res = await fetch(
         `/api/reachability?handle=${encodeURIComponent(handle)}`
@@ -97,6 +107,10 @@ export function ReachabilityChecker() {
       if (!res.ok) {
         setError(body.error ?? 'Check failed');
         setAnswer(null);
+        if (res.status === 400) {
+          setFieldInvalid(true);
+          inputRef.current?.focus();
+        }
       } else {
         setAnswer(body);
       }
@@ -131,12 +145,13 @@ export function ReachabilityChecker() {
           <Input
             ref={inputRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (fieldInvalid) setFieldInvalid(false);
+            }}
             placeholder="jack"
             aria-label="X handle to check"
-            // Marked invalid only when the field is what is wrong. A failed
-            // check is about the handle's state on X, not about what was typed.
-            aria-invalid={Boolean(error) && !value.trim()}
+            aria-invalid={fieldInvalid}
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}

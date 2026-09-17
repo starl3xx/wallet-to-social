@@ -107,6 +107,14 @@ export function RemovalPane({ password }: { password: string }) {
   const [kind, setKind] = useState<SuppressionKind>('wallet');
   const [identifier, setIdentifier] = useState('');
   const identifierRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the run. Empty, or the route
+   * answered 400: it 400s an identifier that fails normalisation for its kind,
+   * which is a bad entry. Everything else `actionError` carries is a run that
+   * failed over an identifier that was fine, and marking the box red for that
+   * sends an operator to re-type a value that was right.
+   */
+  const [identifierInvalid, setIdentifierInvalid] = useState(false);
   const [lane, setLane] = useState<SuppressionLane>('email');
   const [reason, setReason] = useState<SuppressionReason>('requested');
   const [submitting, setSubmitting] = useState(false);
@@ -155,6 +163,7 @@ export function RemovalPane({ password }: { password: string }) {
       setActionError('Name the identifier to suppress and erase.');
       setNotice(null);
       setResult(null);
+      setIdentifierInvalid(true);
       identifierRef.current?.focus();
       return;
     }
@@ -162,6 +171,7 @@ export function RemovalPane({ password }: { password: string }) {
     setActionError(null);
     setNotice(null);
     setResult(null);
+    setIdentifierInvalid(false);
     try {
       const res = await fetch('/api/admin/removal', {
         method: 'POST',
@@ -176,6 +186,10 @@ export function RemovalPane({ password }: { password: string }) {
         }),
       });
       const payload = await res.json();
+      if (res.status === 400) {
+        setIdentifierInvalid(true);
+        identifierRef.current?.focus();
+      }
       if (!res.ok) {
         // A failed run still reports what it completed; the suppression
         // rows are committed, so the message says to re-run, not to panic.
@@ -350,17 +364,17 @@ export function RemovalPane({ password }: { password: string }) {
               <Input
                 ref={identifierRef}
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  if (identifierInvalid) setIdentifierInvalid(false);
+                }}
                 placeholder={
                   kind === 'wallet'
                     ? '0x… address, exactly as the request names it'
                     : 'Handle or name, without the @'
                 }
                 aria-label="Identifier"
-                // Only for the empty field. A removal that failed server-side
-                // is not a malformed identifier, and saying so would send the
-                // operator to re-type a value that was right.
-                aria-invalid={Boolean(actionError) && !identifier.trim()}
+                aria-invalid={identifierInvalid}
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">

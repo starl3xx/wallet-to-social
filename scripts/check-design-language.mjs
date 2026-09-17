@@ -182,6 +182,30 @@ const FILE_RULES = [
     ].join(' '),
   },
   {
+    name: 'aria-invalid-shared-error',
+    /**
+     * `aria-invalid` driven by an error variable rather than by a flag that
+     * means "this field is at fault".
+     *
+     * Matches `aria-invalid={Boolean(x)}`, `aria-invalid={x !== null}` and
+     * `aria-invalid={Boolean(x) && !y.trim()}` where the name contains
+     * "error"/"Error"/"message"/"Message". A single boolean named for the
+     * field (`nameInvalid`, `fieldInvalid`) passes, which is the whole point:
+     * the rule is about where the value comes from, not about its shape.
+     */
+    re: /aria-invalid=\{[^}]*\b\w*(?:[eE]rror|[mM]essage)\w*\b/,
+    msg: [
+      'Drive `aria-invalid` from a flag that means THIS field is at fault, not from a',
+      'shared error slot. An error variable usually carries three different things: an',
+      'empty box, a malformed entry, and a request that failed. Only the first two are',
+      'a bad value; marking the field for the third sends somebody back to re-edit',
+      'something that was already right, and a dialog that reuses one error for revoke',
+      'and copy will mark an unrelated field. The rule used across this repo: the field',
+      'is at fault when it is empty, or when the server answered 400. See',
+      'docs/DESIGN-LANGUAGE.md, "Accessibility rules with a right answer".',
+    ].join(' '),
+  },
+  {
     name: 'disabled-empty-field',
     // `disabled={...!something.trim()...}`, in any clause order.
     re: /disabled=\{[^}]*!\s*[A-Za-z_$][\w.$]*\s*\.trim\(\)/,
@@ -434,6 +458,24 @@ const FIXTURES = {
       "role={tone === 'error' ? 'alert' : 'status'}",
     ],
   },
+  'aria-invalid-shared-error': {
+    bad: [
+      'aria-invalid={Boolean(error)}',
+      'aria-invalid={Boolean(keyError)}',
+      'aria-invalid={Boolean(error) && !newKeyName.trim()}',
+      "aria-invalid={saveMessage?.type === 'error'}",
+      // The wrapped form, which is why this rule reads files.
+      'aria-invalid={\n  Boolean(actionError) && !identifier.trim()\n}',
+    ],
+    good: [
+      'aria-invalid={fieldInvalid}',
+      'aria-invalid={nameInvalid}',
+      'aria-invalid={emptyQuery}',
+      'aria-invalid={keyFieldInvalid}',
+      // The state that feeds a good flag may still be named for an error.
+      'const [error, setError] = useState<string | null>(null);',
+    ],
+  },
   'disabled-empty-field': {
     bad: [
       'disabled={loading || !value.trim()}',
@@ -644,7 +686,7 @@ for (const file of [...walk('app'), ...walk('components')]) {
 
 if (!hits.length) {
   console.log(
-    `design language ok — ${RULES.length + FILE_RULES.length + 1} rules pass: radius, elevation, type, labels, hairlines, tokens, icons, aria roles, disabled submits`
+    `design language ok — ${RULES.length + FILE_RULES.length + 1} rules pass: radius, elevation, type, labels, hairlines, tokens, icons, aria roles, disabled submits, aria-invalid sourcing`
   );
   process.exit(0);
 }

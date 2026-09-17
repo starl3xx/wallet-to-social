@@ -68,6 +68,17 @@ export function WalletLookupTool() {
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * Whether the FIELD is at fault, rather than the request.
+   *
+   * The rule, and it is the same one in the other two public lookups: the box
+   * is empty, or the server answered 400. A 400 means "what you sent is
+   * wrong"; a 429 or a 503 means the request failed and the value was fine.
+   * `aria-invalid` used to be `Boolean(error) && !address.trim()`, which got
+   * half of it: it never marked a malformed address, so somebody who mistyped
+   * a hex digit was told something went wrong and not where.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const run = useCallback(async (value: string) => {
@@ -76,6 +87,7 @@ export function WalletLookupTool() {
     setBusy(true);
     setError(null);
     setAnswer(null);
+    setFieldInvalid(false);
     try {
       const response = await fetch('/api/wallet-socials', {
         method: 'POST',
@@ -85,6 +97,10 @@ export function WalletLookupTool() {
       const json = await response.json();
       if (!response.ok) {
         setError(json.error ?? 'Something went wrong. Try again.');
+        if (response.status === 400) {
+          setFieldInvalid(true);
+          inputRef.current?.focus();
+        }
         return;
       }
       const result = json as Answer;
@@ -125,6 +141,7 @@ export function WalletLookupTool() {
           if (!address.trim()) {
             setError('Enter a wallet address to look up.');
             setAnswer(null);
+            setFieldInvalid(true);
             inputRef.current?.focus();
             return;
           }
@@ -135,15 +152,14 @@ export function WalletLookupTool() {
         <Input
           ref={inputRef}
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          onChange={(e) => {
+            setAddress(e.target.value);
+            if (fieldInvalid) setFieldInvalid(false);
+          }}
           // The placeholder shows the shape of the value, not an instruction.
           placeholder="0x…"
           aria-label="Wallet address"
-          // Only while the field is the thing that is wrong. An error from the
-          // server is about the address, not about the input, and marking the
-          // field invalid for it would send a reader to re-edit a value that
-          // is fine.
-          aria-invalid={Boolean(error) && !address.trim()}
+          aria-invalid={fieldInvalid}
           aria-describedby={error ? 'lookup-error' : undefined}
           spellCheck={false}
           autoComplete="off"

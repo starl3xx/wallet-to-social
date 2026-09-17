@@ -120,6 +120,16 @@ export function ApiKeysModal({
   const [error, setError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the name FIELD is at fault, as opposed to something else failing.
+   *
+   * `error` is the dialog's one error slot and eight different things write to
+   * it: creating, revoking, disconnecting, copying. Driving `aria-invalid` off
+   * it marked the name box red for all of them, and the name box is cleared
+   * after a successful create, so revoking a key later announced an empty
+   * unrelated field as invalid.
+   */
+  const [nameInvalid, setNameInvalid] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
@@ -258,7 +268,8 @@ export function ApiKeysModal({
      * required: it hid the action. Saying so and focusing the field does.
      */
     if (!name) {
-      setError('Name the key so you can recognise it later.');
+      setError('Name the key so you can recognize it later.');
+      setNameInvalid(true);
       nameRef.current?.focus();
       return;
     }
@@ -274,6 +285,9 @@ export function ApiKeysModal({
       if (!res.ok) throw new Error(data.error || 'Could not create the key');
       setRevealedKey(data.key.api_key);
       setNewKeyName('');
+      // Cleared with the field it was about, so the now-empty box does not
+      // stay marked invalid after the create it complained about succeeded.
+      setNameInvalid(false);
       await loadKeys();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the key');
@@ -567,13 +581,16 @@ export function ApiKeysModal({
                   id="api-key-name"
                   ref={nameRef}
                   value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
+                  onChange={(e) => {
+                    setNewKeyName(e.target.value);
+                    if (nameInvalid) setNameInvalid(false);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreate();
                   }}
                   placeholder="production"
                   maxLength={64}
-                  aria-invalid={Boolean(error) && !newKeyName.trim()}
+                  aria-invalid={nameInvalid}
                 />
                 <Button
                   onClick={handleCreate}

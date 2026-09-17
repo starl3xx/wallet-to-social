@@ -82,6 +82,16 @@ export function FarcasterDMModal({
   const [testingKey, setTestingKey] = useState(false);
   const [keyValid, setKeyValid] = useState<boolean | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
+  /**
+   * Whether the FIELD is at fault, as opposed to the request.
+   *
+   * `keyError` carries three different things: an empty box, a key whose shape
+   * is wrong, and a test that reached the API and was rejected. Only the first
+   * two are a bad entry. Driving `aria-invalid` off `keyError` marked the field
+   * red for the third as well, which tells somebody to go and re-edit a key
+   * whose format was already right, when the thing that failed was the request.
+   */
+  const [keyFieldInvalid, setKeyFieldInvalid] = useState(false);
 
   // Sending state
   const [progress, setProgress] = useState<DMProgress | null>(null);
@@ -111,6 +121,7 @@ export function FarcasterDMModal({
       setProgress(null);
       setKeyValid(null);
       setKeyError(null);
+      setKeyFieldInvalid(false);
       setTestingKey(false);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -130,6 +141,7 @@ export function FarcasterDMModal({
      */
     if (!apiKey.trim()) {
       setKeyError('Paste your Warpcast API key to test it.');
+      setKeyFieldInvalid(true);
       // `keyValid` stays null, deliberately. It records the outcome of a test
       // that ran; an empty field is a test that did not. Setting it false here
       // would claim the key failed, and paint the failed-test cross on a
@@ -140,6 +152,7 @@ export function FarcasterDMModal({
 
     if (!validateApiKey(apiKey)) {
       setKeyError('Invalid API key format');
+      setKeyFieldInvalid(true);
       setKeyValid(false);
       return;
     }
@@ -147,6 +160,8 @@ export function FarcasterDMModal({
     setTestingKey(true);
     setKeyError(null);
     setKeyValid(null);
+    // The shape is right, so whatever comes back is about the request.
+    setKeyFieldInvalid(false);
 
     const result = await testApiKey(apiKey);
 
@@ -313,11 +328,12 @@ export function FarcasterDMModal({
                     ref={apiKeyRef}
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
-                    aria-invalid={Boolean(keyError)}
+                    aria-invalid={keyFieldInvalid}
                     onChange={(e) => {
                       setApiKey(e.target.value);
                       setKeyValid(null);
                       setKeyError(null);
+                      setKeyFieldInvalid(false);
                     }}
                     placeholder="Enter your Warpcast API key"
                     className="pr-10"

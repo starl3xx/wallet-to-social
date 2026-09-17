@@ -196,6 +196,16 @@ export default function AdminPage() {
     setOpenAccount(null);
   }, []);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Whether the password FIELD is wrong, as opposed to the request failing.
+   *
+   * `fetchWhitelist` writes two different things into `error`: "Invalid
+   * password" on a 401, which is the field being wrong, and "Failed to load"
+   * from the catch, which is the network or the route falling over while the
+   * password may have been perfectly right. Driving `aria-invalid` off `error`
+   * announced both as a bad entry.
+   */
+  const [passwordInvalid, setPasswordInvalid] = useState(false);
 
   // Whitelist state
   const [entries, setEntries] = useState<WhitelistEntry[]>([]);
@@ -243,6 +253,7 @@ export default function AdminPage() {
   const fetchWhitelist = useCallback(async (pwd: string) => {
     setAuthState('loading');
     setError(null);
+    setPasswordInvalid(false);
 
     try {
       const response = await fetch('/api/admin/whitelist', {
@@ -252,6 +263,7 @@ export default function AdminPage() {
       if (response.status === 401) {
         setAuthState('password');
         setError('Invalid password');
+        setPasswordInvalid(true);
         sessionStorage.removeItem('admin_password');
         return;
       }
@@ -575,10 +587,13 @@ export default function AdminPage() {
                 // managers guess, which is how a sign-in form starts getting
                 // filled with the wrong credential.
                 autoComplete="current-password"
-                aria-invalid={Boolean(error)}
+                aria-invalid={passwordInvalid}
                 aria-describedby={error ? 'admin-login-error' : undefined}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordInvalid) setPasswordInvalid(false);
+                }}
                 autoFocus
               />
               {error && (

@@ -68,6 +68,14 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
    */
   const fieldId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the search FIELD is at fault. `saveMessage` is the pane's one
+   * banner and it also carries save failures and request failures, neither of
+   * which is a bad address; and the empty box is not the only bad entry, since
+   * a value that fails the 0x-and-40-hex check is one too. Both of those
+   * cases, and only those, set this.
+   */
+  const [searchInvalid, setSearchInvalid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [walletData, setWalletData] = useState<SocialGraphData | null>(null);
@@ -121,6 +129,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
         type: 'error',
         text: 'Enter a wallet address to look up.',
       });
+      setSearchInvalid(true);
       // Focus goes to the field, as it does in the other seven forms this
       // change touched. Reporting alone leaves a keyboard user standing on
       // Search with the banner talking about an input they now have to go
@@ -133,12 +142,19 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
     const wallet = searchQuery.trim();
     if (!/^0x[a-fA-F0-9]{40}$/i.test(wallet)) {
       setSaveMessage({ type: 'error', text: 'Invalid wallet address format' });
+      setSearchInvalid(true);
+      searchRef.current?.focus();
       return;
     }
 
     setSearching(true);
     setSearched(true);
     setSaveMessage(null);
+    // The address parsed, so anything that fails from here is the request,
+    // not the entry.
+    setSearchInvalid(false);
+    // The address parsed, so anything that fails from here is the request.
+    setSearchInvalid(false);
 
     try {
       const res = await fetch(
@@ -273,11 +289,12 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
               placeholder="Enter wallet address (0x…)"
               ref={searchRef}
               aria-label="Wallet address"
-              aria-invalid={
-                saveMessage?.type === 'error' && !searchQuery.trim()
-              }
+              aria-invalid={searchInvalid}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (searchInvalid) setSearchInvalid(false);
+              }}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="font-mono"
             />

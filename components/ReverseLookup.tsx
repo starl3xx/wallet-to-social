@@ -49,6 +49,13 @@ export function ReverseLookup({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the request. Empty, or the
+   * server answered 400: the route 400s a handle that fails its platform
+   * pattern, and that is a bad entry. A 429 or a 503 is the request failing
+   * over a value that was fine.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
   // Pins the platform that was actually queried, not the live toggle. The two
   // networks get opposite explanations for an empty result, so reading the
   // toggle at render time meant flipping it after a miss rewrote the reason:
@@ -92,6 +99,7 @@ export function ReverseLookup({
       );
       setEmpty(null);
       setLockedCount(null);
+      setFieldInvalid(true);
       handleRef.current?.focus();
       return;
     }
@@ -108,6 +116,7 @@ export function ReverseLookup({
     setError(null);
     setEmpty(null);
     setLockedCount(null);
+    setFieldInvalid(false);
     try {
       const res = await fetch('/api/reverse', {
         method: 'POST',
@@ -126,7 +135,18 @@ export function ReverseLookup({
         onUpgradeClick?.('reverse');
         return;
       }
-      if (!res.ok) throw new Error(data.error || 'Lookup failed');
+      if (!res.ok) {
+        /**
+         * Marked before the throw, not in the catch. The catch sees an Error
+         * and no status, so a 400 (the handle failed its platform pattern,
+         * which IS a bad entry) would be indistinguishable there from a 503.
+         */
+        if (res.status === 400) {
+          setFieldInvalid(true);
+          handleRef.current?.focus();
+        }
+        throw new Error(data.error || 'Lookup failed');
+      }
 
       if (data.locked) {
         const total = data.meta.total_count ?? 0;
@@ -258,6 +278,7 @@ export function ReverseLookup({
             // about, so drop it rather than leave it hanging under a new query.
             if (empty) setEmpty(null);
             if (lockedCount) setLockedCount(null);
+            if (fieldInvalid) setFieldInvalid(false);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit();
@@ -276,11 +297,7 @@ export function ReverseLookup({
           aria-label={
             platform === 'twitter' ? 'X handle' : 'Farcaster username'
           }
-          // Only when the field is the thing that is wrong. A handle that
-          // resolved to nothing, or a request that failed, is not a malformed
-          // entry, and marking the field invalid for either would send a reader
-          // back to correct a value that is correct.
-          aria-invalid={Boolean(error) && !handle.trim()}
+          aria-invalid={fieldInvalid}
         />
 
         <Button onClick={submit} disabled={loading}>
