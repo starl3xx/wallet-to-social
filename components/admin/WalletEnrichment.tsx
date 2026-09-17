@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useId } from 'react';
+import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,6 +67,7 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
    * re-points the first label at the second input.
    */
   const fieldId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [walletData, setWalletData] = useState<SocialGraphData | null>(null);
@@ -120,6 +121,11 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
         type: 'error',
         text: 'Enter a wallet address to look up.',
       });
+      // Focus goes to the field, as it does in the other seven forms this
+      // change touched. Reporting alone leaves a keyboard user standing on
+      // Search with the banner talking about an input they now have to go
+      // find, which is most of the way back to the disabled button.
+      searchRef.current?.focus();
       return;
     }
 
@@ -265,7 +271,11 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
           <div className="flex gap-2">
             <Input
               placeholder="Enter wallet address (0x…)"
+              ref={searchRef}
               aria-label="Wallet address"
+              aria-invalid={
+                saveMessage?.type === 'error' && !searchQuery.trim()
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}

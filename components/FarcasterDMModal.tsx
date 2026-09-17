@@ -130,7 +130,10 @@ export function FarcasterDMModal({
      */
     if (!apiKey.trim()) {
       setKeyError('Paste your Warpcast API key to test it.');
-      setKeyValid(false);
+      // `keyValid` stays null, deliberately. It records the outcome of a test
+      // that ran; an empty field is a test that did not. Setting it false here
+      // would claim the key failed, and paint the failed-test cross on a
+      // control nobody has tested anything with.
       apiKeyRef.current?.focus();
       return;
     }
@@ -346,17 +349,24 @@ export function FarcasterDMModal({
                   onClick={handleTestKey}
                   disabled={testingKey}
                 >
+                  {/* The label stays in every state, as ReverseLookup's does.
+                      Three of the four branches used to render a bare glyph,
+                      so the button lost its accessible name the moment it was
+                      pressed and announced as "button" for the rest of the
+                      flow: exactly when a reader needs to hear what it is. */}
                   {testingKey ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   ) : keyValid === true ? (
                     // A key that passed its test is a measured fact, so it is
                     // green. Violet would call the result an affordance.
-                    <CheckCircle2 className="h-4 w-4 text-attested" />
+                    <CheckCircle2
+                      className="h-4 w-4 text-attested"
+                      aria-hidden
+                    />
                   ) : keyValid === false ? (
-                    <XCircle className="h-4 w-4 text-destructive" />
-                  ) : (
-                    'Test'
-                  )}
+                    <XCircle className="h-4 w-4 text-destructive" aria-hidden />
+                  ) : null}
+                  {testingKey ? 'Testing…' : 'Test'}
                 </Button>
               </div>
 

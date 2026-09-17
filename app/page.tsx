@@ -786,7 +786,18 @@ export default function Home() {
     if (state !== 'processing' || progress.total === 0) return '';
     const quarter = Math.floor((progress.processed / progress.total) * 4);
     if (quarter <= 0) return '';
-    return `${quarter * 25}% complete. ${progress.processed.toLocaleString()} of ${progress.total.toLocaleString()} wallets processed.`;
+    /**
+     * Nothing in this string may move between quarters, which is why the
+     * running count is not in it.
+     *
+     * The quarter gate decides only what the number rounds to; the live region
+     * reacts to the TEXT changing. An earlier version interpolated
+     * `progress.processed`, which advances on every poll, so the region
+     * re-announced continuously from 25% on and buried the completion sentence
+     * it was moved out of the card to deliver. `total` is safe: it is fixed for
+     * the run.
+     */
+    return `${quarter * 25}% of ${progress.total.toLocaleString()} wallets processed.`;
   }, [
     state,
     progress.processed,

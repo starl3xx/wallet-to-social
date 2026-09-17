@@ -76,15 +76,32 @@ export function OverflowMenu({
     if (el instanceof HTMLElement) el.focus();
   };
 
+  /**
+   * Only rescue focus that this component is about to destroy.
+   *
+   * Nothing traps Tab here (a disclosure should not), so a keyboard user can
+   * walk straight out of an open panel and carry on down the page. Escape from
+   * there is still a legitimate "close that thing", and unconditionally calling
+   * `focusTrigger` would answer it by dragging them backwards to a control they
+   * had already left. Returning focus is only correct when focus is inside the
+   * thing being unmounted.
+   */
+  const focusIsInside = () =>
+    Boolean(ref.current?.contains(document.activeElement));
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      // Read before the state change: after `setOpen(false)` the panel is on
+      // its way out and `document.activeElement` no longer answers the
+      // question being asked.
+      const inside = focusIsInside();
       setOpen(false);
       // Escape is a keyboard gesture, so the keyboard has to end up somewhere
       // it can carry on from. Without this, dismissing from inside the panel
       // unmounts the focused element and focus falls to `<body>`.
-      focusTrigger();
+      if (inside) focusTrigger();
     };
     const onClick = (e: MouseEvent) => {
       // No focus move here, unlike Escape: a click outside is a deliberate move
