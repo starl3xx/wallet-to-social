@@ -51,7 +51,7 @@ The deep figure is deliberately conservative: ten seconds of live sources and ei
 
 ## Fast scans never write
 
-A fast scan does not write to the index, and this is deliberate rather than an optimisation. Writing back would stamp records as freshly checked when nothing checked them, and a later deep scan would trust that stamp and skip the very sources meant to confirm them. One fast scan would suppress the next real one.
+A fast scan does not write to the index, and this is deliberate rather than an optimization. Writing back would stamp records as freshly checked when nothing checked them, and a later deep scan would trust that stamp and skip the very sources meant to confirm them. One fast scan would suppress the next real one.
 
 So a fast scan is free of side effects in both directions: it takes what is there, and it leaves the index exactly as it found it.
 

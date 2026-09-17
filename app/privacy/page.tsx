@@ -153,7 +153,7 @@ export default function PrivacyPage() {
             <span className="text-foreground">Technical data.</span> Your IP
             address, held only as a counter against an hourly bucket so an
             endpoint cannot be scraped, and the browser string attached to a
-            sign-in session so you can recognise your own sessions. Our host
+            sign-in session so you can recognize your own sessions. Our host
             keeps its own request logs, which we do not control.
           </p>
         </Section>

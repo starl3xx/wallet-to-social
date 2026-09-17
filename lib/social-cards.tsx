@@ -258,7 +258,7 @@ export const SOCIAL_CARDS: Record<string, SocialCard> = {
     headline: 'agents hold tokens too',
     emphasisWord: 'agents',
     stat: KNOWN_AGENTS,
-    statLabel: 'labelled agent wallets',
+    statLabel: 'labeled agent wallets',
     sub: 'they trade and they vote, and none of them will read a DM',
     cta: 'what we found · walletlink.social/blog/ai-agent-wallets-what-we-found',
     statTone: 'attested',
@@ -347,12 +347,12 @@ export const SOCIAL_CARDS: Record<string, SocialCard> = {
     cta: 'browse them · walletlink.social/holders',
     statTone: 'plain',
   },
-  'labelled-evidence': {
+  'labeled-evidence': {
     variant: 'claim',
     kicker: 'every match carries its evidence',
     headline: 'you set the confidence bar',
     emphasisWord: 'you',
-    sub: 'an onchain record the owner wrote, a verification made inside the protocol, or a correlation from an index, each labelled as such',
+    sub: 'an onchain record the owner wrote, a verification made inside the protocol, or a correlation from an index, each labeled as such',
     cta: 'the identity stack · walletlink.social/blog/wallet-identity-stack',
     statTone: 'plain',
   },

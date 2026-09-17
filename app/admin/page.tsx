@@ -1006,7 +1006,7 @@ export default function AdminPage() {
       </Card>
 
       {/* Job results dialog. Radix owns the behaviour: overlay, focus trap,
-          focus restore, Escape, the labelled close, and the 100dvh bound with
+          focus restore, Escape, the labeled close, and the 100dvh bound with
           a body that scrolls. This was a `fixed inset-0` div around a Card,
           which had none of that, and an unnamed X to close it. */}
       <Modal

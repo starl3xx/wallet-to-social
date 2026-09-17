@@ -144,7 +144,7 @@ export async function POST(
 
   return NextResponse.json({
     message:
-      'API key rotated successfully. Store this new key securely - it will not be shown again.',
+      'API key rotated successfully. Store this new key securely: it will not be shown again.',
     old_key_id: keyId,
     new_key: {
       id: result.key.id,

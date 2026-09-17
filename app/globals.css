@@ -339,7 +339,28 @@
   --muted-foreground: oklch(0.708 0.005 280);
   --accent: oklch(0.269 0.005 280);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.62 0.18 27);
+  /* 0.68, up from 0.62, and the reason is the badge rather than the page.
+
+     Every contrast pair this file had been solved against put a coloured
+     foreground on a NEUTRAL surface, and against `--background` the old 0.62
+     measured a comfortable 5.01:1. The failed-job badge does something else:
+     `Badge tone="destructive"` paints `text-destructive` on
+     `bg-destructive-tint`, so both sides carry hue 27 and the whole ratio is
+     the lightness gap between them. That pair measured 3.75:1 in dark and had
+     never been looked at, because check-contrast.mjs did not list it. It does
+     now, along with the other three tint-backed badges, which all pass.
+
+     Lightening the FOREGROUND rather than darkening the tint, and that is not
+     a toss-up. `--destructive-tint` sits at 1.21:1 against the dark card as it
+     is; taking it to 0.24 to buy the same ratio would drop that to 1.07:1 and
+     the badge would stop being a visible object at all. The fix has to come
+     from the side that is not already doing a second job.
+
+     0.67 is where it crosses (4.545:1). 0.68 is the next step and measures
+     4.755:1, which is the one taken: a token parked on 4.50 fails the next
+     time any surface under it moves, and this file records that happening
+     before. Light mode is untouched; it was never the failing theme. */
+  --destructive: oklch(0.68 0.18 27);
   /* A tinted-white hairline (the alphadark family), not a plain white wash.
      Retoned with the composite measured, not asserted: oklch(0.9 0.03 280) at
      12% composites to 1.34:1 on the dark card against 1.32:1 for the old
@@ -684,6 +705,50 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-body);
+  }
+
+  /* Underlines sit where the typeface says, and break around descenders.
+
+     Both properties inherit, which is why they are declared once on the root
+     rather than on `a`: the product draws 39 underlines and most of them are
+     Tailwind's `underline` utility on a <span> or a <button>, not a link, so
+     a rule scoped to `a` would have covered a minority of them.
+
+     `from-font` reads the underline offset and thickness out of Söhne's own
+     metrics instead of letting the browser guess from the baseline. The
+     guess is what puts a line through the tail of a `g` or a `y`, and this
+     product underlines handles, which are full of both.
+
+     `skip-ink: auto` is already the browser default everywhere; it is written
+     out because it is half of the pair and a future reset that turns it off
+     should have to delete a line that says what it is for. */
+  :root {
+    text-underline-position: from-font;
+    text-decoration-skip-ink: auto;
+  }
+
+  /* A heading never ends on one orphaned word.
+
+     `balance` asks the browser to even out the lines of a wrapped heading
+     instead of filling each one and dropping the remainder, which is what
+     leaves a single word alone on line two. It is the right tool for exactly
+     this and the wrong one for running text, so it is scoped to the six
+     heading elements and nothing else: browsers cap it at a handful of lines
+     for cost reasons, so applying it to a blog post would quietly do nothing
+     on the paragraphs that need help and cost layout time on the ones that
+     do not.
+
+     Every heading in the product is a real heading element (the skip link
+     and the page shell both depend on that), so this reaches all of them
+     without a class. Unsupported browsers ignore the declaration and wrap the
+     way they do now. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
   }
 
   /* Selected text was the operating system's blue everywhere except inside an

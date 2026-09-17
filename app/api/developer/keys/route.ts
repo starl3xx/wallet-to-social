@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     {
       message:
-        'API key created successfully. Store this key securely - it will not be shown again.',
+        'API key created successfully. Store this key securely: it will not be shown again.',
       key: {
         id: result.key.id,
         name: result.key.name,

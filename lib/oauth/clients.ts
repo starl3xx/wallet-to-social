@@ -12,7 +12,7 @@
  *
  * **Dynamic client registration.** RFC 7591. Anybody may post metadata and
  * receive a `client_id`. Nothing about the result is verified, including the
- * name, which is why a registered client is labelled by its redirect host and
+ * name, which is why a registered client is labeled by its redirect host and
  * marked unverified on the consent screen rather than trusted to name itself.
  *
  * Kept because a client that implements neither mechanism has no other way in,

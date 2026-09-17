@@ -1602,7 +1602,7 @@ components:
             read `sources`: an identity is attested when the wallet owner
             published the link themselves, through a Farcaster verification,
             an onchain ENS record, an attested-social sign-in, or a manually
-            verified record. Anything else is correlated, and labelled so.
+            verified record. Anything else is correlated, and labeled so.
             See the data-quality page.
         reachable:
           type: boolean

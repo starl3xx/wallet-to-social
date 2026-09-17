@@ -160,7 +160,25 @@ the numbers cannot drift from what ships.
 | muted text  | 7.59:1  | 5.09:1  |
 | brand       | 6.40:1  | 8.50:1  |
 | attested    | 8.47:1  | 5.70:1  |
-| destructive | 5.00:1  | 5.91:1  |
+| destructive | 6.35:1  | 5.91:1  |
+
+**A badge reads its own hue on its own tint, and that pair was unmeasured until
+2026-09-17.** Every row above puts a coloured foreground on a neutral surface,
+which is the easy case: the tokens were solved against the page and the card.
+`Badge tone="destructive"` does something else. It paints `text-destructive` on
+`bg-destructive-tint`, so both sides carry hue 27 and the entire ratio is the
+lightness gap between them. It measured **3.75:1 in dark** and nothing looked,
+because the pair was not in the table. All four tint-backed badges are in it
+now; the other three passed.
+
+The fix lightened `--destructive` in dark from 0.62 to 0.68, and the direction
+was not a toss-up. `--destructive-tint` already sits at 1.21:1 against the dark
+card; darkening it to buy the same ratio would have taken that to 1.07:1 and the
+badge would have stopped being a visible object. When one side of a pair is
+already doing a second job, the other side moves. 0.67 is where it crosses
+(4.545:1) and 0.68 is the step taken (4.755:1), because a token parked on 4.50
+fails the next time a surface under it moves, which this file records happening
+once already.
 
 **A control's edge is not decoration, and needs 3:1.** WCAG 1.4.11 asks for 3:1
 on anything required to identify a component. `--input`, which draws the
@@ -986,8 +1004,8 @@ and the second implementation would have hidden that.
 
 ## Enforcement
 
-Four CI jobs and an ESLint rule. Three of them guard what a grep can see; the
-fourth opens a browser, because the other three cannot see a rendered box. Three
+Five CI jobs and an ESLint rule. Four of them guard what a grep can see; the
+fifth opens a browser, because the other three cannot see a rendered box. Three
 of the design-language rules read whole files rather than lines, for the reason
 recorded below:
 
@@ -995,7 +1013,8 @@ recorded below:
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px size may be written only inside `Eyebrow`, `Badge` and the micro `Button` size), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal, plus three whole-file rules: `role="menu"`, a submit disabled on an empty field, and `aria-invalid` driven by a shared error slot |
-| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges, **and each badge hue on its own tint**                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `scripts/check-house-style.mjs`     | onchain as one word, no em dash, no spaced hyphen standing in for one, the ellipsis character, curly apostrophes in UI copy, American English. Reads JSX text, prose-shaped string literals and Markdown outside code fences; never comments, identifiers or data values                                                                                                                                                                                                                            |
 | `scripts/check-control-height.mjs`  | **rendered** height: every visible element declaring any ladder token (`h-control`, `-hero`, `-compact`, `-micro`, `size-` twins) measures that token, on three pages at six widths, plus no sideways scroll                                                                                                                                                                                                                                                                                        |
 | `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 

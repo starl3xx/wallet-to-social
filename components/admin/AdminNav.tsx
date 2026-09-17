@@ -94,7 +94,7 @@ function NavGroup({
   return (
     /**
      * `nav` with a name, rather than `role="tablist"`. These are two separately
-     * labelled groups pointing at one content region, which is navigation
+     * labeled groups pointing at one content region, which is navigation
      * rather than one tab strip, and calling it a tablist would promise a
      * roving focus and arrow keys that this shape does not want. A landmark per
      * group gives a screen reader a way past twelve controls that a fake

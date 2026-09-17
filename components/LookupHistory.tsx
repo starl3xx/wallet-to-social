@@ -162,7 +162,7 @@ export const LookupHistory = memo(function LookupHistory({
           <CardTitle>My lookups</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </CardContent>
       </Card>
     );
@@ -292,7 +292,7 @@ export const LookupHistory = memo(function LookupHistory({
                   onClick={() => handleLoadLookup(lookup.id, lookup.name)}
                   disabled={loadingId === lookup.id}
                 >
-                  {loadingId === lookup.id ? 'Loading...' : 'Load'}
+                  {loadingId === lookup.id ? 'Loading…' : 'Load'}
                 </Button>
               </div>
             </div>
@@ -316,7 +316,7 @@ export const LookupHistory = memo(function LookupHistory({
             className="w-full"
           >
             {loadingMore
-              ? 'Loading...'
+              ? 'Loading…'
               : `Load more (${totalCount - history.length} remaining)`}
           </Button>
         )}

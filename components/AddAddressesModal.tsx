@@ -154,7 +154,7 @@ export function AddAddressesModal({
                 id="add-addresses-paste"
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
-                placeholder="Paste wallet addresses in any format..."
+                placeholder="Paste wallet addresses in any format…"
                 rows={5}
                 className="font-mono text-sm"
               />
@@ -172,7 +172,7 @@ export function AddAddressesModal({
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
+                      Processing…
                     </>
                   ) : (
                     'Continue'

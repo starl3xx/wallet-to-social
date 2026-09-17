@@ -36,7 +36,7 @@ export function ThemeToggle() {
 
   return (
     <Segmented<Theme>
-      ariaLabel="Colour theme"
+      ariaLabel="Color theme"
       value={current}
       onChange={setTheme}
       className="w-[8.25rem]"

@@ -218,7 +218,7 @@ export async function PATCH(
     const results: WalletSocialResult[] = body.results;
     if (!results || !Array.isArray(results)) {
       return NextResponse.json(
-        { error: 'Invalid request - must include name or results' },
+        { error: 'Invalid request: must include name or results' },
         { status: 400 }
       );
     }

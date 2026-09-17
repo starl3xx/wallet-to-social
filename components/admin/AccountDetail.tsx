@@ -150,7 +150,7 @@ export function AccountDetail({
           {account.email}
         </h2>
         {/* `tier` is a legacy entitlement. Every pack buyer is 'free' here, so
-            the word is labelled, or a paying customer reads as a comp. */}
+            the word is labeled, or a paying customer reads as a comp. */}
         <Badge tone={account.tier === 'free' ? 'muted' : 'brand'}>
           {account.tier === 'free'
             ? 'no legacy tier'

@@ -24,7 +24,7 @@ import { Empty, Loading } from './PaneState';
  * There was a conversion funnel on this pane, over 30 days, dividing payments
  * by pricing views. The behaviour pane drew a second one over 7 days dividing
  * every step by page views, four steps appeared on both with different numbers,
- * and the Pulse tile labelled "Conversion rate" linked here while showing the
+ * and the Pulse tile labeled "Conversion rate" linked here while showing the
  * other definition. All of it now lives on the Funnel tab, over one window the
  * reader chooses, with the two rates named rather than both called conversion.
  *

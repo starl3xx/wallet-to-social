@@ -286,7 +286,7 @@ export function LookupDashboard({ password }: LookupDashboardProps) {
               <div className="text-sm text-muted-foreground">7-day trend</div>
               {match.trendData.length > 1 ? (
                 <div className="space-y-3">
-                  {/* Two sparklines sit side by side and are already labelled
+                  {/* Two sparklines sit side by side and are already labeled
                       under each chart, so the legend does not need colour to
                       tell them apart. It previously used two hues that the
                       sweep collapsed into one, leaving a key where both

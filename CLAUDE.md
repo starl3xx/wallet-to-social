@@ -323,12 +323,40 @@ the UI.
   slips past a lowercase search.
 - **No em dashes.** Use the mark the sentence actually wants: a colon, a
   semicolon, a comma, or brackets. Check for `&mdash;` entities as well.
+- **No spaced hyphen standing in for a dash** either. `Job queued - processing
+will start` is the em dash wearing a disguise; it takes a colon.
+- **The ellipsis character `…`**, not three periods. One glyph, its own
+  spacing, and a screen reader reads it as an ellipsis rather than as three
+  full stops.
+- **American English.** "labeled", "behavior", "color", "recognize",
+  "normalize". Check the stem plus the suffix, and check the reverse, so
+  "analyses" and "advertise" survive.
 - **Sentence case for headings**, in docs and README as much as in the UI.
+
+**`npm run check:style` enforces all of the above**, and
+`.github/workflows/house-style.yml` fails a PR that breaks them. It reads only
+text a person reads: JSX text nodes, prose-shaped string literals, and Markdown
+outside code fences. Not comments, not identifiers, not data values, and the
+reasons are in the script's header. Three deliberate non-entries worth knowing:
+`'cancelled'` is a persisted job status and an API value, so it keeps its
+spelling; `aria-labelledby` is an attribute name; `Optimism` is a chain.
+
+This was unenforced until 2026-09-17, and by then the product spelled its own
+signature phrase two ways ("labelled" in 23 published places against "labeled"
+in the two written most recently), shipped 15 three-dot ellipses in loading
+copy, and put a hyphen where a colon belonged in the message every job shows on
+submit. A rule nothing checks is a rule that holds while somebody remembers it.
 
 The assistant carries the onchain rule in its system prompt explicitly,
 including an instruction to apply it even when the retrieved context spells it
 the other way. If you change that prompt, keep the rule (see
 `docs/AI-SEARCH.md`).
+
+One known drift, left deliberately: `~/walletlink-grok-plugin`'s
+`skills/walletlink/SKILL.md` quotes the attested sentence verbatim and still
+says "labelled". Its marketplace entry is SHA-pinned in an open PR against
+xai-org, so changing it now would invalidate a pending external submission.
+Pick it up whenever that PR next moves.
 
 ## Performance Patterns
 

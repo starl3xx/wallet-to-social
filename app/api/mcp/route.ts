@@ -960,7 +960,7 @@ async function gate(
       ? 'This access token has expired. Refresh it.'
       : check.reason === 'revoked'
         ? 'This connection was revoked. Connect again.'
-        : 'This access token is not recognised.'
+        : 'This access token is not recognized.'
   );
 }
 

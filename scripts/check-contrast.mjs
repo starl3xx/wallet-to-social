@@ -100,6 +100,25 @@ const PAIRS = [
   ['attested on card', 'attested', 'card', 4.5],
   ['caution', 'caution', 'background', 4.5],
   ['destructive', 'destructive', 'background', 4.5],
+  /**
+   * A badge reads its own hue on its own tint, and that pair was never
+   * measured.
+   *
+   * Every row above puts a coloured foreground on a NEUTRAL surface, which is
+   * the easy case: the tokens were solved against the page and the card. The
+   * badge does something else. `Badge tone="destructive"` paints
+   * `text-destructive` on `bg-destructive-tint`, so both sides of the ratio
+   * carry the same hue and the contrast comes only from the lightness gap
+   * between them. Nothing in this file looked at that, so the failed-job badge
+   * and the caution badge were never checked against the thing actually behind
+   * them, which is precisely the mistake the design doc's Contrast section
+   * warns about: measure against what is behind the element, not against the
+   * page.
+   */
+  ['destructive badge', 'destructive', 'destructive-tint', 4.5],
+  ['attested badge', 'attested', 'attested-tint', 4.5],
+  ['caution badge', 'caution', 'caution-tint', 4.5],
+  ['brand badge', 'accent-brand', 'accent-brand-tint', 4.5],
   // The control boundary, against every surface a control sits on.
   ['control edge on page', 'input', 'background', 3.0],
   ['control edge on card', 'input', 'card', 3.0],

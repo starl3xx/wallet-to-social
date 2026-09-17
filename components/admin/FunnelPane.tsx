@@ -42,7 +42,7 @@ import { Empty, Loading } from './PaneState';
  * They are stacked rather than toggled so nobody can read one believing it is
  * the other.
  *
- * ## The stages that are not funnel steps are labelled as rails
+ * ## The stages that are not funnel steps are labeled as rails
  *
  * Signups (no session to place), onchain sales (no modal, no checkout) and
  * the API (spends credits already bought) each sit beside the funnels rather
@@ -462,7 +462,7 @@ export function FunnelPane({ password }: { password: string }) {
             </div>
             {(sources.assistants ?? []).length === 0 ? (
               <Empty>
-                No arrival in this window came from an AI assistant we recognise
+                No arrival in this window came from an AI assistant we recognize
               </Empty>
             ) : (
               <Table>

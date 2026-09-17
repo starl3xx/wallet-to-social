@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       return NextResponse.json(
-        { error: 'Failed to save social graph data - no result returned' },
+        { error: 'Failed to save social graph data: no result returned' },
         { status: 500 }
       );
     }

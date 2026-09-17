@@ -188,7 +188,7 @@ export async function sendLifecycleEmail(
   }
   const unsub = unsubscribeUrl(email);
   if (!unsub) {
-    console.error('EMAIL_UNSUBSCRIBE_SECRET missing - lifecycle send refused');
+    console.error('EMAIL_UNSUBSCRIBE_SECRET missing: lifecycle send refused');
     return { success: false, error: 'Unsubscribe secret not configured' };
   }
 
@@ -258,7 +258,7 @@ export async function sendPlainEmail(options: {
   }
   const unsub = unsubscribeUrl(options.to);
   if (!unsub) {
-    console.error('EMAIL_UNSUBSCRIBE_SECRET missing - plain send refused');
+    console.error('EMAIL_UNSUBSCRIBE_SECRET missing: plain send refused');
     return { success: false, error: 'Unsubscribe secret not configured' };
   }
 

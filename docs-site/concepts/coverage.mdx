@@ -77,7 +77,7 @@ This makes Farcaster matching **deterministic rather than probabilistic**. If a 
 
 That property is worth more than it first sounds. It means a Farcaster negative is real information, not an absence of information.
 
-### X coverage is attested first, and labelled always
+### X coverage is attested first, and labeled always
 
 X handles are a different shape of problem. There is no protocol-level registry linking an X account to a wallet, so there is nothing to read the way Farcaster can be read. Our resolution layer works around that by drawing on several independent routes to the same fact, and telling you which one produced each match.
 
@@ -104,7 +104,7 @@ true](/concepts/data-quality#when-a-handle-stops-being-true).
 
 **Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner’s own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
 
-**The routes grow. The labelling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you _how it was established_, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
+**The routes grow. The labeling does not change.** We add sources as they become worth adding, and each one is classified into the same fixed evidence vocabulary before it can appear in a response. That vocabulary is the contract, not the list of suppliers behind it: a match tells you _how it was established_, so the meaning of a row you built a threshold around three months ago is the meaning it still has today.
 
 That guarantee is enforced rather than promised. Source classification is an allowlist, so a route nobody has classified yet returns no evidence class at all rather than defaulting into an existing one. A new pipeline cannot quietly widen what `onchain` or `farcaster` means. See [evidence classes](/concepts/data-quality#evidence-classes) for the full vocabulary.
 
