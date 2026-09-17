@@ -433,9 +433,11 @@ for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat([
  * right answer would have been to leave the slug alone.
  */
 for (const file of walk('content/social', [], ['.json'])) {
+  let raw;
   let queue;
   try {
-    queue = JSON.parse(readFileSync(file, 'utf8'));
+    raw = readFileSync(file, 'utf8');
+    queue = JSON.parse(raw);
   } catch {
     continue;
   }
@@ -444,11 +446,23 @@ for (const file of walk('content/social', [], ['.json'])) {
     for (const [channel, post] of Object.entries(day ?? {})) {
       const text = post?.text;
       if (typeof text !== 'string') continue;
+      /**
+       * A real file offset, not the day index.
+       *
+       * The first draft put `i + 1` in the `line` field while the reporter
+       * prints `file:line`, so a violation on day 7 rendered as
+       * `queue.json:7` and sent whoever clicked it to day 1's copy. The day
+       * number is still useful, so it moved into the message where it says
+       * what it is. `JSON.stringify` reproduces the escaping the file was
+       * written with, which is what makes the lookup exact.
+       */
+      const at = raw.indexOf(JSON.stringify(text));
+      const line = at === -1 ? 1 : raw.slice(0, at).split('\n').length;
       for (const rule of RULES)
         if (fire(rule, text))
           hits.push({
             file,
-            line: i + 1,
+            line,
             rule: rule.name,
             msg: `day ${i + 1} (${channel}): ` + detail(rule, text),
             text: text.split('\n')[0].slice(0, 80),
