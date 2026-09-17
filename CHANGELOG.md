@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (production had not deployed for eight days)
+
+Every production build failed from 2026-09-09 to 2026-09-17 and nothing
+said so. The homepage served an eight-day-old build while `main` moved
+on: the collapsed FAQ, the hero extraction fix and the agent-label
+correction were all merged and none of them were live.
+
+- Two places read Neon during `next build`:
+  `/api/starter-collections` (`dynamic = 'force-static'`) and the holder
+  page's `generateStaticParams`. The corpus grew from 66 collections to
+  158, the build generates them in parallel against one database, and
+  they crossed Next's 60 second per-page export timeout. Three retries
+  later `Export encountered an error` fails the whole deployment.
+- **Both guarded themselves with `VERCEL_ENV === 'preview'`**, so previews
+  skipped the work and went green while production did it and died. A
+  check that passes on every pull request and fails only after merge is
+  worse than no check: it turns a loud failure into a silent one. And
+  because the corpus grows daily, the build got slower with no commit to
+  blame.
+- The route is `force-dynamic` with `s-maxage=3600,
+stale-while-revalidate=86400`, so the CDN still answers most visitors
+  from cache and the hourly cost the old comment protected is unchanged.
+- Holder pages prerender nothing, on every environment alike. They render
+  on demand under the same `revalidate` and cache for an hour exactly as
+  before, so the cost is paid once by one request instead of 158 times
+  inside a deployment with a deadline.
+- The build went from failing after four minutes to succeeding in 18
+  seconds. `/holders` and a holder report both verified rendering from a
+  production server afterwards.
+- The invariants asserted the OLD asymmetry, and three of them failed as
+  soon as it was removed, which is the guard working. They now require
+  the symmetric rule: nothing prerenders anywhere, and no
+  database-reading route is force-static.
+
 ### 2026-09-16 (two agent facts, and a sentence that survives extraction)
 
 - `KNOWN_AGENTS` (13,622) is the DETECTOR'S CATALOG, harvested from

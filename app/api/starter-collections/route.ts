@@ -17,8 +17,36 @@ import {
  * arrival at the front page. The corpus moves on the seed cron's clock, so an
  * hour-old answer is the same answer.
  */
-export const revalidate = 3600;
-export const dynamic = 'force-static';
+/**
+ * Cached at the CDN, NOT prerendered at build time. That distinction froze
+ * production for eight days.
+ *
+ * This was `dynamic = 'force-static'`, which makes Next run this GET during
+ * `next build`. The route reads Neon, the build generates 322 pages against the
+ * same database with three workers, and on 2026-09-09 this handler crossed the
+ * 60 second export timeout. Next retries three times and then fails the whole
+ * build:
+ *
+ *     Failed to build /api/starter-collections after 3 attempts.
+ *     Export encountered an error, exiting the build.
+ *
+ * Every production deployment from that day to 2026-09-17 errored, so nothing
+ * merged in between reached the site. The homepage served an eight-day-old
+ * build while `main` moved on, and the queries measure ~3s on their own, so
+ * nothing looked slow anywhere a person would look.
+ *
+ * It was invisible because the preview short-circuit below returns instantly
+ * without touching Neon: every branch went green and only `main` went red. A
+ * check that passes on every PR and fails only after merge is worse than no
+ * check, which is why `docs/CI.md` now carries this and the weekly growth
+ * report watches deployment freshness.
+ *
+ * `force-dynamic` runs the handler per request, and the response carries its
+ * own cache headers, so the CDN still answers most visitors from cache and the
+ * hourly cost the original comment protected is unchanged. A build never waits
+ * on a database again.
+ */
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   /**
@@ -60,5 +88,18 @@ export async function GET() {
    * catch was reaching for and did not get.
    */
   const collections = await listStarterCollections(3);
-  return NextResponse.json({ collections, walletCap: STARTER_WALLET_CAP });
+  return NextResponse.json(
+    { collections, walletCap: STARTER_WALLET_CAP },
+    {
+      headers: {
+        /**
+         * The hour the `revalidate` used to buy, moved to where it costs
+         * nothing: the CDN serves the cached copy, and `stale-while-revalidate`
+         * means the refresh happens behind a visitor who is already being
+         * served rather than in front of one who is waiting.
+         */
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    }
+  );
 }

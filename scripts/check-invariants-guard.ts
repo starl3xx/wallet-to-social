@@ -1064,10 +1064,15 @@ const MUTATIONS: Mutation[] = [
     to: 'if (process.env.VERCEL_ENV) {',
   },
   {
-    name: 'holder pages go back to prerendering against Neon on preview builds',
+    // Re-seeded 2026-09-17. The old defect removed a preview-only branch, and
+    // that branch is gone: prerendering the corpus in production while previews
+    // skipped it is what failed every production build for eight days. The
+    // defect worth seeding now is the reintroduction of the build-time read
+    // itself, on any environment.
+    name: 'holder pages go back to prerendering the whole corpus at build time',
     file: 'app/holders/[chain]/[address]/page.tsx',
-    from: "  if (process.env.VERCEL_ENV === 'preview') return [];\n  const collections",
-    to: '  const collections',
+    from: 'export async function generateStaticParams() {\n  return [];\n}',
+    to: 'export async function generateStaticParams() {\n  const collections = await listHolderCollections();\n  return collections.map((c) => ({ chain: c.chain, address: c.address }));\n}',
   },
   {
     name: 'the hub and sitemap listing goes back to reading Neon on preview builds',
