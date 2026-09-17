@@ -7194,6 +7194,174 @@ async function main() {
     );
 
     /**
+     * A withheld match is counted as found, everywhere a count is stated.
+     *
+     * `locked` means the row matched and the free allowance had nothing left
+     * to bill it against, so the billable identities were stripped on the way
+     * out. It means found-and-withheld. Every count in the product read it as
+     * not-found, because every count was its own filter on `twitter_handle ||
+     * farcaster`, and those are exactly the fields the gate removes.
+     *
+     * The damage was not cosmetic. The share text published a match rate
+     * lower than the product achieved, on the surface that brings other people
+     * here, so the gate was cutting the product's own social proof. The CSV
+     * had no column for it, so a locked row left the building looking like a
+     * wallet that never published anything: the file told the customer
+     * something untrue about their own list.
+     *
+     * Asserted as the refusal in both directions. The counts must come from
+     * the one authority, AND the surface that shows `found` must show
+     * `locked` beside it, because a figure that counts withheld rows without
+     * saying any are withheld is the same dishonesty pointing the other way.
+     */
+    /**
+     * Run through the function, not over its source.
+     *
+     * `countResults` is pure and importable, so there is no reason to assert
+     * a regex about how it is written, and one very good reason not to: the
+     * first version of this block asserted `const found = reachable + locked`
+     * and that line was the bug. `locked` and `reachable` are NOT disjoint,
+     * because the gate strips only the billable identities and leaves ENS,
+     * Lens and GitHub in place, so a locked row carrying an ENS name sits in
+     * both sets and the sum published it twice. The assertion was defending
+     * the defect, which is the third time that shape has appeared in this
+     * repo.
+     *
+     * The row below is the exact counterexample: withheld, and still visibly
+     * carrying a Lens profile.
+     *
+     * `lens`, not `ens_name`, and the first draft of this test got that wrong
+     * and failed honestly. `reachable` has always counted an X handle, a
+     * Farcaster account, Lens or GitHub; an ENS name alone has never been in
+     * it. So an ENS-carrying locked row is not in both sets and proves
+     * nothing. Lens and GitHub are the two the gate leaves behind that
+     * `reachable` does count, and they are where the double count lived.
+     */
+    const { countResults } = await import('@/lib/result-counts');
+    const gatedWithLens = countResults([
+      { wallet: '0x1', lens: 'a.lens', locked: true },
+      { wallet: '0x2', twitter_handle: 'b' },
+      { wallet: '0x3' },
+    ] as never);
+    ok(
+      'a locked row counts towards found, not against it',
+      gatedWithLens.found === 2 && gatedWithLens.locked === 1
+    );
+    ok(
+      'and a locked row that still shows a Lens profile is counted once, not twice',
+      // reachable = the Lens row + the handle row = 2; locked = 1; a naive
+      // `reachable + locked` says 3 for a three-row list holding two finds.
+      gatedWithLens.reachable === 2 && gatedWithLens.found === 2
+    );
+    ok(
+      'the match rate counts withheld rows, so a gate cannot deflate it',
+      countResults([
+        { wallet: '0x1', locked: true },
+        { wallet: '0x2' },
+      ] as never).matchRate === '50.0'
+    );
+    const countsSrc = withoutComments(
+      readFileSync('lib/result-counts.ts', 'utf8')
+    );
+    const resultStatsSrc = withoutComments(
+      readFileSync('components/StatsCards.tsx', 'utf8')
+    );
+    ok(
+      'the results figure comes from the shared count, not its own filter',
+      resultStatsSrc.includes('countResults(results)') &&
+        !/results\.filter/.test(resultStatsSrc)
+    );
+    ok(
+      'and a figure that counts withheld rows says how many are withheld',
+      /stats\.found/.test(resultStatsSrc) &&
+        /stats\.locked > 0/.test(resultStatsSrc)
+    );
+    const shareSrc = withoutComments(
+      readFileSync('components/ShareButtons.tsx', 'utf8')
+    );
+    /**
+     * Two separate overstatements have shipped from this file, in opposite
+     * directions: `(twitter + farcaster) / total` double-counted anyone with
+     * both, and the fix for that inherited the caller's gate-stripped
+     * predicate. It takes the whole count set now, so there is nothing here
+     * to get wrong a third time.
+     */
+    ok(
+      'the shared figures are the found ones, computed nowhere in this file',
+      /counts: ResultCounts/.test(shareSrc) &&
+        shareSrc.includes('${found.toLocaleString()} found') &&
+        !/\.filter\(/.test(shareSrc)
+    );
+    const exportSrc = withoutComments(
+      readFileSync('components/ExportButton.tsx', 'utf8')
+    );
+    /**
+     * The CSV names it. Without this column a locked row is byte-for-byte a
+     * wallet with nothing published, and the customer has no way to learn
+     * otherwise from the file they were handed.
+     */
+    ok(
+      'the CSV carries a column saying which rows were withheld',
+      /'locked',/.test(exportSrc) && /locked: result\.locked/.test(exportSrc)
+    );
+
+    /**
+     * "Save this lookup" cannot be promised without somewhere to save it.
+     *
+     * The box was checked by default and signed out it saved nothing that
+     * could ever be read: the job wrote a `lookup_history` row keyed to the
+     * anonymous browser uuid, `/api/history` answers 401 without a session
+     * and filters by the session's user id when it has one, and no path
+     * adopts the row on sign-up.
+     *
+     * The costly half was second-order. The `beforeunload` guard stays quiet
+     * when a forward lookup is saved, which is correct, so a checked box that
+     * saved nothing also switched off the warning that this was the last
+     * chance to export. Both halves are asserted, because fixing only the
+     * copy would leave the data loss exactly where it was.
+     */
+    const homeSrcSave = withoutComments(readFileSync('app/page.tsx', 'utf8'));
+    /**
+     * Read out of the `submitJob` calls themselves, not off a loose grep.
+     *
+     * The first version of this asserted that the string `saveToHistory,` did
+     * not appear on its own line anywhere in the file, which is true of a
+     * payload field and equally true of a `useCallback` dependency array. It
+     * failed on two dependency arrays that were entirely correct. An
+     * assertion that cannot tell the thing it protects from the thing beside
+     * it is the kind that gets weakened until it passes.
+     */
+    const submitCalls =
+      homeSrcSave.match(/submitJob\(\{[\s\S]*?\n\s*\}\)/g) ?? [];
+    const saving = submitCalls.filter((c) => /saveToHistory/.test(c));
+    ok(
+      'a lookup is only submitted as saved when there is an account to save it to',
+      saving.length >= 2 &&
+        saving.every((c) => /saveToHistory:\s*willSave/.test(c)) &&
+        (
+          homeSrcSave.match(
+            /const willSave = saveToHistory && canSaveHistory;/g
+          ) ?? []
+        ).length >= 2
+    );
+    /**
+     * The guard asks what WAS saved, never what could be saved now.
+     *
+     * Reading the live auth state there had it backwards in the one case it
+     * matters: `/?collection=…` submits on mount while `useAuth` is still
+     * loading, so a signed-in visitor on such a link sent
+     * `saveToHistory: false` and stored nothing, then auth resolved and the
+     * warning went quiet over a result that was never saved. Signing in after
+     * a signed-out run does the same to the run already on screen.
+     */
+    ok(
+      'and a save that cannot happen does not suppress the unload warning',
+      /const savedForward = savedThisRun && reverseMeta === null;/.test(
+        homeSrcSave
+      ) && /setSavedThisRun\(willSave\)/.test(homeSrcSave)
+    );
+
+    /**
      * A page that quotes a price offers a way to pay it.
      *
      * Six comparison pages rendered the whole price sheet and ended on prose:

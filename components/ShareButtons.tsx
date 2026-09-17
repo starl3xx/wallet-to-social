@@ -5,21 +5,23 @@ import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/components/ui/overflow-menu';
 import { XMark, FarcasterMark } from '@/components/ui/brand-marks';
 import { Analytics } from '@/lib/client-analytics';
+import type { ResultCounts } from '@/lib/result-counts';
 
 interface ShareButtonsProps {
-  twitterCount: number;
-  farcasterCount: number;
-  totalWallets: number;
   /**
-   * Distinct wallets reachable on any platform, which is NOT
-   * `twitterCount + farcasterCount`: most people with a Farcaster account also
-   * have an X handle, so adding the two counts each of them twice.
+   * The whole count set, not four loose numbers.
    *
-   * This is the same figure the results header states, and it has to be passed
-   * in rather than derived here, because the overlap is only knowable from the
-   * rows themselves.
+   * It used to take `twitterCount`, `farcasterCount`, `totalWallets` and
+   * `reachableCount`, each computed by the caller with its own filter. Both
+   * of this component's recorded defects are that shape: the first published
+   * `(twitter + farcaster) / total`, which double-counts everyone holding
+   * both; the second inherited the caller's `r.twitter_handle || r.farcaster`
+   * predicate, which is exactly what the match gate strips, so a gated lookup
+   * shared a rate lower than the product achieved.
+   *
+   * Handing over the derivation instead of its results is what stops a third.
    */
-  reachableCount: number;
+  counts: ResultCounts;
   /**
    * Render as overflow-menu rows rather than standalone buttons.
    *
@@ -31,37 +33,41 @@ interface ShareButtonsProps {
 }
 
 export const ShareButtons = memo(function ShareButtons({
-  twitterCount,
-  farcasterCount,
-  totalWallets,
-  reachableCount,
+  counts,
   asMenuItems,
 }: ShareButtonsProps) {
-  /**
-   * Distinct reachable over total, matching the results header exactly.
-   *
-   * This was `(twitterCount + farcasterCount) / totalWallets`, which
-   * double-counts everyone holding both accounts. On a real 1,057-wallet lookup
-   * that published "49% match rate" for a result the product itself reported as
-   * 30.8%: an outward-facing overstatement of the one number walletlink is sold
-   * on, in the copy most likely to be read by a prospect.
-   */
-  const matchRate =
-    totalWallets > 0 ? Math.round((reachableCount / totalWallets) * 100) : 0;
+  const { total, found, twitter, farcaster, matchRate } = counts;
 
-  const shareText = `Just resolved ${totalWallets.toLocaleString()} wallets with walletlink.social: ${reachableCount.toLocaleString()} reachable (${matchRate}%), ${twitterCount.toLocaleString()} on X and ${farcasterCount.toLocaleString()} on Farcaster`;
+  /**
+   * What the lookup FOUND, which on a gated run is not what is on screen.
+   *
+   * Two things had to be true here and only one was. The rate must count each
+   * wallet once, not once per platform: the first version published
+   * `(twitter + farcaster) / total` and turned a real 30.8% result into "49%
+   * match rate", an outward overstatement of the number this product is sold
+   * on. And it must count the rows the gate withheld: the second version
+   * filtered on the identity fields the gate strips, so somebody who hit the
+   * gate posted a rate LOWER than the product achieved, to the surface that
+   * brings other people here. A gate that quietly cuts the product's own
+   * social proof is the worst place for this particular bug to live.
+   *
+   * `countResults` answers both. Nothing is recomputed in this file.
+   */
+  const rate = Math.round(Number(matchRate));
+
+  const shareText = `Just resolved ${total.toLocaleString()} wallets with walletlink.social: ${found.toLocaleString()} found (${rate}%), ${twitter.toLocaleString()} on X and ${farcaster.toLocaleString()} on Farcaster`;
 
   const handleShareTwitter = useCallback(() => {
-    Analytics.exportClicked('share_twitter', totalWallets);
+    Analytics.exportClicked('share_twitter', total);
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent('https://walletlink.social')}`;
     window.open(url, '_blank', 'noopener,noreferrer,width=550,height=420');
-  }, [shareText, totalWallets]);
+  }, [shareText, total]);
 
   const handleShareFarcaster = useCallback(() => {
-    Analytics.exportClicked('share_farcaster', totalWallets);
+    Analytics.exportClicked('share_farcaster', total);
     const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText + '\n\nhttps://walletlink.social')}`;
     window.open(url, '_blank', 'noopener,noreferrer,width=550,height=420');
-  }, [shareText, totalWallets]);
+  }, [shareText, total]);
 
   if (asMenuItems) {
     return (

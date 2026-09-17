@@ -2,6 +2,79 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (a withheld match is a match)
+
+`locked` means the row matched and the free allowance had nothing left
+to bill it against, so the identities were stripped on the way out. It
+means found and withheld. Every count in the product read it as not
+found, because every count was its own filter on `twitter_handle ||
+farcaster`, and those are exactly the fields the gate removes.
+
+- A gated lookup showed **two different answers on one screen**: the gate
+  banner said "found 220 matches", the figures four hundred pixels below
+  said 100, both rendered from the same array.
+- **The share text used the stripped figure.** Somebody who ran a list
+  and hit the gate posted a match rate lower than the product actually
+  achieved, to the one surface that brings other people here. The gate
+  was quietly cutting the product's own social proof.
+- **The CSV had no column for it**, so a locked row left the building
+  byte-for-byte identical to a wallet that never published anything. The
+  file was telling the customer something untrue about their own list,
+  and the lost sale is the smaller half of that.
+- `lib/result-counts.ts` is the single authority now, the same treatment
+  `lib/packs.ts` gives prices. Four surfaces derived these counts by hand
+  and three were wrong the same way.
+- `found` counts each row once, with one predicate. The first version of
+  it was `reachable + locked`, under a comment asserting the two sets are
+  disjoint "by construction". They are not, and `lib/match-gate.ts` says
+  so in plain English at the top: it strips the **billable** identities,
+  so a locked row keeps its Lens profile or GitHub account and sits in
+  both sets. The sum published it twice, in the header and in the share
+  text. The overclaim this work removes, briefly reintroduced while
+  removing it, because the comment stated the premise instead of checking
+  the file next door.
+- Its assertion was `const found = reachable + locked`, so the assertion
+  was defending the defect: the third time that shape has appeared here.
+  Replaced with three that run through the function, whose counterexample
+  is a withheld row still showing a Lens profile.
+- The unload guard reads what was actually sent, not what could be sent
+  now. `/?collection=…` submits on mount while auth is still loading, so
+  a signed-in visitor on such a link stored nothing and then had the
+  warning silenced the moment auth resolved: it removed itself in exactly
+  the case it exists for. Signing in after a signed-out run did the same
+  to the run on screen.
+- The results header leads with `found` and states the locked count
+  beside it in `caution`. That pairing is the condition the figure comes
+  with: a number that counts withheld rows must say some are withheld, or
+  it is the same dishonesty pointing the other way. Asserted.
+- The X-list export names the locked rows in its tooltip, where it used
+  to say "Export X list (40)" ten pixels under a banner saying 220.
+- **The match gate stopped wearing error clothes.** It was
+  `border-caution` + `bg-caution-tint` + a warning triangle with every
+  word in amber: the anatomy used for a truncated import and a stale
+  record. Nothing went wrong. It is the one screen where somebody decides
+  to pay. Card treatment now, with only the locked figure in caution,
+  which is what caution is for. A failed unlock became its own
+  `InlineError`, since that genuinely is a fault.
+
+**"Save this lookup" could not save anything signed out**, and the
+second half of that cost people work.
+
+- The box was checked by default. The job wrote a `lookup_history` row
+  keyed to the anonymous browser uuid; `/api/history` answers 401 without
+  a session and filters by the session's user id when it has one; no path
+  adopts the row on sign-up. It was unreachable the moment it was written.
+- The `beforeunload` guard stays quiet when a forward lookup is saved,
+  which is right, so a checked box that saved nothing **also switched off
+  the warning** that this was the last chance to export. Run a lookup,
+  be told it is kept, get no warning, close the tab, lose everything.
+- Signed out the box is gone rather than unchecked: an unchecked box
+  invites a click that would still do nothing. A sentence saying results
+  are not kept, and the account that would keep them. It is also the one
+  moment in the flow where an account is obviously worth having.
+- The job no longer sends `saveToHistory: true` without a session, so the
+  unreadable row is not written at all.
+
 ### 2026-09-17 (the house style is a rule now, not a habit)
 
 Third interface-craft pass: typography, and the enforcement the house

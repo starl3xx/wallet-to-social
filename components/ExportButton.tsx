@@ -102,6 +102,21 @@ export const ExportButton = memo(function ExportButton({
       'agent_name',
       'agent_framework',
       'agent_token_symbol',
+      /**
+       * Whether the gate withheld this row's identities.
+       *
+       * Without it, a locked row leaves the building with `twitter_handle`
+       * and `farcaster` blank, which is byte-for-byte what a wallet that
+       * never published anything looks like. The file was telling the
+       * customer something untrue about their own list, and the fact that it
+       * also cost a sale is the smaller half of that.
+       *
+       * Last column on purpose. A spreadsheet is read left to right and the
+       * identity columns are what the file is for; this one is a footnote on
+       * the rows that have it, and it is empty on every row of an ungated
+       * export.
+       */
+      'locked',
     ];
 
     const data = sortedResults.map((result) => ({
@@ -128,6 +143,10 @@ export const ExportButton = memo(function ExportButton({
       agent_name: result.agent_name || '',
       agent_framework: result.agent_framework || '',
       agent_token_symbol: result.agent_token_symbol || '',
+      // 'true' or blank, matching `is_agent` above rather than writing
+      // 'false' on every ungated row: a blank cell is the honest shape for
+      // "this does not apply", and a column of 5,000 falses is noise.
+      locked: result.locked ? 'true' : '',
     }));
 
     const csv = exportToCSV(data, headers);
@@ -257,6 +276,31 @@ export const ExportButton = memo(function ExportButton({
 
   const reachableCount = reachableHandles.length;
 
+  /**
+   * Rows the gate withheld, named in the tooltip beside the two counts that
+   * already live there.
+   *
+   * This button is where somebody decides whether the product worked, and on
+   * a gated lookup it says "Export X list (40)" ten pixels under a banner
+   * saying the lookup found 220. Both numbers are right and nothing on screen
+   * joined them, so the button read as the product missing 180 wallets rather
+   * than as 180 waiting behind a purchase.
+   *
+   * The count stays honest about its unit: these are ROWS, where the two
+   * figures beside them are distinct handles. A locked row has had its handle
+   * stripped, so there is no handle to dedupe by and counting rows is the only
+   * measurement available. The sentence says "wallets" for exactly that
+   * reason.
+   */
+  const lockedRows = useMemo(
+    () => results.reduce((n, r) => n + (r.locked ? 1 : 0), 0),
+    [results]
+  );
+  const lockedNote =
+    lockedRows > 0
+      ? ` ${lockedRows.toLocaleString()} more ${lockedRows === 1 ? 'wallet' : 'wallets'} matched and ${lockedRows === 1 ? 'is' : 'are'} locked; unlock them to include ${lockedRows === 1 ? 'it' : 'them'}.`
+      : '';
+
   return (
     <div className="flex gap-2">
       {/* The two states of the list button differ only in the leading icon and
@@ -270,9 +314,9 @@ export const ExportButton = memo(function ExportButton({
           onClick={handleExportTwitterList}
           disabled={disabled || reachableCount === 0}
           title={
-            unreachableCount > 0
+            (unreachableCount > 0
               ? `Export ${reachableCount} reachable handles. ${unreachableCount} left out: the owner attested them and they no longer reach anyone.`
-              : `Export ${reachableCount} X handles`
+              : `Export ${reachableCount} X handles`) + lockedNote
           }
         >
           <XMark className="h-4 w-4" />
@@ -285,7 +329,7 @@ export const ExportButton = memo(function ExportButton({
         <Button
           variant="outline"
           onClick={() => onUpgradeClick?.('export-x')}
-          title="Buy credits to export the X list"
+          title={'Buy credits to export the X list.' + lockedNote}
         >
           <Lock className="h-4 w-4" aria-hidden />
           Export X list
