@@ -177,10 +177,24 @@ Two rules when adding to that file:
   version of the HMAC assertion did exactly that and passed while the HMAC's
   coverage of the timestamp was deleted.
 
-`scripts/check-invariants-guard.ts` reintroduces nine real defects and requires
+`scripts/check-invariants-guard.ts` reintroduces 217 real defects and requires
 each to be caught, because a guard verified only against passing code proves
 nothing, and this repo has had three guards report clean over live violations.
-Run it after touching either file.
+
+**Run it after touching either file, and after changing any string an
+assertion quotes.** The second half of that is the one that keeps biting. The
+guard seeds each defect by finding an exact snippet of source and replacing it,
+so a defect's anchor breaks the moment that source changes for any reason at
+all, and the failure reads `(anchor drifted)` rather than as anything to do
+with your change. Three of those happened in one day, and the third was a
+spelling fix: rewriting
+`'EMAIL_UNSUBSCRIBE_SECRET missing - plain send refused'` to use a colon moved
+a string this file quotes verbatim. If you rename a constant, reword a log
+line or reflow a block that an invariant reads, run the guard.
+
+It **mutates source files while it runs** and restores them at the end, so
+never run it in the background and never run it with uncommitted work you
+would mind losing.
 
 ## Documentation Updates
 

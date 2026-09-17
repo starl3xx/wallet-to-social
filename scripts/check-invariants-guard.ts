@@ -296,7 +296,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the plain sender stops requiring a working unsubscribe',
     file: 'lib/email.ts',
-    from: "  const unsub = unsubscribeUrl(options.to);\n  if (!unsub) {\n    console.error('EMAIL_UNSUBSCRIBE_SECRET missing - plain send refused');\n    return { success: false, error: 'Unsubscribe secret not configured' };\n  }",
+    from: "  const unsub = unsubscribeUrl(options.to);\n  if (!unsub) {\n    console.error('EMAIL_UNSUBSCRIBE_SECRET missing: plain send refused');\n    return { success: false, error: 'Unsubscribe secret not configured' };\n  }",
     to: "  const unsub = unsubscribeUrl(options.to) ?? '';",
   },
   {
