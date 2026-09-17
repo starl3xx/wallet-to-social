@@ -7362,6 +7362,61 @@ async function main() {
     );
 
     /**
+     * A lookup that matched nothing says why, and says it from the constants.
+     *
+     * A zero-result list used to render the ordinary results screen: a hero
+     * reading "0 found of N wallets" over a table of dashes, and nothing
+     * else. Every word was accurate, and the only conclusion available to the
+     * reader was that the product does not work. It is the worst moment in
+     * the funnel to say nothing, because it is the one where somebody decides
+     * whether to come back.
+     *
+     * The second assertion is the one that will actually fire one day. The
+     * panel quotes measured per-chain rates, and a rate typed into a
+     * component is a rate that survives the next re-measure: that is the
+     * failure `lib/public-figures.ts` exists to prevent, and the check that
+     * compares published figures against the database cannot see a literal it
+     * was never told about. Deriving is the only version that stays true.
+     */
+    const noMatchSrc = readFileSync('components/NoMatchesFound.tsx', 'utf8');
+    ok(
+      'a zero-match lookup explains itself rather than showing an empty table',
+      /export function NoMatchesFound/.test(noMatchSrc) &&
+        /resultCounts\.found === 0 && results\.length > 0/.test(
+          readFileSync('app/page.tsx', 'utf8')
+        )
+    );
+    ok(
+      'and it derives its rates from public-figures rather than typing them',
+      /CHAIN_MATCH_RATES/.test(noMatchSrc) &&
+        !/\b(?:46\.2|16\.6|30\.8)\b/.test(withoutComments(noMatchSrc))
+    );
+    /**
+     * Its recovery actions have to land somewhere, and the first version of
+     * this assertion checked the wrong thing.
+     *
+     * It asserted the id `starter-collections` appears in `app/page.tsx`. It
+     * did, and the link was still dead: that section is inside the `upload`
+     * block, and this panel renders under `complete`, so at the moment
+     * somebody clicked, the target did not exist. The hash changed, the page
+     * scrolled nowhere, and nothing errored, because a dead in-page anchor
+     * has no 404 behind it. The assertion checked "the id exists somewhere in
+     * the file" when what mattered was "the id is mounted in the state this
+     * renders in", and a grep cannot see the second one.
+     *
+     * So the design moved to one a grep CAN check. The panel takes a
+     * callback, the page resets to `upload` and scrolls once the section has
+     * mounted, and this asserts the panel contains no in-page hash link at
+     * all. When an assertion cannot reach the property you want, the useful
+     * move is often to change the design until it can.
+     */
+    ok(
+      'the zero-match panel offers callbacks, never an in-page anchor',
+      !/href=["'][^"']*#/.test(noMatchSrc) &&
+        /onBrowseCollections/.test(noMatchSrc)
+    );
+
+    /**
      * A page that quotes a price offers a way to pay it.
      *
      * Six comparison pages rendered the whole price sheet and ended on prose:

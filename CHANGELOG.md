@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (the empty screens say what happened)
+
+- **A lookup that matched nothing rendered the ordinary results screen**: a
+  hero reading "0 found of 500 wallets · 0.0%" over a table of dashes, and
+  nothing else. Every word accurate, and the only conclusion available to
+  the reader was that the product does not work. It is the worst moment in
+  the funnel to say nothing, because it is the one where somebody decides
+  whether to come back.
+- It leads with the chain, because that is the answer and it is measured
+  rather than reassuring: on the 2026-08-17 sample, 46.2% of 35,294 Base
+  holders had an X or Farcaster account against 16.6% of 17,462 Ethereum
+  holders. A list from a low-attestation community can legitimately come
+  back empty, and being told the list was the wrong shape is more useful
+  than being told to try again.
+- Every figure in it is derived from `lib/public-figures.ts`, never typed.
+  A rate typed into a component survives the next re-measure, and the
+  check that compares published figures against the database cannot see a
+  literal it was never told about. Asserted.
+- It offers the two actions that can actually return something different,
+  both free, and deliberately does not suggest a retry: the same list run
+  again returns the same answer, and proving that would spend somebody's
+  free allowance.
+- The collections action is a callback, not `/#starter-collections`. That
+  anchor lives inside the homepage's `upload` block and this panel renders
+  under `complete`, so the target did not exist when somebody clicked: the
+  hash changed, the page scrolled nowhere, and nothing errored, because a
+  dead in-page anchor has no 404 behind it.
+- **The table's empty state told two situations apart.** "No results
+  found" was what it said whether the lookup returned nothing or the
+  reader had left "attested only" on three scrolls earlier. Those want
+  opposite responses and only one is fixable from that screen. It now
+  names the filters that are narrowing the view, says how many wallets are
+  actually in the lookup, and clears them in one control.
+
 ### 2026-09-17 (a withheld match is a match)
 
 `locked` means the row matched and the free allowance had nothing left
