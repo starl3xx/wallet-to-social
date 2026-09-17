@@ -7644,6 +7644,83 @@ async function main() {
     );
   }
 
+  {
+    /**
+     * The staleness tool must not be the stalest thing in the room.
+     *
+     * `docs/OPERATIONS.md` sends a fresh session to `scripts/ops-status.ts`
+     * for live posture, which makes every way that script can quietly lie an
+     * operational risk rather than a cosmetic one. On 2026-09-17 it was lying
+     * three ways at once, and all three were invisible because the output
+     * still looked like a clean report.
+     *
+     * These assert the refusals, because the happy path passed on the day the
+     * readout was wrong: it printed rows, with ages, in neat columns.
+     */
+    const opsStatus = readFileSync('scripts/ops-status.ts', 'utf8');
+    const opsCode = withoutComments(opsStatus);
+
+    /**
+     * `ingest_state.updated_at` is `timestamp` with no time zone, so parsing
+     * it in JS reads it as local time and under-reports every age by the
+     * operator's UTC offset, in the direction that makes a dead cron look
+     * alive. It printed a row written an hour earlier as `-4h ago`.
+     */
+    ok(
+      'the posture reader computes ages in the database, not by parsing a zone-less timestamp',
+      /EXTRACT\(EPOCH FROM \(now\(\) - updated_at\)\)/.test(opsCode) &&
+        !/new Date\(/.test(opsCode) &&
+        !/Date\.now\(\)/.test(opsCode)
+    );
+
+    /**
+     * It used to select `posture:%` plus three literal names, and the literal
+     * list went three rows out of date without a single failing run: a
+     * hand-maintained allowlist inside a staleness tool is itself a thing that
+     * goes stale, and the symptom is a clean report over unchecked cursors.
+     */
+    ok(
+      'and it reads every ingest_state row rather than an allowlist that can go stale',
+      /FROM ingest_state\s*\n?\s*ORDER BY name/.test(opsCode) &&
+        !/name IN \(/.test(opsCode) &&
+        !/LIKE 'posture:%'/.test(opsCode)
+    );
+
+    /**
+     * The one pipeline with no heartbeat is the one whose as-of sentence was
+     * broken: it read `as_of` out of the row's value, and `CoverageStats` has
+     * no such key, so the sentence written specifically to compensate for a
+     * missing heartbeat rendered a literal question mark.
+     */
+    ok(
+      'and the coverage sentence cannot promise an as-of it reads from a key that does not exist',
+      !/as_of/.test(opsCode) &&
+        /v1_stats_coverage/.test(opsCode) &&
+        !/CoverageStats/.test(opsCode)
+    );
+
+    /**
+     * Printing every row is only an improvement while the output stays
+     * readable: one row holds a rolling event list, and unbounded it buried
+     * the other eleven rows in a single terminal line.
+     */
+    ok(
+      'and an unrecognized row cannot flood the readout',
+      /MAX_RAW_VALUE_CHARS/.test(opsCode) &&
+        /json\.length > MAX_RAW_VALUE_CHARS/.test(opsCode)
+    );
+
+    /**
+     * Read-only is load-bearing for a tool an operator is told to run against
+     * the pooler URL while diagnosing. A status reader that can change what it
+     * reports on is a footgun, and the file says so; this tries it.
+     */
+    ok(
+      'and the posture reader still cannot write',
+      !/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE)\b/i.test(opsCode)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

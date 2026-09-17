@@ -2,6 +2,68 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (the posture readout tells the truth, and one pipeline was not fine)
+
+- **The monthly Farcaster sweep has been half-failing since 2026-09-02 and
+  the operations doc said it was "running".** The slice-3 run ingested
+  cleanly, 558k FIDs requested and 806k wallets upserted with zero failed
+  calls, then exited 1: the revocation `UPDATE` at
+  `lib/farcaster-sweep.ts:622` hit the Neon HTTP driver's headers timeout
+  about 32 minutes in. For fifteen days the index has been taking new
+  verifications in that FID range while possibly never clearing revocations
+  in it. Whether that statement committed is unknown rather than no, because
+  the HTTP driver autocommits one statement per request and a client-side
+  timeout is not a rollback. The cause is structural, so 2026-10-02 fails
+  the same way. Recorded in the posture table with the run id; the fix
+  (pooled connection, or bounded chunks) is not in this change.
+- **Nothing was going to report it.** The workflow has no notification step,
+  and a slice writes no checkpoint by design, so `farcaster_sweep_resume` is
+  inert under `--slice`: neither its age nor its cleared state says anything
+  about whether the monthly run worked. The one live signal an operator is
+  told to trust was blind to this failure by construction.
+- **`scripts/ops-status.ts` was lying three ways, and the output still looked
+  like a clean report.** It is the script `docs/OPERATIONS.md` sends a fresh
+  session to for live posture, which makes each of these operational rather
+  than cosmetic. It under-reported every age by the operator's UTC offset,
+  because `ingest_state.updated_at` is a zone-less `timestamp` and
+  `new Date()` parses one as local time: exactly five hours out on a UTC-5
+  machine, printing a row written an hour earlier as `-4h ago`. The error
+  ran in the dangerous direction, making a cron that died yesterday read as
+  inside tolerance, and it never shows up for an operator sitting at UTC.
+  Ages are now computed by `now() - updated_at` in SQL and nothing in the
+  file parses a timestamp.
+- It also could not see three of the eleven rows it is meant to cover
+  (`basename_record_harvest`, `zora_profile_explore`, `daily_cast_state`),
+  because it selected `posture:%` plus three literal names and that list had
+  gone out of date with no failing run. A hand-maintained allowlist inside a
+  staleness tool is itself a thing that goes stale. It now reads every row,
+  so a new pipeline appears the day it first writes.
+- And the one sentence written specifically for the one pipeline with no
+  heartbeat rendered a literal question mark: it read `as_of` out of the
+  row's value, and `CoverageStats` has no such key. The as-of moment is the
+  row's `updated_at`, which the age column already carries.
+- **Five assertions in `scripts/check-invariants.ts` cover the above**, each
+  verified by reintroducing its defect and watching it fail, per the rule
+  that a guard checked only against passing code proves nothing. They assert
+  refusals: no timestamp parsing, no name allowlist, no `as_of` read, no
+  unbounded value print, and no write statement in a reader an operator runs
+  against the pooler while diagnosing.
+- **The posture table lost its table-wide "as of" date.** It read
+  2026-09-02 while the table already carried a row dated 2026-09-09, and no
+  guard could notice, because the docs-freshness gate watches `docs-site/`
+  and never looks at `docs/`. No single change re-verifies every row, so one
+  date at the top is a claim nothing keeps true. Each row now carries its
+  own.
+- **Two rows were stale in the direction that wastes someone's afternoon.**
+  Basenames read "backfill first" when the backfill had run and the daily
+  incremental was advancing the checkpoint, so the instruction was to redo a
+  completed one-time job; a red cron there now means a real failure rather
+  than the design working. Right-to-removal read "stage 1 in review" when
+  #237 merged on 2026-09-02, and that cell was the only thing still reading
+  as a blocker on the change feed. `docs/AGENT-SYSTEM.md` said the same in
+  two places and now records the ship, with the reachability-watermark trap
+  that item 16 has to handle.
+
 ### 2026-09-17 (the empty screens say what happened)
 
 - **A lookup that matched nothing rendered the ordinary results screen**: a
