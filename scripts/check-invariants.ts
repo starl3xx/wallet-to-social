@@ -7392,14 +7392,28 @@ async function main() {
         !/\b(?:46\.2|16\.6|30\.8)\b/.test(withoutComments(noMatchSrc))
     );
     /**
-     * The link it offers has to land somewhere. An anchor into a page that
-     * does not carry the id scrolls nowhere and fails silently, which is the
-     * one way a dead internal link can ship without a 404 to catch it.
+     * Its recovery actions have to land somewhere, and the first version of
+     * this assertion checked the wrong thing.
+     *
+     * It asserted the id `starter-collections` appears in `app/page.tsx`. It
+     * did, and the link was still dead: that section is inside the `upload`
+     * block, and this panel renders under `complete`, so at the moment
+     * somebody clicked, the target did not exist. The hash changed, the page
+     * scrolled nowhere, and nothing errored, because a dead in-page anchor
+     * has no 404 behind it. The assertion checked "the id exists somewhere in
+     * the file" when what mattered was "the id is mounted in the state this
+     * renders in", and a grep cannot see the second one.
+     *
+     * So the design moved to one a grep CAN check. The panel takes a
+     * callback, the page resets to `upload` and scrolls once the section has
+     * mounted, and this asserts the panel contains no in-page hash link at
+     * all. When an assertion cannot reach the property you want, the useful
+     * move is often to change the design until it can.
      */
     ok(
-      'the collection it points at has an anchor to land on',
-      noMatchSrc.includes('/#starter-collections') &&
-        /id="starter-collections"/.test(readFileSync('app/page.tsx', 'utf8'))
+      'the zero-match panel offers callbacks, never an in-page anchor',
+      !/href=["'][^"']*#/.test(noMatchSrc) &&
+        /onBrowseCollections/.test(noMatchSrc)
     );
 
     /**

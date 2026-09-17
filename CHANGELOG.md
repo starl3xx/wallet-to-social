@@ -24,6 +24,11 @@ All notable changes to walletlink.social. Newest first.
   both free, and deliberately does not suggest a retry: the same list run
   again returns the same answer, and proving that would spend somebody's
   free allowance.
+- The collections action is a callback, not `/#starter-collections`. That
+  anchor lives inside the homepage's `upload` block and this panel renders
+  under `complete`, so the target did not exist when somebody clicked: the
+  hash changed, the page scrolled nowhere, and nothing errored, because a
+  dead in-page anchor has no 404 behind it.
 - **The table's empty state told two situations apart.** "No results
   found" was what it said whether the lookup returned nothing or the
   reader had left "attested only" on three scrolls earlier. Those want

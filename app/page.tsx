@@ -2820,7 +2820,21 @@ export default function Home() {
                 `reachable`, so a gated lookup that DID match never sees this;
                 it sees the unlock banner instead. */}
             {resultCounts.found === 0 && results.length > 0 && (
-              <NoMatchesFound total={results.length} />
+              <NoMatchesFound
+                total={results.length}
+                /* A callback, not a hash: `#starter-collections` lives inside
+                   the `upload` block, so from this screen it did not exist and
+                   the click scrolled nowhere. Reset first, then scroll on the
+                   next frame, once the section has actually mounted. */
+                onBrowseCollections={() => {
+                  handleReset();
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById('starter-collections')
+                      ?.scrollIntoView({ block: 'start' });
+                  });
+                }}
+              />
             )}
             <StatsCards results={results} />
             <ResultsTable

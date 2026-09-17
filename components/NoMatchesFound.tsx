@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   CHAIN_MATCH_RATES,
   CHAIN_MATCH_RATES_MEASURED_ON,
@@ -43,12 +43,35 @@ import {
  * again returns the same answer, and saying otherwise would spend somebody's
  * free allowance to prove it. The two actions offered are the two that can
  * actually return something different, and both are free.
+ *
+ * ## The collections action is a callback, not a hash link
+ *
+ * The first version linked to `/#starter-collections`, and that anchor is
+ * mounted only while the homepage is in its `upload` state. This panel renders
+ * under `complete`, so the section did not exist at the moment somebody
+ * clicked: the hash changed, the page scrolled nowhere, and nothing reported
+ * an error, because a dead in-page anchor has no 404 to catch it.
+ *
+ * The assertion written alongside it missed this for an instructive reason.
+ * It checked that the `id` appeared in `app/page.tsx`, which was true and is
+ * the weaker property; what mattered was whether the id is MOUNTED in the
+ * state this panel renders in, and a grep cannot see that. So the design
+ * changed to one a grep can check: this takes an `onBrowseCollections`
+ * callback, the page resets to `upload` and then scrolls, and the assertion
+ * now says this file contains no hash link at all.
  */
 
 const BEST = CHAIN_MATCH_RATES.base;
 const WORST = CHAIN_MATCH_RATES.ethereum;
 
-export function NoMatchesFound({ total }: { total: number }) {
+export function NoMatchesFound({
+  total,
+  onBrowseCollections,
+}: {
+  total: number;
+  /** Return to the upload view and scroll to the indexed collections. */
+  onBrowseCollections: () => void;
+}) {
   return (
     <div className="rounded-lg border border-border bg-surface-raised p-6">
       <p className="text-base font-semibold">
@@ -78,15 +101,12 @@ export function NoMatchesFound({ total }: { total: number }) {
         <Button asChild variant="soft" size="sm">
           <Link href="/check">Start from a handle instead</Link>
         </Button>
+        <Button variant="soft" size="sm" onClick={onBrowseCollections}>
+          Run a collection we have indexed
+        </Button>
         <p className="text-xs text-muted-foreground">
-          Or{' '}
-          <Link
-            href="/#starter-collections"
-            className={`underline underline-offset-2 ${FOCUS_RING}`}
-          >
-            run a collection we have already indexed
-          </Link>{' '}
-          to see what a matching list looks like. Both are free.
+          Both are free. Starting a collection clears this result, which costs
+          nothing here: there is nothing in it to keep.
         </p>
       </div>
     </div>
