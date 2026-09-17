@@ -27,6 +27,20 @@ import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { checkBackgroundBudget, recordSpend } from './neynar-budget';
+/**
+ * The window-bound helper, reused rather than reinvented.
+ *
+ * `social_graph.last_updated_at` is `timestamp` with no time zone holding UTC,
+ * and binding a JS `Date` against such a column sends its LOCAL wall-clock
+ * reading instead: measured here by planning the real cleanup statement from a
+ * UTC-5 machine, where `2026-09-02T10:44:50Z` arrived as
+ * `2026-09-02 05:44:50`. `lib/analytics.ts` had already found, measured and
+ * solved exactly this on 2026-08-26, so the cutoff below goes through its
+ * helper. Its `::timestamp` cast at the call site is load-bearing and not
+ * decoration: without it the parameter arrives untyped and the coercion
+ * depends on context.
+ */
+import { utcBound } from './analytics';
 
 const NEYNAR_BULK_URL = 'https://api.neynar.com/v2/farcaster/user/bulk';
 const FIDS_PER_CALL = 100;
@@ -619,6 +633,65 @@ export async function cleanupRevokedWallets(
     );
   }
 
+  /**
+   * An outcome bound, because every guard above compares the sweep with itself.
+   *
+   * `expectedSeenCount` is `stats.walletsUpserted` from the same run
+   * (scripts/farcaster-sweep.ts), so the 90% ratio is seen against upserted and
+   * both shrink together when upstream under-reports. `coveredRange` is built
+   * from FIDs *requested*, not found. And `fetchUserBatch` maps a 404 and a
+   * response with no `users` key onto an empty array rather than a failure, so
+   * a burst of either raises `failedCalls` by nothing while quietly removing
+   * wallets from the seen set. Nothing upstream of here can tell "we looked and
+   * they are gone" from "we never really looked".
+   *
+   * This is the backstop that does not depend on having enumerated those modes.
+   * Revocations are rare, and measured rather than assumed: on slice 3, 383
+   * rows out of 803,529 candidates in the span, 0.048%. A deficient seen set
+   * does not produce a number near that; it produces a number proportional to
+   * how much of the sweep went missing, so 3% of batches returning empty is
+   * about 3% of the slice cleared. The ceiling therefore sits at 1%, twenty
+   * times the observed rate and still an order of magnitude below any such
+   * scenario.
+   *
+   * Counting first is sound here without a transaction, which matters because
+   * the HTTP driver has none. The predicate is monotone: it selects rows with
+   * `last_updated_at < sweepStartedAt`, and every writer in this codebase sets
+   * `last_updated_at = now()`, which is later than `sweepStartedAt`. A
+   * concurrent write can therefore only remove a row from the set, never add
+   * one, so the count is a guaranteed upper bound on what the UPDATE will
+   * touch, and a racing write makes the bound safer rather than wrong.
+   *
+   * On refusal the seen table is kept, because it is the only record of what
+   * this sweep saw and a corrective pass cannot be reconstructed without it.
+   */
+  const MAX_REVOCATION_SHARE = 0.01;
+  const [revocationRow] = (
+    (await db.execute(sql`
+      SELECT count(*)::int AS n
+      FROM social_graph
+      WHERE 'farcaster_sweep' = ANY(sources)
+        AND NOT (sources && ARRAY['neynar', 'manual'])
+        AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
+        AND fc_fid BETWEEN ${startFid} AND ${endFid}
+        AND NOT EXISTS (
+          SELECT 1 FROM ${sql.raw(seenTable)} s
+          WHERE s.wallet = social_graph.wallet
+        )
+    `)) as unknown as { rows: Array<{ n: number }> }
+  ).rows;
+  const wouldClear = revocationRow?.n ?? 0;
+  const clearCeiling = Math.ceil(seenCount * MAX_REVOCATION_SHARE);
+  if (wouldClear > clearCeiling) {
+    throw new Error(
+      `Revocation count implausible: cleanup would clear ${wouldClear.toLocaleString()} rows, ` +
+        `over the ceiling of ${clearCeiling.toLocaleString()} (${MAX_REVOCATION_SHARE * 100}% of ` +
+        `${seenCount.toLocaleString()} seen). Revocations run near 0.05% of a slice, so this says the ` +
+        `seen set is deficient rather than that the network revoked en masse — refusing to clear ` +
+        `(table ${seenTable} kept for the corrective pass)`
+    );
+  }
+
   const cleared = await db.execute(sql`
     UPDATE social_graph
     SET farcaster = NULL,
@@ -641,13 +714,38 @@ export async function cleanupRevokedWallets(
         last_updated_at = now()
     WHERE 'farcaster_sweep' = ANY(sources)
       AND NOT (sources && ARRAY['neynar', 'manual'])
-      AND last_updated_at < ${sweepStartedAt}
+      AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
       -- The bound that makes a partial-range sweep safe to clean up after.
       -- Outside it, absence from the seen table means "not looked at".
       -- A NULL fc_fid is excluded by BETWEEN, which is correct: a row whose
       -- Farcaster data is already gone has nothing left to revoke.
       AND fc_fid BETWEEN ${startFid} AND ${endFid}
-      AND wallet NOT IN (SELECT wallet FROM ${sql.raw(seenTable)})
+      -- NOT EXISTS, never NOT IN. This is the statement that killed the
+      -- 2026-09-02 run, and the driver was the symptom rather than the cause.
+      --
+      -- Written as "wallet NOT IN (SELECT wallet FROM <seen>)" the planner
+      -- does not read this as an anti-join. It builds a correlated SubPlan
+      -- with a Materialize of all ~805k seen wallets and rescans it per
+      -- candidate row, over a sequential scan of social_graph, because no
+      -- index covers sources, fc_fid or last_updated_at. Measured on the real
+      -- slice-3 data: estimated cost 74,563,713,792. The run died at 32
+      -- minutes on the neon-http headers timeout, and would not have finished
+      -- with any timeout: it is roughly 5.1M x 805k comparisons.
+      --
+      -- As NOT EXISTS with the correlated equality below, the same predicate
+      -- plans as a Parallel Hash Right Anti Join against the seen table's
+      -- primary key: estimated cost 337,774, measured execution 2.8 seconds
+      -- over the identical data. Four orders of magnitude, one keyword.
+      --
+      -- Equivalent here, not merely similar: wallet is the primary key of
+      -- both tables, so neither side is nullable and the NULL semantics that
+      -- distinguish NOT IN from NOT EXISTS cannot arise. If either column
+      -- ever becomes nullable, NOT IN would silently clear nothing at all,
+      -- which is the more frightening of the two failure modes.
+      AND NOT EXISTS (
+        SELECT 1 FROM ${sql.raw(seenTable)} s
+        WHERE s.wallet = social_graph.wallet
+      )
   `);
 
   /**

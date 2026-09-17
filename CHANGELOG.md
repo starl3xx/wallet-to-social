@@ -2,6 +2,76 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (one keyword, four orders of magnitude)
+
+- **The monthly sweep's revocation cleanup was never going to finish, and
+  the driver timeout that killed it was the symptom rather than the cause.**
+  The statement tested the seen table with `wallet NOT IN (SELECT wallet FROM
+<seen table>)`. Postgres does not read that as an anti-join: it builds a
+  correlated SubPlan with a Materialize of all ~805k seen wallets and rescans
+  it for every candidate row, over a sequential scan of `social_graph`,
+  because no index covers `sources`, `fc_fid` or `last_updated_at`. Planned
+  against the real slice-3 data, estimated cost **74,563,713,792**, roughly
+  5.1M x 805k comparisons. The 2026-09-02 run died at 32 minutes on the
+  neon-http headers timeout; a longer timeout would have changed nothing.
+- The same predicate written as `NOT EXISTS` with a correlated equality plans
+  as a Parallel Hash Right Anti Join against the seen table's primary key:
+  estimated cost **337,774**, measured execution **2.8 seconds** over the
+  identical data. That is the whole fix. No driver change, no chunking, no new
+  index, and none of the blast radius any of those carried: flipping
+  `USE_CONNECTION_POOLING` would also have handed the sweep transaction
+  support it branches on through `isTransactionCapable()`, and chunking would
+  have multiplied a full table scan by the number of chunks.
+- Both spellings are valid SQL and both are semantically identical here, since
+  `wallet` is the primary key of both tables so no NULL can arise. Only one of
+  them completes. That is why the assertion states the refusal: cleanup never
+  tests the seen table with `NOT IN`. A happy-path test passes on either.
+- **A second, quieter bug in the same statement.** `last_updated_at` is
+  `timestamp` with no time zone holding UTC, and the cutoff was a bound JS
+  `Date`, which sends its local wall-clock reading instead. Planned from a
+  UTC-5 machine, `2026-09-02T10:44:50Z` arrived as `2026-09-02 05:44:50`. The
+  scheduled runner is UTC, so this has never shown up in production, which is
+  what makes it worth naming: west of UTC it under-clears, and east of UTC it
+  moves the cutoff later and clears rows another pipeline legitimately
+  refreshed after the sweep began. Now bound through an explicit UTC
+  wall-clock helper, and asserted. The first version of that fix wrote a local
+  helper and dropped the `::timestamp` cast; Bugbot caught both. `utcBound` in
+  `lib/analytics.ts` had already found, measured and solved this on 2026-08-26,
+  and its docblock says the cast is load-bearing rather than decoration,
+  because without it the parameter arrives untyped and the coercion depends on
+  context. The cutoff now goes through that helper, with the cast, at both the
+  ceiling count and the UPDATE it guards: a ceiling computed over a different
+  window than the write it authorizes would be worse than no ceiling.
+- **An outcome ceiling ships in the same change as the speed-up, deliberately.**
+  Making the statement finish is what turns its latent failure modes live, and
+  it had never once finished: the only `--slice` run died in it, and every run
+  that succeeded was `--incremental`, which tracks no seen set and never cleans
+  up. Every existing guard compares the sweep with itself, so none of them
+  catch a deficient seen set: `expectedSeenCount` is the same run's
+  `walletsUpserted`, so the 90% ratio is seen against upserted and both shrink
+  together, `coveredRange` counts FIDs requested rather than found, and
+  `fetchUserBatch` turns a 404 or a response with no `users` key into an empty
+  array, which raises `failedCalls` by nothing. Nothing upstream can tell
+  "checked, and gone" from "never really looked".
+- So cleanup now counts what it would clear, and refuses above 1% of the seen
+  set without writing anything, keeping the seen table. Argued from the
+  measurement rather than picked: revocations ran 383 of 803,529 candidates on
+  slice 3, or 0.048%, while a deficient seen set clears roughly the fraction of
+  the sweep that went missing. On the real numbers the ceiling is 8,050 against
+  383 actual, twenty times headroom, and it refuses the 24,147 that 3% of
+  batches returning empty would produce. Counting first is sound without a
+  transaction, which matters because the HTTP driver has none: the predicate is
+  monotone, since every writer sets `last_updated_at = now()` and the filter
+  wants `last_updated_at < sweepStartedAt`, so a concurrent write can only
+  remove a row from the set. The count is a guaranteed upper bound and a race
+  makes it safer, not wrong.
+- **Still owed, and recorded in the posture table:** cleanup is bounded to its
+  own slice, so the 2026-10-02 run cleans slice 4, not slice 3, whose next
+  turn is about 2027-03. 383 rows in slice 3's range still carry a Farcaster
+  account the sweep found revoked (0 husk rows). Clearing them needs a
+  deliberate pass over the surviving seen table, so
+  `farcaster_sweep_seen_1788345941996` must be kept until it runs.
+
 ### 2026-09-17 (the posture readout tells the truth, and one pipeline was not fine)
 
 - **The monthly Farcaster sweep has been half-failing since 2026-09-02 and

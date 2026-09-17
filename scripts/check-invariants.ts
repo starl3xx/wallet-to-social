@@ -7646,6 +7646,113 @@ async function main() {
 
   {
     /**
+     * Revocation cleanup must stay plannable as an anti-join.
+     *
+     * The 2026-09-02 monthly sweep ingested perfectly and then died in
+     * cleanup, and the driver's headers timeout was the symptom rather than
+     * the cause. Written as `wallet NOT IN (SELECT wallet FROM <seen>)` the
+     * planner builds a correlated SubPlan with a Materialize of ~805k seen
+     * wallets and rescans it per candidate row over a sequential scan of
+     * social_graph: measured estimated cost 74,563,713,792, which no timeout
+     * would have saved. The identical predicate as NOT EXISTS plans as a
+     * Parallel Hash Right Anti Join, cost 337,774, measured at 2.8 seconds.
+     *
+     * Asserting the refusal rather than the shape, because a happy-path test
+     * passes on either spelling: both are valid SQL, both are semantically
+     * correct here, and only one of them completes.
+     */
+    const sweepSource = readFileSync('lib/farcaster-sweep.ts', 'utf8');
+    const sweep = withoutComments(sweepSource);
+    const cleanup = sweep.slice(
+      sweep.indexOf('export async function cleanupRevokedWallets'),
+      sweep.indexOf('export async function sweepFidRange')
+    );
+    // SQL `--` comments survive withoutComments(), which strips JS comment
+    // syntax only, and the comment beside this statement names NOT IN on
+    // purpose. Testing the prose instead of the statement is the mistake this
+    // file already made once: an assertion that reads its own explanation
+    // verifies nothing. Strip the SQL comments and test the SQL.
+    const cleanupSql = cleanup.replace(/--[^\n]*/g, '');
+    ok(
+      'revocation cleanup never tests the seen table with NOT IN',
+      cleanupSql.length > 0 &&
+        !/NOT IN\s*\(/i.test(cleanupSql) &&
+        /NOT EXISTS\s*\(/i.test(cleanupSql) &&
+        /s\.wallet = social_graph\.wallet/.test(cleanupSql)
+    );
+
+    /**
+     * And it must not bind a JS Date against a zone-less timestamp column.
+     *
+     * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
+     * bound `Date` sends its LOCAL wall-clock reading and moves the cutoff by
+     * the operator's offset. East of UTC that moves it later and clears rows
+     * another pipeline refreshed after the sweep began. The scheduled runner
+     * is UTC, so the happy path is silent about this forever.
+     */
+    /**
+     * And its cutoff goes through the shared UTC helper, WITH the cast.
+     *
+     * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
+     * bound JS `Date` sends its LOCAL wall-clock reading and moves the cutoff
+     * by the operator's offset. East of UTC that moves it later and clears
+     * rows another pipeline refreshed after the sweep began. The scheduled
+     * runner is UTC, so the happy path is silent about this forever.
+     *
+     * `lib/analytics.ts` had already found and measured this on 2026-08-26.
+     * The first version of this fix reinvented the helper locally and dropped
+     * the `::timestamp` cast that its docblock calls load-bearing: without it
+     * the parameter arrives untyped and the coercion depends on context. Both
+     * call sites in cleanup are asserted, since the count that feeds the
+     * ceiling and the UPDATE it guards must share one cutoff. A ceiling
+     * computed over a different window than the write it authorizes is worse
+     * than no ceiling.
+     */
+    const boundCallSites = sweepSource.match(
+      /last_updated_at < \$\{utcBound\(sweepStartedAt\)\}::timestamp/g
+    );
+    ok(
+      'both cleanup cutoffs go through the shared UTC helper, with the cast',
+      boundCallSites?.length === 2 &&
+        !/function utcWallClock/.test(sweepSource) &&
+        /import \{ utcBound \} from '\.\/analytics'/.test(sweepSource)
+    );
+
+    /**
+     * And it refuses an implausible number of revocations before writing any.
+     *
+     * Every other guard on this path compares the sweep with itself:
+     * `expectedSeenCount` is the same run's `walletsUpserted`, so the 90% ratio
+     * is seen against upserted and both shrink together, and `coveredRange`
+     * counts FIDs requested rather than found. Meanwhile `fetchUserBatch` turns
+     * a 404 and a missing `users` key into an empty array, so a burst of either
+     * removes wallets from the seen set without touching `failedCalls`. Nothing
+     * upstream can tell "checked, and gone" from "never really checked".
+     *
+     * Until 2026-09-17 that did not matter, because the statement had never
+     * completed: the only `--slice` run died in it, and the runs that succeeded
+     * were `--incremental`, which tracks no seen set and never cleans up. Making
+     * it finish in 2.8 seconds is what turns those latent modes live, so the
+     * ceiling ships in the same change as the speed-up, not after it.
+     *
+     * The bound must be checked BEFORE the UPDATE and must keep the seen table,
+     * so assert the ordering and the refusal, not that a ceiling exists
+     * somewhere in the function.
+     */
+    const ceilingIdx = cleanup.indexOf('MAX_REVOCATION_SHARE');
+    const updateIdx = cleanup.indexOf('UPDATE social_graph');
+    ok(
+      'revocation cleanup refuses an implausible clear count before it writes anything',
+      ceilingIdx > 0 &&
+        updateIdx > 0 &&
+        ceilingIdx < updateIdx &&
+        /wouldClear > clearCeiling/.test(cleanup) &&
+        /throw new Error\(\s*`Revocation count implausible/.test(cleanup)
+    );
+  }
+
+  {
+    /**
      * The staleness tool must not be the stalest thing in the room.
      *
      * `docs/OPERATIONS.md` sends a fresh session to `scripts/ops-status.ts`
