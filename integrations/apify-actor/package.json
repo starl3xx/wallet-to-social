@@ -3,8 +3,14 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Resolve EVM wallet addresses to the X and Farcaster accounts their owners published",
-  "engines": { "node": ">=22" },
-  "dependencies": { "apify": "^3.7.0" },
-  "scripts": { "start": "node src/main.js" },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "apify": "^3.7.0"
+  },
+  "scripts": {
+    "start": "node src/main.js"
+  },
   "license": "MIT"
 }

@@ -34,15 +34,15 @@ An empty `x_reachability` means the handle was not checked. It never means nobod
 
 ## Input
 
-| Field | What it does |
-| --- | --- |
-| `lookupMode` | `wallets`, `x_handle` or `farcaster_username` |
-| `walletAddresses` | EVM addresses, one per row |
-| `walletText` | Paste a CSV column or a newline-separated list instead |
-| `handle` | The handle to reverse, for the two reverse modes |
-| `apiKey` | Your walletlink.social key, starting with `wts_live_` |
-| `includeMisses` | Keep a row per address submitted so the output lines up with your input |
-| `maxReversePages` | Reverse pages to fetch, 100 wallets each |
+| Field             | What it does                                                            |
+| ----------------- | ----------------------------------------------------------------------- |
+| `lookupMode`      | `wallets`, `x_handle` or `farcaster_username`                           |
+| `walletAddresses` | EVM addresses, one per row                                              |
+| `walletText`      | Paste a CSV column or a newline-separated list instead                  |
+| `handle`          | The handle to reverse, for the two reverse modes                        |
+| `apiKey`          | Your walletlink.social key, starting with `wts_live_`                   |
+| `includeMisses`   | Keep a row per address submitted so the output lines up with your input |
+| `maxReversePages` | Reverse pages to fetch, 100 wallets each                                |
 
 ## Output
 

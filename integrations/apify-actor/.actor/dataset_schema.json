@@ -133,7 +133,10 @@
           "x_handle": { "label": "X handle" },
           "x_reachability": { "label": "Reachable" },
           "farcaster_username": { "label": "Farcaster" },
-          "farcaster_followers": { "label": "FC followers", "format": "number" },
+          "farcaster_followers": {
+            "label": "FC followers",
+            "format": "number"
+          },
           "ens_name": { "label": "ENS" },
           "evidence": { "label": "Evidence" }
         }
@@ -164,7 +167,10 @@
           "x_reachability": { "label": "Reachable" },
           "farcaster_username": { "label": "Farcaster" },
           "farcaster_url": { "label": "Farcaster URL" },
-          "farcaster_followers": { "label": "FC followers", "format": "number" },
+          "farcaster_followers": {
+            "label": "FC followers",
+            "format": "number"
+          },
           "evidence": { "label": "Evidence" },
           "is_agent": { "label": "Agent" }
         }
