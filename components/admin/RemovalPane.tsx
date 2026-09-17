@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +106,7 @@ export function RemovalPane({ password }: { password: string }) {
   // The execution form.
   const [kind, setKind] = useState<SuppressionKind>('wallet');
   const [identifier, setIdentifier] = useState('');
+  const identifierRef = useRef<HTMLInputElement>(null);
   const [lane, setLane] = useState<SuppressionLane>('email');
   const [reason, setReason] = useState<SuppressionReason>('requested');
   const [submitting, setSubmitting] = useState(false);
@@ -144,7 +145,19 @@ export function RemovalPane({ password }: { password: string }) {
 
   const execute = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim()) return;
+    /**
+     * Submit is no longer disabled on an empty identifier, so the empty case
+     * has to answer. `disabled` removes the button from the tab order, which
+     * on this pane meant the destructive action was simply absent from a
+     * keyboard pass rather than visibly waiting on a field.
+     */
+    if (!identifier.trim()) {
+      setActionError('Name the identifier to suppress and erase.');
+      setNotice(null);
+      setResult(null);
+      identifierRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     setActionError(null);
     setNotice(null);
@@ -335,6 +348,7 @@ export function RemovalPane({ password }: { password: string }) {
                 className="w-full"
               />
               <Input
+                ref={identifierRef}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder={
@@ -343,6 +357,10 @@ export function RemovalPane({ password }: { password: string }) {
                     : 'Handle or name, without the @'
                 }
                 aria-label="Identifier"
+                // Only for the empty field. A removal that failed server-side
+                // is not a malformed identifier, and saying so would send the
+                // operator to re-type a value that was right.
+                aria-invalid={Boolean(actionError) && !identifier.trim()}
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -358,7 +376,7 @@ export function RemovalPane({ password }: { password: string }) {
                 onChange={setReason}
                 options={REASONS}
               />
-              <Button type="submit" disabled={submitting || !identifier.trim()}>
+              <Button type="submit" disabled={submitting}>
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 ) : null}

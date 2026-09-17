@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { DotsThree } from '@phosphor-icons/react';
 import { Slot } from '@radix-ui/react-slot';
 
@@ -14,12 +14,40 @@ import { Slot } from '@radix-ui/react-slot';
  *
  * A row of buttons never wraps. Past the third, they go here.
  *
- * `trigger` swaps the DotsThree button for another control, so the same menu
- * (role, Escape, outside click, aria-expanded) can open from an avatar. The
- * header's account menu was a second, hand-rolled popover with none of those,
- * built on the `fixed inset-0` click-catcher the Dialogs section bans. A Slot
- * merges the menu props onto the element passed, so the caller keeps its own
- * className, aria-label and title and this file keeps the behaviour.
+ * `trigger` swaps the DotsThree button for another control, so the same panel
+ * (Escape, outside click, aria-expanded) can open from an avatar. The header's
+ * account menu was a second, hand-rolled popover with none of those, built on
+ * the `fixed inset-0` click-catcher the Dialogs section bans. A Slot merges the
+ * props onto the element passed, so the caller keeps its own className,
+ * aria-label and title and this file keeps the behaviour.
+ *
+ * ## A disclosure, not a `role="menu"`
+ *
+ * It used to say `role="menu"`, with `role="menuitem"` on every row, and that
+ * was a promise the component does not keep. `menu` is not a label for "things
+ * in a dropdown": it commits to the menu keyboard contract, which is focus
+ * moved into the menu on open, Up and Down walking the items with roving
+ * `tabindex`, Home and End, first-letter typeahead, and focus returned to the
+ * trigger on close. None of that is implemented here.
+ *
+ * The cost of claiming it anyway is not a missing nicety. A screen reader
+ * switches to application mode inside a `menu`, which is what suppresses its
+ * own reading keys so the menu's arrows can work: it hands the arrow keys to a
+ * handler that does not exist. So the role took away the navigation the plain
+ * buttons had and put nothing in its place, and it did that only for the users
+ * who depend on it. `role="menuitem"` also re-labels each row, so a link in the
+ * list stopped announcing as a link and stopped appearing in the links list.
+ *
+ * What this actually is, is a disclosure: a button whose `aria-expanded` says
+ * whether a group of ordinary controls is showing. That contract Tab already
+ * satisfies, with no roving focus to write, so the two rules below are the
+ * whole of it: `aria-controls` names the group, and closing on Escape or on an
+ * activation hands focus back to the trigger rather than dropping it on
+ * `<body>`, where a keyboard user restarts from the top of the document.
+ *
+ * If a real menu is ever wanted, the answer is a Radix dropdown, not these
+ * attributes: the contract is about 200 lines and every line of it is a case
+ * somebody hit.
  */
 export function OverflowMenu({
   label = 'More actions',
@@ -33,11 +61,35 @@ export function OverflowMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  /**
+   * The trigger is the wrapper's first element child in both branches, by
+   * construction: either the `Slot` the caller's control renders through, or
+   * the DotsThree button below. Reading it off the DOM rather than holding a
+   * second ref is what keeps the `trigger` prop working, since a caller's
+   * element is not obliged to forward a ref and a silently null ref would fail
+   * as "focus just did not return", which nobody reports.
+   */
+  const focusTrigger = () => {
+    const el = ref.current?.firstElementChild;
+    if (el instanceof HTMLElement) el.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      // Escape is a keyboard gesture, so the keyboard has to end up somewhere
+      // it can carry on from. Without this, dismissing from inside the panel
+      // unmounts the focused element and focus falls to `<body>`.
+      focusTrigger();
+    };
     const onClick = (e: MouseEvent) => {
+      // No focus move here, unlike Escape: a click outside is a deliberate move
+      // to somewhere else on the page, and yanking focus back to the trigger
+      // would undo it.
       if (ref.current && !ref.current.contains(e.target as Node))
         setOpen(false);
     };
@@ -53,8 +105,8 @@ export function OverflowMenu({
     <div ref={ref} className="relative">
       {trigger ? (
         <Slot
-          aria-haspopup="menu"
           aria-expanded={open}
+          aria-controls={open ? panelId : undefined}
           onClick={() => setOpen((v) => !v)}
         >
           {trigger}
@@ -67,8 +119,8 @@ export function OverflowMenu({
         <button
           type="button"
           aria-label={label}
-          aria-haspopup="menu"
           aria-expanded={open}
+          aria-controls={open ? panelId : undefined}
           title={label}
           onClick={() => setOpen((v) => !v)}
           className="transition-control flex size-control items-center justify-center rounded-full border border-input text-muted-foreground hover:border-accent-brand hover:bg-fill-subtle hover:text-accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -79,9 +131,20 @@ export function OverflowMenu({
 
       {open && (
         <div
-          role="menu"
+          id={panelId}
+          // `group` rather than nothing, so the label below is announced: an
+          // unroled div drops `aria-label` on the floor. It is the one role
+          // here that describes what this is instead of promising behaviour.
+          role="group"
+          aria-label={label}
           className="absolute right-0 top-full z-50 mt-1 min-w-[13rem] rounded-lg border border-border bg-popover p-1 shadow-float"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            setOpen(false);
+            // Activating a row unmounts the row. Same reasoning as Escape: the
+            // element that had focus is gone, so name where focus goes next.
+            // A row that navigates takes focus with it and this is moot.
+            focusTrigger();
+          }}
         >
           {children}
         </div>
@@ -90,7 +153,14 @@ export function OverflowMenu({
   );
 }
 
-/** One row in an overflow menu. Sentence case, leading icon, full-width target. */
+/**
+ * One row. Sentence case, leading icon, full-width target.
+ *
+ * A link stays a link and a button stays a button. `role="menuitem"` on both
+ * flattened them into one thing, which cost the link its "link" announcement
+ * and its place in the reader's links list, and bought nothing: see the panel's
+ * note above for why the role was a promise this component does not keep.
+ */
 export function MenuItem({
   onClick,
   children,
@@ -104,19 +174,13 @@ export function MenuItem({
     'transition-control flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-fill-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   if (href) {
     return (
-      <a
-        role="menuitem"
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={cls}
-      >
+      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
         {children}
       </a>
     );
   }
   return (
-    <button role="menuitem" type="button" onClick={onClick} className={cls}>
+    <button type="button" onClick={onClick} className={cls}>
       {children}
     </button>
   );

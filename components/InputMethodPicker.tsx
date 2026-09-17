@@ -10,6 +10,7 @@ import {
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { InlineError } from '@/components/ui/inline-error';
 
 interface InputMethodPickerProps {
   onFileLoaded: (file: File) => void;
@@ -285,7 +286,7 @@ export function InputMethodPicker({
       </div>
 
       {error && (
-        <p className="mt-3 text-center text-sm text-destructive">{error}</p>
+        <InlineError className="mt-3 justify-center">{error}</InlineError>
       )}
     </div>
   );

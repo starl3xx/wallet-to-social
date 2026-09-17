@@ -1193,6 +1193,13 @@ export const ResultsTable = memo(function ResultsTable({
             </div>
           ) : (
             <div
+              /* `rowgroup`, because `role="table"` may only own `row` and
+                 `rowgroup`: the rows sit one level down inside the
+                 virtualiser's spacer, so without this they are not owned by
+                 the table and the aria-rowindex, aria-rowcount and
+                 columnheader bindings are all inert. Presentational for
+                 layout, so nothing here moves. */
+              role="rowgroup"
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
                 width: '100%',

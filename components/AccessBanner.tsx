@@ -91,11 +91,11 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
     if (user) {
       return (
         /* The account menu is an OverflowMenu opened from the avatar, not a
-           second dropdown. The hand-rolled one had no role="menu", no
-           aria-expanded, no Escape, and a `fixed inset-0` click-catcher, which
+           second dropdown. The hand-rolled one had no aria-expanded, no
+           Escape, no focus return, and a `fixed inset-0` click-catcher, which
            is the thing the Dialogs section says never to build a popover out
-           of. One menu implementation, one set of keyboard and ARIA behaviour;
-           the menu closes itself after any item is chosen. */
+           of. One implementation, one set of keyboard and ARIA behaviour; the
+           panel closes itself after any item is chosen. */
         <OverflowMenu
           trigger={
             /* An avatar, not the address. A full email spends header width on

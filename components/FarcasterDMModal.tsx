@@ -75,6 +75,7 @@ export function FarcasterDMModal({
 
   // Configuration state
   const [apiKey, setApiKey] = useState('');
+  const apiKeyRef = useRef<HTMLInputElement>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [saveApiKey, setSaveApiKey] = useState(false);
   const [message, setMessage] = useState('');
@@ -120,7 +121,19 @@ export function FarcasterDMModal({
 
   // Test API key
   const handleTestKey = useCallback(async () => {
-    if (!apiKey.trim()) return;
+    /**
+     * The empty case gets the same treatment as a malformed one, now that Test
+     * is no longer disabled on an empty field. A disabled button is not in the
+     * tab order, so the dimming did not tell a keyboard user that a key was
+     * needed; it removed the step. The field takes focus so the fix is one
+     * keystroke away.
+     */
+    if (!apiKey.trim()) {
+      setKeyError('Paste your Warpcast API key to test it.');
+      setKeyValid(false);
+      apiKeyRef.current?.focus();
+      return;
+    }
 
     if (!validateApiKey(apiKey)) {
       setKeyError('Invalid API key format');
@@ -294,8 +307,10 @@ export function FarcasterDMModal({
                 <div className="relative flex-1">
                   <Input
                     id="warpcast-api-key"
+                    ref={apiKeyRef}
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
+                    aria-invalid={Boolean(keyError)}
                     onChange={(e) => {
                       setApiKey(e.target.value);
                       setKeyValid(null);
@@ -329,7 +344,7 @@ export function FarcasterDMModal({
                 <Button
                   variant="soft"
                   onClick={handleTestKey}
-                  disabled={!apiKey.trim() || testingKey}
+                  disabled={testingKey}
                 >
                   {testingKey ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

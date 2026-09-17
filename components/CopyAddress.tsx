@@ -28,7 +28,11 @@ export function CopyAddress({ address }: { address: string }) {
         variant="ghost"
         size="icon-compact"
         className="text-muted-foreground"
-        aria-label={copied ? 'Copied' : 'Copy contract address'}
+        /* The name stays constant. Swapping it to "Copied" renames the
+           control to report an event, so a screen reader announces a button
+           that appears to have become a different button. The announcement
+           belongs in the live region below instead. */
+        aria-label="Copy contract address"
         title="Copy contract address"
         onClick={async () => {
           try {
@@ -46,6 +50,13 @@ export function CopyAddress({ address }: { address: string }) {
           <Copy className="h-4 w-4" aria-hidden />
         )}
       </Button>
+      {/* The glyphs are aria-hidden and the button keeps its function label,
+          so the confirmation needs its own channel. sr-only is absolutely
+          positioned, so the wrapper's flex gap never sees it and the row
+          cannot shift. */}
+      <span role="status" className="sr-only">
+        {copied ? 'Address copied' : ''}
+      </span>
     </span>
   );
 }

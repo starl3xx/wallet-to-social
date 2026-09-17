@@ -152,6 +152,61 @@ const RULES = [
   },
 ];
 
+/**
+ * Rules read against the whole file instead of one line at a time.
+ *
+ * The loop below scans line by line, which is right for a className: a class is
+ * a token inside one string and it does not wrap. It is wrong for a JSX
+ * expression. Both rules here guard a shape that Prettier breaks across lines
+ * as soon as it grows past the print width, and `disabled={a || !b.trim()}` is
+ * already close to it, so a line-based version of this rule would pass on the
+ * exact code it exists to catch the moment somebody renamed a variable. This
+ * project has shipped two guards that reported clean over live violations; a
+ * third whose blind spot is "the formatter ran" is not worth adding.
+ *
+ * Comments are blanked rather than removed, so a match's offset still maps to
+ * its real line, and so the prose in this repo, which quotes the patterns it
+ * bans at length, cannot fire them.
+ */
+const FILE_RULES = [
+  {
+    name: 'aria-menu-role',
+    re: /role=["'](?:menu|menuitem|menuitemcheckbox|menuitemradio|menubar)["']/,
+    msg: [
+      '`role="menu"` commits to the menu keyboard contract: focus moved in on open,',
+      'Up/Down roving tabindex, Home/End, typeahead, focus restored on close. Nothing',
+      'in this repo implements it, and claiming it puts a reader into application mode,',
+      'which takes away the arrow keys it already had. Use a disclosure (aria-expanded',
+      '+ aria-controls, role="group" on the panel) as components/ui/overflow-menu.tsx',
+      'does, or reach for a Radix dropdown and let it own the contract.',
+    ].join(' '),
+  },
+  {
+    name: 'disabled-empty-field',
+    // `disabled={...!something.trim()...}`, in any clause order.
+    re: /disabled=\{[^}]*!\s*[A-Za-z_$][\w.$]*\s*\.trim\(\)/,
+    msg: [
+      'A submit disabled because a field is empty is not a courtesy: `disabled` removes',
+      'the control from the tab order, so the form’s only action is absent from a',
+      'keyboard pass rather than visibly waiting, and a reader that does reach it hears',
+      '"dimmed" with no reason attached. Keep it enabled, validate on submit, and say',
+      'what is missing (set aria-invalid and move focus to the field). Disabling while',
+      'the request is in flight is fine: `disabled={loading}`.',
+    ].join(' '),
+  },
+];
+
+/** Blank every comment, preserving length and newlines so offsets still map. */
+function blankComments(src) {
+  const blank = (m) => m.replace(/[^\n]/g, ' ');
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(
+      /(^|[^:])\/\/[^\n]*/g,
+      (m, lead) => lead + blank(m.slice(lead.length))
+    );
+}
+
 /** A rule fires when its pattern matches and its exemption does not. */
 const fires = (rule, s, file = '') =>
   rule.re.test(s) &&
@@ -365,21 +420,92 @@ const FIXTURES = {
       'border-2 border-accent-brand/50 border-t-accent-brand animate-spin',
     ],
   },
+  'aria-menu-role': {
+    bad: [
+      '<div role="menu" className="absolute right-0">',
+      '<button role=\'menuitem\' type="button">',
+      '<div role="menubar">',
+    ],
+    good: [
+      '<div role="group" aria-label="More actions">',
+      '<p role="status" className="sr-only">',
+      '<div role="rowgroup">',
+      'aria-haspopup="menu"',
+      "role={tone === 'error' ? 'alert' : 'status'}",
+    ],
+  },
+  'disabled-empty-field': {
+    bad: [
+      'disabled={loading || !value.trim()}',
+      'disabled={!handle.trim() || loading}',
+      'disabled={submitting || !identifier.trim()}',
+      // The wrapped form, which is the whole reason this rule reads files.
+      'disabled={\n  searching || !searchQuery.trim()\n}',
+    ],
+    good: [
+      'disabled={loading}',
+      'disabled={busy}',
+      'disabled={deletingId === entry.id}',
+      'disabled={viewingJobId === job.id && jobResultsLoading}',
+      // A trimmed value used for something other than gating the button.
+      'const name = newKeyName.trim();',
+    ],
+  },
 };
 
 let failed = 0;
-for (const rule of RULES) {
+for (const rule of [...RULES, ...FILE_RULES]) {
   const f = FIXTURES[rule.name];
   for (const s of f.bad)
     if (!fires(rule, s)) {
-      console.error(`FIXTURE FAIL  ${rule.name} missed: ${s}`);
+      console.error(`FIXTURE FAIL  ${rule.name} missed: ${JSON.stringify(s)}`);
       failed++;
     }
   for (const s of f.good)
     if (fires(rule, s)) {
-      console.error(`FIXTURE FAIL  ${rule.name} false alarm: ${s}`);
+      console.error(
+        `FIXTURE FAIL  ${rule.name} false alarm: ${JSON.stringify(s)}`
+      );
       failed++;
     }
+}
+
+// Blanking must keep every offset and every newline, or the line numbers the
+// file rules report point at the wrong code. It must also actually blank: a
+// `role="menu"` quoted inside a doc comment is prose, and this repo's comments
+// quote the patterns they ban at length.
+{
+  const src = [
+    '/** Do not write role="menu" here. */',
+    'const a = 1; // disabled={x || !y.trim()}',
+    '<div role="menu">',
+    'const u = "https://x.com/foo"; // trailing',
+  ].join('\n');
+  const out = blankComments(src);
+  if (out.length !== src.length) {
+    console.error('FIXTURE FAIL  blankComments changed the file length');
+    failed++;
+  }
+  if (out.split('\n').length !== src.split('\n').length) {
+    console.error('FIXTURE FAIL  blankComments lost a newline');
+    failed++;
+  }
+  if (/role="menu"/.test(out.split('\n')[0])) {
+    console.error('FIXTURE FAIL  blankComments left a block comment readable');
+    failed++;
+  }
+  if (/\.trim\(\)/.test(out.split('\n')[1])) {
+    console.error('FIXTURE FAIL  blankComments left a line comment readable');
+    failed++;
+  }
+  if (!out.split('\n')[3].includes('https://x.com/foo')) {
+    console.error('FIXTURE FAIL  blankComments ate code after a URL');
+    failed++;
+  }
+  if (!out.split('\n')[2].includes('role="menu"')) {
+    console.error('FIXTURE FAIL  blankComments blanked real markup');
+    failed++;
+  }
 }
 // The comment strip must not eat a class that follows a URL on the same line.
 {
@@ -462,44 +588,63 @@ function walk(dir, out = []) {
 
 const hits = [];
 for (const file of [...walk('app'), ...walk('components')]) {
-  readFileSync(file, 'utf8')
-    .split('\n')
-    .forEach((line, i) => {
-      // Comments explain the rules and quote the very classes they ban. Three
-      // separate checks in this project have been fooled by their own prose.
-      // `[^:]` before `//` is load-bearing: without it the `//` in `https://`
-      // reads as a comment start and everything after it on the line is dropped,
-      // so a banned class beside a URL is invisible. That is the precise failure
-      // this script exists to prevent, and it shipped in the first draft of it.
-      const code = line
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-        .replace(/(^|[^:])\/\/.*$/, '$1');
-      if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
-      for (const rule of RULES)
-        if (fires(rule, code, file))
-          hits.push({
-            file,
-            line: i + 1,
-            rule: rule.name,
-            msg: rule.msg,
-            code: code.trim().slice(0, 90),
-            prose: proseNote(rule, code, file),
-          });
-      if (uppercaseWithoutMono(code))
+  const src = readFileSync(file, 'utf8');
+
+  // Whole-file rules first, so a wrapped expression cannot hide between lines.
+  const bare = blankComments(src);
+  for (const rule of FILE_RULES) {
+    const re = new RegExp(
+      rule.re.source,
+      rule.re.flags.includes('g') ? rule.re.flags : rule.re.flags + 'g'
+    );
+    let m;
+    while ((m = re.exec(bare))) {
+      hits.push({
+        file,
+        line: bare.slice(0, m.index).split('\n').length,
+        rule: rule.name,
+        msg: rule.msg,
+        code: m[0].replace(/\s+/g, ' ').slice(0, 90),
+      });
+    }
+  }
+
+  src.split('\n').forEach((line, i) => {
+    // Comments explain the rules and quote the very classes they ban. Three
+    // separate checks in this project have been fooled by their own prose.
+    // `[^:]` before `//` is load-bearing: without it the `//` in `https://`
+    // reads as a comment start and everything after it on the line is dropped,
+    // so a banned class beside a URL is invisible. That is the precise failure
+    // this script exists to prevent, and it shipped in the first draft of it.
+    const code = line
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/(^|[^:])\/\/.*$/, '$1');
+    if (/^\s*(\*|\/\/|\{?\/\*)/.test(line)) return;
+    for (const rule of RULES)
+      if (fires(rule, code, file))
         hits.push({
           file,
           line: i + 1,
-          rule: 'uppercase',
-          msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.',
+          rule: rule.name,
+          msg: rule.msg,
           code: code.trim().slice(0, 90),
+          prose: proseNote(rule, code, file),
         });
-    });
+    if (uppercaseWithoutMono(code))
+      hits.push({
+        file,
+        line: i + 1,
+        rule: 'uppercase',
+        msg: 'Uppercase text is the eyebrow: font-mono text-xs uppercase tracking-[0.14em]. Use <Eyebrow>.',
+        code: code.trim().slice(0, 90),
+      });
+  });
 }
 
 if (!hits.length) {
   console.log(
-    `design language ok — ${RULES.length + 1} rules pass: radius, elevation, type, labels, hairlines, tokens, icons`
+    `design language ok — ${RULES.length + FILE_RULES.length + 1} rules pass: radius, elevation, type, labels, hairlines, tokens, icons, aria roles, disabled submits`
   );
   process.exit(0);
 }

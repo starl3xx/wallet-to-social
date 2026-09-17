@@ -2,6 +2,59 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (forms and controls that a keyboard and a screen reader can use)
+
+Second pass from the interface-craft checklist, this one entirely
+accessibility. Nothing here is a preference; every item is a control that
+announces the wrong thing or cannot be reached at all.
+
+- **A submit is no longer disabled because a field is empty**, in nine
+  places. `disabled` takes a control out of the tab order in every
+  browser, so dimming Look up did not warn a keyboard user that an
+  address was missing: it deleted the page's only action from their pass
+  over it. Each one now validates on submit, names what is missing, marks
+  the field `aria-invalid` and puts the cursor in it. Disabling during
+  the request is kept.
+- The ninth was found by the new guard, not by hand: Prettier had wrapped
+  `WalletEnrichment`'s condition across four lines, where a line-based
+  grep could not see it. That file's Save also duplicated a rule its
+  handler already enforces and reports properly, so the `disabled` was
+  saying the same thing in the one form that cannot be read aloud.
+- **`role="menu"` removed from the overflow menu**, with `role="menuitem"`
+  from its rows. The role commits to the menu keyboard contract (focus
+  moved in on open, roving arrows, Home/End, typeahead, focus restored on
+  close) and none of it was implemented. A reader enters application mode
+  inside a `menu` and stops handling arrows itself, so the role took away
+  navigation the plain buttons already had, and only from the people who
+  need it. It is now the disclosure it actually is: `aria-expanded` and
+  `aria-controls`, `role="group"` on the panel, and focus handed back to
+  the trigger on Escape or after choosing a row, which it never did.
+- **The lookup now narrates.** The progress card renders under
+  `processing` and the results under `complete`, so a live region inside
+  the card was removed from the document in the same commit that would
+  have changed its text: completion, the one event worth speaking, was
+  the one it could never say. The region is now mounted for the whole
+  page. It speaks in quarters, not percent, because polite announcements
+  queue and a ten-thousand-wallet job would otherwise read a hundred
+  sentences.
+- Four admin job buttons (view, rerun, retry, cancel) were named by
+  `title` alone, the weakest source in the accessible-name algorithm and
+  one several readers skip. They now carry an `aria-label` that includes
+  the job id, since the column repeats per row and four rows produced
+  sixteen identically named controls.
+- Three enrichment fields had a `<label>` that wrapped nothing and
+  pointed at nothing, so each input announced as "edit text, blank".
+  Wired with `useId`. The admin password field gained a name and
+  `autocomplete="current-password"`.
+- `ReachabilityChecker`'s error moved from `role="status"` to the house
+  `InlineError`, which is `role="alert"`: it is now the answer to a
+  submit somebody just pressed, and polite would queue it behind whatever
+  the reader was saying.
+- **Two new guard rules**, both whole-file rather than line-based, since
+  the shapes they catch are exactly the ones the formatter wraps. Their
+  comment-blanking has its own fixtures, because this repo's prose quotes
+  the patterns it bans at length.
+
 ### 2026-09-17 (an anonymous buyer can get back to what they paid for)
 
 The match gate is the product's designed purchase moment, and until now

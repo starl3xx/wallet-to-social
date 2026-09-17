@@ -987,15 +987,17 @@ and the second implementation would have hidden that.
 ## Enforcement
 
 Four CI jobs and an ESLint rule. Three of them guard what a grep can see; the
-fourth opens a browser, because the other three cannot see a rendered box:
+fourth opens a browser, because the other three cannot see a rendered box. Two
+of the design-language rules read whole files rather than lines, for the reason
+recorded below:
 
-| Guard                               | Covers                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                                                      |
-| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px size may be written only inside `Eyebrow`, `Badge` and the micro `Button` size), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal |
-| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                                            |
-| `scripts/check-control-height.mjs`  | **rendered** height: every visible element declaring any ladder token (`h-control`, `-hero`, `-compact`, `-micro`, `size-` twins) measures that token, on three pages at six widths, plus no sideways scroll                                                                                                                                                     |
-| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                                                  |
+| Guard                               | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-palette-guard.mjs`   | raw palette classes, all 22 shaded families                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `scripts/check-design-language.mjs` | radius, elevation, arbitrary type sizes (px and rem; the 11px size may be written only inside `Eyebrow`, `Badge` and the micro `Button` size), the uppercase label, hairline opacity (every tint included), the unadapted `primary` token, the wrong icon library, `transition-colors` and `transition-all`, a `/NN` wash on a surface token, a tracking literal, plus two whole-file rules: `role="menu"` and a submit disabled on an empty field |
+| `scripts/check-contrast.mjs`        | WCAG AA in both themes: 4.5:1 text, 3:1 control edges                                                                                                                                                                                                                                                                                                                                                                                              |
+| `scripts/check-control-height.mjs`  | **rendered** height: every visible element declaring any ladder token (`h-control`, `-hero`, `-compact`, `-micro`, `size-` twins) measures that token, on three pages at six widths, plus no sideways scroll                                                                                                                                                                                                                                       |
+| `eslint.config.mjs`                 | the palette rule, in the editor                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 Every guard runs its **own fixtures first**, so one that has stopped working
 fails before it can report a clean codebase. They must be tested against fixtures,
@@ -1026,3 +1028,58 @@ violation list, and an empty violation list reads exactly like a healthy page.
 **Scope styles to components.** Three bugs in one afternoon came from one
 component's styles reaching another: a duplicated class name, a reused class name,
 and one rule serving three call sites.
+
+### Two rules read the file, not the line
+
+Eleven of the thirteen rules scan one line at a time, which is right for a
+class: a Tailwind class is a token inside one string and it never wraps. It is
+wrong for a JSX expression. `disabled={saving || !a.trim()}` is already at the
+print width, so Prettier breaks it across four lines the moment a variable is
+renamed, and a line-based version of that rule would then pass over the exact
+code it exists to catch.
+
+This is not theoretical. The rule was written after fixing eight of these by
+hand from a `grep`, and on its first run it found a ninth in
+`WalletEnrichment.tsx` that the grep had missed for precisely that reason.
+
+Both file-scoped rules blank comments rather than deleting them, so a match's
+offset still maps to its real line number, and the prose in this repository,
+which quotes the patterns it bans at length, cannot fire them. That blanking has
+its own fixtures: length preserved, newlines preserved, a block comment blanked,
+a line comment blanked, real markup untouched, and code after a `https://` URL
+not eaten.
+
+### Accessibility rules with a right answer
+
+Two, both of them refusals rather than requirements, because a refusal is what a
+grep can actually check.
+
+**No `role="menu"`.** The role is not a label for "items in a dropdown": it
+commits to the menu keyboard contract, which is focus moved in on open, Up and
+Down walking items with roving `tabindex`, Home and End, first-letter typeahead,
+and focus restored to the trigger on close. Claiming it without implementing it
+is worse than saying nothing, because a screen reader enters application mode
+inside a `menu` and stops handling the arrow keys itself: the role takes away
+navigation the plain buttons already had, and only for the people who need it
+most. `role="menuitem"` also re-labels a link, which drops it out of the reader's
+links list. `components/ui/overflow-menu.tsx` is the disclosure pattern this
+should be instead: `aria-expanded` and `aria-controls` on the trigger,
+`role="group"` with a label on the panel, and focus handed back to the trigger on
+Escape or on activating a row. If a real menu is ever wanted, use a Radix
+dropdown and let it own the contract.
+
+**A submit is not disabled because a field is empty.** `disabled` removes a
+control from the tab order in every browser, so dimming a submit does not warn a
+keyboard user that something is missing: it deletes the form's only action from
+their pass over the page. A reader that does reach the control hears "dimmed"
+with no reason attached, because a disabled control cannot explain itself.
+
+Leave it enabled, validate on submit, and then say what is wrong: set
+`aria-invalid` on the field that is actually at fault, wire `aria-describedby` to
+the message, and move focus to the field. Set `aria-invalid` **only** for a
+malformed or missing entry. A request that failed, or a handle that resolved to
+nothing, is not a bad value, and marking the field invalid for it sends somebody
+back to re-type something that was right.
+
+Disabling while the request is in flight is correct and the guard allows it:
+`disabled={loading}`.

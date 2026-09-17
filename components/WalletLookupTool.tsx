@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +68,7 @@ export function WalletLookupTool() {
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const run = useCallback(async (value: string) => {
     const trimmed = value.trim();
@@ -104,23 +105,51 @@ export function WalletLookupTool() {
   return (
     <div className="mt-6">
       <form
+        /**
+         * Submit stays enabled on an empty field, and validates on submit.
+         *
+         * It used to carry `disabled={!address.trim()}`, which reads as a
+         * courtesy and is not one. `disabled` takes a button out of the tab
+         * order in every browser, so the keyboard user tabbing this page did
+         * not find a dimmed button to wonder about: they found no button, and
+         * the page's single action was invisible to them. A reader that did
+         * reach it got "dimmed" with no reason attached, because a disabled
+         * control cannot explain itself.
+         *
+         * Pressing it empty now says what is missing and puts the cursor in
+         * the field to fix it, which is the same information the dimming was
+         * gesturing at, in a form that can actually be heard.
+         */
         onSubmit={(e) => {
           e.preventDefault();
+          if (!address.trim()) {
+            setError('Enter a wallet address to look up.');
+            setAnswer(null);
+            inputRef.current?.focus();
+            return;
+          }
           void run(address);
         }}
         className="flex flex-col gap-3 sm:flex-row"
       >
         <Input
+          ref={inputRef}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           // The placeholder shows the shape of the value, not an instruction.
           placeholder="0x…"
           aria-label="Wallet address"
+          // Only while the field is the thing that is wrong. An error from the
+          // server is about the address, not about the input, and marking the
+          // field invalid for it would send a reader to re-edit a value that
+          // is fine.
+          aria-invalid={Boolean(error) && !address.trim()}
+          aria-describedby={error ? 'lookup-error' : undefined}
           spellCheck={false}
           autoComplete="off"
           className="flex-1 font-mono"
         />
-        <Button type="submit" disabled={busy || !address.trim()}>
+        <Button type="submit" disabled={busy}>
           {busy ? 'Looking up…' : 'Look up'}
         </Button>
       </form>
@@ -138,7 +167,13 @@ export function WalletLookupTool() {
       </p>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-border bg-muted p-4 text-sm">
+        // `alert`, not `status`: this is the answer to something the visitor
+        // just pressed, and it has to arrive before they move on.
+        <p
+          id="lookup-error"
+          role="alert"
+          className="mt-4 rounded-lg border border-border bg-muted p-4 text-sm"
+        >
           {error}
         </p>
       )}

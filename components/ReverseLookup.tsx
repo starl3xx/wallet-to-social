@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,7 @@ export function ReverseLookup({
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const handleRef = useRef<HTMLInputElement>(null);
   // Pins the platform that was actually queried, not the live toggle. The two
   // networks get opposite explanations for an empty result, so reading the
   // toggle at render time meant flipping it after a miss rewrote the reason:
@@ -73,7 +74,27 @@ export function ReverseLookup({
 
   const submit = useCallback(async () => {
     const value = handle.trim();
-    if (!value || loading) return;
+    if (loading) return;
+
+    /**
+     * Empty answers rather than returning silently, because the button no
+     * longer refuses to be pressed on an empty field. `disabled` takes a
+     * control out of the tab order, so what looked like a helpful dimming
+     * actually deleted this panel's only action for anyone navigating by
+     * keyboard. Naming what is missing and moving the cursor to the field says
+     * the same thing to everybody.
+     */
+    if (!value) {
+      setError(
+        platform === 'twitter'
+          ? 'Enter an X handle to look up.'
+          : 'Enter a Farcaster username to look up.'
+      );
+      setEmpty(null);
+      setLockedCount(null);
+      handleRef.current?.focus();
+      return;
+    }
 
     /**
      * A locked account presses the button and gets a real answer.
@@ -229,6 +250,7 @@ export function ReverseLookup({
             face like the paste textarea; spellcheck, autocapitalize and
             autocorrect are off because each one rewrites handles. */}
         <Input
+          ref={handleRef}
           value={handle}
           onChange={(e) => {
             setHandle(e.target.value);
@@ -254,9 +276,14 @@ export function ReverseLookup({
           aria-label={
             platform === 'twitter' ? 'X handle' : 'Farcaster username'
           }
+          // Only when the field is the thing that is wrong. A handle that
+          // resolved to nothing, or a request that failed, is not a malformed
+          // entry, and marking the field invalid for either would send a reader
+          // back to correct a value that is correct.
+          aria-invalid={Boolean(error) && !handle.trim()}
         />
 
-        <Button onClick={submit} disabled={!handle.trim() || loading}>
+        <Button onClick={submit} disabled={loading}>
           {loading ? (
             /* The label stays through loading: a spinner alone is an icon-only
                button with no accessible name. */
