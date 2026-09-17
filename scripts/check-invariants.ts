@@ -7057,7 +7057,7 @@ async function main() {
     const IP_RATE_LIMITS = limiterMod.IP_RATE_LIMITS;
     const jobsPerHour = IP_RATE_LIMITS['/api/jobs'].limit;
     /**
-<<<<<<< HEAD
+/**
      * The keyless lookup never becomes a batch endpoint.
      *
      * An array parameter is how a single-address endpoint grows into the thing
@@ -7105,7 +7105,8 @@ async function main() {
       'the free-lookup floor is added to the shared cap, not maxed against it',
       /ANON_MATCHES_PER_DAY \+ \(options\?\.floor \?\? 0\)/.test(limiterSrc)
     );
-=======
+
+    /**
      * The per-match ladder is DERIVED, never typed.
      *
      * CLAUDE.md makes lib/packs.ts the only place a price lives. A discount
@@ -7137,7 +7138,6 @@ async function main() {
           !/\b(43|57|69)%/.test(componentSrc)
       );
     }
->>>>>>> 704fdd0 (The packs show what a match costs)
 
     /**
      * The two agent facts are never conflated.
