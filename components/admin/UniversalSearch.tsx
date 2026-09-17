@@ -51,6 +51,12 @@ export function UniversalSearch({
      */
     if (!query.trim()) {
       setEmptyQuery(true);
+      // The previous answer goes with it, as it does in the other lookups.
+      // Leaving it put the new error above a list of stale hits, which reads
+      // as "these results are the problem" rather than "there is nothing to
+      // search for". Nothing here is unsaved, so dropping it costs nothing.
+      setResults([]);
+      setSearched(false);
       inputRef.current?.focus();
       return;
     }

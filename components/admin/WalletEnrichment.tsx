@@ -134,6 +134,12 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
       // change touched. Reporting alone leaves a keyboard user standing on
       // Search with the banner talking about an input they now have to go
       // find, which is most of the way back to the disabled button.
+      //
+      // The loaded wallet deliberately STAYS, unlike the other lookups, which
+      // all drop their previous answer here. The edit form below is bound to
+      // it and may hold unsaved handles somebody has typed, so clearing on a
+      // stray Enter in an empty search box would throw that away. A stale
+      // result is recoverable; a discarded edit is not.
       searchRef.current?.focus();
       return;
     }

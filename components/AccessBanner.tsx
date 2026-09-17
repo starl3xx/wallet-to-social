@@ -97,6 +97,12 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
            of. One implementation, one set of keyboard and ARIA behaviour; the
            panel closes itself after any item is chosen. */
         <OverflowMenu
+          /* The panel's own name, which now that it carries `role="group"` is
+             announced. Without this it takes the default, so the avatar said
+             "Account" and the group it opened said "More actions". No email
+             in it: the trigger already names the account, and a reader
+             stepping into the group does not need it read out twice. */
+          label="Account"
           trigger={
             /* An avatar, not the address. A full email spends header width on
                something the person already knows, and truncating it to
