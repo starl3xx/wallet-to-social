@@ -15,7 +15,6 @@ import {
   STARTER_WALLET_CAP,
 } from '@/lib/starter-collections';
 import {
-  listHolderCollections,
   getHolderCollection,
   getHolderStats,
   getHolderOverlap,
@@ -48,15 +47,30 @@ interface Props {
   params: Promise<{ chain: string; address: string }>;
 }
 
+/**
+ * NOTHING is prerendered at build time, on any environment.
+ *
+ * This used to return the whole corpus in production and an empty list on
+ * previews. That asymmetry is what hid an eight-day production outage: the
+ * corpus grew from 66 collections to 158, each page reads Neon, the build
+ * generates them in parallel against one database, and they crossed Next's 60
+ * second per-page export timeout. Three retries later the build fails and
+ * `Export encountered an error` takes the whole deployment with it. Previews
+ * skipped the work, so every pull request was green while `main` had not
+ * deployed since 2026-09-09.
+ *
+ * The pages are not lost. `revalidate` above still applies: the first request
+ * for a holder report renders it on demand and the result is cached for an
+ * hour exactly as before, so a crawler or a visitor gets a static page from
+ * the second hit onwards. What changes is that the cost is paid once, by one
+ * request, instead of 158 times inside a deployment that has a deadline.
+ *
+ * This also stops the build getting slower every day the seed cron runs, which
+ * is the property that turned a working build into a broken one with no commit
+ * to blame.
+ */
 export async function generateStaticParams() {
-  // A preview build prerenders no holder pages, so it never reads Neon at
-  // build time (docs/CI.md, the Vercel row). A holder page visited on a
-  // preview still renders on demand through the ordinary request path;
-  // production and local builds prerender the full set unchanged. Exact
-  // equality on purpose, asserted in `scripts/check-invariants.ts`.
-  if (process.env.VERCEL_ENV === 'preview') return [];
-  const collections = await listHolderCollections();
-  return collections.map((c) => ({ chain: c.chain, address: c.address }));
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

@@ -4672,7 +4672,11 @@ async function main() {
     const surfaces = [
       'app/api/public-stats/route.ts',
       'app/api/starter-collections/route.ts',
-      'app/holders/[chain]/[address]/page.tsx',
+      // app/holders/[chain]/[address]/page.tsx is deliberately absent now. It
+      // used to carry the preview branch and that asymmetry is what hid an
+      // eight-day production outage: previews skipped the build-time read and
+      // went green while production did it and timed out. It now prerenders
+      // nothing on every environment alike, asserted below.
       'lib/holder-pages.ts',
     ];
     for (const file of surfaces) {
@@ -4707,14 +4711,41 @@ async function main() {
         stats.indexOf("=== 'preview'") < stats.indexOf('getDb()')
     );
 
-    // A preview build prerenders no holder pages: generateStaticParams
-    // answers the empty list before the corpus listing is consulted.
+    /**
+     * NO build prerenders holder pages, on any environment.
+     *
+     * This assertion used to require the opposite: a preview branch that
+     * skipped the work while production did it. That asymmetry froze
+     * production for eight days from 2026-09-09. The corpus grew from 66
+     * collections to 158, each page reads Neon, and the parallel build crossed
+     * Next's 60 second per-page export timeout; three retries later `Export
+     * encountered an error` failed the whole deployment. Every pull request
+     * stayed green because previews returned [] and never did the work.
+     *
+     * A guard that passes on every PR and fails only after merge is worse than
+     * no guard, so the rule is now symmetric: nothing prerenders, anywhere, and
+     * the pages render on demand under the `revalidate` above.
+     */
     const holders = withoutComments(
       readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
     ).replace(/\s+/g, ' ');
     ok(
-      'a preview build prerenders no holder pages (generateStaticParams answers [])',
-      /if \(process\.env\.VERCEL_ENV === 'preview'\) return \[\];/.test(holders)
+      'holder pages prerender nothing at build time, on every environment',
+      /generateStaticParams\(\) \{ return \[\]; \}/.test(holders) &&
+        !/VERCEL_ENV/.test(holders)
+    );
+    /**
+     * And the route that broke first is not force-static either. A handler
+     * that reads the database and is prerendered at build is the exact shape
+     * that failed, so it is refused by name rather than audited case by case.
+     */
+    const starterRoute = withoutComments(
+      readFileSync('app/api/starter-collections/route.ts', 'utf8')
+    );
+    ok(
+      'the database-reading route is not prerendered at build time',
+      !/dynamic\s*=\s*'force-static'/.test(starterRoute) &&
+        /dynamic\s*=\s*'force-dynamic'/.test(starterRoute)
     );
 
     // The canned starter answer stays the shape the consumer hides
