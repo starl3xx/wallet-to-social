@@ -165,6 +165,84 @@ lands in `campaign`, under its own name; it never claims to be a platform
 referral, and the invariants still refuse to read one as such. Keep the prefixes
 when you refill the queue, or a month of posting becomes unattributable again.
 
+## Discovery surfaces
+
+Every surface below is a place a person or an agent goes looking, and each one
+is also a link. Status verified 2026-09-16 by querying each directory directly,
+not by assuming a registry entry propagates: it does to Glama and does not to
+PulseMCP or mcp.so.
+
+**Every listing carries `?ref=dir-<surface>`.** A directory link arrives with a
+referrer we do not control and often with none at all, so without the tag a
+listing that works is indistinguishable from one nobody clicked. Tagged, it
+lands in the `campaign` channel under its own name and the weekly report shows
+one row per surface. That is what makes this a pipeline rather than a checklist.
+
+### Agent and MCP directories
+
+The best-converting channel the product has, and the cheapest to be present on.
+
+| Surface           | Status 2026-09-16                                   |
+| ----------------- | --------------------------------------------------- |
+| Official registry | **v1.3.0, active, latest** (published 23:55 UTC)    |
+| Glama             | Listed, healthy, 4.5/5 across 8 tools, tested today |
+| PulseMCP          | **Absent** (0 results in a 21,920-server index)     |
+| mcp.so            | **Absent**                                          |
+| MCP.Directory     | Not yet checked                                     |
+| Smithery          | Not yet checked                                     |
+
+### Publishing a registry update
+
+Two commands, and everything they need is already on the machine:
+`mcp-publisher` on PATH, the Ed25519 key at
+`~/.walletlink/mcp-registry-key.pem`, and the DNS proof live on the apex as
+`v=MCPv1; k=ed25519; p=...`.
+
+```bash
+KEY=$(openssl pkey -in ~/.walletlink/mcp-registry-key.pem -outform DER | tail -c 32 | xxd -p -c 64)
+mcp-publisher login dns --domain walletlink.social --private-key "$KEY"
+mcp-publisher publish   # reads server.json from the working directory
+```
+
+**Compare the key against DNS before publishing.** The failure mode otherwise is
+a signature error that says nothing about which half is wrong:
+
+```bash
+openssl pkey -in ~/.walletlink/mcp-registry-key.pem -pubout -outform DER | tail -c 32 | base64
+# must equal the p= value in the apex TXT record
+```
+
+`mcp-publisher validate` checks `server.json` against the live registry and
+publishes nothing, so run it first. Log out afterwards. Glama syncs from this
+registry, so one publish refreshes that listing too; PulseMCP and mcp.so do not,
+which is why they still need their own submissions.
+
+### Developer marketplaces
+
+Where the head consumer query already resolves, and where the product is not.
+
+| Surface  | Why it matters                                                 |
+| -------- | -------------------------------------------------------------- |
+| Apify    | Owns "find twitter account from ethereum wallet address" today |
+| RapidAPI | Where API buyers browse rather than search                     |
+
+Apify is the sharpest one. A competing Actor wins that query with tweet scraping
+and confidence scores, which is the weaker method the product is sold against.
+
+### Code and list surfaces
+
+The repo already outranks the website for product queries, and answer engines
+quote its README, so this tier is proven rather than speculative. Awesome-lists
+covering MCP servers, Farcaster tooling and web3 developer tools take pull
+requests.
+
+### Community
+
+Farcaster channels, Show HN, Reddit. These need a human voice and they are
+speech in Jake's name, so they are his to send. **The line this document draws:**
+a directory listing is product metadata and gets submitted as part of the work;
+a forum post is a person talking and does not.
+
 ## Log
 
 Newest first. One row per intervention, with what it was expected to move, so a
