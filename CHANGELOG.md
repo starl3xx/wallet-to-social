@@ -24,6 +24,25 @@ farcaster`, and those are exactly the fields the gate removes.
 - `lib/result-counts.ts` is the single authority now, the same treatment
   `lib/packs.ts` gives prices. Four surfaces derived these counts by hand
   and three were wrong the same way.
+- `found` counts each row once, with one predicate. The first version of
+  it was `reachable + locked`, under a comment asserting the two sets are
+  disjoint "by construction". They are not, and `lib/match-gate.ts` says
+  so in plain English at the top: it strips the **billable** identities,
+  so a locked row keeps its Lens profile or GitHub account and sits in
+  both sets. The sum published it twice, in the header and in the share
+  text. The overclaim this work removes, briefly reintroduced while
+  removing it, because the comment stated the premise instead of checking
+  the file next door.
+- Its assertion was `const found = reachable + locked`, so the assertion
+  was defending the defect: the third time that shape has appeared here.
+  Replaced with three that run through the function, whose counterexample
+  is a withheld row still showing a Lens profile.
+- The unload guard reads what was actually sent, not what could be sent
+  now. `/?collection=…` submits on mount while auth is still loading, so
+  a signed-in visitor on such a link stored nothing and then had the
+  warning silenced the moment auth resolved: it removed itself in exactly
+  the case it exists for. Signing in after a signed-out run did the same
+  to the run on screen.
 - The results header leads with `found` and states the locked count
   beside it in `caution`. That pairing is the condition the figure comes
   with: a number that counts withheld rows must say some are withheld, or
