@@ -27,16 +27,16 @@ import { trackEvent } from '@/lib/analytics';
 // Process wallets in micro-batches for parallel execution
 const MICRO_BATCH_SIZE = 500;
 
-interface JobOptions {
-  includeENS?: boolean;
-  saveToHistory?: boolean;
-  historyName?: string;
-  userId?: string;
-  // Billing identity, mirrored from lib/job-processor.ts JobOptions: the
-  // options JSONB always carried these, this pipeline just never read them.
-  meteredUserId?: string;
-  tier?: UserTier;
-}
+/**
+ * The real one, imported rather than mirrored.
+ *
+ * This was a hand-copied subset, and the copy is how the two pipelines drifted:
+ * the options JSONB always carried the billing identity and this pipeline
+ * simply never declared it, so it billed nothing at all. A type-only import
+ * costs nothing at runtime and makes the next added option a compile error here
+ * instead of a silent omission.
+ */
+import type { JobOptions } from '@/lib/job-processor';
 
 // Define the event type
 type WalletLookupEvent = {
@@ -461,6 +461,16 @@ export const walletLookup = inngest.createFunction(
        */
       let matchesDelivered: number | null = null;
       let gateIsFresh = false;
+      /**
+       * Same gate the worker applies, read from the same option. These two
+       * pipelines have diverged once already, when this one billed nothing at
+       * all, so the rule is that a change to one is made to both.
+       */
+      const anonGate = Math.min(
+        ANON_MATCHES_PER_JOB,
+        Math.max(0, options.anonMatchGate ?? ANON_MATCHES_PER_JOB)
+      );
+
       if (options.meteredUserId) {
         try {
           const charge = await chargeForJob(
@@ -477,10 +487,10 @@ export const walletLookup = inngest.createFunction(
         } catch (error) {
           console.error('Credit charge failed (job still succeeded):', error);
         }
-      } else if (job.userId && anySocialFound > ANON_MATCHES_PER_JOB) {
+      } else if (job.userId && anySocialFound > anonGate) {
         // The anonymous per-job gate, mirrored from lib/job-processor.ts;
         // job.userId excludes system jobs, which serve no rows to anyone.
-        matchesDelivered = ANON_MATCHES_PER_JOB;
+        matchesDelivered = anonGate;
         gateIsFresh = true;
       }
 

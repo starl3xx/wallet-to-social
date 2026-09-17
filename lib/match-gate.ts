@@ -36,6 +36,32 @@ import type { WalletSocialResult } from '@/lib/types';
  */
 export const ANON_MATCHES_PER_JOB = 50;
 
+/**
+ * The whole anonymous allowance for one IP in a UTC day.
+ *
+ * ## Why this exists
+ *
+ * Without it, signing in made the product roughly a thousand times worse.
+ * Anonymous callers get 3 jobs an hour (`IP_RATE_LIMITS['/api/jobs']`) and
+ * `ANON_MATCHES_PER_JOB` open matches in each, which is 150 matches an hour and
+ * about 3,600 a day, for ever, with no cumulative meter anywhere. A signed-in
+ * free account gets `FREE_MATCHES_PER_WINDOW`, 100, per 30 days.
+ *
+ * So the account gate selected for staying anonymous and the free allowance
+ * could never become a reason to buy. Measured 2026-09-16: 43 signups in 90
+ * days and zero purchases. That is a packaging defect, not a traffic problem,
+ * and no amount of traffic fixes it.
+ *
+ * ## Still generous, deliberately
+ *
+ * A stranger who drops in a list and sees real matches is the demo the product
+ * is sold on, so this is a day's worth of that rather than a token. Note the
+ * residual honestly: 50 a day is still more per month than the signed-in free
+ * allowance, so this closes the absurdity, not the whole inversion. Lower it
+ * here if a first sale still does not come.
+ */
+export const ANON_MATCHES_PER_DAY = 50;
+
 const LOCKED_FIELDS = [
   'twitter_handle',
   'twitter_url',

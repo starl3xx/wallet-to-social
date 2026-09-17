@@ -2,6 +2,7 @@ import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { ipRateLimitBuckets } from '@/db/schema';
 import { NextRequest } from 'next/server';
+import { ANON_MATCHES_PER_DAY } from '@/lib/match-gate';
 
 // Rate limits for unauthenticated UI endpoints (strict to prevent scraping)
 export const IP_RATE_LIMITS = {
@@ -489,5 +490,139 @@ export async function cleanupOldIpBuckets(
   } catch (error) {
     console.error('IP rate limit cleanup error:', error);
     return 0;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * The anonymous match meter
+ * ------------------------------------------------------------------ */
+
+/**
+ * A FIXED DAILY CAP, not a sliding window, and the difference is deliberate.
+ *
+ * Everything above this point buckets hourly and decays the previous bucket
+ * across the current one. That maths is hour-bound in its bones: `3600` is
+ * hardcoded in both `slidingWindowCount` and `secondsUntilNextAllowed`, and the
+ * elapsed fraction is read off `getUTCMinutes`. `windowHours` in the config
+ * above is therefore decorative: every entry says 1 because 1 is the only value
+ * the code implements, and an invariant now asserts that so the field cannot
+ * quietly start lying.
+ *
+ * Generalising that decay to a 24-hour window would be a real refactor of the
+ * abuse path to buy a property a demo allowance does not need. A day's
+ * allowance wants a hard edge that resets at midnight UTC, which a person can
+ * predict and a script cannot smear. So this keeps the same table and takes its
+ * own day-shaped key.
+ *
+ * ## Charged on offer, not on delivery
+ *
+ * The budget is spent when the job is ACCEPTED, for the size of the gate it is
+ * granted, not for the matches it turns out to deliver. The gate is decided in
+ * the request, where the IP is known; delivery happens later in a worker that
+ * has no request and no IP. Carrying the address into the job to settle up
+ * afterwards would mean storing a visitor's IP on a long-lived row, which is a
+ * worse trade than a coarser meter.
+ *
+ * The practical effect is that a list matching three wallets still spends the
+ * gate it reserved. That is the honest reading of "one demo a day", and it is
+ * stated in the refusal the caller sees.
+ */
+const ANON_MATCH_ENDPOINT = 'jobs:anon-matches';
+
+/** Midnight-to-midnight UTC, so the reset is a time a person can predict. */
+function getDailyBucketKey(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export interface AnonMatchBudget {
+  /** Matches this IP may still be offered today. */
+  remaining: number;
+  /** The whole daily allowance. */
+  limit: number;
+  /** When the allowance resets. */
+  resetAt: Date;
+}
+
+function nextUtcMidnight(now: Date): Date {
+  const d = new Date(now);
+  d.setUTCHours(24, 0, 0, 0);
+  return d;
+}
+
+/**
+ * How much anonymous allowance this address has left today.
+ *
+ * Fails OPEN when the database is unavailable, matching every other limiter
+ * here: a meter that refuses a stranger because our own database is down turns
+ * an outage into a wall, and the exposure is one day of one IP.
+ */
+export async function getAnonMatchBudget(
+  ipAddress: string,
+  now: Date = new Date()
+): Promise<AnonMatchBudget> {
+  const limit = ANON_MATCHES_PER_DAY;
+  const resetAt = nextUtcMidnight(now);
+  const db = getDb();
+  if (!db) return { remaining: limit, limit, resetAt };
+
+  try {
+    const rows = await db
+      .select({ count: ipRateLimitBuckets.count })
+      .from(ipRateLimitBuckets)
+      .where(
+        and(
+          eq(ipRateLimitBuckets.ipAddress, ipAddress),
+          eq(ipRateLimitBuckets.endpoint, ANON_MATCH_ENDPOINT),
+          eq(ipRateLimitBuckets.bucketKey, getDailyBucketKey(now))
+        )
+      );
+    const used = rows[0]?.count ?? 0;
+    return { remaining: Math.max(0, limit - used), limit, resetAt };
+  } catch (error) {
+    console.error('Anon match budget read failed:', error);
+    return { remaining: limit, limit, resetAt };
+  }
+}
+
+/**
+ * Spend `units` of today's anonymous allowance for this address.
+ *
+ * Upserts with an atomic `count = count + units`, so two jobs submitted at once
+ * from one address cannot both read the same remainder and both spend it. The
+ * read above is advisory; this is the number that binds.
+ */
+export async function consumeAnonMatchBudget(
+  ipAddress: string,
+  units: number,
+  now: Date = new Date()
+): Promise<void> {
+  if (units <= 0) return;
+  const db = getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .insert(ipRateLimitBuckets)
+      .values({
+        ipAddress,
+        endpoint: ANON_MATCH_ENDPOINT,
+        bucketKey: getDailyBucketKey(now),
+        count: units,
+      })
+      .onConflictDoUpdate({
+        target: [
+          ipRateLimitBuckets.ipAddress,
+          ipRateLimitBuckets.endpoint,
+          ipRateLimitBuckets.bucketKey,
+        ],
+        set: {
+          count: sql`${ipRateLimitBuckets.count} + ${units}`,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (error) {
+    // Never fail a submission because the meter could not be written: the job
+    // is already valid and the exposure is one day of one address.
+    console.error('Anon match budget write failed:', error);
   }
 }

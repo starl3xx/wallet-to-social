@@ -7008,6 +7008,79 @@ async function main() {
      * green build. That is the exact shape of the failure this section exists
      * to catch, which spent sixteen days invisible for the same reason.
      */
+    /**
+     * Anonymous throughput is bounded PER UNIT TIME, not per job.
+     *
+     * The old invariant compared a per-job gate with a per-window allowance,
+     * which are not comparable quantities, so it reported clean while anonymous
+     * callers could take 3 jobs an hour times 50 matches, about 3,600 a day,
+     * for ever, against a signed-in free account's 100 per 30 days. Signing in
+     * made the product a thousand times worse and the meter said nothing.
+     */
+    const gateMod = await import('@/lib/match-gate');
+    const limiterMod = await import('@/lib/ip-rate-limiter');
+    const packsMod = await import('@/lib/packs');
+
+    const anonPerDay = gateMod.ANON_MATCHES_PER_DAY;
+    const anonPerJob = gateMod.ANON_MATCHES_PER_JOB;
+    const IP_RATE_LIMITS = limiterMod.IP_RATE_LIMITS;
+    const jobsPerHour = IP_RATE_LIMITS['/api/jobs'].limit;
+    ok(
+      'anonymous daily throughput is capped below the uncapped per-job product',
+      anonPerDay < jobsPerHour * 24 * anonPerJob
+    );
+    ok(
+      'the anonymous day is not larger than a whole signed-in free window',
+      anonPerDay <= packsMod.FREE_MATCHES_PER_WINDOW * packsMod.FREE_WINDOW_DAYS
+    );
+    /**
+     * `windowHours` is decorative: the limiter hardcodes 3600 in both
+     * `slidingWindowCount` and `secondsUntilNextAllowed` and reads the elapsed
+     * fraction off getUTCMinutes, so 1 is the only value it implements. Writing
+     * 24 there would silently buy a one-hour window, which is why the anonymous
+     * day is a separate day-keyed counter. Asserted so the field cannot start
+     * lying.
+     */
+    ok(
+      'every hourly limiter entry really is hourly',
+      Object.values(IP_RATE_LIMITS).every((c) => c.windowHours === 1)
+    );
+    /**
+     * Both delivery pipelines read the reserved gate. The Inngest half billed
+     * nothing at all once because it mirrored a type by hand instead of
+     * importing it, so this asserts the constant is no longer the value either
+     * one assigns.
+     */
+    const workerSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    const anonInngestSrc = withoutComments(
+      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
+    );
+    ok(
+      'neither pipeline hands out the flat per-job constant any more',
+      !/matchesDelivered\s*=\s*ANON_MATCHES_PER_JOB/.test(workerSrc) &&
+        !/matchesDelivered\s*=\s*ANON_MATCHES_PER_JOB/.test(anonInngestSrc) &&
+        /matchesDelivered\s*=\s*anonGate/.test(workerSrc) &&
+        /matchesDelivered\s*=\s*anonGate/.test(anonInngestSrc)
+    );
+    ok(
+      'the Inngest pipeline imports the options type rather than copying it',
+      /import type \{[^}]*JobOptions[^}]*\} from '@\/lib\/job-processor'/.test(
+        inngestSrc
+      ) && !/^interface JobOptions/m.test(anonInngestSrc)
+    );
+    /**
+     * A hand-edited or stale option cannot widen the gate: both sides clamp to
+     * the per-job constant. Asserted as the refusal, because the failure would
+     * be a larger free tier that nothing bills for.
+     */
+    ok(
+      'a stored gate cannot exceed the per-job ceiling',
+      /Math\.min\(\s*ANON_MATCHES_PER_JOB/.test(workerSrc) &&
+        /Math\.min\(\s*ANON_MATCHES_PER_JOB/.test(anonInngestSrc)
+    );
+
     ok(
       'the seed-coverage alarm has the grant it silently depends on',
       /'seeded_contracts'/.test(readOnlyList)
