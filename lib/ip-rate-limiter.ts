@@ -45,6 +45,17 @@ export const IP_RATE_LIMITS = {
    */
   '/api/reverse': { limit: 60, windowHours: 1 },
   /**
+   * The keyless single-wallet lookup behind the free tool page.
+   *
+   * Tighter than `/api/reachability` (60) because this one discloses the
+   * identity rather than a count, and that identity is what a pack is sold on.
+   * Loose enough that a person trying a handful of addresses they know never
+   * meets it. Misses count too: a miss still costs a query and still tells a
+   * prober the address is absent, so a bound that only counted hits would be a
+   * bound on being right rather than on asking.
+   */
+  '/api/wallet-socials': { limit: 20, windowHours: 1 },
+  /**
    * The MCP server, and only its keyless traffic.
    *
    * Every tool there passes the caller's own bearer key into a v1 handler,
@@ -529,6 +540,21 @@ export async function cleanupOldIpBuckets(
  */
 const ANON_MATCH_ENDPOINT = 'jobs:anon-matches';
 
+/**
+ * Single lookups the free tool page can always answer, even when the day's
+ * anonymous allowance is gone.
+ *
+ * The two share one bucket so total anonymous exposure does not double by
+ * adding a second door into it. Sharing has one bad edge: the jobs path
+ * reserves its whole gate up front, so a visitor who ran the list demo first
+ * would arrive at the marketing page with nothing left and meet a 429 on a page
+ * whose entire job is to answer. This is the reserve that edge case eats into.
+ *
+ * Small on purpose. Five answers is enough to see the product work and useless
+ * as a free API.
+ */
+export const FREE_LOOKUP_FLOOR_PER_DAY = 5;
+
 /** Midnight-to-midnight UTC, so the reset is a time a person can predict. */
 function getDailyBucketKey(date: Date = new Date()): string {
   return date.toISOString().slice(0, 10);
@@ -558,9 +584,23 @@ function nextUtcMidnight(now: Date): Date {
  */
 export async function getAnonMatchBudget(
   ipAddress: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /**
+   * `floor` raises the day's allowance for ONE caller without raising it for
+   * the shared bucket: the tool page passes `FREE_LOOKUP_FLOOR_PER_DAY` so it
+   * still answers after the list demo has spent everything. Omitted everywhere
+   * else, which is what keeps the jobs rail at the flat cap.
+   */
+  options?: { floor?: number }
 ): Promise<AnonMatchBudget> {
-  const limit = ANON_MATCHES_PER_DAY;
+  /**
+   * ADDED to the shared cap, not maxed against it, and the difference is the
+   * whole point. `Math.max(50, 5)` is 50, which is no floor at all: the tool
+   * would still read zero the moment the jobs rail drained the day. Adding it
+   * means that once the shared 50 is spent, this caller still sees `floor`
+   * remaining, which is exactly the reserve the marketing page needs.
+   */
+  const limit = ANON_MATCHES_PER_DAY + (options?.floor ?? 0);
   const resetAt = nextUtcMidnight(now);
   const db = getDb();
   if (!db) return { remaining: limit, limit, resetAt };

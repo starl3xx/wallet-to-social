@@ -71,6 +71,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      /**
+       * The free tool page, at the exact-match URL for the head query. It
+       * ranks above /check and the comparisons because it is the one page a
+       * stranger can act on in one click with no account and no list, which
+       * is also why it is the page most likely to earn a link.
+       */
+      url: `${baseUrl}/find-twitter-account-from-wallet-address`,
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
+    {
       // The buying-intent page: "walletlink pricing" searches and the AI
       // agents shortlisting tools both land here.
       url: `${baseUrl}/pricing`,

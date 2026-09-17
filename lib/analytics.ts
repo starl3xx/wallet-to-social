@@ -64,6 +64,13 @@ export type AnalyticsEventType =
   // The other side of limit_hit's match_gate reason: somebody paid to open
   // the locked remainder of a gated job, which is the gate's conversion.
   | 'match_gate_unlocked'
+  /**
+   * The free single-wallet lookup on /find-twitter-account-from-wallet-address,
+   * fired client-side so it carries a session id. `found` is the field worth
+   * having: most wallets published nothing, so the miss rate on that page is
+   * the honest measure of whether the traffic it earns is the traffic we want.
+   */
+  | 'wallet_preview_lookup'
   // The app's reverse lookup, fired client-side so it carries a session id.
   // `locked` separates a caller who got the count from one who got the
   // wallets, which is the only way to tell whether the free half converts.

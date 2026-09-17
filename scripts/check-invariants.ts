@@ -7057,6 +7057,55 @@ async function main() {
     const IP_RATE_LIMITS = limiterMod.IP_RATE_LIMITS;
     const jobsPerHour = IP_RATE_LIMITS['/api/jobs'].limit;
     /**
+     * The keyless lookup never becomes a batch endpoint.
+     *
+     * An array parameter is how a single-address endpoint grows into the thing
+     * that is sold, and the first version took `.trim()` on whatever arrived,
+     * so a posted array was a 500 rather than a 400. A 500 on malformed input
+     * is how a prober learns which shapes are unhandled.
+     */
+    const walletToolSrc = withoutComments(
+      readFileSync('app/api/wallet-socials/route.ts', 'utf8')
+    );
+    ok(
+      'the keyless lookup accepts one address, typed, never an array',
+      /typeof body\.address === 'string'/.test(walletToolSrc) &&
+        !/body\.addresses/.test(walletToolSrc)
+    );
+    /**
+     * It withholds what a pack is sold on. `lib/job-processor.ts` strips
+     * follower counts and priority score from every job without `paidData`,
+     * which is every anonymous and free job, so a keyless route returning them
+     * would hand a stranger a field the signed-in free tier does not get.
+     */
+    ok(
+      'the keyless lookup withholds the paid fields',
+      !/fcFollowers|priority_score|priorityScore/.test(walletToolSrc)
+    );
+    /**
+     * And it fails CLOSED on suppression. Answering while the removal list is
+     * unreadable is how a removed identity gets served once, which is the one
+     * failure this surface must never have.
+     */
+    ok(
+      'the keyless lookup refuses to answer when suppression is unreadable',
+      /loadSuppressionList\(\)/.test(walletToolSrc) &&
+        /SERVICE_UNAVAILABLE/.test(walletToolSrc)
+    );
+    /**
+     * The daily floor is ADDED to the shared cap, never maxed against it.
+     * `Math.max(50, 5)` is 50, which is no floor at all: the tool page would
+     * read zero the moment the jobs rail drained the day.
+     */
+    const limiterSrc = withoutComments(
+      readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+    );
+    ok(
+      'the free-lookup floor is added to the shared cap, not maxed against it',
+      /ANON_MATCHES_PER_DAY \+ \(options\?\.floor \?\? 0\)/.test(limiterSrc)
+    );
+
+    /**
      * The two agent facts are never conflated.
      *
      * `KNOWN_AGENTS` is the detector's catalog (13,622, harvested from Virtuals
