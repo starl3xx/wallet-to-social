@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { PackPricing } from '@/components/PackPricing';
-import { BuyCreditsButton } from '@/components/BuyCreditsButton';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
 import {
   PACKS,
   PACK_IDS,
@@ -109,15 +106,8 @@ export default function PricingPage() {
 
         <PackPricing />
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <BuyCreditsButton>Buy credits</BuyCreditsButton>
-          <Button variant="soft" asChild>
-            <Link href="/">
-              Run a free lookup
-              <ArrowRight aria-hidden />
-            </Link>
-          </Button>
-        </div>
+        {/* The buy row moved into PackPricing, so the six comparison
+            pages that render the same panel get it too. */}
 
         <section className="mt-16">
           <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">

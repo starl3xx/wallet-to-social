@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (the ask, where the decision is made)
+
+Two findings from the conversion craft audit, both at the moment a buyer
+decides, and neither of them a broken thing. Both were missing arguments.
+
+- **The fit badge tested the wrong quantity.** It picked the smallest
+  pack whose SUBMISSION headroom accepted the file, so a pack could take
+  a list and then run out of credits inside it. A 13,294-wallet list, the
+  largest job ever run, was marked "Fits your list" on Campaign while
+  that same card said "≈ 6,300 wallets" two lines below. Somebody
+  trusting the badge paid $99, resolved 1,500 matches, and met the match
+  gate with most of the file locked. Headroom is now the floor and
+  expected matches join it as the test, using the same constant the card
+  already prints in the other direction, so the badge and the wallet
+  count cannot disagree. That list now recommends Scale.
+- When nothing fits, the largest pack is still the honest answer, but it
+  no longer claims to fit: the badge reads "Closest fit".
+- **Six comparison pages quoted the whole price sheet with no way to
+  buy.** `PackPricing` had no button, no link and no click handler and
+  ended on prose, and the header is not sticky, so the only buy
+  affordance had scrolled away by the time a reader reached the prices at
+  line 425 of a 494-line page. The CTA now lives in the panel itself,
+  once, and `/pricing` drops the block it used to render below, so there
+  is one implementation rather than seven.
+- Verified on a production server: all six comparison pages and /pricing
+  render a buy path.
+
 ### 2026-09-17 (the packs show what a match costs)
 
 The cards gave a price and a match count and left the buyer to divide.

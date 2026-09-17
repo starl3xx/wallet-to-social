@@ -1,3 +1,7 @@
+import Link from 'next/link';
+import { ArrowRight } from '@phosphor-icons/react/dist/ssr';
+import { Button } from '@/components/ui/button';
+import { BuyCreditsButton } from '@/components/BuyCreditsButton';
 import {
   PACKS,
   PACK_IDS,
@@ -109,6 +113,26 @@ export function PackPricing() {
         contract import, API and MCP access on the same credits, and Farcaster
         DMs. Credits last {CREDIT_LIFETIME_MONTHS} months. No subscription.
       </p>
+
+      {/* The way to act on the prices this panel just quoted.
+          It was missing everywhere but /pricing. Six comparison pages rendered
+          the whole price sheet and ended on prose: this component had no
+          button, no link and no click handler, and the header is not sticky,
+          so by the time a reader reached the prices at line 425 of a 494-line
+          page the only buy affordance had scrolled away. A page that answers
+          "what does it cost" and then offers no way to pay is asking the
+          reader to go and find one.
+          It lives here rather than in six copies, and /pricing dropped the
+          block it used to render below, so there is one implementation. */}
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <BuyCreditsButton>Buy credits</BuyCreditsButton>
+        <Button variant="soft" asChild>
+          <Link href="/">
+            Run a free lookup
+            <ArrowRight aria-hidden />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

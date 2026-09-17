@@ -201,18 +201,39 @@ export function UpgradeModal({
   };
 
   /**
-   * The smallest pack whose submission headroom covers this list.
+   * The smallest pack that both ACCEPTS this list and covers what it is
+   * expected to resolve.
    *
-   * Headroom, not matches: the buyer is billed for matches but blocked on
-   * wallets submitted, and a pack that cannot accept the file they are holding
-   * is the wrong recommendation however well it matches their spend. Falls
-   * through to the largest pack, which is the honest answer when nothing fits:
-   * buy the biggest and run it in two passes.
+   * Headroom alone was the old rule, and it made the card contradict itself.
+   * The buyer is blocked on wallets submitted and billed on matches, so a pack
+   * can accept a file and then run out of credits inside it. A 13,294-wallet
+   * list, the largest job ever run, was marked "Fits your list" on Campaign
+   * while that same card said "≈ 6,300 wallets" two lines below. Somebody who
+   * trusted the badge paid $99, resolved 1,500 matches, and met the match gate
+   * with most of their file still locked.
+   *
+   * So headroom stays as the floor and expected matches join it as the test.
+   * The estimate uses the same constant `approxWallets` already prints on every
+   * card, in the opposite direction, so the badge and the wallet count beneath
+   * it can no longer disagree.
+   */
+  const expectedMatches = walletCount
+    ? Math.ceil(walletCount * MEASURED_MATCH_RATE)
+    : 0;
+  const fitting: PackId | undefined = walletCount
+    ? PACK_IDS.find(
+        (id) =>
+          PACKS[id].matches * SUBMISSION_MULTIPLIER >= walletCount &&
+          PACKS[id].matches >= expectedMatches
+      )
+    : undefined;
+  /**
+   * Falling through to the largest pack is still the honest answer when
+   * nothing fits, but it must not then claim to fit. `fitting` being undefined
+   * is what the badge below reads to say "Closest fit" instead.
    */
   const suggested: PackId = walletCount
-    ? (PACK_IDS.find(
-        (id) => PACKS[id].matches * SUBMISSION_MULTIPLIER >= walletCount
-      ) ?? PACK_IDS[PACK_IDS.length - 1])
+    ? (fitting ?? PACK_IDS[PACK_IDS.length - 1])
     : DEFAULT_SUGGESTION;
 
   return (
@@ -306,7 +327,11 @@ export function UpgradeModal({
                       tone="brand"
                       className="absolute -top-2.5 left-4 max-w-none"
                     >
-                      {walletCount ? 'Fits your list' : 'Recommended'}
+                      {!walletCount
+                        ? 'Recommended'
+                        : fitting
+                          ? 'Fits your list'
+                          : 'Closest fit'}
                     </Badge>
                   )}
 
