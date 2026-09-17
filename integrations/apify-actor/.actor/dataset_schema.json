@@ -1,0 +1,174 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "type": "object",
+    "properties": {
+      "wallet": {
+        "type": "string",
+        "title": "Wallet",
+        "description": "The EVM address, lowercased.",
+        "example": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+      },
+      "found": {
+        "type": "boolean",
+        "title": "Found",
+        "description": "True when the wallet resolved to an X handle or a Farcaster account. This is the billable predicate: ENS, Lens and GitHub alone do not count.",
+        "example": true
+      },
+      "x_handle": {
+        "type": "string",
+        "title": "X handle",
+        "description": "The handle the wallet owner published. Never read from a post, a display name or a bio.",
+        "example": "VitalikButerin"
+      },
+      "x_url": {
+        "type": "string",
+        "title": "X URL",
+        "example": "https://x.com/VitalikButerin"
+      },
+      "x_verified": {
+        "type": "boolean",
+        "title": "X attested",
+        "description": "True when the link was published by the owner rather than correlated from an index.",
+        "example": true
+      },
+      "x_reachability": {
+        "type": "string",
+        "title": "X reachability",
+        "description": "live, suspended, unclaimed or reassigned. Empty means the handle was not checked, never that nobody is behind it.",
+        "example": "live"
+      },
+      "farcaster_username": {
+        "type": "string",
+        "title": "Farcaster username",
+        "example": "vitalik.eth"
+      },
+      "farcaster_url": {
+        "type": "string",
+        "title": "Farcaster URL",
+        "example": "https://farcaster.xyz/vitalik.eth"
+      },
+      "farcaster_followers": {
+        "type": "integer",
+        "title": "Farcaster followers",
+        "example": 123456
+      },
+      "farcaster_fid": {
+        "type": "integer",
+        "title": "Farcaster FID",
+        "example": 5650
+      },
+      "ens_name": {
+        "type": "string",
+        "title": "ENS name",
+        "example": "vitalik.eth"
+      },
+      "lens": { "type": "string", "title": "Lens handle" },
+      "github": { "type": "string", "title": "GitHub username" },
+      "evidence": {
+        "type": "string",
+        "title": "Evidence",
+        "description": "The classes of evidence behind the match: onchain, farcaster, attested-social, manual, aggregated. Never a provider name.",
+        "example": "onchain, farcaster"
+      },
+      "is_agent": {
+        "type": "boolean",
+        "title": "Is an agent",
+        "description": "True when the wallet belongs to an AI agent rather than a person, so it can be dropped before paying for reach.",
+        "example": false
+      },
+      "agent_name": { "type": "string", "title": "Agent name" },
+      "last_updated": {
+        "type": "string",
+        "title": "Last updated",
+        "description": "When this record was last confirmed.",
+        "example": "2026-09-14T00:00:00.000Z"
+      },
+      "stale": {
+        "type": "boolean",
+        "title": "Stale",
+        "description": "True when the record is older than the freshness window and may be worth re-resolving.",
+        "example": false
+      },
+      "locked": {
+        "type": "boolean",
+        "title": "Locked",
+        "description": "A confirmed match whose identities are withheld until the allowance overflow is paid for. Not the same as a miss.",
+        "example": false
+      },
+      "looked_up": {
+        "type": "string",
+        "title": "Handle looked up",
+        "description": "Reverse mode only: the handle whose wallets these are.",
+        "example": "dwr"
+      },
+      "quality_score": {
+        "type": "integer",
+        "title": "Quality score",
+        "description": "Reverse mode only: the strength of the attestation for this wallet."
+      }
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "description": "One row per wallet, with the social accounts its owner published.",
+      "transformation": {
+        "fields": [
+          "wallet",
+          "found",
+          "x_handle",
+          "x_reachability",
+          "farcaster_username",
+          "farcaster_followers",
+          "ens_name",
+          "evidence"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "wallet": { "label": "Wallet" },
+          "found": { "label": "Found" },
+          "x_handle": { "label": "X handle" },
+          "x_reachability": { "label": "Reachable" },
+          "farcaster_username": { "label": "Farcaster" },
+          "farcaster_followers": { "label": "FC followers", "format": "number" },
+          "ens_name": { "label": "ENS" },
+          "evidence": { "label": "Evidence" }
+        }
+      }
+    },
+    "matches_only": {
+      "title": "Reachable accounts",
+      "description": "Only the wallets that resolved to an X handle or a Farcaster account.",
+      "transformation": {
+        "fields": [
+          "wallet",
+          "x_handle",
+          "x_url",
+          "x_reachability",
+          "farcaster_username",
+          "farcaster_url",
+          "farcaster_followers",
+          "evidence",
+          "is_agent"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "wallet": { "label": "Wallet" },
+          "x_handle": { "label": "X handle" },
+          "x_url": { "label": "X URL" },
+          "x_reachability": { "label": "Reachable" },
+          "farcaster_username": { "label": "Farcaster" },
+          "farcaster_url": { "label": "Farcaster URL" },
+          "farcaster_followers": { "label": "FC followers", "format": "number" },
+          "evidence": { "label": "Evidence" },
+          "is_agent": { "label": "Agent" }
+        }
+      }
+    }
+  }
+}

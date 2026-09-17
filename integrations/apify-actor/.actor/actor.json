@@ -1,0 +1,15 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "wallet-to-twitter-farcaster-lookup",
+  "title": "Wallet to Twitter & Farcaster Lookup",
+  "description": "Resolve Ethereum and EVM wallet addresses to the X (Twitter) handles and Farcaster accounts their owners published onchain. Attested, never guessed. Works in reverse too.",
+  "version": "0.1",
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md",
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}
