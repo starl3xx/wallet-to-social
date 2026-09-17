@@ -131,7 +131,7 @@ export function ContractImportModal({
     setError(null);
     setLoading(true);
     setStep('loading');
-    setLoadingMessage('Detecting contract type...');
+    setLoadingMessage('Detecting contract type…');
 
     try {
       const response = await fetch('/api/contract-holders', {
@@ -224,7 +224,7 @@ export function ContractImportModal({
           <ModalDescription>
             {step === 'input' &&
               'Enter an ERC-20 token or NFT contract address to import its holders.'}
-            {step === 'loading' && 'Fetching token holders...'}
+            {step === 'loading' && 'Fetching token holders…'}
             {step === 'preview' &&
               result &&
               (result.totalHolders > 0
@@ -252,7 +252,7 @@ export function ContractImportModal({
                 id="contract-address"
                 value={contractAddress}
                 onChange={(e) => setContractAddress(e.target.value.trim())}
-                placeholder="0x..."
+                placeholder="0x…"
                 className="font-mono text-sm"
                 autoFocus
               />

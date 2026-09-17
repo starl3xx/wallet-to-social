@@ -231,7 +231,7 @@ export async function sendBatchDMs(
           fid: recipient.fid,
           username: recipient.username,
           status: 'failed',
-          error: 'Invalid API key - stopping all DMs',
+          error: 'Invalid API key: stopping all DMs',
           message: renderedMessage,
         });
         progress.failed++;

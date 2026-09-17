@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     // Check if database is configured
     if (!process.env.DATABASE_URL) {
       return NextResponse.json(
-        { error: 'Database not configured - job queue requires DATABASE_URL' },
+        { error: 'Database not configured: job queue requires DATABASE_URL' },
         { status: 500 }
       );
     }

@@ -2,6 +2,60 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (the house style is a rule now, not a habit)
+
+Third interface-craft pass: typography, and the enforcement the house
+style never had.
+
+- **`npm run check:style` is new**, with a CI job behind it. CLAUDE.md
+  has declared the house style since the repo had a CLAUDE.md and
+  nothing checked any of it, which is how the product came to spell its
+  own signature phrase two ways: "labelled" in 23 published places
+  against "labeled" in the two written most recently. Also 15 three-dot
+  ellipses in loading copy, and a hyphen where a colon belonged in the
+  message every job shows on submit.
+- Scope is the whole design of that guard. It reads JSX text nodes,
+  prose-shaped string literals and Markdown outside code fences. It does
+  not read comments, identifiers or data values, because `'cancelled'`
+  is a persisted job status, `aria-labelledby` is an attribute and
+  `Optimism` is a chain, and a guard that cannot tell prose from code
+  teaches people to skip its output.
+- Its extractor is tested harder than its rules are, since the extractor
+  decides what gets read at all. The first draft let the `>` of an arrow
+  function open a text span, so `[...prev, ...next]` looked like copy
+  with an ellipsis in it; the second hit an unbalanced quote pair on
+  `[headers.join(','), ...rows].join('\n')`. Both are fixtures now.
+- **The failed-job badge was 3.75:1 in dark mode.** Every contrast pair
+  the guard measured put a coloured foreground on a neutral surface, and
+  a badge does not: it paints `text-destructive` on
+  `bg-destructive-tint`, so both sides carry the same hue and the ratio
+  is only the lightness gap. That pair was not in the table. All four
+  tint-backed badges are now, and the other three passed.
+- Fixed by lightening `--destructive` in dark from 0.62 to 0.68, not by
+  darkening the tint: the tint already sits at 1.21:1 against the card,
+  and taking it to 1.07:1 would have left the badge invisible. 0.67 is
+  where it crosses; 0.68 is the step taken, because a token parked on
+  4.50 fails the next time a surface moves.
+- **Underlines now miss descenders.** `text-underline-position: from-font`
+  plus `text-decoration-skip-ink: auto`, declared once on the root
+  because both inherit and most of the 39 underlines in the product are
+  the Tailwind utility on a span or a button, not an `<a>`. The product
+  underlines handles, which are full of g and y.
+- `text-wrap: balance` on every heading, `text-pretty` on the card and
+  dialog description primitives. Headings get balance and descriptions
+  get pretty because browsers cap balance at a few lines, so it is the
+  wrong tool for the thing it would silently skip.
+- 18 three-dot ellipses replaced with the character, and every spaced
+  hyphen standing in for a dash replaced with a colon, across API error
+  messages, the blog page title and PROJECT_OVERVIEW.
+- **Considered and rejected: `-webkit-font-smoothing: antialiased`.** The
+  cheat sheet asks for it on the root. This product sets figures in
+  Söhne extralight and has a CI guard measuring text contrast, and
+  grayscale antialiasing makes thin type visually lighter without moving
+  a single measured ratio. The weight ladder in
+  `docs/DESIGN-LANGUAGE.md` was chosen against the current rendering, so
+  changing it is a design decision, not a fix.
+
 ### 2026-09-17 (forms and controls that a keyboard and a screen reader can use)
 
 Second pass from the interface-craft checklist, this one entirely

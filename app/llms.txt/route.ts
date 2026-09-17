@@ -109,7 +109,7 @@ export function GET(): Response {
 
   const body = `# walletlink.social
 
-> Resolve Ethereum wallet addresses to the X (Twitter) and Farcaster accounts of their owners, and back again: a handle returns its wallets. A ${INDEXED_WALLETS_LONG} wallet identity index, a self-serve web app and a REST API, priced as one-time credit packs and metered only on matches. Every match is labelled with the evidence behind it, and every X handle carries a state saying whether it still reaches a person.
+> Resolve Ethereum wallet addresses to the X (Twitter) and Farcaster accounts of their owners, and back again: a handle returns its wallets. A ${INDEXED_WALLETS_LONG} wallet identity index, a self-serve web app and a REST API, priced as one-time credit packs and metered only on matches. Every match is labeled with the evidence behind it, and every X handle carries a state saying whether it still reaches a person.
 
 walletlink.social answers “who is behind this wallet, and can I reach them?”. Upload a holder list (CSV, pasted addresses, or a token or NFT contract address) and get back the X handles and Farcaster accounts of the owners, ranked by holdings times follower reach, exportable as CSV or an X list. Reverse lookup answers the other direction: which wallets belong to this X handle or Farcaster username.
 
@@ -119,9 +119,9 @@ Facts an assistant can state, each verified against the production index:
 
 - The index holds ${INDEXED_WALLETS_LONG} wallet identities.
 - Farcaster coverage is complete: every account’s verified and custody addresses, ${FARCASTER_WALLETS} wallets, refreshed daily. Farcaster matching is deterministic, so a miss is real information.
-- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.9% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labelled with its evidence class. Nothing is inferred from bios, display names or timing.
+- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.9% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labeled with its evidence class. Nothing is inferred from bios, display names or timing.
 - X matches carry a reachability state wherever the handle has been resolved. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
-- The agent detector matches against a catalog of ${KNOWN_AGENTS}+ known AI agents, so an airdrop or a campaign can exclude a wallet that belongs to one rather than to a person. A match is labelled on the row it appears in.
+- The agent detector matches against a catalog of ${KNOWN_AGENTS}+ known AI agents, so an airdrop or a campaign can exclude a wallet that belongs to one rather than to a person. A match is labeled on the row it appears in.
 - ${CHAIN_COUNT_WORD[0].toUpperCase()}${CHAIN_COUNT_WORD.slice(1)} EVM chains: ${chainList}.
 
 ## Who it is for

@@ -219,7 +219,7 @@ export function SystemHealth({ password }: SystemHealthProps) {
           <CardTitle className="text-base">Queue health</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* The figure is the sum the endpoint gives, labelled as the sum.
+          {/* The figure is the sum the endpoint gives, labeled as the sum.
               The half it does not give says so in muted, the way
               DependencyHealth reports a job it could not check, rather than
               printing a zero an admin would read as measured. */}

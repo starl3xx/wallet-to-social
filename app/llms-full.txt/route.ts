@@ -45,7 +45,7 @@ export function GET(): Response {
 
 The complete text of every post on the walletlink.social blog, newest first, exactly as published. Each one is also served on its own at ${PRODUCTION_URL}/blog/{slug}.md.
 
-What the product is, what the index covers, what a match is, what it costs and how the API and the MCP server work are summarised at ${PRODUCTION_URL}/llms.txt. The product and API documentation is a separate corpus, in full, at https://docs.walletlink.social/llms-full.txt.`;
+What the product is, what the index covers, what a match is, what it costs and how the API and the MCP server work are summarized at ${PRODUCTION_URL}/llms.txt. The product and API documentation is a separate corpus, in full, at https://docs.walletlink.social/llms-full.txt.`;
 
   const documents = posts.map(
     (post) => `---

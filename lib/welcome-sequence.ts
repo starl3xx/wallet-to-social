@@ -33,7 +33,7 @@ import {
  * 2026-08-25: a caller with no credits now gets the wallet **count** and not
  * the addresses. The copy that sells that feature was written against the old
  * gate and was never reread, so welcome-4 offered a free reader two features
- * they cannot use and a button labelled "Run a free lookup" with nothing free
+ * they cannot use and a button labeled "Run a free lookup" with nothing free
  * behind it. Nobody shipped a lie; a gate moved and one email stayed still.
  *
  * The rule that follows from it: a sequence email may only describe what its
@@ -255,7 +255,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       paragraphs: [
         'Most wallet tools quote one match rate. We quote *yours*.',
         'The chain decides the number more than the collection does. Measured across 26 collections and 72,318 holders: Base runs 46.2%, Ethereum 16.6%. Typical tools publish rates in the low single digits. The full coverage breakdown is in our docs.',
-        'So before you plan a campaign, check the chain your holders live on. A Base token list resolves nearly half its wallets to an X or Farcaster account. An Ethereum list resolves fewer, and every one it resolves is labelled with the evidence behind it.',
+        'So before you plan a campaign, check the chain your holders live on. A Base token list resolves nearly half its wallets to an X or Farcaster account. An Ethereum list resolves fewer, and every one it resolves is labeled with the evidence behind it.',
       ],
       button: { label: 'Check your list', url: SITE },
       footnote:
@@ -282,7 +282,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
      * The count is the email, and the addresses are the ask.
      *
      * The old draft sold reverse lookup and the priority column to an account
-     * that could open neither, then labelled the button "Run a free lookup".
+     * that could open neither, then labeled the button "Run a free lookup".
      * The subject asked "does that handle already hold your token?", which is
      * an address question: the reader could not answer it, and the fourth
      * paragraph half-admitted as much.

@@ -25,8 +25,8 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
  *
  * ## Where the 23M comes from
  *
- * Their homepage carries two counters written 23M+, one labelled Matched
- * Wallet Owners and one labelled Social accounts. The figure quoted on this
+ * Their homepage carries two counters written 23M+, one labeled Matched
+ * Wallet Owners and one labeled Social accounts. The figure quoted on this
  * page is the matched-owners one, read from addressable.io on 7 September
  * 2026 and dated in the copy: a competitor claim is the fact on a comparison
  * page that goes stale with no commit and no diff.
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     // The pack price interpolates `lib/packs.ts`, which is the only place a
     // price of ours lives. Theirs carries the hedge the page carries: they
     // publish no price sheet, so $1,000/month is a user report and is
-    // labelled one here too, where the sentence travels furthest from its
+    // labeled one here too, where the sentence travels furthest from its
     // sourcing line.
     description: `Compare wallet-to-social lookup tools. Credit packs from $${PACKS.trial.priceCents / 100}, bought once, against a subscription users report near $1,000/month. Addressable publishes no price sheet.`,
     type: 'article',
@@ -553,7 +553,7 @@ export default function AddressableComparison() {
               addressable.io, read 7 September 2026, built with probabilistic
               &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of
               our X matches are links the wallet owner created themselves, and
-              every match is labelled with the evidence behind it.
+              every match is labeled with the evidence behind it.
             </p>
           </section>
 

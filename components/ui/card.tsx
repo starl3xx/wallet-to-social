@@ -100,7 +100,12 @@ function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="card-description"
-      className={cn('text-muted-foreground text-sm', className)}
+      // `text-pretty`, not `balance`: a description is two or three lines and
+      // the thing that spoils it is a one-word last line, which is what pretty
+      // fixes. `balance` would even out every line and is capped at a few
+      // lines anyway. The cap is why headings get one and descriptions the
+      // other, rather than both getting whichever was typed first.
+      className={cn('text-muted-foreground text-sm text-pretty', className)}
       {...props}
     />
   );

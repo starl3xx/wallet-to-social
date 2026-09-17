@@ -43,7 +43,7 @@ function parseStage(message?: string): string | null {
  * missing entirely, and `currentStageIndex` drives the completed/pending state
  * of every dot from this array, so a wrong order lights the wrong dots.
  *
- * The last stage was labelled with its vendor's name, which the UI never does.
+ * The last stage was labeled with its vendor's name, which the UI never does.
  * It is now named for what it does. ENS and Farcaster are protocols rather than
  * vendors, and both are sold as features under those names, so they keep them.
  *

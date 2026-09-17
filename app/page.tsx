@@ -970,7 +970,7 @@ export default function Home() {
       twitterFound: 0,
       farcasterFound: 0,
       status: 'processing',
-      message: 'Submitting job...',
+      message: 'Submitting job…',
     });
 
     try {
@@ -999,7 +999,7 @@ export default function Home() {
       setJobId(submitted.jobId);
       setProgress((prev) => ({
         ...prev,
-        message: 'Job queued - processing will start shortly...',
+        message: 'Job queued: processing will start shortly…',
       }));
     } catch (err) {
       console.error('Job submission error:', err);
@@ -1063,7 +1063,7 @@ export default function Home() {
         twitterFound: 0,
         farcasterFound: 0,
         status: 'processing',
-        message: 'Submitting job...',
+        message: 'Submitting job…',
       });
 
       try {
@@ -1090,7 +1090,7 @@ export default function Home() {
         setProgress((prev) => ({
           ...prev,
           total: submitted.walletCount,
-          message: 'Job queued - processing will start shortly...',
+          message: 'Job queued: processing will start shortly…',
         }));
       } catch (err) {
         console.error('Starter collection submission error:', err);
@@ -1679,7 +1679,7 @@ export default function Home() {
         twitterFound: 0,
         farcasterFound: 0,
         status: 'processing',
-        message: 'Submitting job...',
+        message: 'Submitting job…',
       });
 
       try {
@@ -1726,7 +1726,7 @@ export default function Home() {
         setJobId(newJobId);
         setProgress((prev) => ({
           ...prev,
-          message: 'Job queued - processing will start shortly...',
+          message: 'Job queued: processing will start shortly…',
         }));
       } catch (err) {
         console.error('Job submission error:', err);

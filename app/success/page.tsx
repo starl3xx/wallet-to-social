@@ -160,7 +160,7 @@ function SuccessContent() {
                 <CircleNotch className="h-10 w-10 animate-spin text-muted-foreground" />
               </div>
               <CardTitle className="text-xl tracking-[var(--tracking-title)]">
-                Verifying payment...
+                Verifying payment…
               </CardTitle>
             </>
           )}
@@ -203,7 +203,7 @@ function SuccessContent() {
         <CardContent className="space-y-4">
           {state === 'verifying' && (
             <p className="text-center text-muted-foreground">
-              Please wait while we confirm your payment...
+              Please wait while we confirm your payment…
             </p>
           )}
 

@@ -52,7 +52,7 @@ export const MATCH_SENTENCE =
  * (`ATTESTED_SOURCES`), which is where the machine-readable half lives.
  */
 export const ATTESTED_SENTENCE =
-  'An identity is attested when the wallet owner published the link themselves: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record. Anything else is correlated, and labelled so.';
+  'An identity is attested when the wallet owner published the link themselves: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record. Anything else is correlated, and labeled so.';
 
 /**
  * Absent is not false. Any new field follows it: omit what was not measured,

@@ -1096,7 +1096,7 @@ export async function getAcquisitionSources(
         SELECT *, row_number() OVER (ORDER BY sessions DESC, source) AS rn
         FROM grouped
       )
-      -- The long tail folds into one labelled remainder row instead of being
+      -- The long tail folds into one labeled remainder row instead of being
       -- silently dropped: column sums must always reconcile with the funnels
       -- above, and a cap nothing on the card names is a lie by omission.
       SELECT
@@ -1502,7 +1502,7 @@ export async function getUserCohorts(): Promise<
         lookupCount: sql<number>`COUNT(CASE WHEN event_type = 'lookup_completed' THEN 1 END)`,
         hasExport: sql<number>`MAX(CASE WHEN event_type = 'export_clicked' THEN 1 ELSE 0 END)`,
         hasPaid: sql<number>`MAX(CASE WHEN event_type = 'payment_completed' THEN 1 ELSE 0 END)`,
-        // The cohort below has always been *labelled* "hit limit" and has never
+        // The cohort below has always been *labeled* "hit limit" and has never
         // tested for one. `limit_hit` has been written since the free window
         // existed and read by nothing, so the fix was to ask the column that
         // was already there rather than to soften the label.
@@ -1554,7 +1554,7 @@ export async function getUserCohorts(): Promise<
      * Every average is summed, never asserted from the definition.
      *
      * Three of these rows used to state a constant in the average column, and
-     * the column is labelled "Avg lookups" so the table rendered each of them
+     * the column is labeled "Avg lookups" so the table rendered each of them
      * as a measurement. "Almost converted" is defined as `>= 3` and reported
      * exactly 3, which is a floor wearing a mean's label; "Hit the free wall"
      * reported 0 for accounts that by definition ran enough lookups to exhaust

@@ -190,7 +190,7 @@ time from `quota`.
 
 **Nothing is reserved.** The balance is checked, not held, so a call that
 resolves more than you have left is allowed to finish and the next one fails
-with no credits. That is the same behaviour the REST API and the app have.
+with no credits. That is the same behavior the REST API and the app have.
 
 **A retry is a second purchase.** The debit is keyed on the call, so a tool
 call resent by a retrying framework bills its matches again; the tools declare

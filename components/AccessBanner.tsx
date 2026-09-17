@@ -268,7 +268,7 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
         </Badge>
         {/* "Buy credits", matching the modal it opens and what is actually
             sold. "Upgrade" named a tier ladder that no longer exists, and a
-            control is labelled by function.
+            control is labeled by function.
 
             Below sm it is the icon control the Button already defines, with
             its name in aria-label and title. It collapsed to a "+" beside the

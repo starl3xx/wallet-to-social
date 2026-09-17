@@ -144,7 +144,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Sending...
+                      Sending…
                     </>
                   ) : (
                     <>
@@ -216,7 +216,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Sending...
+                      Sending…
                     </>
                   ) : cooldown > 0 ? (
                     `Resend in ${cooldown}s`

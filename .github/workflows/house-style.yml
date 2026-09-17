@@ -1,0 +1,50 @@
+name: house-style
+
+# Fails a PR that breaks the house style in text a person reads.
+#
+# CLAUDE.md has declared the house style since the repo had a CLAUDE.md, and
+# until this job nothing enforced any of it. The result was what an unenforced
+# rule always becomes: it held while whoever was writing remembered it. The
+# product ended up spelling its own signature phrase two ways, shipping fifteen
+# three-dot ellipses in loading copy, and putting a hyphen where a colon
+# belonged in the message every job shows on submit.
+#
+# Scope is the whole design of this check, and it is documented at length in
+# the script. It reads JSX text, prose-shaped string literals, and Markdown
+# outside code fences. It does NOT read code comments, identifiers or data
+# values: `'cancelled'` is a persisted job status, `aria-labelledby` is an
+# attribute, `optimism` is a chain. A guard that cannot tell prose from code
+# teaches people to ignore its output, and this repo has already had three
+# guards report clean over live violations.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'docs-site/**'
+      - 'content/social/**'
+      - 'README.md'
+      - 'PROJECT_OVERVIEW.md'
+      - 'scripts/check-house-style.mjs'
+      - '.github/workflows/house-style.yml'
+
+jobs:
+  house-style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Fixtures run first inside the script, as every guard here does, and they
+      # cover the extractor as hard as the rules. The extractor is the part that
+      # decides what gets read at all, so a bug there reports a clean codebase:
+      # the first draft of this one let the `>` of an arrow function open a text
+      # span, which made `[...prev, ...next]` look like copy containing an
+      # ellipsis.
+      - name: House style holds in UI copy and docs
+        run: node scripts/check-house-style.mjs
