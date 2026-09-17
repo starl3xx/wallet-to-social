@@ -4,6 +4,7 @@ import {
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
   CREDIT_LIFETIME_MONTHS,
+  savingsVsSmallestPack,
 } from '@/lib/packs';
 import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 
@@ -80,6 +81,15 @@ export function PackPricing() {
             <p className="text-muted-foreground">
               {PACKS[id].matches.toLocaleString()} matches, once
             </p>
+            {/* The per-match ladder. Same reason as the modal: the cards gave
+                a price and a count and left the division to the reader, so a
+                43% discount read as a bigger bill. Derived from PACKS, and
+                silent on the baseline pack where the honest answer is none. */}
+            {savingsVsSmallestPack(id) > 0 && (
+              <p className="text-sm font-semibold text-attested">
+                {savingsVsSmallestPack(id)}% cheaper per match
+              </p>
+            )}
           </div>
         ))}
       </div>
