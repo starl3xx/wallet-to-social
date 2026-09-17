@@ -9,6 +9,7 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
+import { NoMatchesFound } from '@/components/NoMatchesFound';
 import { LookupHistory } from '@/components/LookupHistory';
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import {
@@ -2153,7 +2154,12 @@ export default function Home() {
                   file: a signed-in account with no history saw an empty page
                   and had to go and find data before it could find out what
                   this does. */}
-            <StarterCollections onRun={runStarterCollection} />
+            {/* Named, so the zero-match panel can send somebody here. Same
+                plumbing as `#my-lookups`: `scroll-mt-24` keeps the heading
+                clear of the sticky header. */}
+            <div id="starter-collections" className="scroll-mt-24">
+              <StarterCollections onRun={runStarterCollection} />
+            </div>
 
             {/* The other direction. Featured on the front page rather than
                   buried, because it is the differentiator and it was previously
@@ -2806,6 +2812,15 @@ export default function Home() {
                 announcement at all. */}
             {lockedMatches > 0 && unlockError && (
               <InlineError>{unlockError}</InlineError>
+            )}
+            {/* A lookup that matched nothing explains itself, above the
+                figures rather than below them: the hero says "0 found of 500
+                wallets" and a reader who gets no further than that has been
+                told only that the product did not work. `found`, not
+                `reachable`, so a gated lookup that DID match never sees this;
+                it sees the unlock banner instead. */}
+            {resultCounts.found === 0 && results.length > 0 && (
+              <NoMatchesFound total={results.length} />
             )}
             <StatsCards results={results} />
             <ResultsTable

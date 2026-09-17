@@ -954,6 +954,58 @@ export const ResultsTable = memo(function ResultsTable({
 
   const isEmpty = filteredAndSorted.length === 0;
 
+  /**
+   * Which filters are narrowing the view, so the empty state can name them.
+   *
+   * It said "No results found" and nothing else, which is true and useless:
+   * the reader cannot tell a list with no matches apart from a list where
+   * they left "attested only" switched on three scrolls ago. Those need
+   * opposite responses, and only one of them is fixable from that screen.
+   *
+   * Built as labelled entries rather than a boolean so the message can say
+   * the filter's own name and a single control can drop all of them.
+   */
+  const activeFilters = useMemo(() => {
+    const on: { label: string; clear: () => void }[] = [];
+    if (showOnlyAttested)
+      on.push({
+        label: 'Attested only',
+        clear: () => setShowOnlyAttested(false),
+      });
+    if (showOnlyTwitter)
+      on.push({
+        label: 'Has X handle',
+        clear: () => setShowOnlyTwitter(false),
+      });
+    if (showTopInfluencers)
+      on.push({
+        label: 'Top influencers',
+        clear: () => setShowTopInfluencers(false),
+      });
+    if (showOnlyAgents)
+      on.push({ label: 'AI agents', clear: () => setShowOnlyAgents(false) });
+    if (debouncedSearch)
+      on.push({
+        label: `Search “${debouncedSearch}”`,
+        clear: () => setSearch(''),
+      });
+    return on;
+  }, [
+    showOnlyAttested,
+    showOnlyTwitter,
+    showTopInfluencers,
+    showOnlyAgents,
+    debouncedSearch,
+  ]);
+
+  const clearAllFilters = useCallback(() => {
+    setShowOnlyAttested(false);
+    setShowOnlyTwitter(false);
+    setShowTopInfluencers(false);
+    setShowOnlyAgents(false);
+    setSearch('');
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Filters. Each toggle keeps one label, named for what it does, and
@@ -1186,9 +1238,46 @@ export const ResultsTable = memo(function ResultsTable({
               <div
                 role="cell"
                 aria-colspan={columnCount}
-                className="py-8 text-center text-muted-foreground"
+                className="px-4 py-10 text-center"
               >
-                No results found
+                {/**
+                 * Two different situations wore one sentence.
+                 *
+                 * "No results found" is what this said whether the lookup
+                 * returned nothing at all or the reader had left a filter on
+                 * three scrolls earlier. Those want opposite responses: one is
+                 * a fact about the list and the other is one click from being
+                 * undone, and the screen that could say which said neither.
+                 */}
+                {activeFilters.length > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold">
+                      No rows match these filters.
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {results.length.toLocaleString()}{' '}
+                      {results.length === 1 ? 'wallet is' : 'wallets are'} in
+                      this lookup.{' '}
+                      {activeFilters.map((f) => f.label).join(', ')}{' '}
+                      {activeFilters.length === 1 ? 'is' : 'are'} narrowing it.
+                    </p>
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      className="mt-3"
+                      onClick={clearAllFilters}
+                    >
+                      Clear{' '}
+                      {activeFilters.length === 1
+                        ? 'the filter'
+                        : `all ${activeFilters.length} filters`}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No rows to show.
+                  </p>
+                )}
               </div>
             </div>
           ) : (
