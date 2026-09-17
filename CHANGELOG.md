@@ -14,8 +14,11 @@ All notable changes to walletlink.social. Newest first.
   in it. Whether that statement committed is unknown rather than no, because
   the HTTP driver autocommits one statement per request and a client-side
   timeout is not a rollback. The cause is structural, so 2026-10-02 fails
-  the same way. The seen table was stranded by the same throw and is still
-  there: `farcaster_sweep_seen_1788345941996`, 127 MB, fifteen days on.
+  the same way. The seen table outlived the run by the same throw and is
+  still there: `farcaster_sweep_seen_1788345941996`, 127 MB, fifteen days on.
+  It must be kept rather than tidied away. Cleanup clears rows by wallet not
+  in that table, so it is the only surviving record of what slice 3 saw and
+  the input any corrective pass needs.
   Recorded in the posture table with the run id; the fix (pooled connection,
   or bounded chunks) is not in this change. Worth knowing for whoever takes
   it: `USE_CONNECTION_POOLING` is set in no workflow and no `vercel.json`
