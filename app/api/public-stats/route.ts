@@ -6,7 +6,7 @@ import {
   INDEXED_WALLETS,
   FARCASTER_WALLETS,
   WALLETS_WITH_X,
-  KNOWN_AGENTS,
+  AGENT_WALLETS_FLAGGED,
 } from '@/lib/public-figures';
 
 export const runtime = 'nodejs';
@@ -47,7 +47,9 @@ export async function GET() {
       total_wallets: figure(INDEXED_WALLETS),
       farcaster: figure(FARCASTER_WALLETS),
       twitter: figure(WALLETS_WITH_X),
-      agents: figure(KNOWN_AGENTS),
+      // The same fact the live branch below returns (social_graph.is_agent),
+      // not the detector's catalog. These disagreed 56-fold under one key.
+      agents: figure(AGENT_WALLETS_FLAGGED),
     });
   }
 

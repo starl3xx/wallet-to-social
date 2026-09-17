@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-16 (two agent facts, and a sentence that survives extraction)
+
+- `KNOWN_AGENTS` (13,622) is the DETECTOR'S CATALOG, harvested from
+  Virtuals and friends. `AGENT_WALLETS_FLAGGED` (242) is how many wallets
+  in our own index carry the flag. Both true, 56-fold apart, answering
+  different questions, and until now wearing one label.
+- `/llms.txt` published "13,622+ wallets are flagged as belonging to AI
+  agents", which is the catalog wearing the other one's label, on the file
+  answer engines read. It now says the detector matches against a catalog
+  of that size. The homepage tile reads "known AI agents" for the same
+  reason.
+- `/api/public-stats` returned 242 or 13,622 under ONE key depending on
+  which branch ran: the live branch counted `social_graph.is_agent` and
+  the preview fallback returned the catalog. The fallback now returns the
+  same fact its live branch does.
+- The homepage lede extracted as "Turn a wallet list into the and
+  Farcaster accounts behind it." An `aria-label` on an SVG is announced by
+  a screen reader and invisible to a text extractor, so the most quoted
+  sentence on the domain lost its subject. An sr-only text node is clipped
+  rather than removed, so it lands in `textContent`; the label prop is
+  dropped so the name is not announced twice. Verified by extracting the
+  rendered page, not by reading the diff.
+- Three invariants: llms.txt cannot describe the catalog as flagged
+  wallets, public-stats cannot fall back to a different fact than it
+  serves, and the hero must name X in text.
+
 ### 2026-09-16 (the anonymous rail is metered)
 
 Signing in made the product roughly a thousand times worse, and that,

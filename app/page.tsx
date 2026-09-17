@@ -1704,9 +1704,20 @@ export default function Home() {
         </h1>
         <div className="mt-3 flex flex-col gap-6 lg:-mt-2 lg:flex-row lg:items-baseline-last lg:justify-between lg:gap-12">
           <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-            Turn a wallet list into the{' '}
-            <XMark className="inline h-4 w-4 align-[-0.125em]" label="X" /> and
-            Farcaster accounts behind it.
+            {/* The word AND the glyph. `aria-label` on an SVG is announced by
+                a screen reader and invisible to a text extractor, so the most
+                quoted sentence on the domain came out of Readability as "Turn a
+                wallet list into the and Farcaster accounts behind it." An
+                sr-only text node is clipped rather than removed, so it lands in
+                textContent and the sentence survives extraction. The label prop
+                is dropped so the mark goes aria-hidden and the name is not
+                announced twice. */}
+            Turn a wallet list into the <span className="sr-only">X</span>
+            <XMark
+              className="inline h-4 w-4 align-[-0.125em]"
+              aria-hidden
+            />{' '}
+            and Farcaster accounts behind it.
           </p>
           {/* The proof row, the same three figures the /vs pages set as
             Figure. They were 12px spans on one line with middots between
@@ -1793,7 +1804,7 @@ export default function Home() {
               label="wallets indexed"
             />
             <Figure value="100%" label="Farcaster coverage" attested />
-            <Figure value={KNOWN_AGENTS_SHORT} label="AI agents flagged" />
+            <Figure value={KNOWN_AGENTS_SHORT} label="known AI agents" />
           </dl>
         </div>
       </div>
