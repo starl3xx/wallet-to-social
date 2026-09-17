@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (a free lookup at the exact-match URL)
+
+The audit's sharpest finding was that
+`/blog/find-twitter-account-from-wallet` does not rank for its own
+near-verbatim title, while page one of that query is an Apify listing
+with 8 monthly users and a row of 2021 Twitter-tip-jar news. That is a
+vacuum, not a fortress.
+
+- `/find-twitter-account-from-wallet-address`: one input, one button, a
+  clickable example, and the answer rendered in place. The shape is
+  copied from five ranking free-tool pages, not invented: all five do
+  exactly that, none pre-fills the field, and all put the long-tail
+  phrase in the title tag while the H1 stays a short tool name.
+- **The 301 was dropped.** The plan was to redirect the blog post into
+  this page, and the reasoning refuted itself: the post does not rank, so
+  there is no equity to consolidate, and the redirect would only delete a
+  page. That post is also the site's only published statement of the
+  identity rate and the reach rate, declared in five places in the
+  figures checker. Both pages stay, cross-linked.
+- `POST /api/wallet-socials`, keyless. POST rather than GET because an
+  address in a query string lands in access logs, in the `Referer` of
+  every outbound link on the result view, and in any CDN cache key.
+- Two meters. An hourly bound of 20 on probing, misses included, because
+  a miss still tells a prober the address is absent. And the same daily
+  match budget the anonymous job rail spends, so a second door does not
+  double the anonymous exposure.
+- `FREE_LOOKUP_FLOOR_PER_DAY` is ADDED to that cap, not maxed against it.
+  `Math.max(50, 5)` is 50, which is no floor at all: the page would have
+  read zero the moment the list demo drained the day.
+- It withholds what a pack is sold on. No follower count and no priority
+  score, because `job-processor` strips both from every job without
+  `paidData`, and a keyless route handing a stranger a field the free
+  tier does not get is an inconsistency a customer would find first.
+- A posted array was a 500 rather than a 400, because `.trim()` ran on
+  whatever arrived. Found by testing the malformed cases, not by reading.
+- The miss state is designed rather than an error. Most wallets published
+  nothing, so the miss is the common case and the real conversion moment.
+- Four reachability states, not three. `reassigned` is the harm case and
+  it is the one summaries drop.
+
 ### 2026-09-17 (production had not deployed for eight days)
 
 Every production build failed from 2026-09-09 to 2026-09-17 and nothing

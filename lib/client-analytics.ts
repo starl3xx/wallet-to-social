@@ -92,6 +92,17 @@ export const Analytics = {
     }),
 
   /**
+   * The free single-wallet lookup on the tool page.
+   *
+   * `found` separates a visitor who saw the product work from one who met an
+   * empty answer, and those are different outcomes that a page-view count
+   * cannot tell apart. The address itself is never sent: the event says what
+   * happened, not who was asked about.
+   */
+  walletPreviewLookup: (found: boolean) =>
+    trackClientEvent('wallet_preview_lookup', { found }),
+
+  /**
    * A reverse lookup, and whether it was answered or gated.
    *
    * `/api/reverse` wrote no analytics at all, which made the primary action on
