@@ -346,6 +346,14 @@ fixture-first) to refuse drift the way figures drift is refused today.
     principle 8 blocker is in build: removal stage 1 (the suppression list
     and triggers, the pre-flight filter, the quarantine and the operator
     endpoint) is in review, and 16 can start once it ships.
+    **_Unblocked (2026-09-02, #237):_ stage 1 shipped, so 16 can start. It
+    had not, as of 2026-09-17, and this entry still read “in review” for
+    those fifteen days. One thing to build in that is easy to miss: the X
+    reachability cron's status flips never touch
+    `social_graph.last_updated_at` (see `lib/x-accounts.ts` and the
+    `docs/OPERATIONS.md` row), so a watermark over `last_updated_at` alone
+    will silently omit every reachability change. 16 has to read those
+    transitions explicitly.**
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
     `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
@@ -459,11 +467,14 @@ Phase 3 (capability): tier C in the order 15 → 16 → 17, then 18 and 19.
 Phase 3 starts with 15, and 20 is closed by it: jobs run the live pipeline,
 so no separate deep-scan tier ships. 15, 17, 18 and 19 shipped on
 2026-09-01, their records inline above, so 16 is the phase’s remaining item.
-It waits on the removal system (the right-to-removal suppression design,
-principle 8) by constraint, not by preference: a watch surface must honour a
-removal from its first day, so 16 does not start until that system exists.
-Stage 1 of that system entered review on 2026-09-02; the decided policy is
-recorded under principle 8.
+It waited on the removal system (the right-to-removal suppression design,
+principle 8) by constraint, not by preference: a watch surface must honor a
+removal from its first day, so 16 could not start until that system existed.
+**Stage 1 of that system shipped on 2026-09-02 as #237, so the constraint is
+satisfied and 16 is startable.** The decided policy is recorded under
+principle 8, and stage 2 (verified self-serve intake) is not a blocker: it is
+deliberately unbuilt, and stage 1's operator-executed lane is the thing a
+watch surface has to honor.
 
 The tier C decisions were taken on 2026-09-01 and are recorded inline above,
 marked _Decided (2026-09-01):_. Nothing in phase 1 or 2 touches pricing or

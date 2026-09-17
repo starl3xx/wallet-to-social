@@ -14,19 +14,49 @@
  *
  * ## What it reads
  *
- * - Every `ingest_state` row whose name starts with `posture:`. None exist
- *   yet; the prefix is reserved so a pipeline can publish its own posture row
- *   without this script needing a new case for it.
+ * **Every `ingest_state` row.** Not a list of names. It used to select
+ * `posture:%` plus three literal names, and on 2026-09-17 that list had gone
+ * three rows out of date: `basename_record_harvest`, `zora_profile_explore`
+ * and `daily_cast_state` all carried posture the table in
+ * `docs/OPERATIONS.md` describes, and this script could not see any of them.
+ * A fresh session told to run this for live values got a clean report over
+ * three unchecked cursors, which is worse than no report. A hand-maintained
+ * allowlist in a staleness tool goes stale; the table has twelve rows, so
+ * printing all of them costs nothing and a new pipeline's row now appears
+ * here the day it first writes.
+ *
+ * Rows with a known shape get a sentence; anything else prints its JSON, so
+ * an unrecognized row is visible rather than omitted. Two are worth knowing:
+ *
  * - `neynar_credit_usage`: the self-tracked credit floor. Its `updated_at` is
- *   printed first because the counter is only as trustworthy as its last
- *   write: it once sat still while real credits were spent (the
+ *   the thing to read first, because the counter is only as trustworthy as
+ *   its last write: it once sat still while real credits were spent (the
  *   `lib/neynar-budget.ts` header records the incident), so a stale
  *   timestamp means the VALUE is the thing not to trust
  *   (docs/OPERATIONS.md, the Neynar row).
  * - `farcaster_sweep_resume`, when present: where a budget-stopped full sweep
  *   picks up. The row holds JSON null once a sweep completes (cleared by
  *   upsert, never DELETE, because the CI role has no DELETE), and that reads
- *   here as "cleared", which is the healthy end state.
+ *   here as "cleared", which is the healthy end state. **A slice never writes
+ *   it**, so under `--slice` neither its age nor its cleared state says
+ *   anything about whether the monthly run worked. Read the workflow's run
+ *   conclusion for that.
+ *
+ * ## Ages come from the database, never from parsing the timestamp here
+ *
+ * `ingest_state.updated_at` is `timestamp` with no time zone
+ * (`scripts/migrate-ingest-state.ts`), written as `now()` under a UTC
+ * session. `new Date('2026-09-17 10:00:00')` parses a zone-less string as
+ * LOCAL time, so `Date.now() - new Date(updated_at)` under-reported every age
+ * on this table by exactly the operator's UTC offset: five hours on a
+ * UTC-5 machine, which printed a row written one hour ago as `-4h ago`. The
+ * error runs in the dangerous direction for a staleness tool, making a cron
+ * that died yesterday read as still inside tolerance, and it grows with the
+ * offset while never showing up for an operator sitting at UTC.
+ *
+ * So the age is computed by `now() - updated_at` in SQL, in the database's own
+ * frame, and arrives here as a number of seconds. Nothing in this file parses
+ * `updated_at`. `scripts/check-invariants.ts` asserts that.
  *
  * ## READ-ONLY, load-bearing
  *
@@ -40,18 +70,26 @@ import { neon } from '@neondatabase/serverless';
 interface StateRow {
   name: string;
   value: unknown;
-  updated_at: string;
+  /** Seconds since the row was written, computed by the database. */
+  age_seconds: number | string;
 }
 
-function age(updatedAt: string): string {
-  const ms = Date.now() - new Date(updatedAt).getTime();
-  if (!Number.isFinite(ms)) return 'unknown age';
-  const days = Math.floor(ms / 86_400_000);
+/**
+ * Render a database-computed age. Takes seconds, never a timestamp: see
+ * "Ages come from the database" above for what parsing one here cost.
+ */
+function age(ageSeconds: number | string): string {
+  const seconds = Number(ageSeconds);
+  if (!Number.isFinite(seconds)) return 'unknown age';
+  const days = Math.floor(seconds / 86_400);
   if (days > 0) return `${days}d ago`;
-  const hours = Math.floor(ms / 3_600_000);
+  const hours = Math.floor(seconds / 3_600);
   if (hours > 0) return `${hours}h ago`;
-  return `${Math.max(0, Math.floor(ms / 60_000))}m ago`;
+  return `${Math.max(0, Math.floor(seconds / 60))}m ago`;
 }
+
+/** How much raw JSON an unrecognized row may print before it is truncated. */
+const MAX_RAW_VALUE_CHARS = 120;
 
 /** One line per row: what it says, when it last moved. */
 function describe(row: StateRow): string {
@@ -63,8 +101,28 @@ function describe(row: StateRow): string {
   if (row.name === 'v1_stats_coverage') {
     // The row OPERATIONS.md flags as heartbeat-less: its cron's silent death
     // shows up only as this age, so this is the place the age must show.
-    const o = (v ?? {}) as { as_of?: string };
-    return `coverage counts as of ${o.as_of ?? '?'} (stale past ~2 days means the refresh cron died)`;
+    //
+    // The as-of moment is this row's `updated_at`, which the age column
+    // already carries. It is NOT a key inside the value: `CoverageStats`
+    // (lib/coverage-stats.ts) has no `as_of` field, and reading one here
+    // printed a literal "?" in the one sentence written for the one pipeline
+    // with no heartbeat.
+    const o = (v ?? {}) as { total_wallets?: number };
+    const wallets = o.total_wallets
+      ? `${Number(o.total_wallets).toLocaleString()} wallets, `
+      : '';
+    return `${wallets}counts as of the age at left (stale past ~2 days means the refresh cron died)`;
+  }
+  if (row.name === 'basename_record_harvest') {
+    const o = (v ?? {}) as { lastBlock?: number };
+    return `Base checkpoint at block ${o.lastBlock?.toLocaleString() ?? '?'} (daily incremental; the checkpoint trails the head by a reorg buffer)`;
+  }
+  if (row.name === 'daily_cast_state') {
+    const o = (v ?? {}) as { last?: string; slug?: string };
+    return `last cast ${o.last ?? '?'}, slug ${o.slug ?? '?'}`;
+  }
+  if (row.name === 'zora_profile_explore') {
+    return `creator-profile cursor set (weekly workflow, Sundays 07:30 UTC, so a multi-day age is normal here)`;
   }
   if (row.name === 'farcaster_sweep_resume') {
     if (v === null) return 'cleared (no resume pending)';
@@ -75,7 +133,20 @@ function describe(row: StateRow): string {
     };
     return `resume at FID ${o.nextFid?.toLocaleString() ?? '?'} of ${o.endFid?.toLocaleString() ?? '?'}, ${o.segments ?? '?'} segment(s) run`;
   }
-  return JSON.stringify(v);
+  if (row.name === 'holder_index_usage') {
+    const o = (v ?? {}) as { events?: unknown[] };
+    const events = Array.isArray(o.events) ? o.events : [];
+    return `${events.length.toLocaleString()} usage event(s) in the rolling window`;
+  }
+  // Unrecognized rows print their JSON so a new pipeline is visible here
+  // before anyone writes a case for it, but bounded: this reader prints every
+  // row now, and one row holding a rolling event list is enough to bury the
+  // other eleven in a terminal.
+  const json = JSON.stringify(v);
+  if (json === undefined) return 'no value';
+  return json.length > MAX_RAW_VALUE_CHARS
+    ? `${json.slice(0, MAX_RAW_VALUE_CHARS)}… (${json.length.toLocaleString()} chars; no case written for this row yet)`
+    : json;
 }
 
 async function main() {
@@ -86,10 +157,10 @@ async function main() {
   const sql = neon(process.env.DATABASE_URL);
 
   const rows = (await sql`
-    SELECT name, value, updated_at
+    SELECT name,
+           value,
+           EXTRACT(EPOCH FROM (now() - updated_at)) AS age_seconds
     FROM ingest_state
-    WHERE name LIKE 'posture:%'
-       OR name IN ('neynar_credit_usage', 'farcaster_sweep_resume', 'v1_stats_coverage')
     ORDER BY name
   `) as unknown as StateRow[];
 
@@ -98,7 +169,7 @@ async function main() {
   const width = Math.max(24, ...rows.map((r) => r.name.length));
   for (const row of rows) {
     console.log(
-      `  ${row.name.padEnd(width)}  ${age(row.updated_at).padEnd(8)}  ${describe(row)}`
+      `  ${row.name.padEnd(width)}  ${age(row.age_seconds).padEnd(8)}  ${describe(row)}`
     );
   }
 
