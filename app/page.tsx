@@ -331,6 +331,47 @@ export default function Home() {
 
   const handleExported = useCallback(() => setExportedThisRun(true), []);
 
+  /**
+   * The gated job, kept separately from `currentJobId`.
+   *
+   * `currentJobId` is cleared the moment a job completes, which is correct: it
+   * means "a job is in flight". But completion is exactly when a gated result
+   * appears, and the buy button then LEAVES the page
+   * (`window.location.href = data.url`). So an anonymous visitor who met the
+   * match gate, clicked buy, and either paid or cancelled came back to a
+   * homepage with no memory of the lookup at all. History cannot recover it
+   * either: that route requires a session, and checkout takes no account.
+   *
+   * Cancelling is the larger share of this: Stripe's `cancel_url` is the bare
+   * domain, so every abandoned checkout also lost the result.
+   *
+   * Only the anonymous rail needs it. A signed-in buyer already gets back
+   * through /#my-lookups and the gate stored on the saved lookup.
+   */
+  const GATED_KEY = 'gatedJobId';
+  const GATED_AT_KEY = 'gatedJobSavedAt';
+  /** Job payloads are purged at 30 days while the row survives. */
+  const GATED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+  const rememberGatedJob = (id: string) => {
+    try {
+      localStorage.setItem(GATED_KEY, id);
+      localStorage.setItem(GATED_AT_KEY, String(Date.now()));
+    } catch {
+      // Storage can throw outright where site data is blocked. A lost
+      // recovery hint must never break a completed lookup.
+    }
+  };
+
+  const forgetGatedJob = () => {
+    try {
+      localStorage.removeItem(GATED_KEY);
+      localStorage.removeItem(GATED_AT_KEY);
+    } catch {
+      // Same reasoning as above.
+    }
+  };
+
   // Persist jobId to localStorage so it survives page refresh
   const setJobId = (id: string | null) => {
     setJobIdState(id);
@@ -423,7 +464,57 @@ export default function Home() {
           // Job not found - clear
           localStorage.removeItem('currentJobId');
         });
+      return;
     }
+
+    /**
+     * No job in flight, so look for a gated one to bring back.
+     *
+     * This is the anonymous buyer returning from Stripe, paid or cancelled.
+     * Guarded hard, because the failure mode of getting it wrong is painting a
+     * months-old lookup over the upload form somebody came here to use:
+     *
+     * - only a completed job that still HAS rows. Payloads are purged at 30
+     *   days while the row survives, so a bare completed row would otherwise
+     *   render an empty results screen.
+     * - only a job with something still locked. Once it is unlocked there is
+     *   nothing to come back for.
+     * - only inside the payload retention window.
+     *
+     * Anything else forgets the key rather than half-restoring.
+     */
+    let gatedId: string | null = null;
+    let savedAt = 0;
+    try {
+      gatedId = localStorage.getItem(GATED_KEY);
+      savedAt = Number(localStorage.getItem(GATED_AT_KEY) ?? 0);
+    } catch {
+      gatedId = null;
+    }
+    if (!gatedId) return;
+    if (!savedAt || Date.now() - savedAt > GATED_MAX_AGE_MS) {
+      forgetGatedJob();
+      return;
+    }
+
+    fetch(`/api/jobs/${gatedId}?userId=${encodeURIComponent(getUserId())}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (
+          !data ||
+          data.status !== 'completed' ||
+          !data.results?.length ||
+          (data.lockedMatches ?? 0) <= 0
+        ) {
+          forgetGatedJob();
+          return;
+        }
+        setResults(data.results);
+        setUnlockJobId(gatedId);
+        setCacheHits(data.stats?.cacheHits || 0);
+        setState('complete');
+      })
+      .catch(() => forgetGatedJob());
   }, []);
 
   // The buy-credits modal is owned by the layout (see UpgradeModalProvider),
@@ -498,6 +589,9 @@ export default function Home() {
         const payload = await refreshed.json();
         setResults(payload.results || []);
       }
+      // The gate is open, so the recovery hint has done its job. Left behind,
+      // it would restore this same lookup over whatever the user does next.
+      forgetGatedJob();
     } catch {
       setUnlockError('Unlock failed. Retry shortly.');
     } finally {
@@ -1096,6 +1190,9 @@ export default function Home() {
           }
 
           setUnlockJobId(jobId);
+          // Remembered BEFORE currentJobId is cleared, and only when something
+          // is actually locked: an ungated result needs no recovery path.
+          if ((data.lockedMatches ?? 0) > 0) rememberGatedJob(jobId);
           setJobId(null); // Clear localStorage
 
           // Check if we need to merge with an existing lookup
@@ -1349,6 +1446,9 @@ export default function Home() {
       clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
+    // Starting over means starting over. A surviving hint would reinstate the
+    // old gated lookup on the next visit, over the work being started here.
+    forgetGatedJob();
     setJobId(null);
     setStartTime(null);
     setWallets([]);
@@ -1387,6 +1487,9 @@ export default function Home() {
       enrichedWalletsArray?: string[],
       gatedJobId?: string | null
     ) => {
+      // Opening a saved lookup supersedes any remembered gated one, which is
+      // otherwise restored on the next mount and paints over this.
+      forgetGatedJob();
       // Show results immediately
       setResults(loadedResults);
       // A gated saved lookup carries the job its unlock is keyed on.

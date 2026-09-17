@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (an anonymous buyer can get back to what they paid for)
+
+The match gate is the product's designed purchase moment, and until now
+converting at it lost the thing you converted for.
+
+- `currentJobId` is cleared the instant a job completes, which is right:
+  it means "a job is in flight". But completion is exactly when a gated
+  result appears, and the buy button then LEAVES the page. So an
+  anonymous visitor who met the gate and either paid or cancelled came
+  back to a homepage with no memory of the lookup at all. History could
+  not recover it either: that route needs a session, and checkout takes
+  no account.
+- Cancelling is the larger share of it. Stripe's `cancel_url` is the bare
+  domain, so every abandoned checkout lost the result too.
+- A separate `gatedJobId` is remembered at completion, and only when
+  something is actually locked, then restored at mount after the
+  in-flight job finds nothing.
+- The restore is guarded hard, because getting it wrong paints a
+  months-old lookup over the upload form somebody came here to use: it
+  requires a completed job that still HAS rows, still has locked matches,
+  and was saved inside the 30-day payload retention window. Anything else
+  forgets the key rather than half-restoring.
+- Forgotten on every path that moves on: after a successful unlock, on
+  reset, and when a lookup is opened from history, so a restored job can
+  never fight one the user just chose.
+- Only the anonymous rail needs it; a signed-in buyer already returns
+  through `/#my-lookups`.
+- Verified against a real completed job: 25 results, nothing gated, and
+  the guard correctly forgets the key rather than restoring.
+
 ### 2026-09-17 (the ask, where the decision is made)
 
 Two findings from the conversion craft audit, both at the moment a buyer
