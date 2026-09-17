@@ -7690,11 +7690,32 @@ async function main() {
      * another pipeline refreshed after the sweep began. The scheduled runner
      * is UTC, so the happy path is silent about this forever.
      */
+    /**
+     * And its cutoff goes through the shared UTC helper, WITH the cast.
+     *
+     * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
+     * bound JS `Date` sends its LOCAL wall-clock reading and moves the cutoff
+     * by the operator's offset. East of UTC that moves it later and clears
+     * rows another pipeline refreshed after the sweep began. The scheduled
+     * runner is UTC, so the happy path is silent about this forever.
+     *
+     * `lib/analytics.ts` had already found and measured this on 2026-08-26.
+     * The first version of this fix reinvented the helper locally and dropped
+     * the `::timestamp` cast that its docblock calls load-bearing: without it
+     * the parameter arrives untyped and the coercion depends on context. Both
+     * call sites in cleanup are asserted, since the count that feeds the
+     * ceiling and the UPDATE it guards must share one cutoff. A ceiling
+     * computed over a different window than the write it authorizes is worse
+     * than no ceiling.
+     */
+    const boundCallSites = sweepSource.match(
+      /last_updated_at < \$\{utcBound\(sweepStartedAt\)\}::timestamp/g
+    );
     ok(
-      'and it compares last_updated_at through the explicit UTC wall-clock helper',
-      /last_updated_at < \$\{utcWallClock\(sweepStartedAt\)\}/.test(
-        sweepSource
-      ) && /function utcWallClock/.test(sweep)
+      'both cleanup cutoffs go through the shared UTC helper, with the cast',
+      boundCallSites?.length === 2 &&
+        !/function utcWallClock/.test(sweepSource) &&
+        /import \{ utcBound \} from '\.\/analytics'/.test(sweepSource)
     );
 
     /**

@@ -34,7 +34,14 @@ All notable changes to walletlink.social. Newest first.
   what makes it worth naming: west of UTC it under-clears, and east of UTC it
   moves the cutoff later and clears rows another pipeline legitimately
   refreshed after the sweep began. Now bound through an explicit UTC
-  wall-clock helper, and asserted.
+  wall-clock helper, and asserted. The first version of that fix wrote a local
+  helper and dropped the `::timestamp` cast; Bugbot caught both. `utcBound` in
+  `lib/analytics.ts` had already found, measured and solved this on 2026-08-26,
+  and its docblock says the cast is load-bearing rather than decoration,
+  because without it the parameter arrives untyped and the coercion depends on
+  context. The cutoff now goes through that helper, with the cast, at both the
+  ceiling count and the UPDATE it guards: a ceiling computed over a different
+  window than the write it authorizes would be worse than no ceiling.
 - **An outcome ceiling ships in the same change as the speed-up, deliberately.**
   Making the statement finish is what turns its latent failure modes live, and
   it had never once finished: the only `--slice` run died in it, and every run

@@ -27,6 +27,20 @@ import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { checkBackgroundBudget, recordSpend } from './neynar-budget';
+/**
+ * The window-bound helper, reused rather than reinvented.
+ *
+ * `social_graph.last_updated_at` is `timestamp` with no time zone holding UTC,
+ * and binding a JS `Date` against such a column sends its LOCAL wall-clock
+ * reading instead: measured here by planning the real cleanup statement from a
+ * UTC-5 machine, where `2026-09-02T10:44:50Z` arrived as
+ * `2026-09-02 05:44:50`. `lib/analytics.ts` had already found, measured and
+ * solved exactly this on 2026-08-26, so the cutoff below goes through its
+ * helper. Its `::timestamp` cast at the call site is load-bearing and not
+ * decoration: without it the parameter arrives untyped and the coercion
+ * depends on context.
+ */
+import { utcBound } from './analytics';
 
 const NEYNAR_BULK_URL = 'https://api.neynar.com/v2/farcaster/user/bulk';
 const FIDS_PER_CALL = 100;
@@ -448,30 +462,6 @@ export async function dropSeenTable(name: string): Promise<void> {
   await db.execute(sql`DROP TABLE IF EXISTS ${sql.raw(name)}`);
 }
 
-/**
- * Render a `Date` for comparison against a zone-less `timestamp` column.
- *
- * `social_graph.last_updated_at` is `timestamp` with no time zone, holding UTC
- * because every writer is `now()` under a UTC session. Binding a JS `Date`
- * against such a column does not compare UTC: the driver sends the date's
- * LOCAL wall-clock reading, so the cutoff silently moves by the operator's
- * offset. Measured by planning the real cleanup statement from a UTC-5
- * machine: `new Date('2026-09-02T10:44:50Z')` arrived as
- * `'2026-09-02 05:44:50'`, five hours early.
- *
- * The scheduled runner is UTC, so this has never shown up in production, which
- * is exactly what makes it worth naming. West of UTC it under-clears, which is
- * merely wrong. East of UTC it moves the cutoff LATER and clears rows that
- * another pipeline legitimately refreshed after the sweep began, which is data
- * loss driven by nothing but where the operator was sitting.
- *
- * The same class of bug was live in `scripts/ops-status.ts` until 2026-09-17,
- * from the other direction (parsing rather than binding).
- */
-function utcWallClock(at: Date): string {
-  return at.toISOString().replace('Z', '');
-}
-
 export async function beginSeenTracking(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
@@ -682,7 +672,7 @@ export async function cleanupRevokedWallets(
       FROM social_graph
       WHERE 'farcaster_sweep' = ANY(sources)
         AND NOT (sources && ARRAY['neynar', 'manual'])
-        AND last_updated_at < ${utcWallClock(sweepStartedAt)}
+        AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
         AND fc_fid BETWEEN ${startFid} AND ${endFid}
         AND NOT EXISTS (
           SELECT 1 FROM ${sql.raw(seenTable)} s
@@ -724,7 +714,7 @@ export async function cleanupRevokedWallets(
         last_updated_at = now()
     WHERE 'farcaster_sweep' = ANY(sources)
       AND NOT (sources && ARRAY['neynar', 'manual'])
-      AND last_updated_at < ${utcWallClock(sweepStartedAt)}
+      AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
       -- The bound that makes a partial-range sweep safe to clean up after.
       -- Outside it, absence from the seen table means "not looked at".
       -- A NULL fc_fid is excluded by BETWEEN, which is correct: a row whose
