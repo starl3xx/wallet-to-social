@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useCredits } from '@/lib/use-credits';
+import { countResults } from '@/lib/result-counts';
 import dynamic from 'next/dynamic';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
@@ -83,7 +84,9 @@ import {
   Binoculars,
   Swap,
   MagnifyingGlass,
+  Lock,
 } from '@phosphor-icons/react';
+import { InlineError } from '@/components/ui/inline-error';
 import { InputMethodPicker } from '@/components/InputMethodPicker';
 import { parseFile } from '@/lib/file-parser';
 import {
@@ -170,6 +173,31 @@ export default function Home() {
 
   // User access state from AuthProvider
   const { user, isLoading: authLoading } = useAuth();
+
+  /**
+   * Whether "Save this lookup" can actually do what it says.
+   *
+   * It could not, signed out, and the failure was silent in both directions.
+   * The box is checked by default; the job wrote a `lookup_history` row keyed
+   * to the anonymous browser uuid; and `/api/history` answers 401 without a
+   * session and filters by the session's user id when it has one, so nothing
+   * could ever read that row back. There is no path that adopts it on
+   * sign-up either.
+   *
+   * The second half is the one that cost people work. The `beforeunload`
+   * guard below stays quiet when a forward lookup is saved, which is right,
+   * so a checked box that saved nothing also switched OFF the warning that
+   * would have said "export this before you leave". A signed-out visitor ran
+   * a lookup, was told it was kept, was not warned, closed the tab, and had
+   * nothing.
+   *
+   * Signed out, the box is gone entirely rather than unchecked: an unchecked
+   * box invites you to check it, and checking it would still do nothing. What
+   * replaces it says results are not kept and offers the account that would
+   * keep them, which is the truth and is also the one moment in the product
+   * where an account is obviously worth having.
+   */
+  const canSaveHistory = Boolean(user);
   const userTier: UserTier = user?.tier || 'free';
 
   /**
@@ -303,7 +331,11 @@ export default function Home() {
     // back, so for forward results the checkbox is the only signal there is,
     // and it must not apply to reverse results, which never touch it:
     // reverseMeta says which kind is on screen.
-    const savedForward = saveToHistory && reverseMeta === null;
+    // `canSaveHistory`, not the checkbox alone: a save that the server will
+    // refuse must not suppress the warning that this is the last chance to
+    // export.
+    const savedForward =
+      saveToHistory && canSaveHistory && reverseMeta === null;
     if (
       state !== 'complete' ||
       results.length === 0 ||
@@ -325,6 +357,7 @@ export default function Home() {
     results.length,
     currentLookupId,
     saveToHistory,
+    canSaveHistory,
     reverseMeta,
     exportedThisRun,
   ]);
@@ -538,18 +571,9 @@ export default function Home() {
    * is the "covered" number beside it. Derived from the rows so every path
    * that sets results (poll, resume, merge, history) agrees for free.
    */
-  const lockedMatches = useMemo(
-    () => results.reduce((n, r) => n + (r.locked ? 1 : 0), 0),
-    [results]
-  );
-  const openMatches = useMemo(
-    () =>
-      results.reduce(
-        (n, r) => n + (r.twitter_handle || r.farcaster ? 1 : 0),
-        0
-      ),
-    [results]
-  );
+  const resultCounts = useMemo(() => countResults(results), [results]);
+  const lockedMatches = resultCounts.locked;
+  const openMatches = resultCounts.matched - resultCounts.locked;
   const canUnlockNow =
     entitled &&
     (credits.available === null || credits.available >= lockedMatches);
@@ -978,7 +1002,16 @@ export default function Home() {
       const submitted = await submitJob({
         wallets,
         originalData,
-        saveToHistory,
+        /**
+         * Gated on the account, not on the checkbox alone. Sending `true`
+         * without a session writes a `lookup_history` row keyed to the
+         * anonymous browser uuid that nothing can ever read back: the history
+         * route filters by the session's user id and 401s without one, and
+         * no path adopts the row on sign-up. Storing a stranger's results
+         * where only a migration could reach them is worse than not storing
+         * them, so it does not.
+         */
+        saveToHistory: saveToHistory && canSaveHistory,
         historyName: submittedName,
         ...scanDepthOptions(scanDepth),
         userId: getUserId(),
@@ -1016,6 +1049,7 @@ export default function Home() {
     wallets,
     originalData,
     saveToHistory,
+    canSaveHistory,
     lookupName,
     sourceFileName,
     scanDepth,
@@ -1069,7 +1103,8 @@ export default function Home() {
       try {
         const submitted = await submitJob({
           collection: { chain: collection.chain, address: collection.address },
-          saveToHistory,
+          // Same gate as the list path above, for the same reason.
+          saveToHistory: saveToHistory && canSaveHistory,
           ...scanDepthOptions(scanDepth),
           userId: getUserId(),
           sessionId: getSessionId(),
@@ -1099,7 +1134,7 @@ export default function Home() {
         setState('error');
       }
     },
-    [submitJob, saveToHistory, scanDepth, userEmail]
+    [submitJob, saveToHistory, canSaveHistory, scanDepth, userEmail]
   );
 
   /**
@@ -2300,38 +2335,72 @@ export default function Home() {
                 {/* Keep it, and under what name */}
                 <div className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-start sm:gap-4">
                   <Eyebrow className="sm:pt-2.5">History</Eyebrow>
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label
-                        htmlFor="saveHistory"
-                        className="flex h-control items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          id="saveHistory"
-                          checked={saveToHistory}
-                          onChange={(e) => setSaveToHistory(e.target.checked)}
-                          className="rounded-sm"
-                        />
-                        Save this lookup
-                      </label>
-                      {saveToHistory && (
-                        <Input
-                          placeholder="Name it (optional)"
-                          value={lookupName}
-                          onChange={(e) => setLookupName(e.target.value)}
-                          className="w-full max-w-xs"
-                          aria-label="Lookup name"
-                        />
+                  {/**
+                   * Signed out, there is no checkbox, because there was
+                   * nothing behind it. See `canSaveHistory`: a checked box
+                   * wrote a row keyed to the anonymous browser uuid that the
+                   * history route can never return, and it switched off the
+                   * "export before you leave" warning while doing so.
+                   *
+                   * Gone rather than unchecked and disabled. An unchecked box
+                   * invites a click, and a disabled one is a control removed
+                   * from the tab order with no explanation attached, which is
+                   * the pattern this product spent a whole pass removing. A
+                   * sentence and a way to fix it says more in less space.
+                   *
+                   * It is also the one place in the flow where an account is
+                   * obviously worth having: the visitor is about to spend a
+                   * few minutes on a list and this is the moment they learn
+                   * it will not survive the tab closing.
+                   */}
+                  {canSaveHistory ? (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="saveHistory"
+                          className="flex h-control items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            id="saveHistory"
+                            checked={saveToHistory}
+                            onChange={(e) => setSaveToHistory(e.target.checked)}
+                            className="rounded-sm"
+                          />
+                          Save this lookup
+                        </label>
+                        {saveToHistory && (
+                          <Input
+                            placeholder="Name it (optional)"
+                            value={lookupName}
+                            onChange={(e) => setLookupName(e.target.value)}
+                            className="w-full max-w-xs"
+                            aria-label="Lookup name"
+                          />
+                        )}
+                      </div>
+                      {!saveToHistory && (
+                        <p className="text-xs text-muted-foreground">
+                          Results are not kept. Export them before you leave
+                          this page.
+                        </p>
                       )}
                     </div>
-                    {!saveToHistory && (
-                      <p className="text-xs text-muted-foreground">
-                        Results are not kept. Export them before you leave this
-                        page.
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        Results are not kept when you are signed out. Export
+                        them before you leave this page.
                       </p>
-                    )}
-                  </div>
+                      <Button
+                        variant="soft"
+                        size="sm"
+                        onClick={() => setShowAuthModal(true)}
+                      >
+                        Sign in to save
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2600,19 +2669,12 @@ export default function Home() {
                   </MenuItem>
                   <div className="my-1 border-t border-border" />
                   <ShareButtons
-                    twitterCount={
-                      results.filter((r) => r.twitter_handle).length
-                    }
-                    farcasterCount={results.filter((r) => r.farcaster).length}
-                    totalWallets={results.length}
-                    /* Same predicate as StatsCards, so the shared figure and
-                         the one on screen can never disagree. */
-                    reachableCount={
-                      results.filter(
-                        (r) =>
-                          r.twitter_handle || r.farcaster || r.lens || r.github
-                      ).length
-                    }
+                    /* One derivation, shared with StatsCards and the export,
+                       so the figure on screen and the figure posted cannot
+                       disagree. The four hand-rolled filters this replaces
+                       counted a gated row as a miss, so hitting the gate
+                       published a worse rate than the lookup achieved. */
+                    counts={resultCounts}
                     asMenuItems
                   />
                 </OverflowMenu>
@@ -2638,21 +2700,54 @@ export default function Home() {
             )}
 
             {lockedMatches > 0 && (
-              <div className="flex flex-col gap-3 rounded-lg border border-caution bg-caution-tint p-4 sm:flex-row sm:items-center sm:justify-between">
+              /**
+               * The purchase moment, and it used to be dressed as a fault.
+               *
+               * This was `border-caution bg-caution-tint` with a warning
+               * triangle and every word of its copy in `text-caution`: the
+               * exact anatomy the product uses for a truncated import and a
+               * stale record. Nothing here went wrong. The lookup worked, it
+               * found more than the free allowance covers, and this is the one
+               * screen in the product where somebody decides to pay. Telling
+               * them that in amber under a warning triangle frames the best
+               * outcome the product has as a problem it caused them.
+               *
+               * The card treatment instead, with the result stated in plain
+               * foreground and only the locked figure in `caution`, which is
+               * what caution is actually for: "approaching a limit"
+               * (docs/DESIGN-LANGUAGE.md, Colour). The count is the limit; the
+               * sentence around it is not.
+               *
+               * `role="status"` rather than the implicit nothing it had. It
+               * appears after a job completes, which is a change a reader has
+               * no other way to learn about, and it is routine rather than
+               * urgent so it must not interrupt.
+               */
+              <div
+                role="status"
+                className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex items-start gap-3">
-                  <AlertTriangle
-                    className="mt-0.5 h-4 w-4 flex-none text-caution"
+                  <Lock
+                    className="mt-0.5 h-4 w-4 flex-none text-muted-foreground"
                     aria-hidden
                   />
-                  <p className="text-sm text-caution">
-                    This lookup found {openMatches + lockedMatches} matches.
+                  <p className="text-sm">
+                    This lookup found{' '}
+                    <span className="font-semibold tabular-nums">
+                      {(openMatches + lockedMatches).toLocaleString()}
+                    </span>{' '}
+                    matches.
                     {user
-                      ? ` Your free allowance covered ${openMatches}; `
-                      : ` The first ${openMatches} are open without an account; `}
-                    {lockedMatches.toLocaleString()}{' '}
-                    {lockedMatches === 1 ? 'is' : 'are'} locked.
-                    {user ? '' : ' Sign in and buy a pack to open them.'}
-                    {unlockError ? ` ${unlockError}` : ''}
+                      ? ` Your free allowance covered ${openMatches.toLocaleString()}; `
+                      : ` The first ${openMatches.toLocaleString()} are open without an account; `}
+                    <span className="text-caution">
+                      <span className="tabular-nums">
+                        {lockedMatches.toLocaleString()}
+                      </span>{' '}
+                      {lockedMatches === 1 ? 'is' : 'are'} locked
+                    </span>
+                    .{user ? '' : ' Sign in and buy a pack to open them.'}
                   </p>
                 </div>
                 <Button
@@ -2672,6 +2767,13 @@ export default function Home() {
                       : 'Buy a pack to unlock'}
                 </Button>
               </div>
+            )}
+            {/* A failed unlock IS a fault, and now it looks like one. It used
+                to be appended to the sentence above, so the failure inherited
+                whatever tone that banner happened to wear and arrived with no
+                announcement at all. */}
+            {lockedMatches > 0 && unlockError && (
+              <InlineError>{unlockError}</InlineError>
             )}
             <StatsCards results={results} />
             <ResultsTable

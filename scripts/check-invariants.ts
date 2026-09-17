@@ -7194,6 +7194,129 @@ async function main() {
     );
 
     /**
+     * A withheld match is counted as found, everywhere a count is stated.
+     *
+     * `locked` means the row matched and the free allowance had nothing left
+     * to bill it against, so the billable identities were stripped on the way
+     * out. It means found-and-withheld. Every count in the product read it as
+     * not-found, because every count was its own filter on `twitter_handle ||
+     * farcaster`, and those are exactly the fields the gate removes.
+     *
+     * The damage was not cosmetic. The share text published a match rate
+     * lower than the product achieved, on the surface that brings other people
+     * here, so the gate was cutting the product's own social proof. The CSV
+     * had no column for it, so a locked row left the building looking like a
+     * wallet that never published anything: the file told the customer
+     * something untrue about their own list.
+     *
+     * Asserted as the refusal in both directions. The counts must come from
+     * the one authority, AND the surface that shows `found` must show
+     * `locked` beside it, because a figure that counts withheld rows without
+     * saying any are withheld is the same dishonesty pointing the other way.
+     */
+    const countsSrc = withoutComments(
+      readFileSync('lib/result-counts.ts', 'utf8')
+    );
+    ok(
+      'a locked row counts towards found, not against it',
+      /if \(r\.locked\) \{\s*locked\+\+;\s*matched\+\+;/.test(countsSrc)
+    );
+    /**
+     * `found` is a sum of two disjoint sets, never a second predicate over
+     * the rows. A re-derivation would be a second definition of the same
+     * fact, free to drift from the first, which is the whole failure this
+     * module exists to end.
+     */
+    ok(
+      'found is reachable plus locked, not recomputed',
+      /const found = reachable \+ locked;/.test(countsSrc)
+    );
+    const resultStatsSrc = withoutComments(
+      readFileSync('components/StatsCards.tsx', 'utf8')
+    );
+    ok(
+      'the results figure comes from the shared count, not its own filter',
+      resultStatsSrc.includes('countResults(results)') &&
+        !/results\.filter/.test(resultStatsSrc)
+    );
+    ok(
+      'and a figure that counts withheld rows says how many are withheld',
+      /stats\.found/.test(resultStatsSrc) &&
+        /stats\.locked > 0/.test(resultStatsSrc)
+    );
+    const shareSrc = withoutComments(
+      readFileSync('components/ShareButtons.tsx', 'utf8')
+    );
+    /**
+     * Two separate overstatements have shipped from this file, in opposite
+     * directions: `(twitter + farcaster) / total` double-counted anyone with
+     * both, and the fix for that inherited the caller's gate-stripped
+     * predicate. It takes the whole count set now, so there is nothing here
+     * to get wrong a third time.
+     */
+    ok(
+      'the shared figures are the found ones, computed nowhere in this file',
+      /counts: ResultCounts/.test(shareSrc) &&
+        shareSrc.includes('${found.toLocaleString()} found') &&
+        !/\.filter\(/.test(shareSrc)
+    );
+    const exportSrc = withoutComments(
+      readFileSync('components/ExportButton.tsx', 'utf8')
+    );
+    /**
+     * The CSV names it. Without this column a locked row is byte-for-byte a
+     * wallet with nothing published, and the customer has no way to learn
+     * otherwise from the file they were handed.
+     */
+    ok(
+      'the CSV carries a column saying which rows were withheld',
+      /'locked',/.test(exportSrc) && /locked: result\.locked/.test(exportSrc)
+    );
+
+    /**
+     * "Save this lookup" cannot be promised without somewhere to save it.
+     *
+     * The box was checked by default and signed out it saved nothing that
+     * could ever be read: the job wrote a `lookup_history` row keyed to the
+     * anonymous browser uuid, `/api/history` answers 401 without a session
+     * and filters by the session's user id when it has one, and no path
+     * adopts the row on sign-up.
+     *
+     * The costly half was second-order. The `beforeunload` guard stays quiet
+     * when a forward lookup is saved, which is correct, so a checked box that
+     * saved nothing also switched off the warning that this was the last
+     * chance to export. Both halves are asserted, because fixing only the
+     * copy would leave the data loss exactly where it was.
+     */
+    const homeSrcSave = withoutComments(readFileSync('app/page.tsx', 'utf8'));
+    /**
+     * Read out of the `submitJob` calls themselves, not off a loose grep.
+     *
+     * The first version of this asserted that the string `saveToHistory,` did
+     * not appear on its own line anywhere in the file, which is true of a
+     * payload field and equally true of a `useCallback` dependency array. It
+     * failed on two dependency arrays that were entirely correct. An
+     * assertion that cannot tell the thing it protects from the thing beside
+     * it is the kind that gets weakened until it passes.
+     */
+    const submitCalls =
+      homeSrcSave.match(/submitJob\(\{[\s\S]*?\n\s*\}\)/g) ?? [];
+    const saving = submitCalls.filter((c) => /saveToHistory/.test(c));
+    ok(
+      'a lookup is only submitted as saved when there is an account to save it to',
+      saving.length >= 2 &&
+        saving.every((c) =>
+          /saveToHistory:\s*saveToHistory && canSaveHistory/.test(c)
+        )
+    );
+    ok(
+      'and a save that cannot happen does not suppress the unload warning',
+      /savedForward =\s*saveToHistory && canSaveHistory && reverseMeta === null/.test(
+        homeSrcSave
+      )
+    );
+
+    /**
      * A page that quotes a price offers a way to pay it.
      *
      * Six comparison pages rendered the whole price sheet and ended on prose:
