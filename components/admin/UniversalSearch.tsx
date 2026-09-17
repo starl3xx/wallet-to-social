@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import { shortId } from './format';
 import { Empty } from './PaneState';
+import { InlineError } from '@/components/ui/inline-error';
 
 interface SearchResult {
   type: 'user' | 'job' | 'lookup';
@@ -34,12 +35,32 @@ export function UniversalSearch({
   onResultClick,
 }: UniversalSearchProps) {
   const [query, setQuery] = useState('');
+  /** Set when Search is pressed with nothing typed; cleared on the next keystroke. */
+  const [emptyQuery, setEmptyQuery] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   const search = useCallback(async () => {
-    if (!query.trim()) return;
+    /**
+     * Search stays enabled on an empty box and says why nothing happened.
+     * `disabled` drops a control out of the tab order, so dimming the button
+     * did not communicate "type something first": it removed the pane's only
+     * action from a keyboard pass over the page.
+     */
+    if (!query.trim()) {
+      setEmptyQuery(true);
+      // The previous answer goes with it, as it does in the other lookups.
+      // Leaving it put the new error above a list of stale hits, which reads
+      // as "these results are the problem" rather than "there is nothing to
+      // search for". Nothing here is unsaved, so dropping it costs nothing.
+      setResults([]);
+      setSearched(false);
+      inputRef.current?.focus();
+      return;
+    }
+    setEmptyQuery(false);
 
     setLoading(true);
     setSearched(true);
@@ -165,28 +186,40 @@ export function UniversalSearch({
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Input
+              ref={inputRef}
               placeholder="Search users, jobs, wallets, or emails…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (emptyQuery) setEmptyQuery(false);
+              }}
               onKeyDown={handleKeyDown}
-              className="pr-8"
+              aria-label="Search users, jobs, wallets, or emails"
+              aria-invalid={emptyQuery}
+              className="pr-10"
             />
             {query && (
-              <button
+              /* The compact tier (28px), not the 34px icon control: a control
+                 nested inside a 34px field needs air on both edges, and the
+                 ladder names that height. The target was the 16px glyph
+                 itself, 44% of the area the project's own document sets as
+                 the floor. The ghost Button brings the one focus ring and
+                 transition-control with it, so the hand-rolled ring above
+                 goes with it. `pr-10` matches the solved pair in
+                 FarcasterDMModal rather than starting a second spelling. */
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-compact"
                 aria-label="Clear search"
                 onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground transition-control hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
               >
                 <X className="h-4 w-4" aria-hidden />
-              </button>
+              </Button>
             )}
           </div>
-          <Button
-            onClick={search}
-            disabled={loading || !query.trim()}
-            aria-label="Search"
-          >
+          <Button onClick={search} disabled={loading} aria-label="Search">
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
@@ -194,6 +227,12 @@ export function UniversalSearch({
             )}
           </Button>
         </div>
+
+        {emptyQuery && (
+          <InlineError className="mt-2">
+            Type an email, wallet, job id or user id to search for.
+          </InlineError>
+        )}
 
         {searched && (
           <div className="mt-4">

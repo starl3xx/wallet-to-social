@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +68,18 @@ export function WalletLookupTool() {
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * Whether the FIELD is at fault, rather than the request.
+   *
+   * The rule, and it is the same one in the other two public lookups: the box
+   * is empty, or the server answered 400. A 400 means "what you sent is
+   * wrong"; a 429 or a 503 means the request failed and the value was fine.
+   * `aria-invalid` used to be `Boolean(error) && !address.trim()`, which got
+   * half of it: it never marked a malformed address, so somebody who mistyped
+   * a hex digit was told something went wrong and not where.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const run = useCallback(async (value: string) => {
     const trimmed = value.trim();
@@ -75,6 +87,7 @@ export function WalletLookupTool() {
     setBusy(true);
     setError(null);
     setAnswer(null);
+    setFieldInvalid(false);
     try {
       const response = await fetch('/api/wallet-socials', {
         method: 'POST',
@@ -84,6 +97,10 @@ export function WalletLookupTool() {
       const json = await response.json();
       if (!response.ok) {
         setError(json.error ?? 'Something went wrong. Try again.');
+        if (response.status === 400) {
+          setFieldInvalid(true);
+          inputRef.current?.focus();
+        }
         return;
       }
       const result = json as Answer;
@@ -104,23 +121,51 @@ export function WalletLookupTool() {
   return (
     <div className="mt-6">
       <form
+        /**
+         * Submit stays enabled on an empty field, and validates on submit.
+         *
+         * It used to carry `disabled={!address.trim()}`, which reads as a
+         * courtesy and is not one. `disabled` takes a button out of the tab
+         * order in every browser, so the keyboard user tabbing this page did
+         * not find a dimmed button to wonder about: they found no button, and
+         * the page's single action was invisible to them. A reader that did
+         * reach it got "dimmed" with no reason attached, because a disabled
+         * control cannot explain itself.
+         *
+         * Pressing it empty now says what is missing and puts the cursor in
+         * the field to fix it, which is the same information the dimming was
+         * gesturing at, in a form that can actually be heard.
+         */
         onSubmit={(e) => {
           e.preventDefault();
+          if (!address.trim()) {
+            setError('Enter a wallet address to look up.');
+            setAnswer(null);
+            setFieldInvalid(true);
+            inputRef.current?.focus();
+            return;
+          }
           void run(address);
         }}
         className="flex flex-col gap-3 sm:flex-row"
       >
         <Input
+          ref={inputRef}
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          onChange={(e) => {
+            setAddress(e.target.value);
+            if (fieldInvalid) setFieldInvalid(false);
+          }}
           // The placeholder shows the shape of the value, not an instruction.
           placeholder="0x…"
           aria-label="Wallet address"
+          aria-invalid={fieldInvalid}
+          aria-describedby={error ? 'lookup-error' : undefined}
           spellCheck={false}
           autoComplete="off"
           className="flex-1 font-mono"
         />
-        <Button type="submit" disabled={busy || !address.trim()}>
+        <Button type="submit" disabled={busy}>
           {busy ? 'Looking up…' : 'Look up'}
         </Button>
       </form>
@@ -138,7 +183,13 @@ export function WalletLookupTool() {
       </p>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-border bg-muted p-4 text-sm">
+        // `alert`, not `status`: this is the answer to something the visitor
+        // just pressed, and it has to arrive before they move on.
+        <p
+          id="lookup-error"
+          role="alert"
+          className="mt-4 rounded-lg border border-border bg-muted p-4 text-sm"
+        >
           {error}
         </p>
       )}

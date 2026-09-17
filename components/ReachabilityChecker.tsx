@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
+import { InlineError } from '@/components/ui/inline-error';
 import { XMark } from '@/components/ui/brand-marks';
 import {
   CircleNotch,
@@ -65,13 +66,38 @@ export function ReachabilityChecker() {
   const [loading, setLoading] = useState(false);
   /** Guards against an earlier request resolving after a later one. */
   const seq = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the request. Empty, or the
+   * server answered 400: a 400 is "what you sent is wrong", anything else is
+   * "the request failed" and the handle typed was fine. The earlier spelling
+   * of this never marked a malformed handle, which is the case somebody most
+   * needs pointing at.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
 
   const check = useCallback(async () => {
     const handle = value.trim();
-    if (!handle || loading) return;
+    if (loading) return;
+    /**
+     * The empty case answers instead of returning silently, because the
+     * submit button no longer refuses to be pressed. `disabled` on an empty
+     * field removes the control from the tab order, so the keyboard user never
+     * reached a dimmed button to be puzzled by: the form's only action simply
+     * was not there. Saying what is missing and putting the cursor back in the
+     * field carries the same meaning to everybody.
+     */
+    if (!handle) {
+      setError('Enter an X handle to check.');
+      setAnswer(null);
+      setFieldInvalid(true);
+      inputRef.current?.focus();
+      return;
+    }
     const mine = ++seq.current;
     setLoading(true);
     setError(null);
+    setFieldInvalid(false);
     try {
       const res = await fetch(
         `/api/reachability?handle=${encodeURIComponent(handle)}`
@@ -81,6 +107,10 @@ export function ReachabilityChecker() {
       if (!res.ok) {
         setError(body.error ?? 'Check failed');
         setAnswer(null);
+        if (res.status === 400) {
+          setFieldInvalid(true);
+          inputRef.current?.focus();
+        }
       } else {
         setAnswer(body);
       }
@@ -113,10 +143,15 @@ export function ReachabilityChecker() {
               field's job, which is what a search affordance is for. */}
           <XMark className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={inputRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (fieldInvalid) setFieldInvalid(false);
+            }}
             placeholder="jack"
             aria-label="X handle to check"
+            aria-invalid={fieldInvalid}
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -124,11 +159,7 @@ export function ReachabilityChecker() {
             className="pl-9 font-mono"
           />
         </div>
-        <Button
-          type="submit"
-          disabled={loading || !value.trim()}
-          className="sm:w-auto"
-        >
+        <Button type="submit" disabled={loading} className="sm:w-auto">
           {loading ? (
             <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -138,11 +169,11 @@ export function ReachabilityChecker() {
         </Button>
       </form>
 
-      {error && (
-        <p role="status" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {/* The house error line, which carries `role="alert"`. It was a bare
+          `role="status"` paragraph: polite, so it queued behind whatever the
+          reader was saying, and this message is now also the answer to a
+          submit the person just pressed. */}
+      {error && <InlineError>{error}</InlineError>}
 
       {answer && shown && (
         /* A Card at the card padding, with the card stack (16px) as its own

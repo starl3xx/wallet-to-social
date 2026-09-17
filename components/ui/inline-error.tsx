@@ -34,12 +34,16 @@ import { cn } from '@/lib/utils';
 export function InlineError({
   children,
   className,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** For `aria-describedby` on the field this error is about. */
+  id?: string;
 }) {
   return (
     <p
+      id={id}
       role="alert"
       className={cn(
         'fade-in-fast flex items-start gap-2 text-sm text-destructive',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   ModalContent,
@@ -119,6 +119,17 @@ export function ApiKeysModal({
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
+  const nameRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the name FIELD is at fault, as opposed to something else failing.
+   *
+   * `error` is the dialog's one error slot and eight different things write to
+   * it: creating, revoking, disconnecting, copying. Driving `aria-invalid` off
+   * it marked the name box red for all of them, and the name box is cleared
+   * after a successful create, so revoking a key later announced an empty
+   * unrelated field as invalid.
+   */
+  const [nameInvalid, setNameInvalid] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
@@ -249,7 +260,19 @@ export function ApiKeysModal({
 
   const handleCreate = useCallback(async () => {
     const name = newKeyName.trim();
-    if (!name || creating) return;
+    if (creating) return;
+    /**
+     * Answers the empty case instead of returning silently, because Create is
+     * no longer disabled on an empty name. A disabled button is skipped by
+     * Tab, so dimming it did not warn the keyboard user that a name was
+     * required: it hid the action. Saying so and focusing the field does.
+     */
+    if (!name) {
+      setError('Name the key so you can recognize it later.');
+      setNameInvalid(true);
+      nameRef.current?.focus();
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -262,6 +285,9 @@ export function ApiKeysModal({
       if (!res.ok) throw new Error(data.error || 'Could not create the key');
       setRevealedKey(data.key.api_key);
       setNewKeyName('');
+      // Cleared with the field it was about, so the now-empty box does not
+      // stay marked invalid after the create it complained about succeeded.
+      setNameInvalid(false);
       await loadKeys();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the key');
@@ -553,21 +579,32 @@ export function ApiKeysModal({
               <div className="flex gap-2">
                 <Input
                   id="api-key-name"
+                  ref={nameRef}
                   value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
+                  onChange={(e) => {
+                    setNewKeyName(e.target.value);
+                    if (nameInvalid) setNameInvalid(false);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreate();
                   }}
                   placeholder="production"
                   maxLength={64}
+                  aria-invalid={nameInvalid}
                 />
                 <Button
                   onClick={handleCreate}
-                  disabled={!newKeyName.trim() || creating}
+                  disabled={creating}
                   className="flex-shrink-0"
                 >
                   {creating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    // The label stays through the spinner. Swapping it for the
+                    // glyph alone left a button with no accessible name at the
+                    // exact moment its state changed.
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Creating…
+                    </>
                   ) : (
                     'Create'
                   )}

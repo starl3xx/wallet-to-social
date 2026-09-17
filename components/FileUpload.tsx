@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { CloudArrowUp } from '@phosphor-icons/react';
 import { Card, CardContent } from '@/components/ui/card';
+import { InlineError } from '@/components/ui/inline-error';
 import { Button } from '@/components/ui/button';
 
 interface FileUploadProps {
@@ -17,6 +18,7 @@ export function FileUpload({
   compact,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,26 +126,33 @@ export function FileUpload({
                   <p className="text-xs mt-1">Supports CSV and Excel (.xlsx)</p>
                 </div>
               )}
-              <label>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  onChange={handleInputChange}
-                  className="hidden"
-                  disabled={disabled}
-                />
-                <Button
-                  variant="outline"
-                  size={compact ? 'sm' : 'default'}
-                  asChild
-                >
-                  <span>Upload file</span>
-                </Button>
-              </label>
+              {/* A real button, not a span inside a label.
+                  This was `<Button asChild><span>Upload file</span></Button>`,
+                  and a span is not focusable, so a keyboard, switch-control or
+                  screen-reader user could not start an upload at all. The
+                  input stays hidden and the button drives it, which is the
+                  arrangement InputMethodPicker already ships. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                onChange={handleInputChange}
+                className="hidden"
+                disabled={disabled}
+              />
+              <Button
+                variant="outline"
+                size={compact ? 'sm' : 'default'}
+                type="button"
+                disabled={disabled}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload file
+              </Button>
             </>
           )}
 
-          {error && <p className="text-sm text-destructive mt-4">{error}</p>}
+          {error && <InlineError className="mt-4">{error}</InlineError>}
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +106,15 @@ export function RemovalPane({ password }: { password: string }) {
   // The execution form.
   const [kind, setKind] = useState<SuppressionKind>('wallet');
   const [identifier, setIdentifier] = useState('');
+  const identifierRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the run. Empty, or the route
+   * answered 400: it 400s an identifier that fails normalisation for its kind,
+   * which is a bad entry. Everything else `actionError` carries is a run that
+   * failed over an identifier that was fine, and marking the box red for that
+   * sends an operator to re-type a value that was right.
+   */
+  const [identifierInvalid, setIdentifierInvalid] = useState(false);
   const [lane, setLane] = useState<SuppressionLane>('email');
   const [reason, setReason] = useState<SuppressionReason>('requested');
   const [submitting, setSubmitting] = useState(false);
@@ -144,11 +153,25 @@ export function RemovalPane({ password }: { password: string }) {
 
   const execute = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim()) return;
+    /**
+     * Submit is no longer disabled on an empty identifier, so the empty case
+     * has to answer. `disabled` removes the button from the tab order, which
+     * on this pane meant the destructive action was simply absent from a
+     * keyboard pass rather than visibly waiting on a field.
+     */
+    if (!identifier.trim()) {
+      setActionError('Name the identifier to suppress and erase.');
+      setNotice(null);
+      setResult(null);
+      setIdentifierInvalid(true);
+      identifierRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     setActionError(null);
     setNotice(null);
     setResult(null);
+    setIdentifierInvalid(false);
     try {
       const res = await fetch('/api/admin/removal', {
         method: 'POST',
@@ -163,6 +186,10 @@ export function RemovalPane({ password }: { password: string }) {
         }),
       });
       const payload = await res.json();
+      if (res.status === 400) {
+        setIdentifierInvalid(true);
+        identifierRef.current?.focus();
+      }
       if (!res.ok) {
         // A failed run still reports what it completed; the suppression
         // rows are committed, so the message says to re-run, not to panic.
@@ -335,14 +362,19 @@ export function RemovalPane({ password }: { password: string }) {
                 className="w-full"
               />
               <Input
+                ref={identifierRef}
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  if (identifierInvalid) setIdentifierInvalid(false);
+                }}
                 placeholder={
                   kind === 'wallet'
                     ? '0x… address, exactly as the request names it'
                     : 'Handle or name, without the @'
                 }
                 aria-label="Identifier"
+                aria-invalid={identifierInvalid}
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -358,7 +390,7 @@ export function RemovalPane({ password }: { password: string }) {
                 onChange={setReason}
                 options={REASONS}
               />
-              <Button type="submit" disabled={submitting || !identifier.trim()}>
+              <Button type="submit" disabled={submitting}>
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 ) : null}

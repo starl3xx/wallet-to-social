@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useId, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,6 +59,23 @@ interface WalletEnrichmentProps {
 }
 
 export function WalletEnrichment({ password }: WalletEnrichmentProps) {
+  /**
+   * The three edit fields carried a `<label>` that wrapped nothing and pointed
+   * at nothing, which is a heading in label's clothing: a screen reader reaches
+   * the input and announces "edit text, blank". `useId` rather than a constant
+   * because the pane is mounted per admin tab and a duplicate `id` silently
+   * re-points the first label at the second input.
+   */
+  const fieldId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the search FIELD is at fault. `saveMessage` is the pane's one
+   * banner and it also carries save failures and request failures, neither of
+   * which is a bad address; and the empty box is not the only bad entry, since
+   * a value that fails the 0x-and-40-hex check is one too. Both of those
+   * cases, and only those, set this.
+   */
+  const [searchInvalid, setSearchInvalid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [walletData, setWalletData] = useState<SocialGraphData | null>(null);
@@ -100,18 +117,50 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
   }, [password]);
 
   const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+    /**
+     * The empty case is answered rather than ignored, because Search is no
+     * longer disabled on an empty field: `disabled` takes a control out of the
+     * tab order, so the dimming did not say "type an address", it deleted the
+     * button from a keyboard pass. It reports through the same banner as the
+     * format error a line below, which is the message it is a precursor to.
+     */
+    if (!searchQuery.trim()) {
+      setSaveMessage({
+        type: 'error',
+        text: 'Enter a wallet address to look up.',
+      });
+      setSearchInvalid(true);
+      // Focus goes to the field, as it does in the other seven forms this
+      // change touched. Reporting alone leaves a keyboard user standing on
+      // Search with the banner talking about an input they now have to go
+      // find, which is most of the way back to the disabled button.
+      //
+      // The loaded wallet deliberately STAYS, unlike the other lookups, which
+      // all drop their previous answer here. The edit form below is bound to
+      // it and may hold unsaved handles somebody has typed, so clearing on a
+      // stray Enter in an empty search box would throw that away. A stale
+      // result is recoverable; a discarded edit is not.
+      searchRef.current?.focus();
+      return;
+    }
 
     // Validate wallet format
     const wallet = searchQuery.trim();
     if (!/^0x[a-fA-F0-9]{40}$/i.test(wallet)) {
       setSaveMessage({ type: 'error', text: 'Invalid wallet address format' });
+      setSearchInvalid(true);
+      searchRef.current?.focus();
       return;
     }
 
     setSearching(true);
     setSearched(true);
     setSaveMessage(null);
+    // The address parsed, so anything that fails from here is the request,
+    // not the entry.
+    setSearchInvalid(false);
+    // The address parsed, so anything that fails from here is the request.
+    setSearchInvalid(false);
 
     try {
       const res = await fetch(
@@ -244,14 +293,20 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
           <div className="flex gap-2">
             <Input
               placeholder="Enter wallet address (0x…)"
+              ref={searchRef}
+              aria-label="Wallet address"
+              aria-invalid={searchInvalid}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (searchInvalid) setSearchInvalid(false);
+              }}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="font-mono"
             />
             <Button
               onClick={handleSearch}
-              disabled={searching || !searchQuery.trim()}
+              disabled={searching}
               aria-label="Search"
               data-search-btn
             >
@@ -377,30 +432,42 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
+                      <label
+                        htmlFor={`${fieldId}-twitter`}
+                        className="text-xs text-muted-foreground mb-1 block"
+                      >
                         X handle
                       </label>
                       <Input
+                        id={`${fieldId}-twitter`}
                         placeholder="@handle"
                         value={editTwitter}
                         onChange={(e) => setEditTwitter(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
+                      <label
+                        htmlFor={`${fieldId}-farcaster`}
+                        className="text-xs text-muted-foreground mb-1 block"
+                      >
                         Farcaster
                       </label>
                       <Input
+                        id={`${fieldId}-farcaster`}
                         placeholder="@handle"
                         value={editFarcaster}
                         onChange={(e) => setEditFarcaster(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
+                      <label
+                        htmlFor={`${fieldId}-ens`}
+                        className="text-xs text-muted-foreground mb-1 block"
+                      >
                         ENS
                       </label>
                       <Input
+                        id={`${fieldId}-ens`}
                         placeholder="name.eth"
                         value={editEns}
                         onChange={(e) => setEditEns(e.target.value)}
@@ -420,16 +487,13 @@ export function WalletEnrichment({ password }: WalletEnrichmentProps) {
                       <X className="h-4 w-4" aria-hidden />
                       Cancel
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      disabled={
-                        saving ||
-                        (!editTwitter.trim() &&
-                          !editFarcaster.trim() &&
-                          !editEns.trim())
-                      }
-                    >
+                    {/* Disabled only while the request is in flight. The
+                        "at least one field" rule is already enforced in
+                        `handleSave`, which says so in the banner; repeating it
+                        here as a `disabled` said the same thing in the one
+                        form that cannot be read out, and took Save off the tab
+                        order while it did. */}
+                    <Button size="sm" onClick={handleSave} disabled={saving}>
                       {saving ? (
                         <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (

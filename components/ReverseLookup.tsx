@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,14 @@ export function ReverseLookup({
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const handleRef = useRef<HTMLInputElement>(null);
+  /**
+   * Whether the FIELD is at fault, rather than the request. Empty, or the
+   * server answered 400: the route 400s a handle that fails its platform
+   * pattern, and that is a bad entry. A 429 or a 503 is the request failing
+   * over a value that was fine.
+   */
+  const [fieldInvalid, setFieldInvalid] = useState(false);
   // Pins the platform that was actually queried, not the live toggle. The two
   // networks get opposite explanations for an empty result, so reading the
   // toggle at render time meant flipping it after a miss rewrote the reason:
@@ -73,7 +81,28 @@ export function ReverseLookup({
 
   const submit = useCallback(async () => {
     const value = handle.trim();
-    if (!value || loading) return;
+    if (loading) return;
+
+    /**
+     * Empty answers rather than returning silently, because the button no
+     * longer refuses to be pressed on an empty field. `disabled` takes a
+     * control out of the tab order, so what looked like a helpful dimming
+     * actually deleted this panel's only action for anyone navigating by
+     * keyboard. Naming what is missing and moving the cursor to the field says
+     * the same thing to everybody.
+     */
+    if (!value) {
+      setError(
+        platform === 'twitter'
+          ? 'Enter an X handle to look up.'
+          : 'Enter a Farcaster username to look up.'
+      );
+      setEmpty(null);
+      setLockedCount(null);
+      setFieldInvalid(true);
+      handleRef.current?.focus();
+      return;
+    }
 
     /**
      * A locked account presses the button and gets a real answer.
@@ -87,6 +116,7 @@ export function ReverseLookup({
     setError(null);
     setEmpty(null);
     setLockedCount(null);
+    setFieldInvalid(false);
     try {
       const res = await fetch('/api/reverse', {
         method: 'POST',
@@ -105,7 +135,18 @@ export function ReverseLookup({
         onUpgradeClick?.('reverse');
         return;
       }
-      if (!res.ok) throw new Error(data.error || 'Lookup failed');
+      if (!res.ok) {
+        /**
+         * Marked before the throw, not in the catch. The catch sees an Error
+         * and no status, so a 400 (the handle failed its platform pattern,
+         * which IS a bad entry) would be indistinguishable there from a 503.
+         */
+        if (res.status === 400) {
+          setFieldInvalid(true);
+          handleRef.current?.focus();
+        }
+        throw new Error(data.error || 'Lookup failed');
+      }
 
       if (data.locked) {
         const total = data.meta.total_count ?? 0;
@@ -229,6 +270,7 @@ export function ReverseLookup({
             face like the paste textarea; spellcheck, autocapitalize and
             autocorrect are off because each one rewrites handles. */}
         <Input
+          ref={handleRef}
           value={handle}
           onChange={(e) => {
             setHandle(e.target.value);
@@ -236,6 +278,7 @@ export function ReverseLookup({
             // about, so drop it rather than leave it hanging under a new query.
             if (empty) setEmpty(null);
             if (lockedCount) setLockedCount(null);
+            if (fieldInvalid) setFieldInvalid(false);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit();
@@ -254,9 +297,10 @@ export function ReverseLookup({
           aria-label={
             platform === 'twitter' ? 'X handle' : 'Farcaster username'
           }
+          aria-invalid={fieldInvalid}
         />
 
-        <Button onClick={submit} disabled={!handle.trim() || loading}>
+        <Button onClick={submit} disabled={loading}>
           {loading ? (
             /* The label stays through loading: a spinner alone is an icon-only
                button with no accessible name. */

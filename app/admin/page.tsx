@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { InlineError } from '@/components/ui/inline-error';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -195,6 +196,16 @@ export default function AdminPage() {
     setOpenAccount(null);
   }, []);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Whether the password FIELD is wrong, as opposed to the request failing.
+   *
+   * `fetchWhitelist` writes two different things into `error`: "Invalid
+   * password" on a 401, which is the field being wrong, and "Failed to load"
+   * from the catch, which is the network or the route falling over while the
+   * password may have been perfectly right. Driving `aria-invalid` off `error`
+   * announced both as a bad entry.
+   */
+  const [passwordInvalid, setPasswordInvalid] = useState(false);
 
   // Whitelist state
   const [entries, setEntries] = useState<WhitelistEntry[]>([]);
@@ -242,6 +253,7 @@ export default function AdminPage() {
   const fetchWhitelist = useCallback(async (pwd: string) => {
     setAuthState('loading');
     setError(null);
+    setPasswordInvalid(false);
 
     try {
       const response = await fetch('/api/admin/whitelist', {
@@ -251,6 +263,7 @@ export default function AdminPage() {
       if (response.status === 401) {
         setAuthState('password');
         setError('Invalid password');
+        setPasswordInvalid(true);
         sessionStorage.removeItem('admin_password');
         return;
       }
@@ -568,11 +581,24 @@ export default function AdminPage() {
               <Input
                 type="password"
                 placeholder="Enter admin password"
+                aria-label="Admin password"
+                // `current-password`, so a password manager offers the saved
+                // one. Without it the field is an unnamed password box and
+                // managers guess, which is how a sign-in form starts getting
+                // filled with the wrong credential.
+                autoComplete="current-password"
+                aria-invalid={passwordInvalid}
+                aria-describedby={error ? 'admin-login-error' : undefined}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordInvalid) setPasswordInvalid(false);
+                }}
                 autoFocus
               />
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <InlineError id="admin-login-error">{error}</InlineError>
+              )}
               <Button type="submit" className="w-full">
                 Sign in
               </Button>
@@ -625,17 +651,20 @@ export default function AdminPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <Input
                 placeholder="Email (optional)"
+                aria-label="Email (optional)"
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
               />
               <Input
                 placeholder="Wallet (optional)"
+                aria-label="Wallet (optional)"
                 value={newWallet}
                 onChange={(e) => setNewWallet(e.target.value)}
               />
               <Input
                 placeholder="Note (optional)"
+                aria-label="Note (optional)"
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
               />
@@ -855,6 +884,21 @@ export default function AdminPage() {
                       {job.errorMessage || '-'}
                     </TableCell>
                     <TableCell>
+                      {/* Every control here is a glyph, so every one carries
+                          an `aria-label` and hides its glyph. They were named
+                          by `title` alone, which is the weakest source in the
+                          accessible-name algorithm: it is the last thing tried,
+                          several readers skip it by default, and it renders
+                          nowhere on touch. Four buttons that mean view, rerun,
+                          retry and cancel all announced as "button".
+
+                          The name says which job as well as which verb. This
+                          column repeats per row, so four rows produce sixteen
+                          identically named controls, and a reader listing them
+                          gets no way to tell which row it is about to cancel.
+
+                          `title` stays: it is the hover tooltip, which is a
+                          different job from the name. */}
                       <div className="flex gap-1">
                         {/* View Results - for completed or partially processed jobs */}
                         {job.processedCount > 0 && (
@@ -866,11 +910,18 @@ export default function AdminPage() {
                               viewingJobId === job.id && jobResultsLoading
                             }
                             title="View results"
+                            aria-label={`View results for job ${shortId(job.id)}`}
                           >
                             {viewingJobId === job.id && jobResultsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden
+                              />
                             ) : (
-                              <Eye className="h-4 w-4 text-accent-brand" />
+                              <Eye
+                                className="h-4 w-4 text-accent-brand"
+                                aria-hidden
+                              />
                             )}
                           </Button>
                         )}
@@ -882,11 +933,18 @@ export default function AdminPage() {
                             onClick={() => handleJobAction(job.id, 'rerun')}
                             disabled={actioningJobId === job.id}
                             title="Rerun job"
+                            aria-label={`Rerun job ${shortId(job.id)}`}
                           >
                             {actioningJobId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden
+                              />
                             ) : (
-                              <RotateCcw className="h-4 w-4 text-accent-brand" />
+                              <RotateCcw
+                                className="h-4 w-4 text-accent-brand"
+                                aria-hidden
+                              />
                             )}
                           </Button>
                         )}
@@ -898,11 +956,18 @@ export default function AdminPage() {
                             onClick={() => handleJobAction(job.id, 'retry')}
                             disabled={actioningJobId === job.id}
                             title="Retry"
+                            aria-label={`Retry job ${shortId(job.id)}`}
                           >
                             {actioningJobId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden
+                              />
                             ) : (
-                              <RefreshCw className="h-4 w-4 text-caution" />
+                              <RefreshCw
+                                className="h-4 w-4 text-caution"
+                                aria-hidden
+                              />
                             )}
                           </Button>
                         )}
@@ -915,11 +980,18 @@ export default function AdminPage() {
                             onClick={() => handleJobAction(job.id, 'cancel')}
                             disabled={actioningJobId === job.id}
                             title="Cancel"
+                            aria-label={`Cancel job ${shortId(job.id)}`}
                           >
                             {actioningJobId === job.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden
+                              />
                             ) : (
-                              <XCircle className="h-4 w-4 text-destructive" />
+                              <XCircle
+                                className="h-4 w-4 text-destructive"
+                                aria-hidden
+                              />
                             )}
                           </Button>
                         )}

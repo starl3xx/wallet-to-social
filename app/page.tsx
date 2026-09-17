@@ -757,6 +757,55 @@ export default function Home() {
     if (remainingMins === 0) return `~${hours}h remaining`;
     return `~${hours}h ${remainingMins}m remaining`;
   };
+
+  /**
+   * What a screen reader hears while a lookup runs, and at the end of one.
+   *
+   * Computed here rather than inside `ProgressBar` because a live region only
+   * announces a change it is mounted for. The progress card renders under
+   * `state === 'processing'` and the results under `state === 'complete'`, so a
+   * `role="status"` living inside the card is removed from the document in the
+   * same commit that would have changed its text: the completion, the one event
+   * actually worth speaking, is the one a card-local region can never say. The
+   * region this feeds sits outside both branches and outlives the swap.
+   *
+   * Quarters, not percent. Polite announcements queue rather than interrupt, so
+   * a per-tick reading of a ten-thousand-wallet job speaks a hundred sentences
+   * and buries the two that matter. Four is enough to tell a stalled run from a
+   * moving one, and the bar itself still carries the exact figure as
+   * `aria-valuenow` for a reader that asks.
+   *
+   * The completion sentence is the notification's wording, deliberately: the X
+   * and Farcaster counts are reported separately because a wallet can carry
+   * both, so their sum is a count of accounts and never a count of wallets.
+   */
+  const runNarration = useMemo(() => {
+    if (state === 'complete' && progress.total > 0) {
+      return `Lookup complete. ${progress.twitterFound.toLocaleString()} X and ${progress.farcasterFound.toLocaleString()} Farcaster accounts from ${progress.total.toLocaleString()} wallets.`;
+    }
+    if (state !== 'processing' || progress.total === 0) return '';
+    const quarter = Math.floor((progress.processed / progress.total) * 4);
+    if (quarter <= 0) return '';
+    /**
+     * Nothing in this string may move between quarters, which is why the
+     * running count is not in it.
+     *
+     * The quarter gate decides only what the number rounds to; the live region
+     * reacts to the TEXT changing. An earlier version interpolated
+     * `progress.processed`, which advances on every poll, so the region
+     * re-announced continuously from 25% on and buried the completion sentence
+     * it was moved out of the card to deliver. `total` is safe: it is fixed for
+     * the run.
+     */
+    return `${quarter * 25}% of ${progress.total.toLocaleString()} wallets processed.`;
+  }, [
+    state,
+    progress.processed,
+    progress.total,
+    progress.twitterFound,
+    progress.farcasterFound,
+  ]);
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleFileLoaded = useCallback(async (file: File) => {
@@ -2330,6 +2379,15 @@ export default function Home() {
           </div>
         )}
 
+        {/* The run's narration. Mounted unconditionally so it survives the
+            processing-to-complete swap; see `runNarration` for why that
+            matters. `role="status"` and not `alert`: a job finishing is a
+            routine update, and an assertive region would cut off whatever the
+            reader was in the middle of. */}
+        <p role="status" className="sr-only">
+          {runNarration}
+        </p>
+
         {/* Processing State */}
         {state === 'processing' && (
           <ProgressBar
@@ -2396,6 +2454,7 @@ export default function Home() {
                       value={editNameValue}
                       onChange={(e) => setEditNameValue(e.target.value)}
                       placeholder="Enter lookup name…"
+                      aria-label="Lookup name"
                       className="max-w-xs"
                       autoFocus
                       onKeyDown={(e) => {
