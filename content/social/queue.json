@@ -77,11 +77,11 @@
       "day": 7,
       "slug": "attested-vs-inferred",
       "x": {
-        "text": "an identity is attested when the owner published it: a Farcaster verification, an onchain ENS record, a social sign-in\nanything else is labelled correlated, nothing is guessed off a bio or a display name\n\nrun your list against it at https://walletlink.social",
+        "text": "an identity is attested when the owner published it: a Farcaster verification, an onchain ENS record, a social sign-in\nanything else is labeled correlated, nothing is guessed off a bio or a display name\n\nrun your list against it at https://walletlink.social",
         "link": "https://walletlink.social"
       },
       "fc": {
-        "text": "attested means the owner published the link, onchain or via a verification\n\nnothing inferred from a bio, a display name or a cluster\n\nanything else is labelled correlated, so you always know which is which\n\nsee how it works: https://walletlink.social",
+        "text": "attested means the owner published the link, onchain or via a verification\n\nnothing inferred from a bio, a display name or a cluster\n\nanything else is labeled correlated, so you always know which is which\n\nsee how it works: https://walletlink.social",
         "link": "https://walletlink.social"
       }
     },
@@ -303,14 +303,14 @@
     },
     {
       "day": 26,
-      "slug": "labelled-evidence",
+      "slug": "labeled-evidence",
       "x": {
-        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made in the protocol, or a correlation from an index, each labelled as such\n\nso you set the confidence bar: https://walletlink.social/blog/wallet-identity-stack?ref=x-labelled-evidence",
-        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=x-labelled-evidence"
+        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made in the protocol, or a correlation from an index, each labeled as such\n\nso you set the confidence bar: https://walletlink.social/blog/wallet-identity-stack?ref=x-labeled-evidence",
+        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=x-labeled-evidence"
       },
       "fc": {
-        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made inside the protocol, or a correlation from an index\n\neach one labelled, so you set the confidence bar rather than trusting ours\n\nhttps://walletlink.social/blog/wallet-identity-stack?ref=fc-labelled-evidence",
-        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=fc-labelled-evidence"
+        "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made inside the protocol, or a correlation from an index\n\neach one labeled, so you set the confidence bar rather than trusting ours\n\nhttps://walletlink.social/blog/wallet-identity-stack?ref=fc-labeled-evidence",
+        "link": "https://walletlink.social/blog/wallet-identity-stack?ref=fc-labeled-evidence"
       }
     },
     {

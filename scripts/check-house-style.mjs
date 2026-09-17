@@ -420,9 +420,46 @@ for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat([
   });
 }
 
+/**
+ * The daily social queue, which is published copy that leaves the site.
+ *
+ * Only `text`, and that is the point: `slug` is a URL path segment and the
+ * `ref=` values are analytics keys. Both are data, and both are exactly what a
+ * careless sweep breaks. One did: a bulk rename of "labelled" to "labeled"
+ * across the tree caught the card slug in `lib/social-cards.tsx` and not the
+ * queue entry pointing at it, and `check:social` failed on the mismatch. The
+ * pair was renamed together in the end because that card does not post until
+ * 2026-10-05 and nothing else referenced it; had it already gone out, the
+ * right answer would have been to leave the slug alone.
+ */
+for (const file of walk('content/social', [], ['.json'])) {
+  let queue;
+  try {
+    queue = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    continue;
+  }
+  const days = Array.isArray(queue?.days) ? queue.days : [];
+  days.forEach((day, i) => {
+    for (const [channel, post] of Object.entries(day ?? {})) {
+      const text = post?.text;
+      if (typeof text !== 'string') continue;
+      for (const rule of RULES)
+        if (fire(rule, text))
+          hits.push({
+            file,
+            line: i + 1,
+            rule: rule.name,
+            msg: `day ${i + 1} (${channel}): ` + detail(rule, text),
+            text: text.split('\n')[0].slice(0, 80),
+          });
+    }
+  });
+}
+
 if (!hits.length) {
   console.log(
-    `house style ok — ${RULES.length} rules over UI copy, docs-site, README and PROJECT_OVERVIEW`
+    `house style ok — ${RULES.length} rules over UI copy, docs-site, the social queue, README and PROJECT_OVERVIEW`
   );
   process.exit(0);
 }

@@ -25,6 +25,7 @@ on:
       - 'components/**'
       - 'lib/**'
       - 'docs-site/**'
+      - 'content/social/**'
       - 'README.md'
       - 'PROJECT_OVERVIEW.md'
       - 'scripts/check-house-style.mjs'
