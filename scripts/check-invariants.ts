@@ -7107,6 +7107,38 @@ async function main() {
     );
 
     /**
+     * A page that quotes a price offers a way to pay it.
+     *
+     * Six comparison pages rendered the whole price sheet and ended on prose:
+     * PackPricing had no button, no link and no click handler, and the header
+     * is not sticky, so the only buy affordance had scrolled off by the time a
+     * reader reached the prices. The CTA now lives in the panel itself, once,
+     * which is why /pricing no longer renders its own.
+     */
+    const packPricingSrc = withoutComments(
+      readFileSync('components/PackPricing.tsx', 'utf8')
+    );
+    ok(
+      'the price panel carries its own way to buy',
+      packPricingSrc.includes('BuyCreditsButton')
+    );
+    /**
+     * And the recommendation badge means what it says. It used to pick by
+     * submission headroom alone, so a pack could accept a file and then run
+     * out of credits inside it: a 13,294-wallet list, the largest job ever
+     * run, was marked "Fits your list" on a pack whose own card said
+     * "≈ 6,300 wallets" two lines below.
+     */
+    const modalSrc = withoutComments(
+      readFileSync('components/UpgradeModal.tsx', 'utf8')
+    );
+    ok(
+      'the fit badge tests matches as well as submission headroom',
+      /PACKS\[id\]\.matches >= expectedMatches/.test(modalSrc) &&
+        /Closest fit/.test(modalSrc)
+    );
+
+    /**
      * The per-match ladder is DERIVED, never typed.
      *
      * CLAUDE.md makes lib/packs.ts the only place a price lives. A discount
