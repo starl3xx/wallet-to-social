@@ -7159,6 +7159,41 @@ async function main() {
     );
 
     /**
+     * An anonymous buyer can get back to the lookup they paid to open.
+     *
+     * `currentJobId` is cleared the moment a job completes, and completion is
+     * exactly when a gated result appears. The buy button then leaves the page,
+     * so a visitor who met the match gate and either paid or cancelled returned
+     * to a homepage with no memory of the lookup. History cannot recover it:
+     * that route needs a session and checkout takes no account.
+     *
+     * Asserted as the pairing, because a hint that is remembered and never
+     * cleared is its own bug: it would reinstate an old gated lookup over
+     * whatever the visitor does next.
+     */
+    const homeSrcGate = readFileSync('app/page.tsx', 'utf8');
+    ok(
+      'a gated job is remembered when something is actually locked',
+      /rememberGatedJob\(jobId\)/.test(homeSrcGate) &&
+        /lockedMatches \?\? 0\) > 0/.test(homeSrcGate)
+    );
+    ok(
+      'and forgotten on every path that moves on',
+      (homeSrcGate.match(/forgetGatedJob\(\)/g) ?? []).length >= 4
+    );
+    /**
+     * The restore refuses a payload it cannot honour. Job payloads are purged
+     * at 30 days while the row survives, so a bare completed row would paint an
+     * empty results screen over the upload form somebody came here to use.
+     */
+    ok(
+      'the restore requires rows and a live gate, not merely a completed job',
+      /data\.status !== 'completed' \|\|\s*!data\.results\?\.length/.test(
+        homeSrcGate
+      ) && /GATED_MAX_AGE_MS/.test(homeSrcGate)
+    );
+
+    /**
      * A page that quotes a price offers a way to pay it.
      *
      * Six comparison pages rendered the whole price sheet and ended on prose:
