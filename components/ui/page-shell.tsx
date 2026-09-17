@@ -1,3 +1,4 @@
+import { FOCUS_RING } from './button';
 import { SiteFooter } from './site-footer';
 import { BrandLockup } from './brand-marks';
 import { AccessBanner } from '@/components/AccessBanner';
@@ -64,6 +65,20 @@ export function PageShell({
   const width = wide ? 'max-w-7xl' : 'max-w-6xl';
   return (
     <div className="flex min-h-screen flex-col">
+      {/* The first tab stop on every page.
+          WCAG 2.4.1 Bypass Blocks is Level A, and it was unmet: a keyboard
+          user passed four repeated header stops before reaching anything the
+          page was actually about, on every page, every time.
+          Visually hidden until focused rather than always hidden: `sr-only`
+          alone would keep it from sighted keyboard users, who are exactly the
+          people it exists for. It uses the one exported focus treatment so it
+          lights up the way every other control does. */}
+      <a
+        href="#main"
+        className={`sr-only rounded-full bg-surface-raised px-4 py-2 text-sm font-medium focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 ${FOCUS_RING}`}
+      >
+        Skip to main content
+      </a>
       {/* One rule, viewport-wide, under the lockup row on every page. The
           homepage used to draw its own inside the container instead, so the
           same hairline stopped at the container edge there and ran edge to
@@ -93,7 +108,12 @@ export function PageShell({
         </div>
       </header>
 
-      <main className={`mx-auto w-full flex-1 ${width} px-6 pt-8 pb-12`}>
+      <main
+        id="main"
+        /* -1 so the skip link can move focus here without adding a tab stop. */
+        tabIndex={-1}
+        className={`mx-auto w-full flex-1 scroll-mt-24 ${width} px-6 pt-8 pb-12`}
+      >
         {children}
       </main>
 

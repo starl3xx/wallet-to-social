@@ -7107,6 +7107,58 @@ async function main() {
     );
 
     /**
+     * Every page can be skipped into, and the theme is decided before paint.
+     *
+     * WCAG 2.4.1 Bypass Blocks is Level A and was unmet on 19 of 20 pages: a
+     * keyboard user passed four repeated header stops before reaching anything
+     * the page was about. And ThemeProvider applies its class in an effect,
+     * which runs after the server HTML has painted, so every visitor resolving
+     * to dark met a full-page flash of the light palette on each cold
+     * navigation.
+     */
+    const shellSrc = readFileSync('components/ui/page-shell.tsx', 'utf8');
+    ok(
+      'every page shell opens with a skip link into a real target',
+      /href="#main"/.test(shellSrc) && /id="main"/.test(shellSrc)
+    );
+    const layoutSrcUi = readFileSync('app/layout.tsx', 'utf8');
+    ok(
+      'the theme is resolved before first paint, not in an effect',
+      /classList\.add\(d\?'dark':'light'\)/.test(layoutSrcUi)
+    );
+    /**
+     * And it resolves the SAME way ThemeProvider does. A copy of this rule
+     * that read the media query first would disagree with the provider for
+     * anyone who chose light on a dark machine, which is the one case the
+     * stored value exists to serve.
+     */
+    ok(
+      'the pre-paint resolve reads the stored choice before the media query',
+      layoutSrcUi.indexOf("localStorage.getItem('theme')") <
+        layoutSrcUi.indexOf('prefers-color-scheme: dark')
+    );
+    const cssSrcUi = readFileSync('app/globals.css', 'utf8');
+    /**
+     * Native widgets follow the theme. Without `color-scheme` a checkbox, a
+     * radio and a scrollbar render light on a dark page, because they do not
+     * read our tokens.
+     */
+    ok(
+      'the dark block tells the browser its own widgets are dark',
+      /color-scheme:\s*dark/.test(cssSrcUi)
+    );
+    /**
+     * Only faces that are used are declared. `font-extrabold` had no uses at
+     * all, and every `font-bold` hit in the tree is a comment recording its
+     * own removal.
+     */
+    ok(
+      'no font face is declared for a weight nothing uses',
+      !/soehne-fett\.woff2/.test(cssSrcUi) &&
+        !/soehne-dreiviertelfett\.woff2/.test(cssSrcUi)
+    );
+
+    /**
      * A page that quotes a price offers a way to pay it.
      *
      * Six comparison pages rendered the whole price sheet and ended on prose:

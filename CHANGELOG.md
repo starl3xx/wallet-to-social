@@ -2,6 +2,43 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (skip link, no theme flash, and two dead faces)
+
+The first pass of the interface craft checklist, at page level, where a
+defect costs every visitor on every page. A new `interface-craft` skill
+carries the whole list across projects.
+
+- **A skip link is now the first tab stop on every page.** WCAG 2.4.1
+  Bypass Blocks is Level A and was unmet on 19 of 20 pages: a keyboard
+  user passed four repeated header stops before reaching anything the
+  page was about. Visible on focus rather than permanently hidden,
+  because sighted keyboard users are exactly who it serves.
+- **The theme resolves before first paint.** `ThemeProvider` applies its
+  class in an effect, which runs after the server HTML has painted, so
+  every visitor resolving to dark saw a full-page flash of the light
+  palette on each cold navigation. A two-statement blocking script now
+  decides first, mirroring the provider's own order: stored choice, then
+  the media query only for `system`, so the two can never disagree.
+- **`color-scheme` is declared per theme block.** Without it a checkbox,
+  a radio and a scrollbar all render in the light palette on a dark page,
+  because native widgets do not read our tokens. Per block rather than
+  `light dark`, because this project switches by class and a browser told
+  both would follow the OS instead of the visitor's choice.
+- **Two preconnects removed, two preloads added.** The preconnects opened
+  DNS, TCP and TLS to Google Fonts origins this app never fetches from:
+  every face is self-hosted. The preloads are the two the first paint
+  waits on, the 200 h1 and the 300 lede, and no more, since a longer list
+  competes for the same bandwidth.
+- **Two `@font-face` blocks deleted.** `font-extrabold` had no uses, and
+  every `font-bold` hit in the tree is a comment recording its own
+  removal. Eight declared faces, six used.
+
+Notable for what it did NOT change. The audit proposed "fixes" to the
+34px control height, the hairline borders, the concentric radius formula
+and the reduced-motion spelling; each is a documented decision with
+arithmetic behind it in `docs/DESIGN-LANGUAGE.md`, and the verification
+pass rejected all four.
+
 ### 2026-09-17 (the ask, where the decision is made)
 
 Two findings from the conversion craft audit, both at the moment a buyer

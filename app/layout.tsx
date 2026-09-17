@@ -221,10 +221,47 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* Resolve the theme BEFORE first paint.
+            ThemeProvider applies the class in an effect, which runs after the
+            server HTML has already painted, so every visitor resolving to dark
+            saw a full-page flash of the light palette on each cold navigation.
+            The markup carries no theme class, so there is nothing for the
+            server to have got wrong; the fix is to decide earlier, not to
+            guess in the HTML.
+            Blocking on purpose: it must run before the first paint, and it is
+            two statements. The resolve mirrors ThemeProvider exactly, storage
+            value first and the media query only for 'system', so the two can
+            never disagree about what the theme is. Wrapped in try/catch
+            because localStorage throws outright where site data is blocked,
+            and a theme preference must never be the reason a page fails to
+            render. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('theme');var d=s==='dark'||((!s||s==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light');}catch(e){}})();`,
+          }}
+        />
+        {/* The two faces the first paint actually uses, preloaded.
+            The preconnects that stood here opened DNS, TCP and TLS to two
+            Google Fonts origins this app never fetches from: every face is
+            self-hosted under /fonts. Two connection slots spent during the
+            critical path on hosts that answer nothing.
+            These two and no others: the h1 is `font-extralight` (200) and the
+            lede beneath it is `font-light` (300), so they are the type a
+            visitor waits on. Preloading more would compete with them for the
+            same bandwidth, which is the usual way a preload list stops
+            working. */}
         <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
+          rel="preload"
+          href="/fonts/soehne-extraleicht.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/soehne-leicht.woff2"
+          as="font"
+          type="font/woff2"
           crossOrigin="anonymous"
         />
         {/* The entity graph is site-wide because the entity is. The FAQPage
