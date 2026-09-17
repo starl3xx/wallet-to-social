@@ -100,6 +100,41 @@ export const PACKS: Record<PackId, Pack> = {
 
 export const PACK_IDS = Object.keys(PACKS) as PackId[];
 
+/**
+ * What a match costs in this pack, against the cheapest pack as the baseline.
+ *
+ * The cards showed price and match count and left the buyer to divide. Nobody
+ * divides: the ladder reads as "bigger number, bigger price" when it is
+ * actually a steep discount, 11.6 cents a match on Trial against 3.6 on Index.
+ * Campaign alone is 43% cheaper per match than Trial, which is the single fact
+ * most likely to move somebody off the smallest pack, and it was invisible.
+ *
+ * Derived, never typed. `PACKS` is the only place a price lives (CLAUDE.md), so
+ * a discount written by hand would be a second price sheet free to drift from
+ * the first the moment either number changed.
+ *
+ * Returns 0 for the baseline pack itself rather than a misleading "0% off", and
+ * callers are expected to render nothing at 0.
+ */
+export function savingsVsSmallestPack(id: PackId): number {
+  // The BASELINE is the WORST per-match rate, which is the smallest pack, not
+  // the best one: the number a buyer wants is what they save by moving up.
+  const baseline = PACK_IDS.reduce((a, b) =>
+    PACKS[a].priceCents / PACKS[a].matches >=
+    PACKS[b].priceCents / PACKS[b].matches
+      ? a
+      : b
+  );
+  const base = PACKS[baseline].priceCents / PACKS[baseline].matches;
+  const here = PACKS[id].priceCents / PACKS[id].matches;
+  return Math.round((1 - here / base) * 100);
+}
+
+/** Cents per match, for the per-unit line under a pack's price. */
+export function centsPerMatch(id: PackId): number {
+  return PACKS[id].priceCents / PACKS[id].matches;
+}
+
 export function isPackId(value: string): value is PackId {
   return value in PACKS;
 }

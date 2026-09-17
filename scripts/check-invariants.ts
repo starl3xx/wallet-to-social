@@ -7057,6 +7057,7 @@ async function main() {
     const IP_RATE_LIMITS = limiterMod.IP_RATE_LIMITS;
     const jobsPerHour = IP_RATE_LIMITS['/api/jobs'].limit;
     /**
+<<<<<<< HEAD
      * The keyless lookup never becomes a batch endpoint.
      *
      * An array parameter is how a single-address endpoint grows into the thing
@@ -7104,6 +7105,39 @@ async function main() {
       'the free-lookup floor is added to the shared cap, not maxed against it',
       /ANON_MATCHES_PER_DAY \+ \(options\?\.floor \?\? 0\)/.test(limiterSrc)
     );
+=======
+     * The per-match ladder is DERIVED, never typed.
+     *
+     * CLAUDE.md makes lib/packs.ts the only place a price lives. A discount
+     * written into a component is a second price sheet, free to drift from the
+     * first the moment either number moves, and the drift would be invisible:
+     * a wrong percentage renders as confidently as a right one.
+     */
+    const packsMod2 = await import('@/lib/packs');
+    ok(
+      'the smallest pack shows no saving against itself',
+      packsMod2.savingsVsSmallestPack('trial') === 0
+    );
+    ok(
+      'every larger pack is genuinely cheaper per match',
+      packsMod2.savingsVsSmallestPack('campaign') > 0 &&
+        packsMod2.savingsVsSmallestPack('scale') >
+          packsMod2.savingsVsSmallestPack('campaign') &&
+        packsMod2.savingsVsSmallestPack('index') >
+          packsMod2.savingsVsSmallestPack('scale')
+    );
+    for (const src of [
+      'components/UpgradeModal.tsx',
+      'components/PackPricing.tsx',
+    ]) {
+      const componentSrc = withoutComments(readFileSync(src, 'utf8'));
+      ok(
+        `${src} computes the saving rather than printing a literal`,
+        componentSrc.includes('savingsVsSmallestPack(') &&
+          !/\b(43|57|69)%/.test(componentSrc)
+      );
+    }
+>>>>>>> 704fdd0 (The packs show what a match costs)
 
     /**
      * The two agent facts are never conflated.

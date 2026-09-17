@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (the packs show what a match costs)
+
+The cards gave a price and a match count and left the buyer to divide.
+Nobody divides, so a steep discount read as "bigger number, bigger
+price".
+
+- Trial is 11.6 cents a match. Campaign is 6.6, which is **43% cheaper**;
+  Scale 57%; Index 69%. Every card above the smallest now says so, on
+  `/pricing` and in the buy-credits modal.
+- Derived from `PACKS`, never typed. That file is the only place a price
+  lives, so a hardcoded percentage would be a second price sheet free to
+  drift from the first, and the drift would be invisible: a wrong
+  percentage renders as confidently as a right one. An invariant asserts
+  both components compute it and carry no literal.
+- The baseline pack shows nothing rather than "0% off", because the
+  honest answer there is no saving.
+- It also happens to support keeping Campaign as the recommended default:
+  it is not merely the bigger pack, it is the first real discount.
+
 ### 2026-09-17 (a free lookup at the exact-match URL)
 
 The audit's sharpest finding was that

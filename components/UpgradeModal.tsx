@@ -28,6 +28,8 @@ import {
   SUBMISSION_MULTIPLIER,
   CREDIT_LIFETIME_MONTHS,
   type PackId,
+  savingsVsSmallestPack,
+  centsPerMatch,
 } from '@/lib/packs';
 import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { Analytics } from '@/lib/client-analytics';
@@ -343,6 +345,20 @@ export function UpgradeModal({
                         translation for someone holding a file. */}
                     <p className="tabular-nums text-muted-foreground">
                       ≈ {approxWallets(pack.matches)} wallets
+                    </p>
+                    {/* The ladder, made visible. The cards showed price and
+                        match count and left the buyer to divide; nobody
+                        divides, so a steep discount read as "bigger number,
+                        bigger price". Derived from PACKS so it cannot drift
+                        from the price sheet. Nothing renders on the baseline
+                        pack, where the honest answer is no saving. */}
+                    <p className="text-sm text-muted-foreground">
+                      {(centsPerMatch(pack.id) / 100).toFixed(3)}¢ per match
+                      {savingsVsSmallestPack(pack.id) > 0 && (
+                        <span className="ml-2 font-semibold text-attested">
+                          {savingsVsSmallestPack(pack.id)}% cheaper per match
+                        </span>
+                      )}
                     </p>
                   </div>
 
