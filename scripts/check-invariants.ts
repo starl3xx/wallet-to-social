@@ -7025,6 +7025,41 @@ async function main() {
     const anonPerJob = gateMod.ANON_MATCHES_PER_JOB;
     const IP_RATE_LIMITS = limiterMod.IP_RATE_LIMITS;
     const jobsPerHour = IP_RATE_LIMITS['/api/jobs'].limit;
+    /**
+     * The two agent facts are never conflated.
+     *
+     * `KNOWN_AGENTS` is the detector's catalog (13,622, harvested from Virtuals
+     * and friends) and `AGENT_WALLETS_FLAGGED` is how many wallets in our own
+     * index carry the flag (242). Both true, 56-fold apart, and answering
+     * different questions. `/llms.txt` published the catalog under the flagged
+     * label, on the file answer engines read, and `/api/public-stats` returned
+     * one or the other under a single key depending on which branch ran.
+     */
+    const llmsSrc = readFileSync('app/llms.txt/route.ts', 'utf8');
+    ok(
+      'llms.txt does not describe the agent catalog as flagged wallets',
+      !/\$\{KNOWN_AGENTS\}\+? wallets are flagged/.test(llmsSrc)
+    );
+    const statsSrc = withoutComments(
+      readFileSync('app/api/public-stats/route.ts', 'utf8')
+    );
+    ok(
+      'public-stats falls back to the same agent fact its live branch returns',
+      /agents:\s*figure\(AGENT_WALLETS_FLAGGED\)/.test(statsSrc) &&
+        !/agents:\s*figure\(KNOWN_AGENTS\)/.test(statsSrc)
+    );
+    /**
+     * And the hero sentence survives text extraction. `aria-label` on an SVG is
+     * announced by a screen reader and invisible to Readability, so the most
+     * quoted sentence on the domain extracted as "Turn a wallet list into the
+     * and Farcaster accounts behind it".
+     */
+    const homeSrc = readFileSync('app/page.tsx', 'utf8');
+    ok(
+      'the hero names X in text, not only in an aria-label',
+      /<span className="sr-only">X<\/span>/.test(homeSrc)
+    );
+
     ok(
       'anonymous daily throughput is capped below the uncapped per-job product',
       anonPerDay < jobsPerHour * 24 * anonPerJob

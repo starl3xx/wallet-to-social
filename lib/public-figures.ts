@@ -170,11 +170,34 @@ export const CHAIN_COUNT_WORD =
   COUNT_WORDS[SUPPORTED_CHAINS.length] ?? String(SUPPORTED_CHAINS.length);
 
 /**
- * Known agent wallets in the detector's list. A floor: the count only grows.
- * Verified against the live known_agents table 2026-08-22 (13,622) and
- * guarded by the figures registry.
+ * How many agents the DETECTOR knows about, from the catalog harvested out of
+ * Virtuals and friends. A floor: the count only grows. Verified against the
+ * live known_agents table 2026-08-22 and again 2026-09-16 (13,622).
+ *
+ * NOT the number of wallets in our own index that carry the flag. That is
+ * `AGENT_WALLETS_FLAGGED` below, and on 2026-09-16 the two were 13,622 and 242,
+ * a 56-fold gap. Both are true and they answer different questions: this is the
+ * size of the list we match against, that is how many wallets we have actually
+ * matched to it.
+ *
+ * Getting them the wrong way round is not cosmetic. `/llms.txt` published
+ * "13,622+ wallets are flagged as belonging to AI agents", which is this
+ * catalog wearing the other one's label, on the file answer engines read.
  */
 export const KNOWN_AGENTS = '13,622';
+
+/**
+ * Wallets in the index carrying the agent flag: `social_graph.is_agent`.
+ *
+ * Small, and honest about it. A catalog of 13,622 agents only becomes a flagged
+ * wallet when one of those agents turns up in a list somebody actually ran, so
+ * this number tracks usage rather than the detector's reach.
+ *
+ * It exists chiefly so `/api/public-stats` can fall back to the SAME fact its
+ * live branch returns. It used to fall back to `KNOWN_AGENTS`, so one endpoint
+ * answered 242 or 13,622 under one key depending on which branch ran.
+ */
+export const AGENT_WALLETS_FLAGGED = '242';
 /** The same fact at display size, for stat tiles. */
 export const KNOWN_AGENTS_SHORT = '13K+';
 
