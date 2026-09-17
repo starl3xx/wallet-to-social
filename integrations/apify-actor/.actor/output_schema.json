@@ -1,0 +1,24 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Wallet to Twitter & Farcaster Lookup output",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "All rows",
+      "description": "Every wallet submitted, matched or not, so the output lines up with the list you put in.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "reachable": {
+      "type": "string",
+      "title": "Reachable accounts only",
+      "description": "Only the wallets that resolved to an X handle or a Farcaster account.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=matches_only"
+    },
+    "csv": {
+      "type": "string",
+      "title": "Spreadsheet export",
+      "description": "The same rows as CSV, ready for a campaign tool.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?format=csv"
+    }
+  }
+}

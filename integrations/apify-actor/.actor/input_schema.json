@@ -1,0 +1,67 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "Wallet to Twitter & Farcaster Lookup",
+  "description": "Paste wallet addresses to get the X and Farcaster accounts their owners published, or give a handle to get the wallets attested to it.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "lookupMode": {
+      "title": "What are you looking up?",
+      "type": "string",
+      "description": "Forward: wallets in, social accounts out. Reverse: one handle in, the wallets attested to it out.",
+      "editor": "select",
+      "enum": ["wallets", "x_handle", "farcaster_username"],
+      "enumTitles": [
+        "Wallet addresses to social accounts",
+        "X (Twitter) handle to wallets",
+        "Farcaster username to wallets"
+      ],
+      "default": "wallets"
+    },
+    "walletAddresses": {
+      "title": "Wallet addresses",
+      "type": "array",
+      "description": "EVM addresses, one per row. Used when the mode is 'Wallet addresses to social accounts'.",
+      "editor": "stringList",
+      "prefill": [
+        "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "0xfd22004806a6846ea67ad883356be810f0428793",
+        "0x983110309620d911731ac0932219af06091b6744"
+      ]
+    },
+    "walletText": {
+      "title": "Or paste addresses",
+      "type": "string",
+      "description": "Paste a CSV column or a newline-separated list. Anything that looks like an EVM address is picked out, so a whole CSV row works. Merged with the list above.",
+      "editor": "textarea"
+    },
+    "handle": {
+      "title": "Handle to look up",
+      "type": "string",
+      "description": "The X handle or Farcaster username, used when the mode is one of the reverse options. A leading @ is fine.",
+      "editor": "textfield"
+    },
+    "apiKey": {
+      "title": "walletlink.social API key",
+      "type": "string",
+      "description": "Starts with wts_live_. Create one free at https://walletlink.social — the free allowance is 100 matches every 30 days, and wallets that resolve to nothing never count against it.",
+      "editor": "textfield",
+      "isSecret": true
+    },
+    "includeMisses": {
+      "title": "Include wallets that resolved to nothing",
+      "type": "boolean",
+      "description": "Keep a row for every address submitted, so the output lines up with your input list. Turn off to keep only the matches.",
+      "default": true
+    },
+    "maxReversePages": {
+      "title": "Reverse lookup: pages to fetch",
+      "type": "integer",
+      "description": "Each page returns up to 100 wallets and costs one match credit per wallet returned, so one page can spend an entire free allowance. Raise this deliberately.",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 20
+    }
+  },
+  "required": ["lookupMode"]
+}
