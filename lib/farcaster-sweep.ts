@@ -448,6 +448,30 @@ export async function dropSeenTable(name: string): Promise<void> {
   await db.execute(sql`DROP TABLE IF EXISTS ${sql.raw(name)}`);
 }
 
+/**
+ * Render a `Date` for comparison against a zone-less `timestamp` column.
+ *
+ * `social_graph.last_updated_at` is `timestamp` with no time zone, holding UTC
+ * because every writer is `now()` under a UTC session. Binding a JS `Date`
+ * against such a column does not compare UTC: the driver sends the date's
+ * LOCAL wall-clock reading, so the cutoff silently moves by the operator's
+ * offset. Measured by planning the real cleanup statement from a UTC-5
+ * machine: `new Date('2026-09-02T10:44:50Z')` arrived as
+ * `'2026-09-02 05:44:50'`, five hours early.
+ *
+ * The scheduled runner is UTC, so this has never shown up in production, which
+ * is exactly what makes it worth naming. West of UTC it under-clears, which is
+ * merely wrong. East of UTC it moves the cutoff LATER and clears rows that
+ * another pipeline legitimately refreshed after the sweep began, which is data
+ * loss driven by nothing but where the operator was sitting.
+ *
+ * The same class of bug was live in `scripts/ops-status.ts` until 2026-09-17,
+ * from the other direction (parsing rather than binding).
+ */
+function utcWallClock(at: Date): string {
+  return at.toISOString().replace('Z', '');
+}
+
 export async function beginSeenTracking(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
@@ -641,13 +665,38 @@ export async function cleanupRevokedWallets(
         last_updated_at = now()
     WHERE 'farcaster_sweep' = ANY(sources)
       AND NOT (sources && ARRAY['neynar', 'manual'])
-      AND last_updated_at < ${sweepStartedAt}
+      AND last_updated_at < ${utcWallClock(sweepStartedAt)}
       -- The bound that makes a partial-range sweep safe to clean up after.
       -- Outside it, absence from the seen table means "not looked at".
       -- A NULL fc_fid is excluded by BETWEEN, which is correct: a row whose
       -- Farcaster data is already gone has nothing left to revoke.
       AND fc_fid BETWEEN ${startFid} AND ${endFid}
-      AND wallet NOT IN (SELECT wallet FROM ${sql.raw(seenTable)})
+      -- NOT EXISTS, never NOT IN. This is the statement that killed the
+      -- 2026-09-02 run, and the driver was the symptom rather than the cause.
+      --
+      -- Written as "wallet NOT IN (SELECT wallet FROM <seen>)" the planner
+      -- does not read this as an anti-join. It builds a correlated SubPlan
+      -- with a Materialize of all ~805k seen wallets and rescans it per
+      -- candidate row, over a sequential scan of social_graph, because no
+      -- index covers sources, fc_fid or last_updated_at. Measured on the real
+      -- slice-3 data: estimated cost 74,563,713,792. The run died at 32
+      -- minutes on the neon-http headers timeout, and would not have finished
+      -- with any timeout: it is roughly 5.1M x 805k comparisons.
+      --
+      -- As NOT EXISTS with the correlated equality below, the same predicate
+      -- plans as a Parallel Hash Right Anti Join against the seen table's
+      -- primary key: estimated cost 337,774, measured execution 2.8 seconds
+      -- over the identical data. Four orders of magnitude, one keyword.
+      --
+      -- Equivalent here, not merely similar: wallet is the primary key of
+      -- both tables, so neither side is nullable and the NULL semantics that
+      -- distinguish NOT IN from NOT EXISTS cannot arise. If either column
+      -- ever becomes nullable, NOT IN would silently clear nothing at all,
+      -- which is the more frightening of the two failure modes.
+      AND NOT EXISTS (
+        SELECT 1 FROM ${sql.raw(seenTable)} s
+        WHERE s.wallet = social_graph.wallet
+      )
   `);
 
   /**

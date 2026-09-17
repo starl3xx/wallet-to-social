@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (one keyword, four orders of magnitude)
+
+- **The monthly sweep's revocation cleanup was never going to finish, and
+  the driver timeout that killed it was the symptom rather than the cause.**
+  The statement tested the seen table with `wallet NOT IN (SELECT wallet FROM
+<seen table>)`. Postgres does not read that as an anti-join: it builds a
+  correlated SubPlan with a Materialize of all ~805k seen wallets and rescans
+  it for every candidate row, over a sequential scan of `social_graph`,
+  because no index covers `sources`, `fc_fid` or `last_updated_at`. Planned
+  against the real slice-3 data, estimated cost **74,563,713,792**, roughly
+  5.1M x 805k comparisons. The 2026-09-02 run died at 32 minutes on the
+  neon-http headers timeout; a longer timeout would have changed nothing.
+- The same predicate written as `NOT EXISTS` with a correlated equality plans
+  as a Parallel Hash Right Anti Join against the seen table's primary key:
+  estimated cost **337,774**, measured execution **2.8 seconds** over the
+  identical data. That is the whole fix. No driver change, no chunking, no new
+  index, and none of the blast radius any of those carried: flipping
+  `USE_CONNECTION_POOLING` would also have handed the sweep transaction
+  support it branches on through `isTransactionCapable()`, and chunking would
+  have multiplied a full table scan by the number of chunks.
+- Both spellings are valid SQL and both are semantically identical here, since
+  `wallet` is the primary key of both tables so no NULL can arise. Only one of
+  them completes. That is why the assertion states the refusal: cleanup never
+  tests the seen table with `NOT IN`. A happy-path test passes on either.
+- **A second, quieter bug in the same statement.** `last_updated_at` is
+  `timestamp` with no time zone holding UTC, and the cutoff was a bound JS
+  `Date`, which sends its local wall-clock reading instead. Planned from a
+  UTC-5 machine, `2026-09-02T10:44:50Z` arrived as `2026-09-02 05:44:50`. The
+  scheduled runner is UTC, so this has never shown up in production, which is
+  what makes it worth naming: west of UTC it under-clears, and east of UTC it
+  moves the cutoff later and clears rows another pipeline legitimately
+  refreshed after the sweep began. Now bound through an explicit UTC
+  wall-clock helper, and asserted.
+- **Still owed, and recorded in the posture table:** cleanup is bounded to its
+  own slice, so the 2026-10-02 run cleans slice 4, not slice 3, whose next
+  turn is about 2027-03. 383 rows in slice 3's range still carry a Farcaster
+  account the sweep found revoked (0 husk rows). Clearing them needs a
+  deliberate pass over the surviving seen table, so
+  `farcaster_sweep_seen_1788345941996` must be kept until it runs.
+
 ### 2026-09-17 (the posture readout tells the truth, and one pipeline was not fine)
 
 - **The monthly Farcaster sweep has been half-failing since 2026-09-02 and

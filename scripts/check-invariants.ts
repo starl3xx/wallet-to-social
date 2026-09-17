@@ -7646,6 +7646,60 @@ async function main() {
 
   {
     /**
+     * Revocation cleanup must stay plannable as an anti-join.
+     *
+     * The 2026-09-02 monthly sweep ingested perfectly and then died in
+     * cleanup, and the driver's headers timeout was the symptom rather than
+     * the cause. Written as `wallet NOT IN (SELECT wallet FROM <seen>)` the
+     * planner builds a correlated SubPlan with a Materialize of ~805k seen
+     * wallets and rescans it per candidate row over a sequential scan of
+     * social_graph: measured estimated cost 74,563,713,792, which no timeout
+     * would have saved. The identical predicate as NOT EXISTS plans as a
+     * Parallel Hash Right Anti Join, cost 337,774, measured at 2.8 seconds.
+     *
+     * Asserting the refusal rather than the shape, because a happy-path test
+     * passes on either spelling: both are valid SQL, both are semantically
+     * correct here, and only one of them completes.
+     */
+    const sweepSource = readFileSync('lib/farcaster-sweep.ts', 'utf8');
+    const sweep = withoutComments(sweepSource);
+    const cleanup = sweep.slice(
+      sweep.indexOf('export async function cleanupRevokedWallets'),
+      sweep.indexOf('export async function sweepFidRange')
+    );
+    // SQL `--` comments survive withoutComments(), which strips JS comment
+    // syntax only, and the comment beside this statement names NOT IN on
+    // purpose. Testing the prose instead of the statement is the mistake this
+    // file already made once: an assertion that reads its own explanation
+    // verifies nothing. Strip the SQL comments and test the SQL.
+    const cleanupSql = cleanup.replace(/--[^\n]*/g, '');
+    ok(
+      'revocation cleanup never tests the seen table with NOT IN',
+      cleanupSql.length > 0 &&
+        !/NOT IN\s*\(/i.test(cleanupSql) &&
+        /NOT EXISTS\s*\(/i.test(cleanupSql) &&
+        /s\.wallet = social_graph\.wallet/.test(cleanupSql)
+    );
+
+    /**
+     * And it must not bind a JS Date against a zone-less timestamp column.
+     *
+     * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
+     * bound `Date` sends its LOCAL wall-clock reading and moves the cutoff by
+     * the operator's offset. East of UTC that moves it later and clears rows
+     * another pipeline refreshed after the sweep began. The scheduled runner
+     * is UTC, so the happy path is silent about this forever.
+     */
+    ok(
+      'and it compares last_updated_at through the explicit UTC wall-clock helper',
+      /last_updated_at < \$\{utcWallClock\(sweepStartedAt\)\}/.test(
+        sweepSource
+      ) && /function utcWallClock/.test(sweep)
+    );
+  }
+
+  {
+    /**
      * The staleness tool must not be the stalest thing in the room.
      *
      * `docs/OPERATIONS.md` sends a fresh session to `scripts/ops-status.ts`
