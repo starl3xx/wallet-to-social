@@ -89,8 +89,13 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the session is used for one event but never stored on the job',
     file: 'app/api/jobs/route.ts',
-    from: '      sessionId: browserSession,\n      // Only a signed-in account can be debited; see JobOptions.meteredUserId.',
-    to: '      // Only a signed-in account can be debited; see JobOptions.meteredUserId.',
+    // Re-anchored 2026-09-16: the anonymous match gate now sits between the
+    // session line and that comment, so the old two-line anchor no longer
+    // matched and the guard reported the defect undetected rather than the
+    // anchor stale. The seeded defect is unchanged: delete the session from the
+    // job insert and see whether anything notices.
+    from: '      sessionId: browserSession,\n      // Undefined for a signed-in caller, which is what keeps the gate off it.',
+    to: '      // Undefined for a signed-in caller, which is what keeps the gate off it.',
   },
   {
     name: 'a posted session id is trusted instead of validated',
