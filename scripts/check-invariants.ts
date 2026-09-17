@@ -7214,22 +7214,54 @@ async function main() {
      * `locked` beside it, because a figure that counts withheld rows without
      * saying any are withheld is the same dishonesty pointing the other way.
      */
-    const countsSrc = withoutComments(
-      readFileSync('lib/result-counts.ts', 'utf8')
-    );
+    /**
+     * Run through the function, not over its source.
+     *
+     * `countResults` is pure and importable, so there is no reason to assert
+     * a regex about how it is written, and one very good reason not to: the
+     * first version of this block asserted `const found = reachable + locked`
+     * and that line was the bug. `locked` and `reachable` are NOT disjoint,
+     * because the gate strips only the billable identities and leaves ENS,
+     * Lens and GitHub in place, so a locked row carrying an ENS name sits in
+     * both sets and the sum published it twice. The assertion was defending
+     * the defect, which is the third time that shape has appeared in this
+     * repo.
+     *
+     * The row below is the exact counterexample: withheld, and still visibly
+     * carrying a Lens profile.
+     *
+     * `lens`, not `ens_name`, and the first draft of this test got that wrong
+     * and failed honestly. `reachable` has always counted an X handle, a
+     * Farcaster account, Lens or GitHub; an ENS name alone has never been in
+     * it. So an ENS-carrying locked row is not in both sets and proves
+     * nothing. Lens and GitHub are the two the gate leaves behind that
+     * `reachable` does count, and they are where the double count lived.
+     */
+    const { countResults } = await import('@/lib/result-counts');
+    const gatedWithLens = countResults([
+      { wallet: '0x1', lens: 'a.lens', locked: true },
+      { wallet: '0x2', twitter_handle: 'b' },
+      { wallet: '0x3' },
+    ] as never);
     ok(
       'a locked row counts towards found, not against it',
-      /if \(r\.locked\) \{\s*locked\+\+;\s*matched\+\+;/.test(countsSrc)
+      gatedWithLens.found === 2 && gatedWithLens.locked === 1
     );
-    /**
-     * `found` is a sum of two disjoint sets, never a second predicate over
-     * the rows. A re-derivation would be a second definition of the same
-     * fact, free to drift from the first, which is the whole failure this
-     * module exists to end.
-     */
     ok(
-      'found is reachable plus locked, not recomputed',
-      /const found = reachable \+ locked;/.test(countsSrc)
+      'and a locked row that still shows a Lens profile is counted once, not twice',
+      // reachable = the Lens row + the handle row = 2; locked = 1; a naive
+      // `reachable + locked` says 3 for a three-row list holding two finds.
+      gatedWithLens.reachable === 2 && gatedWithLens.found === 2
+    );
+    ok(
+      'the match rate counts withheld rows, so a gate cannot deflate it',
+      countResults([
+        { wallet: '0x1', locked: true },
+        { wallet: '0x2' },
+      ] as never).matchRate === '50.0'
+    );
+    const countsSrc = withoutComments(
+      readFileSync('lib/result-counts.ts', 'utf8')
     );
     const resultStatsSrc = withoutComments(
       readFileSync('components/StatsCards.tsx', 'utf8')
@@ -7305,15 +7337,28 @@ async function main() {
     ok(
       'a lookup is only submitted as saved when there is an account to save it to',
       saving.length >= 2 &&
-        saving.every((c) =>
-          /saveToHistory:\s*saveToHistory && canSaveHistory/.test(c)
-        )
+        saving.every((c) => /saveToHistory:\s*willSave/.test(c)) &&
+        (
+          homeSrcSave.match(
+            /const willSave = saveToHistory && canSaveHistory;/g
+          ) ?? []
+        ).length >= 2
     );
+    /**
+     * The guard asks what WAS saved, never what could be saved now.
+     *
+     * Reading the live auth state there had it backwards in the one case it
+     * matters: `/?collection=…` submits on mount while `useAuth` is still
+     * loading, so a signed-in visitor on such a link sent
+     * `saveToHistory: false` and stored nothing, then auth resolved and the
+     * warning went quiet over a result that was never saved. Signing in after
+     * a signed-out run does the same to the run already on screen.
+     */
     ok(
       'and a save that cannot happen does not suppress the unload warning',
-      /savedForward =\s*saveToHistory && canSaveHistory && reverseMeta === null/.test(
+      /const savedForward = savedThisRun && reverseMeta === null;/.test(
         homeSrcSave
-      )
+      ) && /setSavedThisRun\(willSave\)/.test(homeSrcSave)
     );
 
     /**

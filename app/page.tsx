@@ -198,6 +198,27 @@ export default function Home() {
    * where an account is obviously worth having.
    */
   const canSaveHistory = Boolean(user);
+
+  /**
+   * Whether the run currently on screen was actually submitted as saved.
+   *
+   * Recorded at submit time from the value that was sent, never recomputed
+   * from the current auth state, and that distinction is the whole point.
+   * `canSaveHistory` answers "could we save right now"; the unload guard has
+   * to answer "did we save this one", and those come apart in two real ways:
+   *
+   * - `/?collection=…` submits on mount, while `useAuth` is still loading and
+   *   `user` is null. A signed-in visitor arriving on such a link sent
+   *   `saveToHistory: false`, so nothing was stored; a moment later auth
+   *   resolved, `canSaveHistory` flipped true, and the guard went quiet over
+   *   a result that was never saved.
+   * - Signing in after a signed-out run does the same thing to the run that
+   *   is already on screen.
+   *
+   * Both cases removed the warning in precisely the situation it exists for,
+   * which is worse than not having added it.
+   */
+  const [savedThisRun, setSavedThisRun] = useState(false);
   const userTier: UserTier = user?.tier || 'free';
 
   /**
@@ -331,11 +352,10 @@ export default function Home() {
     // back, so for forward results the checkbox is the only signal there is,
     // and it must not apply to reverse results, which never touch it:
     // reverseMeta says which kind is on screen.
-    // `canSaveHistory`, not the checkbox alone: a save that the server will
-    // refuse must not suppress the warning that this is the last chance to
-    // export.
-    const savedForward =
-      saveToHistory && canSaveHistory && reverseMeta === null;
+    // What was actually sent, not what could be sent now. See
+    // `savedThisRun`: reading the live auth state here silenced the warning
+    // over runs that were never stored.
+    const savedForward = savedThisRun && reverseMeta === null;
     if (
       state !== 'complete' ||
       results.length === 0 ||
@@ -356,8 +376,7 @@ export default function Home() {
     state,
     results.length,
     currentLookupId,
-    saveToHistory,
-    canSaveHistory,
+    savedThisRun,
     reverseMeta,
     exportedThisRun,
   ]);
@@ -997,6 +1016,15 @@ export default function Home() {
       message: 'Submitting job…',
     });
 
+    /**
+     * Decided once, sent, and remembered. The unload guard reads
+     * `savedThisRun` rather than recomputing this, because auth can resolve
+     * or change after the submit and the guard must answer for the run that
+     * happened.
+     */
+    const willSave = saveToHistory && canSaveHistory;
+    setSavedThisRun(willSave);
+
     try {
       // Submit job to queue
       const submitted = await submitJob({
@@ -1011,7 +1039,7 @@ export default function Home() {
          * where only a migration could reach them is worse than not storing
          * them, so it does not.
          */
-        saveToHistory: saveToHistory && canSaveHistory,
+        saveToHistory: willSave,
         historyName: submittedName,
         ...scanDepthOptions(scanDepth),
         userId: getUserId(),
@@ -1100,11 +1128,15 @@ export default function Home() {
         message: 'Submitting job…',
       });
 
+      // Same decision as the list path, taken before the request and kept.
+      const willSave = saveToHistory && canSaveHistory;
+      setSavedThisRun(willSave);
+
       try {
         const submitted = await submitJob({
           collection: { chain: collection.chain, address: collection.address },
           // Same gate as the list path above, for the same reason.
-          saveToHistory: saveToHistory && canSaveHistory,
+          saveToHistory: willSave,
           ...scanDepthOptions(scanDepth),
           userId: getUserId(),
           sessionId: getSessionId(),

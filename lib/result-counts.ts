@@ -72,14 +72,25 @@ export interface ResultCounts {
    */
   reachable: number;
   /**
-   * `reachable` plus the rows the gate withheld: everything this lookup
-   * found, whether or not you can see it yet.
+   * Every row this lookup found something for: a visible identity, a withheld
+   * one, or both. Each row counted once.
    *
    * This is the figure the results header should lead with, and it carries one
    * condition: a surface showing it must name `locked` beside it. A number
    * that counts withheld rows without saying any are withheld is the same
    * dishonesty as the one this file exists to fix, pointing the other way.
    * `scripts/check-invariants.ts` asserts that pairing.
+   *
+   * **It is not `reachable + locked`, and the first version of this file said
+   * it was.** The comment justifying that sum asserted a locked row has no
+   * visible identity "by construction", which is false and is contradicted in
+   * plain English at the top of `lib/match-gate.ts`: the gate strips the
+   * BILLABLE identities, and ENS, Lens and GitHub are never billed, so they
+   * stay. A locked row carrying an ENS name is therefore in `reachable` and in
+   * `locked` at once, and the sum counted it twice, in the header and in the
+   * share text. That is the same overclaim this module was written to remove,
+   * reintroduced while removing it, and it got through because the comment
+   * stated the premise instead of checking it against the file next door.
    */
   found: number;
   /**
@@ -99,6 +110,7 @@ export function countResults(results: WalletSocialResult[]): ResultCounts {
   let locked = 0;
   let matched = 0;
   let reachable = 0;
+  let found = 0;
 
   for (const r of results) {
     const hasTwitter = Boolean(r.twitter_handle);
@@ -124,21 +136,18 @@ export function countResults(results: WalletSocialResult[]): ResultCounts {
     // Unchanged from what the header has always counted. The never-billed
     // identities belong here and never in `matched`, because they are never
     // billed and so can never be locked.
-    if (hasTwitter || hasFarcaster || r.lens || r.github) reachable++;
+    const isReachable = Boolean(
+      hasTwitter || hasFarcaster || r.lens || r.github
+    );
+    if (isReachable) reachable++;
+    // One predicate over the row, counted once. See `found` above for why this
+    // is not `reachable + locked`: the two sets overlap on any locked row that
+    // also carries an ENS name, a Lens profile or a GitHub account, and the
+    // gate leaves all three in place.
+    if (isReachable || r.locked) found++;
   }
 
   const total = results.length;
-  /**
-   * Added rather than re-derived, and that is not a micro-optimisation.
-   *
-   * A locked row has no visible identity by construction, so it cannot
-   * already be inside `reachable`, and the two sets are disjoint. Recomputing
-   * `found` with its own predicate over the rows would be a second definition
-   * of the same fact, free to drift from the first: exactly the failure this
-   * file was written to end. It is one sum precisely so there is nothing to
-   * keep in agreement.
-   */
-  const found = reachable + locked;
 
   return {
     total,
