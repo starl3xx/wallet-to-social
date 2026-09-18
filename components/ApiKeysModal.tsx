@@ -27,6 +27,7 @@ import {
   claudeCodeCommand,
   cursorInstallLink,
   MCP_SERVER_NAME,
+  SKILL_URL,
 } from '@/lib/mcp-install';
 import type { UserTier } from '@/lib/access';
 import { cn } from '@/lib/utils';
@@ -464,6 +465,21 @@ export function ApiKeysModal({
                     The rule above the fold still applies. These are a
                     convenience for getting the key into a local agent, not a
                     reason to stop treating it as a secret. */}
+                {/* Carries no key, so unlike the two buttons below it this is
+                    safe anywhere. It is here because this is the screen
+                    somebody reaches when they are wiring up an agent, and a
+                    chat host that cannot open an OAuth consent screen (X and
+                    Grok report `no_auth_link`) needs both halves: the key
+                    above, and the URL that tells the agent what to do with
+                    it. */}
+                <div className="mt-3 border-t pt-3">
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    If your agent installs from a URL, give it this. No key in
+                    it, so it is safe to paste anywhere.
+                  </p>
+                  <code className="text-xs break-all">{SKILL_URL}</code>
+                </div>
+
                 <div className="mt-3 border-t border-caution pt-3">
                   <p className="mb-2 text-xs text-caution">
                     Or send it straight to an agent. Both carry this key.

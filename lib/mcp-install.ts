@@ -15,6 +15,16 @@
 /** The one public address of the server. */
 export const MCP_URL = 'https://walletlink.social/api/mcp';
 
+/**
+ * The skill file, for an agent that installs a capability from a URL rather
+ * than a config block. Served by `app/skill.md/route.ts`.
+ *
+ * Here beside `MCP_URL` for the same reason that one is here: every surface
+ * that tells somebody how to connect reads one constant, so a copy-paste block
+ * on a page cannot drift from the thing it is describing.
+ */
+export const SKILL_URL = 'https://walletlink.social/skill.md';
+
 /** The name the server is installed under. Short, and the same in both paths. */
 export const MCP_SERVER_NAME = 'walletlink';
 

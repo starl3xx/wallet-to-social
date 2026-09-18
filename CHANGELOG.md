@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the skill file is findable, and Grok needs a key)
+
+- **`/skill.md` had exactly one reference anywhere: `llms.txt`.** The homepage,
+  `/mcp`, `/api-docs`, the README, all of `docs-site/` and the published docs
+  had none, so the only way to learn the URL existed was to be told it. A URL
+  nobody can discover is worth nothing, and shipping it with a single pointer
+  on a file only crawlers read was not the same as shipping it.
+- It is now on `/mcp` (the page whose own title is "connect an AI agent to
+  walletlink.social"), in the API keys modal at the moment somebody is wiring
+  an agent up, in the README, and on the docs site. The URL lives in
+  `lib/mcp-install.ts` beside `MCP_URL`, so every surface reads one constant
+  rather than typing it.
+- **Grok and X cannot do OAuth, and the docs said they could.** A connector
+  inside those chat hosts has no way to open a consent screen and reports
+  `no_auth_link`, so an OAuth connection can never complete there however many
+  times it is retried. The "From Grok" section said to connect "with OAuth or
+  an API key exactly as any other client does", which sent people into a loop
+  that cannot terminate. It now says to use a key.
+- The symptom is worth recognizing, so it is written down beside the auth
+  comparison: a connector that lists all eight tools happily, because discovery
+  needs no credential, and then reports it still needs to sign in however many
+  times you authorize. That is not a failed sign-in, it is a host that cannot
+  start one.
+
 ### 2026-09-18 (a skill file at a URL you can paste)
 
 - **`https://walletlink.social/skill.md` serves the agent skill**, because the
