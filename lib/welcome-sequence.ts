@@ -211,9 +211,9 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
              * reader: they are spending a pack, and they already have the
              * features the other version is describing as the paid half.
              */
-            subject: 'Your credits are ready. Here is what they do.',
+            subject: 'Your credits are ready. Here’s what they do.',
             paragraphs: [
-              'Hey, thanks for signing up for walletlink.social. There are credits on your account already, so here is what you can do with them.',
+              'Hey, thanks for signing up for walletlink.social. There are credits on your account already, so here’s what you can do with them.',
               `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
               'A match is a wallet we resolve to an X or Farcaster account, and **wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your balance. Your credits are what open the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle. The CSV export was never behind that line and is yours either way, every row of it.',
             ],
@@ -259,7 +259,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       ],
       button: { label: 'Check your list', url: SITE },
       footnote:
-        'You are getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
+        'You’re getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
     },
   },
   {
@@ -274,7 +274,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       ],
       button: { label: 'See it on your list', url: SITE },
       footnote:
-        'You are getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
+        'You’re getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
     },
   },
   {
@@ -315,7 +315,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       ],
       button: { label: 'Look up a handle', url: SITE },
       footnote:
-        'You are getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
+        'You’re getting a short series of emails because you created a walletlink.social account. The unsubscribe link below stops them.',
     },
   },
   {
@@ -336,8 +336,8 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       paragraphs: [
         'If walletlink.social showed you real matches, here’s the price:',
         `The ${ENTRY_PACK.name} pack is $${ENTRY_PACK_PRICE}, once. It covers ${ENTRY_PACK.matches} matches (${ENTRY_PACK.fits.toLowerCase()}), and misses are still free. No subscription; credits last ${CREDIT_LIFETIME_MONTHS} months.`,
-        `Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all ${CHAIN_COUNT_WORD} chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they do not hold more product.`,
-        'If your free lookups showed few matches, do not buy. That’s the honest read of your list, and it is why we charge for matches instead of promises.',
+        `Any pack turns on the same things, so the cheapest one opens all of them: the X list export, the priority score and follower counts, the wallet addresses behind a handle, contract import on all ${CHAIN_COUNT_WORD} chains, deep scan with onchain ENS, and API access on the same credits. The CSV export was never behind this line and is not now. The larger packs hold more matches at a lower price each; they don’t hold more product.`,
+        'If your free lookups showed few matches, don’t buy. That’s the honest read of your list, and it’s why we charge for matches instead of promises.',
       ],
       button: {
         label: `Buy the ${ENTRY_PACK.name} pack`,
