@@ -499,7 +499,17 @@ export type SweepOutcome =
   /** Swept with failures, so cleanup was refused rather than run on a partial seen set. */
   | 'cleanup-skipped'
   /** Budget ran out mid-sweep; a checkpoint was written and cleanup does not apply. */
-  | 'checkpointed';
+  | 'checkpointed'
+  /**
+   * A resumed sweep reached the end of its range across several segments. The
+   * checkpoint has done its job and is cleared, and cleanup cannot run because
+   * it needs one run that covers the whole range. This exists so the earlier
+   * segment's `checkpointed` row cannot outlive the thing it described: without
+   * it the readout goes on saying the last run budget-stopped after the range
+   * is actually finished, which is the same class of lie this row was added to
+   * remove (found by Bugbot).
+   */
+  | 'range-complete';
 
 export interface SweepPosture {
   at: string;

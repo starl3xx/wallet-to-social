@@ -140,6 +140,9 @@ function describe(row: StateRow): string {
     if (o.outcome === 'checkpointed') {
       return `${span}checkpointed, cleanup does not apply: ${o.reason ?? '?'}`;
     }
+    if (o.outcome === 'range-complete') {
+      return `${span}range complete, cleanup did not run: ${o.reason ?? '?'}`;
+    }
     return `${span}unrecognized outcome ${JSON.stringify(o.outcome)}`;
   }
   if (row.name === 'basename_record_harvest') {

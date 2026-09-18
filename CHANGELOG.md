@@ -41,9 +41,23 @@ All notable changes to walletlink.social. Newest first.
   re-throws the original: an incident must not lose its cause to the thing
   reporting it. Asserted, along with the re-throw that keeps a failed sweep
   exiting non-zero.
-- Four assertions, each verified by reintroducing its defect. Verified end to
-  end as well, not only against the source: the row was written through
-  `recordSweepPosture`, rendered through `ops-status.ts`, and removed again.
+- A resumed sweep that reaches the end of its range records `range-complete`
+  too. Bugbot caught that the first version cleared `farcaster_sweep_resume`
+  and wrote no posture, so the earlier segment's `checkpointed` row outlived
+  what it described and the readout kept saying the last run budget-stopped
+  after the range had finished. Stale but plausible is the exact failure this
+  row exists to remove, so it would have been an unusually poor place to leave
+  one. `--incremental` and `--range` still record nothing, deliberately: they
+  cannot clean up, and writing here would overwrite a monthly slice's outcome
+  with an unrelated activity's.
+- Five assertions, each verified by reintroducing its defect. One of them had
+  to be rewritten to earn that: it first compared totals, `records >= clears +
+1`, and passed over the very defect it was written for, because removing one
+  record still left four against two clears. A count cannot say which branch
+  reports. It is scoped to the resumed-range branch now.
+- Verified end to end as well, not only against the source: the row was written
+  through `recordSweepPosture`, rendered through `ops-status.ts`, and removed
+  again.
 
 ### 2026-09-17 (slice 3 settled)
 

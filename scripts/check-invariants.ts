@@ -7830,7 +7830,36 @@ async function main() {
       'and it records the other endings too, so the row means "what happened" rather than "it worked"',
       /outcome: 'cleaned'/.test(caller) &&
         /outcome: 'cleanup-skipped'/.test(caller) &&
-        /outcome: 'checkpointed'/.test(caller)
+        /outcome: 'checkpointed'/.test(caller) &&
+        /outcome: 'range-complete'/.test(caller)
+    );
+
+    /**
+     * Every ending that clears a checkpoint must also replace the posture that
+     * quoted it.
+     *
+     * The first version of this row missed the resumed-range case: a `--resume`
+     * that finished cleared `farcaster_sweep_resume` and wrote no posture, so
+     * the earlier segment's `checkpointed` row stayed and the readout went on
+     * saying the last run budget-stopped after the range was actually done
+     * (found by Bugbot). Stale-but-plausible is the exact failure this row
+     * exists to remove, so it is worth an assertion rather than a memory.
+     *
+     * Scoped to the branch rather than counted across the file. The first
+     * version of this assertion compared totals (`records >= clears + 1`) and
+     * passed over the very defect it was written for, because removing one
+     * record still left four against two clears. A count cannot say WHICH
+     * branch reports, which is the only thing that matters here.
+     */
+    const resumeBranch = caller.slice(
+      caller.lastIndexOf("else if (effectiveMode === '--resume')")
+    );
+    ok(
+      'the resumed-range ending records too, instead of leaving the checkpointed row standing',
+      resumeBranch.length > 0 &&
+        /await clearSweepCheckpoint\(\)/.test(resumeBranch) &&
+        /await recordSweepPosture\(/.test(resumeBranch) &&
+        /outcome: 'range-complete'/.test(resumeBranch)
     );
 
     /**

@@ -486,7 +486,32 @@ async function main() {
         `Revocation cleanup did not run: it requires a sweep that covers the ` +
         `whole range in one run. Run --full when the budget allows one.`
     );
+    /**
+     * Recorded, or the earlier segment's `checkpointed` row outlives what it
+     * described and the readout keeps saying the last run budget-stopped after
+     * the range is finished. Clearing the checkpoint without clearing the
+     * posture that quoted it is exactly the shape of stale-but-plausible
+     * reporting this row exists to remove.
+     */
+    await recordSweepPosture({
+      at: sweepStartedAt.toISOString(),
+      mode: effectiveMode,
+      outcome: 'range-complete',
+      reason: `range finished after ${segments} segment(s); cleanup needs a single-run sweep`,
+    });
   }
+  /**
+   * `--incremental` and `--range` deliberately record nothing.
+   *
+   * This row tracks the cleanup lifecycle: the sweeps that can clear
+   * revocations, and the checkpoints that lead to one. An incremental run adds
+   * new FIDs above the frontier and a `--range` run is a manual repair; neither
+   * tracks a seen set and neither can clean up. Writing here would overwrite a
+   * monthly slice's outcome with the result of an unrelated activity, which
+   * loses the only record of whether revocations were cleared. The question
+   * this row answers is "what did the last run that could clean up do", and
+   * those two modes are not answers to it.
+   */
 }
 
 main().catch((err) => {
