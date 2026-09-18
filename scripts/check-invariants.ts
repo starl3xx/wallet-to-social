@@ -3809,6 +3809,29 @@ async function main() {
       'the MCP tools were found on both surfaces at all',
       registered.length >= 8 && listed.length >= 8
     );
+
+    /**
+     * `/skill.md` is a third surface carrying the roster, and the one handed
+     * to an agent rather than read by a person.
+     *
+     * It keeps its own table because the cost column is editorial prose and
+     * nothing on a tool definition states a price. That is the same trade the
+     * `/mcp` page makes, so it takes the same assertion: a ninth tool fails
+     * here rather than being discovered missing by whoever pasted the URL into
+     * their agent and wondered why it could not see it.
+     */
+    const skillRoute = withoutComments(
+      readFileSync('app/skill.md/route.ts', 'utf8')
+    );
+    const inSkill = [
+      ...skillRoute.matchAll(/'(walletlink_[a-z_]+)',\n\s*'/g),
+    ].map((m) => m[1]);
+    ok(
+      'the skill file lists exactly the tools the server registers',
+      inSkill.length >= 8 &&
+        new Set(inSkill).size === new Set(registered).size &&
+        [...new Set(registered)].every((t) => inSkill.includes(t))
+    );
     // Set equality, not order: the page groups the tools by what a reader
     // reaches for first, which is an editorial choice and not a drift. What
     // must never differ is the membership, because every count on the page is

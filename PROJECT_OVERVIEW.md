@@ -1027,7 +1027,9 @@ form of its model:
   one meter (matches, misses free), one rate limiter.
 - **L3 Agent affordances**: quota in every result and refusal, self-remedying
   errors, spend planning, async jobs, deltas and watchlists, purchase memory.
-- **L4 Projections**: REST, MCP, plugins, docs, llms.txt. A projection that
+- **L4 Projections**: REST, MCP, plugins, docs, llms.txt, `/skill.md` (the
+  agent skill at a pasteable URL, generated from the constants and canonical
+  sentences rather than stored, `app/skill.md/route.ts`). A projection that
   executes carries the credential down; one that explains quotes the
   contract; neither re-implements either (`lib/mcp-call.ts` is the exemplar).
 
