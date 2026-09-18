@@ -835,6 +835,43 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {
       continue;
     }
+    /**
+     * ERC-20 seeding through the metered index is retired (2026-09-18).
+     *
+     * Moralis has answered `401 "Your Moralis Free usage is paused"` since
+     * 2026-08-31 and we are not paying to restore it, so every seed on a
+     * metered chain since that date has spent a slot to receive a 401 and
+     * written a `holders_imported = 0` row that nothing counted. Three weeks
+     * of a job failing daily with no one told, which is the same silent-zero
+     * shape the Farcaster sweep was carrying until this week.
+     *
+     * The gate is `usesMeteredHolderIndex` and not the chain list above,
+     * because the two answer different questions and the difference is the
+     * whole point here: the list says "an ERC-20 index exists for this chain",
+     * this says "that index is the metered one". Robinhood Chain is in the
+     * list and answers false, because its explorer is the only ERC-20 index it
+     * has rather than a fallback, so it keeps seeding. That is exactly what
+     * "concentrate on NFTs and Robinhood, which work" means
+     * (docs/GROWTH.md).
+     *
+     * Refused here, at discovery, rather than inside seedContract: a candidate
+     * that is never selected spends no slot, writes no attempt marker, and
+     * cannot leave a zero-holder row that locks a healthy token out of the
+     * pool for FAILURE_RETRY_DAYS. A path that cannot succeed should say so
+     * once, not fail quietly every day.
+     *
+     * Reversible in one line if the public-explorer option is ever taken: it
+     * recovers 11 of 42 recognized tokens, at the cost of the
+     * `allowPublicFallback: false` policy that keeps background work from
+     * spending free infrastructure on jobs nobody asked for.
+     */
+    if (usesMeteredHolderIndex(chain)) {
+      console.log(
+        `ERC-20 seeding skipped on ${chain}: the metered holder index is retired, ` +
+          `so this would spend a slot to receive a 401 (docs/GROWTH.md).`
+      );
+      continue;
+    }
     {
       if (Date.now() > deadline - SLOT_RESERVE_MS) {
         results.push(budgetExhausted(chain, 'erc20'));

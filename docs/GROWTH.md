@@ -153,15 +153,30 @@ spent a cron slot per chain per day to receive a 401 and write a
 shape the Farcaster sweep was carrying until 2026-09-18. A path that cannot
 succeed should say so once, not fail quietly every day.
 
-What is still open is whether the tokens come back by the other route. Option 2
-(let seeds use the public explorer) is free and recovers 11 of the 42, but it
-reverses the `allowPublicFallback: false` policy in `lib/seed-collections.ts`,
-and that policy has a reason: seeding is speculative work nobody asked for, and
-free infrastructure is a poor thing to spend on it. Option 3 keeps the policy
-and caps the searchable surface at the 22 NFT collections that already work.
-Note the policy question is only about **background** seeding: a user asking
-for a specific contract is a job somebody did ask for, and that path is
-unaffected either way.
+**Decided by Jake 2026-09-18: option 3.** Drop ERC-20 seeding and concentrate
+on NFTs and Robinhood. The `allowPublicFallback: false` policy stands, and the
+searchable surface stays at the 22 NFT collections that already work. The 11
+tokens option 2 would have recovered are declined knowingly: a partial fix is
+not worth reversing a policy that exists to keep speculative background work
+off free infrastructure.
+
+Shipped as a refusal at **discovery**, not inside `seedContract`. A candidate
+that is never selected spends no slot, writes no attempt marker, and cannot
+leave a `holders_imported = 0` row that locks a healthy token out of the pool
+for `FAILURE_RETRY_DAYS`. A path that cannot succeed should say so once, not
+fail quietly every day, which is what it had been doing since 2026-08-31.
+
+The gate is `usesMeteredHolderIndex(chain)`, which is deliberately not the
+chain list beside it: that list answers "does an ERC-20 index exist for this
+chain", and this answers "is that index the dead one". Of the seven chains in
+`ERC20_SUPPORTED_CHAINS`, six are metered and now skip; **Robinhood keeps
+seeding**, because its explorer is its own index rather than a fallback. NFT
+seeding is untouched and runs on a different provider entirely.
+
+Reversible in one line if option 2 is ever wanted. And note the policy question
+was only ever about **background** seeding: a user asking for a specific
+contract is a job somebody did ask for, and that path is unaffected either
+way.
 
 ## Two funnels, never added together
 

@@ -2876,6 +2876,53 @@ async function main() {
       'the seed token slot is gated on the ERC-20 chain list',
       seed.includes('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
     );
+
+    /**
+     * And then retired on every chain whose ERC-20 index is the metered one.
+     *
+     * Moralis has answered 401 since 2026-08-31 and is not being paid for, so
+     * a seed on a metered chain spends a slot to receive a 401 and writes a
+     * `holders_imported = 0` row nothing counts. The refusal is at DISCOVERY,
+     * not inside seedContract: a candidate never selected spends no slot,
+     * writes no attempt marker, and cannot leave a zero-holder row that locks
+     * a healthy token out for FAILURE_RETRY_DAYS.
+     *
+     * The gate reads `usesMeteredHolderIndex` on purpose, which is the
+     * opposite of the assertion above it, and the two are not in tension: the
+     * chain list answers "does an ERC-20 index exist here", this answers "is
+     * that index the dead one".
+     */
+    ok(
+      'ERC-20 discovery is refused on a metered chain, before a slot is spent',
+      /if \(usesMeteredHolderIndex\(chain\)\) \{[\s\S]{0,400}?continue;/.test(
+        seed
+      ) &&
+        seed.indexOf('if (usesMeteredHolderIndex(chain)) {') >
+          seed.indexOf('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
+    );
+
+    /**
+     * And the retirement must not take Robinhood with it.
+     *
+     * "Concentrate on NFTs and Robinhood, which work" is the decision
+     * (docs/GROWTH.md), and Robinhood survives only because its explorer is
+     * its own index rather than a fallback, so `usesMeteredHolderIndex` is
+     * false for it. A future chain added to MORALIS_CHAIN_IDS by mistake would
+     * silently retire it, so this goes through the predicate rather than
+     * restating the list.
+     */
+    {
+      const { ERC20_SUPPORTED_CHAINS } = await import('@/lib/chains');
+      const { usesMeteredHolderIndex } = await import('@/lib/contract-holders');
+      const stillSeeds = ERC20_SUPPORTED_CHAINS.filter(
+        (c) => !usesMeteredHolderIndex(c)
+      );
+      ok(
+        'Robinhood keeps ERC-20 seeding after the retirement, and is not alone by accident',
+        stillSeeds.includes('robinhood') &&
+          ERC20_SUPPORTED_CHAINS.some((c) => usesMeteredHolderIndex(c))
+      );
+    }
     ok(
       'hyperevm has an explicit place in SEED_ORDER',
       sliceBetween(

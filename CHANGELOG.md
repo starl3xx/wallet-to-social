@@ -2,6 +2,37 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (ERC-20 seeding is retired, and stops failing daily)
+
+- **The seed cron stops attempting a call that cannot succeed.** Moralis has
+  answered `401 "Your Moralis Free usage is paused"` since 2026-08-31, and we
+  are not paying to restore it, so every ERC-20 seed on a metered chain for
+  three weeks has spent a slot per chain per day to receive a 401 and write a
+  `holders_imported = 0` row that nothing counted. That is the same silent-zero
+  shape the Farcaster sweep was carrying until this week: a job failing every
+  day with nobody told.
+- **Option 3 of the three recorded in `docs/GROWTH.md`**: drop ERC-20 seeding,
+  concentrate on NFTs and Robinhood. The 11 of 42 tokens that the public
+  explorer would have recovered are declined knowingly, because a partial fix
+  is not worth reversing the `allowPublicFallback: false` policy that keeps
+  speculative background work off free infrastructure.
+- Refused at **discovery** rather than inside `seedContract`, which is the part
+  that matters. A candidate never selected spends no slot, writes no attempt
+  marker, and cannot leave a zero-holder row that locks a healthy token out of
+  the pool for `FAILURE_RETRY_DAYS`. The old behavior punished the token for
+  the provider's outage.
+- The gate reads `usesMeteredHolderIndex(chain)`, deliberately not the
+  `ERC20_SUPPORTED_CHAINS` list immediately above it. The two answer different
+  questions: the list says an ERC-20 index exists for a chain, the predicate
+  says whether that index is the dead one. Six of the seven listed chains are
+  metered and now skip; **Robinhood keeps seeding**, because its explorer is
+  its own index rather than a fallback. NFT seeding runs on a different
+  provider and is untouched.
+- Two assertions, verified by removing the gate and watching them fail. One
+  holds the refusal and its position before any slot is spent; the other goes
+  through the predicate to confirm Robinhood survives, so a chain added to
+  `MORALIS_CHAIN_IDS` by mistake cannot retire it silently.
+
 ### 2026-09-18 (the skill file is findable, and Grok needs a key)
 
 - **`/skill.md` had exactly one reference anywhere: `llms.txt`.** The homepage,
