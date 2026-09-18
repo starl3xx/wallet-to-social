@@ -36,9 +36,22 @@ All notable changes to walletlink.social. Newest first.
   delete", "Update your settings". Nothing in the tree says that today, but a
   product with a CSV drop zone is one string away from it, and a guard that
   silently checks less is the exact failure this file exists to prevent. Caught
-  by Bugbot. The test now anchors at the start of the string, because a
-  statement begins with its verb and prose almost never does, and it applies
-  only to templates: quoted strings behave precisely as they did before.
+  by Bugbot. The shared list is back to its original five keywords byte for
+  byte, so quoted strings behave precisely as they did before, and untagged SQL
+  is recognised for templates only.
+- **A leading verb is not statement shape either, and the first correction used
+  one.** UI copy is imperative constantly, so "Drop your CSV here" and "Delete
+  this lookup" open with a SQL verb and are prose, which put the same silent
+  miss back one layer down. What identifies a statement is the verb together
+  with the keyword it requires: `DELETE` needs `FROM`, `UPDATE` needs `SET`,
+  `ALTER` needs an object type. No English sentence carries the pair by
+  accident.
+- **The fixture for that first correction proved nothing**, which is worth
+  recording separately because it is the failure this repo keeps finding in its
+  own guards. It put the drop-zone sentence in a JSX node, so the JSX branch
+  read it and the SQL test was never consulted at all. Both fixtures are
+  templates now, and they were verified by restoring the loose test and
+  watching the guard report that it does not do what it claims.
 - The guard's own fixtures cover every case now, since it is tested harder than
   its regexes are: an interpolated message ending in a parenthetical is read,
   tagged SQL is not, a path built from a variable is not, and copy that merely

@@ -171,13 +171,34 @@ const isProse = (s) =>
  * silently checks less is the failure this whole file exists to prevent
  * (found by Bugbot).
  *
- * Anchoring at the start is what makes it safe. A statement begins with its
- * verb; prose almost never does, and when it does ("Delete the row and try
- * again") it is one line rather than a query. Tagged templates are already
- * skipped in `copySpans`, so this only has to catch SQL nobody tagged.
+ * A leading verb is NOT enough, and the first attempt at this used one. UI copy
+ * is imperative constantly: "Drop your CSV here", "Update your settings",
+ * "Delete this lookup" all open with a SQL verb and are all prose, so anchoring
+ * on the verb alone reintroduced the same silent miss one layer down (found by
+ * Bugbot, twice on the same list).
+ *
+ * What actually identifies a statement is the verb TOGETHER WITH the keyword it
+ * requires: `DELETE` needs `FROM`, `ALTER` needs an object type, `UPDATE` needs
+ * `SET`. No English sentence carries the pair by accident. Tagged templates are
+ * already skipped in `copySpans`, so this only has to catch SQL nobody tagged.
  */
-const UNTAGGED_SQL =
-  /^\s*(?:SELECT|INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|TRUNCATE|WITH|BEGIN|GRANT)\b/i;
+const UNTAGGED_SQL = new RegExp(
+  '^\\s*(?:' +
+    [
+      'SELECT\\b[\\s\\S]*?\\bFROM\\b',
+      'INSERT\\s+INTO\\b',
+      'UPDATE\\s+[\\w."]+\\s+SET\\b',
+      'DELETE\\s+FROM\\b',
+      'ALTER\\s+(?:TABLE|INDEX|VIEW|SEQUENCE)\\b',
+      'CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TABLE|UNIQUE|INDEX|VIEW|SCHEMA|EXTENSION|FUNCTION|TRIGGER)\\b',
+      'DROP\\s+(?:TABLE|INDEX|VIEW|COLUMN|CONSTRAINT|SCHEMA|FUNCTION|TRIGGER)\\b',
+      'TRUNCATE\\s+TABLE\\b',
+      'WITH\\s+[\\w"]+\\s+AS\\s*\\(',
+      'GRANT\\b[\\s\\S]*?\\bON\\b',
+    ].join('|') +
+    ')',
+  'i'
+);
 
 /**
  * The same test for a template literal, minus the quote-pairing entry.
@@ -383,9 +404,14 @@ for (const rule of RULES) {
     'const q = sql`ALTER TABLE t ADD COLUMN c text`;',
     'const href = `${base}/api/v1/wallet`;',
     // Ordinary English that happens to contain SQL verbs. A keyword list would
-    // skip these; statement-shape matching does not.
-    '<p>Drop your CSV here to update the list</p>',
-    'const e = `Failed to delete the saved lookup, so nothing changed.`;',
+    // skip these; statement-shape matching does not. Both must be TEMPLATES:
+    // the first version put the drop-zone sentence in a JSX node, so it was
+    // read by the JSX branch and never exercised the SQL test at all, which is
+    // a fixture proving nothing about the thing it was added for.
+    'const a = `Drop your CSV here to update the list.`;',
+    'const e = `Delete the saved lookup and nothing else changes.`;',
+    // And an untagged statement, which must still be skipped.
+    'const q2 = `DROP TABLE IF EXISTS probe_scratch`;',
   ].join('\n');
   const spans = copySpans(src);
   const texts = spans.map((s) => s[0]);
@@ -441,11 +467,16 @@ for (const rule of RULES) {
    * template scanning widened the shared keyword list and silently stopped
    * checking both of these.
    */
-  for (const w of ['Drop your CSV here', 'Failed to delete the saved lookup'])
+  for (const w of ['Drop your CSV here', 'Delete the saved lookup'])
     if (!texts.some((t) => t.includes(w))) {
       console.error(
-        `FIXTURE FAIL  extractor skipped copy containing a SQL verb: ${w}`
+        `FIXTURE FAIL  extractor skipped template copy opening with a SQL verb: ${w}`
       );
+      failed++;
+    }
+  for (const t of texts)
+    if (/probe_scratch/.test(t)) {
+      console.error(`FIXTURE FAIL  extractor read an untagged statement: ${t}`);
       failed++;
     }
   // Offsets must map to the real line.
