@@ -29,11 +29,21 @@ All notable changes to walletlink.social. Newest first.
   full stop, would otherwise have been paid for nothing: error messages end in
   parentheticals constantly, and `(table kept for the corrective pass)` is
   exactly the shape that was getting through.
-- The guard's own fixtures cover all three cases now, since it is tested harder
-  than its regexes are: an interpolated message ending in a parenthetical is
-  read, tagged SQL is not, and a path built from a variable is not. Verified
-  end to end as well, by putting a fresh em dash in a template and watching it
-  fail.
+- **Untagged SQL is recognised by statement shape, not by a loose keyword.**
+  The first version of this widened the shared keyword list with `UPDATE`,
+  `DELETE`, `DROP` and `ALTER`, which quietly stopped the guard checking any
+  copy containing those very ordinary words: "Drop your CSV here", "Failed to
+  delete", "Update your settings". Nothing in the tree says that today, but a
+  product with a CSV drop zone is one string away from it, and a guard that
+  silently checks less is the exact failure this file exists to prevent. Caught
+  by Bugbot. The test now anchors at the start of the string, because a
+  statement begins with its verb and prose almost never does, and it applies
+  only to templates: quoted strings behave precisely as they did before.
+- The guard's own fixtures cover every case now, since it is tested harder than
+  its regexes are: an interpolated message ending in a parenthetical is read,
+  tagged SQL is not, a path built from a variable is not, and copy that merely
+  contains a SQL verb still is. Verified end to end as well, by putting a fresh
+  em dash in a template and watching it fail.
 
 ### 2026-09-18 (reachability transitions, before the wave that would erase them)
 

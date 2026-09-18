@@ -150,10 +150,7 @@ const RULES = [
 const NOT_PROSE = [
   /^[\w-]+\/[\w-]+$/, // mime types, paths
   /^[A-Za-z-]+:\s*[\w(]/, // css declarations
-  // SQL. The last four were added with template-literal scanning: a migration
-  // writes `ALTER TABLE ... ADD COLUMN`, and an untagged statement carries no
-  // keyword from the original five.
-  /\bSELECT\b|\bFROM\b|\bWHERE\b|\bINSERT\b|\bCREATE\b|\bALTER\b|\bUPDATE\b|\bDELETE\b|\bDROP\b/i,
+  /\bSELECT\b|\bFROM\b|\bWHERE\b|\bINSERT\b|\bCREATE\b/i, // SQL
   /^[a-z-]+(?:\s+[a-z0-9:[\]/.%-]+)+$/, // tailwind class strings
   /^\s*[\d.]+\s/, // version-ish
   /https?:\/\//, // urls, which carry their own spelling
@@ -164,17 +161,34 @@ const isProse = (s) =>
   / /.test(s) && /[A-Za-z]{2}/.test(s) && !NOT_PROSE.some((r) => r.test(s));
 
 /**
+ * Untagged SQL, recognised by STATEMENT SHAPE rather than by a loose keyword.
+ *
+ * The first version of this widened the shared keyword list with `UPDATE`,
+ * `DELETE`, `DROP` and `ALTER`, which quietly stopped the guard checking any
+ * copy containing those very ordinary words: "Drop your CSV here", "Failed to
+ * delete", "Update your settings". Nothing in the tree says that today, but a
+ * product with a CSV drop zone is one string away from it, and a guard that
+ * silently checks less is the failure this whole file exists to prevent
+ * (found by Bugbot).
+ *
+ * Anchoring at the start is what makes it safe. A statement begins with its
+ * verb; prose almost never does, and when it does ("Delete the row and try
+ * again") it is one line rather than a query. Tagged templates are already
+ * skipped in `copySpans`, so this only has to catch SQL nobody tagged.
+ */
+const UNTAGGED_SQL =
+  /^\s*(?:SELECT|INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|TRUNCATE|WITH|BEGIN|GRANT)\b/i;
+
+/**
  * The same test for a template literal, minus the quote-pairing entry.
  *
  * Everything in `NOT_PROSE` applies except the last rule, which exists to
  * undo an artifact of matching `'` naively and has no counterpart for
- * backticks. See the note in `copySpans`. Untagged SQL is still excluded by
- * the keyword entry, and the list is widened there for the statements a
- * migration script writes, which the original list did not need.
+ * backticks. See the note in `copySpans`.
  */
 const TEMPLATE_NOT_PROSE = NOT_PROSE.filter(
   (r) => String(r) !== String(/\]\.|\)\.|\]\(|\)\(|=>/)
-);
+).concat(UNTAGGED_SQL);
 
 const isTemplateProse = (s) =>
   / /.test(s) &&
@@ -368,6 +382,10 @@ for (const rule of RULES) {
     'await db.execute(sql`SELECT count(*) FROM x_accounts WHERE a = ${b}`);',
     'const q = sql`ALTER TABLE t ADD COLUMN c text`;',
     'const href = `${base}/api/v1/wallet`;',
+    // Ordinary English that happens to contain SQL verbs. A keyword list would
+    // skip these; statement-shape matching does not.
+    '<p>Drop your CSV here to update the list</p>',
+    'const e = `Failed to delete the saved lookup, so nothing changed.`;',
   ].join('\n');
   const spans = copySpans(src);
   const texts = spans.map((s) => s[0]);
@@ -415,6 +433,18 @@ for (const rule of RULES) {
     if (/api\/v1\/wallet/.test(t)) {
       console.error(
         `FIXTURE FAIL  extractor read a path template as copy: ${t}`
+      );
+      failed++;
+    }
+  /**
+   * Copy that merely CONTAINS a SQL verb is still copy. The first version of
+   * template scanning widened the shared keyword list and silently stopped
+   * checking both of these.
+   */
+  for (const w of ['Drop your CSV here', 'Failed to delete the saved lookup'])
+    if (!texts.some((t) => t.includes(w))) {
+      console.error(
+        `FIXTURE FAIL  extractor skipped copy containing a SQL verb: ${w}`
       );
       failed++;
     }
