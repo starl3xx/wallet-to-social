@@ -2,6 +2,63 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the sweep says what happened)
+
+- **A 200 with no `users` array is a failure now, not zero users.** The sweep
+  read `json.users ?? []`, which turned an unrecognized response into a
+  successful empty batch: no `failedCalls`, no retry, nothing anywhere to
+  notice. That is the worst possible shape for this particular call, because
+  the seen set it feeds is what revocation cleanup clears _against_: wallets
+  missing from it are read as "checked, and the account is gone", so a
+  response-shape change over a stretch of batches would clear live identities
+  in proportion to how much of the sweep it swallowed. The outcome ceiling
+  added on 2026-09-17 is the backstop for that; this is the cause.
+- Measured against the live endpoint rather than assumed: existing FIDs answer
+  200 with `users`, a **mixed** batch answers 200 with `users` holding only the
+  ones that exist, and a batch where none exist answers 404. So a 200 always
+  carries the key in normal operation and that fallback was unreachable except
+  when the contract moved, which is the only case it mattered in. The 404
+  branch stays exactly as it was, separately and deliberately:
+  `getNetworkMaxFid` binary-searches the network frontier on "does this FID
+  exist" and reads that from the 404, so turning it into a failure would break
+  the probe.
+- **The sweep publishes its own posture.** Nothing reported the 2026-09-02
+  failure for fifteen days, and neither reason was the failure itself: the
+  workflow has no notification step, and `farcaster_sweep_resume` was the only
+  row the operator readout had for this pipeline, which a slice never writes.
+  The one signal an operator is told to read was incapable of showing this
+  failure, and said "cleared (no resume pending)" throughout.
+- So `posture:farcaster_sweep` is written on every ending, not just the happy
+  one: `cleaned` with what it cleared, `cleanup-failed` with the reason and the
+  seen table a corrective pass will need, `cleanup-skipped` when a partial seen
+  set made cleanup unsafe, and `checkpointed` when the budget ran out. The
+  `posture:` prefix has been reserved in `scripts/ops-status.ts` since it was
+  written, for a pipeline that states its outcome rather than leaving one
+  inferred from a cursor's age. This is its first user, and the readout now
+  renders a failure as `CLEANUP FAILED` naming the table to keep.
+- The writer is best-effort by design. It is called on the failure path, where
+  the database may be exactly what is broken, so it swallows its own errors and
+  re-throws the original: an incident must not lose its cause to the thing
+  reporting it. Asserted, along with the re-throw that keeps a failed sweep
+  exiting non-zero.
+- A resumed sweep that reaches the end of its range records `range-complete`
+  too. Bugbot caught that the first version cleared `farcaster_sweep_resume`
+  and wrote no posture, so the earlier segment's `checkpointed` row outlived
+  what it described and the readout kept saying the last run budget-stopped
+  after the range had finished. Stale but plausible is the exact failure this
+  row exists to remove, so it would have been an unusually poor place to leave
+  one. `--incremental` and `--range` still record nothing, deliberately: they
+  cannot clean up, and writing here would overwrite a monthly slice's outcome
+  with an unrelated activity's.
+- Five assertions, each verified by reintroducing its defect. One of them had
+  to be rewritten to earn that: it first compared totals, `records >= clears +
+1`, and passed over the very defect it was written for, because removing one
+  record still left four against two clears. A count cannot say which branch
+  reports. It is scoped to the resumed-range branch now.
+- Verified end to end as well, not only against the source: the row was written
+  through `recordSweepPosture`, rendered through `ops-status.ts`, and removed
+  again.
+
 ### 2026-09-17 (slice 3 settled)
 
 - **The revocations the 2026-09-02 sweep found and never cleared are cleared.**

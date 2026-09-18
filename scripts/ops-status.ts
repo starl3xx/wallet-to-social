@@ -113,6 +113,38 @@ function describe(row: StateRow): string {
       : '';
     return `${wallets}counts as of the age at left (stale past ~2 days means the refresh cron died)`;
   }
+  if (row.name === 'posture:farcaster_sweep') {
+    // The row written because this script could not see the 2026-09-02 failure:
+    // a slice writes no checkpoint, so `farcaster_sweep_resume` read "cleared"
+    // throughout a run that died in cleanup. An outcome that is not "cleaned"
+    // is stated plainly, because the whole point is that it stops being
+    // something an operator has to infer from an age.
+    const o = (v ?? {}) as {
+      outcome?: string;
+      mode?: string;
+      cleared?: number;
+      deleted?: number;
+      seenTable?: string;
+      reason?: string;
+    };
+    const span = `${o.mode ?? '?'} `;
+    if (o.outcome === 'cleaned') {
+      return `${span}cleaned: ${(o.cleared ?? 0).toLocaleString()} revoked, ${(o.deleted ?? 0).toLocaleString()} husks deleted`;
+    }
+    if (o.outcome === 'cleanup-failed') {
+      return `${span}CLEANUP FAILED, seen table ${o.seenTable ?? '?'} kept for a corrective pass: ${o.reason ?? 'no reason recorded'}`;
+    }
+    if (o.outcome === 'cleanup-skipped') {
+      return `${span}cleanup skipped (a partial seen set would read as revocations): ${o.reason ?? '?'}`;
+    }
+    if (o.outcome === 'checkpointed') {
+      return `${span}checkpointed, cleanup does not apply: ${o.reason ?? '?'}`;
+    }
+    if (o.outcome === 'range-complete') {
+      return `${span}range complete, cleanup did not run: ${o.reason ?? '?'}`;
+    }
+    return `${span}unrecognized outcome ${JSON.stringify(o.outcome)}`;
+  }
   if (row.name === 'basename_record_harvest') {
     const o = (v ?? {}) as { lastBlock?: number };
     return `Base checkpoint at block ${o.lastBlock?.toLocaleString() ?? '?'} (daily incremental; the checkpoint trails the head by a reorg buffer)`;

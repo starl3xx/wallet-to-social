@@ -7712,15 +7712,6 @@ async function main() {
     );
 
     /**
-     * And it must not bind a JS Date against a zone-less timestamp column.
-     *
-     * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
-     * bound `Date` sends its LOCAL wall-clock reading and moves the cutoff by
-     * the operator's offset. East of UTC that moves it later and clears rows
-     * another pipeline refreshed after the sweep began. The scheduled runner
-     * is UTC, so the happy path is silent about this forever.
-     */
-    /**
      * And its cutoff goes through the shared UTC helper, WITH the cast.
      *
      * `last_updated_at` is `timestamp` with no time zone holding UTC, so a
@@ -7778,6 +7769,113 @@ async function main() {
         ceilingIdx < updateIdx &&
         /wouldClear > clearCeiling/.test(cleanup) &&
         /throw new Error\(\s*`Revocation count implausible/.test(cleanup)
+    );
+
+    /**
+     * A 200 with no `users` array must not read as zero users.
+     *
+     * `json.users ?? []` turned an unrecognized response into a successful
+     * empty batch: no `failedCalls`, no retry, nothing to notice. It feeds the
+     * seen set that revocation cleanup clears *against*, so wallets missing
+     * from it are read as "checked, and the account is gone". A response-shape
+     * change over a stretch of batches would therefore clear live identities in
+     * proportion to how much of the sweep it swallowed.
+     *
+     * Measured against the live endpoint on 2026-09-18: existing FIDs answer
+     * 200 with `users`, a mixed batch answers 200 with `users` holding only the
+     * ones that exist, and a batch where none exist answers 404. So a 200 in
+     * normal operation always carries the key, and the fallback was unreachable
+     * except when the contract moved, which is the only case that mattered.
+     *
+     * The 404 branch has to stay, separately: `getNetworkMaxFid` binary-searches
+     * the frontier on "does this FID exist", and it reads that from the 404,
+     * not from this line. Turning 404 into a failure would break the probe.
+     */
+    ok(
+      'a malformed user batch is a failure, not an empty result',
+      /if \(!Array\.isArray\(json\.users\)\) return null;/.test(sweep) &&
+        !/json\.users \?\? \[\]/.test(sweep) &&
+        /if \(res\.status === 404\) return \[\];/.test(sweep)
+    );
+
+    /**
+     * And the sweep records what it did, including when it failed.
+     *
+     * Nothing reported the 2026-09-02 failure for fifteen days. The workflow
+     * has no notification step, and `farcaster_sweep_resume` is the only row
+     * `ops-status.ts` had for this pipeline, which a slice never writes: the
+     * one signal an operator is told to read was incapable of showing this
+     * failure and said "cleared (no resume pending)" throughout.
+     *
+     * The failure path is the one worth asserting, so this checks that the
+     * cleanup call is wrapped, that the catch records before re-throwing, and
+     * that the error is re-thrown rather than swallowed. A reporting change
+     * that quietly turned a crash into a logged warning would be a worse bug
+     * than the one it replaced.
+     */
+    const caller = withoutComments(
+      readFileSync('scripts/farcaster-sweep.ts', 'utf8')
+    );
+    ok(
+      'a sweep that fails cleanup records that, and still exits non-zero',
+      /outcome: 'cleanup-failed'/.test(caller) &&
+        /seenTable,/.test(
+          caller.slice(caller.indexOf("outcome: 'cleanup-failed'"))
+        ) &&
+        /throw error;/.test(
+          caller.slice(caller.indexOf("outcome: 'cleanup-failed'"))
+        )
+    );
+    ok(
+      'and it records the other endings too, so the row means "what happened" rather than "it worked"',
+      /outcome: 'cleaned'/.test(caller) &&
+        /outcome: 'cleanup-skipped'/.test(caller) &&
+        /outcome: 'checkpointed'/.test(caller) &&
+        /outcome: 'range-complete'/.test(caller)
+    );
+
+    /**
+     * Every ending that clears a checkpoint must also replace the posture that
+     * quoted it.
+     *
+     * The first version of this row missed the resumed-range case: a `--resume`
+     * that finished cleared `farcaster_sweep_resume` and wrote no posture, so
+     * the earlier segment's `checkpointed` row stayed and the readout went on
+     * saying the last run budget-stopped after the range was actually done
+     * (found by Bugbot). Stale-but-plausible is the exact failure this row
+     * exists to remove, so it is worth an assertion rather than a memory.
+     *
+     * Scoped to the branch rather than counted across the file. The first
+     * version of this assertion compared totals (`records >= clears + 1`) and
+     * passed over the very defect it was written for, because removing one
+     * record still left four against two clears. A count cannot say WHICH
+     * branch reports, which is the only thing that matters here.
+     */
+    const resumeBranch = caller.slice(
+      caller.lastIndexOf("else if (effectiveMode === '--resume')")
+    );
+    ok(
+      'the resumed-range ending records too, instead of leaving the checkpointed row standing',
+      resumeBranch.length > 0 &&
+        /await clearSweepCheckpoint\(\)/.test(resumeBranch) &&
+        /await recordSweepPosture\(/.test(resumeBranch) &&
+        /outcome: 'range-complete'/.test(resumeBranch)
+    );
+
+    /**
+     * The posture writer must never replace the error it is reporting.
+     *
+     * It is called on the failure path, where the database may be exactly what
+     * is broken. If it threw there, the run would report a posture-write error
+     * instead of the cleanup error that caused it, which is how an incident
+     * loses its own cause.
+     */
+    ok(
+      'recording posture cannot itself break the run',
+      /export async function recordSweepPosture/.test(sweep) &&
+        /try \{[\s\S]{0,600}?catch \(error\) \{[\s\S]{0,300}?console\.warn/.test(
+          sweep.slice(sweep.indexOf('export async function recordSweepPosture'))
+        )
     );
   }
 
