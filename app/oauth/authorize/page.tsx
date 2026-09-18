@@ -218,9 +218,26 @@ export default async function AuthorizePage({
     ? SUPPORTED_SCOPES.filter((s) => asked.includes(s))
     : [MCP_SCOPE];
   if (!granted.includes(MCP_SCOPE)) {
+    /**
+     * The refusal is right and the old wording was not.
+     *
+     * Bouncing here follows the rule stated above: a client cannot receive a
+     * scope it did not ask for, so a request naming only `offline_access`
+     * cannot quietly be upgraded to include the read scope. What it is asking
+     * for is a refresh token and no access, which is not a thing to grant.
+     *
+     * But the message said "the only scope this server grants is wallet:read",
+     * and that is untrue: `SUPPORTED_SCOPES` holds both, and `issueInitialTokens`
+     * returns a refresh token precisely when `offline_access` was granted. A
+     * client told the server grants one scope, by a server that advertises two
+     * in its own metadata, learns nothing except that one of the two is lying.
+     * Say which scope is required, and how to ask for the other.
+     */
     bounce(
       'invalid_scope',
-      `The only scope this server grants is ${MCP_SCOPE}.`
+      `Every connection needs the ${MCP_SCOPE} scope. Ask for "${MCP_SCOPE}", ` +
+        `or "${MCP_SCOPE} ${OFFLINE_SCOPE}" to also receive a refresh token, ` +
+        `or omit the scope parameter entirely.`
     );
   }
 
