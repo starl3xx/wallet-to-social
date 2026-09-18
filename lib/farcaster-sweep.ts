@@ -828,7 +828,7 @@ export async function cleanupRevokedWallets(
       `Revocation count implausible: cleanup would clear ${wouldClear.toLocaleString()} rows, ` +
         `over the ceiling of ${clearCeiling.toLocaleString()} (${MAX_REVOCATION_SHARE * 100}% of ` +
         `${seenCount.toLocaleString()} seen). Revocations run near 0.05% of a slice, so this says the ` +
-        `seen set is deficient rather than that the network revoked en masse — refusing to clear ` +
+        `seen set is deficient rather than that the network revoked en masse, so it refuses to clear ` +
         `(table ${seenTable} kept for the corrective pass)`
     );
   }
