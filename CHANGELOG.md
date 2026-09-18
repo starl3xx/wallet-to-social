@@ -2,6 +2,57 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (reachability transitions, before the wave that would erase them)
+
+- **`x_accounts` now records when a handle's reachability changed, and what it
+  changed from.** Until today nothing did. `persist()` overwrote `status` in
+  place and stamped `checked_at` on every check whether anything moved or not,
+  and `social_graph_history` does not cover this table (its `change_source`
+  values are web3bio, graph, ens, neynar, cache and manual, and reachability is
+  none of them). So "when did this handle stop being reachable" had no answer
+  anywhere in the product.
+- **It landed against a deadline.** Rechecks begin **2026-10-01**, and 409 of
+  474,140 rows had been checked in the last seven days: the first wave would
+  have rewritten `status` for every handle that moved since the first pass,
+  unrecoverably. This is the same shape as the `last_live_user_id` fix already
+  recorded in that upsert's comments, on the same deadline, in a different
+  column. The current split is 332,908 live, 94,117 unavailable, 47,115
+  not_found.
+- `status_changed_at` and `previous_status` advance only on a real transition,
+  through `IS DISTINCT FROM` rather than an inequality: the two agree only while
+  `status` is NOT NULL, and a nullable state added later would make inequality
+  yield NULL, drop to the CASE's ELSE, and discard the transition silently. That
+  is the exact bug these columns exist to prevent, so it should not be
+  reintroduced by a comparison operator. `checked_at` stays unconditional,
+  because it answers a different question and the recheck scheduler reads it;
+  making it conditional would freeze an unchanging handle into permanent
+  staleness and it would be rechecked forever.
+- **Deliberately not backfilled.** Stamping `status_changed_at = checked_at` on
+  existing rows would have been convenient and false: `checked_at` is when a
+  handle was looked at, and every current row was written by a pass that
+  observed no transition at all, so it would have invented 474,140 transitions
+  on the one table whose job is to say when something moved. NULL reads
+  correctly as "no transition seen yet", and the migration asserts that it
+  stamped nothing.
+- **This also corrects `docs/AGENT-SYSTEM.md`.** Decision 16's entry said the
+  change feed "has to read those transitions explicitly", which reads like a
+  query to write; there were none to read. A feed built on `checked_at` would
+  have reported a change for every rechecked account, a billing surface
+  charging for nothing happening, which is the inverse of the decided policy
+  two paragraphs above it in the same document.
+- Four assertions, each verified by reintroducing its defect. One of them had to
+  be fixed first: `lib/x-accounts.ts` holds **two** `ON CONFLICT (handle)`
+  statements, and the first version anchored on the wrong one. It failed loudly
+  this time; the same mistake on a passing anchor is an assertion that guards
+  nothing. The assertions are scoped to `persist` now, with a fourth asserting
+  that scoping. The Postgres semantics they rest on (every `SET` expression
+  reads the pre-UPDATE row) were verified on a throwaway table rather than
+  assumed, because if that were false the columns would record the new status
+  and never advance, silently.
+- `PROJECT_OVERVIEW.md` gains the `x_accounts` row it never had, and its
+  Farcaster sweep description is corrected: it has swept one sixth of the
+  network per month since #223, not the whole network.
+
 ### 2026-09-18 (the sweep says what happened)
 
 - **A 200 with no `users` array is a failure now, not zero users.** The sweep
