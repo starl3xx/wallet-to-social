@@ -150,6 +150,14 @@ one of:
   consent screen on the first tool call. No key to manage.
 - **API key**: an \`Authorization: Bearer wts_live_<key>\` header. Keys are
   self-serve at https://walletlink.social for any account holding credits.
+  **Use this if you are running inside a chat host.** Some cannot open a
+  consent screen at all (X and Grok report \`no_auth_link\`), so OAuth can
+  never complete there however many times it is retried. The symptom is
+  specific and worth recognizing: every tool is listed, because discovery
+  needs no credential, and then every call reports that a sign-in is still
+  needed no matter how often the user authorizes. That is a host that cannot
+  start a sign-in, not a sign-in that failed. Ask the user for a key instead
+  of retrying the connection.
 - **x402**: an autonomous agent can buy access with USDC on Base, no account
   needed. See https://docs.walletlink.social/agent-pack.
 
