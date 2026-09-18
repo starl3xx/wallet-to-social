@@ -140,6 +140,29 @@ unsets the Moralis key deliberately and probes five hand-picked tokens to prove
 the explorer is reachable; one of the five is a recognized contract that fails
 in the seed path.
 
+**Decided by Jake 2026-09-18: option 1 is out. We are not paying for Moralis.**
+Re-verified the same day before recording it, because the pause is an account
+state rather than a code state and could have lapsed on its own: the key is
+still present and still answers `401 "Your Moralis Free usage is paused."` So
+the metered path is dead until somebody upgrades, and nobody is going to.
+
+That settles what the seed path must stop doing, and leaves one question open.
+It must stop **attempting** the ERC-20 seed: every run since 2026-08-31 has
+spent a cron slot per chain per day to receive a 401 and write a
+`holders_imported = 0` row that nothing reads, which is the same silent-zero
+shape the Farcaster sweep was carrying until 2026-09-18. A path that cannot
+succeed should say so once, not fail quietly every day.
+
+What is still open is whether the tokens come back by the other route. Option 2
+(let seeds use the public explorer) is free and recovers 11 of the 42, but it
+reverses the `allowPublicFallback: false` policy in `lib/seed-collections.ts`,
+and that policy has a reason: seeding is speculative work nobody asked for, and
+free infrastructure is a poor thing to spend on it. Option 3 keeps the policy
+and caps the searchable surface at the 22 NFT collections that already work.
+Note the policy question is only about **background** seeding: a user asking
+for a specific contract is a job somebody did ask for, and that path is
+unaffected either way.
+
 ## Two funnels, never added together
 
 `purchases` and `revenue` in the report mean packs bought by people. The x402

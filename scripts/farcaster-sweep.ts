@@ -455,12 +455,29 @@ async function main() {
           `${stats.fidsRequested.toLocaleString()} of ${expectedFids.toLocaleString()} FIDs requested. ` +
           `A partial seen set would be misread as revocations. Seen table dropped.`
       );
+      /**
+       * Name the cause that actually applies, not the first one.
+       *
+       * This branch is reached two ways, and the monthly schedule reaches it
+       * by the second. `tracksProgress` is true only for `--full` and
+       * `--resume`, so a budget-stopped `--slice` never enters the checkpoint
+       * branch above: it falls through to here with `failedCalls` at zero and
+       * a short range, and a fixed "N failed call(s)" reason then reports
+       * `0 failed call(s)` for a run that stopped because it ran out of
+       * budget. That is a true sentence answering a question nobody asked,
+       * which is the failure this posture row was added to remove.
+       */
+      const skipReason = stats.budgetStopped
+        ? `budget stopped after ${stats.fidsRequested.toLocaleString()} of ${expectedFids.toLocaleString()} FIDs; a slice keeps no checkpoint, so the span is simply short`
+        : stats.failedCalls > 0
+          ? `${stats.failedCalls} failed call(s) over ${stats.fidsRequested.toLocaleString()} FIDs requested`
+          : `covered ${stats.fidsRequested.toLocaleString()} of ${expectedFids.toLocaleString()} FIDs, so the seen set is partial`;
       await recordSweepPosture({
         at: sweepStartedAt.toISOString(),
         mode: effectiveMode,
         outcome: 'cleanup-skipped',
         slice: { startFid, endFid },
-        reason: `${stats.failedCalls} failed call(s) over ${stats.fidsRequested} FIDs requested`,
+        reason: skipReason,
       });
     }
     /**

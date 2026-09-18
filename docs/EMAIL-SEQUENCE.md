@@ -285,8 +285,22 @@ Decided by Jake 2026-08-22: the copy above is approved; noreply@ stays the
 from address with reply-to help@; the existing ~100 signups do NOT enter the
 sequence retroactively, because they are the relaunch campaign's audience.
 
-Changed 2026-08-26, awaiting Jake's read: emails 1, 4 and 5, for the gate and
-the ladder rather than for taste. Emails 2 and 3 were reread against the same
+Changed 2026-08-26, **read and approved by Jake 2026-09-18**: emails 1, 4 and
+5, for the gate and the ladder rather than for taste.
+
+Approved with one voice note, applied in the same change: **contractions.**
+"Here's", not "Here is". The free-allowance variant of email 1 already read
+"Here's what you can do with it" while the credit-holder variant, written
+later, read "Here is what they do", so the sequence was speaking in two
+registers depending on which branch a reader fell down. The footnote on
+emails 2, 4 and 5 ("You are getting a short series of emails") carried the
+same stiffness three times. Contractions everywhere they read naturally now,
+with curly apostrophes per the house style.
+
+The one place the uncontracted form survives on purpose is nothing: even
+"do not buy" reads better as "don't buy", because the sentence is a person
+telling you not to spend money, and the stiff form made it sound like terms
+and conditions rather than advice. Emails 2 and 3 were reread against the same
 gate and left alone, because everything they describe (the match rate on your
 own list, the reachability label on a row, the evidence behind a match) is
 visible to an account on the free allowance, and both CTAs run a lookup that
