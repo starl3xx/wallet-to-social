@@ -7672,13 +7672,43 @@ async function main() {
     // purpose. Testing the prose instead of the statement is the mistake this
     // file already made once: an assertion that reads its own explanation
     // verifies nothing. Strip the SQL comments and test the SQL.
+    //
+    // Scoped to the whole module, not to cleanupRevokedWallets, because the
+    // predicate now lives in countRevocationCandidates as well: the ceiling,
+    // the dry run a corrective pass asks for, and the UPDATE all read the same
+    // clauses. An assertion scoped to one function would have gone on passing
+    // while the other spelling came back in the other.
+    const sweepSql = sweep.replace(/--[^\n]*/g, '');
     const cleanupSql = cleanup.replace(/--[^\n]*/g, '');
     ok(
-      'revocation cleanup never tests the seen table with NOT IN',
-      cleanupSql.length > 0 &&
-        !/NOT IN\s*\(/i.test(cleanupSql) &&
+      'nothing in the sweep tests the seen table with NOT IN',
+      sweepSql.length > 0 &&
+        !/NOT IN\s*\(/i.test(sweepSql) &&
         /NOT EXISTS\s*\(/i.test(cleanupSql) &&
         /s\.wallet = social_graph\.wallet/.test(cleanupSql)
+    );
+
+    /**
+     * And the ceiling reads the same predicate the UPDATE will run.
+     *
+     * A dry run that recomputes the predicate rather than calling the shared
+     * counter could report one number while the write does another, which is
+     * the whole failure mode a ceiling exists to prevent.
+     */
+    ok(
+      'the ceiling counts through the shared helper rather than its own copy',
+      // Whitespace-tolerant on purpose: Prettier reflows this call across
+      // lines as the argument list grows, and an anchor pinned to one
+      // formatting fails as "(anchor drifted)" on a reformat that changed
+      // nothing real. This one already did.
+      /await\s+countRevocationCandidates\(\s*sweepStartedAt,\s*seenTable/.test(
+        cleanup
+      ) &&
+        /export async function countRevocationCandidates/.test(sweep) &&
+        // One in the helper, one in the UPDATE. A third means somebody kept a
+        // private copy of the predicate again.
+        (sweepSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 2 &&
+        (cleanupSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 1
     );
 
     /**

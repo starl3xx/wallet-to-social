@@ -462,6 +462,59 @@ export async function dropSeenTable(name: string): Promise<void> {
   await db.execute(sql`DROP TABLE IF EXISTS ${sql.raw(name)}`);
 }
 
+/** Ceiling on what one cleanup may clear, as a share of the seen set. */
+export const MAX_REVOCATION_SHARE = 0.01;
+
+/**
+ * How many rows a cleanup over this span would clear: the outcome ceiling's
+ * input, and the only place the revocation predicate is written.
+ *
+ * Exported so a corrective pass can ask before it commits without restating
+ * the predicate. That restatement is the failure this repo has already had:
+ * an assertion that recomputes what it is testing verifies only itself, and a
+ * one-off script that recomputes what it is correcting is the same mistake
+ * with the ability to write. The ceiling and the UPDATE read the same clauses,
+ * so a count cannot report one number while the write does another.
+ *
+ * This is also the recipe if a slice ever dies in cleanup again. The seen
+ * table survives a throw on purpose, so a corrective pass is
+ * `countRevocationCandidates` to see the number, then `cleanupRevokedWallets`
+ * with that run's recorded `sweepStartedAt`, seen table, `walletsUpserted` and
+ * FID span, which keeps every guard. Slice 3 of 2026-09-02 was finished that
+ * way on 2026-09-17: 383 cleared, 372 husks deleted. Use a cutoff no later
+ * than the true `sweepStartedAt`; too early only skips rows, while too late
+ * can clear one another pipeline has since refreshed.
+ *
+ * The predicate is monotone: it selects rows with `last_updated_at <
+ * sweepStartedAt`, and every writer sets `last_updated_at = now()`, so a
+ * concurrent write can only remove a row from the set. The count is therefore
+ * a guaranteed upper bound on what the UPDATE will touch, and it stays an
+ * upper bound however long the gap between asking and writing.
+ */
+export async function countRevocationCandidates(
+  sweepStartedAt: Date,
+  seenTable: string,
+  coveredRange: { startFid: number; endFid: number }
+): Promise<number> {
+  const db = getDb();
+  if (!db) throw new Error('Database not configured');
+  const [row] = (
+    (await db.execute(sql`
+      SELECT count(*)::int AS n
+      FROM social_graph
+      WHERE 'farcaster_sweep' = ANY(sources)
+        AND NOT (sources && ARRAY['neynar', 'manual'])
+        AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
+        AND fc_fid BETWEEN ${coveredRange.startFid} AND ${coveredRange.endFid}
+        AND NOT EXISTS (
+          SELECT 1 FROM ${sql.raw(seenTable)} s
+          WHERE s.wallet = social_graph.wallet
+        )
+    `)) as unknown as { rows: Array<{ n: number }> }
+  ).rows;
+  return row?.n ?? 0;
+}
+
 export async function beginSeenTracking(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
@@ -665,22 +718,14 @@ export async function cleanupRevokedWallets(
    * On refusal the seen table is kept, because it is the only record of what
    * this sweep saw and a corrective pass cannot be reconstructed without it.
    */
-  const MAX_REVOCATION_SHARE = 0.01;
-  const [revocationRow] = (
-    (await db.execute(sql`
-      SELECT count(*)::int AS n
-      FROM social_graph
-      WHERE 'farcaster_sweep' = ANY(sources)
-        AND NOT (sources && ARRAY['neynar', 'manual'])
-        AND last_updated_at < ${utcBound(sweepStartedAt)}::timestamp
-        AND fc_fid BETWEEN ${startFid} AND ${endFid}
-        AND NOT EXISTS (
-          SELECT 1 FROM ${sql.raw(seenTable)} s
-          WHERE s.wallet = social_graph.wallet
-        )
-    `)) as unknown as { rows: Array<{ n: number }> }
-  ).rows;
-  const wouldClear = revocationRow?.n ?? 0;
+  const wouldClear = await countRevocationCandidates(
+    sweepStartedAt,
+    seenTable,
+    {
+      startFid,
+      endFid,
+    }
+  );
   const clearCeiling = Math.ceil(seenCount * MAX_REVOCATION_SHARE);
   if (wouldClear > clearCeiling) {
     throw new Error(
