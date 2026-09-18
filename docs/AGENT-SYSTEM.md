@@ -153,12 +153,35 @@ the layer with the largest gaps:
 
 The surfaces an agent actually touches: the REST API and its OpenAPI spec, the
 MCP server and its registry row, the Grok plugin (and future per-ecosystem
-plugins), docs-site, llms.txt, and the on-site assistant. The rule of this
-layer: **a projection that executes carries the caller’s credential down to
-L2; a projection that explains quotes L1; neither re-implements either
-layer.** `lib/mcp-call.ts` is the exemplar. A
+plugins), docs-site, llms.txt, **`/skill.md`**, and the on-site assistant. The
+rule of this layer: **a projection that executes carries the caller’s
+credential down to L2; a projection that explains quotes L1; neither
+re-implements either layer.** `lib/mcp-call.ts` is the exemplar. A
 projection that needs a sentence about meaning takes the canonical sentence; a
 projection that needs a number imports the constant.
+
+**`/skill.md` (2026-09-18) is the projection for an agent that was handed a
+URL rather than configured.** It is the same content as the plugin's skill
+file, served from `app/skill.md/route.ts` so that it is generated rather than
+kept: every figure comes from `lib/public-figures.ts` or `lib/packs.ts`, and
+the four sentences that define a match, an attested identity, absence and
+reachability come from `lib/canonical-sentences.ts`. That is the layer rule
+applied literally, and it is not theoretical here. The plugin's static copy
+drifted, spelling "labelled" for months after the house style settled on
+American English, which is precisely what a fifth hand-maintained copy buys
+you.
+
+The distribution shape is the point: "install the walletlink skill:
+https://walletlink.social/skill.md" is how people pass a capability to an
+agent today. `llms.txt` tells a crawler what the site is; this tells an agent
+how to operate it, and the YAML frontmatter is what lets a skill runtime load
+it by name.
+
+Its tool table is the one hand-kept part, because a cost sentence is editorial
+and nothing on a tool definition states a price. `scripts/check-invariants.ts`
+asserts the table holds exactly the set the MCP server registers, the same way
+the `/mcp` page is asserted, so a ninth tool fails there rather than being
+found missing by whoever pasted the URL into their agent.
 
 ---
 

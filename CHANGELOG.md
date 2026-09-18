@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (a skill file at a URL you can paste)
+
+- **`https://walletlink.social/skill.md` serves the agent skill**, because the
+  shape people actually use is a URL handed to an agent: "install the
+  walletlink skill: <url>". `llms.txt` tells a crawler what the site is; this
+  tells an agent how to operate it, and the YAML frontmatter is what lets a
+  skill runtime load it by name. Listed in `llms.txt` so an agent that starts
+  there can find it.
+- **Generated, not stored.** Every figure comes from `lib/public-figures.ts` or
+  `lib/packs.ts`, and the four sentences defining a match, an attested
+  identity, absence and reachability come from `lib/canonical-sentences.ts`,
+  the same source the UI, the docs and the welcome emails read. A static file
+  would have been a fifth copy of all of it, and
+  `check-published-figures.ts` cannot see a literal it was never told about.
+  This is not hypothetical: the plugin's static copy of the same content
+  drifted, spelling "labelled" for months after the house style settled on
+  American English.
+- The tool table is the one hand-kept part, since a cost sentence is editorial
+  and nothing on a tool definition states a price. An assertion holds it to
+  exactly the set the MCP server registers, the same way the `/mcp` page is
+  held, so a ninth tool fails in CI rather than being found missing by whoever
+  pasted the URL into their agent. Verified by removing a tool and watching it
+  fail.
+- Named in `docs/AGENT-SYSTEM.md` as an L4 projection before it was built,
+  which is the rule for anything on the agent surface.
+
 ### 2026-09-18 (the house-style guard can see template literals)
 
 - **Every backtick string in the repo was unchecked.** `copySpans` matched `'`

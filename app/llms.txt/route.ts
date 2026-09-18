@@ -207,6 +207,8 @@ Or the same bearer key the REST API uses, which is the better answer for a serve
 
 Tool discovery needs neither: a client can connect and list the tools before buying anything. Calling a tool with no credential answers 401 with a WWW-Authenticate header naming the protected resource metadata, which is the signal to start the flow, rather than a tool error a model would read out and move past.
 
+The skill file is at https://walletlink.social/skill.md, which is a URL a person can hand to an agent directly: what the tools are, what each costs, how to authenticate, and how to read a result. It is generated from the same constants and canonical sentences as this file, so it cannot drift from what the product actually charges or claims.
+
 ## For agents: buying credits with USDC, no account
 
 An agent can buy its own credits over x402, with no account, no card and no email. POST to https://walletlink.social/api/x402/buy and it answers 402 with a payment challenge; pay ${agentPrice} in USDC on Base and the response carries a fresh API key with ${agentMatches} match credits behind it. That is roughly ${agentAddresses} resolvable addresses at our measured rate, or one full batch call, at about $${agentPerAddress} an address.
