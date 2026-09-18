@@ -73,8 +73,12 @@ every project instead.
 The official walletlink plugin for Grok lives at
 [github.com/starl3xx/walletlink-grok-plugin](https://github.com/starl3xx/walletlink-grok-plugin).
 It points Grok Build at this server and ships a skill covering tool selection,
-cost and result semantics. Connect with OAuth or an API key exactly as any
-other client does; the plugin itself carries no credential.
+cost and result semantics. The plugin itself carries no credential.
+
+**Use an API key here, not OAuth.** The chat host cannot open a consent screen
+and reports `no_auth_link`, so an OAuth connection can never complete however
+many times it is retried. Create a key from the account menu and paste it into
+the connector's key field.
 
 ### By hand
 
@@ -132,6 +136,29 @@ Keys are self-serve from the account menu for any account holding credits.
 
 An OAuth connection is better for a person using a client. A key is better for
 a server you run yourself, where there is no browser to sign in with.
+
+<Note>
+  **Some chat hosts cannot do OAuth at all, and a key is the only way in.** A
+  connector running inside a chat app may have no way to open a consent screen;
+  X and Grok report `no_auth_link` when asked to. The symptom is a connector
+  that lists all eight tools happily, because discovery needs no credential, and
+  then reports that it still needs to sign in however many times you authorize.
+  If you see that, stop retrying the connection and paste a key instead.
+</Note>
+
+### The skill file
+
+Some agents install a capability from a URL rather than a config block. Give
+them this one:
+
+```
+https://walletlink.social/skill.md
+```
+
+It carries the whole contract: the tools, what each costs, how to authenticate,
+and how to read a result. It contains no key, so it is safe to paste anywhere,
+and it is generated from the same constants as this page, so the prices and
+coverage figures in it are the ones actually charged and claimed.
 
 ## The eight tools
 

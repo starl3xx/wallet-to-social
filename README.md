@@ -105,6 +105,8 @@ curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
 
 **MCP.** `https://walletlink.social/api/mcp`, eight tools over the same endpoints, with a bearer key or an OAuth 2.1 connection. Listed in the official MCP registry as `social.walletlink/wallet-identity`. The design rationale (why the access token is an `api_keys` row, why the server bills nothing of its own) lives in the header of `app/api/mcp/route.ts`.
 
+**The skill file.** `https://walletlink.social/skill.md`, for an agent that installs a capability from a URL rather than a config block: the tools, what each costs, how to authenticate, how to read a result. Generated from the same constants and canonical sentences as everything else, so it cannot quote a price the product does not charge.
+
 **Onchain rail.** `POST /api/x402/buy` sells a $1 Agent pack for USDC on Base with no account, no card and no email: pay, and the response carries a fresh API key. `/api/x402/recover` reissues a key to the wallet that paid, on a signed challenge.
 
 ---

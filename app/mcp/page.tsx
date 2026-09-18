@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { PRODUCTION_URL } from '@/lib/site-url';
-import { MCP_URL, mcpJsonBlock } from '@/lib/mcp-install';
+import { MCP_URL, SKILL_URL, mcpJsonBlock } from '@/lib/mcp-install';
 import {
   API_PLANS,
   CREDIT_API_PLAN,
@@ -383,6 +383,24 @@ export default function McpPage() {
             Replace the placeholder with a key from the account menu. A key is
             shown exactly once, so the install links that carry a live key are
             offered on the screen that creates it and nowhere else.
+          </p>
+        </section>
+
+        <section className="mt-16">
+          <h2 className="mb-3 text-2xl font-light tracking-[var(--tracking-title)]">
+            One URL, for an agent that takes a skill
+          </h2>
+          <p className="mb-6 max-w-[65ch] text-muted-foreground">
+            Some agents install a capability from a plain URL rather than a
+            config file. Give them this one and they get the whole contract:
+            what the tools are, what each costs, how to authenticate, and how to
+            read a result.
+          </p>
+          <CodeBlock>{SKILL_URL}</CodeBlock>
+          <p className="mt-3 max-w-[65ch] text-sm text-muted-foreground">
+            It is generated from the same constants and canonical sentences as
+            this page, so the prices and coverage figures in it are the ones the
+            product actually charges and claims, not a copy that drifted.
           </p>
         </section>
 
