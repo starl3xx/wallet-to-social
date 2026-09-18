@@ -366,8 +366,37 @@ async function persist(accounts: XAccount[]): Promise<void> {
       last_live_user_id  = coalesce(EXCLUDED.user_id, x_accounts.last_live_user_id),
       display_name       = EXCLUDED.display_name,
       followers          = EXCLUDED.followers,
+      -- What it moved FROM, and WHEN it moved. Both advance only on a real
+      -- transition, and both read the pre-UPDATE row: every SET expression in
+      -- an ON CONFLICT sees the old tuple, so the x_accounts.status read below
+      -- is the status being replaced, not the one assigned further down.
+      -- Verified against Postgres on a throwaway table rather than assumed,
+      -- because if it were false these would record the new status and never
+      -- advance, silently.
+      --
+      -- IS DISTINCT FROM, never the inequality operator. They agree only while
+      -- status is NOT NULL: against a NULL side inequality yields NULL, the
+      -- CASE falls to its ELSE, and the transition is dropped without a trace.
+      -- A nullable state added later would reintroduce the exact bug these
+      -- columns exist to prevent, through the comparison rather than the
+      -- schema.
+      previous_status    = CASE
+                             WHEN EXCLUDED.status IS DISTINCT FROM x_accounts.status
+                             THEN x_accounts.status
+                             ELSE x_accounts.previous_status
+                           END,
+      status_changed_at  = CASE
+                             WHEN EXCLUDED.status IS DISTINCT FROM x_accounts.status
+                             THEN now()
+                             ELSE x_accounts.status_changed_at
+                           END,
       status             = EXCLUDED.status,
       unavailable_reason = EXCLUDED.unavailable_reason,
+      -- Unconditional, and deliberately different from the two above.
+      -- checked_at answers "when did we last look", which is true on every
+      -- pass; the recheck scheduler reads it to decide what is stale. Making it
+      -- conditional would freeze a handle that never changes into permanent
+      -- staleness and it would be rechecked forever.
       checked_at         = now()
   `);
 }

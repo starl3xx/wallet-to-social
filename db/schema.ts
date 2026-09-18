@@ -973,6 +973,17 @@ export const xAccounts = pgTable(
     unavailableReason: text('unavailable_reason'),
     checkedAt: timestamp('checked_at').defaultNow().notNull(),
     lastLiveUserId: text('last_live_user_id'), // X platform id. NOT users.id.
+    /**
+     * When the status last actually moved, and what it moved from.
+     *
+     * `checked_at` says when a handle was looked at; these say when it changed,
+     * which is a different question and the only one a change feed can be built
+     * on. NULL in both means no transition has ever been observed, which is the
+     * honest state for a row the first pass wrote and nothing has revisited.
+     * Deliberately not backfilled: see scripts/migrate-x-status-transitions.ts.
+     */
+    statusChangedAt: timestamp('status_changed_at'),
+    previousStatus: text('previous_status'),
   },
   (table) => [
     index('x_accounts_checked_at_idx').on(table.checkedAt),

@@ -7881,6 +7881,81 @@ async function main() {
 
   {
     /**
+     * Reachability transitions survive the recheck wave that starts 2026-10-01.
+     *
+     * `persist()` upserts x_accounts in place. Until 2026-09-18 nothing
+     * recorded that a status had moved: `status` was overwritten and
+     * `checked_at` was stamped on every check, changed or not, and
+     * `social_graph_history` does not cover this table. Of 474,140 rows, 409
+     * had been rechecked, so the first wave was going to rewrite reachability
+     * for every handle that moved since the first pass, unrecoverably.
+     *
+     * This is the same shape as the `last_live_user_id` fix already recorded in
+     * that upsert's comments, on the same deadline, in a different column.
+     *
+     * Asserting the refusals, because the happy path passes on the broken
+     * version: rows are written, statuses are current, and nothing looks wrong
+     * until somebody asks when something changed and finds no answer.
+     */
+    /**
+     * Scoped to `persist`, not to the first `ON CONFLICT (handle)` in the file.
+     *
+     * There are two of those, and the first belongs to a different statement.
+     * The initial version of this assertion anchored on it and read a window of
+     * the wrong INSERT, which is the "anchor points at something adjacent"
+     * failure this file already carries scars from: it failed loudly here, but
+     * the same mistake on a passing anchor is an assertion that silently
+     * guards nothing.
+     */
+    const xAccounts = readFileSync('lib/x-accounts.ts', 'utf8');
+    const xCode = withoutComments(xAccounts);
+    const persistStart = xCode.indexOf('async function persist');
+    const upsert = xCode.slice(
+      persistStart,
+      xCode.indexOf('\n}', persistStart)
+    );
+    ok(
+      'the reachability assertions below read persist, not some other upsert',
+      persistStart > 0 &&
+        upsert.includes('INSERT INTO x_accounts') &&
+        upsert.includes('ON CONFLICT (handle) DO UPDATE SET')
+    );
+
+    ok(
+      'a reachability status change is recorded, not just overwritten',
+      /status_changed_at\s*=\s*CASE/.test(upsert) &&
+        /previous_status\s*=\s*CASE/.test(upsert) &&
+        /EXCLUDED\.status IS DISTINCT FROM x_accounts\.status/.test(upsert)
+    );
+
+    /**
+     * `IS DISTINCT FROM`, never `<>`. They agree only while `status` is NOT
+     * NULL: against a NULL side `<>` yields NULL, the CASE falls to its ELSE,
+     * and the transition is dropped silently. A nullable state added later
+     * would reintroduce the exact bug these columns exist to prevent, through
+     * the comparison operator rather than through the schema.
+     */
+    ok(
+      'and the comparison cannot drop a transition against a null',
+      !/EXCLUDED\.status\s*(<>|!=)\s*x_accounts\.status/.test(upsert)
+    );
+
+    /**
+     * `checked_at` must stay unconditional. It answers "when did we last look",
+     * which is true on every pass, and the recheck scheduler reads it to decide
+     * what is stale. Wrapping it in the same CASE would freeze a handle that
+     * never changes into permanent staleness, and it would be rechecked
+     * forever: a fix for the column above that breaks the column beside it.
+     */
+    ok(
+      'while checked_at still moves on every check, changed or not',
+      /checked_at\s*=\s*now\(\)/.test(upsert) &&
+        !/checked_at\s*=\s*CASE/.test(upsert)
+    );
+  }
+
+  {
+    /**
      * The staleness tool must not be the stalest thing in the room.
      *
      * `docs/OPERATIONS.md` sends a fresh session to `scripts/ops-status.ts`

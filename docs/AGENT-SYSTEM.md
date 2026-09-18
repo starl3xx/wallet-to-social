@@ -354,6 +354,19 @@ fixture-first) to refuse drift the way figures drift is refused today.
     `docs/OPERATIONS.md` row), so a watermark over `last_updated_at` alone
     will silently omit every reachability change. 16 has to read those
     transitions explicitly.**
+    **_Correction (2026-09-18):_ the sentence above said to read the
+    transitions, which read like a query to write. There were none to read.
+    `persist()` overwrote `status` in place and stamped `checked_at` on every
+    check whether anything moved or not, and `social_graph_history` does not
+    cover `x_accounts`, so nothing anywhere recorded that a status had changed.
+    Building the feed on `checked_at` would have reported a change for every
+    rechecked account, which is a billing surface charging for nothing
+    happening: the exact inverse of the decided policy two paragraphs up.
+    `status_changed_at` and `previous_status` now exist and advance only on a
+    real transition, so the watermark 16 needs is real. Note they are NULL for
+    every row written before that date, on purpose: a backfill would have
+    invented transitions. A feed must therefore treat NULL as "no transition
+    observed", never as "changed at the epoch".**
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
     `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
