@@ -41,6 +41,7 @@ import {
   getMaxKnownFid,
   getNetworkMaxFid,
   monthlySliceRange,
+  recordSweepPosture,
   SWEEP_SLICES,
   isUsableCheckpoint,
   readSweepCheckpoint,
@@ -387,23 +388,66 @@ async function main() {
         `(segment ${segments}). The next --auto resumes there.\n` +
         `Revocation cleanup does not run for a resumed sweep; see SweepCheckpoint.`
     );
+    // Recorded like every other ending, so the posture row answers "what did
+    // the last run do" rather than "did the last run happen to succeed". A
+    // budget stop is a healthy outcome and should read as one.
+    await recordSweepPosture({
+      at: sweepStartedAt.toISOString(),
+      mode: effectiveMode,
+      outcome: 'checkpointed',
+      reason: `budget stopped at FID ${stats.budgetStoppedAtFid} of ${endFid}, segment ${segments}`,
+    });
   } else if (tracksSeen && seenTable) {
     // A single-run sweep that covered its whole range: a full sweep, or one
     // monthly slice. Either may clean up, because cleanup is now bounded to the
     // span that was actually swept.
     if (stats.failedCalls === 0 && coveredRange) {
-      const cleanup = await cleanupRevokedWallets(
-        sweepStartedAt,
-        seenTable,
-        stats.walletsUpserted,
-        // The range this run actually requested every FID of, checked above.
-        // Passing the span rather than a boolean is what bounds the UPDATE, so
-        // a slice can clean up its own FIDs and nothing else.
-        { startFid, endFid }
-      );
-      console.log(
-        `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
-      );
+      /**
+       * The posture row is written on BOTH paths, and the failure path is the
+       * one it exists for. On 2026-09-02 this call threw and the run exited 1
+       * into a workflow with no notification step, so the only trace was a red
+       * tick nobody was watching. Recording the throw is what turns that into
+       * something `ops-status.ts` shows, including the seen table a corrective
+       * pass will need.
+       *
+       * The error is re-thrown unchanged: this reports the failure, it does not
+       * handle it, and a sweep that could not clean up must still exit non-zero.
+       */
+      try {
+        const cleanup = await cleanupRevokedWallets(
+          sweepStartedAt,
+          seenTable,
+          stats.walletsUpserted,
+          // The range this run actually requested every FID of, checked above.
+          // Passing the span rather than a boolean is what bounds the UPDATE, so
+          // a slice can clean up its own FIDs and nothing else.
+          { startFid, endFid }
+        );
+        console.log(
+          `Revocation cleanup: cleared ${cleanup.cleared} wallets, deleted ${cleanup.deleted} empty rows`
+        );
+        await recordSweepPosture({
+          at: sweepStartedAt.toISOString(),
+          mode: effectiveMode,
+          outcome: 'cleaned',
+          slice: { startFid, endFid },
+          cleared: cleanup.cleared,
+          deleted: cleanup.deleted,
+        });
+      } catch (error) {
+        await recordSweepPosture({
+          at: sweepStartedAt.toISOString(),
+          mode: effectiveMode,
+          outcome: 'cleanup-failed',
+          slice: { startFid, endFid },
+          // The seen table survives a throw on purpose, and a corrective pass
+          // cannot be reconstructed without it, so its name is the single most
+          // useful thing this row can carry.
+          seenTable,
+          reason: String(error),
+        });
+        throw error;
+      }
     } else {
       await dropSeenTable(seenTable);
       console.warn(
@@ -411,6 +455,13 @@ async function main() {
           `${stats.fidsRequested.toLocaleString()} of ${expectedFids.toLocaleString()} FIDs requested. ` +
           `A partial seen set would be misread as revocations. Seen table dropped.`
       );
+      await recordSweepPosture({
+        at: sweepStartedAt.toISOString(),
+        mode: effectiveMode,
+        outcome: 'cleanup-skipped',
+        slice: { startFid, endFid },
+        reason: `${stats.failedCalls} failed call(s) over ${stats.fidsRequested} FIDs requested`,
+      });
     }
     /**
      * Only a full sweep clears the full-sweep checkpoint.

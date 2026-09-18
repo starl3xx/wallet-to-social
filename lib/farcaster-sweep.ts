@@ -160,7 +160,30 @@ async function fetchUserBatch(
       }
       if (!res.ok) return null;
       const json = (await res.json()) as { users?: NeynarUser[] };
-      return json.users ?? [];
+      /**
+       * A 200 with no `users` array is a failure, not zero users.
+       *
+       * This used to read `json.users ?? []`, which turned an unrecognized
+       * response into a successful empty batch: no `failedCalls`, no retry,
+       * nothing anywhere to notice. That is the worst possible shape for this
+       * particular call, because the seen set it feeds is what revocation
+       * cleanup clears *against*. Wallets missing from it are read as
+       * "checked, and the account is gone", so a response-shape change on a
+       * stretch of batches would clear live identities in proportion to how
+       * much of the sweep it swallowed. The outcome ceiling in
+       * `cleanupRevokedWallets` is the backstop for that; this is the cause.
+       *
+       * Measured against the live endpoint on 2026-09-18 rather than assumed:
+       * a batch of existing FIDs answers 200 with `users`, a MIXED batch
+       * answers 200 with `users` holding only the ones that exist, and a batch
+       * where none exist answers 404 (handled above, and the frontier probe in
+       * `getNetworkMaxFid` depends on that branch rather than on this one). So
+       * a 200 always carries the key in normal operation, and this line is
+       * unreachable unless the contract moved. Returning null routes it to the
+       * retry loop and then to `failedCalls`, which is what stops cleanup.
+       */
+      if (!Array.isArray(json.users)) return null;
+      return json.users;
     } catch {
       await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
     }
@@ -464,6 +487,69 @@ export async function dropSeenTable(name: string): Promise<void> {
 
 /** Ceiling on what one cleanup may clear, as a share of the seen set. */
 export const MAX_REVOCATION_SHARE = 0.01;
+
+/** The `ingest_state` row this sweep publishes its own posture into. */
+export const SWEEP_POSTURE_KEY = 'posture:farcaster_sweep';
+
+export type SweepOutcome =
+  /** Swept its whole span and cleaned up. The healthy end state. */
+  | 'cleaned'
+  /** Swept fine, then cleanup threw. The seen table is kept for a corrective pass. */
+  | 'cleanup-failed'
+  /** Swept with failures, so cleanup was refused rather than run on a partial seen set. */
+  | 'cleanup-skipped'
+  /** Budget ran out mid-sweep; a checkpoint was written and cleanup does not apply. */
+  | 'checkpointed';
+
+export interface SweepPosture {
+  at: string;
+  mode: string;
+  outcome: SweepOutcome;
+  slice?: { startFid: number; endFid: number };
+  cleared?: number;
+  deleted?: number;
+  /** Present only while a seen table is being kept for a corrective pass. */
+  seenTable?: string;
+  reason?: string;
+}
+
+/**
+ * Publish what this run actually did, where an operator will see it.
+ *
+ * The 2026-09-02 sweep ingested perfectly, died in cleanup, and nobody found
+ * out for fifteen days. Two things hid it, and neither was the failure itself:
+ * the workflow has no notification step, and `farcaster_sweep_resume` is the
+ * only row `ops-status.ts` had for this pipeline, which a slice never writes.
+ * So the one live signal an operator is told to read was, by construction,
+ * incapable of showing this failure. It said "cleared (no resume pending)"
+ * throughout, which is true and answers a question nobody asked.
+ *
+ * This row answers the question they did ask. The `posture:` prefix has been
+ * reserved in `scripts/ops-status.ts` since it was written, for a pipeline
+ * that publishes its own posture rather than leaving one inferred from a
+ * cursor's age; this is its first user.
+ *
+ * Best-effort on purpose. It is called on the failure path, where the database
+ * may be exactly what is broken, so it must never replace the error it is
+ * reporting with one of its own. A posture write that throws is swallowed, and
+ * the original failure propagates untouched.
+ */
+export async function recordSweepPosture(posture: SweepPosture): Promise<void> {
+  try {
+    const db = getDb();
+    if (!db) return;
+    await db.execute(sql`
+      INSERT INTO ingest_state (name, value, updated_at)
+      VALUES (${SWEEP_POSTURE_KEY}, ${JSON.stringify(posture)}::jsonb, now())
+      ON CONFLICT (name) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    `);
+  } catch (error) {
+    console.warn(
+      `Could not record sweep posture (the run's own result stands): ${String(error)}`
+    );
+  }
+}
 
 /**
  * How many rows a cleanup over this span would clear: the outcome ceiling's
