@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-17 (slice 3 settled)
+
+- **The revocations the 2026-09-02 sweep found and never cleared are cleared.**
+  383 wallets in slice 3's FID span had been serving a Farcaster account their
+  owner had removed, for fifteen days. 372 of those rows held nothing else once
+  the sweep's data came off them and were deleted as husks, which is the
+  documented behavior for a row with no handle, no sources and no full-pipeline
+  check: it carries no information about anybody. The 127 MB seen table was
+  dropped, which is what cleanup does on success.
+- **It ran through the fixed code path, not around it.** `cleanupRevokedWallets`
+  was called with the recorded `sweepStartedAt`, seen table, `walletsUpserted`
+  and FID span from run 33621049583, so every guard applied: the 100,000-row
+  floor, the 90% seen-against-upserted ratio (804,916 against 805,709, or
+  99.9%), and the 1% outcome ceiling (383 against 8,050). Hand-rolled SQL would
+  have bypassed all three, and a corrective script that recomputes what it is
+  correcting verifies only itself.
+- **Running it fifteen days late was safe by construction.** Cleanup only
+  touches rows with `last_updated_at < sweepStartedAt`, and every writer sets
+  `last_updated_at = now()`, so any row another pipeline had refreshed in the
+  meantime excluded itself. The set can only shrink with age, never grow. The
+  cutoff used was the workflow's start rather than the script's, which is
+  fractionally early on purpose: too early only skips rows, while too late can
+  clear one that has since been refreshed.
+- `countRevocationCandidates` is now the single place the revocation predicate
+  is written, and the outcome ceiling reads it rather than keeping its own copy,
+  so a count cannot report one number while the write does another. The
+  assertion that forbids `NOT IN` now covers the whole module rather than one
+  function, since the predicate lives in two places and a check scoped to one
+  would have passed while the other spelling came back.
+
 ### 2026-09-17 (one keyword, four orders of magnitude)
 
 - **The monthly sweep's revocation cleanup was never going to finish, and
