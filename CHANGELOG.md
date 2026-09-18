@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the skill file tells a chat host the truth about OAuth)
+
+- **`/skill.md` led with OAuth, and the first thing publicly promoting it was a
+  demo running in Grok**, which cannot do OAuth at all. The docs were corrected
+  earlier the same day; the skill file, which is the more prominent surface and
+  the one in the announcement, was not. Anyone following that link into a chat
+  host met the loop the correction exists to prevent, with the file telling
+  them a consent screen was coming.
+- The API key entry now says to use it inside a chat host, names the symptom
+  precisely (every tool listed, because discovery needs no credential, then
+  every call reporting a sign-in is still needed however often the user
+  authorizes) and says what it means: a host that cannot start a sign-in, not
+  a sign-in that failed.
+- Written as an instruction to the agent rather than a note to a reader, since
+  the audience for this file is the agent: **ask the user for a key instead of
+  retrying the connection.** An agent that reads it can now resolve this
+  without the user diagnosing anything.
+
 ### 2026-09-18 (ERC-20 seeding is retired, and stops failing daily)
 
 - **The seed cron stops attempting a call that cannot succeed.** Moralis has
