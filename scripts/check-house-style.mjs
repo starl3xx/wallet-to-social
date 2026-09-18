@@ -130,37 +130,6 @@ const RULES = [
 ];
 
 /**
- * Shapes that contain a space and a letter and are still not prose.
- *
- * The last entry is the subtle one and it fixes a real false positive rather
- * than a hypothetical. Quote matching here is naive by necessity (a real
- * parser is not worth it for a style guard), so on a line like
- *
- *   return [headers.join(','), ...rows].join('\n');
- *
- * the CLOSING quote of `','` pairs with the OPENING quote of `'\n'`, and the
- * code between them arrives as a four-plus character "string" with a space and
- * letters in it: `), ...rows].join(`. It has no innocent reading as copy, and
- * neither does anything else carrying `].`, `).`, `](`, `)(` or `=>`.
- *
- * The cost is that a sentence ending in a parenthetical full stop, "(see
- * below).", is skipped. That is a missed check, never a false alarm, which is
- * the right direction for a guard to fail in.
- */
-const NOT_PROSE = [
-  /^[\w-]+\/[\w-]+$/, // mime types, paths
-  /^[A-Za-z-]+:\s*[\w(]/, // css declarations
-  /\bSELECT\b|\bFROM\b|\bWHERE\b|\bINSERT\b|\bCREATE\b/i, // SQL
-  /^[a-z-]+(?:\s+[a-z0-9:[\]/.%-]+)+$/, // tailwind class strings
-  /^\s*[\d.]+\s/, // version-ish
-  /https?:\/\//, // urls, which carry their own spelling
-  /\]\.|\)\.|\]\(|\)\(|=>/, // see below
-];
-
-const isProse = (s) =>
-  / /.test(s) && /[A-Za-z]{2}/.test(s) && !NOT_PROSE.some((r) => r.test(s));
-
-/**
  * Untagged SQL, recognised by STATEMENT SHAPE rather than by a loose keyword.
  *
  * The first version of this widened the shared keyword list with `UPDATE`,
@@ -199,6 +168,37 @@ const UNTAGGED_SQL = new RegExp(
     ')',
   'i'
 );
+
+/**
+ * Shapes that contain a space and a letter and are still not prose.
+ *
+ * The last entry is the subtle one and it fixes a real false positive rather
+ * than a hypothetical. Quote matching here is naive by necessity (a real
+ * parser is not worth it for a style guard), so on a line like
+ *
+ *   return [headers.join(','), ...rows].join('\n');
+ *
+ * the CLOSING quote of `','` pairs with the OPENING quote of `'\n'`, and the
+ * code between them arrives as a four-plus character "string" with a space and
+ * letters in it: `), ...rows].join(`. It has no innocent reading as copy, and
+ * neither does anything else carrying `].`, `).`, `](`, `)(` or `=>`.
+ *
+ * The cost is that a sentence ending in a parenthetical full stop, "(see
+ * below).", is skipped. That is a missed check, never a false alarm, which is
+ * the right direction for a guard to fail in.
+ */
+const NOT_PROSE = [
+  /^[\w-]+\/[\w-]+$/, // mime types, paths
+  /^[A-Za-z-]+:\s*[\w(]/, // css declarations
+  UNTAGGED_SQL, // SQL, by statement shape: see the note above
+  /^[a-z-]+(?:\s+[a-z0-9:[\]/.%-]+)+$/, // tailwind class strings
+  /^\s*[\d.]+\s/, // version-ish
+  /https?:\/\//, // urls, which carry their own spelling
+  /\]\.|\)\.|\]\(|\)\(|=>/, // see below
+];
+
+const isProse = (s) =>
+  / /.test(s) && /[A-Za-z]{2}/.test(s) && !NOT_PROSE.some((r) => r.test(s));
 
 /**
  * The same test for a template literal, minus the quote-pairing entry.
@@ -294,9 +294,23 @@ export function copySpans(src) {
     // A tag means a DSL, not copy. Also catches `)` for `foo()`...``.
     const before = bare.slice(Math.max(0, m.index - 1), m.index);
     if (/[\w$)\]]/.test(before)) continue;
-    // Interpolations are code. Blank them rather than dropping the literal, so
-    // the prose around a value is still read.
-    const text = m[1].replace(/\$\{[^{}]*\}/g, ' ');
+    /**
+     * Interpolations are code, and URLs carry their own spelling. Blank both
+     * rather than dropping the literal, so the prose around them is still read.
+     *
+     * The URL half is the one that matters at this size. `NOT_PROSE` skips any
+     * string containing `https://`, which is right for a short string that IS
+     * a URL and wrong for a long body that merely mentions one: it excluded the
+     * entire `/skill.md` and `llms.txt` bodies, which are the two files this
+     * product publishes for agents to read. Measured by putting an em dash in
+     * the shipped `/skill.md` copy and watching the guard pass.
+     *
+     * Blanking keeps the original intent exactly. A URL's own spelling is still
+     * never checked; the sentence it sits inside now is.
+     */
+    const text = m[1]
+      .replace(/\$\{[^{}]*\}/g, ' ')
+      .replace(/https?:\/\/\S+/g, ' ');
     if (isTemplateProse(text)) spans.push([text, m.index + 1]);
   }
   return spans;
@@ -412,6 +426,11 @@ for (const rule of RULES) {
     'const e = `Delete the saved lookup and nothing else changes.`;',
     // And an untagged statement, which must still be skipped.
     'const q2 = `DROP TABLE IF EXISTS probe_scratch`;',
+    // The word "from" disabled this guard entirely for any string containing
+    // it, because the old SQL entry was /\\bFROM\\b/i and "from" is one of the
+    // commonest words in English. Both of these must be read.
+    "const f1 = 'A list from a low-attestation community can come back empty.';",
+    'const f2 = `Results from the index, where a handle was checked already.`;',
   ].join('\n');
   const spans = copySpans(src);
   const texts = spans.map((s) => s[0]);
@@ -477,6 +496,19 @@ for (const rule of RULES) {
   for (const t of texts)
     if (/probe_scratch/.test(t)) {
       console.error(`FIXTURE FAIL  extractor read an untagged statement: ${t}`);
+      failed++;
+    }
+  /**
+   * The regression that mattered most. `/\bFROM\b/i` in the old SQL entry
+   * matched the English word "from", so any copy containing it was skipped, in
+   * quoted strings as much as templates. Measured on the shipped `/skill.md`
+   * body: an em dash in it passed the guard.
+   */
+  for (const w of ['A list from a low-attestation', 'Results from the index'])
+    if (!texts.some((t) => t.includes(w))) {
+      console.error(
+        `FIXTURE FAIL  extractor skipped copy containing the word "from": ${w}`
+      );
       failed++;
     }
   // Offsets must map to the real line.

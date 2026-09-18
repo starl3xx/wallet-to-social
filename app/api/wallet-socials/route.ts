@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   if (budget.remaining <= 0) {
     return NextResponse.json(
       {
-        error: `You have used today's free lookups. Create a free account to keep going, or come back after ${budget.resetAt
+        error: `You have used today’s free lookups. Create a free account to keep going, or come back after ${budget.resetAt
           .toISOString()
           .slice(11, 16)} UTC.`,
         code: 'DAILY_LIMIT',
