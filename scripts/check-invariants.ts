@@ -364,7 +364,10 @@ async function main() {
     );
     ok(
       'only the no-credits copy contains an offer',
-      /I'd be happy to gift you a Trial pack/.test(
+      // Curly apostrophe: the copy was corrected on 2026-09-18 when the house
+      // style guard learned to read template literals, and this assertion
+      // quotes the sentence verbatim, so it moved with it.
+      /I’d be happy to gift you a Trial pack/.test(
         campaign.slice(campaign.indexOf('function noCreditsContent'))
       ) &&
         !/gift you a Trial pack/.test(

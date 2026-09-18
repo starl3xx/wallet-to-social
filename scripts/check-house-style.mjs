@@ -160,6 +160,65 @@ const NOT_PROSE = [
 const isProse = (s) =>
   / /.test(s) && /[A-Za-z]{2}/.test(s) && !NOT_PROSE.some((r) => r.test(s));
 
+/**
+ * Untagged SQL, recognised by STATEMENT SHAPE rather than by a loose keyword.
+ *
+ * The first version of this widened the shared keyword list with `UPDATE`,
+ * `DELETE`, `DROP` and `ALTER`, which quietly stopped the guard checking any
+ * copy containing those very ordinary words: "Drop your CSV here", "Failed to
+ * delete", "Update your settings". Nothing in the tree says that today, but a
+ * product with a CSV drop zone is one string away from it, and a guard that
+ * silently checks less is the failure this whole file exists to prevent
+ * (found by Bugbot).
+ *
+ * A leading verb is NOT enough, and the first attempt at this used one. UI copy
+ * is imperative constantly: "Drop your CSV here", "Update your settings",
+ * "Delete this lookup" all open with a SQL verb and are all prose, so anchoring
+ * on the verb alone reintroduced the same silent miss one layer down (found by
+ * Bugbot, twice on the same list).
+ *
+ * What actually identifies a statement is the verb TOGETHER WITH the keyword it
+ * requires: `DELETE` needs `FROM`, `ALTER` needs an object type, `UPDATE` needs
+ * `SET`. No English sentence carries the pair by accident. Tagged templates are
+ * already skipped in `copySpans`, so this only has to catch SQL nobody tagged.
+ */
+const UNTAGGED_SQL = new RegExp(
+  '^\\s*(?:' +
+    [
+      'SELECT\\b[\\s\\S]*?\\bFROM\\b',
+      'INSERT\\s+INTO\\b',
+      'UPDATE\\s+[\\w."]+\\s+SET\\b',
+      'DELETE\\s+FROM\\b',
+      'ALTER\\s+(?:TABLE|INDEX|VIEW|SEQUENCE)\\b',
+      'CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TABLE|UNIQUE|INDEX|VIEW|SCHEMA|EXTENSION|FUNCTION|TRIGGER)\\b',
+      'DROP\\s+(?:TABLE|INDEX|VIEW|COLUMN|CONSTRAINT|SCHEMA|FUNCTION|TRIGGER)\\b',
+      'TRUNCATE\\s+TABLE\\b',
+      'WITH\\s+[\\w"]+\\s+AS\\s*\\(',
+      'GRANT\\b[\\s\\S]*?\\bON\\b',
+    ].join('|') +
+    ')',
+  'i'
+);
+
+/**
+ * The same test for a template literal, minus the quote-pairing entry.
+ *
+ * Everything in `NOT_PROSE` applies except the last rule, which exists to
+ * undo an artifact of matching `'` naively and has no counterpart for
+ * backticks. See the note in `copySpans`.
+ */
+const TEMPLATE_NOT_PROSE = NOT_PROSE.filter(
+  (r) => String(r) !== String(/\]\.|\)\.|\]\(|\)\(|=>/)
+).concat(UNTAGGED_SQL);
+
+const isTemplateProse = (s) =>
+  / /.test(s) &&
+  /[A-Za-z]{2}/.test(s) &&
+  // Two words of actual prose. A one-word template with a value in it
+  // ("  rows") is a fragment, not a sentence anybody reads as copy.
+  /[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(s) &&
+  !TEMPLATE_NOT_PROSE.some((r) => r.test(s));
+
 /** Blank comments, preserving length and newlines so offsets still map. */
 export function blankComments(src) {
   const blank = (m) => m.replace(/[^\n]/g, ' ');
@@ -203,6 +262,43 @@ export function copySpans(src) {
   }
   for (const m of bare.matchAll(/(['"])((?:[^'"\\\n]|\\.){4,})\1/g))
     if (isProse(m[2])) spans.push([m[2], m.index + 1]);
+  /**
+   * Template literals, which this guard could not see until 2026-09-18.
+   *
+   * The extractor above reads `'` and `"` only. Every backtick string in the
+   * repo was therefore invisible, and that is where the interpolated messages
+   * live: every `throw new Error(...)` with a value in it, every console line
+   * that names a count. The gap shipped an em dash into an operator-facing
+   * error in #276 and had been carrying an older one beside it, both in
+   * `lib/farcaster-sweep.ts`, in a file this guard already walks.
+   *
+   * Two rules make this safe to turn on.
+   *
+   * **Tagged templates are skipped outright.** `sql`, `css` and friends are
+   * never copy, and a tag is a far better signal than keyword-matching the
+   * contents: this repo's SQL is full of ordinary English in `--` comments,
+   * which no keyword list would reliably separate from prose. The character
+   * before the backtick decides it.
+   *
+   * **The `].`/`).`/`=>` exclusion does not apply here, deliberately.** Read
+   * its rationale above: it exists because naive quote matching pairs the
+   * closing `'` of one string with the opening `'` of the next and hands back
+   * a chunk of code. Backticks do not have that failure mode — they are not
+   * also apostrophes, and valid TypeScript cannot leave one unbalanced. So the
+   * cost that entry knowingly accepts, skipping "a sentence ending in a
+   * parenthetical full stop", would be paid here for no reason at all. Error
+   * messages end in parentheticals constantly: "(table kept for the corrective
+   * pass)" is exactly the shape that was getting through.
+   */
+  for (const m of bare.matchAll(/`((?:[^`\\]|\\.)*)`/g)) {
+    // A tag means a DSL, not copy. Also catches `)` for `foo()`...``.
+    const before = bare.slice(Math.max(0, m.index - 1), m.index);
+    if (/[\w$)\]]/.test(before)) continue;
+    // Interpolations are code. Blank them rather than dropping the literal, so
+    // the prose around a value is still read.
+    const text = m[1].replace(/\$\{[^{}]*\}/g, ' ');
+    if (isTemplateProse(text)) spans.push([text, m.index + 1]);
+  }
   return spans;
 }
 
@@ -302,6 +398,20 @@ for (const rule of RULES) {
     "const url = 'https://x.com/a-b';",
     'setRows((prev) => [...prev, ...next]);',
     '<Thing {...props} />',
+    // Template literals, invisible to this extractor until 2026-09-18.
+    'throw new Error(`Refusing the run: ${n} rows kept for the pass).`);',
+    'await db.execute(sql`SELECT count(*) FROM x_accounts WHERE a = ${b}`);',
+    'const q = sql`ALTER TABLE t ADD COLUMN c text`;',
+    'const href = `${base}/api/v1/wallet`;',
+    // Ordinary English that happens to contain SQL verbs. A keyword list would
+    // skip these; statement-shape matching does not. Both must be TEMPLATES:
+    // the first version put the drop-zone sentence in a JSX node, so it was
+    // read by the JSX branch and never exercised the SQL test at all, which is
+    // a fixture proving nothing about the thing it was added for.
+    'const a = `Drop your CSV here to update the list.`;',
+    'const e = `Delete the saved lookup and nothing else changes.`;',
+    // And an untagged statement, which must still be skipped.
+    'const q2 = `DROP TABLE IF EXISTS probe_scratch`;',
   ].join('\n');
   const spans = copySpans(src);
   const texts = spans.map((s) => s[0]);
@@ -327,6 +437,46 @@ for (const rule of RULES) {
   for (const t of texts)
     if (/\.\.\.(?:props|prev|next)/.test(t)) {
       console.error(`FIXTURE FAIL  extractor read a spread as copy: ${t}`);
+      failed++;
+    }
+  /**
+   * Template literals: read as copy, except when tagged, SQL, or a path.
+   *
+   * The first case is the one that matters. It ends in a parenthetical full
+   * stop, which the quote extractor deliberately skips, and it is exactly the
+   * shape of the operator error that carried an em dash past this guard.
+   */
+  if (!texts.some((t) => /Refusing the run/.test(t))) {
+    console.error('FIXTURE FAIL  extractor missed an interpolated message');
+    failed++;
+  }
+  for (const t of texts)
+    if (/SELECT count|ALTER TABLE/.test(t)) {
+      console.error(`FIXTURE FAIL  extractor read tagged SQL as copy: ${t}`);
+      failed++;
+    }
+  for (const t of texts)
+    if (/api\/v1\/wallet/.test(t)) {
+      console.error(
+        `FIXTURE FAIL  extractor read a path template as copy: ${t}`
+      );
+      failed++;
+    }
+  /**
+   * Copy that merely CONTAINS a SQL verb is still copy. The first version of
+   * template scanning widened the shared keyword list and silently stopped
+   * checking both of these.
+   */
+  for (const w of ['Drop your CSV here', 'Delete the saved lookup'])
+    if (!texts.some((t) => t.includes(w))) {
+      console.error(
+        `FIXTURE FAIL  extractor skipped template copy opening with a SQL verb: ${w}`
+      );
+      failed++;
+    }
+  for (const t of texts)
+    if (/probe_scratch/.test(t)) {
+      console.error(`FIXTURE FAIL  extractor read an untagged statement: ${t}`);
       failed++;
     }
   // Offsets must map to the real line.
@@ -473,7 +623,7 @@ for (const file of walk('content/social', [], ['.json'])) {
 
 if (!hits.length) {
   console.log(
-    `house style ok — ${RULES.length} rules over UI copy, docs-site, the social queue, README and PROJECT_OVERVIEW`
+    `house style ok: ${RULES.length} rules over UI copy (quoted and template literals), docs-site, the social queue, README and PROJECT_OVERVIEW`
   );
   process.exit(0);
 }

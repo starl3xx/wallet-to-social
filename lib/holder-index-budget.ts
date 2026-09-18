@@ -244,7 +244,7 @@ export async function checkHolderIndexBudget(
       remaining,
       reason:
         `Holder index background budget spent: ${spent} of ${BACKGROUND_CEILING} ` +
-        `requests today, and this would add ${requests}. The rest of the day's ` +
+        `requests today, and this would add ${requests}. The rest of the day’s ` +
         `allowance is reserved for customer imports.`,
     };
   }

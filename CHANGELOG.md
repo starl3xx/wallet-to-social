@@ -2,6 +2,62 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the house-style guard can see template literals)
+
+- **Every backtick string in the repo was unchecked.** `copySpans` matched `'`
+  and `"` only, so the guard walked `lib/` and `app/` and read none of their
+  template literals. That is where the interpolated copy lives: every
+  `throw new Error` with a count in it, every console line naming a value, a
+  `document.title`, a placeholder built from a variable. The gap shipped an em
+  dash into an operator-facing error in #276 and had been carrying an older one
+  beside it, in a file the guard already walked.
+- **Nine real violations were sitting in the blind spot**, all fixed here: a
+  browser tab title reading `Lookup complete - walletlink.social` (the spaced
+  hyphen the house style names explicitly), three periods in the Farcaster DM
+  placeholder, straight apostrophes through the check-in campaign's email copy
+  and two budget refusal messages, and two em dashes in sweep errors. The repo
+  is cleaned and the gate widened in the same change, on the precedent the
+  Prettier rollout set: drift cannot accumulate behind a rule that now exists.
+- Two decisions keep this from becoming noise, which is the failure mode that
+  gets a guard switched off. **A tagged template is skipped outright**: `sql`
+  and friends are DSLs, and the tag is a far better signal than keyword-matching
+  contents that are full of English in `--` comments. And **the `].`/`).`/`=>`
+  exclusion is deliberately not applied to backticks**, because it exists to
+  undo an artifact of naive `'` matching (the closing quote of one string
+  pairing with the opening quote of the next) and backticks have no such failure
+  mode. Its documented cost, skipping a sentence that ends in a parenthetical
+  full stop, would otherwise have been paid for nothing: error messages end in
+  parentheticals constantly, and `(table kept for the corrective pass)` is
+  exactly the shape that was getting through.
+- **Untagged SQL is recognised by statement shape, not by a loose keyword.**
+  The first version of this widened the shared keyword list with `UPDATE`,
+  `DELETE`, `DROP` and `ALTER`, which quietly stopped the guard checking any
+  copy containing those very ordinary words: "Drop your CSV here", "Failed to
+  delete", "Update your settings". Nothing in the tree says that today, but a
+  product with a CSV drop zone is one string away from it, and a guard that
+  silently checks less is the exact failure this file exists to prevent. Caught
+  by Bugbot. The shared list is back to its original five keywords byte for
+  byte, so quoted strings behave precisely as they did before, and untagged SQL
+  is recognised for templates only.
+- **A leading verb is not statement shape either, and the first correction used
+  one.** UI copy is imperative constantly, so "Drop your CSV here" and "Delete
+  this lookup" open with a SQL verb and are prose, which put the same silent
+  miss back one layer down. What identifies a statement is the verb together
+  with the keyword it requires: `DELETE` needs `FROM`, `UPDATE` needs `SET`,
+  `ALTER` needs an object type. No English sentence carries the pair by
+  accident.
+- **The fixture for that first correction proved nothing**, which is worth
+  recording separately because it is the failure this repo keeps finding in its
+  own guards. It put the drop-zone sentence in a JSX node, so the JSX branch
+  read it and the SQL test was never consulted at all. Both fixtures are
+  templates now, and they were verified by restoring the loose test and
+  watching the guard report that it does not do what it claims.
+- The guard's own fixtures cover every case now, since it is tested harder than
+  its regexes are: an interpolated message ending in a parenthetical is read,
+  tagged SQL is not, a path built from a variable is not, and copy that merely
+  contains a SQL verb still is. Verified end to end as well, by putting a fresh
+  em dash in a template and watching it fail.
+
 ### 2026-09-18 (reachability transitions, before the wave that would erase them)
 
 - **`x_accounts` now records when a handle's reachability changed, and what it
