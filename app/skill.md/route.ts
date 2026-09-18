@@ -128,11 +128,11 @@ homepage: https://walletlink.social
 
 walletlink.social answers two questions about an Ethereum address: which social
 accounts its owner published, and which addresses a given X handle or Farcaster
-account is attested to. Balances, transfers and prices are a block explorer's
-job, not this server's.
+account is attested to. Balances, transfers and prices are a block explorer’s
+job, not this server’s.
 
 ${ATTESTED_SENTENCE} Nothing is inferred from a display name or a bio. This
-distinction is the product: \`attested: true\` is the owner's own claim,
+distinction is the product: \`attested: true\` is the owner’s own claim,
 \`attested: false\` means the record rests on correlation alone, and
 \`attested: null\` means the record carried no classified evidence, which is a
 different claim from "not attested".
@@ -148,7 +148,7 @@ one of:
 
 - **OAuth**: clients that follow the MCP authorization specification get a
   consent screen on the first tool call. No key to manage.
-- **API key**: an \`Authorization: Bearer wts_live_...\` header. Keys are
+- **API key**: an \`Authorization: Bearer wts_live_<key>\` header. Keys are
   self-serve at https://walletlink.social for any account holding credits.
 - **x402**: an autonomous agent can buy access with USDC on Base, no account
   needed. See https://docs.walletlink.social/agent-pack.

@@ -268,7 +268,7 @@ The blog is the question-shaped half of the site. Every post is public, dated an
 - [How to filter AI agent wallets before your next airdrop](https://walletlink.social/blog/filter-agents-before-airdrop.md): the exclusion, step by step.
 - [The priority score formula: finding your most valuable holders](https://walletlink.social/blog/priority-score-formula.md): holdings multiplied by log10 of followers plus one, and why that shape.
 - [The wallet identity stack: ENS, Farcaster, and beyond](https://walletlink.social/blog/wallet-identity-stack.md): which identity layers exist and what each one can prove.
-- [Airdrop targeting: why identity beats transaction history](https://walletlink.social/blog/airdrop-targeting-identity.md): targeting people rather than behaviour.
+- [Airdrop targeting: why identity beats transaction history](https://walletlink.social/blog/airdrop-targeting-identity.md): targeting people rather than behavior.
 - [Sybil resistance through identity: a better approach](https://walletlink.social/blog/sybil-resistance-identity.md): attestation as a filter.
 - [How to reach your token holders on Farcaster](https://walletlink.social/blog/reach-holders-on-farcaster.md): the reachable subset, and how to use it.
 - [5 ways to use wallet identity for token holder outreach](https://walletlink.social/blog/five-ways-wallet-identity.md): the campaign patterns.
