@@ -1180,6 +1180,52 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------- OAuth: the scope refusal
+  /**
+   * The refusal must not contradict the metadata one hop away.
+   *
+   * A request naming only `offline_access` is bounced, and correctly: the rule
+   * beside it is that a client cannot receive a scope it did not ask for, so
+   * the read scope cannot be added on its behalf. What was wrong was the
+   * sentence. It said "the only scope this server grants is wallet:read" while
+   * `SUPPORTED_SCOPES` held two and the authorization server metadata
+   * advertised both, so a client that read the metadata and then read the error
+   * learned only that one of them was lying.
+   *
+   * Asserted against the constant rather than the string, so adding a third
+   * scope cannot leave a message claiming there is one.
+   */
+  {
+    const { SUPPORTED_SCOPES, MCP_SCOPE, OFFLINE_SCOPE } =
+      await import('@/lib/oauth/metadata');
+    const page = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    /**
+     * The message interpolates the constants rather than spelling the scope
+     * values, which is the point: it cannot drift from them. So this looks for
+     * the identifiers, not for "wallet:read". The first version of this
+     * assertion searched for the values and failed on correct code, which is
+     * the friendlier direction for an assertion to be wrong in.
+     */
+    const start = page.indexOf("'invalid_scope',");
+    const refusal = page.slice(start, page.indexOf(');', start));
+    ok(
+      'the scope refusal does not claim this server grants only one scope',
+      start > 0 &&
+        SUPPORTED_SCOPES.length > 1 &&
+        !/only scope this server grants/.test(page) &&
+        refusal.includes('${MCP_SCOPE}') &&
+        refusal.includes('${OFFLINE_SCOPE}')
+    );
+    ok(
+      'and both advertised scopes are still the ones the gate filters on',
+      SUPPORTED_SCOPES.includes(MCP_SCOPE) &&
+        SUPPORTED_SCOPES.includes(OFFLINE_SCOPE) &&
+        page.includes('SUPPORTED_SCOPES.filter((s) => asked.includes(s))')
+    );
+  }
+
   // --------------------------------------------------- OAuth: the return path
   // The one value that survives a round trip through a mailbox. If this widens,
   // a sign-in link becomes an open redirect carrying our own authenticity.

@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the scope refusal stops contradicting the metadata)
+
+- **A client asking for `offline_access` alone was told "the only scope this
+  server grants is wallet:read", which is untrue.** `SUPPORTED_SCOPES` holds
+  both, the authorization server metadata advertises both, and
+  `issueInitialTokens` returns a refresh token precisely when `offline_access`
+  was granted. A client that read the metadata and then read the error learned
+  only that one of the two was lying.
+- **The refusal itself is correct and stays.** The rule beside it is that a
+  client cannot receive a scope it did not ask for, so a request naming only
+  `offline_access` cannot quietly be upgraded to include the read scope. What
+  it is asking for is a refresh token and no access, which is not a thing to
+  grant. Only the sentence was wrong.
+- It now names the scope that is required and how to ask for the other, which
+  is what an implementer needs: ask for `wallet:read`, or
+  `wallet:read offline_access` for a refresh token, or omit the parameter.
+- Asserted against the constants rather than the strings, so adding a third
+  scope cannot leave a message claiming there is one. Found while diagnosing
+  why no OAuth grant had ever been issued; it was not the cause, and no
+  ordinary client sends `offline_access` on its own.
+
 ### 2026-09-18 (the skill file tells a chat host the truth about OAuth)
 
 - **`/skill.md` led with OAuth, and the first thing publicly promoting it was a
