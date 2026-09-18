@@ -469,7 +469,7 @@ export default function Home() {
             localStorage.removeItem('currentJobId');
 
             // Update title to show completion (job finished while away)
-            document.title = `✓ Lookup complete - walletlink.social`;
+            document.title = `✓ Lookup complete | walletlink.social`;
             const resetTitle = () => {
               document.title = 'walletlink.social';
               window.removeEventListener('focus', resetTitle);

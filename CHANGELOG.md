@@ -2,6 +2,39 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-18 (the house-style guard can see template literals)
+
+- **Every backtick string in the repo was unchecked.** `copySpans` matched `'`
+  and `"` only, so the guard walked `lib/` and `app/` and read none of their
+  template literals. That is where the interpolated copy lives: every
+  `throw new Error` with a count in it, every console line naming a value, a
+  `document.title`, a placeholder built from a variable. The gap shipped an em
+  dash into an operator-facing error in #276 and had been carrying an older one
+  beside it, in a file the guard already walked.
+- **Nine real violations were sitting in the blind spot**, all fixed here: a
+  browser tab title reading `Lookup complete - walletlink.social` (the spaced
+  hyphen the house style names explicitly), three periods in the Farcaster DM
+  placeholder, straight apostrophes through the check-in campaign's email copy
+  and two budget refusal messages, and two em dashes in sweep errors. The repo
+  is cleaned and the gate widened in the same change, on the precedent the
+  Prettier rollout set: drift cannot accumulate behind a rule that now exists.
+- Two decisions keep this from becoming noise, which is the failure mode that
+  gets a guard switched off. **A tagged template is skipped outright**: `sql`
+  and friends are DSLs, and the tag is a far better signal than keyword-matching
+  contents that are full of English in `--` comments. And **the `].`/`).`/`=>`
+  exclusion is deliberately not applied to backticks**, because it exists to
+  undo an artifact of naive `'` matching (the closing quote of one string
+  pairing with the opening quote of the next) and backticks have no such failure
+  mode. Its documented cost, skipping a sentence that ends in a parenthetical
+  full stop, would otherwise have been paid for nothing: error messages end in
+  parentheticals constantly, and `(table kept for the corrective pass)` is
+  exactly the shape that was getting through.
+- The guard's own fixtures cover all three cases now, since it is tested harder
+  than its regexes are: an interpolated message ending in a parenthetical is
+  read, tagged SQL is not, and a path built from a variable is not. Verified
+  end to end as well, by putting a fresh em dash in a template and watching it
+  fail.
+
 ### 2026-09-18 (reachability transitions, before the wave that would erase them)
 
 - **`x_accounts` now records when a handle's reachability changed, and what it

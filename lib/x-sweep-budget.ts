@@ -130,7 +130,7 @@ export function planSweep(balance: number | null, now: Date): SweepBudget {
       ...base,
       creditCap,
       refusal:
-        `today's share is ${creditCap} credits, below the ${MIN_VIABLE_CREDITS} ` +
+        `today’s share is ${creditCap} credits, below the ${MIN_VIABLE_CREDITS} ` +
         `a single handle can cost if it has to retry`,
     };
   }

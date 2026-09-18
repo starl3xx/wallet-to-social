@@ -86,11 +86,11 @@ function hasCreditsContent(): CampaignContent {
     subject: 'your walletlink account',
     text: `Hey there,
 
-I wanted to check in personally. You have a Trial pack sitting on your walletlink.social account, 250 matches, and it looks like you haven't had a chance to use it yet.
+I wanted to check in personally. You have a Trial pack sitting on your walletlink.social account, 250 matches, and it looks like you haven’t had a chance to use it yet.
 
-That's usually a sign something got in the way rather than a lack of interest, and I'd genuinely like to know what it was. Too fiddly to get a wallet list together? Not the kind of data you needed? Something broke?
+That’s usually a sign something got in the way rather than a lack of interest, and I’d genuinely like to know what it was. Too fiddly to get a wallet list together? Not the kind of data you needed? Something broke?
 
-Whatever it is, I'd rather hear it than guess. Just hit reply, it comes straight to me.
+Whatever it is, I’d rather hear it than guess. Just hit reply, it comes straight to me.
 
 - starl3xx
 starl3xx@walletlink.social`,
@@ -107,11 +107,11 @@ function usedCreditsContent(): CampaignContent {
     subject: 'your walletlink account',
     text: `Hey there,
 
-I wanted to check in personally. You've run some lookups on walletlink.social with the Trial pack that's on your account, so you're one of the few people who can tell me whether it actually did the job.
+I wanted to check in personally. You’ve run some lookups on walletlink.social with the Trial pack that’s on your account, so you’re one of the few people who can tell me whether it actually did the job.
 
 Did the matches you got back turn out to be useful? Anything obviously missing, or wrong?
 
-The rest of the pack is still on your account either way. But I'd really like to hear how it went. Just hit reply, it comes straight to me.
+The rest of the pack is still on your account either way. But I’d really like to hear how it went. Just hit reply, it comes straight to me.
 
 - starl3xx
 starl3xx@walletlink.social`,
@@ -128,7 +128,7 @@ I wanted to personally check in on your experience so far with walletlink.social
 
 What do you think? Have you run into any issues?
 
-If you'd like to give it a more thorough evaluation, I'd be happy to gift you a Trial pack for free. It's the $29 pack: 250 social matches for wallets, and misses don't count. Just say the word.
+If you’d like to give it a more thorough evaluation, I’d be happy to gift you a Trial pack for free. It’s the $29 pack: 250 social matches for wallets, and misses don’t count. Just say the word.
 
 - starl3xx
 starl3xx@walletlink.social`,

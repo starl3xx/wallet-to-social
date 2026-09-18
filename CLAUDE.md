@@ -349,11 +349,30 @@ will start` is the em dash wearing a disguise; it takes a colon.
 
 **`npm run check:style` enforces all of the above**, and
 `.github/workflows/house-style.yml` fails a PR that breaks them. It reads only
-text a person reads: JSX text nodes, prose-shaped string literals, and Markdown
-outside code fences. Not comments, not identifiers, not data values, and the
-reasons are in the script's header. Three deliberate non-entries worth knowing:
-`'cancelled'` is a persisted job status and an API value, so it keeps its
-spelling; `aria-labelledby` is an attribute name; `Optimism` is a chain.
+text a person reads: JSX text nodes, prose-shaped string literals **in both
+quotes and backticks**, and Markdown outside code fences. Not comments, not
+identifiers, not data values, and the reasons are in the script's header. Three
+deliberate non-entries worth knowing: `'cancelled'` is a persisted job status
+and an API value, so it keeps its spelling; `aria-labelledby` is an attribute
+name; `Optimism` is a chain.
+
+Template literals were invisible to it until 2026-09-18, which is worth knowing
+because of where that let violations live. The extractor read `'` and `"` only,
+so every backtick string was unchecked, and backticks are where the interpolated
+messages are: every `throw new Error` with a count in it, every console line
+naming a value, a `document.title`, a placeholder built from a variable. Nine
+real violations were sitting in that blind spot, including an em dash this guard
+had already been asked to prevent and a browser tab title reading
+`Lookup complete - walletlink.social`. They were fixed in the same change that
+opened the eye, on the Prettier precedent above: the repo is cleaned and the
+gate widened together, so drift cannot accumulate behind a rule that now exists.
+
+Two things make template scanning safe rather than noisy, both in the script's
+header. A **tagged** template is skipped outright, because `sql` and friends are
+DSLs and a tag is a better signal than keyword-matching contents that are full
+of English in `--` comments. And the `].`/`).`/`=>` exclusion is deliberately
+not applied to backticks: it exists to undo an artifact of naive `'` matching,
+and error messages end in parentheticals constantly.
 
 This was unenforced until 2026-09-17, and by then the product spelled its own
 signature phrase two ways ("labelled" in 23 published places against "labeled"

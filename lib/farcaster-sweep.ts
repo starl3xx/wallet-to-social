@@ -556,7 +556,7 @@ export async function recordSweepPosture(posture: SweepPosture): Promise<void> {
     `);
   } catch (error) {
     console.warn(
-      `Could not record sweep posture (the run's own result stands): ${String(error)}`
+      `Could not record sweep posture (the run’s own result stands): ${String(error)}`
     );
   }
 }
@@ -778,7 +778,7 @@ export async function cleanupRevokedWallets(
     seenCount < expectedSeenCount * 0.9
   ) {
     throw new Error(
-      `Seen-table integrity check failed: ${seenCount} rows (expected >= ${MIN_PLAUSIBLE_SWEEP_WALLETS} and >= 90% of ${expectedSeenCount} upserted) — refusing to run revocation cleanup (table ${seenTable} kept)`
+      `Seen-table integrity check failed: ${seenCount} rows (expected >= ${MIN_PLAUSIBLE_SWEEP_WALLETS} and >= 90% of ${expectedSeenCount} upserted), so it refuses to run revocation cleanup (table ${seenTable} kept)`
     );
   }
 

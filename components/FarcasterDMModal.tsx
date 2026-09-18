@@ -464,7 +464,7 @@ export function FarcasterDMModal({
                   onChange={(e) =>
                     setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))
                   }
-                  placeholder={`Hey {{username}}! I noticed you hold some tokens...`}
+                  placeholder={`Hey {{username}}! I noticed you hold some tokens…`}
                   className="h-32 resize-none"
                 />
                 <span className="absolute bottom-2 right-2 text-xs tabular-nums text-muted-foreground">
