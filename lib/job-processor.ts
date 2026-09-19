@@ -327,6 +327,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             agent_type: agentData.agent_type,
             agent_token_symbol: agentData.agent_token_symbol,
             agent_verified: agentData.agent_verified,
+            /**
+             * Copied like the rest. It was the one field `AgentDetectionResult`
+             * carried that nothing ever read, so the column existed in two
+             * tables, documented a four-value vocabulary, and held NULL on
+             * every row ever written.
+             */
+            agent_detection_source: agentData.agent_detection_source,
           });
         }
       }

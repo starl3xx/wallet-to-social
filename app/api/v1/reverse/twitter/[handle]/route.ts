@@ -359,7 +359,11 @@ export async function GET(
     if (result.github) item.github = result.github;
     /**
      * Present only when the row is flagged, the same shape `/v1/wallet` and
-     * `/v1/batch` already publish. Absent is not a claim that the address is a
+     * `/v1/batch` already publish, and the one this endpoint has been
+     * PROMISING all along: `ReverseTwitterRecord` is `allOf: IdentityCore`
+     * and `IdentityCore` declares `agent`, so the published spec described a
+     * field the code never returned. The docs were right and the code was
+     * wrong, which is the less common way round. Absent is not a claim that the address is a
      * person: it means no agent claim survives on this row, which includes the
      * case where one was withdrawn because the owner attested otherwise. See
      * lib/agent-claim.ts.

@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (three things the agent classification said but did not do)
+
+- **The gate withheld what the counter called free.** `result-counts.ts` says
+  of its agent tally "Never gated: agent detection is free", and all six agent
+  fields were in `LOCKED_FIELDS`. `gateResults` runs server-side and
+  `countResults` runs in the browser afterwards, so on any gated lookup the
+  "AI agents" tile, the "Agents only" filter and the CSV all read a locked
+  agent row as a non-agent. The fields are ungated: what the gate withholds is
+  an identity somebody has not paid for, and "this address is an agent" is a
+  fact about the address rather than an identity belonging to a person.
+- **`/v1/reverse/*` returned no agent object**, while the internal
+  `/api/reverse` returned all six fields, so the same question answered
+  differently through the browser and the API, and the MCP reverse tools (which
+  sit on the public route) could never report an agent at all. Worth being
+  precise about the direction: `ReverseTwitterRecord` is `allOf: IdentityCore`
+  and `IdentityCore` declares `agent`, so **the published spec had been
+  promising this field all along**. The docs were right and the code was wrong.
+- **`agent_detection_source` was a dead column.** It exists on `wallet_cache`
+  and `social_graph`, documents a four-value vocabulary, is carried on
+  `AgentDetectionResult`, and nothing ever wrote it: the job processor dropped
+  it, the cache wrote `null` with a comment saying so, and the graph only ever
+  preserved a previous value that was always `null`. A catalog match and a
+  regex over a Farcaster bio were indistinguishable on a stored row, and the
+  only hint was `agent_verified`, which is `true` for every catalog match
+  whether or not anything verified anything. All three writers now write it.
+- Three assertions, each verified against the real defect. The reverse one was
+  weak on the first pass and the adversarial run is what showed it: asserting
+  that `item.agent = {` appears is satisfied by `if (false) { item.agent = {`.
+  It checks the guard together with the body now.
+
 ### 2026-09-19 (an attested identity outranks a scraped agent claim)
 
 - **Wallets belonging to people were labeled AI agents**, and the badge was
