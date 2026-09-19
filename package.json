@@ -16,6 +16,7 @@
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:og": "node scripts/check-og-palette.mjs",
     "check:invariants": "npx tsx scripts/check-invariants.ts",
+    "gen:secret-box-key": "npx tsx scripts/gen-secret-box-key.ts",
     "check:invariants-guard": "npx tsx scripts/check-invariants-guard.ts",
     "check:figures": "npx tsx --env-file=.env.local scripts/check-published-figures.ts",
     "check:height": "node scripts/check-control-height.mjs",

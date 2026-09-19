@@ -1130,6 +1130,134 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------- the one recoverable secret
+  /**
+   * `lib/secret-box.ts` is the first thing in this repository that stores a
+   * secret it can read back, so it is the first place where "the database
+   * leaked" and "the credential leaked" are different sentences. These run the
+   * real functions rather than reasoning about the source, because the claim
+   * being made is about what AES-GCM does, and a regex cannot check that.
+   *
+   * The control comes first on purpose. Every assertion below says something
+   * does NOT open, and each of them passes trivially if `seal` is broken and
+   * everything returns null. Without a round trip proving the box works, this
+   * whole block would be a guard verified only against a dead module.
+   */
+  {
+    const box = await import('@/lib/secret-box');
+    const previousKey = process.env.SECRET_BOX_KEY;
+    // A real 32-byte key, not a passphrase, since the module refuses anything
+    // that is not exactly 32 bytes.
+    process.env.SECRET_BOX_KEY = Buffer.alloc(32, 7).toString('base64');
+
+    const secret = 'wts_x_refresh_token_value';
+    const sealed = box.seal(secret);
+
+    ok(
+      'the control: a sealed secret opens back to itself',
+      sealed !== null && box.open(sealed) === secret
+    );
+    ok(
+      'and the sealed form is not the plaintext',
+      sealed !== null && !sealed.includes(secret)
+    );
+
+    /**
+     * A fresh IV per call. GCM catastrophically loses confidentiality when an
+     * IV repeats under one key, and the failure is silent: the ciphertexts
+     * simply are what they are, and nothing in a test that only round-trips
+     * would notice. Two seals of the same plaintext must differ.
+     */
+    ok(
+      'sealing the same secret twice never produces the same ciphertext',
+      sealed !== null && box.seal(secret) !== sealed
+    );
+
+    /**
+     * The authentication half, which is the reason for GCM over CBC. An
+     * attacker who can write to the column must not be able to substitute a
+     * token we would then send to the provider as if it were the user's.
+     */
+    const parts = sealed!.split('.');
+    const flip = (s: string) => {
+      const b = Buffer.from(s, 'base64url');
+      b[0] ^= 0xff;
+      return b.toString('base64url');
+    };
+    ok(
+      'a tampered ciphertext does not open',
+      box.open([parts[0], parts[1], parts[2], flip(parts[3])].join('.')) ===
+        null
+    );
+    ok(
+      'a tampered authentication tag does not open',
+      box.open([parts[0], parts[1], flip(parts[2]), parts[3]].join('.')) ===
+        null
+    );
+    ok(
+      'a tampered IV does not open',
+      box.open([parts[0], flip(parts[1]), parts[2], parts[3]].join('.')) ===
+        null
+    );
+    ok(
+      'an unknown version is refused rather than parsed as the current one',
+      box.open(['v2', parts[1], parts[2], parts[3]].join('.')) === null
+    );
+    ok(
+      'a malformed value does not open',
+      box.open('not-sealed-at-all') === null && box.open('') === null
+    );
+
+    /** A different key must not open it, which is what rotation rests on. */
+    process.env.SECRET_BOX_KEY = Buffer.alloc(32, 9).toString('base64');
+    ok('another key does not open it', box.open(sealed) === null);
+
+    /**
+     * The refusal that matters most operationally. With no key configured,
+     * `seal` must return null so a caller cannot mistake a thrown error for
+     * "encryption is off" and write the plaintext token into the column. A
+     * silent plaintext write is the single worst outcome available here,
+     * because nothing downstream looks wrong.
+     */
+    delete process.env.SECRET_BOX_KEY;
+    ok(
+      'with no key, sealing refuses rather than returning the plaintext',
+      box.seal(secret) === null && box.isConfigured() === false
+    );
+    ok('with no key, opening refuses too', box.open(sealed) === null);
+
+    /** A key of the wrong length is a misconfiguration, not a short key. */
+    process.env.SECRET_BOX_KEY = Buffer.alloc(16, 7).toString('base64');
+    ok(
+      'a key of the wrong length is refused, not padded or truncated',
+      box.isConfigured() === false && box.seal(secret) === null
+    );
+
+    /**
+     * `looksSealed` is what the migration check and any future audit use to
+     * ask "is this column ciphertext" without holding the key, so it must not
+     * answer yes for plaintext that happens to contain dots.
+     */
+    ok(
+      'looksSealed rejects plaintext, including dotted plaintext',
+      !box.looksSealed('plain') &&
+        !box.looksSealed('a.b.c.d') &&
+        !box.looksSealed(null)
+    );
+    ok('looksSealed accepts a real sealed value', box.looksSealed(sealed));
+
+    /** The length guard in front of timingSafeEqual, which throws without it. */
+    ok(
+      'secretEquals returns false on a length mismatch instead of throwing',
+      box.secretEquals('abc', 'abcd') === false &&
+        box.secretEquals('abc', 'abc') === true &&
+        box.secretEquals('abc', 'abd') === false
+    );
+
+    if (previousKey === undefined) delete process.env.SECRET_BOX_KEY;
+    else process.env.SECRET_BOX_KEY = previousKey;
+  }
+
   // ------------------------------------------------------- OAuth: redirects
   // `redirectUriAllowed` is the single check standing between an authorization
   // code and whoever asked for it. Every case below is the attacker's.
