@@ -1706,18 +1706,27 @@ async function main() {
         graphIdx < reconcileIdx
     );
     /**
-     * And BEFORE the cache is written, which is the half that was wrong.
+     * And OUTSIDE the uncached branch, which is what preceding the cache write
+     * cost.
      *
-     * Reconciling after `cacheWalletResults` writes the withdrawn claim into
-     * `wallet_cache` anyway, and `mergeCacheRow` ORs a cached `is_agent` back
-     * onto the next lookup. The rule then looks like it works, once, and the
-     * claim returns from the cache on every lookup after that.
+     * Moving it next to `cacheWalletResults` put it on the uncached path only:
+     * a graph hit or a cache hit never reached it, STEP 0 re-stamped
+     * `is_agent` from the catalog, `mergeGraphRow` kept that stamp over a
+     * backfilled row, and finalize wrote the claim into a graph that ORs it
+     * and can never take one back. Covering every row is the property worth
+     * pinning; the cache write preceding it is documented at the call site as
+     * harmless, because every serve path merges and then reconciles.
      */
+    const paidGateIdx = jpAgent.indexOf(
+      'const isPaidTier = jobGetsPaidFields(options)'
+    );
     ok(
-      'and before the cache write, or the withdrawn claim is cached and ORed back',
+      'the reconcile runs outside the uncached branch, before the paid-field gate',
       reconcileIdx !== -1 &&
         cacheWriteIdx !== -1 &&
-        reconcileIdx < cacheWriteIdx
+        paidGateIdx !== -1 &&
+        cacheWriteIdx < reconcileIdx &&
+        reconcileIdx < paidGateIdx
     );
     /**
      * The reconcile walks THIS chunk, not every loaded row.
@@ -1730,12 +1739,23 @@ async function main() {
      */
     ok(
       'the reconcile iterates this chunk, not every row loaded from partial results',
-      /for \(const wallet of activeWallets\) \{ const result = results\.get\(wallet\);/.test(
-        jpAgent
-      ) &&
+      /for \(const rawWallet of activeWallets\)/.test(jpAgent) &&
         !/for \(const \[wallet, result\] of results\) \{ if \(reconcileAgentClaim/.test(
           jpAgent
         )
+    );
+    /**
+     * And lowercases before either lookup. `results` is keyed by
+     * `wallet.toLowerCase()` and `agentOwnHandles` by the lowercase
+     * `known_agents` row, while `activeWallets` carries the customer's own
+     * casing, so a mixed-case address missed both maps and skipped withdrawal
+     * with no sign that it had.
+     */
+    ok(
+      'and lowercases the wallet before looking it up in either map',
+      /const wallet = rawWallet\.toLowerCase\(\); const result = results\.get\(wallet\);/.test(
+        jpAgent
+      )
     );
 
     /**
