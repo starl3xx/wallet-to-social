@@ -185,7 +185,21 @@ export async function POST(request: NextRequest) {
       AND user_id IS NOT NULL
   `)) as unknown as { rows: Array<{ handle: string; user_id: string }> };
 
-  const members = rows.rows.map((r) => ({ id: r.user_id, handle: r.handle }));
+  /**
+   * Put the rows back in the caller's order before anything is cut.
+   *
+   * `WHERE handle = ANY(...)` returns whatever order the plan produces, and
+   * the cap below takes the first N. Slicing an unordered set drops an
+   * arbitrary subset, so a list over X's cap would omit people the results
+   * table showed at the top: `handles` arrives sorted by the same priority the
+   * customer was looking at, and that order is the one thing that makes the
+   * truncation defensible.
+   */
+  const byHandle = new Map(rows.rows.map((r) => [r.handle, r.user_id]));
+  const members = handles
+    .filter((h) => byHandle.has(h))
+    .map((h) => ({ id: byHandle.get(h)!, handle: h }));
+
   if (members.length === 0) {
     return NextResponse.json(
       {

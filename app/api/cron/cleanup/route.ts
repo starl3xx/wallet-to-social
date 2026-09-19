@@ -52,6 +52,7 @@ import { analyticsEvents } from '@/db/schema';
 import { cleanupExpiredAuth } from '@/lib/auth';
 import { cleanupOldIpBuckets } from '@/lib/ip-rate-limiter';
 import { cleanupAuthorizationRequests } from '@/lib/oauth/requests';
+import { cleanupAbandonedListJobs } from '@/lib/x-list-worker';
 import { cleanupIdempotencyKeys } from '@/lib/idempotency';
 
 export const runtime = 'nodejs';
@@ -176,6 +177,9 @@ async function run(request: NextRequest): Promise<NextResponse> {
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
   const authorizationRequests = await cleanupAuthorizationRequests();
+  // An X list job whose consent screen was closed: the member list and the
+  // PKCE verifier go, the row stays as a record that it was started.
+  const abandonedListJobs = await cleanupAbandonedListJobs();
   // Batch replay rows; the TTL lives with the writer in lib/idempotency.ts.
   const idempotencyRows = await cleanupIdempotencyKeys();
 
@@ -192,6 +196,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     magicLinkTokens: auth.tokensDeleted,
     ipBuckets,
     authorizationRequests,
+    abandonedListJobs,
     idempotencyRows,
     analyticsEvents: analytics.length,
     // null means the branch did not run (table absent, or its error is in

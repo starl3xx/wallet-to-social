@@ -35,6 +35,12 @@ import { Lock, WarningCircle } from '@phosphor-icons/react';
 /** X's own limits, restated here only for the input attributes. */
 const NAME_MAX = 25;
 const DESCRIPTION_MAX = 100;
+/**
+ * X's member cap, for the sentence that says how many were left out. Stated
+ * here rather than imported from `lib/x-oauth.ts`, which reads the client
+ * secret from the environment and has no business in a client bundle.
+ */
+const X_LIST_MEMBER_MAX = 5000;
 
 export function XListMenuItem({
   handles,
@@ -53,6 +59,21 @@ export function XListMenuItem({
   const [isPrivate, setIsPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * What the server actually accepted, when it differs from what was asked.
+   *
+   * The route already returned `dropped` and `unresolved` and nothing read
+   * them, so a capped or partly-resolved list was authorized as though it were
+   * the whole community. That is the failure the docs rule names: the number
+   * you set out to get rather than the number that came back, and here it was
+   * being shown to the person paying for it.
+   */
+  const [pending, setPending] = useState<{
+    url: string;
+    members: number;
+    dropped: number;
+    unresolved: number;
+  } | null>(null);
 
   if (handles.length === 0) return null;
 
@@ -85,6 +106,21 @@ export function XListMenuItem({
         setBusy(false);
         return;
       }
+
+      const dropped = Number(json.dropped ?? 0);
+      const unresolved = Number(json.unresolved ?? 0);
+      if (dropped > 0 || unresolved > 0) {
+        // Say it before the consent screen, not after the list is built.
+        setPending({
+          url: json.authorize_url,
+          members: Number(json.members ?? 0),
+          dropped,
+          unresolved,
+        });
+        setBusy(false);
+        return;
+      }
+
       /**
        * A full navigation, not a popup. A popup is blocked often enough that
        * the failure would be invisible, and X's consent screen is a page a
@@ -121,54 +157,89 @@ export function XListMenuItem({
             </ModalDescription>
           </ModalHeader>
 
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="x-list-name"
-                className="mb-1.5 block text-sm font-medium"
-              >
-                List name
-              </label>
-              <Input
-                id="x-list-name"
-                value={name}
-                maxLength={NAME_MAX}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Loopers on X"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {name.length}/{NAME_MAX}
+          {pending ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                X will get <strong>{pending.members.toLocaleString()}</strong>{' '}
+                of the {handles.length.toLocaleString()} handles on this list.
               </p>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {pending.unresolved > 0 && (
+                  <li>
+                    {pending.unresolved.toLocaleString()} resolve to no live X
+                    account: suspended, renamed away, or never checked.
+                  </li>
+                )}
+                {pending.dropped > 0 && (
+                  <li>
+                    {pending.dropped.toLocaleString()} are over X&rsquo;s limit
+                    of {X_LIST_MEMBER_MAX.toLocaleString()} members and will not
+                    be added. The ones kept are the highest priority.
+                  </li>
+                )}
+              </ul>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setPending(null)}>
+                  Back
+                </Button>
+                <Button
+                  onClick={() => {
+                    window.location.href = pending.url;
+                  }}
+                >
+                  Continue to X
+                </Button>
+              </div>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="x-list-name"
+                  className="mb-1.5 block text-sm font-medium"
+                >
+                  List name
+                </label>
+                <Input
+                  id="x-list-name"
+                  value={name}
+                  maxLength={NAME_MAX}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Loopers on X"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {name.length}/{NAME_MAX}
+                </p>
+              </div>
 
-            <div>
-              <label
-                htmlFor="x-list-description"
-                className="mb-1.5 block text-sm font-medium"
-              >
-                Description{' '}
-                <span className="text-muted-foreground">(optional)</span>
+              <div>
+                <label
+                  htmlFor="x-list-description"
+                  className="mb-1.5 block text-sm font-medium"
+                >
+                  Description{' '}
+                  <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <Input
+                  id="x-list-description"
+                  value={description}
+                  maxLength={DESCRIPTION_MAX}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Holders, found onchain"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isPrivate}
+                  onChange={(e) => setIsPrivate(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent-brand)]"
+                />
+                Keep the list private
               </label>
-              <Input
-                id="x-list-description"
-                value={description}
-                maxLength={DESCRIPTION_MAX}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Holders, found onchain"
-              />
-            </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={isPrivate}
-                onChange={(e) => setIsPrivate(e.target.checked)}
-                className="h-4 w-4 accent-[var(--accent-brand)]"
-              />
-              Keep the list private
-            </label>
-
-            {/* X adds one member per request at 300 per fifteen minutes, which
+              {/* X adds one member per request at 300 per fifteen minutes, which
                 is 20 a minute sustained, and the worker adds 20 per
                 one-minute tick to match. So the estimate is simply members
                 divided by 20.
@@ -180,35 +251,36 @@ export function XListMenuItem({
                 against. Said before the click either way, because a large
                 list is genuinely slow and that is not a surprise worth
                 saving. */}
-            <p className="text-xs text-muted-foreground">
-              X allows 20 additions a minute, so this takes about{' '}
-              {Math.max(1, Math.ceil(handles.length / 20))} minutes. You can
-              close this page; the list keeps building.
-            </p>
-
-            {error && (
-              <p className="flex items-start gap-2 text-sm text-caution">
-                <WarningCircle
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  weight="fill"
-                  aria-hidden
-                />
-                {error}
+              <p className="text-xs text-muted-foreground">
+                X allows 20 additions a minute, so this takes about{' '}
+                {Math.max(1, Math.ceil(handles.length / 20))} minutes. You can
+                close this page; the list keeps building.
               </p>
-            )}
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={submit}
-                disabled={busy || name.trim().length === 0}
-              >
-                {busy ? 'Starting…' : 'Continue to X'}
-              </Button>
+              {error && (
+                <p className="flex items-start gap-2 text-sm text-caution">
+                  <WarningCircle
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    weight="fill"
+                    aria-hidden
+                  />
+                  {error}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={submit}
+                  disabled={busy || name.trim().length === 0}
+                >
+                  {busy ? 'Starting…' : 'Continue to X'}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </ModalContent>
       </Modal>
     </>

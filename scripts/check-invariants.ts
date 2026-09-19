@@ -1357,6 +1357,64 @@ async function main() {
     );
 
     /**
+     * The cap cuts the priority tail, not an arbitrary subset.
+     *
+     * `WHERE handle = ANY(...)` returns rows in whatever order the plan
+     * produces, and the cap takes the first N. Slicing that unordered set
+     * drops people the results table showed at the top, which is the one thing
+     * that would make truncating a list indefensible: the caller's array is
+     * already sorted by the priority they were looking at.
+     */
+    {
+      const listRoute = withoutComments(
+        readFileSync('app/api/x/lists/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the member list is rebuilt in the caller order before it is capped',
+        /const byHandle = new Map\(/.test(listRoute) &&
+          /handles \.filter\(\(h\) => byHandle\.has\(h\)\)/.test(listRoute) &&
+          !/rows\.rows\.map\(\(r\) => \(\{ id: r\.user_id/.test(listRoute)
+      );
+
+      /**
+       * And what was left out is shown before the consent screen.
+       *
+       * The route returned `dropped` and `unresolved` from the first version
+       * and the only consumer ignored both, so a capped or partly-resolved
+       * list was authorized as though it were the whole community. A value
+       * computed and never read is the same defect as one never computed, and
+       * it is harder to see.
+       */
+      const modal = withoutComments(
+        readFileSync('components/XListAction.tsx', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the modal reads the dropped and unresolved counts it is given',
+        /json\.dropped/.test(modal) &&
+          /json\.unresolved/.test(modal) &&
+          /if \(dropped > 0 \|\| unresolved > 0\)/.test(modal)
+      );
+    }
+
+    /**
+     * An abandoned consent screen does not keep its payload.
+     *
+     * A row is created `awaiting_auth` holding the member list, the PKCE
+     * verifier and the state nonce, and only `finish()` clears them. Closing
+     * the X tab never reaches `finish()`, so the one thing this design exists
+     * for, not keeping material longer than the job needs it, quietly failed
+     * in the abandoned case.
+     */
+    ok(
+      'abandoned list jobs are purged of their members and verifier',
+      /export async function cleanupAbandonedListJobs/.test(worker) &&
+        /status = 'awaiting_auth'/.test(flatWorker) &&
+        /cleanupAbandonedListJobs\(\)/.test(
+          withoutComments(readFileSync('app/api/cron/cleanup/route.ts', 'utf8'))
+        )
+    );
+
+    /**
      * A create whose reply was lost is adopted, not repeated. X has no
      * idempotency key here, so without this the customer collects duplicate
      * empty lists while members attach to whichever id was stored last.

@@ -133,6 +133,43 @@ async function finish(
 }
 
 /**
+ * Abandoned consent screens, and what they leave behind.
+ *
+ * A row is created `awaiting_auth` holding the member list, the PKCE verifier
+ * and the state nonce, and only `finish()` clears any of that. A person who
+ * opens the X consent screen and closes the tab never reaches `finish()`, so
+ * a list of third-party handles and a live verifier sit in the table
+ * indefinitely: the one thing this design was for was NOT keeping material
+ * longer than the job needs it, and the abandoned case quietly did the
+ * opposite.
+ *
+ * Thirty minutes matches `REQUEST_TTL_MS` on the inbound OAuth server, on the
+ * same reasoning: long enough to read an email and answer a consent screen,
+ * short enough that an abandoned one is abandoned. The row is cancelled rather
+ * than deleted, because "you started a list and did not finish it" is a true
+ * thing worth being able to see, and what makes the row harmless is that the
+ * payload is gone rather than that the row is.
+ */
+export async function cleanupAbandonedListJobs(): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  const purged = (await db.execute(sql`
+    UPDATE x_list_jobs
+    SET status        = 'cancelled',
+        error         = 'authorization never completed',
+        members       = '[]'::jsonb,
+        code_verifier = NULL,
+        state_nonce   = NULL,
+        completed_at  = now(),
+        updated_at    = now()
+    WHERE status = 'awaiting_auth'
+      AND created_at < now() - interval '30 minutes'
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+  return purged.rows.length;
+}
+
+/**
  * Hand the job back before the lease would have expired.
  *
  * Every path that ends a tick while leaving the job runnable has to do this.
