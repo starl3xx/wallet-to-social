@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (pr:status stops passing PRs with unread findings)
+
+- **"No issues found" is not the same as "nothing to read."** Bugbot's summary
+  distinguishes what it found on THIS run from what remains open from an
+  earlier one, and a re-review of an unchanged finding reports the first as
+  zero while the second stays non-zero.
+- A PR reading _"no issues found. 2 previously reported issues remain
+  unresolved"_ passed `npm run pr:status` on the day that command was written,
+  and both of those were regressions introduced by the change under review:
+  figure column headers clipping at the new widths, and the priority score
+  disappearing under the sticky details column.
+- An unresolved count now refuses on its own, independent of whether the
+  current run found anything, and the output says which of the two it is
+  rather than collapsing both into one sentence.
+
 ### 2026-09-19 (a result set becomes an X list)
 
 - **"Create X list" turns the reachable handles of a lookup into a real X list

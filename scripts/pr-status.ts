@@ -18,6 +18,14 @@
  * a removed person's row and a suppression trigger that would have preserved a
  * live third-party token for exactly the person asking to be removed.
  *
+ * **"No issues found" can still mean unread findings.** Bugbot's summary
+ * distinguishes what it found on THIS run from what remains open from an
+ * earlier one, and a re-review of an unchanged finding reports the first as
+ * zero while the second stays non-zero. A PR reading "no issues found. 2
+ * previously reported issues remain unresolved" passed this script's first
+ * version, and both of those were regressions introduced by the change under
+ * review. An unresolved count refuses on its own now.
+ *
  * **A conflicting PR runs no workflows at all.** GitHub builds a
  * `pull_request` run against the computed merge commit, so when that merge
  * cannot be computed nothing triggers: not a queued run, not a failed one,
@@ -157,12 +165,28 @@ async function main() {
     console.log(`\n  ${r.name} is neutral. Its own summary says:`);
     console.log(`    ${summary.slice(0, 300) || '(no summary)'}`);
 
-    if (!clean || found) {
+    /**
+     * "no issues found" is not the same as "nothing to read".
+     *
+     * The first version treated a clean-sounding summary as a pass and let a
+     * PR through that said "no issues found. 2 previously reported issues
+     * remain unresolved". Both were real and both were regressions in the very
+     * change under review: Bugbot means it found nothing NEW this run, and
+     * the findings from the previous run are still open.
+     *
+     * So an unresolved count is a refusal in its own right, independent of
+     * whether this run found anything.
+     */
+    const unresolvedCount = unresolved ? Number(unresolved[1]) : 0;
+    if (!clean || found || unresolvedCount > 0) {
       problems.push(
-        `${r.name} reports neutral, which the PR page renders as "skipping",`,
-        `and its summary is NOT a clean pass${
-          found ? `: ${found[1]} potential issue(s)` : ''
-        }${unresolved ? `, ${unresolved[1]} previously reported unresolved` : ''}.`,
+        `${r.name} reports neutral, which the PR page renders as "skipping".`,
+        found
+          ? `  ${found[1]} potential issue(s) found on this run.`
+          : '  No NEW issues on this run.',
+        unresolvedCount > 0
+          ? `  ${unresolvedCount} previously reported issue(s) STILL UNRESOLVED.`
+          : '  Nothing outstanding from earlier runs.',
         'Read the review comments before merging:',
         `  gh api repos/{owner}/{repo}/pulls/${number}/comments --jq '.[] | .body'`
       );
