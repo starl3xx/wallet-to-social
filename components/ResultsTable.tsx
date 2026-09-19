@@ -220,8 +220,20 @@ const ROW_HEIGHT = 38;
  * `--h-ctl`: every cell in it is a sort button, and a control in a row
  * resolves to that height. A height derived from padding would drift the day
  * the label size changed, and every row would land a few pixels off.
+ *
+ * It was 34, one control height, and that forced every column to be at least
+ * as wide as its label on ONE line: "FARCASTER FOLLOWERS" is 169px of header
+ * above a column of four-digit numbers, so the widest thing in that column was
+ * never the data. Two lines at 50px buys back about 110px across the three
+ * figure columns, which is the difference between the priority score being on
+ * screen and being scrolled off it.
+ *
+ * Still fixed, for the reason it always was: the virtualiser is told where the
+ * list starts and that number has to be the one the header actually renders
+ * at. Two lines is a deliberate ceiling, not wrapping-as-it-falls; a label
+ * needing three is a label to shorten.
  */
-const HEADER_HEIGHT = 34;
+const HEADER_HEIGHT = 50;
 
 /** The attestation gutter: one dot wide. Also the wallet column's sticky offset. */
 const GUTTER_WIDTH = 18;
@@ -320,16 +332,20 @@ function SortHeader({
         type="button"
         onClick={() => onSort(field)}
         title={title}
-        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[var(--tracking-label)] outline-none hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="transition-control flex h-full w-full items-start gap-1 px-4 pt-2 text-left font-mono uppercase leading-[1.15] tracking-[var(--tracking-label)] outline-none hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        {label}
+        {/* `items-start` with `pt-2` rather than centring: a one-line label and
+            a two-line label have to share a baseline, and centring each in 50px
+            puts them on two different ones. `line-clamp-2` is the ceiling the
+            fixed header height depends on. */}
+        <span className="line-clamp-2">{label}</span>
         {/* One arrow, always mounted while sorted, rotating between the two
             directions: a selected state moves, it does not teleport. The rows
             beneath stay instant, so this is the one place a sort change shows. */}
         {isSorted && (
           <ArrowUp
             className={cn(
-              'sort-arrow h-3 w-3',
+              'sort-arrow h-3 w-3 shrink-0',
               sortDirection === 'desc' && 'rotate-180'
             )}
             aria-hidden
@@ -371,8 +387,16 @@ function LockedHeader({
   onUpgradeClick?: (source?: string) => void;
 }) {
   return (
-    <div role="columnheader" className="flex items-center gap-3 px-4">
-      <span className="truncate">{label}</span>
+    /* Stacked, not side by side. Side by side, the label and the Unlock
+       control had to fit on one line, which is why a locked column was wider
+       than the same column unlocked: the column was sized by a control rather
+       than by its data. Under the label they share the same 50px the wrapped
+       headers already use. */
+    <div
+      role="columnheader"
+      className="flex flex-col items-start justify-start gap-1 px-4 pt-2"
+    >
+      <span className="line-clamp-1">{label}</span>
       <Button
         variant="link"
         size="inline"
@@ -952,14 +976,20 @@ export const ResultsTable = memo(function ResultsTable({
    * With a real width the frame gets a real `scrollWidth` instead.
    */
   const { gridTemplate, gridMinWidth, columnCount } = useMemo(() => {
-    /* The paid columns are measured, not guessed, because their headers are
-       the widest things in the row. In headless Chrome with Geist Mono at
-       12px, uppercase, 0.14em tracking: "FARCASTER FOLLOWERS" is 169px,
-       "X FOLLOWERS" 98px and "PRIORITY" 71px. Add 32px of cell padding, then
-       either the sort arrow (4px gap + 12px) when entitled, or the Unlock
-       control (12px gap + 12px lock + 8px gap + 37px "Unlock" in Söhne at
-       12px/500) when locked. The header row is a fixed 34px, so a label that
-       does not fit does not wrap, it clips.
+    /* The figure columns are no longer sized by their own headers.
+       "FARCASTER FOLLOWERS" is 169px on one line, which made a column of
+       four-digit numbers 220px wide: the widest thing in it was never the
+       data. The header wraps to two lines now and the locked variant stacks
+       its Unlock control under the label instead of beside it, so a figure
+       column is sized by its figures plus padding, and a locked column is no
+       longer wider than the same column unlocked.
+
+       96/112/104 are the widest realistic value plus 32px of padding:
+       "634,708" is the largest follower count in the index by an order of
+       magnitude, and a priority score is a five-bar meter plus one decimal.
+       That returns about 110px to the identity columns, which is the
+       difference between the priority score being on screen and scrolled off
+       it.
 
        Each track carries a growth factor beside its minimum, and a 0 means a
        fixed track. Every column used to grow at 1fr, which shares slack
@@ -987,10 +1017,10 @@ export const ResultsTable = memo(function ResultsTable({
          the frame scrolls; on anything normal the growth factors below hand
          these columns far more than their minimum. */
       [140, 3], // X handle
-      [isPaidTier ? 150 : 200, 0], // X followers
+      [96, 0], // X followers
       [140, 3], // Farcaster
-      [isPaidTier ? 220 : 272, 0], // Farcaster followers
-      [isPaidTier ? 140 : 176, 0], // priority
+      [112, 0], // Farcaster followers
+      [104, 0], // priority
     ];
     return {
       // The details track is appended fixed, like the gutter leads fixed:

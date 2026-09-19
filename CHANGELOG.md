@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (the figure columns stop being sized by their own headers)
+
+- **"FARCASTER FOLLOWERS" is 169px on one line, which made a column of
+  four-digit numbers 220px wide.** The widest thing in that column was never
+  the data, and the priority score was pushed off the right edge as a result.
+- The header row wraps to two lines (34px to 50px, still fixed, because the
+  virtualiser is told where the list starts and that number has to be the one
+  the header actually renders at). A locked column stacks its Unlock control
+  **under** the label rather than beside it, so a locked column is no longer
+  wider than the same column unlocked: it was being sized by a control instead
+  of by its figures.
+- Figure columns are now the widest realistic value plus padding: 96px for X
+  followers, 112px for Farcaster followers, 104px for priority. The minimum
+  table width drops from 1,192px to 994px, and those ~200px go to the columns
+  with no length bound.
+- Two lines is a ceiling (`line-clamp-2`), not wrapping-as-it-falls. A label
+  needing three lines is a label to shorten.
+- Note for anyone reading an older saved lookup: **X followers will be blank
+  on any lookup run before that column existed.** The value is stamped at job
+  time and stored with the results, so it cannot appear retroactively. Re-run
+  the lookup to populate it.
+
 ### 2026-09-19 (a result set becomes an X list)
 
 - **"Create X list" turns the reachable handles of a lookup into a real X list
