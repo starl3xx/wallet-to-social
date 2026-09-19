@@ -81,13 +81,16 @@ const AGENT_FIELDS = [
 export function hasAttestedIdentity(row: {
   twitter_verified?: boolean;
   farcaster_verified?: boolean;
+  twitter_handle?: string;
+  farcaster?: string;
   source?: string[];
 }): boolean {
   if (row.twitter_verified === true || row.farcaster_verified === true) {
     return true;
   }
   /**
-   * The row's sources, read through the graph's own definition.
+   * The row's sources, read through the graph's own definition, and only
+   * where there is an identity for them to attest.
    *
    * The flags are not set by every path that produces an attestation. A live
    * ENS resolve writes `twitter_handle` with source `ens` and no flag; the
@@ -101,10 +104,20 @@ export function hasAttestedIdentity(row: {
    * asks the same question the same way rather than keeping a second list of
    * attested sources that would drift. Patching each live path instead would
    * have fixed ENS and waited for the next source to be added.
+   *
+   * The handle is required with it, and the first version of this left that
+   * out. `ens` is stamped on EVERY name resolve, including one that found a
+   * name and no `com.twitter` record at all, so a wallet whose owner had
+   * published nothing social read as attested, `agentClaimHolds` then had no
+   * handle to match the agent against, and the catalog claim was withdrawn
+   * from any agent wallet that merely owns an ENS name. A source attests a
+   * handle; with no handle there is nothing attested.
    */
   const sources = row.source ?? [];
   if (sources.length === 0) return false;
-  return isTwitterVerified(sources) || isFarcasterVerified(sources);
+  const twitterAttested = !!row.twitter_handle && isTwitterVerified(sources);
+  const farcasterAttested = !!row.farcaster && isFarcasterVerified(sources);
+  return twitterAttested || farcasterAttested;
 }
 
 /**
