@@ -42,6 +42,34 @@ All notable changes to walletlink.social. Newest first.
   route answers 503 and the cron reports `disabled` rather than failing every
   minute.
 
+### 2026-09-19 (the PR checkmarks get a command that reads them properly)
+
+- **`npm run pr:status <n>`**, because a green row of checkmarks was reassuring
+  and wrong twice in one day, in two different ways, and both are invisible
+  unless a specific question is asked.
+- **Bugbot's `neutral` renders as `skipping`**, and it is emitted both when it
+  found nothing and when it found plenty. The count lives only in the check
+  run's own summary, which the PR page does not show. Eleven real defects
+  arrived behind that label today across four PRs, two of them serious: a
+  follower count left on the row of somebody who had asked to be removed, and
+  a suppression trigger that would have preserved a live third-party token for
+  exactly that person.
+- **A conflicting PR runs no workflows at all.** GitHub builds a
+  `pull_request` run against the computed merge commit, so when that merge
+  cannot be computed nothing triggers: no queued run, no failed run, and the
+  checks still shown are whatever ran on an older head, green and describing
+  code that is no longer there. It presents convincingly as an Actions outage,
+  because these workflows are `pull_request`-triggered so merges to `main`
+  correctly produce no runs either, and with one open conflicting PR the whole
+  repository looks dead including its schedules. The first call is
+  `gh pr view <n> --json mergeable`.
+- The conflict check runs before anything is said about the checks: a conflict
+  explains a missing check, and no amount of staring at the check list
+  explains a conflict.
+- `docs/OPERATIONS.md`'s PR protocol now carries both, and says to resolve a
+  conflict by merging the base branch **in** rather than rebasing, since a
+  rebase can only be published with a force-push.
+
 ### 2026-09-19 (the results table gets X followers, and stops overflowing)
 
 - **X followers is a new column, from data the index already held.** Every
