@@ -1397,6 +1397,52 @@ async function main() {
     }
 
     /**
+     * The consent window is enforced where the row is READ.
+     *
+     * A TTL that lives only in a daily sweep is a claim the code does not
+     * keep: the row sits for up to a day while the comment says thirty
+     * minutes, and a confirmation tab left open overnight authorizes
+     * successfully and then fails at X after the 04:00 pass cancels it
+     * underneath. The callback is the authority; the sweep empties the
+     * payload afterwards.
+     */
+    ok(
+      'the callback refuses a consent request older than its stated window',
+      /created_at > now\(\) - interval '30 minutes'/.test(
+        withoutComments(readFileSync('app/api/x/callback/route.ts', 'utf8'))
+      )
+    );
+
+    /**
+     * Back cancels the row it already created.
+     *
+     * The confirmation exists because only the server knows how many handles
+     * resolved, so the row is written before the person is asked whether to
+     * go on. Without a cancel, Back left it behind and a second attempt made
+     * another, and an unchecked handle counts as `unresolved`, so this is the
+     * common path rather than the rare one.
+     */
+    {
+      const statusRoute = withoutComments(
+        readFileSync('app/api/x/lists/[id]/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const modalSrc = withoutComments(
+        readFileSync('components/XListAction.tsx', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'an unauthorized list job can be cancelled, and only by its owner',
+        /export async function DELETE/.test(statusRoute) &&
+          /AND user_id = \$\{session\.user\.id\} AND status = 'awaiting_auth'/.test(
+            statusRoute
+          )
+      );
+      ok(
+        'and Back calls it rather than only forgetting the job',
+        /method: 'DELETE'/.test(modalSrc) && /pending\.jobId/.test(modalSrc)
+      );
+    }
+
+    /**
      * An abandoned consent screen does not keep its payload.
      *
      * A row is created `awaiting_auth` holding the member list, the PKCE

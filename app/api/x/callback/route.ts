@@ -93,10 +93,26 @@ export async function GET(request: NextRequest) {
   const session = token ? await validateSession(token) : null;
   if (!session?.user) return back('signed_out', jobId);
 
+  /**
+   * The thirty minutes is enforced HERE, not only by the sweep.
+   *
+   * `cleanupAbandonedListJobs` runs from the daily cleanup cron, so a TTL that
+   * lived only there was a claim the code did not keep: a row sat for up to a
+   * day, and a confirmation tab left open overnight would authorize
+   * successfully and then fail at X after the 04:00 pass cancelled it
+   * underneath it. An expiry checked at read time is the same shape
+   * `loadPendingRequest` uses on the inbound OAuth server, and it makes the
+   * window true regardless of when the sweep happens to run. The sweep is then
+   * what clears the payload, not what defines the deadline.
+   *
+   * Postgres decides, not Node: the same reasoning as `consumeCode`, whose
+   * comment records what a clock comparison in the application cost.
+   */
   const found = (await db.execute(sql`
     SELECT id, user_id, state_nonce, code_verifier, status
     FROM x_list_jobs
     WHERE id = ${jobId}::uuid
+      AND created_at > now() - interval '30 minutes'
   `)) as unknown as {
     rows: Array<{
       id: string;

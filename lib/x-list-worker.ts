@@ -149,6 +149,14 @@ async function finish(
  * than deleted, because "you started a list and did not finish it" is a true
  * thing worth being able to see, and what makes the row harmless is that the
  * payload is gone rather than that the row is.
+ *
+ * This is the SWEEP, not the deadline, and the distinction is one this comment
+ * previously got wrong. It runs from the daily cleanup cron, so on its own it
+ * would have meant a row living up to a day while the comment claimed thirty
+ * minutes, and a confirmation tab left open overnight authorizing successfully
+ * and then failing at X after the 04:00 pass cancelled it underneath. The
+ * deadline is enforced where the row is READ, in `app/api/x/callback`; this
+ * empties the payload afterwards.
  */
 export async function cleanupAbandonedListJobs(): Promise<number> {
   const db = getDb();

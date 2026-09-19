@@ -70,6 +70,7 @@ export function XListMenuItem({
    */
   const [pending, setPending] = useState<{
     url: string;
+    jobId: string;
     members: number;
     dropped: number;
     unresolved: number;
@@ -113,6 +114,7 @@ export function XListMenuItem({
         // Say it before the consent screen, not after the list is built.
         setPending({
           url: json.authorize_url,
+          jobId: String(json.job_id),
           members: Number(json.members ?? 0),
           dropped,
           unresolved,
@@ -179,7 +181,21 @@ export function XListMenuItem({
                 )}
               </ul>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setPending(null)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    /**
+                     * The row exists by now, so Back has to cancel it rather
+                     * than only forget it. Fire and forget: a failed cancel
+                     * leaves a row the cleanup sweep will collect, and
+                     * blocking the person on it would be worse than that.
+                     */
+                    void fetch(`/api/x/lists/${pending.jobId}`, {
+                      method: 'DELETE',
+                    }).catch(() => {});
+                    setPending(null);
+                  }}
+                >
                   Back
                 </Button>
                 <Button

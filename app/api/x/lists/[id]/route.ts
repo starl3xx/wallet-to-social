@@ -19,6 +19,52 @@ import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Abandon a job that has not been authorized yet.
+ *
+ * The confirmation step exists because the server is the only thing that knows
+ * how many handles actually resolved, which means the row is already written
+ * by the time a person is asked whether to go on. Without this, "Back" left
+ * that row behind and a second attempt created another, and because an
+ * unchecked handle counts as `unresolved` the confirmation is the common path
+ * rather than the rare one.
+ *
+ * Only ever an `awaiting_auth` row, and only the owner's. A job that has been
+ * authorized is the worker's, and cancelling one from here would race the tick
+ * that is building the list.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await validateSession(token) : null;
+  if (!session?.user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
+  const db = getDb();
+  if (!db) return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+
+  await db.execute(sql`
+    UPDATE x_list_jobs
+    SET status        = 'cancelled',
+        error         = 'abandoned before authorization',
+        members       = '[]'::jsonb,
+        code_verifier = NULL,
+        state_nonce   = NULL,
+        completed_at  = now(),
+        updated_at    = now()
+    WHERE id = ${id}::uuid
+      AND user_id = ${session.user.id}
+      AND status = 'awaiting_auth'
+  `);
+
+  return NextResponse.json({ cancelled: true });
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
