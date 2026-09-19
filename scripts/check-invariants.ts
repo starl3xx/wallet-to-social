@@ -1659,10 +1659,31 @@ async function main() {
      */
     ok(
       'a source the graph calls attested is attested here too',
-      hasAttestedIdentity({ source: ['ens'] }) === true &&
-        hasAttestedIdentity({ source: ['ens_onchain'] }) === true &&
-        hasAttestedIdentity({ source: ['graph'] }) === false &&
+      hasAttestedIdentity({ source: ['ens'], twitter_handle: 'someone' }) ===
+        true &&
+        hasAttestedIdentity({
+          source: ['ens_onchain'],
+          twitter_handle: 'someone',
+        }) === true &&
+        hasAttestedIdentity({
+          source: ['graph'],
+          twitter_handle: 'someone',
+        }) === false &&
         hasAttestedIdentity({ source: [] }) === false
+    );
+    /**
+     * And the source needs a handle to attest.
+     *
+     * `ens` is stamped on every name resolve, including one that found a name
+     * and no `com.twitter` record, so reading the source alone made a wallet
+     * whose owner published nothing social look attested and withdrew the
+     * catalog claim from any agent that merely owns an ENS name.
+     */
+    ok(
+      'an attested source with no handle attests nothing',
+      hasAttestedIdentity({ source: ['ens'] }) === false &&
+        hasAttestedIdentity({ source: ['ens_onchain'] }) === false &&
+        agentClaimHolds({ source: ['ens'] }, null) === true
     );
     ok(
       'and a catalog claim is withdrawn on the strength of that source alone',
