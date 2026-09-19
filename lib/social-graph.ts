@@ -798,7 +798,7 @@ export function calculateQualityScore(
 /**
  * Determine if Twitter data is verified (from high-confidence source)
  */
-function isTwitterVerified(sources: string[]): boolean {
+export function isTwitterVerified(sources: string[]): boolean {
   // Twitter is considered verified when the owner established it themselves:
   // an onchain ENS record, a review by us, or an identity platform where they
   // signed with the wallet and signed in to the account.
@@ -830,7 +830,7 @@ function isTwitterVerified(sources: string[]): boolean {
 /**
  * Determine if Farcaster data is verified (from high-confidence source)
  */
-function isFarcasterVerified(sources: string[]): boolean {
+export function isFarcasterVerified(sources: string[]): boolean {
   // Farcaster is considered verified if it comes from Neynar (direct API),
   // the protocol-wide bulk sweep (same underlying data), or manual entry
   return sources.some(

@@ -58,6 +58,7 @@
  * exactly the agents whose own account is the presence worth keeping.
  */
 import type { WalletSocialResult } from './types';
+import { isTwitterVerified, isFarcasterVerified } from './social-graph';
 
 /** The agent-shaped fields a row can carry. */
 const AGENT_FIELDS = [
@@ -80,8 +81,30 @@ const AGENT_FIELDS = [
 export function hasAttestedIdentity(row: {
   twitter_verified?: boolean;
   farcaster_verified?: boolean;
+  source?: string[];
 }): boolean {
-  return row.twitter_verified === true || row.farcaster_verified === true;
+  if (row.twitter_verified === true || row.farcaster_verified === true) {
+    return true;
+  }
+  /**
+   * The row's sources, read through the graph's own definition.
+   *
+   * The flags are not set by every path that produces an attestation. A live
+   * ENS resolve writes `twitter_handle` with source `ens` and no flag; the
+   * fresh Neynar path had the same gap until it was fixed by hand. So a first
+   * lookup whose only attestation had just arrived read as unattested here,
+   * the catalog badge survived, and `prepareUpsertData` then computed
+   * `twitterVerified` from that very source and ORed `is_agent` into a graph
+   * that cannot take one back.
+   *
+   * `isTwitterVerified` is the function the graph write already uses, so this
+   * asks the same question the same way rather than keeping a second list of
+   * attested sources that would drift. Patching each live path instead would
+   * have fixed ENS and waited for the next source to be added.
+   */
+  const sources = row.source ?? [];
+  if (sources.length === 0) return false;
+  return isTwitterVerified(sources) || isFarcasterVerified(sources);
 }
 
 /**
@@ -113,6 +136,7 @@ export function agentClaimHolds(
     farcaster_verified?: boolean;
     twitter_handle?: string;
     farcaster?: string;
+    source?: string[];
   },
   agentHandle: string | null | undefined
 ): boolean {

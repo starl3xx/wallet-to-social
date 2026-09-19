@@ -1644,6 +1644,35 @@ async function main() {
     );
 
     /**
+     * An attestation that arrived on this lookup counts, even before any flag
+     * is set for it.
+     *
+     * A live ENS resolve writes `twitter_handle` with source `ens` and never
+     * touches `twitter_verified`, so a first lookup whose only attestation had
+     * just arrived read as unattested, the catalog badge survived, and
+     * `prepareUpsertData` then computed `twitterVerified` from that same
+     * source and ORed `is_agent` into a graph that cannot take one back.
+     *
+     * Read through `isTwitterVerified`, the function the graph write itself
+     * uses, so there is one list of attested sources rather than two that
+     * drift.
+     */
+    ok(
+      'a source the graph calls attested is attested here too',
+      hasAttestedIdentity({ source: ['ens'] }) === true &&
+        hasAttestedIdentity({ source: ['ens_onchain'] }) === true &&
+        hasAttestedIdentity({ source: ['graph'] }) === false &&
+        hasAttestedIdentity({ source: [] }) === false
+    );
+    ok(
+      'and a catalog claim is withdrawn on the strength of that source alone',
+      agentClaimHolds(
+        { twitter_handle: 'thedojieth', source: ['ens'] },
+        'HowlrBot'
+      ) === false
+    );
+
+    /**
      * `=== true`, not truthiness. `undefined` means "not known on this path",
      * and reading it as unattested would strip a claim on evidence nobody
      * looked for.
