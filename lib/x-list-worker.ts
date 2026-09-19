@@ -369,8 +369,21 @@ function rateLimited(res: Response): Date | null {
   return new Date(Date.now() + X_RATE_WINDOW_MS);
 }
 
-/** Exported for the ops report: how long a full list should take. */
+/**
+ * How long a full list should take, in minutes.
+ *
+ * `ceil(members / BATCH)`, because the cron ticks once a minute and each tick
+ * adds at most `BATCH`. That is the real constraint and it is not a
+ * coincidence that it matches X's: 300 additions per 15 minutes IS 20 a
+ * minute, so spreading at 20 a minute is exactly the sustainable rate rather
+ * than a self-imposed slowdown.
+ *
+ * The first version counted rate-limit WINDOWS instead, as
+ * `(ceil(n / 300) - 1) * 15 + 1`. That assumes the worker bursts 300 and then
+ * waits, which it deliberately does not, and the error is not small: it said
+ * one minute for a 300-member list that takes fifteen. It happened to be right
+ * at 319, which is the size it was checked against.
+ */
 export function estimatedMinutes(memberCount: number): number {
-  const windows = Math.ceil(memberCount / X_MEMBER_ADDS_PER_WINDOW);
-  return Math.round(((windows - 1) * X_RATE_WINDOW_MS) / 60000) + 1;
+  return Math.max(1, Math.ceil(memberCount / BATCH));
 }

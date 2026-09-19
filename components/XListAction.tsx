@@ -168,13 +168,22 @@ export function XListMenuItem({
               Keep the list private
             </label>
 
-            {/* X adds one member per request at 300 per fifteen minutes, so a
-                large list is genuinely slow. Said before the click rather than
-                discovered during it. */}
+            {/* X adds one member per request at 300 per fifteen minutes, which
+                is 20 a minute sustained, and the worker adds 20 per
+                one-minute tick to match. So the estimate is simply members
+                divided by 20.
+
+                It was `ceil(n / 300) * 15 - 14`, which assumes a burst of 300
+                followed by a wait. The worker does not do that, and the
+                formula said one minute for a 300-member list that takes
+                fifteen. It was right at 319, which is the size it was written
+                against. Said before the click either way, because a large
+                list is genuinely slow and that is not a surprise worth
+                saving. */}
             <p className="text-xs text-muted-foreground">
-              X allows 300 additions every 15 minutes, so this takes about{' '}
-              {Math.max(1, Math.ceil(handles.length / 300) * 15 - 14)} minutes.
-              You can close this page; the list keeps building.
+              X allows 20 additions a minute, so this takes about{' '}
+              {Math.max(1, Math.ceil(handles.length / 20))} minutes. You can
+              close this page; the list keeps building.
             </p>
 
             {error && (
@@ -231,10 +240,23 @@ export function XListStatus() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
 
+  /**
+   * eslint-disable-next-line is deliberate and narrow.
+   *
+   * `react-hooks/set-state-in-effect` exists to catch state derived from other
+   * state, which should be computed during render instead. This is the case
+   * the rule's own text carves out: reading the URL is subscribing to an
+   * external system, and it happens exactly once on mount.
+   *
+   * The alternative, a lazy `useState` initializer, reads `window` during
+   * render and so renders differently on the server than on the client, which
+   * trades a lint warning for a hydration mismatch.
+   */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const o = params.get('x_list');
     if (!o) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     setOutcome(o);
     setJobId(params.get('x_list_job'));
 
@@ -264,8 +286,21 @@ export function XListStatus() {
     }
   }, [jobId]);
 
+  /**
+   * Poll once immediately, then every five seconds until the job settles.
+   *
+   * The immediate call is what stops the banner sitting on "Building your X
+   * list" with no numbers for the first five seconds, which is exactly when
+   * somebody is looking at it, having just arrived from x.com.
+   *
+   * `poll` is async, so its `setJob` runs in a promise continuation rather
+   * than synchronously in the effect body; the rule cannot see that and flags
+   * the call site. Suppressed narrowly rather than restructured, because every
+   * restructuring either delays the first paint or moves the fetch into render.
+   */
   useEffect(() => {
     if (!jobId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async, see above
     poll();
     const done = job?.status === 'completed' || job?.status === 'failed';
     if (done) return;
