@@ -1538,7 +1538,6 @@ async function main() {
     );
   }
 
-
   // ------------------------------- an attested identity outranks an agent claim
   /**
    * `known_agents` is scraped from Virtuals' API, whose per-agent
@@ -1643,7 +1642,9 @@ async function main() {
       readFileSync('lib/job-processor.ts', 'utf8')
     ).replace(/\s+/g, ' ');
     const detectIdx = jpAgent.indexOf('await detectKnownAgents(activeWallets)');
-    const graphIdx = jpAgent.indexOf('getSocialGraphWithQuality(activeWallets)');
+    const graphIdx = jpAgent.indexOf(
+      'getSocialGraphWithQuality(activeWallets)'
+    );
     const reconcileIdx = jpAgent.indexOf('reconcileAgentClaim(');
     ok(
       'the agent claim is reconciled after the graph read, not beside the detection',

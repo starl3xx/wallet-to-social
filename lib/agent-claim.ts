@@ -78,7 +78,10 @@ export function hasAttestedIdentity(row: {
  * different suppliers and neither agrees with the other about casing or the
  * leading sigil.
  */
-function sameAccount(a: string | null | undefined, b: string | null | undefined) {
+function sameAccount(
+  a: string | null | undefined,
+  b: string | null | undefined
+) {
   if (!a || !b) return false;
   const norm = (h: string) => h.toLowerCase().replace(/^@/, '').trim();
   return norm(a) === norm(b);

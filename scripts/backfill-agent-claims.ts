@@ -10,6 +10,17 @@
  * every lookup that ever touched one of these wallets, and a stored row is
  * served from the graph and the cache without re-deriving anything.
  *
+ * ## This is load bearing, not tidying up
+ *
+ * The graph cannot un-flag a wallet by itself. `prepareUpsertData` writes
+ * `r.is_agent || prev?.isAgent || false` and the conflict clause writes
+ * `EXCLUDED.is_agent OR social_graph.is_agent`, both deliberately, so that a
+ * `false` from a path that never ran agent detection cannot shadow a prior
+ * `true`. The same monotonicity means a WITHDRAWN claim never propagates
+ * either. `lib/agent-claim.ts` fixes what the customer is shown on every
+ * lookup; only this fixes the stored row, and until it runs the internal
+ * reverse route still reports the label.
+ *
  * ## What it changes, and what it deliberately does not
  *
  * It clears the agent columns on `social_graph` rows where the wallet carries
@@ -67,7 +78,9 @@ async function main() {
       AND (lower(a.twitter_handle) = lower(g.twitter_handle)
            OR lower(a.twitter_handle) = lower(g.farcaster))
   `;
-  console.log(`agent rows whose own account IS the attested one, kept: ${kept[0]?.n ?? 0}`);
+  console.log(
+    `agent rows whose own account IS the attested one, kept: ${kept[0]?.n ?? 0}`
+  );
 
   if (DRY_RUN) {
     const sample = await sql`
@@ -118,10 +131,30 @@ async function main() {
                AND lower(a.twitter_handle) IS DISTINCT FROM lower(g.farcaster)))
   `;
   if ((remaining[0]?.n ?? 0) !== 0) {
-    console.error(`\nStill ${remaining[0].n} left. The update did not fully apply.`);
+    console.error(
+      `\nStill ${remaining[0].n} left. The update did not fully apply.`
+    );
     process.exit(1);
   }
   console.log('verified: none remain.');
+
+  /**
+   * The published figure this moves.
+   *
+   * `AGENT_WALLETS_FLAGGED` in lib/public-figures.ts is
+   * `count(*) FROM social_graph WHERE is_agent`, and
+   * scripts/check-published-figures.ts compares it against exactly that query.
+   * Clearing rows here changes it, so the number is printed rather than left
+   * for CI to discover on a Monday.
+   */
+  const flagged = await sql`
+    SELECT count(*)::int AS n FROM social_graph WHERE is_agent IS TRUE
+  `;
+  console.log('');
+  console.log('NEXT: update AGENT_WALLETS_FLAGGED in lib/public-figures.ts to');
+  console.log(`  '${(flagged[0]?.n ?? 0).toLocaleString('en-US')}'`);
+  console.log('then run npm run check:figures. It is a published figure and');
+  console.log('the checker compares it against this exact query.');
 }
 
 main().catch((e) => {
