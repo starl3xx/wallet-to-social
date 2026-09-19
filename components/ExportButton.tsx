@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { XMark } from '@/components/ui/brand-marks';
 import { DownloadSimple, Lock } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/csv-parser';
+import { reachableHandlesFrom } from '@/lib/reachable-handles';
 import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
 import { publicSources } from '@/lib/api-sources';
@@ -188,25 +189,10 @@ export const ExportButton = memo(function ExportButton({
    * a primary marked `reassigned` is live but now a stranger's, and the
    * second handle is then the only one on the row that reaches the owner.
    */
-  const reachableHandles = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    const add = (handle: string) => {
-      const key = handle.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push(handle);
-    };
-    for (const r of sortedResults) {
-      const handle = r.twitter_handle;
-      if (!handle) continue;
-      const primaryReachable =
-        !r.twitter_reachability || r.twitter_reachability === 'live';
-      if (primaryReachable) add(handle);
-      if (r.twitter_also) add(r.twitter_also.handle);
-    }
-    return out;
-  }, [sortedResults]);
+  const reachableHandles = useMemo(
+    () => reachableHandlesFrom(sortedResults),
+    [sortedResults]
+  );
 
   /**
    * The handle list is the one that gets acted on.
