@@ -28,6 +28,18 @@ export interface WalletSocialResult {
   farcaster_url?: string;
   fc_followers?: number;
   fc_fid?: number;
+  /**
+   * The X handle's follower count, where the index has swept it and the handle
+   * still reaches its attested owner.
+   *
+   * Absent means "no count to state", never zero. The sweep records no
+   * followers for a suspended or vacated handle, nothing is recorded for a
+   * handle it has not reached yet, and a `reassigned` handle has its count
+   * dropped on purpose because it belongs to the stranger now holding the name
+   * (see `HandleReachability.followers`). Around 70% of the distinct handles in
+   * the index carry one.
+   */
+  x_followers?: number;
   holdings?: number;
   priority_score?: number;
   lens?: string;

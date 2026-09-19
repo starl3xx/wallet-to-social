@@ -56,6 +56,16 @@ above got it wrong in the other direction, by claiming the score was in the free
 CSV. Read `ExportButton` **and** `job-processor` before writing that something is
 or is not included.
 
+`x_followers` is the third paid field and it is stripped in a **different
+place**, which is a thing to know before moving either. The two above are
+cleared mid-pipeline; `x_followers` does not exist yet at that point, because
+`stampReachability` sets it in `finalizeJobWithResults` from the projection
+`reachabilityFor` reads out of `x_accounts`. Its strip therefore sits after
+that stamp, and `check-invariants` asserts the ordering rather than the
+presence: a strip beside the other two reads as obviously correct, does
+nothing, and is undone a few hundred lines later. Both gates go through
+`jobGetsPaidFields`, so `paidData ?? tier` is written once.
+
 The prices live in `lib/packs.ts` and nowhere else: the modal, the checkout, the
 comparison pages and the schema.org offers all read them, so they cannot
 disagree.

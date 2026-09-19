@@ -200,6 +200,23 @@ export function parseHoldingsValue(value: string | undefined): number | null {
   return num;
 }
 
+/**
+ * What the priority score means, in one sentence, for anywhere a reader can
+ * ask.
+ *
+ * Kept beside the function rather than typed into the component, because the
+ * sentence is a claim about this arithmetic and the two have to move together.
+ * The column header carried "Based on holdings × follower reach", which names
+ * the inputs and hides the part worth knowing: the follower term is
+ * logarithmic, so ten times the audience is not ten times the score, and a
+ * reader comparing two rows cannot work out why the bigger account did not win
+ * without being told. It also never said which followers. Both are said here.
+ */
+export const PRIORITY_EXPLANATION =
+  'Holdings multiplied by the base-10 logarithm of Farcaster followers plus one. ' +
+  'The logarithm is deliberate: it keeps a very large audience from swamping ' +
+  'the size of the position. A row missing either input counts it as one.';
+
 export function calculatePriorityScore(
   holdings: number | undefined,
   fcFollowers: number | undefined
