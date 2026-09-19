@@ -5310,6 +5310,34 @@ async function main() {
     );
 
     /**
+     * Every path that builds display rows stamps reachability.
+     *
+     * `stampReachability` exists because the feature once covered
+     * `/api/lookup` and not `/api/jobs`, and its docstring concluded that a
+     * path nothing fails without is a path somebody forgets, so there is now
+     * one function and both paths call it. There were three.
+     * `app/api/reverse/route.ts` assembles the same rows out of the graph by
+     * hand and called only `stampAlsoOnX`, so a reverse lookup never showed a
+     * dead-handle warning, on exactly the rows most likely to need one: a
+     * handle somebody searched for is a handle somebody is about to act on.
+     *
+     * Asserted as a pairing rather than a presence. Both are mutate-in-place
+     * stamps belonging above the same `saveLookup`, and the failure is one of
+     * them being there alone, which reads as complete.
+     */
+    for (const stampFile of [
+      'lib/job-processor.ts',
+      'app/api/reverse/route.ts',
+    ]) {
+      const stampSrc = withoutComments(readFileSync(stampFile, 'utf8'));
+      ok(
+        `${stampFile} stamps reachability wherever it stamps the second account`,
+        stampSrc.includes('await stampAlsoOnX(results)') &&
+          stampSrc.includes('await stampReachability(results)')
+      );
+    }
+
+    /**
      * A removed handle takes its follower count with it.
      *
      * Run against the real `scrubResultRow` rather than read out of the

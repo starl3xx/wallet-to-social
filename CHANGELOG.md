@@ -51,6 +51,16 @@ All notable changes to walletlink.social. Newest first.
   mode of a delete list nobody can see the whole of. Both are asserted now,
   the suppression one against the real `scrubResultRow` with a positive
   control.
+- **Reverse lookups were never stamped at all**, found in review. That route
+  assembles the same rows out of the graph by hand and called only
+  `stampAlsoOnX`, so the new column came back empty there and, more to the
+  point, a reverse lookup had never shown a dead-handle warning either: on
+  exactly the rows most likely to need one, because a handle somebody searched
+  for is a handle somebody is about to act on. `stampReachability`'s own
+  docstring says a path nothing fails without is a path somebody forgets, and
+  concluded "both paths call it". There were three. Now asserted as a pairing,
+  since the failure is one stamp present without the other, which reads as
+  complete.
 - No public API change. `/v1` builds its response from a field allowlist, so
   the new field cannot reach it.
 
