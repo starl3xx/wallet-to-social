@@ -215,6 +215,23 @@ export async function GET(
       twitterVerified: socialGraph.twitterVerified,
       farcasterVerified: socialGraph.farcasterVerified,
       dataQualityScore: socialGraph.dataQualityScore,
+      /**
+       * Agent classification, selected here because this route used to be the
+       * one place it was missing.
+       *
+       * The internal `/api/reverse` returned all six agent fields and this,
+       * the public one, returned none, so the same question answered
+       * differently depending on whether it came through the browser or the
+       * API. The MCP reverse tools sit on top of this route, so a model asking
+       * which wallets are behind a handle could never be told one was an
+       * agent, while the results table showed a badge for it.
+       */
+      isAgent: socialGraph.isAgent,
+      agentName: socialGraph.agentName,
+      agentFramework: socialGraph.agentFramework,
+      agentType: socialGraph.agentType,
+      agentTokenSymbol: socialGraph.agentTokenSymbol,
+      agentVerified: socialGraph.agentVerified,
     })
     .from(socialGraph)
     .where(
@@ -340,6 +357,23 @@ export async function GET(
     }
     if (result.lens) item.lens = result.lens;
     if (result.github) item.github = result.github;
+    /**
+     * Present only when the row is flagged, the same shape `/v1/wallet` and
+     * `/v1/batch` already publish. Absent is not a claim that the address is a
+     * person: it means no agent claim survives on this row, which includes the
+     * case where one was withdrawn because the owner attested otherwise. See
+     * lib/agent-claim.ts.
+     */
+    if (result.isAgent) {
+      item.agent = {
+        is_agent: true,
+        name: result.agentName ?? undefined,
+        framework: result.agentFramework ?? undefined,
+        type: result.agentType ?? undefined,
+        token_symbol: result.agentTokenSymbol ?? undefined,
+        verified: result.agentVerified ?? false,
+      };
+    }
     // Evidence classes, never the internal pipeline identifiers — see lib/api-sources.ts
     const sources = publicSources(result.sources);
     if (sources) item.sources = sources;
