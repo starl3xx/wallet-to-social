@@ -18,6 +18,14 @@
  * a removed person's row and a suppression trigger that would have preserved a
  * live third-party token for exactly the person asking to be removed.
  *
+ * **"No issues found" can still mean unread findings.** Bugbot's summary
+ * distinguishes what it found on THIS run from what remains open from an
+ * earlier one, and a re-review of an unchanged finding reports the first as
+ * zero while the second stays non-zero. A PR reading "no issues found. 2
+ * previously reported issues remain unresolved" passed this script's first
+ * version, and both of those were regressions introduced by the change under
+ * review. An unresolved count refuses on its own now.
+ *
  * **A conflicting PR runs no workflows at all.** GitHub builds a
  * `pull_request` run against the computed merge commit, so when that merge
  * cannot be computed nothing triggers: not a queued run, not a failed one,
@@ -157,12 +165,50 @@ async function main() {
     console.log(`\n  ${r.name} is neutral. Its own summary says:`);
     console.log(`    ${summary.slice(0, 300) || '(no summary)'}`);
 
-    if (!clean || found) {
+    /**
+     * "no issues found" is not the same as "nothing to read".
+     *
+     * The first version treated a clean-sounding summary as a pass and let a
+     * PR through that said "no issues found. 2 previously reported issues
+     * remain unresolved". Both were real and both were regressions in the very
+     * change under review: Bugbot means it found nothing NEW this run, and
+     * the findings from the previous run are still open.
+     *
+     * So an unresolved count is a refusal in its own right, independent of
+     * whether this run found anything.
+     */
+    const unresolvedCount = unresolved ? Number(unresolved[1]) : 0;
+    if (!clean || found || unresolvedCount > 0) {
+      /**
+       * Only state a count that was actually read.
+       *
+       * The first version printed both lines unconditionally and treated a
+       * regex that matched nothing as a zero, so a refusal triggered purely by
+       * `!clean` came out as "No NEW issues on this run. Nothing outstanding
+       * from earlier runs." above the word REFUSED: the output contradicted
+       * itself and stopped saying why it was blocking. An unrecognised summary
+       * is its own reason, and the summary itself is the useful thing to show.
+       */
       problems.push(
-        `${r.name} reports neutral, which the PR page renders as "skipping",`,
-        `and its summary is NOT a clean pass${
-          found ? `: ${found[1]} potential issue(s)` : ''
-        }${unresolved ? `, ${unresolved[1]} previously reported unresolved` : ''}.`,
+        `${r.name} reports neutral, which the PR page renders as "skipping".`
+      );
+      if (found) {
+        problems.push(`  ${found[1]} potential issue(s) found on this run.`);
+      }
+      if (unresolvedCount > 0) {
+        problems.push(
+          `  ${unresolvedCount} previously reported issue(s) STILL UNRESOLVED.`
+        );
+      }
+      if (!found && unresolvedCount === 0) {
+        problems.push(
+          '  Its summary was not recognisable as a clean pass, and no count',
+          '  could be read out of it. Treated as unread work rather than as',
+          '  nothing, because the shape of that sentence is what changes when',
+          '  the provider rewords it. The summary is printed above.'
+        );
+      }
+      problems.push(
         'Read the review comments before merging:',
         `  gh api repos/{owner}/{repo}/pulls/${number}/comments --jq '.[] | .body'`
       );
