@@ -683,59 +683,6 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           })
           .filter((r): r is WalletSocialResult => r !== null);
 
-        /**
-         * An owner-attested identity outranks a scraped agent claim.
-         *
-         * `known_agents` is Virtuals' own API, whose per-agent `walletAddress` is
-         * frequently the CREATOR's wallet. Measured against production on
-         * 2026-09-19: of the 536 agent wallets that resolve to an X handle, 492
-         * carry an attested identity that is not the agent's own. Left alone, the
-         * table prints a badge reading `HOWLR` beside a wallet whose owner
-         * published `@thedojieth`, which is an inference presented over the top of
-         * the strongest evidence the index holds.
-         *
-         * Here rather than in STEP 0 because the question cannot be asked until
-         * the socials are resolved, and here rather than after the cache write
-         * because that is the order that makes the sentence above true. It ran
-         * after `cacheWalletResults`, so a withdrawn claim was still written to
-         * `wallet_cache`, and `mergeCacheRow` ORs a cached `is_agent` back onto
-         * the next lookup: the re-serve from cache this placement exists to
-         * prevent, reintroduced by being sixty lines too late.
-         */
-        /**
-         * This chunk's wallets, not every row loaded.
-         *
-         * `results` carries `partialResults` from every earlier chunk of the
-         * same job, and `agentOwnHandles` only ever holds what THIS chunk
-         * looked up. Walking all of `results` therefore re-checked an earlier
-         * chunk's KEPT claim with a missing handle, `agentClaimHolds` read
-         * the agent's own attested account as a contradiction, and the badge
-         * was deleted. Every job past CHUNK_SIZE, which is every contract
-         * import and every large CSV, silently dropped exactly the claims
-         * this rule exists to preserve.
-         *
-         * A row is reconciled in the chunk that resolved it and never again.
-         * For a wallet in this chunk, absent from the map is the right input
-         * rather than a missing one: a bio-keyword agent has no
-         * `known_agents` record and so no account of its own, and a guess
-         * from a bio is the weakest claim here, so an attested identity
-         * should withdraw it.
-         */
-        let agentClaimsWithdrawn = 0;
-        for (const wallet of activeWallets) {
-          const result = results.get(wallet);
-          if (!result) continue;
-          if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
-            agentClaimsWithdrawn++;
-            results.set(wallet, result);
-          }
-        }
-        if (agentClaimsWithdrawn > 0) {
-          console.log(
-            `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
-          );
-        }
-
         if (walletsToCache.length > 0) {
           await cacheWalletResults(walletsToCache);
         }
@@ -770,6 +717,69 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Social graph enrichment is now done FIRST (see STEP 1 above)
     // This ensures we use high-quality cached data before calling external APIs
+
+    /**
+     * An owner-attested identity outranks a scraped agent claim.
+     *
+     * `known_agents` is scraped from a launch protocol's own API, whose
+     * per-agent `walletAddress` is frequently the CREATOR's wallet. Measured
+     * against production on 2026-09-19: of the 536 agent wallets that resolve
+     * to an X handle, 492 carry an attested identity that is not the agent's
+     * own. Left alone the table prints a badge reading `HOWLR` beside a wallet
+     * whose owner published `@thedojieth`, which is an inference presented
+     * over the top of the strongest evidence the index holds.
+     *
+     * ## Why it sits exactly here
+     *
+     * After STEP 1, 2 and 3, so every row has whatever socials it is going to
+     * get, whether they came from the graph, the cache or a live call. It was
+     * briefly moved inside STEP 3 to precede the cache write, and that put it
+     * on the uncached path ONLY: a graph hit or a cache hit never reached it,
+     * STEP 0 re-stamped `is_agent` from the catalog, `mergeGraphRow` kept that
+     * stamp over a backfilled row, and finalize wrote the claim back and undid
+     * the backfill. Coverage of every row is worth more than preceding the
+     * cache write.
+     *
+     * Before the paid-field gate below, because that gate strips fields and
+     * this reads none of them, and long before the graph write in finalize,
+     * which is the write that matters: `social_graph` ORs `is_agent` and can
+     * never take one back.
+     *
+     * ## What it means for `wallet_cache`
+     *
+     * The cache write in STEP 3 runs earlier, so a row whose claim is
+     * withdrawn here was already cached carrying it, and `mergeCacheRow` ORs
+     * it back on the next lookup. That is harmless rather than fine: every
+     * path that serves a cached row merges it into `results` and then arrives
+     * here, so the claim is withdrawn again before anything reads it, and
+     * nothing serves `wallet_cache` directly. The cached value is a fact
+     * about the catalog that this rule overrides on every pass. Moving the
+     * cache write down here instead would need `apiFailedWallets` hoisted out
+     * of STEP 3 and would put caching after the paid-field gate, which strips
+     * `fc_followers` and would poison the cache for paying customers.
+     */
+    let agentClaimsWithdrawn = 0;
+    for (const rawWallet of activeWallets) {
+      /**
+       * Lowercased on both lookups. `results` is keyed by
+       * `wallet.toLowerCase()` and `agentOwnHandles` by the lowercase
+       * `known_agents` row, while `activeWallets` carries whatever case the
+       * customer's file had, so a mixed-case address missed both maps and
+       * skipped withdrawal entirely.
+       */
+      const wallet = rawWallet.toLowerCase();
+      const result = results.get(wallet);
+      if (!result) continue;
+      if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
+        agentClaimsWithdrawn++;
+        results.set(wallet, result);
+      }
+    }
+    if (agentClaimsWithdrawn > 0) {
+      console.log(
+        `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
+      );
+    }
 
     // Priority scores and follower counts are paid result fields: any pack, or
     // a legacy tier. See JobOptions.paidData for why this is not a tier check.
