@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (the first secret this system has to be able to read back)
+
+- **`lib/secret-box.ts`, AES-256-GCM, for storing an outbound OAuth token.**
+  Every credential this repo holds is a SHA-256 digest of something handed out
+  once: API keys, sessions, magic links, the x402 redemption token, and our own
+  OAuth access and refresh tokens. That works because the caller presents the
+  secret and we only have to recognize it, and it is why a leak of those tables
+  leaks nothing usable. Before this change, `createCipheriv`, `AES` and `scrypt`
+  had zero hits repo-wide.
+- **An outbound token breaks that shape.** Acting on somebody's behalf means
+  sending their actual token to the provider, so hashing is not available and
+  what we hold is a recoverable secret belonging to someone else. That is a real
+  reduction in this database's safety and the module states it: the key is in
+  the environment and the ciphertext in Postgres, so a database dump alone
+  yields nothing, and nothing about it helps against something that can read the
+  environment.
+- Authenticated rather than merely encrypted, because an attacker with write
+  access to the column must not be able to swap a stored token for one they
+  control. The `v1.` prefix is load-bearing: `open()` refuses a version it does
+  not know instead of feeding it to the current decipher, where a future format
+  would present as tampering rather than as a rollback.
+- **`seal()` returns null rather than throwing** when unconfigured, so a caller
+  cannot read a thrown error as "encryption is off" and write the plaintext
+  token into the column. That is the worst outcome available here, because
+  nothing downstream looks wrong afterwards.
+- `SECRET_BOX_KEY` is its own variable, not a reuse of `X402_RECOVERY_SECRET` or
+  `EMAIL_UNSUBSCRIBE_SECRET`, on the reasoning `.env.example` already gives for
+  those two: rotating a secret should invalidate exactly one thing.
+  `npm run gen:secret-box-key` prints one.
+- Fifteen invariants, each verified against a deliberately reintroduced defect,
+  including the whole construction swapped to unauthenticated CTR. The
+  round-trip control is asserted first, because every other assertion says
+  something does **not** open and all of them pass against a module that returns
+  null for everything.
+- No consumer yet. This is the foundation for holding an X OAuth token.
+
 ### 2026-09-19 (decision 16 is deferred, and the reason is written down)
 
 - **The watch surface (`docs/AGENT-SYSTEM.md` decision 16) is deferred for want
