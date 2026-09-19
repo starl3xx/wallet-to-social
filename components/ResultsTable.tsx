@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/modal';
 import { ArrowUp, Info, Lock, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { PRIORITY_EXPLANATION } from '@/lib/csv-parser';
 import type { WalletSocialResult } from '@/lib/types';
 import {
   REACHABILITY_LABEL,
@@ -86,11 +87,13 @@ const TwitterCell = memo(function TwitterCell({
   const primary =
     reach && reach !== 'live' ? (
       <span
-        className="inline-flex items-center gap-2 text-caution"
+        className="inline-flex max-w-full items-center gap-2 text-caution"
         title={REACHABILITY_DETAIL[reach]}
       >
         <WarningCircle className="h-3 w-3" weight="fill" aria-hidden />
-        <span className="line-through decoration-caution/50">@{handle}</span>
+        <span className="truncate line-through decoration-caution/50">
+          @{handle}
+        </span>
         <span className="sr-only">{REACHABILITY_LABEL[reach]}</span>
       </span>
     ) : (
@@ -101,15 +104,24 @@ const TwitterCell = memo(function TwitterCell({
         asChild
         variant="link"
         size="inline"
-        className="font-mono text-xs"
+        className="min-w-0 max-w-full font-mono text-xs"
       >
         <a
           href={result.twitter_url || `https://x.com/${handle}`}
           target="_blank"
           rel="noopener noreferrer"
-          title={reach === 'live' ? REACHABILITY_DETAIL.live : undefined}
+          /* The handle leads the title unconditionally, because the label it
+             sits on can now be clipped. Previously this was set only when the
+             handle was known live, which was fine while nothing truncated and
+             would otherwise leave a clipped, unchecked handle with no way at
+             all to read the rest of it. */
+          title={
+            reach === 'live'
+              ? `@${handle}: ${REACHABILITY_DETAIL.live}`
+              : `@${handle}`
+          }
         >
-          @{handle}
+          <span className="truncate">@{handle}</span>
         </a>
       </Button>
     );
@@ -120,7 +132,7 @@ const TwitterCell = memo(function TwitterCell({
      The second line truncates and carries its full text in the title, since a
      handle is third-party data and the row's height is fixed. */
   return (
-    <span className="flex min-w-0 flex-col items-start">
+    <span className="flex min-w-0 max-w-full flex-col items-start">
       {primary}
       <span
         className="truncate text-muted-foreground"
@@ -181,6 +193,7 @@ type SortField =
   | 'twitter_handle'
   | 'farcaster'
   | 'fc_followers'
+  | 'x_followers'
   | 'ens_name'
   | 'holdings'
   | 'priority_score';
@@ -623,6 +636,16 @@ const RowDetailModal = memo(function RowDetailModal({
               <span className="text-muted-foreground">{EMPTY_CELL}</span>
             )}
           </DetailField>
+          {/* Only where there is a count. A dash here would sit directly under
+              the evidence panel that has just explained the handle is dead,
+              and read as "this account has no followers" rather than "there is
+              no account left to count". */}
+          {result.x_followers !== undefined && (
+            <DetailField
+              label="X followers"
+              value={result.x_followers.toLocaleString()}
+            />
+          )}
           <DetailField
             label="Farcaster"
             value={result.farcaster ? `@${result.farcaster}` : undefined}
@@ -756,6 +779,10 @@ export const ResultsTable = memo(function ResultsTable({
           aVal = a.fc_followers ?? 0;
           bVal = b.fc_followers ?? 0;
           break;
+        case 'x_followers':
+          aVal = a.x_followers ?? 0;
+          bVal = b.x_followers ?? 0;
+          break;
         case 'holdings':
           aVal = a.holdings ?? 0;
           bVal = b.holdings ?? 0;
@@ -813,6 +840,7 @@ export const ResultsTable = memo(function ResultsTable({
       // Default to descending for numeric fields
       if (
         field === 'fc_followers' ||
+        field === 'x_followers' ||
         field === 'holdings' ||
         field === 'priority_score'
       ) {
@@ -881,7 +909,7 @@ export const ResultsTable = memo(function ResultsTable({
     return (
       <div
         className="flex items-center gap-2 cursor-help"
-        title={`Priority: ${formatPriorityScore(score)} (Based on holdings × follower reach)`}
+        title={`Priority ${formatPriorityScore(score)}. ${PRIORITY_EXPLANATION}`}
       >
         <div className="flex items-center gap-1">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -919,35 +947,47 @@ export const ResultsTable = memo(function ResultsTable({
    * With a real width the frame gets a real `scrollWidth` instead.
    */
   const { gridTemplate, gridMinWidth, columnCount } = useMemo(() => {
-    /* The two paid columns are measured, not guessed, because their headers
-       are the widest things in the row. In headless Chrome with Geist Mono at
-       12px, uppercase, 0.14em tracking: "FARCASTER FOLLOWERS" is 169px and
-       "PRIORITY" 71px. Add 32px of cell padding, then either the sort arrow
-       (4px gap + 12px) when entitled, or the Unlock control (12px gap + 12px
-       lock + 8px gap + 37px "Unlock" in Söhne at 12px/500) when locked. The
-       header row is a fixed 34px, so a label that does not fit does not wrap,
-       it clips. */
-    const tracks = [
-      GUTTER_WIDTH, // attestation gutter
-      120, // wallet
-      100, // ENS
-      ...(hasHoldings ? [100] : []),
-      ...filteredExtraColumns.map(() => 80),
-      120, // X handle
-      120, // Farcaster
-      isPaidTier ? 220 : 272, // Farcaster followers
-      isPaidTier ? 140 : 176, // priority
+    /* The paid columns are measured, not guessed, because their headers are
+       the widest things in the row. In headless Chrome with Geist Mono at
+       12px, uppercase, 0.14em tracking: "FARCASTER FOLLOWERS" is 169px,
+       "X FOLLOWERS" 98px and "PRIORITY" 71px. Add 32px of cell padding, then
+       either the sort arrow (4px gap + 12px) when entitled, or the Unlock
+       control (12px gap + 12px lock + 8px gap + 37px "Unlock" in Söhne at
+       12px/500) when locked. The header row is a fixed 34px, so a label that
+       does not fit does not wrap, it clips.
+
+       Each track carries a growth factor beside its minimum, and a 0 means a
+       fixed track. Every column used to grow at 1fr, which shares slack
+       equally and so gave a column of two-digit bag sizes exactly as much of
+       a wide viewport as a column of handles: the figures sat in a field of
+       whitespace while the identities beside them, the ones with no length
+       bound, were the columns that actually ran out of room. Slack now goes
+       where content varies. A figure column is as wide as its header needs
+       and no wider, and the identity columns divide what is left. */
+    const tracks: Array<[min: number, grow: number]> = [
+      [GUTTER_WIDTH, 0], // attestation gutter
+      [120, 2], // wallet
+      [100, 2], // ENS
+      // A bag is one to four digits. Fixed: it has no reason to stretch.
+      ...(hasHoldings ? ([[100, 0]] as Array<[number, number]>) : []),
+      // Customer CSV values, no length bound we know of, so these still grow.
+      ...filteredExtraColumns.map(() => [80, 1] as [number, number]),
+      [120, 3], // X handle
+      [isPaidTier ? 150 : 200, 0], // X followers
+      [120, 3], // Farcaster
+      [isPaidTier ? 220 : 272, 0], // Farcaster followers
+      [isPaidTier ? 140 : 176, 0], // priority
     ];
     return {
       // The details track is appended fixed, like the gutter leads fixed:
       // both hold one mark or control, and only data columns stretch.
       gridTemplate: [
-        ...tracks.map((min, i) =>
-          i === 0 ? `${min}px` : `minmax(${min}px, 1fr)`
+        ...tracks.map(([min, grow]) =>
+          grow === 0 ? `${min}px` : `minmax(${min}px, ${grow}fr)`
         ),
         `${DETAIL_WIDTH}px`,
       ].join(' '),
-      gridMinWidth: tracks.reduce((sum, min) => sum + min, 0) + DETAIL_WIDTH,
+      gridMinWidth: tracks.reduce((sum, [min]) => sum + min, 0) + DETAIL_WIDTH,
       columnCount: tracks.length + 1,
     };
   }, [hasHoldings, filteredExtraColumns, isPaidTier]);
@@ -1182,6 +1222,28 @@ export const ResultsTable = memo(function ResultsTable({
               sortDirection={sortDirection}
               onSort={handleSort}
             />
+            {/* Each identity is followed by its own reach, rather than the two
+                counts being grouped at the end. A follower number means
+                nothing without the account it belongs to, and a reader
+                comparing X reach against Farcaster reach on one row should not
+                have to count columns to know which is which. */}
+            {isPaidTier ? (
+              <SortHeader
+                field="x_followers"
+                label="X followers"
+                title="Followers on X, where the handle still reaches its attested owner"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            ) : (
+              <LockedHeader
+                label="X followers"
+                feature="X follower counts"
+                gate="column-x-followers"
+                onUpgradeClick={onUpgradeClick}
+              />
+            )}
             <SortHeader
               field="farcaster"
               label="Farcaster"
@@ -1209,7 +1271,7 @@ export const ResultsTable = memo(function ResultsTable({
               <SortHeader
                 field="priority_score"
                 label="Priority"
-                title="Based on holdings × follower reach"
+                title={PRIORITY_EXPLANATION}
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
@@ -1490,7 +1552,22 @@ export const ResultsTable = memo(function ResultsTable({
                         16px lines plus py-1 is 40px, painting 2px into the
                         absolutely-stacked neighbour row, so this one cell
                         drops to py-0.5 (2x16+4 = 36, inside the pitch). */}
-                    <div role="cell" className="px-4 py-0.5 font-mono text-xs">
+                    {/* `min-w-0` is load-bearing, not tidiness. A grid item's
+                        min-width resolves to its content by default, so this
+                        cell refused to shrink below the width of the handle
+                        inside it and simply painted over the column to its
+                        right; a handle like @thedojieth.base.eth ran straight
+                        into the neighbouring figure. The ENS cell never showed
+                        it because `truncate` carries `overflow-hidden`, which
+                        resolves the same auto minimum to zero. Both cells that
+                        hold an identity now say so explicitly, and the clamp
+                        itself sits on the text inside, since the link is an
+                        inline-flex control that would otherwise not ellipsise
+                        its own label. */}
+                    <div
+                      role="cell"
+                      className="min-w-0 px-4 py-0.5 font-mono text-xs"
+                    >
                       {result.twitter_handle ? (
                         <TwitterCell result={result} />
                       ) : result.locked ? (
@@ -1508,14 +1585,38 @@ export const ResultsTable = memo(function ResultsTable({
                       )}
                     </div>
 
+                    {/* X followers. A figure, so it takes the figure
+                        treatment the other counts take. Absent is a dash and
+                        never a zero: no count is recorded for a suspended or
+                        vacated handle, for one the sweep has not reached, or
+                        for a reassigned one, where the number belongs to the
+                        stranger now holding the name. */}
+                    <div
+                      role="cell"
+                      className="px-4 py-1 text-sm font-medium tabular-nums"
+                    >
+                      {isPaidTier ? (
+                        result.x_followers !== undefined ? (
+                          result.x_followers.toLocaleString()
+                        ) : (
+                          EMPTY_CELL
+                        )
+                      ) : (
+                        <LockedCell />
+                      )}
+                    </div>
+
                     {/* Farcaster */}
-                    <div role="cell" className="px-4 py-1 font-mono text-xs">
+                    <div
+                      role="cell"
+                      className="min-w-0 px-4 py-1 font-mono text-xs"
+                    >
                       {result.farcaster ? (
                         <Button
                           asChild
                           variant="link"
                           size="inline"
-                          className="font-mono text-xs"
+                          className="min-w-0 max-w-full font-mono text-xs"
                         >
                           <a
                             href={
@@ -1524,8 +1625,11 @@ export const ResultsTable = memo(function ResultsTable({
                             }
                             target="_blank"
                             rel="noopener noreferrer"
+                            title={`@${result.farcaster}`}
                           >
-                            @{result.farcaster}
+                            <span className="truncate">
+                              @{result.farcaster}
+                            </span>
                           </a>
                         </Button>
                       ) : (

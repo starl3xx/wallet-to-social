@@ -92,6 +92,22 @@ export interface JobOptions {
   };
 }
 
+/**
+ * Whether this job's results carry the paid fields.
+ *
+ * One function because the answer is now needed twice and in two different
+ * places in the pipeline: the priority score and the Farcaster count are
+ * stripped mid-run, and the X follower count cannot be, because nothing has
+ * fetched it yet at that point. Two hand-rolled copies of a rule that reads
+ * `paidData ?? tier` is how one of them comes to disagree with the other,
+ * and the direction it would fail is toward giving paid data away.
+ */
+function jobGetsPaidFields(options: JobOptions): boolean {
+  return (
+    options.paidData ?? (options.tier === 'pro' || options.tier === 'unlimited')
+  );
+}
+
 export interface ProcessResult {
   completed: boolean;
   processedCount: number;
@@ -665,12 +681,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Priority scores and follower counts are paid result fields: any pack, or
     // a legacy tier. See JobOptions.paidData for why this is not a tier check.
-    const isPaidTier =
-      options.paidData ??
-      (options.tier === 'pro' || options.tier === 'unlimited');
+    const isPaidTier = jobGetsPaidFields(options);
     for (const [wallet, result] of results) {
       if (!isPaidTier) {
-        // Free accounts do not get the paid fields
+        // Free accounts do not get the paid fields. `x_followers` is NOT
+        // stripped here and that is not an omission: nothing has set it yet.
+        // It arrives from `stampReachability`, which runs in
+        // `finalizeJobWithResults`, long after this loop. It is stripped
+        // there instead, beside the stamp that produces it.
         result.priority_score = undefined;
         result.fc_followers = undefined;
       } else {
@@ -936,6 +954,25 @@ async function finalizeJobWithResults(
    * the whole batch and `saveLookup` persists what the live view showed.
    */
   await stampAlsoOnX(results);
+
+  /**
+   * The X follower count is a paid field, and this is the only place it can be
+   * taken away.
+   *
+   * The paid-field strip runs mid-pipeline, before any of these stamps, so it
+   * cannot reach a value `stampReachability` has not produced yet. Stripping
+   * there and stamping here would hand every free account a follower count,
+   * and it would do it silently: the column would simply be populated, which
+   * looks like it working. The reachability mark itself stays for everyone,
+   * because a dead handle is a warning rather than a paid figure.
+   *
+   * Before `saveLookup` for the same reason the stamps are: this array is what
+   * gets persisted, so a value not removed here is a value stored and served
+   * again on every reopen.
+   */
+  if (!jobGetsPaidFields(options)) {
+    for (const r of results) r.x_followers = undefined;
+  }
 
   /**
    * The last look before anything durable is written from this array.

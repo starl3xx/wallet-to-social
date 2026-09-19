@@ -2426,6 +2426,62 @@ async function main() {
     );
 
     /**
+     * A reassigned handle never carries a follower count.
+     *
+     * The other three unreachable states are safe by accident: `x_accounts`
+     * holds no followers for a suspended or vacated handle, because there is
+     * no profile left to count, and none at all for one nothing has swept.
+     * `reassigned` is the exception and it is the dangerous one. The handle
+     * resolves perfectly: a live account, with a real and possibly large
+     * follower count, belonging to the stranger who took the name after the
+     * owner renamed away from it. Publishing that number beside the wallet
+     * would attach a measured-looking figure to a person who does not own the
+     * address, which is the failure `lib/x-accounts.ts` opens by naming as the
+     * most expensive mistake available here, with a number on it to make it
+     * persuasive.
+     *
+     * Two ways it could come back, so both are refused. The override could
+     * start selecting the column, and it could start building its record by
+     * spreading the row it overrides instead of writing the three fields out.
+     * The second is the likely one, because a spread is what a tidying pass
+     * reaches for and it reads as obviously equivalent.
+     *
+     * Omitting the field outright is already impossible: `followers` is
+     * required on `HandleReachability`, so tsc refuses it. This covers the two
+     * shapes that type-check and are still wrong.
+     */
+    const overrideLoop = reachCode.slice(
+      reachCode.indexOf('for (const m of moved.rows)')
+    );
+    const overrideBody = overrideLoop.slice(0, overrideLoop.indexOf('\n    }'));
+    ok(
+      'the reassigned override writes followers: null explicitly',
+      overrideBody.length > 0 && /followers:\s*null/.test(overrideBody)
+    );
+    ok(
+      'the reassigned override builds its record without a spread',
+      overrideBody.length > 0 && !/\.\.\./.test(overrideBody)
+    );
+    ok(
+      'the reassigned override never reads a follower count out of the row',
+      overrideBody.length > 0 && !/m\.followers/.test(overrideBody)
+    );
+
+    /**
+     * And the stamp never turns "no count" into a zero.
+     *
+     * `x_followers` is absent-means-unknown, like every other field on that
+     * row. A bare assignment would put `null` on the result, and a column of
+     * figures rendering null as 0 states an audience of nobody for a handle we
+     * simply have not measured. The guard is the assignment being conditional.
+     */
+    ok(
+      'the reachability stamp only assigns a follower count it actually has',
+      (reachCode.match(/if \(hit\.followers != null\) r\.x_followers =/g) ?? [])
+        .length === 2
+    );
+
+    /**
      * Never a correlated EXISTS against the graph.
      *
      * The obvious shape for this feature is `OR EXISTS (...)` bolted onto the
@@ -5204,6 +5260,49 @@ async function main() {
         !flat.includes('getSocialGraphWithQuality(walletsToProcess)')
     );
 
+    /**
+     * The X follower count is stripped AFTER the stamp that produces it.
+     *
+     * The mid-pipeline paid-field strip clears the priority score and the
+     * Farcaster count, and it runs long before `stampReachability`, which is
+     * what sets `x_followers`. Stripping there would be a no-op on a field
+     * nothing has written yet, and the strip would then be undone by the stamp
+     * a few hundred lines later: every free and anonymous job would carry a
+     * paid figure, persisted into `lookup_history.results` and served again on
+     * every reopen.
+     *
+     * It is asserted by position rather than presence because presence is
+     * exactly what the broken version has. A strip in the wrong place looks
+     * completely correct at the line, reads as the obvious companion to the
+     * two beside it, and the column it fails to protect is simply populated,
+     * which is indistinguishable from the feature working.
+     */
+    const reachStampIdx = flat.indexOf('await stampReachability(results);');
+    const xStripIdx = flat.indexOf('r.x_followers = undefined;');
+    const paidStripIdx = flat.indexOf('result.fc_followers = undefined;');
+    ok(
+      'the job strips the X follower count for a job without paid fields',
+      xStripIdx !== -1 && flat.includes('if (!jobGetsPaidFields(options))')
+    );
+    ok(
+      'and it strips it after the stamp that sets it, not with the other paid fields',
+      reachStampIdx !== -1 &&
+        xStripIdx !== -1 &&
+        paidStripIdx !== -1 &&
+        paidStripIdx < reachStampIdx &&
+        reachStampIdx < xStripIdx
+    );
+    /**
+     * One rule, read from one function. Two hand-rolled copies of
+     * `paidData ?? tier` is how the mid-pipeline strip and this one come to
+     * disagree, and the direction that fails is toward giving paid data away.
+     */
+    ok(
+      'both paid-field gates read the same entitlement helper',
+      (flat.match(/jobGetsPaidFields\(options\)/g) ?? []).length === 2 &&
+        (flat.match(/options\.paidData \?\?/g) ?? []).length === 1
+    );
+
     ok(
       'the graph-error fallback cannot walk a suppressed wallet into the pipeline',
       flat.includes('walletsNeedingLookup.push(...activeWallets);') &&
@@ -7328,7 +7427,9 @@ async function main() {
      */
     ok(
       'the keyless lookup withholds the paid fields',
-      !/fcFollowers|priority_score|priorityScore/.test(walletToolSrc)
+      !/fcFollowers|priority_score|priorityScore|x_followers|xFollowers/.test(
+        walletToolSrc
+      )
     );
     /**
      * And it fails CLOSED on suppression. Answering while the removal list is
