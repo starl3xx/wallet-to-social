@@ -1538,6 +1538,123 @@ async function main() {
     );
   }
 
+
+  // ------------------------------- an attested identity outranks an agent claim
+  /**
+   * `known_agents` is scraped from Virtuals' API, whose per-agent
+   * `walletAddress` is frequently the CREATOR's wallet rather than an
+   * autonomous one. Measured on 2026-09-19: of the 536 agent wallets that
+   * resolve to an X handle, 492 carry an owner-attested identity that is not
+   * the agent's own, and 168 graph rows had the label stored.
+   *
+   * Left alone the product prints a badge reading `HOWLR` beside a wallet
+   * whose owner published `@thedojieth`: an inference presented over the top
+   * of the strongest evidence the index holds, which is the one thing
+   * CLAUDE.md says the attested treatment must never do.
+   *
+   * These run the real functions, because the claim is about what a row looks
+   * like afterwards and every failure here is silent.
+   */
+  {
+    const { agentClaimHolds, reconcileAgentClaim, hasAttestedIdentity } =
+      await import('@/lib/agent-claim');
+
+    /** The control: nothing attested, so the claim is the only evidence. */
+    ok(
+      'an agent claim stands when the owner published nothing to contradict it',
+      agentClaimHolds({}, null) === true &&
+        agentClaimHolds({ twitter_handle: 'someone' }, null) === true
+    );
+
+    /** The case this exists for. */
+    ok(
+      'an attested identity that is not the agent withdraws the claim',
+      agentClaimHolds(
+        { twitter_verified: true, twitter_handle: 'thedojieth' },
+        'HowlrBot'
+      ) === false &&
+        agentClaimHolds(
+          { farcaster_verified: true, farcaster: 'derek' },
+          null
+        ) === false
+    );
+
+    /**
+     * And the case it must not break. An agent with a verified social presence
+     * is a real thing: 31 of them are in the index, and a rule that took their
+     * badge away would be the same error in the other direction.
+     */
+    ok(
+      'an agent whose own account IS the attested one keeps its claim',
+      agentClaimHolds(
+        { twitter_verified: true, twitter_handle: 'AGGENT_ai' },
+        'AGGENT_ai'
+      ) === true &&
+        agentClaimHolds(
+          { twitter_verified: true, twitter_handle: '@aggent_ai' },
+          'AGGENT_ai'
+        ) === true
+    );
+
+    /**
+     * `=== true`, not truthiness. `undefined` means "not known on this path",
+     * and reading it as unattested would strip a claim on evidence nobody
+     * looked for.
+     */
+    ok(
+      'an unchecked row is not treated as attested',
+      hasAttestedIdentity({}) === false &&
+        hasAttestedIdentity({ twitter_verified: undefined }) === false &&
+        hasAttestedIdentity({ twitter_verified: false }) === false
+    );
+
+    /** The claim is withdrawn, not denied: absent is not false. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row: any = {
+      wallet: '0x1',
+      is_agent: true,
+      agent_name: 'Prime Data AI',
+      agent_verified: true,
+      twitter_verified: true,
+      twitter_handle: 'cryptoacv',
+      source: ['graph'],
+    };
+    const withdrawn = reconcileAgentClaim(row, null);
+    ok(
+      'withdrawing a claim removes the agent fields rather than setting them false',
+      withdrawn === true &&
+        !('is_agent' in row) &&
+        !('agent_name' in row) &&
+        !('agent_verified' in row) &&
+        row.twitter_handle === 'cryptoacv'
+    );
+  }
+
+  /**
+   * And it runs where the question can be asked.
+   *
+   * STEP 0 reads `known_agents` before the social graph, so nothing there
+   * knows what the owner published yet. A reconciliation placed alongside the
+   * detection would compare against fields that are still empty and withdraw
+   * nothing, which looks exactly like a rule that is working.
+   */
+  {
+    const jpAgent = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const detectIdx = jpAgent.indexOf('await detectKnownAgents(activeWallets)');
+    const graphIdx = jpAgent.indexOf('getSocialGraphWithQuality(activeWallets)');
+    const reconcileIdx = jpAgent.indexOf('reconcileAgentClaim(');
+    ok(
+      'the agent claim is reconciled after the graph read, not beside the detection',
+      detectIdx !== -1 &&
+        graphIdx !== -1 &&
+        reconcileIdx !== -1 &&
+        detectIdx < graphIdx &&
+        graphIdx < reconcileIdx
+    );
+  }
+
   // ------------------------------------------------------- OAuth: redirects
   // `redirectUriAllowed` is the single check standing between an authorization
   // code and whoever asked for it. Every case below is the attacker's.

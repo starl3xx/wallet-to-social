@@ -23,6 +23,7 @@ import { trackEvent } from '@/lib/analytics';
 import { chargeForJob } from '@/lib/credits';
 import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
+import { reconcileAgentClaim } from '@/lib/agent-claim';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 import type { UserTier } from '@/lib/access';
@@ -302,9 +303,20 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // STEP 0: Check known_agents table (highest confidence agent detection)
     // Pre-populate agent fields for known wallets before any API calls
     // =========================================================================
+    /**
+     * The agent's OWN X handle, kept past this block.
+     *
+     * STEP 0 runs before the social graph is read, so nothing here knows yet
+     * what the address owner published. The reconciliation that decides
+     * whether the agent claim survives that happens after STEP 1, and this map
+     * is how it gets the one field it needs without a second query.
+     */
+    const agentOwnHandles = new Map<string, string | undefined>();
+
     try {
       const knownAgentResults = await detectKnownAgents(activeWallets);
       for (const [wallet, agentData] of knownAgentResults) {
+        agentOwnHandles.set(wallet, agentData.agent_twitter_handle);
         const existing = results.get(wallet);
         if (existing) {
           results.set(wallet, {
@@ -678,6 +690,35 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Social graph enrichment is now done FIRST (see STEP 1 above)
     // This ensures we use high-quality cached data before calling external APIs
+
+    /**
+     * An owner-attested identity outranks a scraped agent claim.
+     *
+     * `known_agents` is Virtuals' own API, whose per-agent `walletAddress` is
+     * frequently the CREATOR's wallet. Measured against production on
+     * 2026-09-19: of the 536 agent wallets that resolve to an X handle, 492
+     * carry an attested identity that is not the agent's own. Left alone, the
+     * table prints a badge reading `HOWLR` beside a wallet whose owner
+     * published `@thedojieth`, which is an inference presented over the top of
+     * the strongest evidence the index holds.
+     *
+     * Here rather than in STEP 0 because the question cannot be asked until
+     * the socials are resolved, and here rather than at serve time because a
+     * withdrawn claim must not be persisted and then re-served from the cache,
+     * the graph or a saved lookup.
+     */
+    let agentClaimsWithdrawn = 0;
+    for (const [wallet, result] of results) {
+      if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
+        agentClaimsWithdrawn++;
+        results.set(wallet, result);
+      }
+    }
+    if (agentClaimsWithdrawn > 0) {
+      console.log(
+        `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
+      );
+    }
 
     // Priority scores and follower counts are paid result fields: any pack, or
     // a legacy tier. See JobOptions.paidData for why this is not a tier check.
