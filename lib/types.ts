@@ -40,6 +40,17 @@ export interface WalletSocialResult {
    * the index carry one.
    */
   x_followers?: number;
+  /**
+   * How the agent claim on this row was arrived at.
+   *
+   * `known_list` is a match against the scraped agent catalog; `bio_keyword`
+   * is a regex over a Farcaster bio and is a guess. The two are worth very
+   * different amounts and were indistinguishable on a stored row for as long
+   * as this column existed unwritten: `agent_verified` was the only hint, and
+   * it is set `true` for every catalog match regardless of whether anything
+   * verified anything.
+   */
+  agent_detection_source?: string;
   holdings?: number;
   priority_score?: number;
   lens?: string;

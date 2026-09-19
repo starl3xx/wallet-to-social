@@ -77,9 +77,13 @@ Agent wallets exhibit patterns that distinguish them from human behavior. No sin
 
 **Contract interaction patterns.** Agents call the same functions with systematic parameter variations. A human exploring DeFi interacts with diverse contracts in unpredictable patterns. An agent interacting with DeFi calls the same swap function hundreds of times with different amounts.
 
-**Social identity absence.** This is the strongest filter. Agent wallets almost never resolve to social profiles. When we run detected agent wallets through identity resolution, the match rate is **under 0.3%**, compared to approximately 22% for human wallets.
+**Social identity absence.** This is the strongest filter, and the exception to it is the most useful thing in this post. Run the agent wallets we hold through identity resolution and **6.2%** come back with a social identity, almost all of it owner-attested. That is far too high for a population of autonomous software, and the reason is not that agents are signing up for X.
 
-The identity check is the most efficient first pass: any wallet that resolves to a verified social profile (especially a Farcaster verified address) is almost certainly human-controlled. This doesn’t catch everything (some human wallets also lack social identities), but it cleanly separates a known-human group from an unknown group that needs further analysis.
+It is that an agent list is not a list of agents. The addresses come from the protocols that launch them, and the address a protocol records against an agent is very often the **creator’s** wallet: a person, who has an ENS name, a Farcaster account and a verified X handle, because people do. One agent in our own list names `@AGGENT_ai` as its account while the wallet filed under it resolves, attested, to a completely different person. The wallet belongs to whoever built the agent.
+
+So the identity check is the most efficient first pass, and it cuts in the direction you want: any wallet that resolves to a **verified** social profile, especially a Farcaster verified address or an onchain name record, is almost certainly human-controlled, whatever a vendor’s agent list says about it. An owner published that link. A list did not.
+
+walletlink applies that rule to its own data rather than leaving it to you: where a wallet carries an owner-attested identity that is not the agent’s own account, we withdraw the agent label instead of showing both. The label is a third-party claim, the attestation is the address owner’s, and presenting the weaker one over the top of the stronger is the mistake this whole post is about.
 
 ## A practical cleaning workflow
 

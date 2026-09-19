@@ -16,6 +16,15 @@ export interface AgentDetectionResult {
   agent_framework?: string;
   agent_type?: string;
   agent_token_symbol?: string;
+  /**
+   * The X handle of the AGENT itself, where the list holds one.
+   *
+   * Never put on a result row. It exists so `lib/agent-claim.ts` can tell an
+   * agent that has a social presence from the human who deployed it: the two
+   * are indistinguishable without it, and the wallet address alone is wrong
+   * about which one it belongs to far more often than not.
+   */
+  agent_twitter_handle?: string;
   agent_detection_source:
     | 'known_list'
     | 'bio_keyword'
@@ -31,6 +40,13 @@ export interface AgentDetectionResult {
 /**
  * Check wallets against the curated known_agents table.
  * Uses the same bulk IN query pattern as getCachedWallets().
+ *
+ * "Curated" overstates it, and the overstatement mattered. The table is
+ * scraped from Virtuals Protocol's own API, whose `walletAddress` per agent is
+ * frequently the CREATOR's wallet rather than an autonomous one. A match here
+ * is therefore a third-party claim about an address, not a verified fact about
+ * it, and `lib/agent-claim.ts` is what decides whether it survives contact with
+ * what the address owner published. This function only reports the claim.
  */
 export async function detectKnownAgents(
   wallets: string[]
@@ -54,6 +70,7 @@ export async function detectKnownAgents(
         agent_framework: row.framework ?? undefined,
         agent_type: row.agentType ?? undefined,
         agent_token_symbol: row.tokenSymbol ?? undefined,
+        agent_twitter_handle: row.twitterHandle ?? undefined,
         agent_detection_source: 'known_list',
         agent_verified: true,
       });

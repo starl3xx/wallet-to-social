@@ -24,6 +24,113 @@ All notable changes to walletlink.social. Newest first.
   time and stored with the results, so it cannot appear retroactively. Re-run
   the lookup to populate it.
 
+### 2026-09-19 (three things the agent classification said but did not do)
+
+- **The gate withheld what the counter called free.** `result-counts.ts` says
+  of its agent tally "Never gated: agent detection is free", and all six agent
+  fields were in `LOCKED_FIELDS`. `gateResults` runs server-side and
+  `countResults` runs in the browser afterwards, so on any gated lookup the
+  "AI agents" tile, the "Agents only" filter and the CSV all read a locked
+  agent row as a non-agent. The fields are ungated: what the gate withholds is
+  an identity somebody has not paid for, and "this address is an agent" is a
+  fact about the address rather than an identity belonging to a person.
+- **`/v1/reverse/*` returned no agent object**, while the internal
+  `/api/reverse` returned all six fields, so the same question answered
+  differently through the browser and the API, and the MCP reverse tools (which
+  sit on the public route) could never report an agent at all. Worth being
+  precise about the direction: `ReverseTwitterRecord` is `allOf: IdentityCore`
+  and `IdentityCore` declares `agent`, so **the published spec had been
+  promising this field all along**. The docs were right and the code was wrong.
+- **`agent_detection_source` was a dead column.** It exists on `wallet_cache`
+  and `social_graph`, documents a four-value vocabulary, is carried on
+  `AgentDetectionResult`, and nothing ever wrote it: the job processor dropped
+  it, the cache wrote `null` with a comment saying so, and the graph only ever
+  preserved a previous value that was always `null`. A catalog match and a
+  regex over a Farcaster bio were indistinguishable on a stored row, and the
+  only hint was `agent_verified`, which is `true` for every catalog match
+  whether or not anything verified anything. All three writers now write it,
+  and all four readers now return it: `getCachedWallets` and
+  `socialGraphToResult` each mapped the six `agent_*` fields and stopped, and
+  both merge helpers copied the same six, so the first fix filled a column
+  that no cache or graph hit could ever read back. A value that is stored and
+  never returned is indistinguishable from one that was never stored, which is
+  the confusion this was meant to end rather than relocate.
+- Three assertions, each verified against the real defect. The reverse one was
+  weak on the first pass and the adversarial run is what showed it: asserting
+  that `item.agent = {` appears is satisfied by `if (false) { item.agent = {`.
+  It checks the guard together with the body now.
+
+### 2026-09-19 (an attested identity outranks a scraped agent claim)
+
+- **Wallets belonging to people were labeled AI agents**, and the badge was
+  asserting an inference over the top of the strongest evidence the index
+  holds. `known_agents` is scraped from a launch protocol's own API, whose
+  per-agent `walletAddress` is frequently the **creator's** wallet rather than
+  an autonomous one.
+- Measured against production: of 13,622 agent wallets, 1,037 appear in the
+  graph and 536 resolve to an X handle. **492 of those carry an owner-attested
+  identity that is not the agent's own**, and 168 `social_graph` rows had the
+  label stored. Only 31 agree. The clearest case: agent `AGGENT`, whose own
+  account is `@AGGENT_ai`, filed against a wallet attested to `@avocato31`.
+- `lib/agent-claim.ts` withdraws the agent fields where an attested identity
+  contradicts the claim, keeps them where the agent's own account **is** the
+  attested one, and keeps them where nothing attested exists, because then the
+  claim is the only evidence there is.
+- **Withdrawn, not denied.** The fields are deleted rather than set false, on
+  the same absent-is-not-false rule the rest of the row follows: false is a
+  claim that we checked and it is not an agent, and that is not what happened.
+- It runs **after** the graph read. STEP 0 detects agents before any social
+  identity is known, so a reconciliation placed beside the detection would
+  compare against empty fields, withdraw nothing, and look exactly like a rule
+  that works. Asserted by position.
+- `known_agents` is never edited. It is an L0 fact with provenance, and the
+  claim is still true of the agent; it is just not true of that address.
+- `scripts/backfill-agent-claims.ts` clears the 168 rows already written.
+  Saved lookups are left alone: they record what a customer was shown on a
+  date, and rewriting them would make an old export disagree with the file
+  already downloaded.
+- **A published figure was wrong by twentyfold.** The agent blog post claimed
+  agent wallets resolve to a social identity "under 0.3%" of the time. The
+  measured rate is **6.2%**, and the gap is the whole finding: an agent list
+  that resolves to people is a list holding creators' wallets. The passage now
+  says the measured number, explains why it is high, and the figure is
+  registered so it cannot drift again.
+- Reflected in the README, `PROJECT_OVERVIEW.md`, `llms.txt` and the public
+  API field description in `docs-site`.
+
+### 2026-09-19 (pr:status stops passing PRs with unread findings)
+
+- **"No issues found" is not the same as "nothing to read."** Bugbot's summary
+  distinguishes what it found on THIS run from what remains open from an
+  earlier one, and a re-review of an unchanged finding reports the first as
+  zero while the second stays non-zero.
+- A PR reading _"no issues found. 2 previously reported issues remain
+  unresolved"_ passed `npm run pr:status` on the day that command was written,
+  and both of those were regressions introduced by the change under review:
+  figure column headers clipping at the new widths, and the priority score
+  disappearing under the sticky details column.
+- An unresolved count now refuses on its own, independent of whether the
+  current run found anything, and the output says which of the two it is
+  rather than collapsing both into one sentence.
+
+### 2026-09-19 (Create X list did nothing at all)
+
+- **The menu row opened a dialog that the same click destroyed.**
+  `OverflowMenu` renders its panel as `{open && …}` and closes on any click
+  inside it; its own comment says "activating a row unmounts the row". The X
+  list dialog was owned by the menu row, so it was unmounted in the same tick
+  it was opened. Nothing threw, nothing logged, and the row looked correctly
+  wired at every line you would read.
+- The dialog is now a separate component the page renders **outside** the
+  menu, with its open state on the page, which outlives both. The row owns
+  nothing worth losing, because the row does not survive its own click.
+- Asserted per component rather than per file: a component that renders a
+  `MenuItem` must not also render a `Modal`. Per file would have called the
+  fix a violation, since the row and the dialog deliberately share a module.
+  A second assertion pins the menu's unmount-on-activate behaviour, so if that
+  ever changes the first rule is known to be merely tidy rather than load
+  bearing.
+
 ### 2026-09-19 (a result set becomes an X list)
 
 - **"Create X list" turns the reachable handles of a lookup into a real X list

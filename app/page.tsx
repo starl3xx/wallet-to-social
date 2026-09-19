@@ -7,7 +7,11 @@ import dynamic from 'next/dynamic';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
-import { XListMenuItem, XListStatus } from '@/components/XListAction';
+import {
+  XListMenuItem,
+  XListDialog,
+  XListStatus,
+} from '@/components/XListAction';
 import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
@@ -306,6 +310,14 @@ export default function Home() {
 
   // Current lookup tracking (for results view)
   const [currentLookupId, setCurrentLookupId] = useState<string | null>(null);
+  /**
+   * The X list dialog's open state lives here, not in the menu row.
+   *
+   * `OverflowMenu` renders its panel as `{open && ...}` and closes on any
+   * click inside it, so a dialog owned by a menu item is unmounted by the very
+   * click that opens it. The page outlives the menu; the dialog belongs to it.
+   */
+  const [xListOpen, setXListOpen] = useState(false);
   const [currentLookupName, setCurrentLookupName] = useState<string | null>(
     null
   );
@@ -2710,8 +2722,8 @@ export default function Home() {
                       on this item and the count in the file cannot disagree. */}
                   <XListMenuItem
                     handles={reachableHandlesInPriorityOrder(results)}
-                    defaultName={lookupName}
                     entitled={entitled}
+                    onOpen={() => setXListOpen(true)}
                     onUpgradeClick={handleOpenUpgradeModal}
                   />
                   <MenuItem onClick={handleReset}>
@@ -2854,6 +2866,15 @@ export default function Home() {
                 for. It renders nothing at all when there is no list outcome in
                 the URL, which is every other visit. */}
             <XListStatus />
+            {/* Outside OverflowMenu deliberately: see XListAction's header.
+                A dialog inside the menu panel is unmounted by the click that
+                opens it, and the symptom is a menu row that does nothing. */}
+            <XListDialog
+              open={xListOpen}
+              onOpenChange={setXListOpen}
+              handles={reachableHandlesInPriorityOrder(results)}
+              defaultName={lookupName}
+            />
             <StatsCards results={results} />
             <ResultsTable
               results={results}

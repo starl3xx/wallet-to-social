@@ -56,6 +56,21 @@ above got it wrong in the other direction, by claiming the score was in the free
 CSV. Read `ExportButton` **and** `job-processor` before writing that something is
 or is not included.
 
+**An owner-attested identity outranks a scraped agent claim.** `known_agents`
+is populated from a launch protocol's own API, whose per-agent `walletAddress`
+is frequently the **creator's** wallet rather than an autonomous one. Measured
+2026-09-19: of the 536 agent wallets that resolve to an X handle, 492 carry an
+attested identity that is not the agent's own, and 168 `social_graph` rows had
+the label stored. `lib/agent-claim.ts` withdraws the agent fields on those
+rows; it keeps the claim where the agent's own account IS the attested one, and
+where nothing attested contradicts it. It runs AFTER the graph read, because
+STEP 0 detects agents before any social identity is known and a reconciliation
+placed there would compare against empty fields and withdraw nothing, which
+looks exactly like a rule that works. Withdrawn rather than denied: the fields
+are deleted, not set false, on the same absent-is-not-false rule as the rest of
+the row. `known_agents` itself is never edited; it is an L0 fact and the claim
+is still true of the agent, just not of that address.
+
 `x_followers` is the third paid field and it is stripped in a **different
 place**, which is a thing to know before moving either. The two above are
 cleared mid-pipeline; `x_followers` does not exist yet at that point, because

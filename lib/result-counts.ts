@@ -50,7 +50,15 @@ export interface ResultCounts {
   twitter: number;
   /** Rows carrying a visible Farcaster account. */
   farcaster: number;
-  /** Rows flagged as an AI agent. Never gated: agent detection is free. */
+  /**
+   * Rows flagged as an AI agent.
+   *
+   * Never gated: agent detection is free, and `LOCKED_FIELDS` in
+   * `lib/match-gate.ts` is what has to keep that true. It did not until
+   * 2026-09-19: all six agent fields were withheld from locked rows, so this
+   * count, the filter and the CSV silently undercounted on any gated lookup.
+   * `check-invariants` now asserts the two agree.
+   */
   agents: number;
   /**
    * Rows the lookup resolved to an X handle or a Farcaster account, including

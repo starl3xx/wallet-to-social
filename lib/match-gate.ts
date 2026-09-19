@@ -79,12 +79,24 @@ const LOCKED_FIELDS = [
   'fc_fid',
   'fc_bio',
   'priority_score',
-  'is_agent',
-  'agent_name',
-  'agent_framework',
-  'agent_type',
-  'agent_token_symbol',
-  'agent_verified',
+  /**
+   * The agent fields are NOT here, and their absence is the fix rather than
+   * an oversight.
+   *
+   * `lib/result-counts.ts` says of its agent tally: "Never gated: agent
+   * detection is free." That was a claim the code contradicted. All six agent
+   * fields were in this list, `gateResults` runs server-side before the rows
+   * reach the browser, and `countResults` runs in `StatsCards` afterwards, so
+   * on any gated lookup the "AI agents" tile, the "Agents only" filter and the
+   * CSV all read a locked agent row as a non-agent and undercounted.
+   *
+   * Free is also the right answer. What this gate withholds is the identity a
+   * customer has not paid for: a handle, an account, the reach attached to
+   * them. "This address is an agent" is a fact ABOUT the address rather than
+   * an identity belonging to a person, it is what the exclusion use case is
+   * sold on, and withholding it makes a paid row and a free row disagree about
+   * what the same wallet is.
+   */
 ] as const;
 
 export function isBillableMatch(row: WalletSocialResult): boolean {
