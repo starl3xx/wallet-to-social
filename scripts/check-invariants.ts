@@ -1672,6 +1672,25 @@ async function main() {
         reconcileIdx < cacheWriteIdx
     );
     /**
+     * The reconcile walks THIS chunk, not every loaded row.
+     *
+     * `results` carries `partialResults` from every earlier chunk, while
+     * `agentOwnHandles` holds only what this chunk looked up. Iterating all of
+     * `results` re-checked an earlier chunk's kept claim with a missing
+     * handle and deleted it, so every job past CHUNK_SIZE dropped exactly the
+     * badges the rule exists to preserve, and only on the large jobs.
+     */
+    ok(
+      'the reconcile iterates this chunk, not every row loaded from partial results',
+      /for \(const wallet of activeWallets\) \{ const result = results\.get\(wallet\);/.test(
+        jpAgent
+      ) &&
+        !/for \(const \[wallet, result\] of results\) \{ if \(reconcileAgentClaim/.test(
+          jpAgent
+        )
+    );
+
+    /**
      * A Farcaster account found through verified addresses is attested, and
      * the row has to say so or the rule above has nothing to act on. The flag
      * used to arrive only from the graph merge, so a first lookup of an unseen

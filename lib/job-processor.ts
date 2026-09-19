@@ -695,8 +695,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
          * the next lookup: the re-serve from cache this placement exists to
          * prevent, reintroduced by being sixty lines too late.
          */
+        /**
+         * This chunk's wallets, not every row loaded.
+         *
+         * `results` carries `partialResults` from every earlier chunk of the
+         * same job, and `agentOwnHandles` only ever holds what THIS chunk
+         * looked up. Walking all of `results` therefore re-checked an earlier
+         * chunk's KEPT claim with a missing handle, `agentClaimHolds` read
+         * the agent's own attested account as a contradiction, and the badge
+         * was deleted. Every job past CHUNK_SIZE, which is every contract
+         * import and every large CSV, silently dropped exactly the claims
+         * this rule exists to preserve.
+         *
+         * A row is reconciled in the chunk that resolved it and never again.
+         * For a wallet in this chunk, absent from the map is the right input
+         * rather than a missing one: a bio-keyword agent has no
+         * `known_agents` record and so no account of its own, and a guess
+         * from a bio is the weakest claim here, so an attested identity
+         * should withdraw it.
+         */
         let agentClaimsWithdrawn = 0;
-        for (const [wallet, result] of results) {
+        for (const wallet of activeWallets) {
+          const result = results.get(wallet);
+          if (!result) continue;
           if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
             agentClaimsWithdrawn++;
             results.set(wallet, result);
