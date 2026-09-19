@@ -17,6 +17,24 @@ All notable changes to walletlink.social. Newest first.
   current run found anything, and the output says which of the two it is
   rather than collapsing both into one sentence.
 
+### 2026-09-19 (Create X list did nothing at all)
+
+- **The menu row opened a dialog that the same click destroyed.**
+  `OverflowMenu` renders its panel as `{open && …}` and closes on any click
+  inside it; its own comment says "activating a row unmounts the row". The X
+  list dialog was owned by the menu row, so it was unmounted in the same tick
+  it was opened. Nothing threw, nothing logged, and the row looked correctly
+  wired at every line you would read.
+- The dialog is now a separate component the page renders **outside** the
+  menu, with its open state on the page, which outlives both. The row owns
+  nothing worth losing, because the row does not survive its own click.
+- Asserted per component rather than per file: a component that renders a
+  `MenuItem` must not also render a `Modal`. Per file would have called the
+  fix a violation, since the row and the dialog deliberately share a module.
+  A second assertion pins the menu's unmount-on-activate behaviour, so if that
+  ever changes the first rule is known to be merely tidy rather than load
+  bearing.
+
 ### 2026-09-19 (a result set becomes an X list)
 
 - **"Create X list" turns the reachable handles of a lookup into a real X list
