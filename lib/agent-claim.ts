@@ -67,6 +67,15 @@ const AGENT_FIELDS = [
   'agent_type',
   'agent_token_symbol',
   'agent_verified',
+  /**
+   * The detection source goes too, and it is easy to miss because it is the
+   * one agent field that is not named `agent_*` in the graph's own vocabulary
+   * and was NULL everywhere until recently. A withdrawn row that still carries
+   * `known_list` is a leftover catalog claim about an address the product has
+   * just declined to call an agent, stored in `wallet_cache` and
+   * `social_graph` where the next reader finds it.
+   */
+  'agent_detection_source',
 ] as const;
 
 /**

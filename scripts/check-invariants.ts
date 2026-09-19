@@ -1850,6 +1850,32 @@ async function main() {
      * the only hint was `agent_verified`, which is `true` for every catalog
      * match whether or not anything verified anything.
      */
+    /**
+     * Both writers, not just the catalog one. `detectAgentFromBio` always
+     * returned the source and the merge always dropped it, so every
+     * bio-keyword row stored NULL and was indistinguishable from a catalog
+     * match written before the column was filled at all, which is the exact
+     * confusion filling it was meant to end.
+     */
+    ok(
+      'a bio detection records its source, like a catalog match does',
+      /agent_detection_source: bioResult\.agent_detection_source/.test(
+        withoutComments(readFileSync('lib/job-processor.ts', 'utf8'))
+      )
+    );
+
+    /**
+     * And a withdrawal takes it with the rest. A row that still says
+     * `known_list` after the claim is gone is a leftover catalog claim about
+     * an address the product has just declined to call an agent.
+     */
+    ok(
+      'withdrawing a claim clears the detection source too',
+      /'agent_detection_source',/.test(
+        withoutComments(readFileSync('lib/agent-claim.ts', 'utf8'))
+      )
+    );
+
     ok(
       'the detection source is written, not just declared',
       /agent_detection_source: agentData\.agent_detection_source/.test(

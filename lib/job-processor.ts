@@ -605,6 +605,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
               ...existing,
               is_agent: true,
               agent_verified: false,
+              /**
+               * Copied, like the catalog branch copies it. `detectAgentFromBio`
+               * has always returned this and the merge always dropped it, so
+               * every bio-keyword row stored NULL and was indistinguishable
+               * from a catalog match written before the column was written at
+               * all. Which is the whole reason the column was worth filling.
+               */
+              agent_detection_source: bioResult.agent_detection_source,
             });
           }
         }
