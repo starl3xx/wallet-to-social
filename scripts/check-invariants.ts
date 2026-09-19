@@ -1315,6 +1315,48 @@ async function main() {
     );
 
     /**
+     * Every path that leaves a job runnable releases the lease.
+     *
+     * The lease covers a tick in flight; it is not a pacing mechanism. A tick
+     * that gives up after four seconds and leaves `leased_until` set hides the
+     * row for the rest of five minutes, so the list stalls under exactly the
+     * conditions where it should retry hardest: a timeout, a rate limit before
+     * creation, an unreadable suppression list.
+     *
+     * Counted rather than merely present, because there are four such paths
+     * and an assertion satisfied by one of them passes while three stall.
+     */
+    ok(
+      'every runnable exit from a tick clears the lease',
+      // Anchored on the CALL, not on the SQL string. The first version counted
+      // occurrences of `leased_until = NULL`, which the helper's own body
+      // keeps satisfying after every call site is deleted: it passed happily
+      // with the suppression path leaving a job hidden for five minutes.
+      /async function releaseLease/.test(worker) &&
+        /Suppression read failed[\s\S]{0,120}await releaseLease\(job\.id\)/.test(
+          worker
+        ) &&
+        (flatWorker.match(/leased_until = NULL/g) ?? []).length >= 4
+    );
+
+    /**
+     * Progress resets the transient counter.
+     *
+     * The counter means consecutive ticks that achieved nothing. Incrementing
+     * it whenever a tick merely ENDED on a transient failure kills a long list
+     * that is adding steadily and meeting the occasional timeout, and reports
+     * "too many transient failures" about a job whose every tick made
+     * progress. The constant's own comment claimed this behaviour before the
+     * code did it, which is the shape this file exists to refuse.
+     */
+    ok(
+      'anything added clears the transient-failure counter',
+      /transient && added === 0 \? job\.transient_failures \+ 1 : 0/.test(
+        flatWorker
+      )
+    );
+
+    /**
      * A create whose reply was lost is adopted, not repeated. X has no
      * idempotency key here, so without this the customer collects duplicate
      * empty lists while members attach to whichever id was stored last.

@@ -133,6 +133,28 @@ async function finish(
 }
 
 /**
+ * Hand the job back before the lease would have expired.
+ *
+ * Every path that ends a tick while leaving the job runnable has to do this.
+ * The lease exists to cover a tick that is in flight, not to pace the work, so
+ * a tick that gives up after four seconds must not hide the row for the rest
+ * of five minutes: the next one-minute cron should pick it straight up.
+ *
+ * Missing it is invisible in the ordinary case and only shows as a list that
+ * stalls for minutes at a time under exactly the conditions, a timeout or an
+ * unreadable suppression list, where it should be retrying hardest.
+ */
+async function releaseLease(jobId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await db.execute(sql`
+    UPDATE x_list_jobs
+    SET leased_until = NULL, updated_at = now()
+    WHERE id = ${jobId}::uuid
+  `);
+}
+
+/**
  * Claim and advance one job.
  *
  * One per tick, deliberately. Two jobs in flight would share one account's
@@ -304,8 +326,11 @@ export async function runXListTick(): Promise<TickResult> {
         const retry = rateLimited(res);
         if (retry) {
           await db.execute(sql`
-            UPDATE x_list_jobs SET retry_after = ${retry.toISOString()},
-              updated_at = now() WHERE id = ${job.id}::uuid
+            UPDATE x_list_jobs
+            SET retry_after  = ${retry.toISOString()},
+                leased_until = NULL,
+                updated_at   = now()
+            WHERE id = ${job.id}::uuid
           `);
           return {
             jobId: job.id,
@@ -340,7 +365,9 @@ export async function runXListTick(): Promise<TickResult> {
       // Transient by assumption: left running so the next tick retries, rather
       // than failed, because a timeout is not a refusal.
       await db.execute(sql`
-        UPDATE x_list_jobs SET updated_at = now() WHERE id = ${job.id}::uuid
+        UPDATE x_list_jobs
+        SET leased_until = NULL, updated_at = now()
+        WHERE id = ${job.id}::uuid
       `);
       return {
         jobId: job.id,
@@ -384,6 +411,7 @@ export async function runXListTick(): Promise<TickResult> {
     suppressed = sets.get('twitter') ?? new Set<string>();
   } catch (error) {
     console.error('Suppression read failed; skipping this batch:', error);
+    await releaseLease(job.id);
     return {
       jobId: job.id,
       added: 0,
@@ -462,7 +490,21 @@ export async function runXListTick(): Promise<TickResult> {
    * of the lease; the next minute's tick ought to pick it straight up. The
    * lease exists to cover a tick in flight, not to pace the work.
    */
-  const nextTransient = transient ? job.transient_failures + 1 : 0;
+  /**
+   * Progress resets the counter, which is what the constant's own comment
+   * claims and what the first version did not do.
+   *
+   * It incremented whenever a tick ENDED on a transient failure, even one that
+   * had just added nineteen members. A long list that adds steadily and meets
+   * the occasional timeout would climb to the limit and stop while it was
+   * working perfectly well, and the stated reason would be "too many transient
+   * failures" on a job whose every tick made progress.
+   *
+   * The counter means consecutive ticks that achieved NOTHING, so anything
+   * added clears it.
+   */
+  const nextTransient =
+    transient && added === 0 ? job.transient_failures + 1 : 0;
   if (nextTransient >= MAX_TRANSIENT_FAILURES) {
     await finish(
       job.id,
