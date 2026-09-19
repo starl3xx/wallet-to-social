@@ -43,6 +43,19 @@
  * Nor does it claim the wallet is not an agent. It declines to assert that it
  * is, which is the honest position when the only evidence for the claim is
  * contradicted by better evidence against it.
+ *
+ * ## It applies to CATALOG claims only
+ *
+ * The caller decides which claims to put through this, and only claims from
+ * `known_agents` belong here. The defect is specific to that source: a third
+ * party names an ADDRESS as an agent's and the address is often the creator's.
+ *
+ * A bio-keyword claim is a different shape of thing. It is made about the
+ * Farcaster account attached to this wallet, which the owner verified, so an
+ * attested Farcaster identity does not contradict it, it IS its evidence.
+ * Passing one through here withdraws it every time, because the wallet has an
+ * attestation and no catalog handle to match against, and it takes with it
+ * exactly the agents whose own account is the presence worth keeping.
  */
 import type { WalletSocialResult } from './types';
 

@@ -1751,6 +1751,21 @@ async function main() {
      * casing, so a mixed-case address missed both maps and skipped withdrawal
      * with no sign that it had.
      */
+    /**
+     * Only catalog claims are reconciled.
+     *
+     * A bio-keyword claim is about the Farcaster account attached to this
+     * wallet, which its owner verified, so the attestation is that claim's
+     * evidence rather than a contradiction of it. Putting one through the rule
+     * withdraws it every time: the wallet is never in `agentOwnHandles` and
+     * `farcaster_verified` is always set by then, because bio detection runs
+     * after Neynar.
+     */
+    ok(
+      'only a catalog claim is reconciled, never a bio-keyword one',
+      /if \(!agentOwnHandles\.has\(wallet\)\) continue;/.test(jpAgent)
+    );
+
     ok(
       'and lowercases the wallet before looking it up in either map',
       /const wallet = rawWallet\.toLowerCase\(\); const result = results\.get\(wallet\);/.test(
