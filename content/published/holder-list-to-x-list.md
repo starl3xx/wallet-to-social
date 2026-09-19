@@ -29,7 +29,7 @@ An X list is different in three ways that matter.
 
 Two questions decide whether this is worth doing for a given collection: how many holders have an X account at all, and how many of those accounts still work.
 
-The first answer depends far more on the chain than on the collection. Measured across the index on 2026-08-17, **46.2% of Base holders were reachable on X or Farcaster, against 16.6% on Ethereum**. A community that grew up on Base is simply more findable than one that did not, and no tool changes that.
+The first answer depends far more on the chain than on the collection. Measured across the index, **Base holders are reachable on X or Farcaster at several times the rate of Ethereum holders**. A community that grew up on Base is simply more findable than one that did not, and no tool changes that. The current per-chain rates, with the date they were measured, are on the [coverage page](https://docs.walletlink.social/concepts/coverage).
 
 The second question is the one almost nobody asks, and it is where most holder lists quietly rot. People rename on X. Accounts get suspended. A handle somebody attested to their wallet two years ago may now belong to a complete stranger who bought the name.
 
@@ -50,7 +50,7 @@ That last state is the dangerous one, because it looks healthy. The handle works
 
 **X caps a list at 5,000 members.** A larger holder list is truncated, and we tell you by how many rather than quietly shortening it.
 
-**Not everyone is findable.** Across the whole index, about 4.85 million wallets are covered, and even on the best chains most holders have published no social identity at all. A list from a low-attestation community can legitimately come back small. That is an answer about the community, not a failure of the lookup.
+**Not everyone is findable.** Even on the best chains most holders have published no social identity at all. A list from a low-attestation community can legitimately come back small, and that is an answer about the community rather than a failure of the lookup.
 
 **Renames are still a hard problem.** An X handle that changed hands is detectable only where we hold the numeric account id attested alongside the wallet, and we do not hold one for every row. Where we cannot tell, the handle is marked unchecked rather than guessed at, because the alternative is a confident wrong answer.
 
