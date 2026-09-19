@@ -200,11 +200,18 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\nOK. Two follow-ups, both with the owner role:');
-  console.log('  1. Add x_list_jobs to READ_ONLY_TABLES in');
-  console.log('     scripts/migrate-grant-readonly.ts and run it.');
-  console.log('  2. Run scripts/migrate-suppression.ts, which now attaches a');
-  console.log('     suppression guard to this table.');
+  console.log('\nOK. One follow-up, with the owner role:');
+  console.log('  Add x_list_jobs to READ_ONLY_TABLES in');
+  console.log('  scripts/migrate-grant-readonly.ts and run it.');
+  console.log('');
+  console.log('This table deliberately carries NO suppression trigger, and');
+  console.log('that is not an oversight: suppression_guard_skip silently');
+  console.log('discards every later UPDATE to a guarded row, and the most');
+  console.log('important UPDATE here is the one that NULLs the sealed access');
+  console.log('token when a job ends. A guard would preserve a working');
+  console.log('third-party credential for exactly the person who asked to be');
+  console.log('removed. It is in SUPPRESSION_EXCLUDED_TABLES with that');
+  console.log('argument written out, and eraseIdentifier deletes the row.');
 }
 
 main().catch((e) => {
