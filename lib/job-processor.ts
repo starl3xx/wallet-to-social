@@ -987,6 +987,8 @@ function mergeGraphRow(
     agent_token_symbol:
       existing.agent_token_symbol || stored.agent_token_symbol,
     agent_verified: existing.agent_verified || stored.agent_verified,
+    agent_detection_source:
+      existing.agent_detection_source || stored.agent_detection_source,
   };
 }
 
@@ -1026,6 +1028,8 @@ function mergeCacheRow(
     agent_type: existing.agent_type || data.agent_type,
     agent_token_symbol: existing.agent_token_symbol || data.agent_token_symbol,
     agent_verified: existing.agent_verified || data.agent_verified,
+    agent_detection_source:
+      existing.agent_detection_source || data.agent_detection_source,
   };
 }
 

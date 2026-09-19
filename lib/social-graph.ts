@@ -1120,6 +1120,7 @@ export function socialGraphToResult(
     agent_type: record.agentType ?? undefined,
     agent_token_symbol: record.agentTokenSymbol ?? undefined,
     agent_verified: record.agentVerified ?? undefined,
+    agent_detection_source: record.agentDetectionSource ?? undefined,
   };
 }
 

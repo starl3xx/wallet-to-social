@@ -48,6 +48,10 @@ export async function getCachedWallets(
         agent_type: row.agentType ?? undefined,
         agent_token_symbol: row.agentTokenSymbol ?? undefined,
         agent_verified: row.agentVerified ?? undefined,
+        // Read back, not just written. Filling the column and dropping it here
+        // leaves a bio-keyword row indistinguishable from an unfilled one on
+        // every cache hit, which is the confusion filling it was meant to end.
+        agent_detection_source: row.agentDetectionSource ?? undefined,
       });
     }
 

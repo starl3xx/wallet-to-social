@@ -26,7 +26,13 @@ All notable changes to walletlink.social. Newest first.
   preserved a previous value that was always `null`. A catalog match and a
   regex over a Farcaster bio were indistinguishable on a stored row, and the
   only hint was `agent_verified`, which is `true` for every catalog match
-  whether or not anything verified anything. All three writers now write it.
+  whether or not anything verified anything. All three writers now write it,
+  and all four readers now return it: `getCachedWallets` and
+  `socialGraphToResult` each mapped the six `agent_*` fields and stopped, and
+  both merge helpers copied the same six, so the first fix filled a column
+  that no cache or graph hit could ever read back. A value that is stored and
+  never returned is indistinguishable from one that was never stored, which is
+  the confusion this was meant to end rather than relocate.
 - Three assertions, each verified against the real defect. The reverse one was
   weak on the first pass and the adversarial run is what showed it: asserting
   that `item.agent = {` appears is satisfied by `if (false) { item.agent = {`.

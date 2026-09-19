@@ -1938,6 +1938,40 @@ async function main() {
           withoutComments(readFileSync('lib/social-graph.ts', 'utf8'))
         )
     );
+
+    /**
+     * And it comes back, which the assertion above does not cover and did not
+     * catch. Every writer filled the column while all four readers dropped it:
+     * `getCachedWallets` and `socialGraphToResult` each mapped the six
+     * `agent_*` fields and stopped, and both merge helpers copied the same
+     * six. A stored source therefore never reached a result object on a cache
+     * or graph hit, so a bio-keyword row still read exactly like an unfilled
+     * one and the column was dead in the direction that matters to a reader.
+     *
+     * Asserting the write alone is the mistake this file exists to prevent:
+     * a value that is stored and never returned is indistinguishable from one
+     * that was never stored.
+     */
+    const jobSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    ok(
+      'a stored detection source comes back on a cache or graph hit',
+      /agent_detection_source:\s*row\.agentDetectionSource/.test(
+        withoutComments(readFileSync('lib/cache.ts', 'utf8'))
+      ) &&
+        /agent_detection_source:\s*record\.agentDetectionSource/.test(
+          withoutComments(readFileSync('lib/social-graph.ts', 'utf8'))
+        ) &&
+        // Both merge helpers, not one: `mergeGraphRow` and `mergeCacheRow`
+        // carry a result forward on different hit paths, and a field restored
+        // on only one of them is still lost on the other.
+        (
+          jobSrc.match(
+            /agent_detection_source:\s*existing\.agent_detection_source \|\|/g
+          ) ?? []
+        ).length === 2
+    );
   }
 
   // ------------------------------------------------------- OAuth: redirects
