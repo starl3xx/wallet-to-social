@@ -179,14 +179,36 @@ async function main() {
      */
     const unresolvedCount = unresolved ? Number(unresolved[1]) : 0;
     if (!clean || found || unresolvedCount > 0) {
+      /**
+       * Only state a count that was actually read.
+       *
+       * The first version printed both lines unconditionally and treated a
+       * regex that matched nothing as a zero, so a refusal triggered purely by
+       * `!clean` came out as "No NEW issues on this run. Nothing outstanding
+       * from earlier runs." above the word REFUSED: the output contradicted
+       * itself and stopped saying why it was blocking. An unrecognised summary
+       * is its own reason, and the summary itself is the useful thing to show.
+       */
       problems.push(
-        `${r.name} reports neutral, which the PR page renders as "skipping".`,
-        found
-          ? `  ${found[1]} potential issue(s) found on this run.`
-          : '  No NEW issues on this run.',
-        unresolvedCount > 0
-          ? `  ${unresolvedCount} previously reported issue(s) STILL UNRESOLVED.`
-          : '  Nothing outstanding from earlier runs.',
+        `${r.name} reports neutral, which the PR page renders as "skipping".`
+      );
+      if (found) {
+        problems.push(`  ${found[1]} potential issue(s) found on this run.`);
+      }
+      if (unresolvedCount > 0) {
+        problems.push(
+          `  ${unresolvedCount} previously reported issue(s) STILL UNRESOLVED.`
+        );
+      }
+      if (!found && unresolvedCount === 0) {
+        problems.push(
+          '  Its summary was not recognisable as a clean pass, and no count',
+          '  could be read out of it. Treated as unread work rather than as',
+          '  nothing, because the shape of that sentence is what changes when',
+          '  the provider rewords it. The summary is printed above.'
+        );
+      }
+      problems.push(
         'Read the review comments before merging:',
         `  gh api repos/{owner}/{repo}/pulls/${number}/comments --jq '.[] | .body'`
       );
