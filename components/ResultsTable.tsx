@@ -1001,10 +1001,13 @@ export const ResultsTable = memo(function ResultsTable({
        and no wider, and the identity columns divide what is left. */
     const tracks: Array<[min: number, grow: number]> = [
       [GUTTER_WIDTH, 0], // attestation gutter
-      // 140 rather than 120: an elided address is ~95px and the rows that
-      // carry an agent or whitelist badge need the rest. Measured against a
-      // live holder list, the wallet cell was one of the three that bled.
-      [140, 2], // wallet
+      /* 176, measured rather than picked, and 140 was not enough. The elided
+         address is 11 characters of 12px mono, about 79px, plus an 8px gap
+         and 32px of cell padding: at 140 that leaves 21px for a badge, which
+         is four characters of one. The agent rows are the only ones carrying
+         a badge and they are the rows this column exists to mark, so the
+         track is sized for the row that has something to say. */
+      [176, 2], // wallet
       [100, 2], // ENS
       // A bag is one to four digits. Fixed: it has no reason to stretch.
       ...(hasHoldings ? ([[100, 0]] as Array<[number, number]>) : []),
@@ -1542,7 +1545,19 @@ export const ResultsTable = memo(function ResultsTable({
                         {result.is_agent && (
                           <Badge
                             tone="brand"
-                            className="shrink-0"
+                            /* `min-w-0 shrink` rather than `shrink-0`, and the
+                               difference is whether this degrades legibly. The
+                               wallet cell is `overflow-hidden` so it cannot
+                               bleed into ENS, and a badge that refuses to
+                               shrink is simply cut by that clip: "HOWLR" came
+                               out as "HOWL", "Banksy" as "BANK" and "Mario is
+                               back" as "MARI", with no ellipsis to say
+                               anything had been cut. Four characters of an
+                               agent's name reads as a random token symbol,
+                               which is exactly how it was reported. Shrinking
+                               lets Badge's own inner truncate do the work and
+                               put the ellipsis where it belongs. */
+                            className="min-w-0 shrink"
                             title={[
                               result.agent_name,
                               result.agent_framework &&
