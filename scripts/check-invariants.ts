@@ -1646,6 +1646,9 @@ async function main() {
       'getSocialGraphWithQuality(activeWallets)'
     );
     const reconcileIdx = jpAgent.indexOf('reconcileAgentClaim(');
+    const cacheWriteIdx = jpAgent.indexOf(
+      'await cacheWalletResults(walletsToCache)'
+    );
     ok(
       'the agent claim is reconciled after the graph read, not beside the detection',
       detectIdx !== -1 &&
@@ -1653,6 +1656,52 @@ async function main() {
         reconcileIdx !== -1 &&
         detectIdx < graphIdx &&
         graphIdx < reconcileIdx
+    );
+    /**
+     * And BEFORE the cache is written, which is the half that was wrong.
+     *
+     * Reconciling after `cacheWalletResults` writes the withdrawn claim into
+     * `wallet_cache` anyway, and `mergeCacheRow` ORs a cached `is_agent` back
+     * onto the next lookup. The rule then looks like it works, once, and the
+     * claim returns from the cache on every lookup after that.
+     */
+    ok(
+      'and before the cache write, or the withdrawn claim is cached and ORed back',
+      reconcileIdx !== -1 &&
+        cacheWriteIdx !== -1 &&
+        reconcileIdx < cacheWriteIdx
+    );
+    /**
+     * The reconcile walks THIS chunk, not every loaded row.
+     *
+     * `results` carries `partialResults` from every earlier chunk, while
+     * `agentOwnHandles` holds only what this chunk looked up. Iterating all of
+     * `results` re-checked an earlier chunk's kept claim with a missing
+     * handle and deleted it, so every job past CHUNK_SIZE dropped exactly the
+     * badges the rule exists to preserve, and only on the large jobs.
+     */
+    ok(
+      'the reconcile iterates this chunk, not every row loaded from partial results',
+      /for \(const wallet of activeWallets\) \{ const result = results\.get\(wallet\);/.test(
+        jpAgent
+      ) &&
+        !/for \(const \[wallet, result\] of results\) \{ if \(reconcileAgentClaim/.test(
+          jpAgent
+        )
+    );
+
+    /**
+     * A Farcaster account found through verified addresses is attested, and
+     * the row has to say so or the rule above has nothing to act on. The flag
+     * used to arrive only from the graph merge, so a first lookup of an unseen
+     * wallet kept the badge on exactly the rows where the evidence against it
+     * had just been fetched.
+     */
+    ok(
+      'a freshly resolved Farcaster account marks the row attested',
+      /farcaster_verified: data\.farcaster \? true : existing\.farcaster_verified/.test(
+        jpAgent
+      )
     );
   }
 

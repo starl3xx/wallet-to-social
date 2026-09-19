@@ -569,6 +569,26 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           fc_followers: data.fc_followers,
           fc_fid: data.fc_fid,
           fc_bio: data.fc_bio,
+          /**
+           * Attested, and recorded as such on the row that just learned it.
+           *
+           * This result came from `bulk-by-address`, which maps an address to
+           * a Farcaster user through that user's VERIFIED addresses: the owner
+           * proved the address on Farcaster, which is the definition the
+           * attested sentence uses. The flag was previously only ever set by
+           * the graph merge, so a first lookup of a wallet the index had never
+           * seen carried the account without the attestation that produced it.
+           *
+           * That gap was not cosmetic. `lib/agent-claim.ts` withdraws an agent
+           * claim when an attested identity contradicts it, and with the flag
+           * absent the rule saw nothing to contradict anything: the badge
+           * survived on exactly the rows where the evidence against it had just
+           * arrived, and `prepareUpsertData` then wrote `is_agent` into a graph
+           * whose OR can never take it back.
+           */
+          farcaster_verified: data.farcaster
+            ? true
+            : existing.farcaster_verified,
           source: existing.source.includes('neynar')
             ? existing.source
             : [...existing.source, 'neynar'],
@@ -663,6 +683,59 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           })
           .filter((r): r is WalletSocialResult => r !== null);
 
+        /**
+         * An owner-attested identity outranks a scraped agent claim.
+         *
+         * `known_agents` is Virtuals' own API, whose per-agent `walletAddress` is
+         * frequently the CREATOR's wallet. Measured against production on
+         * 2026-09-19: of the 536 agent wallets that resolve to an X handle, 492
+         * carry an attested identity that is not the agent's own. Left alone, the
+         * table prints a badge reading `HOWLR` beside a wallet whose owner
+         * published `@thedojieth`, which is an inference presented over the top of
+         * the strongest evidence the index holds.
+         *
+         * Here rather than in STEP 0 because the question cannot be asked until
+         * the socials are resolved, and here rather than after the cache write
+         * because that is the order that makes the sentence above true. It ran
+         * after `cacheWalletResults`, so a withdrawn claim was still written to
+         * `wallet_cache`, and `mergeCacheRow` ORs a cached `is_agent` back onto
+         * the next lookup: the re-serve from cache this placement exists to
+         * prevent, reintroduced by being sixty lines too late.
+         */
+        /**
+         * This chunk's wallets, not every row loaded.
+         *
+         * `results` carries `partialResults` from every earlier chunk of the
+         * same job, and `agentOwnHandles` only ever holds what THIS chunk
+         * looked up. Walking all of `results` therefore re-checked an earlier
+         * chunk's KEPT claim with a missing handle, `agentClaimHolds` read
+         * the agent's own attested account as a contradiction, and the badge
+         * was deleted. Every job past CHUNK_SIZE, which is every contract
+         * import and every large CSV, silently dropped exactly the claims
+         * this rule exists to preserve.
+         *
+         * A row is reconciled in the chunk that resolved it and never again.
+         * For a wallet in this chunk, absent from the map is the right input
+         * rather than a missing one: a bio-keyword agent has no
+         * `known_agents` record and so no account of its own, and a guess
+         * from a bio is the weakest claim here, so an attested identity
+         * should withdraw it.
+         */
+        let agentClaimsWithdrawn = 0;
+        for (const wallet of activeWallets) {
+          const result = results.get(wallet);
+          if (!result) continue;
+          if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
+            agentClaimsWithdrawn++;
+            results.set(wallet, result);
+          }
+        }
+        if (agentClaimsWithdrawn > 0) {
+          console.log(
+            `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
+          );
+        }
+
         if (walletsToCache.length > 0) {
           await cacheWalletResults(walletsToCache);
         }
@@ -697,35 +770,6 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Social graph enrichment is now done FIRST (see STEP 1 above)
     // This ensures we use high-quality cached data before calling external APIs
-
-    /**
-     * An owner-attested identity outranks a scraped agent claim.
-     *
-     * `known_agents` is Virtuals' own API, whose per-agent `walletAddress` is
-     * frequently the CREATOR's wallet. Measured against production on
-     * 2026-09-19: of the 536 agent wallets that resolve to an X handle, 492
-     * carry an attested identity that is not the agent's own. Left alone, the
-     * table prints a badge reading `HOWLR` beside a wallet whose owner
-     * published `@thedojieth`, which is an inference presented over the top of
-     * the strongest evidence the index holds.
-     *
-     * Here rather than in STEP 0 because the question cannot be asked until
-     * the socials are resolved, and here rather than at serve time because a
-     * withdrawn claim must not be persisted and then re-served from the cache,
-     * the graph or a saved lookup.
-     */
-    let agentClaimsWithdrawn = 0;
-    for (const [wallet, result] of results) {
-      if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
-        agentClaimsWithdrawn++;
-        results.set(wallet, result);
-      }
-    }
-    if (agentClaimsWithdrawn > 0) {
-      console.log(
-        `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
-      );
-    }
 
     // Priority scores and follower counts are paid result fields: any pack, or
     // a legacy tier. See JobOptions.paidData for why this is not a tier check.
