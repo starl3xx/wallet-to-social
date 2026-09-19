@@ -492,6 +492,36 @@ export const CLAIMS: Claim[] = [
     tolerance: 0.05,
   },
   {
+    /**
+     * The share of our own agent list that resolves to a social identity.
+     *
+     * Published because it is the load-bearing number in the agent post and
+     * because it was wrong: the post claimed "under 0.3%" and the measured
+     * value is twenty times that. The gap is the point of the corrected
+     * passage, since an agent list that resolves to people is a list holding
+     * creators' wallets, but a number that wrong in published copy is exactly
+     * what this registry exists to stop, so it is declared rather than left
+     * to be re-measured by hand.
+     *
+     * A ceiling would be wrong here: this figure can legitimately move in
+     * either direction as the list grows and as the graph deepens, and what
+     * matters is that the copy tracks it.
+     */
+    what: 'share of agent-list wallets that resolve to a social identity',
+    files: ['content/published/ai-agents-why-it-matters.md'],
+    pattern: /resolution and \*\*([0-9]+\.[0-9])%\*\* come back/,
+    actual: async () => {
+      const total = await one(sql`SELECT count(*)::int FROM known_agents`);
+      const resolved = await one(sql`
+        SELECT count(*)::int FROM known_agents a
+        JOIN social_graph g ON g.wallet = a.wallet
+        WHERE g.twitter_handle IS NOT NULL OR g.farcaster IS NOT NULL
+      `);
+      return total === 0 ? 0 : (resolved / total) * 100;
+    },
+    tolerance: 0.15,
+  },
+  {
     what: 'known agent wallets flagged',
     files: [
       'lib/public-figures.ts',

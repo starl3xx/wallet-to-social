@@ -196,8 +196,17 @@ export const KNOWN_AGENTS = '13,622';
  * It exists chiefly so `/api/public-stats` can fall back to the SAME fact its
  * live branch returns. It used to fall back to `KNOWN_AGENTS`, so one endpoint
  * answered 242 or 13,622 under one key depending on which branch ran.
+ *
+ * 92 as of 2026-09-19, down from a live 260, because the agent-claim rule
+ * withdrew the label from 168 wallets whose owners had attested an identity
+ * that was not the agent's own. The figure went DOWN because the product got
+ * more honest, not because the index shrank, and the wallets are still in
+ * `known_agents`: the claim is true of the agent and false of that address.
+ *
+ * Note the constant said 242 while the live count was 260, so it had already
+ * drifted before any of this. The checker's tolerance was absorbing it.
  */
-export const AGENT_WALLETS_FLAGGED = '242';
+export const AGENT_WALLETS_FLAGGED = '92';
 /** The same fact at display size, for stat tiles. */
 export const KNOWN_AGENTS_SHORT = '13K+';
 

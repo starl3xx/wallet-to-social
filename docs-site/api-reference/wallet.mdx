@@ -45,6 +45,8 @@ curl https://walletlink.social/api/v1/wallet/0x000000000000000000000000000000000
     </ResponseField>
     <ResponseField name="agent" type="object">
       Present only when the address is a known onchain agent. Carries `is_agent`, `name`, `framework`, `type`, `token_symbol` and `verified`.
+
+      Absent where the address owner attested an identity that is not the agent’s own. A catalog entry is a third party’s claim about an address; an attestation is the owner’s, and the address a launch protocol files against an agent is frequently its creator’s rather than the agent's. Absent means we decline to say, not that we checked and it is not an agent.
     </ResponseField>
     <ResponseField name="quality" type="object">
       `score` from 0 to 100, and `last_verified`.

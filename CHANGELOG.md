@@ -2,6 +2,44 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (an attested identity outranks a scraped agent claim)
+
+- **Wallets belonging to people were labeled AI agents**, and the badge was
+  asserting an inference over the top of the strongest evidence the index
+  holds. `known_agents` is scraped from a launch protocol's own API, whose
+  per-agent `walletAddress` is frequently the **creator's** wallet rather than
+  an autonomous one.
+- Measured against production: of 13,622 agent wallets, 1,037 appear in the
+  graph and 536 resolve to an X handle. **492 of those carry an owner-attested
+  identity that is not the agent's own**, and 168 `social_graph` rows had the
+  label stored. Only 31 agree. The clearest case: agent `AGGENT`, whose own
+  account is `@AGGENT_ai`, filed against a wallet attested to `@avocato31`.
+- `lib/agent-claim.ts` withdraws the agent fields where an attested identity
+  contradicts the claim, keeps them where the agent's own account **is** the
+  attested one, and keeps them where nothing attested exists, because then the
+  claim is the only evidence there is.
+- **Withdrawn, not denied.** The fields are deleted rather than set false, on
+  the same absent-is-not-false rule the rest of the row follows: false is a
+  claim that we checked and it is not an agent, and that is not what happened.
+- It runs **after** the graph read. STEP 0 detects agents before any social
+  identity is known, so a reconciliation placed beside the detection would
+  compare against empty fields, withdraw nothing, and look exactly like a rule
+  that works. Asserted by position.
+- `known_agents` is never edited. It is an L0 fact with provenance, and the
+  claim is still true of the agent; it is just not true of that address.
+- `scripts/backfill-agent-claims.ts` clears the 168 rows already written.
+  Saved lookups are left alone: they record what a customer was shown on a
+  date, and rewriting them would make an old export disagree with the file
+  already downloaded.
+- **A published figure was wrong by twentyfold.** The agent blog post claimed
+  agent wallets resolve to a social identity "under 0.3%" of the time. The
+  measured rate is **6.2%**, and the gap is the whole finding: an agent list
+  that resolves to people is a list holding creators' wallets. The passage now
+  says the measured number, explains why it is high, and the figure is
+  registered so it cannot drift again.
+- Reflected in the README, `PROJECT_OVERVIEW.md`, `llms.txt` and the public
+  API field description in `docs-site`.
+
 ### 2026-09-19 (pr:status stops passing PRs with unread findings)
 
 - **"No issues found" is not the same as "nothing to read."** Bugbot's summary

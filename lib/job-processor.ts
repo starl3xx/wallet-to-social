@@ -23,6 +23,7 @@ import { trackEvent } from '@/lib/analytics';
 import { chargeForJob } from '@/lib/credits';
 import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
+import { reconcileAgentClaim } from '@/lib/agent-claim';
 import type { WalletSocialResult } from '@/lib/types';
 import type { LookupJob } from '@/db/schema';
 import type { UserTier } from '@/lib/access';
@@ -302,9 +303,20 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // STEP 0: Check known_agents table (highest confidence agent detection)
     // Pre-populate agent fields for known wallets before any API calls
     // =========================================================================
+    /**
+     * The agent's OWN X handle, kept past this block.
+     *
+     * STEP 0 runs before the social graph is read, so nothing here knows yet
+     * what the address owner published. The reconciliation that decides
+     * whether the agent claim survives that happens after STEP 1, and this map
+     * is how it gets the one field it needs without a second query.
+     */
+    const agentOwnHandles = new Map<string, string | undefined>();
+
     try {
       const knownAgentResults = await detectKnownAgents(activeWallets);
       for (const [wallet, agentData] of knownAgentResults) {
+        agentOwnHandles.set(wallet, agentData.agent_twitter_handle);
         const existing = results.get(wallet);
         if (existing) {
           results.set(wallet, {
@@ -550,6 +562,26 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           fc_followers: data.fc_followers,
           fc_fid: data.fc_fid,
           fc_bio: data.fc_bio,
+          /**
+           * Attested, and recorded as such on the row that just learned it.
+           *
+           * This result came from `bulk-by-address`, which maps an address to
+           * a Farcaster user through that user's VERIFIED addresses: the owner
+           * proved the address on Farcaster, which is the definition the
+           * attested sentence uses. The flag was previously only ever set by
+           * the graph merge, so a first lookup of a wallet the index had never
+           * seen carried the account without the attestation that produced it.
+           *
+           * That gap was not cosmetic. `lib/agent-claim.ts` withdraws an agent
+           * claim when an attested identity contradicts it, and with the flag
+           * absent the rule saw nothing to contradict anything: the badge
+           * survived on exactly the rows where the evidence against it had just
+           * arrived, and `prepareUpsertData` then wrote `is_agent` into a graph
+           * whose OR can never take it back.
+           */
+          farcaster_verified: data.farcaster
+            ? true
+            : existing.farcaster_verified,
           source: existing.source.includes('neynar')
             ? existing.source
             : [...existing.source, 'neynar'],
@@ -678,6 +710,92 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Social graph enrichment is now done FIRST (see STEP 1 above)
     // This ensures we use high-quality cached data before calling external APIs
+
+    /**
+     * An owner-attested identity outranks a scraped agent claim.
+     *
+     * `known_agents` is scraped from a launch protocol's own API, whose
+     * per-agent `walletAddress` is frequently the CREATOR's wallet. Measured
+     * against production on 2026-09-19: of the 536 agent wallets that resolve
+     * to an X handle, 492 carry an attested identity that is not the agent's
+     * own. Left alone the table prints a badge reading `HOWLR` beside a wallet
+     * whose owner published `@thedojieth`, which is an inference presented
+     * over the top of the strongest evidence the index holds.
+     *
+     * ## Why it sits exactly here
+     *
+     * After STEP 1, 2 and 3, so every row has whatever socials it is going to
+     * get, whether they came from the graph, the cache or a live call. It was
+     * briefly moved inside STEP 3 to precede the cache write, and that put it
+     * on the uncached path ONLY: a graph hit or a cache hit never reached it,
+     * STEP 0 re-stamped `is_agent` from the catalog, `mergeGraphRow` kept that
+     * stamp over a backfilled row, and finalize wrote the claim back and undid
+     * the backfill. Coverage of every row is worth more than preceding the
+     * cache write.
+     *
+     * Before the paid-field gate below, because that gate strips fields and
+     * this reads none of them, and long before the graph write in finalize,
+     * which is the write that matters: `social_graph` ORs `is_agent` and can
+     * never take one back.
+     *
+     * ## What it means for `wallet_cache`
+     *
+     * The cache write in STEP 3 runs earlier, so a row whose claim is
+     * withdrawn here was already cached carrying it, and `mergeCacheRow` ORs
+     * it back on the next lookup. That is harmless rather than fine: every
+     * path that serves a cached row merges it into `results` and then arrives
+     * here, so the claim is withdrawn again before anything reads it, and
+     * nothing serves `wallet_cache` directly. The cached value is a fact
+     * about the catalog that this rule overrides on every pass. Moving the
+     * cache write down here instead would need `apiFailedWallets` hoisted out
+     * of STEP 3 and would put caching after the paid-field gate, which strips
+     * `fc_followers` and would poison the cache for paying customers.
+     */
+    let agentClaimsWithdrawn = 0;
+    for (const rawWallet of activeWallets) {
+      /**
+       * Lowercased on both lookups. `results` is keyed by
+       * `wallet.toLowerCase()` and `agentOwnHandles` by the lowercase
+       * `known_agents` row, while `activeWallets` carries whatever case the
+       * customer's file had, so a mixed-case address missed both maps and
+       * skipped withdrawal entirely.
+       */
+      const wallet = rawWallet.toLowerCase();
+      const result = results.get(wallet);
+      if (!result) continue;
+      /**
+       * CATALOG claims only, and an earlier version of this comment had the
+       * reasoning exactly backwards.
+       *
+       * The defect this rule exists for is specific to `known_agents`: a
+       * third party names an ADDRESS as an agent's, and that address is
+       * frequently the creator's. A bio-keyword claim is not that. It is made
+       * about the Farcaster account attached to THIS wallet, which the wallet
+       * owner verified, so an attested Farcaster identity does not contradict
+       * it, it IS its evidence.
+       *
+       * Reconciling bio claims therefore withdrew every one of them, and the
+       * fix that set `farcaster_verified` on a fresh Neynar resolve is what
+       * made it unconditional: bio detection runs after Neynar, so the flag is
+       * always set by the time the claim exists, the wallet is never in
+       * `agentOwnHandles`, and `agentClaimHolds` saw an attestation with no
+       * matching handle every single time.
+       *
+       * Membership of the map is the test rather than the handle's value: the
+       * map holds an entry for every catalog match, with `undefined` where the
+       * catalog knows no account for the agent.
+       */
+      if (!agentOwnHandles.has(wallet)) continue;
+      if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
+        agentClaimsWithdrawn++;
+        results.set(wallet, result);
+      }
+    }
+    if (agentClaimsWithdrawn > 0) {
+      console.log(
+        `Agent claims withdrawn on ${agentClaimsWithdrawn} wallet(s): an attested identity said otherwise`
+      );
+    }
 
     // Priority scores and follower counts are paid result fields: any pack, or
     // a legacy tier. See JobOptions.paidData for why this is not a tier check.

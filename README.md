@@ -67,7 +67,7 @@ Coverage would be higher if we guessed. Contacting the wrong person is worse tha
 | **Three ways in**    | CSV upload, contract import (holders fetched for you), or pasted addresses                        |
 | **Eight chains**     | Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain, HyperEVM (NFT only)      |
 | **Priority scoring** | `holdings × log₁₀(followers + 1)`, weighting reach and stake together                             |
-| **Agent detection**  | 13,622+ known AI agent wallets flagged                                                            |
+| **Agent detection**  | 13,622+ known AI agent wallets, flagged only where the owner attested nothing that says otherwise |
 | **Reverse lookup**   | X handle or Farcaster username back to wallets                                                    |
 | **Public API**       | Included with every pack, drawing the same credits; self-serve keys                               |
 | **MCP server**       | Eight tools at `/api/mcp`, OAuth or the same key, same balance; listed in the MCP registry        |
