@@ -763,6 +763,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       const wallet = rawWallet.toLowerCase();
       const result = results.get(wallet);
       if (!result) continue;
+      /**
+       * CATALOG claims only, and an earlier version of this comment had the
+       * reasoning exactly backwards.
+       *
+       * The defect this rule exists for is specific to `known_agents`: a
+       * third party names an ADDRESS as an agent's, and that address is
+       * frequently the creator's. A bio-keyword claim is not that. It is made
+       * about the Farcaster account attached to THIS wallet, which the wallet
+       * owner verified, so an attested Farcaster identity does not contradict
+       * it, it IS its evidence.
+       *
+       * Reconciling bio claims therefore withdrew every one of them, and the
+       * fix that set `farcaster_verified` on a fresh Neynar resolve is what
+       * made it unconditional: bio detection runs after Neynar, so the flag is
+       * always set by the time the claim exists, the wallet is never in
+       * `agentOwnHandles`, and `agentClaimHolds` saw an attestation with no
+       * matching handle every single time.
+       *
+       * Membership of the map is the test rather than the handle's value: the
+       * map holds an entry for every catalog match, with `undefined` where the
+       * catalog knows no account for the agent.
+       */
+      if (!agentOwnHandles.has(wallet)) continue;
       if (reconcileAgentClaim(result, agentOwnHandles.get(wallet))) {
         agentClaimsWithdrawn++;
         results.set(wallet, result);
