@@ -1377,6 +1377,54 @@ async function main() {
       );
 
       /**
+       * No overflow-menu row owns a dialog.
+       *
+       * `OverflowMenu` renders its panel as `{open && ...}` and closes on any
+       * click inside it: activating a row unmounts the row, as that file's own
+       * comment says about focus. A `Modal` mounted by a menu item is therefore
+       * destroyed in the same tick it is opened, and the symptom is a menu row
+       * that does nothing whatsoever. Nothing throws, nothing logs, and the row
+       * looks correctly wired at every line you would read.
+       *
+       * Asserted structurally: a component that renders a `MenuItem` must not
+       * also render a `Modal`. The dialog goes on the page, which outlives the
+       * menu.
+       */
+      for (const menuFile of [
+        'components/XListAction.tsx',
+        'components/ExportButton.tsx',
+      ]) {
+        // Per COMPONENT, not per file. Two components may sit in one file
+        // precisely BECAUSE one is the row and the other is the dialog, which
+        // is the fix rather than the defect; a file-level test calls that
+        // arrangement a violation and would push the fix back out again.
+        const parts = withoutComments(readFileSync(menuFile, 'utf8')).split(
+          /\bexport function /
+        );
+        const offenders = parts
+          .filter((c) => /<MenuItem[\s>]/.test(c) && /<Modal[\s>]/.test(c))
+          .map((c) => c.slice(0, c.indexOf('(')).trim());
+        ok(
+          `${menuFile} mounts no dialog inside an overflow-menu row (${
+            offenders.join(', ') || 'none'
+          })`,
+          offenders.length === 0
+        );
+      }
+      /**
+       * And the panel really does unmount on activation, which is what makes
+       * the rule above necessary rather than stylistic.
+       */
+      const menuSrcFlat = withoutComments(
+        readFileSync('components/ui/overflow-menu.tsx', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the overflow menu still unmounts its panel and closes on a click inside it',
+        /\{open && \( <div/.test(menuSrcFlat) &&
+          /onClick=\{\(\) => \{ setOpen\(false\)/.test(menuSrcFlat)
+      );
+
+      /**
        * Both surfaces take the priority-ordered derivation, not the raw one.
        *
        * `reachableHandlesFrom` preserves its input's order deliberately, which
