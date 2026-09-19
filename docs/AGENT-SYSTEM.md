@@ -390,6 +390,74 @@ fixture-first) to refuse drift the way figures drift is refused today.
     every row written before that date, on purpose: a backfill would have
     invented transitions. A feed must therefore treat NULL as "no transition
     observed", never as "changed at the epoch".**
+
+    **_Deferred (2026-09-19), by Jake, for want of anyone to sell it to._ The
+    endpoint is not being built. All-time billing is 24 `credit_ledger` rows,
+    371 matches across 10 accounts, of which only 73 were billed against
+    anything other than the free allowance; the 100 `credit_lots` are the
+    relaunch campaign's free Trial grants rather than sales. A metered surface
+    whose pricing model is unmodeled, for nobody, is the wrong thing to build
+    next. What follows is the design review's findings, recorded so the next
+    session inherits them instead of rediscovering them.**
+
+    **The scope clause above cannot be enforced as written.** "Scope strictly
+    to wallets the account was previously billed for" has no backing record:
+    `credit_ledger` and `api_usage` store counts rather than identities,
+    `app/api/v1/jobs/route.ts` sets `saveToHistory: false` so the
+    `lookup_history` fallback does not exist for API callers, and the cleanup
+    cron element-nulls `lookup_jobs.wallets` at 30 days (608 of 866 lists gone,
+    258 surviving). Note the strip keeps the array LENGTH and nulls each
+    element, so `wallets IS NULL` reads zero and the loss is invisible to the
+    obvious query; test `wallets -> 0 = 'null'::jsonb`. Whoever picks this up
+    must either restore the clause with a durable record or amend the decision
+    to say it was dropped. Leaving it in the entry while the code ignores it is
+    the failure mode this document exists to prevent.
+
+    **Three hazards the review found, each of which would have shipped
+    quietly.** _Removal leaks through absence._ On an ordinary surface silence
+    protects a suppressed person because the caller does not know the candidate
+    set; on a watchlist the caller CHOSE the set, so a member going quiet is a
+    named, day-precise event about a named wallet, delivered free to somebody
+    who already holds that identity. Silence is not the protection,
+    indistinguishability is, and `suppressed_identifiers` is empty live so no
+    test against real data can catch it. _Two double-billing paths._
+    `chargeForApiCall` documents that it "has no idempotency key and is
+    expected to charge every time", which is right for an API call and wrong
+    the moment a change feed routes through it; and an expand that recomputes
+    its fingerprint at advance time bills for a change it did not deliver and
+    records it as delivered. _The watermark rests on a false assumption._
+    `social_graph.last_updated_at` is not monotonic across its writers, so a
+    change landing below the cursor is invisible forever, and a missed change
+    is the failure a caller cannot detect.
+
+    **Three questions to answer before building, none of them technical.**
+    Does being billed for a wallet buy a watch on it, and for how long: 365
+    days to match `CREDIT_LIFETIME_MONTHS` is a defensible default and also a
+    pricing commitment, since it means one pack buys a year of free change
+    detection and recurring revenue comes only from expansion. Was the scope
+    clause about protecting free data, or about refusing arbitrary wallet lists
+    into long-term storage: the two readings produce different products. And is
+    a free watch call acceptable over a self-declared set at all, given that a
+    caller could register wallets they never resolved and learn, free, how many
+    gained an identity, which is the aggregate shape of the product's own
+    answer.
+
+    **The record that would unblock it** is a `billed_wallets` table, one row
+    per `(user_id, wallet)` actually debited, written inside `chargeForJob`,
+    `chargeForApiCall` and `unlockJobMatches` rather than at their call sites,
+    for the reason `lib/api-usage.ts` already gives about optional billing
+    fields on shared helpers. The subtlety that makes a naive version wrong:
+    `billed` can be less than `matches` when the free allowance caps it
+    (`lib/credits.ts`), so the rows written are the first `billed` billable
+    matches in stored result order, exactly the set `gateResults` leaves open.
+    Recording every matched wallet hands out scope the customer never paid for.
+    It is a new permanent identity-carrying store, so it would need a
+    suppression trigger in `scripts/migrate-suppression.ts`, the erase paths in
+    `lib/removal-admin.ts`, and a `READ_ONLY_TABLES` entry. **Not built**: that
+    privacy surface is a poor trade for roughly a dozen rows a month, and a
+    backfill is refused for the same reason the `status_changed_at` one was, it
+    would invent entitlement rather than record it.
+
 17. **Plan laddering.** Every pack maps to the developer plan; “nothing a
     caller can buy raises it”. Map Scale and Index buyers to the seeded
     `startup` preset (200-address batches, 300/min). _Decided (2026-09-01):_
@@ -511,6 +579,11 @@ satisfied and 16 is startable.** The decided policy is recorded under
 principle 8, and stage 2 (verified self-serve intake) is not a blocker: it is
 deliberately unbuilt, and stage 1's operator-executed lane is the thing a
 watch surface has to honor.
+
+**16 was then deferred on 2026-09-19 for want of a buyer**, not for want of a
+blocker. That record is in 16's own entry above, with the billing volume it
+was measured against and the `billed_wallets` table that would unblock it.
+Phase 3 has no remaining startable item.
 
 The tier C decisions were taken on 2026-09-01 and are recorded inline above,
 marked _Decided (2026-09-01):_. Nothing in phase 1 or 2 touches pricing or

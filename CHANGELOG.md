@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (decision 16 is deferred, and the reason is written down)
+
+- **The watch surface (`docs/AGENT-SYSTEM.md` decision 16) is deferred for want
+  of anyone to sell it to, not for want of a blocker.** Its blocker cleared on
+  2026-09-02 with #237, and the doc has said "startable" since. Measured
+  before deferring: 24 credit-ledger rows all time, 371 matches, 10 accounts,
+  73 matches outside the free window, and every credit lot a relaunch grant
+  rather than a purchase. A per-customer watch surface is worth building when
+  there is a customer to watch for.
+- **Its "scope strictly to wallets previously billed for" clause is
+  unenforceable as written**, and that is the finding worth keeping. Nothing
+  records which wallets a job billed: `credit_ledger` holds a count,
+  `lookup_jobs.wallets` is element-nulled by the retention cleanup, and 608 of
+  866 job rows have already been stripped. The scoping rule was written
+  against data the system does not keep.
+- The three hazards found while designing it are recorded with the entry: a
+  removal leaks through absence on a watchlist, two paths double-bill, and
+  `last_updated_at` is not monotonic so a diff can repeat. So is the
+  `billed_wallets` table that would unblock the clause, which has to start
+  recording at the first billed job after it exists and cannot be
+  backfilled from stripped rows.
+- Documentation only. No schema, no endpoint, no behavior change.
+
 ### 2026-09-18 (the scope refusal stops contradicting the metadata)
 
 - **A client asking for `offline_access` alone was told "the only scope this
