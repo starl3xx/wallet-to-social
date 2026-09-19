@@ -113,16 +113,44 @@ stated 30-day retention.
 
 1. Branch from `main`; never commit to `main`.
 2. Open the PR with an explicit docs decision (the template asks; CI checks).
-3. **Wait for Bugbot.** Findings arrive as `cursor[bot]` review comments. A
+3. **Run `npm run pr:status <n>` instead of reading the checkmarks.** It
+   exits non-zero and says why, and it asks the two questions the PR page
+   answers wrongly. Do not merge on a green row you have only looked at.
+4. **Wait for Bugbot.** Findings arrive as `cursor[bot]` review comments. A
    `neutral` or `skipping` conclusion is **not** a pass: comment `bugbot run`
    to retrigger. Fix findings immediately and push; Bugbot re-reviews on push.
-4. Merge (squash, delete branch) when Bugbot has passed and every check is
+
+   `skipping` is what the UI renders for `neutral`, and Bugbot emits it both
+   when it found nothing and when it found plenty. The count lives only in the
+   check run's own summary. On 2026-09-19 eleven real defects arrived behind
+   that label across four PRs, among them a follower count left on the row of
+   somebody who had asked to be removed, and a suppression trigger that would
+   have preserved a live third-party token for exactly that person.
+   `pr:status` reads the summary; by hand it is
+   `gh api repos/{owner}/{repo}/commits/<sha>/check-runs`.
+
+5. **Checks MISSING is a merge conflict until proven otherwise.** GitHub runs
+   `pull_request` workflows against the computed merge commit, so a
+   `CONFLICTING` PR triggers nothing at all: no queued run, no failed run, and
+   the checks still shown are whatever ran on an older head, all green and all
+   describing code that is no longer there.
+
+   This presents as an Actions outage, convincingly. These workflows are
+   `pull_request`-triggered, so merges to `main` correctly produce no runs
+   either, and with one open conflicting PR the whole repository looks dead
+   including its schedules. On 2026-09-19 that cost an hour and a confident
+   wrong report that Actions was down. The first call is
+   `gh pr view <n> --json mergeable`, not Actions permissions or billing.
+
+   Resolve it by merging the base branch **in**. A rebase needs a force-push.
+
+6. Merge (squash, delete branch) when Bugbot has passed and every check is
    green. Do not merge over a red Vercel preview without diagnosing it: the
    once-known benign cause (two concurrent preview builds starving each
    other’s build-time DB reads) is structurally closed, since preview builds
    no longer touch Neon (see `docs/CI.md`); if it still appears, stagger the
    pushes and report it.
-5. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
+7. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
    schema, endpoints, env vars or pricing moved; this file when posture moved.
 
 ## Standing constraints
