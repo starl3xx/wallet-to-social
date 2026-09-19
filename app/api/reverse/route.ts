@@ -12,6 +12,7 @@ import { lockedReverseBody } from '@/lib/reverse-access';
 import {
   walletsBySecondaryHandle,
   countBySecondaryHandle,
+  stampReachability,
   stampAlsoOnX,
 } from '@/lib/handle-reachability';
 import {
@@ -316,6 +317,22 @@ export async function POST(request: NextRequest) {
    * `job-processor`: saving first would persist rows without the mark, so
    * reopening a saved lookup would drop it.
    */
+  /**
+   * Reachability, and the follower count that rides with it.
+   *
+   * This route builds `WalletSocialResult` rows by hand from the graph, and it
+   * was the third path `stampReachability` was supposed to cover. Its own
+   * docstring says "a path that nothing fails without is a path somebody
+   * forgets, so there is now one function and both paths call it"; there were
+   * three paths. The visible effect was a reverse lookup that never showed a
+   * dead-handle warning, on exactly the rows most likely to have one, since a
+   * handle somebody searched for is a handle somebody is about to act on.
+   *
+   * Found when `x_followers` joined the same stamp and the new column came
+   * back empty here (Bugbot, 2026-09-19). No entitlement check is needed: this
+   * route refuses an unentitled caller outright, well above this line.
+   */
+  await stampReachability(results);
   await stampAlsoOnX(results);
 
   /**

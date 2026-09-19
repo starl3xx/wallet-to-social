@@ -91,6 +91,11 @@ export const ExportButton = memo(function ExportButton({
       // Named like its siblings and like the API's `twitter.also`, so a file
       // and a response describe the same fact under the same name.
       'twitter_also',
+      // Beside the handle it counts, the way the table pairs them. Blank on
+      // the same terms as `twitter_reachable`: no count is held for a
+      // suspended, vacated or reassigned handle, and a 0 would read as an
+      // account with no audience rather than as an audience we cannot state.
+      'x_followers',
       'farcaster',
       'farcaster_url',
       'fc_fid',

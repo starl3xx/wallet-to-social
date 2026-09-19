@@ -83,6 +83,25 @@ export type Reachability = 'live' | 'suspended' | 'unclaimed' | 'reassigned';
 export interface HandleReachability {
   status: Reachability;
   checkedAt: string;
+  /**
+   * The handle's X follower count, or null where we cannot state one.
+   *
+   * Null in three cases, and the third is the one to be careful about.
+   * `x_accounts.followers` is already null for a suspended or vacated handle,
+   * because the resolver returns no profile to count. It is also null for a
+   * handle nothing has swept yet, on the same absent-is-not-false rule as
+   * every other field here.
+   *
+   * The third is `reassigned`, and there the column is NOT null: the handle
+   * resolves to a live account, so the sweep recorded that account's
+   * followers. Those are a stranger's followers. Printing them beside a wallet
+   * would put a number on the reach of somebody who does not own it, which is
+   * the "stale string into a confident wrong answer" failure the resolver's
+   * own header warns about, with a figure attached to make it persuasive. The
+   * override below drops it on purpose, and `check-invariants` asserts that
+   * it stays dropped.
+   */
+  followers: number | null;
 }
 
 /**
@@ -164,10 +183,15 @@ export async function reachabilityFor(
   for (let i = 0; i < wanted.length; i += 2000) {
     const chunk = wanted.slice(i, i + 2000);
     const result = (await db.execute(sql`
-      SELECT handle, status, checked_at FROM x_accounts
+      SELECT handle, status, checked_at, followers FROM x_accounts
       WHERE handle = ANY(${sql.param(chunk)}::text[])
     `)) as unknown as {
-      rows: Array<{ handle: string; status: string; checked_at: string }>;
+      rows: Array<{
+        handle: string;
+        status: string;
+        checked_at: string;
+        followers: number | string | null;
+      }>;
     };
     for (const row of result.rows) {
       const status = PUBLIC_STATUS[row.status];
@@ -175,6 +199,10 @@ export async function reachabilityFor(
       out.set(row.handle, {
         status,
         checkedAt: new Date(row.checked_at).toISOString(),
+        // The driver can hand an integer back as a string. Number(null) is 0,
+        // which would publish "0 followers" for every unswept handle, so the
+        // null is tested before the coercion rather than after.
+        followers: row.followers == null ? null : Number(row.followers),
       });
     }
   }
@@ -244,6 +272,11 @@ export async function reachabilityForWallets(
       out.set(m.wallet, {
         status: 'reassigned',
         checkedAt: new Date(m.checked_at).toISOString(),
+        // Deliberately null, and this is the one place it has to be written
+        // rather than inherited. A reassigned handle resolves live, so the row
+        // this overrides carries a real follower count belonging to the
+        // stranger who now holds the name. See the field's doc comment.
+        followers: null,
       });
     }
   }
@@ -554,6 +587,7 @@ export async function stampReachability(
     wallet?: string;
     twitter_handle?: string;
     twitter_reachability?: Reachability;
+    x_followers?: number;
   }>
 ): Promise<void> {
   try {
@@ -577,7 +611,12 @@ export async function stampReachability(
       );
       for (const r of withWallet) {
         const hit = byWallet.get(r.wallet.toLowerCase());
-        if (hit) r.twitter_reachability = hit.status;
+        if (hit) {
+          r.twitter_reachability = hit.status;
+          // Left absent rather than set to 0 where we hold no count, so a
+          // column of figures never states a reach we did not measure.
+          if (hit.followers != null) r.x_followers = hit.followers;
+        }
       }
     }
 
@@ -598,7 +637,10 @@ export async function stampReachability(
         const hit = byHandle.get(
           r.twitter_handle!.toLowerCase().replace(/^@/, '')
         );
-        if (hit) r.twitter_reachability = hit.status;
+        if (hit) {
+          r.twitter_reachability = hit.status;
+          if (hit.followers != null) r.x_followers = hit.followers;
+        }
       }
     }
   } catch (error) {

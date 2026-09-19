@@ -68,6 +68,10 @@ const LOCKED_FIELDS = [
   'twitter_verified',
   'twitter_reachability',
   'twitter_also',
+  // Beside the handle it counts, for the same reason `fc_followers` is here.
+  // A locked row withholds the identity, and a follower count left on it
+  // describes the identity precisely enough to be worth withholding too.
+  'x_followers',
   'farcaster',
   'farcaster_url',
   'farcaster_verified',

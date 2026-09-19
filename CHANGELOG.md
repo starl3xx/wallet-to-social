@@ -42,6 +42,68 @@ All notable changes to walletlink.social. Newest first.
   route answers 503 and the cron reports `disabled` rather than failing every
   minute.
 
+### 2026-09-19 (the results table gets X followers, and stops overflowing)
+
+- **X followers is a new column, from data the index already held.** Every
+  sweep writes `x_accounts.followers`, and nothing had ever read it back:
+  `reachabilityFor` selected `handle, status, checked_at` and stopped there.
+  Widening that projection is the whole data change. 332,593 of the 473,051
+  swept handles carry a count, which is exactly the set that is currently live.
+- It sits **beside the X handle** rather than next to the Farcaster count, so
+  each identity is followed by its own reach. Paid field, like the Farcaster
+  count and the priority score, and stripped for a free job.
+- **A reassigned handle never carries the count**, and that is the one case
+  worth stating. The other unreachable states are safe by accident, because a
+  suspended or vacated handle has no profile left to count. A reassigned handle
+  resolves to a live account with a real follower count belonging to the
+  stranger who took the name, so publishing it beside the wallet would be the
+  "stale string into a confident wrong answer" failure `lib/x-accounts.ts`
+  opens by naming, with a figure attached to make it persuasive.
+- **The X handle and Farcaster cells overflowed into the column beside them.**
+  A grid item's `min-width` resolves to its content, so neither cell could
+  shrink below the handle inside it: `@thedojieth.base.eth` painted over the
+  follower count. The ENS cell never showed it only because `truncate` carries
+  `overflow-hidden`, which resolves the same auto minimum to zero. Both cells
+  now declare `min-w-0` and clamp the text inside, with the full handle in the
+  title.
+- **The bag column was as wide as a column of handles.** Every track grew at
+  `1fr`, which shares slack equally, so two-digit figures took the same share
+  of a wide viewport as the columns with no length bound. Tracks now carry a
+  growth factor: a figure column is as wide as its header needs, and the
+  identity columns divide what is left.
+- **Priority's tooltip said what it was made of, not how.** "Based on holdings
+  × follower reach" hides the part worth knowing, that the follower term is
+  logarithmic, and never said which followers. The sentence now lives beside
+  `calculatePriorityScore` because it is a claim about that arithmetic, and the
+  header and the cell both read it.
+- Seven new invariants, each verified against a deliberately reintroduced
+  defect. The ordering one is asserted **by position**: stripping `x_followers`
+  beside the other two paid fields looks correct and is a no-op, because
+  nothing has set the field at that point, and the stamp would undo it a few
+  hundred lines later.
+- **A removed handle takes its count with it**, found in review before merge.
+  `scrubResultRow` deleted a suppressed `twitter_handle` and left
+  `x_followers` beside it, and `LOCKED_FIELDS` listed `fc_followers` without
+  its new sibling. A person who asked to be removed would have lost their
+  handle and kept a number precise enough to identify them, whose presence
+  proves an account was there at all. The pattern was already right one field
+  over; the new one simply was not added to either list, which is the failure
+  mode of a delete list nobody can see the whole of. Both are asserted now,
+  the suppression one against the real `scrubResultRow` with a positive
+  control.
+- **Reverse lookups were never stamped at all**, found in review. That route
+  assembles the same rows out of the graph by hand and called only
+  `stampAlsoOnX`, so the new column came back empty there and, more to the
+  point, a reverse lookup had never shown a dead-handle warning either: on
+  exactly the rows most likely to need one, because a handle somebody searched
+  for is a handle somebody is about to act on. `stampReachability`'s own
+  docstring says a path nothing fails without is a path somebody forgets, and
+  concluded "both paths call it". There were three. Now asserted as a pairing,
+  since the failure is one stamp present without the other, which reads as
+  complete.
+- No public API change. `/v1` builds its response from a field allowlist, so
+  the new field cannot reach it.
+
 ### 2026-09-19 (the first secret this system has to be able to read back)
 
 - **`lib/secret-box.ts`, AES-256-GCM, for storing an outbound OAuth token.**

@@ -235,6 +235,17 @@ export function scrubResultRow(
     delete next.twitter_reachability;
     // Written by an older stamp shape; harmless to delete where absent.
     delete next.twitter_reachability_checked_at;
+    /**
+     * The count goes with the handle, exactly as `fc_followers` goes with the
+     * Farcaster account below.
+     *
+     * A follower number left behind on a row whose handle has been erased is
+     * worse than an ordinary leftover. It is a fact about the person who asked
+     * to be removed, it is precise enough to identify them among any plausible
+     * candidate set, and its presence proves an X account was there at all,
+     * which the erased handle was supposed to stop saying.
+     */
+    delete next.x_followers;
   }
   if (alsoSuppressed) {
     delete next.twitter_also;
