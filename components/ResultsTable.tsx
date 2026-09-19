@@ -396,7 +396,10 @@ function LockedHeader({
       role="columnheader"
       className="flex flex-col items-start justify-start gap-1 px-4 pt-2"
     >
-      <span className="line-clamp-1">{label}</span>
+      {/* Two lines here as well. One line meant a locked "Farcaster followers"
+          truncated to an unreadable fragment in a track sized for the
+          wrapped form, which is worse than the wide column it replaced. */}
+      <span className="line-clamp-2">{label}</span>
       <Button
         variant="link"
         size="inline"
@@ -984,12 +987,20 @@ export const ResultsTable = memo(function ResultsTable({
        column is sized by its figures plus padding, and a locked column is no
        longer wider than the same column unlocked.
 
-       96/112/104 are the widest realistic value plus 32px of padding:
-       "634,708" is the largest follower count in the index by an order of
-       magnitude, and a priority score is a five-bar meter plus one decimal.
-       That returns about 110px to the identity columns, which is the
-       difference between the priority score being on screen and scrolled off
-       it.
+       128/128/124, and the first attempt at 96/112/104 was wrong because it
+       sized the tracks for the DATA and forgot the header still has to render
+       inside them. In the header face measured at the top of this comment,
+       "FARCASTER FOLLOWERS" is 169px, so a single word of it,
+       "FOLLOWERS" or "FARCASTER", is about 80px. Add 32px of cell padding and
+       the sort arrow that sits beside the label (4px gap + 12px) and the
+       header alone wants 128. "PRIORITY" is 71px by the same measure, so 119,
+       and its CONTENT wants more: a five-bar meter is 36px (five 4px bars,
+       four 4px gaps), plus an 8px gap, plus a score that is holdings times a
+       logarithm and reaches three integer digits and a decimal on a real
+       holder list, about 42px at 14px tabular. 118. So 124.
+
+       Still returns about 130px to the identity columns against the old
+       150/220/140, which is what this was for.
 
        Each track carries a growth factor beside its minimum, and a 0 means a
        fixed track. Every column used to grow at 1fr, which shares slack
@@ -1020,10 +1031,10 @@ export const ResultsTable = memo(function ResultsTable({
          the frame scrolls; on anything normal the growth factors below hand
          these columns far more than their minimum. */
       [140, 3], // X handle
-      [96, 0], // X followers
+      [128, 0], // X followers
       [140, 3], // Farcaster
-      [112, 0], // Farcaster followers
-      [104, 0], // priority
+      [128, 0], // Farcaster followers
+      [124, 0], // priority
     ];
     return {
       // The details track is appended fixed, like the gutter leads fixed:
