@@ -88,7 +88,12 @@ const TwitterCell = memo(function TwitterCell({
     reach && reach !== 'live' ? (
       <span
         className="inline-flex max-w-full items-center gap-2 text-caution"
-        title={REACHABILITY_DETAIL[reach]}
+        /* The handle leads here too. This span is the one that clips most
+           readily, because the warning glyph and its gap take 20px of the
+           track before the name starts, and it was left carrying only the
+           reachability sentence: the fix applied to the live link, and the
+           dead branch beside it was missed. */
+        title={`@${handle}: ${REACHABILITY_DETAIL[reach]}`}
       >
         <WarningCircle className="h-3 w-3" weight="fill" aria-hidden />
         <span className="truncate line-through decoration-caution/50">

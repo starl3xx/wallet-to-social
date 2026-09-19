@@ -41,6 +41,16 @@ All notable changes to walletlink.social. Newest first.
   beside the other two paid fields looks correct and is a no-op, because
   nothing has set the field at that point, and the stamp would undo it a few
   hundred lines later.
+- **A removed handle takes its count with it**, found in review before merge.
+  `scrubResultRow` deleted a suppressed `twitter_handle` and left
+  `x_followers` beside it, and `LOCKED_FIELDS` listed `fc_followers` without
+  its new sibling. A person who asked to be removed would have lost their
+  handle and kept a number precise enough to identify them, whose presence
+  proves an account was there at all. The pattern was already right one field
+  over; the new one simply was not added to either list, which is the failure
+  mode of a delete list nobody can see the whole of. Both are asserted now,
+  the suppression one against the real `scrubResultRow` with a positive
+  control.
 - No public API change. `/v1` builds its response from a field allowlist, so
   the new field cannot reach it.
 

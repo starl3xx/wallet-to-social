@@ -5309,6 +5309,65 @@ async function main() {
         !flat.includes('walletsNeedingLookup.push(...walletsToProcess)')
     );
 
+    /**
+     * A removed handle takes its follower count with it.
+     *
+     * Run against the real `scrubResultRow` rather than read out of the
+     * source, because the claim is about what a row looks like afterwards and
+     * the failure mode is a field nobody remembered to add to a delete list.
+     * That is exactly how this arrived: `fc_followers` is deleted beside
+     * `farcaster`, and the new X count was not deleted beside the X handle, so
+     * an erased identity kept a number precise enough to name the person and
+     * to prove an account had been there at all.
+     *
+     * The positive control is the point of the second assertion. A scrub that
+     * returned an empty object would satisfy every "is gone" check here and be
+     * a different bug, so the untouched row must come back intact.
+     */
+    {
+      const { scrubResultRow, SUPPRESSION_KINDS } =
+        await import('@/lib/suppression');
+      const sets = new Map<string, Set<string>>();
+      for (const k of SUPPRESSION_KINDS) sets.set(k, new Set());
+      sets.get('twitter')!.add('removedperson');
+
+      const row = {
+        wallet: '0x1111111111111111111111111111111111111111',
+        twitter_handle: 'removedperson',
+        twitter_url: 'https://x.com/removedperson',
+        x_followers: 12345,
+        farcaster: 'someoneelse',
+        fc_followers: 99,
+        source: ['graph'],
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const scrubbed = scrubResultRow(row as any, sets as any);
+      ok(
+        'a suppressed X handle takes its follower count off the row',
+        scrubbed.twitter_handle === undefined &&
+          scrubbed.x_followers === undefined
+      );
+      ok(
+        'and the control: an unsuppressed row keeps its counts',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (scrubResultRow(row as any, new Map() as any) as any).x_followers ===
+          12345 && scrubbed.fc_followers === 99
+      );
+
+      /**
+       * The other withholding path. A locked row is a match the free
+       * allowance did not cover: the identity is stripped server-side, and a
+       * follower count left behind describes the identity it withheld.
+       */
+      const gate = readFileSync('lib/match-gate.ts', 'utf8');
+      const locked =
+        gate.match(/const LOCKED_FIELDS = \[([\s\S]*?)\] as const;/)?.[1] ?? '';
+      ok(
+        'the locked-row field list withholds both follower counts, not just one',
+        /'fc_followers'/.test(locked) && /'x_followers'/.test(locked)
+      );
+    }
+
     // A suppressed HANDLE still arrives on other wallets' rows (a live
     // resolve returns whatever the upstream maps). The chunk scrub runs
     // before any stat is counted or billed; the finalize re-reads the list
