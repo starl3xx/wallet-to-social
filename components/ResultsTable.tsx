@@ -966,15 +966,24 @@ export const ResultsTable = memo(function ResultsTable({
        and no wider, and the identity columns divide what is left. */
     const tracks: Array<[min: number, grow: number]> = [
       [GUTTER_WIDTH, 0], // attestation gutter
-      [120, 2], // wallet
+      // 140 rather than 120: an elided address is ~95px and the rows that
+      // carry an agent or whitelist badge need the rest. Measured against a
+      // live holder list, the wallet cell was one of the three that bled.
+      [140, 2], // wallet
       [100, 2], // ENS
       // A bag is one to four digits. Fixed: it has no reason to stretch.
       ...(hasHoldings ? ([[100, 0]] as Array<[number, number]>) : []),
       // Customer CSV values, no length bound we know of, so these still grow.
       ...filteredExtraColumns.map(() => [80, 1] as [number, number]),
-      [120, 3], // X handle
+      /* 140, measured rather than picked. On the same live list the longest
+         handle in view was @thedojieth.base.eth at 158px and the median around
+         137, so 140 reads the common case without hovering and lets the rare
+         long one ellipsise. The minimum only bites on a narrow window, where
+         the frame scrolls; on anything normal the growth factors below hand
+         these columns far more than their minimum. */
+      [140, 3], // X handle
       [isPaidTier ? 150 : 200, 0], // X followers
-      [120, 3], // Farcaster
+      [140, 3], // Farcaster
       [isPaidTier ? 220 : 272, 0], // Farcaster followers
       [isPaidTier ? 140 : 176, 0], // priority
     ];
@@ -1432,13 +1441,22 @@ export const ResultsTable = memo(function ResultsTable({
                       })()}
                     </div>
 
-                    {/* Wallet */}
+                    {/* Wallet. Clipped as well as `min-w-0`, and this cell is
+                        the one that needs both. It is sticky with an inherited
+                        fill, so its overflow does not merely sit over the ENS
+                        column, it is painted above it by the stacking context
+                        the sticky position creates: the address of one row
+                        appearing inside another row's ENS column. Measured on
+                        a live holder list, a badged row wanted 155px of a
+                        133px track. The badges are `shrink-0`, so what gives
+                        way is the address, which is already elided and carries
+                        its full value in the copy control beside it. */}
                     <div
                       role="cell"
-                      className="sticky z-10 flex items-center self-stretch bg-inherit px-4 font-mono text-xs"
+                      className="sticky z-10 flex min-w-0 items-center self-stretch overflow-hidden bg-inherit px-4 font-mono text-xs"
                       style={{ left: GUTTER_WIDTH }}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         {/* The link variant at inline size, which is the one
                             treatment for a text control in a cell and brings
                             the focus ring with it. Foreground rather than the
