@@ -1377,6 +1377,26 @@ async function main() {
       );
 
       /**
+       * Both surfaces take the priority-ordered derivation, not the raw one.
+       *
+       * `reachableHandlesFrom` preserves its input's order deliberately, which
+       * makes sorting the caller's job, and that is how the two callers came
+       * to disagree even after the derivation was extracted to stop exactly
+       * that: the export sorted first, the menu item passed the raw results,
+       * and a list truncated at X's cap kept the first five thousand of an
+       * unordered set while the confirmation told the customer they were the
+       * highest priority. The sort is part of the derivation.
+       */
+      for (const caller of ['app/page.tsx', 'components/ExportButton.tsx']) {
+        const src = withoutComments(readFileSync(caller, 'utf8'));
+        ok(
+          `${caller} takes the priority-ordered handle list, never the raw one`,
+          /reachableHandlesInPriorityOrder\(/.test(src) &&
+            !/reachableHandlesFrom\(/.test(src)
+        );
+      }
+
+      /**
        * And what was left out is shown before the consent screen.
        *
        * The route returned `dropped` and `unresolved` from the first version

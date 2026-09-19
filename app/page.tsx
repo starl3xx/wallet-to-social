@@ -8,7 +8,7 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
 import { XListMenuItem, XListStatus } from '@/components/XListAction';
-import { reachableHandlesFrom } from '@/lib/reachable-handles';
+import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { NoMatchesFound } from '@/components/NoMatchesFound';
@@ -2709,7 +2709,7 @@ export default function Home() {
                       reachable-handle derivation the export does, so the count
                       on this item and the count in the file cannot disagree. */}
                   <XListMenuItem
-                    handles={reachableHandlesFrom(results)}
+                    handles={reachableHandlesInPriorityOrder(results)}
                     defaultName={lookupName}
                     entitled={entitled}
                     onUpgradeClick={handleOpenUpgradeModal}

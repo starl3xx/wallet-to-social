@@ -59,3 +59,28 @@ export function reachableHandlesFrom(
 
   return out;
 }
+
+/**
+ * The same list, in the order the customer was looking at.
+ *
+ * `reachableHandlesFrom` preserves its input's order on purpose, which makes
+ * the sort the CALLER's problem, and that is exactly how the two callers came
+ * to disagree: the export sorted by priority first and the menu item passed
+ * the raw results array, so a list truncated at X's 5,000 kept the first five
+ * thousand of an unordered set and dropped people the table showed at the top.
+ * The confirmation copy meanwhile told the customer the ones kept were the
+ * highest priority.
+ *
+ * Extracting the handle derivation into one module was supposed to stop the
+ * two surfaces disagreeing, and it did not, because the sort was left outside
+ * it. The sort is part of the derivation. Every caller that builds a list a
+ * human will act on uses this one.
+ */
+export function reachableHandlesInPriorityOrder(
+  results: readonly WalletSocialResult[]
+): string[] {
+  const sorted = [...results].sort(
+    (a, b) => (b.priority_score || 0) - (a.priority_score || 0)
+  );
+  return reachableHandlesFrom(sorted);
+}

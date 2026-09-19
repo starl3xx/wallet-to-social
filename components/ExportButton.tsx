@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { XMark } from '@/components/ui/brand-marks';
 import { DownloadSimple, Lock } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/csv-parser';
-import { reachableHandlesFrom } from '@/lib/reachable-handles';
+import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { Analytics } from '@/lib/client-analytics';
 import type { WalletSocialResult } from '@/lib/types';
 import { publicSources } from '@/lib/api-sources';
@@ -195,8 +195,8 @@ export const ExportButton = memo(function ExportButton({
    * second handle is then the only one on the row that reaches the owner.
    */
   const reachableHandles = useMemo(
-    () => reachableHandlesFrom(sortedResults),
-    [sortedResults]
+    () => reachableHandlesInPriorityOrder(results),
+    [results]
   );
 
   /**
