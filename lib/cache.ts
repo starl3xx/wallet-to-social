@@ -48,6 +48,10 @@ export async function getCachedWallets(
         agent_type: row.agentType ?? undefined,
         agent_token_symbol: row.agentTokenSymbol ?? undefined,
         agent_verified: row.agentVerified ?? undefined,
+        // Read back, not just written. Filling the column and dropping it here
+        // leaves a bio-keyword row indistinguishable from an unfilled one on
+        // every cache hit, which is the confusion filling it was meant to end.
+        agent_detection_source: row.agentDetectionSource ?? undefined,
       });
     }
 
@@ -83,7 +87,14 @@ export async function cacheWalletResults(
       agentFramework: r.agent_framework ?? null,
       agentType: r.agent_type ?? null,
       agentTokenSymbol: r.agent_token_symbol ?? null,
-      agentDetectionSource: null, // Detection source not stored in cache
+      /**
+       * Stored now. The comment here used to read "Detection source not
+       * stored in cache", which described the behaviour accurately and
+       * explained nothing: the column was on the table, the value was on the
+       * row, and writing NULL made a catalog match and a bio-regex guess
+       * indistinguishable the moment either was cached.
+       */
+      agentDetectionSource: r.agent_detection_source ?? null,
       agentVerified: r.agent_verified ?? false,
     }));
 

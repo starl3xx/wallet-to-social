@@ -327,6 +327,13 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
             agent_type: agentData.agent_type,
             agent_token_symbol: agentData.agent_token_symbol,
             agent_verified: agentData.agent_verified,
+            /**
+             * Copied like the rest. It was the one field `AgentDetectionResult`
+             * carried that nothing ever read, so the column existed in two
+             * tables, documented a four-value vocabulary, and held NULL on
+             * every row ever written.
+             */
+            agent_detection_source: agentData.agent_detection_source,
           });
         }
       }
@@ -598,6 +605,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
               ...existing,
               is_agent: true,
               agent_verified: false,
+              /**
+               * Copied, like the catalog branch copies it. `detectAgentFromBio`
+               * has always returned this and the merge always dropped it, so
+               * every bio-keyword row stored NULL and was indistinguishable
+               * from a catalog match written before the column was written at
+               * all. Which is the whole reason the column was worth filling.
+               */
+              agent_detection_source: bioResult.agent_detection_source,
             });
           }
         }
@@ -972,6 +987,8 @@ function mergeGraphRow(
     agent_token_symbol:
       existing.agent_token_symbol || stored.agent_token_symbol,
     agent_verified: existing.agent_verified || stored.agent_verified,
+    agent_detection_source:
+      existing.agent_detection_source || stored.agent_detection_source,
   };
 }
 
@@ -1011,6 +1028,8 @@ function mergeCacheRow(
     agent_type: existing.agent_type || data.agent_type,
     agent_token_symbol: existing.agent_token_symbol || data.agent_token_symbol,
     agent_verified: existing.agent_verified || data.agent_verified,
+    agent_detection_source:
+      existing.agent_detection_source || data.agent_detection_source,
   };
 }
 

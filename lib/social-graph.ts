@@ -687,7 +687,14 @@ function prepareUpsertData(
       agentFramework: r.agent_framework ?? prev?.agentFramework ?? null,
       agentType: r.agent_type ?? prev?.agentType ?? null,
       agentTokenSymbol: r.agent_token_symbol ?? prev?.agentTokenSymbol ?? null,
-      agentDetectionSource: prev?.agentDetectionSource ?? null,
+      /**
+       * The row's own value first, the stored one as the fallback: the same
+       * shape as every other agent field here. It read `prev ?? null`, which
+       * could only ever preserve a value nothing was writing, so the column
+       * stayed NULL on every row.
+       */
+      agentDetectionSource:
+        r.agent_detection_source ?? prev?.agentDetectionSource ?? null,
       agentVerified: r.agent_verified || prev?.agentVerified || false,
     };
   });
@@ -1113,6 +1120,7 @@ export function socialGraphToResult(
     agent_type: record.agentType ?? undefined,
     agent_token_symbol: record.agentTokenSymbol ?? undefined,
     agent_verified: record.agentVerified ?? undefined,
+    agent_detection_source: record.agentDetectionSource ?? undefined,
   };
 }
 

@@ -1838,6 +1838,142 @@ async function main() {
     );
   }
 
+  // --------------------- three things the agent classification said but did not do
+  /**
+   * Each of these was a comment, a column or a docstring asserting behaviour
+   * the code did not have, and each failed silently: a number that is merely
+   * low, a field that is merely absent, a column that is merely NULL.
+   */
+  {
+    const gateSrc = withoutComments(readFileSync('lib/match-gate.ts', 'utf8'));
+    const countsSrc = readFileSync('lib/result-counts.ts', 'utf8');
+
+    /**
+     * `result-counts.ts` says of its agent tally: "Never gated: agent
+     * detection is free." All six agent fields were in `LOCKED_FIELDS`, and
+     * `gateResults` runs server-side before `countResults` runs in the
+     * browser, so the stat tile, the "Agents only" filter and the CSV all read
+     * a locked agent row as a non-agent.
+     */
+    const lockedBlock =
+      gateSrc.match(/const LOCKED_FIELDS = \[([\s\S]*?)\] as const;/)?.[1] ??
+      '';
+    ok(
+      'the gate withholds no agent field, because the counter says it does not',
+      lockedBlock.length > 0 &&
+        !/'is_agent'|'agent_name'|'agent_verified'|'agent_framework'|'agent_type'|'agent_token_symbol'/.test(
+          lockedBlock
+        ) &&
+        /Never gated: agent detection is free/.test(countsSrc)
+    );
+
+    /**
+     * The same question, asked of the public API and of the browser, must
+     * answer the same way. `/api/reverse` returned all six agent fields and
+     * `/v1/reverse/*` returned none, and the MCP reverse tools sit on the
+     * public one, so a model could never be told a wallet was an agent while
+     * the table showed a badge for it.
+     */
+    for (const reverseRoute of [
+      'app/api/v1/reverse/twitter/[handle]/route.ts',
+      'app/api/v1/reverse/farcaster/[username]/route.ts',
+    ]) {
+      // The GUARD together with the body, not the body alone. Asserting that
+      // `item.agent = {` appears is satisfied by `if (false) { item.agent = {`,
+      // which is exactly how this assertion failed its own adversarial run:
+      // presence of text says nothing about whether the text can execute.
+      const src = withoutComments(readFileSync(reverseRoute, 'utf8')).replace(
+        /\s+/g,
+        ' '
+      );
+      ok(
+        `${reverseRoute} publishes the agent block, like every other v1 shape`,
+        /if \(result\.isAgent\) \{ item\.agent = \{/.test(src) &&
+          /isAgent: socialGraph\.isAgent/.test(src)
+      );
+    }
+
+    /**
+     * `agent_detection_source` was a column on two tables with a documented
+     * four-value vocabulary and no writer anywhere. A catalog match and a
+     * regex over a Farcaster bio were indistinguishable on a stored row, and
+     * the only hint was `agent_verified`, which is `true` for every catalog
+     * match whether or not anything verified anything.
+     */
+    /**
+     * Both writers, not just the catalog one. `detectAgentFromBio` always
+     * returned the source and the merge always dropped it, so every
+     * bio-keyword row stored NULL and was indistinguishable from a catalog
+     * match written before the column was filled at all, which is the exact
+     * confusion filling it was meant to end.
+     */
+    ok(
+      'a bio detection records its source, like a catalog match does',
+      /agent_detection_source: bioResult\.agent_detection_source/.test(
+        withoutComments(readFileSync('lib/job-processor.ts', 'utf8'))
+      )
+    );
+
+    /**
+     * And a withdrawal takes it with the rest. A row that still says
+     * `known_list` after the claim is gone is a leftover catalog claim about
+     * an address the product has just declined to call an agent.
+     */
+    ok(
+      'withdrawing a claim clears the detection source too',
+      /'agent_detection_source',/.test(
+        withoutComments(readFileSync('lib/agent-claim.ts', 'utf8'))
+      )
+    );
+
+    ok(
+      'the detection source is written, not just declared',
+      /agent_detection_source: agentData\.agent_detection_source/.test(
+        withoutComments(readFileSync('lib/job-processor.ts', 'utf8'))
+      ) &&
+        /agentDetectionSource: r\.agent_detection_source/.test(
+          withoutComments(readFileSync('lib/cache.ts', 'utf8'))
+        ) &&
+        /agentDetectionSource:\s*r\.agent_detection_source \?\? prev/.test(
+          withoutComments(readFileSync('lib/social-graph.ts', 'utf8'))
+        )
+    );
+
+    /**
+     * And it comes back, which the assertion above does not cover and did not
+     * catch. Every writer filled the column while all four readers dropped it:
+     * `getCachedWallets` and `socialGraphToResult` each mapped the six
+     * `agent_*` fields and stopped, and both merge helpers copied the same
+     * six. A stored source therefore never reached a result object on a cache
+     * or graph hit, so a bio-keyword row still read exactly like an unfilled
+     * one and the column was dead in the direction that matters to a reader.
+     *
+     * Asserting the write alone is the mistake this file exists to prevent:
+     * a value that is stored and never returned is indistinguishable from one
+     * that was never stored.
+     */
+    const jobSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    ok(
+      'a stored detection source comes back on a cache or graph hit',
+      /agent_detection_source:\s*row\.agentDetectionSource/.test(
+        withoutComments(readFileSync('lib/cache.ts', 'utf8'))
+      ) &&
+        /agent_detection_source:\s*record\.agentDetectionSource/.test(
+          withoutComments(readFileSync('lib/social-graph.ts', 'utf8'))
+        ) &&
+        // Both merge helpers, not one: `mergeGraphRow` and `mergeCacheRow`
+        // carry a result forward on different hit paths, and a field restored
+        // on only one of them is still lost on the other.
+        (
+          jobSrc.match(
+            /agent_detection_source:\s*existing\.agent_detection_source \|\|/g
+          ) ?? []
+        ).length === 2
+    );
+  }
+
   // ------------------------------------------------------- OAuth: redirects
   // `redirectUriAllowed` is the single check standing between an authorization
   // code and whoever asked for it. Every case below is the attacker's.
