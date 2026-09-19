@@ -5,6 +5,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/x-list",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/refresh-stale",
       "schedule": "0 3 * * *"
     },
