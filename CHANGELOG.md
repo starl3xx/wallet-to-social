@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-19 (a result set becomes an X list)
+
+- **"Create X list" turns the reachable handles of a lookup into a real X list
+  in the customer's own account.** walletlink is now an OAuth client of X, which
+  is the first time it has been a client of anything rather than a resource
+  other clients connect to.
+- **No connection is kept, and that is the design.** `offline_access` is not
+  requested, so there is no refresh token to store, rotate or leak. An X access
+  token lives two hours and a list takes about sixteen minutes, so the sealed
+  token rides the job row and is nulled when the job ends. The visible cost is a
+  second authorization for a second list; the thing bought is that we never hold
+  a standing ability to act as everyone who ever connected.
+- **It is a job, not a button, because X allows 300 member additions per 15
+  minutes** and takes one member per request. A 319-handle list is 319 requests
+  across two windows. `added_count` is the resume cursor, so a rate limit or a
+  restart costs the time to the next tick rather than the work already done, and
+  the modal says how long the list will take before the click.
+- **Suppression is re-read before every batch**, not once at the start. A
+  removal landing at minute three has to stop the addition at minute four; the
+  alternative notices after the list is public, where the only remedy is a
+  public list with a visible removal in it.
+- The member ids come from our own index, restricted to `status = live`. That
+  does the work of three refusals at once: a suspended or vacated handle has no
+  account to add, and a reassigned handle's id belongs to whoever took the name,
+  which is exactly the account that must not appear in a list described as this
+  community.
+- **Not metered**, deliberately. Building a list spends our own prepaid X
+  credits at roughly half a cent per member. Gated on `hasPaidAccess`, size
+  capped at X's 5,000, and a list above that is truncated with the dropped count
+  returned rather than silently shortened.
+- `reachableHandlesFrom` moved from `ExportButton` into `lib/`, so the count on
+  the menu item, the count in the exported file and the members of the list are
+  one derivation and cannot disagree.
+- New: `x_list_jobs` (migration, suppression guard, `READ_ONLY_TABLES`, not
+  backed up), `lib/x-oauth.ts`, `lib/x-list-worker.ts`, `/api/x/lists`,
+  `/api/x/callback`, `/api/x/lists/[id]`, `/api/cron/x-list` every minute.
+  Requires `X_OAUTH_CLIENT_ID` and `X_OAUTH_CLIENT_SECRET`; without them the
+  route answers 503 and the cron reports `disabled` rather than failing every
+  minute.
+
 ### 2026-09-19 (the first secret this system has to be able to read back)
 
 - **`lib/secret-box.ts`, AES-256-GCM, for storing an outbound OAuth token.**
