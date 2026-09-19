@@ -138,7 +138,32 @@ async function main() {
       -- When the rate limit says we may ask again. The worker skips a row
       -- whose window has not reopened rather than spending a request to be
       -- told 429.
-      retry_after timestamp
+      retry_after timestamp,
+
+      -- The tick lease, and it is not the same thing as retry_after.
+      --
+      -- Vercel can start the next minute's invocation while the previous one
+      -- is still in flight. Without a lease both read the same cursor, both
+      -- add a batch to it, and the members between the two offsets are never
+      -- attempted: a list that comes back short with nothing in the log.
+      --
+      -- Separate from retry_after so the ops report can tell a job waiting on
+      -- X from a job currently being worked. Both mean "not yet", for
+      -- opposite reasons.
+      leased_until timestamp,
+
+      -- Set immediately BEFORE POST /2/lists, so a create whose response is
+      -- lost can be recognised on the next tick and adopted rather than
+      -- repeated. Without it a timeout after X has already made the list
+      -- leaves x_list_id null, and the retry makes a second empty list in
+      -- somebody's account.
+      create_attempted_at timestamp,
+
+      -- Consecutive transient failures on member adds. A timeout or a 5xx
+      -- must not advance the cursor, or one blip drops a person from the list
+      -- permanently; but retrying for ever is its own failure, so the job
+      -- gives up after enough of them in a row.
+      transient_failures integer NOT NULL DEFAULT 0
     )
   `;
 
@@ -165,12 +190,12 @@ async function main() {
     SELECT indexname FROM pg_indexes WHERE tablename = 'x_list_jobs'
   `;
 
-  console.log(`\ncolumns: ${cols.length}/23`);
+  console.log(`\ncolumns: ${cols.length}/26`);
   for (const c of cols) console.log(`  ${c.column_name}`);
   console.log(`indexes: ${idx.length}/3`);
   for (const i of idx) console.log(`  ${i.indexname}`);
 
-  if (cols.length !== 23 || idx.length !== 3) {
+  if (cols.length !== 26 || idx.length !== 3) {
     console.error('\nMigration did not fully apply.');
     process.exit(1);
   }

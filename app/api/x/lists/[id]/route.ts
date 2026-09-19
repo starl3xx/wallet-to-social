@@ -35,16 +35,23 @@ export async function GET(
   if (!db) return NextResponse.json({ error: 'unavailable' }, { status: 503 });
 
   /**
-   * `total` is computed in SQL rather than returned as the member array,
-   * because the array is the thing this endpoint exists not to return. Once a
-   * job completes the array is empty by design, so the total comes from the
-   * three counters, which are what survives.
+   * `total` is computed in SQL, because the member array is the thing this
+   * endpoint exists not to return.
+   *
+   * GREATEST of the two, not their sum. `members` holds the whole list for as
+   * long as the job runs and the three counters index INTO it, so adding them
+   * together counted every processed member twice and produced a total that
+   * grew as work completed: a progress bar that goes backwards. After
+   * `finish()` the array is empty by design, and then the counters are the
+   * only record of how big the job was, which is why neither alone is right.
    */
   const found = (await db.execute(sql`
     SELECT id, status, handle, x_list_id, list_name, is_private,
            added_count, skipped_count, failed_count, error,
-           added_count + skipped_count + failed_count
-             + jsonb_array_length(members) AS total,
+           GREATEST(
+             jsonb_array_length(members),
+             added_count + skipped_count + failed_count
+           ) AS total,
            retry_after
     FROM x_list_jobs
     WHERE id = ${id}::uuid AND user_id = ${session.user.id}

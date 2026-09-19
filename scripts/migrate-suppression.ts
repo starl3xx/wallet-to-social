@@ -285,6 +285,17 @@ const LANES = ['email', 'wallet_sig', 'handle_proof', 'legal'];
  *    payloads, not columns; they are handled by the payload TTL, the
  *    serve-time filter and the per-removal jsonb amend (decision 5).
  *  - `seeded_contracts`: token contract addresses, not people.
+ *  - `x_list_jobs`: the same class as the three above, an account record of
+ *    our own user given in a transaction: they signed in, named a list and
+ *    authorized X. It is excluded for a second and harder reason, found in
+ *    review. `suppression_guard_skip` silently discards every later UPDATE to
+ *    a guarded row, and on this table the most important UPDATE is the one
+ *    that NULLs the sealed access token when the job ends. A guard here would
+ *    therefore preserve a working third-party credential for exactly the
+ *    person who asked to be removed, and wedge their job in `running` while
+ *    it did so. The removal path is `eraseIdentifier`, which deletes the row
+ *    outright; the quarantine copy is ciphertext because the token was sealed
+ *    before it was ever written.
  *
  * scripts/check-invariants.ts can anchor on this constant the way it anchors
  * on BACKUP_TABLES in migrate-grant-readonly.ts.
@@ -293,6 +304,7 @@ const SUPPRESSION_EXCLUDED_TABLES = [
   'x_handle_attempts',
   'clanker_unresolved_ids',
   'farcaster_sweep_seen',
+  'x_list_jobs',
 ];
 
 interface CheckConstraint {
@@ -581,22 +593,6 @@ const ATTACHMENTS: Attachment[] = [
     table: 'known_agents',
     fn: 'suppression_guard_skip',
     args: `'wallet=wallet', 'twitter=twitter_handle', 'farcaster=farcaster'`,
-  },
-
-  // The X list job holds the handle of the person who authorized it, next to a
-  // sealed token that can act as them. Dropping the row is right: a request to
-  // be removed and a stored ability to write to that account are the same
-  // question, and the row IS the mapping, so there is nothing to blank.
-  //
-  // The guard only refuses future writes. The members the list is being built
-  // FROM live in the `members` jsonb, which a column trigger cannot see; the
-  // worker re-reads the suppression list before each batch for exactly that
-  // reason, which is the same division `lookup_jobs` makes between a column
-  // and a payload.
-  {
-    table: 'x_list_jobs',
-    fn: 'suppression_guard_skip',
-    args: `'twitter=handle'`,
   },
 ];
 

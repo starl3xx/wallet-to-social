@@ -1258,6 +1258,120 @@ async function main() {
     else process.env.SECRET_BOX_KEY = previousKey;
   }
 
+  // ------------------------------------------- the X list builder's five ways to lose
+  /**
+   * Every one of these was a real defect in the first version of this worker,
+   * found in review before it shipped. They are asserted rather than fixed and
+   * forgotten because four of the five fail silently: the symptom is a list
+   * that is short, or duplicated, or a token that outlives its job, and none
+   * of those raise anything.
+   */
+  {
+    const worker = withoutComments(
+      readFileSync('lib/x-list-worker.ts', 'utf8')
+    );
+    const flatWorker = worker.replace(/\s+/g, ' ');
+
+    /**
+     * The claim is an UPDATE, never a SELECT.
+     *
+     * Reading a candidate row and advancing its cursor at the end of the tick
+     * is a race with the next minute's invocation: Vercel can start it while
+     * this one is in flight, both read the same offset, both add a batch, and
+     * the members between the two offsets are never attempted.
+     */
+    ok(
+      'the X list worker claims a job by UPDATE with a lease, not a bare SELECT',
+      /UPDATE x_list_jobs SET status = 'running'/.test(flatWorker) &&
+        /FOR UPDATE SKIP LOCKED/.test(flatWorker) &&
+        /leased_until = now\(\) \+ make_interval/.test(flatWorker)
+    );
+
+    /**
+     * A transient failure must not advance the cursor.
+     *
+     * The cursor is added + skipped + failed, so counting a timeout as
+     * `failed` steps permanently past that person: one blip and they are
+     * silently not in the list, indistinguishable from somebody whose account
+     * genuinely could not be added.
+     */
+    ok(
+      'a 5xx or a thrown error breaks the batch instead of counting the member',
+      // BOTH branches, counted. There are two ways a member add fails without
+      // being a verdict about that member, the response and the throw, and an
+      // assertion satisfied by either one passes while the other silently
+      // steps over somebody.
+      (flatWorker.match(/transient = true; break;/g) ?? []).length === 2 &&
+        /res\.status >= 500/.test(flatWorker)
+    );
+    ok(
+      'and a job that only ever fails transiently still gives up',
+      // The DECLARATION, not the identifier: the first version tested only
+      // that the name appeared somewhere, which a rename of the constant
+      // leaves true at every use site while the bound itself is gone.
+      /const MAX_TRANSIENT_FAILURES = \d+;/.test(worker) &&
+        /if \(nextTransient >= MAX_TRANSIENT_FAILURES\)/.test(flatWorker) &&
+        /transient_failures = \$\{nextTransient\}/.test(flatWorker)
+    );
+
+    /**
+     * A create whose reply was lost is adopted, not repeated. X has no
+     * idempotency key here, so without this the customer collects duplicate
+     * empty lists while members attach to whichever id was stored last.
+     */
+    ok(
+      'the list create marks its attempt before calling X, and adopts on retry',
+      /create_attempted_at = now\(\)/.test(flatWorker) &&
+        /findOwnedListByName/.test(worker)
+    );
+
+    /**
+     * Ending a job takes its credentials with it, on every path. Five ways to
+     * finish and one statement, because a separate clear-the-token step is the
+     * kind that gets added to four of them.
+     */
+    ok(
+      'finishing a list job clears the token and the member list together',
+      /SET status = \$\{status\}, error = \$\{error\}, access_token = NULL, members = '\[\]'::jsonb/.test(
+        flatWorker
+      )
+    );
+  }
+
+  /**
+   * x_list_jobs must NOT carry a suppression trigger, and this is the one
+   * assertion here that refuses a fix rather than requiring one.
+   *
+   * `suppression_guard_skip` silently discards every later UPDATE to a guarded
+   * row. On this table the most important UPDATE is the one that NULLs the
+   * sealed X access token when the job ends, so a guard would preserve a
+   * working third-party credential for exactly the person who asked to be
+   * removed, and wedge their job in `running` while it did so. The removal
+   * path is `eraseIdentifier`, which deletes the row outright.
+   *
+   * It reads as an obviously missing guard to anyone scanning the attachment
+   * list, which is why it is written down as a refusal instead of a gap.
+   */
+  {
+    const supp = withoutComments(
+      readFileSync('scripts/migrate-suppression.ts', 'utf8')
+    );
+    const attachBlock =
+      supp.match(
+        /const ATTACHMENTS: Attachment\[\] = \[([\s\S]*?)\n\];/
+      )?.[1] ?? '';
+    ok(
+      'x_list_jobs carries no suppression trigger, because one would preserve its token',
+      attachBlock.length > 0 && !attachBlock.includes("'x_list_jobs'")
+    );
+    ok(
+      'and the removal path deletes the row instead',
+      /del\('x_list_jobs'/.test(
+        withoutComments(readFileSync('lib/removal-admin.ts', 'utf8'))
+      )
+    );
+  }
+
   // ------------------------------------------------------- OAuth: redirects
   // `redirectUriAllowed` is the single check standing between an authorization
   // code and whoever asked for it. Every case below is the attacker's.

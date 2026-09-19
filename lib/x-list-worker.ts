@@ -56,6 +56,28 @@ const BATCH = 20;
 /** Bounded for the reason lib/x-accounts.ts gives about undici's default. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/**
+ * How long a claim holds a job.
+ *
+ * Longer than a tick can take (20 adds at a 10s ceiling each, in practice far
+ * less) and shorter than the minute between ticks is NOT possible, so it is
+ * deliberately longer than both: a lease that expires mid-tick reintroduces
+ * exactly the double-processing it exists to prevent. The cost of it being too
+ * long is a killed invocation leaving a job idle for one lease; the cost of it
+ * being too short is members silently skipped, so it errs long.
+ */
+const LEASE_SECONDS = 300;
+
+/**
+ * Consecutive transient failures before a job gives up.
+ *
+ * A timeout or a 5xx on a member add must not advance the cursor, or one blip
+ * drops that person from the list for good. But retrying for ever is its own
+ * failure mode, so the job stops and says so after this many in a row. Reset
+ * to zero by any successful add.
+ */
+const MAX_TRANSIENT_FAILURES = 20;
+
 export interface Member {
   id: string;
   handle: string;
@@ -121,18 +143,49 @@ export async function runXListTick(): Promise<TickResult> {
   const db = getDb();
   if (!db) return IDLE;
 
+  /**
+   * Claim by UPDATE, never by SELECT.
+   *
+   * The first version read a candidate row and then advanced its cursor at the
+   * end of the tick. Vercel can start the next minute's invocation while this
+   * one is still in flight, so two ticks read the same offset, each added its
+   * batch to `added_count`, and the members between the two offsets were never
+   * attempted: a list that comes back short with nothing in the log to say why.
+   *
+   * One statement does the selecting and the claiming, so there is no window
+   * between them. `FOR UPDATE SKIP LOCKED` on the inner select means a second
+   * tick arriving mid-statement takes the next eligible row or none, rather
+   * than blocking on this one. The lease is what covers the rest of the tick:
+   * the row is invisible to another claim until it expires, and it expires on
+   * its own so a killed invocation cannot strand a job.
+   *
+   * `leased_until` rather than reusing `retry_after`, because a job waiting on
+   * X and a job currently being worked need to be distinguishable in the ops
+   * report. Both mean "not yet", for opposite reasons.
+   */
   const claimed = (await db.execute(sql`
-    SELECT id, user_id, access_token, access_expires_at, list_name,
-           list_description, is_private, members, x_list_id, added_count,
-           skipped_count, failed_count, status
-    FROM x_list_jobs
-    WHERE status IN ('pending', 'running')
-      AND (retry_after IS NULL OR retry_after <= now())
-    ORDER BY created_at
-    LIMIT 1
+    UPDATE x_list_jobs
+    SET status       = 'running',
+        started_at   = coalesce(started_at, now()),
+        leased_until = now() + make_interval(secs => ${LEASE_SECONDS}),
+        updated_at   = now()
+    WHERE id = (
+      SELECT id FROM x_list_jobs
+      WHERE status IN ('pending', 'running')
+        AND (retry_after IS NULL OR retry_after <= now())
+        AND (leased_until IS NULL OR leased_until <= now())
+      ORDER BY created_at
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, user_id, x_user_id, access_token, access_expires_at, list_name,
+              list_description, is_private, members, x_list_id, added_count,
+              skipped_count, failed_count, status, create_attempted_at,
+              transient_failures
   `)) as unknown as {
     rows: Array<{
       id: string;
+      x_user_id: string | null;
       access_token: string | null;
       access_expires_at: string | null;
       list_name: string;
@@ -144,6 +197,8 @@ export async function runXListTick(): Promise<TickResult> {
       skipped_count: number;
       failed_count: number;
       status: string;
+      create_attempted_at: string | null;
+      transient_failures: number;
     }>;
   };
 
@@ -191,7 +246,48 @@ export async function runXListTick(): Promise<TickResult> {
 
   let listId = job.x_list_id;
   if (!listId) {
+    /**
+     * A create whose response we lost must not become a second list.
+     *
+     * X has no idempotency key on this endpoint. If it accepts the POST and
+     * the reply times out, or the follow-up write of `x_list_id` fails, the
+     * row still says null and the naive retry makes another list: the customer
+     * ends up with duplicate empty lists in their account and the members
+     * attached to whichever id was stored last.
+     *
+     * `create_attempted_at` is written BEFORE the call, so the next tick can
+     * tell "never tried" from "tried, outcome unknown". On the second shape we
+     * ask X what lists this account owns and adopt one with our exact name
+     * rather than creating again. Adoption is by name because that is all we
+     * have; it is scoped to lists this account owns and to a name the customer
+     * typed for this job, which makes a false match a list they deliberately
+     * named identically, and adopting that is better than silently making a
+     * third.
+     */
+    if (job.create_attempted_at) {
+      const adopted = await findOwnedListByName(
+        headers,
+        job.x_user_id,
+        job.list_name
+      );
+      if (adopted) {
+        listId = adopted;
+        await db.execute(sql`
+          UPDATE x_list_jobs
+          SET x_list_id = ${listId}, updated_at = now()
+          WHERE id = ${job.id}::uuid
+        `);
+      }
+    }
+  }
+
+  if (!listId) {
     try {
+      await db.execute(sql`
+        UPDATE x_list_jobs
+        SET create_attempted_at = now(), updated_at = now()
+        WHERE id = ${job.id}::uuid
+      `);
       const res = await fetch(`${X_API_BASE}/lists`, {
         method: 'POST',
         headers,
@@ -302,6 +398,21 @@ export async function runXListTick(): Promise<TickResult> {
   let skipped = 0;
   let failed = 0;
   let retryAt: Date | null = null;
+  /**
+   * A transient failure stops the batch instead of counting the member.
+   *
+   * The cursor is `added + skipped + failed`, so counting a timeout as
+   * `failed` advances past that person permanently: one network blip and they
+   * are silently not in the list, with nothing to distinguish them from
+   * somebody whose account genuinely could not be added. Breaking leaves the
+   * cursor where it is, and the next tick retries the same member.
+   *
+   * The distinction is what X said, not whether an exception was thrown. A
+   * 4xx is about this member (protected, deleted, blocked) and is final; a
+   * 5xx, a timeout and a 401 are about the request or the credential and are
+   * not.
+   */
+  let transient = false;
 
   for (const member of slice) {
     if (suppressed.has(member.handle.toLowerCase())) {
@@ -324,23 +435,59 @@ export async function runXListTick(): Promise<TickResult> {
         retryAt = retry;
         break;
       }
-      // A 4xx that is not a rate limit is about this one member: a protected
-      // account, a deleted one, a block. Counted and stepped over, because one
-      // unaddable member must not end a list of three hundred.
+      if (res.status >= 500 || res.status === 401 || res.status === 403) {
+        // Not about this member: the service, or our authorization. 403 is
+        // included because X uses it for an app-level refusal as well as a
+        // member-level one, and guessing wrong here drops somebody for good.
+        console.error(`X member add transient failure: ${res.status}`);
+        transient = true;
+        break;
+      }
+      // A 4xx that is not any of the above IS about this one member. Counted
+      // and stepped over: one unaddable member must not end a list of three
+      // hundred.
       failed++;
     } catch (error) {
+      // A thrown error is a timeout or a socket failure, never a verdict.
       console.error('X member add error:', error);
-      failed++;
+      transient = true;
+      break;
     }
+  }
+
+  /**
+   * The lease is released here, not left to expire.
+   *
+   * A tick that finishes in four seconds should not hold the job for the rest
+   * of the lease; the next minute's tick ought to pick it straight up. The
+   * lease exists to cover a tick in flight, not to pace the work.
+   */
+  const nextTransient = transient ? job.transient_failures + 1 : 0;
+  if (nextTransient >= MAX_TRANSIENT_FAILURES) {
+    await finish(
+      job.id,
+      'failed',
+      `gave up after ${MAX_TRANSIENT_FAILURES} consecutive transient failures`
+    );
+    return {
+      jobId: job.id,
+      added,
+      skipped,
+      failed,
+      status: 'failed',
+      note: 'too many transient failures',
+    };
   }
 
   await db.execute(sql`
     UPDATE x_list_jobs
-    SET added_count   = added_count + ${added},
-        skipped_count = skipped_count + ${skipped},
-        failed_count  = failed_count + ${failed},
-        retry_after   = ${retryAt ? retryAt.toISOString() : null},
-        updated_at    = now()
+    SET added_count        = added_count + ${added},
+        skipped_count      = skipped_count + ${skipped},
+        failed_count       = failed_count + ${failed},
+        transient_failures = ${nextTransient},
+        retry_after        = ${retryAt ? retryAt.toISOString() : null},
+        leased_until       = NULL,
+        updated_at         = now()
     WHERE id = ${job.id}::uuid
   `);
 
@@ -352,6 +499,38 @@ export async function runXListTick(): Promise<TickResult> {
     status: 'running',
     note: retryAt ? 'rate limited' : undefined,
   };
+}
+
+/**
+ * A list this account already owns with exactly this name, or null.
+ *
+ * Only ever called when `create_attempted_at` is set and `x_list_id` is not,
+ * which is the narrow "we asked X to make a list and never heard back" case.
+ * One page is enough: a list made seconds ago is the most recent one, and
+ * paging further would turn a recovery path into a crawl of somebody's
+ * account.
+ */
+async function findOwnedListByName(
+  headers: Record<string, string>,
+  xUserId: string | null,
+  name: string
+): Promise<string | null> {
+  if (!xUserId) return null;
+  try {
+    const res = await fetch(
+      `${X_API_BASE}/users/${xUserId}/owned_lists?max_results=100`,
+      { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      data?: Array<{ id?: string; name?: string }>;
+    };
+    const hit = (json.data ?? []).find((l) => l.name === name && l.id);
+    return hit?.id ?? null;
+  } catch (error) {
+    console.error('X owned-lists lookup failed:', error);
+    return null;
+  }
 }
 
 /**
