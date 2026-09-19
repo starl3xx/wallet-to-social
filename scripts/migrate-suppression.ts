@@ -285,6 +285,17 @@ const LANES = ['email', 'wallet_sig', 'handle_proof', 'legal'];
  *    payloads, not columns; they are handled by the payload TTL, the
  *    serve-time filter and the per-removal jsonb amend (decision 5).
  *  - `seeded_contracts`: token contract addresses, not people.
+ *  - `x_list_jobs`: the same class as the three above, an account record of
+ *    our own user given in a transaction: they signed in, named a list and
+ *    authorized X. It is excluded for a second and harder reason, found in
+ *    review. `suppression_guard_skip` silently discards every later UPDATE to
+ *    a guarded row, and on this table the most important UPDATE is the one
+ *    that NULLs the sealed access token when the job ends. A guard here would
+ *    therefore preserve a working third-party credential for exactly the
+ *    person who asked to be removed, and wedge their job in `running` while
+ *    it did so. The removal path is `eraseIdentifier`, which deletes the row
+ *    outright; the quarantine copy is ciphertext because the token was sealed
+ *    before it was ever written.
  *
  * scripts/check-invariants.ts can anchor on this constant the way it anchors
  * on BACKUP_TABLES in migrate-grant-readonly.ts.
@@ -293,6 +304,7 @@ const SUPPRESSION_EXCLUDED_TABLES = [
   'x_handle_attempts',
   'clanker_unresolved_ids',
   'farcaster_sweep_seen',
+  'x_list_jobs',
 ];
 
 interface CheckConstraint {

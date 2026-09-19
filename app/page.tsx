@@ -7,6 +7,8 @@ import dynamic from 'next/dynamic';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
+import { XListMenuItem, XListStatus } from '@/components/XListAction';
+import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { NoMatchesFound } from '@/components/NoMatchesFound';
@@ -2701,6 +2703,17 @@ export default function Home() {
                       Add addresses
                     </MenuItem>
                   )}
+                  {/* The list builder sits with the other things done TO a
+                      result set rather than in the button row, which the rule
+                      above keeps to three controls. It reads the same
+                      reachable-handle derivation the export does, so the count
+                      on this item and the count in the file cannot disagree. */}
+                  <XListMenuItem
+                    handles={reachableHandlesInPriorityOrder(results)}
+                    defaultName={lookupName}
+                    entitled={entitled}
+                    onUpgradeClick={handleOpenUpgradeModal}
+                  />
                   <MenuItem onClick={handleReset}>
                     <RefreshCw className="h-4 w-4" aria-hidden />
                     New lookup
@@ -2836,6 +2849,11 @@ export default function Home() {
                 }}
               />
             )}
+            {/* Above the stats because it is about something in flight, and
+                the thing a person who has just come back from x.com is looking
+                for. It renders nothing at all when there is no list outcome in
+                the URL, which is every other visit. */}
+            <XListStatus />
             <StatsCards results={results} />
             <ResultsTable
               results={results}

@@ -1258,6 +1258,286 @@ async function main() {
     else process.env.SECRET_BOX_KEY = previousKey;
   }
 
+  // ------------------------------------------- the X list builder's five ways to lose
+  /**
+   * Every one of these was a real defect in the first version of this worker,
+   * found in review before it shipped. They are asserted rather than fixed and
+   * forgotten because four of the five fail silently: the symptom is a list
+   * that is short, or duplicated, or a token that outlives its job, and none
+   * of those raise anything.
+   */
+  {
+    const worker = withoutComments(
+      readFileSync('lib/x-list-worker.ts', 'utf8')
+    );
+    const flatWorker = worker.replace(/\s+/g, ' ');
+
+    /**
+     * The claim is an UPDATE, never a SELECT.
+     *
+     * Reading a candidate row and advancing its cursor at the end of the tick
+     * is a race with the next minute's invocation: Vercel can start it while
+     * this one is in flight, both read the same offset, both add a batch, and
+     * the members between the two offsets are never attempted.
+     */
+    ok(
+      'the X list worker claims a job by UPDATE with a lease, not a bare SELECT',
+      /UPDATE x_list_jobs SET status = 'running'/.test(flatWorker) &&
+        /FOR UPDATE SKIP LOCKED/.test(flatWorker) &&
+        /leased_until = now\(\) \+ make_interval/.test(flatWorker)
+    );
+
+    /**
+     * A transient failure must not advance the cursor.
+     *
+     * The cursor is added + skipped + failed, so counting a timeout as
+     * `failed` steps permanently past that person: one blip and they are
+     * silently not in the list, indistinguishable from somebody whose account
+     * genuinely could not be added.
+     */
+    ok(
+      'a 5xx or a thrown error breaks the batch instead of counting the member',
+      // BOTH branches, counted. There are two ways a member add fails without
+      // being a verdict about that member, the response and the throw, and an
+      // assertion satisfied by either one passes while the other silently
+      // steps over somebody.
+      (flatWorker.match(/transient = true; break;/g) ?? []).length === 2 &&
+        /res\.status >= 500/.test(flatWorker)
+    );
+    ok(
+      'and a job that only ever fails transiently still gives up',
+      // The DECLARATION, not the identifier: the first version tested only
+      // that the name appeared somewhere, which a rename of the constant
+      // leaves true at every use site while the bound itself is gone.
+      /const MAX_TRANSIENT_FAILURES = \d+;/.test(worker) &&
+        /if \(nextTransient >= MAX_TRANSIENT_FAILURES\)/.test(flatWorker) &&
+        /transient_failures = \$\{nextTransient\}/.test(flatWorker)
+    );
+
+    /**
+     * Every path that leaves a job runnable releases the lease.
+     *
+     * The lease covers a tick in flight; it is not a pacing mechanism. A tick
+     * that gives up after four seconds and leaves `leased_until` set hides the
+     * row for the rest of five minutes, so the list stalls under exactly the
+     * conditions where it should retry hardest: a timeout, a rate limit before
+     * creation, an unreadable suppression list.
+     *
+     * Counted rather than merely present, because there are four such paths
+     * and an assertion satisfied by one of them passes while three stall.
+     */
+    ok(
+      'every runnable exit from a tick clears the lease',
+      // Anchored on the CALL, not on the SQL string. The first version counted
+      // occurrences of `leased_until = NULL`, which the helper's own body
+      // keeps satisfying after every call site is deleted: it passed happily
+      // with the suppression path leaving a job hidden for five minutes.
+      /async function releaseLease/.test(worker) &&
+        /Suppression read failed[\s\S]{0,120}await releaseLease\(job\.id\)/.test(
+          worker
+        ) &&
+        (flatWorker.match(/leased_until = NULL/g) ?? []).length >= 4
+    );
+
+    /**
+     * Progress resets the transient counter.
+     *
+     * The counter means consecutive ticks that achieved nothing. Incrementing
+     * it whenever a tick merely ENDED on a transient failure kills a long list
+     * that is adding steadily and meeting the occasional timeout, and reports
+     * "too many transient failures" about a job whose every tick made
+     * progress. The constant's own comment claimed this behaviour before the
+     * code did it, which is the shape this file exists to refuse.
+     */
+    ok(
+      'anything added clears the transient-failure counter',
+      /transient && added === 0 \? job\.transient_failures \+ 1 : 0/.test(
+        flatWorker
+      )
+    );
+
+    /**
+     * The cap cuts the priority tail, not an arbitrary subset.
+     *
+     * `WHERE handle = ANY(...)` returns rows in whatever order the plan
+     * produces, and the cap takes the first N. Slicing that unordered set
+     * drops people the results table showed at the top, which is the one thing
+     * that would make truncating a list indefensible: the caller's array is
+     * already sorted by the priority they were looking at.
+     */
+    {
+      const listRoute = withoutComments(
+        readFileSync('app/api/x/lists/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the member list is rebuilt in the caller order before it is capped',
+        /const byHandle = new Map\(/.test(listRoute) &&
+          /handles \.filter\(\(h\) => byHandle\.has\(h\)\)/.test(listRoute) &&
+          !/rows\.rows\.map\(\(r\) => \(\{ id: r\.user_id/.test(listRoute)
+      );
+
+      /**
+       * Both surfaces take the priority-ordered derivation, not the raw one.
+       *
+       * `reachableHandlesFrom` preserves its input's order deliberately, which
+       * makes sorting the caller's job, and that is how the two callers came
+       * to disagree even after the derivation was extracted to stop exactly
+       * that: the export sorted first, the menu item passed the raw results,
+       * and a list truncated at X's cap kept the first five thousand of an
+       * unordered set while the confirmation told the customer they were the
+       * highest priority. The sort is part of the derivation.
+       */
+      for (const caller of ['app/page.tsx', 'components/ExportButton.tsx']) {
+        const src = withoutComments(readFileSync(caller, 'utf8'));
+        ok(
+          `${caller} takes the priority-ordered handle list, never the raw one`,
+          /reachableHandlesInPriorityOrder\(/.test(src) &&
+            !/reachableHandlesFrom\(/.test(src)
+        );
+      }
+
+      /**
+       * And what was left out is shown before the consent screen.
+       *
+       * The route returned `dropped` and `unresolved` from the first version
+       * and the only consumer ignored both, so a capped or partly-resolved
+       * list was authorized as though it were the whole community. A value
+       * computed and never read is the same defect as one never computed, and
+       * it is harder to see.
+       */
+      const modal = withoutComments(
+        readFileSync('components/XListAction.tsx', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the modal reads the dropped and unresolved counts it is given',
+        /json\.dropped/.test(modal) &&
+          /json\.unresolved/.test(modal) &&
+          /if \(dropped > 0 \|\| unresolved > 0\)/.test(modal)
+      );
+    }
+
+    /**
+     * The consent window is enforced where the row is READ.
+     *
+     * A TTL that lives only in a daily sweep is a claim the code does not
+     * keep: the row sits for up to a day while the comment says thirty
+     * minutes, and a confirmation tab left open overnight authorizes
+     * successfully and then fails at X after the 04:00 pass cancels it
+     * underneath. The callback is the authority; the sweep empties the
+     * payload afterwards.
+     */
+    ok(
+      'the callback refuses a consent request older than its stated window',
+      /created_at > now\(\) - interval '30 minutes'/.test(
+        withoutComments(readFileSync('app/api/x/callback/route.ts', 'utf8'))
+      )
+    );
+
+    /**
+     * Back cancels the row it already created.
+     *
+     * The confirmation exists because only the server knows how many handles
+     * resolved, so the row is written before the person is asked whether to
+     * go on. Without a cancel, Back left it behind and a second attempt made
+     * another, and an unchecked handle counts as `unresolved`, so this is the
+     * common path rather than the rare one.
+     */
+    {
+      const statusRoute = withoutComments(
+        readFileSync('app/api/x/lists/[id]/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const modalSrc = withoutComments(
+        readFileSync('components/XListAction.tsx', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'an unauthorized list job can be cancelled, and only by its owner',
+        /export async function DELETE/.test(statusRoute) &&
+          /AND user_id = \$\{session\.user\.id\} AND status = 'awaiting_auth'/.test(
+            statusRoute
+          )
+      );
+      ok(
+        'and Back calls it rather than only forgetting the job',
+        /method: 'DELETE'/.test(modalSrc) && /pending\.jobId/.test(modalSrc)
+      );
+    }
+
+    /**
+     * An abandoned consent screen does not keep its payload.
+     *
+     * A row is created `awaiting_auth` holding the member list, the PKCE
+     * verifier and the state nonce, and only `finish()` clears them. Closing
+     * the X tab never reaches `finish()`, so the one thing this design exists
+     * for, not keeping material longer than the job needs it, quietly failed
+     * in the abandoned case.
+     */
+    ok(
+      'abandoned list jobs are purged of their members and verifier',
+      /export async function cleanupAbandonedListJobs/.test(worker) &&
+        /status = 'awaiting_auth'/.test(flatWorker) &&
+        /cleanupAbandonedListJobs\(\)/.test(
+          withoutComments(readFileSync('app/api/cron/cleanup/route.ts', 'utf8'))
+        )
+    );
+
+    /**
+     * A create whose reply was lost is adopted, not repeated. X has no
+     * idempotency key here, so without this the customer collects duplicate
+     * empty lists while members attach to whichever id was stored last.
+     */
+    ok(
+      'the list create marks its attempt before calling X, and adopts on retry',
+      /create_attempted_at = now\(\)/.test(flatWorker) &&
+        /findOwnedListByName/.test(worker)
+    );
+
+    /**
+     * Ending a job takes its credentials with it, on every path. Five ways to
+     * finish and one statement, because a separate clear-the-token step is the
+     * kind that gets added to four of them.
+     */
+    ok(
+      'finishing a list job clears the token and the member list together',
+      /SET status = \$\{status\}, error = \$\{error\}, access_token = NULL, members = '\[\]'::jsonb/.test(
+        flatWorker
+      )
+    );
+  }
+
+  /**
+   * x_list_jobs must NOT carry a suppression trigger, and this is the one
+   * assertion here that refuses a fix rather than requiring one.
+   *
+   * `suppression_guard_skip` silently discards every later UPDATE to a guarded
+   * row. On this table the most important UPDATE is the one that NULLs the
+   * sealed X access token when the job ends, so a guard would preserve a
+   * working third-party credential for exactly the person who asked to be
+   * removed, and wedge their job in `running` while it did so. The removal
+   * path is `eraseIdentifier`, which deletes the row outright.
+   *
+   * It reads as an obviously missing guard to anyone scanning the attachment
+   * list, which is why it is written down as a refusal instead of a gap.
+   */
+  {
+    const supp = withoutComments(
+      readFileSync('scripts/migrate-suppression.ts', 'utf8')
+    );
+    const attachBlock =
+      supp.match(
+        /const ATTACHMENTS: Attachment\[\] = \[([\s\S]*?)\n\];/
+      )?.[1] ?? '';
+    ok(
+      'x_list_jobs carries no suppression trigger, because one would preserve its token',
+      attachBlock.length > 0 && !attachBlock.includes("'x_list_jobs'")
+    );
+    ok(
+      'and the removal path deletes the row instead',
+      /del\('x_list_jobs'/.test(
+        withoutComments(readFileSync('lib/removal-admin.ts', 'utf8'))
+      )
+    );
+  }
+
   // ------------------------------------------------------- OAuth: redirects
   // `redirectUriAllowed` is the single check standing between an authorization
   // code and whoever asked for it. Every case below is the attacker's.

@@ -962,6 +962,53 @@ export type NewUser = typeof users.$inferInsert;
  * or cast it against one. The same is true of `last_live_user_id` here and of
  * `social_graph.twitter_user_id`.
  */
+/**
+ * One row per "turn this result set into an X list" request.
+ *
+ * Declared here even though every query against it is hand-written SQL,
+ * because this file is what `check-invariants` reads to derive the set of
+ * identity-carrying tables. A table that only exists in a migration is
+ * invisible to that derivation, and invisible is exactly how a table ends up
+ * neither guarded nor argued into the exclusion boundary.
+ *
+ * It IS in that boundary, deliberately, and the reason is in
+ * `scripts/migrate-suppression.ts`: a `suppression_guard_skip` trigger here
+ * would silently discard the UPDATE that NULLs the sealed access token when a
+ * job ends, preserving a working credential for the person who asked to be
+ * removed. The removal path is `eraseIdentifier`, which deletes the row.
+ */
+export const xListJobs = pgTable('x_list_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  // The X platform id of the authorizing account. NOT users.id.
+  xUserId: text('x_user_id'),
+  handle: text('handle'),
+  // Sealed by lib/secret-box.ts. Never plaintext, nulled when the job ends.
+  accessToken: text('access_token'),
+  accessExpiresAt: timestamp('access_expires_at'),
+  codeVerifier: text('code_verifier'),
+  stateNonce: text('state_nonce'),
+  listName: text('list_name').notNull(),
+  listDescription: text('list_description'),
+  isPrivate: boolean('is_private').default(false).notNull(),
+  // [{ id, handle }], emptied when the job ends.
+  members: jsonb('members').default([]).notNull(),
+  xListId: text('x_list_id'),
+  addedCount: integer('added_count').default(0).notNull(),
+  skippedCount: integer('skipped_count').default(0).notNull(),
+  failedCount: integer('failed_count').default(0).notNull(),
+  status: text('status').default('awaiting_auth').notNull(),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  retryAfter: timestamp('retry_after'),
+  leasedUntil: timestamp('leased_until'),
+  createAttemptedAt: timestamp('create_attempted_at'),
+  transientFailures: integer('transient_failures').default(0).notNull(),
+});
+
 export const xAccounts = pgTable(
   'x_accounts',
   {

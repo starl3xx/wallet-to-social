@@ -569,6 +569,31 @@ export async function eraseIdentifier(
     if (kind === 'twitter') {
       // Keyed on the handle; the row IS the personal data.
       await del('x_accounts', sql`lower(t.handle) = ${identifier}`);
+      /**
+       * The X list job of somebody who asked to be removed.
+       *
+       * Deleted rather than blanked: the row is a name, an X account id and a
+       * sealed token that can act as that account, and none of it survives the
+       * request usefully. This table carries NO suppression trigger, and that
+       * is deliberate rather than an omission. `suppression_guard_skip`
+       * silently discards every later UPDATE to a guarded row, and the most
+       * important UPDATE here is the one that NULLs the token when the job
+       * ends, so a guard would preserve a working credential for exactly the
+       * person asking to be rid of it. The refusal to collect more is this
+       * delete plus the pre-flight in the list route.
+       *
+       * The quarantine copy is safe because the token was sealed by
+       * `lib/secret-box.ts` before it was ever written, so what lands in
+       * `suppression_quarantine` for the undo window is ciphertext.
+       *
+       * What this does NOT do is revoke at X. A deleted row is a token we can
+       * no longer name, so it stays valid until it expires, which is under two
+       * hours because `offline_access` is never requested. Said here rather
+       * than assumed away: the alternative is a network call on the removal
+       * path that can fail and block the erase, and a two-hour window on a
+       * token scoped to list writing is the better trade.
+       */
+      await del('x_list_jobs', sql`lower(t.handle) = ${identifier}`);
     }
     if (kind === 'twitter' || kind === 'farcaster') {
       // handle_conflicts holds wallet + two handles: the erased edge, twice

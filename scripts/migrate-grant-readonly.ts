@@ -85,6 +85,16 @@ const READ_ONLY_TABLES = [
   // holders on every chain for sixteen days, and the only trace was a
   // holders_imported = 0 row that nobody counted.
   'seeded_contracts',
+  // Added 2026-09-19 with the X list builder, so the ops report can see a job
+  // that stalled: the failure this table can have is a run that stops partway
+  // through a list and leaves it half built, which nothing else would show.
+  //
+  // Granting it is safe for the reason the row is transient: `access_token`
+  // holds ciphertext and is nulled when the job ends, and `members` is emptied
+  // with it, so a completed row carries a name, two counts and a status.
+  // Deliberately NOT in BACKUP_TABLES, on the `oauth_grants` precedent: a
+  // restore would resurrect a token somebody has finished with.
+  'x_list_jobs',
 ];
 
 /**
