@@ -582,6 +582,22 @@ const ATTACHMENTS: Attachment[] = [
     fn: 'suppression_guard_skip',
     args: `'wallet=wallet', 'twitter=twitter_handle', 'farcaster=farcaster'`,
   },
+
+  // The X list job holds the handle of the person who authorized it, next to a
+  // sealed token that can act as them. Dropping the row is right: a request to
+  // be removed and a stored ability to write to that account are the same
+  // question, and the row IS the mapping, so there is nothing to blank.
+  //
+  // The guard only refuses future writes. The members the list is being built
+  // FROM live in the `members` jsonb, which a column trigger cannot see; the
+  // worker re-reads the suppression list before each batch for exactly that
+  // reason, which is the same division `lookup_jobs` makes between a column
+  // and a payload.
+  {
+    table: 'x_list_jobs',
+    fn: 'suppression_guard_skip',
+    args: `'twitter=handle'`,
+  },
 ];
 
 const TRIGGER_NAME = 'suppression_guard';
