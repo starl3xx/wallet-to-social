@@ -19,6 +19,192 @@ All notable changes to walletlink.social. Newest first.
   primary now matches the indexed `lindaxie` identity. The opening
   five-wallet lookup keeps Jesse, Vitalik, and Dan as its anchors.
 
+### 2026-09-20 (the priority score counts X reach)
+
+- **`priority_score` ignored X followers**, on a product sold on X reach. It
+  ranked on `holdings × log₁₀(fcFollowers + 1)` alone.
+- The cause was ordering, not judgement. The score is computed mid-pipeline and
+  `x_followers` does not exist until `stampReachability` runs in the finalize
+  step, so the input was unavailable at the only moment anything read it. The
+  comment four lines above the call said so and nothing acted on it.
+- Reach is now **summed** across both platforms: `holdings × log₁₀(fc + x + 1)`.
+  The audiences overlap, but somebody reachable on both is more reachable than
+  on one, and the logarithm compresses the double-count to almost nothing.
+  Taking the maximum would have thrown the second platform away.
+- **Recomputed after the paid-field strip**, so a free job's score is built from
+  the inputs it always had and a paid signal never folds into a free row.
+- **Both pipelines changed**, per the rule
+  `inngest/functions/wallet-lookup.ts` states about itself. That one never
+  called `stampReachability` at all, so it had no X followers to score from; it
+  now stamps, strips the new paid field for a free job, then scores. Without
+  that an API caller and a web caller would get different scores for one wallet.
+- The floor moved from one follower to zero so an absent Farcaster account stops
+  adding a phantom follower to an X account's reach. A row with no audience at
+  all scores exactly what it did before.
+- `priority_score` remains ungated on the API pipeline, unlike the app, which is
+  a divergence that predates this and is left alone: removing the field would
+  take it from callers who have it today.
+
+### 2026-09-20 (the data tab shows what the graph is made of)
+
+- **Graph composition pane** at the top of the admin Data tab
+  (`components/admin/GraphComposition.tsx` over
+  `GET /api/admin/graph-composition`): topline stat tiles (wallets, resolve
+  to a social, X handles, Farcaster, live X handles) and a per-source bar
+  chart. Two figures per source, deliberately: `wallets` is every row
+  carrying the label, `sole` is rows where it is the only label, which is
+  the best-source figure volume can't fake, and the sort toggle exists for
+  exactly that comparison.
+- Bars are magnitude on the single brand hue with identity in the row
+  label, per the design language; rates stay figures per the Meter rule.
+  The green dot marks sources whose public evidence class is
+  owner-attested, mapped through the existing allowlist so the pane keeps
+  no copy of it; an unmapped id shows as `unmapped`, which on this pane is
+  a finding, not a leak.
+- Measured on live data before shipping: the two aggregate scans take
+  about 9 seconds on 5.27M rows, inside the route's 60-second ceiling.
+
+### 2026-09-20 (the grant pays for the thing only a claim can supply)
+
+- **A claim now earns credits only when it adds an account number we lacked**,
+  and the address predates the cutoff. Both halves, because either alone pays
+  for the wrong thing: the cutoff alone paid for an owner attestation Farcaster
+  mostly supplies free, and a gap alone would let an address created this
+  morning earn credits.
+- Measured on 2026-09-20: **4,708,708** wallets carry a Farcaster id and
+  **1,063,216** of those carry an X handle, against **86,894** rows anywhere
+  that carry an X account number. Farcaster records a verified X account as a
+  bare username, so nothing it gives us can tell a rename from a suspension.
+  **1,048,530** wallets sit in exactly that state.
+- The gap is read **before** the ingest that closes it, since `ingestLinks`
+  writes the account number and asking afterwards would answer "no gap" for
+  precisely the claims that just filled one.
+- **`/claim` invites the people who can close it.** Once a wallet is connected,
+  the challenge reports whether confirming would add an account number, and the
+  flow says so before anything is approved.
+- **It is one bit, never the handle.** Telling a caller which account we hold
+  for an address they typed would be the reverse lookup, given away behind a
+  session and ten requests an hour. Asserted as a refusal: the response may not
+  carry a handle.
+- That ordering assertion needed a second pass. Anchored on `addsAccountId =`
+  it matched the declaration, which does not move when the read does, so it
+  passed with the read relocated below the ingest. It anchors on the query now.
+
+### 2026-09-20 (Unstoppable Domains corpus harvest, domain side)
+
+- **`scripts/harvest-ud-domains.ts`**: the corpus path the address-side walk
+  pointed at. Enumerates `NewURI` mints off the registry contracts (Ethereum
+  CNS + UNS, Polygon UNS, Base UNS; addresses and deploy blocks from the
+  resolution library's published npm config, read 2026-09-20), profile-reads
+  each domain, keeps only registry-verified public X entries, resolves the
+  CURRENT owner via `ownerOf` through Multicall3 on the domain's own chain,
+  and ingests under the same `ud_profile` source id: identical mechanism,
+  different discovery direction.
+- Owner over `crypto.ETH.address`, deliberately: the record is a payment
+  pointer anyone can aim anywhere; ownership is what the verified flag was
+  earned with. Custody wallets holding many domains self-eliminate through
+  the contested-wallet drop, and across runs cost at most one conflict row.
+- Per-registry checkpoints (`ud_domain_enum_*`); a window's checkpoint only
+  advances after its domains are read and its links ingested. The read
+  budget is profile reads only; a window whose mints exceed the remaining
+  budget shrinks until it fits or the run stops in front of it.
+- The first probes each found a real 400 class in minutes: a mint with a
+  leading hyphen (`-unstoppabletestdomain001.crypto`) and a retired-TLD name
+  (`fontediterra.coin`, .coin sunset 2023). A 400 is the API refusing the
+  name, not failing the read, so it is an outcome now, not an abort.
+- Measured before scheduling, same rule as the address side. The oldest 575
+  CNS domains (2019 cohort): 2 verified handles, 2 owner links (0.35%). The
+  oldest 596 Polygon domains (2021 cohort): 11 verified handles, 11 owner
+  links (1.85%), 7 unverified skipped. Both samples predate the verified
+  flag, so they are the floor, and the floor already runs about 18 links per
+  1k reads on Polygon against the address-side walk's zero per 430.
+- Workflow `ud-domain-harvest.yml`, twice daily (02:15 and 14:15 UTC), 40k
+  reads per run: the full 4.2M-domain backfill is roughly seven weeks at
+  that cadence, deliberately prompt because the provider is mid-rebrand and
+  the keyless endpoints have no promised lifetime. `ALCHEMY_KEY` is
+  optional; without it the log scan uses public RPC endpoints.
+
+### 2026-09-20 (the claim control stops being below the fold)
+
+- **`/claim` put three sections and about six hundred words above the claim
+  card**, so the one thing the page exists for sat below the fold on every
+  laptop. The control now comes straight after the heading.
+- The explanation moves into four collapsed disclosures **underneath, on the
+  same URL**. Not a separate FAQ page: a disclosure somebody has to navigate
+  away to find is weaker ground if anyone ever disputes what they agreed to,
+  and two copies of the same copy drift apart. Native `details`, so every
+  answer is in the HTML for a crawler rather than behind a click, which
+  matters because `/claim` is in the sitemap.
+- **Two facts stay above the control**: that the index is sold, and that we
+  take no access to the X account. Those are the pair that changes somebody's
+  mind, so hiding them behind a click would be choosing exactly the wrong two
+  to hide. Asserted, along with the ordering and the disclosures still being
+  present, because moving the card up and deleting the copy would pass a
+  layout check while removing what a person agreed to.
+- That assertion needed a second pass. Written as an `indexOf` comparison it
+  passed while the sentence was deleted, since `indexOf` answers -1 for absent
+  and -1 precedes every real index: the same defect this repo already records
+  three times, reintroduced by hand and caught by breaking it.
+
+### 2026-09-20 (every attested ingest records its disagreements, finally)
+
+- **`lib/conflict-resolution.ts` said conflict rows "are written by every
+  attested ingest" and PROJECT_OVERVIEW said the same. Both were false**, and
+  false in the flattering direction: only the `ingestLinks` callers wrote them.
+- **`lib/ens-harvest.ts` now records conflicts.** It is fill-only and always
+  was, which is right, but it meant an onchain text record naming a different
+  account than the one we serve was dropped: no fill, no row, nothing for the
+  resolver, the admin queue or `twitter.also` to see. That is the strongest
+  attested class in the product (`ens_onchain` is `onchain`, settable only by
+  the name's owner) losing the thing it is best placed to tell us.
+- **`lib/farcaster-sweep.ts` stops overwriting attested evidence.** It was the
+  one X-handle writer that was not fill-only: it replaced any non-`manual`
+  handle, including one an owner had just signed for through `/claim` minutes
+  earlier, and left `owner_attested` sitting in `sources` beside a handle that
+  owner never gave. It now yields to attested sources it does not speak for and
+  records the disagreement instead.
+- The guard is **derived** from the evidence classification through a new
+  `ATTESTED_SOURCE_IDS`, not hand-listed, because a hand-copied list is how two
+  reachability queries in this repo already came to disagree. Farcaster's own
+  two ids are excluded from it, since guarding against those would stop the
+  sweep ever updating a handle it wrote itself.
+- **`isTwitterVerified` was missing `neynar` and `farcaster_sweep`.** The sweep
+  writes `twitter_verified = true` directly, so the same Farcaster-verified
+  handle stored `true` when the sweep wrote the row and `false` when a live
+  lookup merged it: provenance decided by which code path arrived last.
+- Deriving that list wholesale was tried and reverted. The column does not mean
+  "attested class": it means a source that writes `verified = true` ingested
+  the row, which is why `zora_profile` belongs in it and is deliberately absent
+  from the published attested-share figure. The invariant block pinning that
+  divergence is what caught the attempt.
+- The new assertion is written for **every** attested writer rather than the two
+  that were found, because the claim in those two files is repo-wide.
+
+### 2026-09-20 (the page could not tell you what it holds)
+
+- **`GET /api/claim/mine`**, and a panel on `/claim` that shows the addresses
+  you have claimed. There were three routes (challenge, start, withdraw) and
+  none of them could answer "have I claimed", so the page showed an identical
+  card to somebody who had claimed an hour earlier and somebody who never had.
+- It was promising otherwise in two places: "control of your own row", and
+  twice that a claim can be withdrawn "from this same page with the same
+  wallet" — an instruction naming a wallet the page declined to tell you.
+- **The only confirmation that ever existed was one-shot.** `ClaimOutcome`
+  reads `?claim=completed` and strips it with `replaceState` in the same
+  effect, which is right for a banner and wrong as the only record: one reload
+  and there was no way to learn what happened, while the row sat in the
+  database saying `completed`. Found by claiming an address in production and
+  seeing nothing afterwards.
+- Completed rows only. `awaiting_x` is a claim in flight and would report a
+  pairing that does not exist yet; `withdrawn` is the case whose whole point is
+  that the answer became nothing.
+- Scoped by the session cookie and never by a parameter, because an endpoint
+  taking a user id would let anybody enumerate which wallets belong to which
+  account. It returns no signature, verifier or nonce: the panel needs none of
+  them, and the callback's argument for keeping no access token applies here.
+- A withdrawal refetches the panel, so the removed pairing cannot stay on
+  screen beside the sentence saying it was removed.
+
 ### 2026-09-20 (Unstoppable Domains profile harvest)
 
 - **New attested source `ud_profile`** (`scripts/harvest-ud-profiles.ts`):

@@ -111,7 +111,17 @@ credentials live where is in the private ops repo, deliberately.
 
 ### Priority Score
 
-Calculated as `holdings × log₁₀(fcFollowers + 1)` to rank wallets by both token holdings and social reach.
+Calculated as `holdings × log₁₀(fcFollowers + xFollowers + 1)` to rank wallets by both token
+holdings and social reach. Reach is **summed across both platforms**, not maximised: the
+audiences overlap, but somebody reachable on both is more reachable than on one, and the
+logarithm compresses the double-count to almost nothing.
+
+**The X term is why the score is computed twice.** `x_followers` does not exist until
+`stampReachability` runs in the finalize step, so the mid-pipeline pass sets a
+Farcaster-only score and the finalize pass recomputes it with both. It recomputes **after**
+the paid-field strip, so a free job's score is built from the inputs it always had and a
+paid signal never folds into a free row. Both pipelines do this: `lib/job-processor.ts` and
+`inngest/functions/wallet-lookup.ts`, which is registered and live behind `/v1/jobs`.
 
 ### Pricing and entitlement
 
