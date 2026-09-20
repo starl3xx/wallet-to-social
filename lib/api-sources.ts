@@ -135,6 +135,15 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   opensea_profile: 'attested-social',
 
   /**
+   * A name-registry profile where the wallet owns the name and the social
+   * account carries the registry's own verified flag, set by wallet sign-in
+   * plus platform OAuth: both halves owner-established. Only entries the
+   * registry marks verified AND public are ingested; owner-typed unverified
+   * text is skipped at the adapter, so this id never labels a weaker claim.
+   */
+  ud_profile: 'attested-social',
+
+  /**
    * A creator profile where the social account is attached through a flow the
    * platform records as a dated link event, and wallets are connected to the
    * same account.

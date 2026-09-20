@@ -1796,8 +1796,21 @@ async function main() {
             );
             ok(
               'the claim control sits above the explanation',
-              page.indexOf('<ClaimFlow') < page.indexOf('<Detail') &&
-                page.indexOf('<Detail') > -1
+              /**
+               * BOTH operands checked for presence, not just one.
+               *
+               * The first version tested `indexOf('<Detail') > -1`, which is
+               * the operand the comparison already rejects: `<Detail>` has to
+               * exist for a real index to compare against. The one that can
+               * go missing is the control, and with it absent `indexOf`
+               * answers -1, which precedes every real index, so deleting the
+               * claim card outright passed a check named for keeping it
+               * first. The existence test landed on the safe operand, one
+               * assertion above the comment describing that exact trap.
+               */
+              page.includes('<ClaimFlow') &&
+                page.includes('<Detail') &&
+                page.indexOf('<ClaimFlow') < page.indexOf('<Detail')
             );
             ok(
               'and the explanation is still on this page, not moved off it',
