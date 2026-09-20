@@ -76,6 +76,8 @@ interface ContractResult {
   totalHolders: number;
   truncated: boolean;
   appliedLimit?: number;
+  /** Set when the CREDITS were the reason the list was cut, not the contract. */
+  coverageCap?: number | null;
   chain: SupportedChain;
 }
 
@@ -423,6 +425,23 @@ export function ContractImportModal({
                         Imported {result.wallets.length.toLocaleString()}{' '}
                         holders, the maximum for this import. The source did not
                         report a total, so this token probably has more.
+                      </>
+                    )}
+                    {/* WHY it stopped, when the reason was the balance.
+
+                        The import used to fill to the anti-enumeration
+                        ceiling, which is 2.37x what a pack can pay for at the
+                        measured rate, so the file arrived looking affordable
+                        and met the gate a third of the way in. It now stops at
+                        what the credits cover, and a truncation somebody
+                        cannot explain is the surprise this sentence exists to
+                        avoid: it names the balance as the cause rather than
+                        leaving them to assume the contract was that size. */}
+                    {result.coverageCap != null && (
+                      <>
+                        {' '}
+                        This is what your credits cover. Buying more imports
+                        more of the list.
                       </>
                     )}
                   </p>
