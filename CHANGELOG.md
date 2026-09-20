@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the footer stops linking to this file)
+
+- The Project column linked Changelog straight at `CHANGELOG.md` on GitHub.
+  It is an engineering log, written for whoever works on this next, and it was
+  sitting one click from the footer of every page beside Privacy and the
+  support address. Removed; the file stays exactly where it is and is still
+  linked from the repository itself.
+- The module comment listing which footer links carry the external arrow was
+  updated in the same change, since it named Changelog as one of them.
+
 ### 2026-09-20 (one member X will not accept stops costing the list everyone behind them)
 
 - **A live list of 290 stopped at 103 and sat there.** The resume cursor is
