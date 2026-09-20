@@ -95,6 +95,16 @@ const READ_ONLY_TABLES = [
   // Deliberately NOT in BACKUP_TABLES, on the `oauth_grants` precedent: a
   // restore would resurrect a token somebody has finished with.
   'x_list_jobs',
+  // One row per `/claim`. Granted for the same reason as the row above: the
+  // ops report needs to see how many attestations completed and how many
+  // stalled at the consent screen, which nothing else would show.
+  //
+  // Safe to grant because it holds no credential at all, unlike its
+  // neighbour: the X round trip reads the account once and drops the token in
+  // the same request, so there is never one to store. Deliberately NOT in
+  // BACKUP_TABLES: a restore would resurrect an attestation somebody has
+  // since withdrawn, which is the one thing a withdrawal is for.
+  'identity_attestations',
 ];
 
 /**

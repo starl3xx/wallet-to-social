@@ -296,6 +296,22 @@ const LANES = ['email', 'wallet_sig', 'handle_proof', 'legal'];
  *    it did so. The removal path is `eraseIdentifier`, which deletes the row
  *    outright; the quarantine copy is ciphertext because the token was sealed
  *    before it was ever written.
+ *  - `identity_attestations`: the same shape of argument as `x_list_jobs`,
+ *    and reached the same way. It is a record of our own user's transaction:
+ *    they signed in, signed a message with their wallet and authorized an
+ *    account, on a page whose entire subject is that pairing. A trigger here
+ *    would be the strangest outcome available, because a suppressed wallet
+ *    arriving would be silently blanked and the row would then record a
+ *    consent whose subject it no longer names.
+ *
+ *    The second reason is the deciding one, and it is the `x_list_jobs`
+ *    reason with a different victim. `suppression_guard_skip` discards every
+ *    later UPDATE to a guarded row, and the important UPDATEs on this table
+ *    are the callback completing the claim and, worse, the WITHDRAWAL. A
+ *    guard would freeze a row in `awaiting_x` and make the one action a
+ *    person takes to undo their own attestation the one action that silently
+ *    does nothing. The removal path is `eraseIdentifier`, which deletes the
+ *    row outright.
  *
  * scripts/check-invariants.ts can anchor on this constant the way it anchors
  * on BACKUP_TABLES in migrate-grant-readonly.ts.
@@ -305,6 +321,7 @@ const SUPPRESSION_EXCLUDED_TABLES = [
   'clanker_unresolved_ids',
   'farcaster_sweep_seen',
   'x_list_jobs',
+  'identity_attestations',
 ];
 
 interface CheckConstraint {
