@@ -229,20 +229,34 @@ export async function POST(request: NextRequest) {
    * soon as the list exists.
    *
    * It takes one of X's slots rather than being added on top of them, so a
-   * list can never exceed the cap. Skipped when the account is already a
-   * holder, because X refuses a duplicate and the refusal would be counted
-   * against the customer's own numbers.
+   * list can never exceed the cap.
+   *
+   * Removed and re-prepended rather than skipped when already present, which
+   * is not the same thing and the difference is a real hole: testing
+   * membership against the FULL resolved list and then truncating means an
+   * account that is a holder but sits past the cap gets neither the prepend
+   * nor a place in the slice, so the list would carry nobody. Filtering first
+   * makes position irrelevant, and X never sees a duplicate either way.
    *
    * Disclosed in the dialog before anyone authorizes, not discovered
    * afterwards: it is the customer's list, and a guest in it they did not ask
    * for is something they should be told about while they can still decide.
    */
-  const alreadyAMember = members.some((m) => m.id === WALLETLINK_X_USER_ID);
-  const withUs = alreadyAMember
-    ? members
-    : [{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE }, ...members];
+  const theirs = members.filter((m) => m.id !== WALLETLINK_X_USER_ID);
+  const withUs = [
+    { id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE },
+    ...theirs,
+  ];
 
   const capped = withUs.slice(0, X_LIST_MEMBER_MAX);
+
+  /**
+   * Every count below is about THEIR accounts, and ours is always exactly one
+   * row at index 0 that always survives the slice, so one subtraction covers
+   * it with no branch. The branch was the bug: it made `dropped` depend on
+   * whether we happened to be a holder.
+   */
+  const theirsIncluded = capped.length - 1;
 
   const verifier = randomBytes(32).toString('base64url');
   const nonce = randomBytes(16).toString('base64url');
@@ -293,12 +307,12 @@ export async function POST(request: NextRequest) {
      * negative truncation is the kind of number nobody questions because it
      * looks like a rounding artefact.
      */
-    members: capped.length - (alreadyAMember ? 0 : 1),
+    members: theirsIncluded,
     // Said rather than implied: the caller asked for more than X allows, and
-    // the list will be short by this many.
-    dropped: members.length - (capped.length - (alreadyAMember ? 0 : 1)),
+    // the list will be short by this many. Measured against `theirs`, so a
+    // customer who happens to hold the token through our own account is not
+    // told one of their accounts was dropped.
+    dropped: theirs.length - theirsIncluded,
     unresolved: handles.length - members.length,
-    /** So the dialog can say so before anyone authorizes. */
-    includes_walletlink: !alreadyAMember,
   });
 }

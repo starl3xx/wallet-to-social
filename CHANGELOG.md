@@ -22,6 +22,12 @@ All notable changes to walletlink.social. Newest first.
   something was dropped and a clean list would never have shown it. It is the
   customer's list, and a guest they did not ask for is something to be told
   about while they can still decide.
+- Our account is **filtered out and unconditionally prepended**, not skipped
+  when already present, and the difference is a real hole rather than a style
+  choice: testing membership against the full resolved list and truncating
+  afterwards leaves an account that is a holder but sits past the 5,000 cap
+  with neither the prepend nor a place in the slice, so the list would carry
+  nobody. Filtering first makes position irrelevant.
 - Two assertions: that we go in first and by id and never twice, and that the
   counts returned to the caller still exclude us. The second one matters more
   than it looks, because `capped` now holds a member the caller did not ask
@@ -29,6 +35,35 @@ All notable changes to walletlink.social. Newest first.
   the cap, which is the kind of number that survives review because it reads as
   a rounding artefact rather than a miscount. Both verified against the real
   defect.
+
+### 2026-09-20 (a handle ENS never supplied stops being labeled as attested)
+
+- **The ENS harvest stamped rows for writes it had just refused.** The handle
+  is written fill-if-empty, so when a row already holds a handle that is not
+  what the ENS record says, `COALESCE` keeps ours and the ENS handle is never
+  written. The `sources` and `dataQualityScore` CASEs had a branch for the
+  refused-rename case and none for that one, so the row was appended
+  `ens_onchain` and carried through `GREATEST` anyway.
+- **It is not a cosmetic label.** `isTwitterVerified` counts `ens_onchain` as
+  owner-attested, so the unearned source read downstream as the owner having
+  published a handle they did not publish, and inflated
+  `data_quality_score` with it. That is the evidence class the product is sold
+  on, which is what makes this a defect rather than a tidy-up.
+- The fix is the branch the neighbouring case already had, applied to the
+  commoner refusal, and it keeps the github carve-out that branch carries: a
+  record that also fills github performed a real write and earns both. It is
+  deliberately not a verbatim copy of `lib/attested-links.ts`, which has no
+  github column and so needs no such clause.
+- Scope stated rather than implied: this covers a disagreeing twitter handle
+  only. A github-only record landing on a row whose github is already set still
+  appends the label. That case is unmeasured and was left alone rather than
+  widened blind.
+- One assertion, counted across both columns, because fixing `sources` and
+  leaving `dataQualityScore` still inflates the score of a write that did not
+  happen. Verified by making exactly that half-fix and confirming it fails.
+- Existing rows already carrying the label are not repaired here. Nothing
+  recorded whether a given `ens_onchain` came from a real fill or a refused
+  one, so it needs a re-derivation pass rather than a repair rule.
 
 ### 2026-09-20 (one member X will not accept stops costing the list everyone behind them)
 

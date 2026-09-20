@@ -1454,12 +1454,20 @@ async function main() {
        */
       ok(
         'the tool adds its own account first, by id, and never twice',
-        /\[\{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE \}, \.\.\.members\]/.test(
+        // FILTERED then unconditionally prepended, which is not the same as
+        // skipping the prepend when already present. Testing membership
+        // against the full resolved list and truncating afterwards leaves an
+        // account that is a holder but sits past the cap with neither the
+        // prepend nor a place in the slice, so the list carries nobody.
+        // Position must not decide whether we are in it.
+        /const theirs = members\.filter\(\(m\) => m\.id !== WALLETLINK_X_USER_ID\)/.test(
           listRoute
         ) &&
-          /members\.some\(\(m\) => m\.id === WALLETLINK_X_USER_ID\)/.test(
+          /const withUs = \[ \{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE \}, \.\.\.theirs, \]/.test(
             listRoute
           ) &&
+          // No conditional prepend anywhere: that shape is the defect above.
+          !/alreadyAMember/.test(listRoute) &&
           // Capped AFTER we are prepended, so a list can never exceed X's max
           // by carrying us on top of a full one.
           /const capped = withUs\.slice\(0, X_LIST_MEMBER_MAX\)/.test(listRoute)
@@ -1475,12 +1483,13 @@ async function main() {
        */
       ok(
         'the counts returned to the caller exclude the member we added',
-        /members: capped\.length - \(alreadyAMember \? 0 : 1\)/.test(
-          listRoute
-        ) &&
-          /dropped: members\.length - \(capped\.length - \(alreadyAMember \? 0 : 1\)\)/.test(
-            listRoute
-          )
+        // One subtraction, no branch. Ours is exactly one row at index 0 that
+        // always survives the slice, so a conditional here could only ever be
+        // wrong: the branch is what made `dropped` depend on whether we
+        // happened to hold the token.
+        /const theirsIncluded = capped\.length - 1/.test(listRoute) &&
+          /members: theirsIncluded/.test(listRoute) &&
+          /dropped: theirs\.length - theirsIncluded/.test(listRoute)
       );
 
       /**
@@ -7050,6 +7059,47 @@ async function main() {
         "!isKindSuppressed(sets, 'wallet', link.wallet) && " +
           "!isKindSuppressed(sets, 'twitter', link.handle)"
       )
+    );
+  }
+
+  /**
+   * The same defect one file over, and it was live rather than hypothetical.
+   *
+   * `upsertHarvestedRecords` in `lib/ens-harvest.ts` writes the handle
+   * fill-if-empty: `COALESCE(social_graph.twitter_handle, EXCLUDED.twitter_handle)`
+   * keeps ours whenever the row already holds one, so an ENS record naming a
+   * DIFFERENT handle is refused. The `sources` and `dataQualityScore` CASEs
+   * had a branch for the refused-rename case and none for that one, so the
+   * row was stamped `ens_onchain` and carried through `GREATEST` for a handle
+   * ENS never supplied.
+   *
+   * It is not a cosmetic label. `isTwitterVerified` in `lib/social-graph.ts`
+   * counts `ens_onchain` as owner-attested, so the unearned source reads
+   * downstream as the owner having published a handle they did not publish,
+   * which is the evidence class this product is sold on.
+   *
+   * Counted, not merely present. There are two columns that must refuse
+   * together: fixing `sources` and leaving `dataQualityScore` still inflates
+   * the score of a write that did not happen, and an assertion satisfied by
+   * either one passes over exactly that half-fix.
+   */
+  {
+    const harvest = withoutComments(
+      readFileSync('lib/ens-harvest.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'an ENS handle the row refuses earns no source label and no quality bump',
+      (
+        harvest.match(
+          /WHEN social_graph\.twitter_handle IS NOT NULL AND EXCLUDED\.twitter_handle IS NOT NULL AND lower\(social_graph\.twitter_handle\) <> lower\(EXCLUDED\.twitter_handle\) AND NOT \(social_graph\.github IS NULL AND EXCLUDED\.github IS NOT NULL\) THEN social_graph\./g
+        ) ?? []
+      ).length === 2 &&
+        // The carve-out the neighbouring branch already carries, kept rather
+        // than copied away: a record that also fills github performed a real
+        // write and earns both. `lib/attested-links.ts` has no github column
+        // and so has no such clause, which is why this is not a verbatim copy
+        // of the branch it is modelled on.
+        /COALESCE\(social_graph\.github, EXCLUDED\.github\)/.test(harvest)
     );
   }
 
