@@ -3682,12 +3682,14 @@ async function main() {
     );
   }
 
-  // ------------------------- HyperEVM: the first chain with no holder index
+  // ------------------------- HyperEVM: the chain with exactly one of each
   // Three sources refuse the chain (checked 2026-08-31): the NFT API, the
-  // metered ERC-20 index and Blockscout, which has no instance for it. Its NFT
-  // owners are read off the contract one token id at a time instead. That path
-  // has failure modes the indexed paths do not, and these are the ones that
-  // would ship a wrong answer rather than an error.
+  // first metered ERC-20 index and Blockscout, which has no instance for it.
+  // Its NFT owners are read off the contract one token id at a time, and since
+  // 2026-09-19 its ERC-20 holders come from the second metered index, which is
+  // the only one that serves the chain. Both paths have failure modes the
+  // redundant chains do not, and these are the ones that would ship a wrong
+  // answer rather than an error.
   {
     /**
      * Bounded slices, not whole-file searches.
@@ -3715,29 +3717,127 @@ async function main() {
     /**
      * The list that decides whether the UI offers a token import.
      *
-     * Adding hyperevm here would put an ERC-20 tile in front of a customer with
-     * nothing behind it: no metered index accepts the chain and no explorer
-     * serves it, so the import throws CHAIN_NO_ERC20_SUPPORT every time. The
-     * file's own rule is to keep this list in step with MORALIS_CHAIN_IDS and
-     * BLOCKSCOUT_BASE_URLS, and this is that rule made checkable.
+     * A chain listed with nothing behind it puts an ERC-20 tile in front of a
+     * customer whose import throws CHAIN_NO_ERC20_SUPPORT every time. The
+     * file's own rule is to keep this list in step with MORALIS_CHAIN_IDS,
+     * OPENSEA_CHAIN_SLUGS and BLOCKSCOUT_BASE_URLS, and this is that rule made
+     * checkable. hyperevm was kept OUT of the list until 2026-09-19 for
+     * exactly this reason; the second index is what put it in.
      */
     const erc20List = sliceBetween(
       chains,
       'export const ERC20_SUPPORTED_CHAINS',
       '];'
     );
-    ok(
-      'hyperevm is kept out of ERC20_SUPPORTED_CHAINS',
-      erc20List.length > 0 && !erc20List.includes('hyperevm')
+    const moralisBlock = sliceBetween(holders, 'const MORALIS_CHAIN_IDS', '};');
+    const secondIndexBlock = sliceBetween(
+      holders,
+      'const OPENSEA_CHAIN_SLUGS',
+      '};'
+    );
+    const blockscoutBlock = sliceBetween(
+      holders,
+      'const BLOCKSCOUT_BASE_URLS',
+      '};'
     );
     ok(
-      'no chain is listed for ERC-20 without a metered index or an explorer',
+      'hyperevm token import is listed and backed by the second index',
+      erc20List.includes('hyperevm') && secondIndexBlock.includes('hyperevm:')
+    );
+    ok(
+      'no chain is listed for ERC-20 without an index or an explorer behind it',
       ERC20_SUPPORTED_CHAINS.every(
         (c) =>
-          holders.includes(`  ${c}: '0x`) ||
-          holders.includes(`  ${c}: 'https://`)
+          moralisBlock.includes(`${c}:`) ||
+          secondIndexBlock.includes(`${c}:`) ||
+          blockscoutBlock.includes(`${c}:`)
       )
     );
+    /**
+     * The second index must not claim BNB Chain. Its provider does not serve
+     * the chain (verified against the live /chains listing, 2026-09-19), and a
+     * wrong entry would not fail loudly: the holders endpoint answers an
+     * unknown chain with an ordinary error, which the ladder reads as "second
+     * index failed" on every BNB import, silently spending a doomed request
+     * each time.
+     */
+    ok(
+      'bsc is kept out of the second index chain map',
+      secondIndexBlock.length > 0 && !secondIndexBlock.includes('bsc:')
+    );
+    /**
+     * The seeding policy survives the second index, in both directions.
+     *
+     * The second index is our own key, so the seed cron MAY use it: its
+     * attempt must sit before the allowPublicFallback gate in the metered
+     * catch, or seeding stays dead on every chain the first index fails on,
+     * which is the 2026-08-31 outage this ladder exists to end. The public
+     * explorer stays behind that gate, or background work is back to spending
+     * somebody else's infrastructure.
+     */
+    {
+      const ladder = sliceBetween(
+        holders,
+        'return await fetchHoldersMetered',
+        'getERC20HoldersBlockscout(address, chain, limit, deadlineMs);'
+      );
+      const secondTry = ladder.indexOf('fetchHoldersOpenSea');
+      const publicGate = ladder.indexOf(
+        'options.allowPublicFallback === false'
+      );
+      ok(
+        'the second index is tried before the public-fallback gate, and the explorer after it',
+        secondTry !== -1 && publicGate !== -1 && secondTry < publicGate
+      );
+    }
+    /**
+     * Display-unit balances never take the raw-integer path. The second index
+     * sends quantities already divided by decimals; BigInt('64481699964.672')
+     * throws, which would silently empty the Bag column for every import the
+     * second index serves, and dividing again would misstate it by orders of
+     * magnitude if the value ever parsed.
+     */
+    {
+      const bags = sliceBetween(
+        holders,
+        'function toBagSizes',
+        'return Object.keys(out).length'
+      );
+      const displayBranch = bags.indexOf('isNft || displayUnits');
+      const rawBranch = bags.indexOf('BigInt(');
+      ok(
+        'display-unit balances are numbered directly, never BigInt-divided',
+        displayBranch !== -1 && rawBranch !== -1 && displayBranch < rawBranch
+      );
+    }
+    /**
+     * A rescue that never got to ask is not an empty answer. With the shared
+     * deadline already spent, the second index's paging loop exits before its
+     * first request, and returning that empty set as a success would skip the
+     * public explorer behind it and surface to the customer as NO_HOLDERS: a
+     * timeout dressed up as "this contract has no token holders". Caught by
+     * review. The fetcher must throw when zero pages were fetched, and only
+     * then.
+     */
+    {
+      // The comma form is the return object; the semicolon form two hundred
+      // lines earlier is the same field in the return TYPE, and ending the
+      // slice there would leave the loop outside it.
+      const fetcher = sliceBetween(
+        holders,
+        'async function fetchHoldersOpenSea',
+        'balancesAreDisplayUnits: true,'
+      );
+      const zeroPagesThrow =
+        /if \(pagesFetched === 0\) \{[\s\S]{0,200}?throw new Error/.exec(
+          fetcher
+        );
+      ok(
+        'a deadline-starved second-index attempt throws instead of answering "no holders"',
+        zeroPagesThrow !== null &&
+          zeroPagesThrow.index < fetcher.indexOf('return {')
+      );
+    }
 
     /**
      * Every supported chain can serve an NFT holder list some way.
@@ -3887,38 +3987,57 @@ async function main() {
     );
 
     /**
-     * And then retired on every chain whose ERC-20 index is the metered one.
+     * And then refused on every metered chain the second index cannot rescue.
      *
-     * Moralis has answered 401 since 2026-08-31 and is not being paid for, so
-     * a seed on a metered chain spends a slot to receive a 401 and writes a
-     * `holders_imported = 0` row nothing counts. The refusal is at DISCOVERY,
-     * not inside seedContract: a candidate never selected spends no slot,
-     * writes no attempt marker, and cannot leave a zero-holder row that locks
-     * a healthy token out for FAILURE_RETRY_DAYS.
+     * The first index has answered 401 since 2026-08-31 and is not being paid
+     * for. The 2026-09-18 gate retired metered-chain seeding outright; the
+     * 2026-09-19 form narrows it to the chains where the rescue cannot happen
+     * (BNB Chain, or a deploy with no second-index key), because everywhere
+     * else `getContractHolders` now catches the 401 and serves the holders
+     * from our own second index. The refusal stays at DISCOVERY, not inside
+     * seedContract: a candidate never selected spends no slot, writes no
+     * attempt marker, and cannot leave a zero-holder row that locks a healthy
+     * token out for FAILURE_RETRY_DAYS.
      *
-     * The gate reads `usesMeteredHolderIndex` on purpose, which is the
-     * opposite of the assertion above it, and the two are not in tension: the
-     * chain list answers "does an ERC-20 index exist here", this answers "is
-     * that index the dead one".
+     * The gate reads two predicates on purpose, neither of which is the chain
+     * list above it, and none of the three are in tension: the list answers
+     * "does an ERC-20 index exist here", `usesMeteredHolderIndex` answers "is
+     * the first index the dead one", and `secondIndexIsOnlyHolderSource`
+     * answers "is the missing key the whole story". The second predicate is
+     * review's addition: HyperEVM is not metered, so the metered predicate
+     * alone let a keyless deploy seed it straight into
+     * OPENSEA_NOT_CONFIGURED, the exact poison row this gate exists to
+     * prevent, on the one chain whose only ERC-20 source is that key.
      */
-    ok(
-      'ERC-20 discovery is refused on a metered chain, before a slot is spent',
-      /if \(usesMeteredHolderIndex\(chain\)\) \{[\s\S]{0,400}?continue;/.test(
+    const seedGate =
+      /if \(\s*\(usesMeteredHolderIndex\(chain\) \|\|\s*secondIndexIsOnlyHolderSource\(chain\)\)\s*&&\s*!hasSecondHolderIndex\(chain\)\s*\) \{[\s\S]{0,400}?continue;/.exec(
         seed
-      ) &&
-        seed.indexOf('if (usesMeteredHolderIndex(chain)) {') >
+      );
+    ok(
+      'ERC-20 discovery on a chain no holder index can serve is refused, before a slot is spent',
+      seedGate !== null &&
+        seedGate.index >
           seed.indexOf('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
     );
+    {
+      const { secondIndexIsOnlyHolderSource } =
+        await import('@/lib/contract-holders');
+      ok(
+        'hyperevm is the chain the keyless refusal exists for, and robinhood is untouched by it',
+        secondIndexIsOnlyHolderSource('hyperevm') &&
+          !secondIndexIsOnlyHolderSource('robinhood') &&
+          !secondIndexIsOnlyHolderSource('bsc')
+      );
+    }
 
     /**
-     * And the retirement must not take Robinhood with it.
+     * And no version of that gate may take Robinhood with it.
      *
-     * "Concentrate on NFTs and Robinhood, which work" is the decision
-     * (docs/GROWTH.md), and Robinhood survives only because its explorer is
-     * its own index rather than a fallback, so `usesMeteredHolderIndex` is
-     * false for it. A future chain added to MORALIS_CHAIN_IDS by mistake would
-     * silently retire it, so this goes through the predicate rather than
-     * restating the list.
+     * Robinhood seeded straight through the 2026-09-18 retirement because its
+     * explorer is its own index rather than a fallback, so
+     * `usesMeteredHolderIndex` is false for it. A future chain added to
+     * MORALIS_CHAIN_IDS by mistake would silently retire it, so this goes
+     * through the predicate rather than restating the list.
      */
     {
       const { ERC20_SUPPORTED_CHAINS } = await import('@/lib/chains');

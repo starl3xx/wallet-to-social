@@ -60,8 +60,15 @@ import type { SupportedChain } from '../lib/contract-holders';
  * `const KEY = process.env.MORALIS_API_KEY`, this check must keep exercising
  * the fallback instead of quietly passing through the metered index and
  * reporting green for coverage it never tested.
+ *
+ * The second index's key is removed for the same reason, since 2026-09-19 when
+ * it slotted in between the metered index and the explorer. With it present,
+ * every probe would be answered by that index and this check would report the
+ * explorers reachable without ever calling one: green forever, coverage never
+ * tested, which is precisely the false pass this file exists to prevent.
  */
 delete process.env.MORALIS_API_KEY;
+delete process.env.OPENSEA_API_KEY;
 
 interface Probe {
   chain: SupportedChain;

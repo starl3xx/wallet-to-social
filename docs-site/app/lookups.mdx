@@ -31,7 +31,7 @@ Addresses are extracted by pattern, so a block of text with addresses scattered 
 
 ### Contract import
 
-We cover eight networks: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain and HyperEVM.** Both NFT collections and token contracts are supported on the first seven. **HyperEVM is NFT collections only**, because nothing indexes token balances on that network in a form we can read; a token import there is refused outright rather than returning a partial list.
+We cover eight networks: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, Optimism, BNB Chain and HyperEVM.** Both NFT collections and token contracts are supported on all eight.
 
 <Note>
   HyperEVM NFT holder lists are read from the collection itself, one token at a
@@ -47,14 +47,15 @@ We cover eight networks: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, O
   as real: the collection has more holders than you are looking at.
 </Note>
 
-Token holder lists have a second index behind the first. If the primary one is
-unavailable, the import is served from a backup rather than failing, so a spent
-daily ceiling no longer stops the feature. Two networks sit outside that
-arrangement, for different reasons: **BNB Chain** has a primary index and no
-backup, so token import there is unavailable until the ceiling resets, and
-**HyperEVM** has neither, so it has no token import at all. NFT collections are
-unaffected by a spent ceiling on every network, because they do not resolve
-through that index.
+Token holder lists have more than one index behind them. If the primary one is
+unavailable, the import is served from a second index, and behind that a public
+backup, so a spent daily ceiling no longer stops the feature. Two networks sit
+outside the full arrangement, for different reasons: **BNB Chain** has a
+primary index and no backup, so token import there is unavailable until the
+ceiling resets, and **HyperEVM** has exactly one index, so a problem with it
+pauses token import on that network rather than falling back. NFT collections
+are unaffected by a spent ceiling on every network, because they do not resolve
+through those indexes.
 
 The backup is slower and returns fewer holders, so a list served from it is more
 often partial. It is marked truncated exactly as any other partial list is, so

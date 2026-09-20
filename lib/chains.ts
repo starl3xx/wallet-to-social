@@ -68,19 +68,18 @@ export const SUPPORTED_CHAINS = Object.keys(CHAIN_IDS) as SupportedChain[];
  * them, so an import survives a spent allowance; BNB Chain has no public
  * instance and does not.
  *
- * **HyperEVM is the first supported chain absent from this list**, which is why
- * it and SUPPORTED_CHAINS no longer agree. They were always separate for this
- * reason, stated here before it happened: a chain arrives on the RPC path
- * before it arrives on an index. Nothing indexes HyperEVM balances that we can
- * reach (checked 2026-08-31: the metered index rejects the chain outright, and
- * it has no public Blockscout instance), so token import there is not slow or
- * throttled, it is absent. The UI uses this list to warn before a lookup that
- * would fail server-side, and the HyperEVM row is the first time that warning
- * has ever rendered.
+ * **HyperEVM joined this list on 2026-09-19** and the two lists agree again.
+ * It spent three weeks absent (2026-08-31 to 2026-09-19) because nothing we
+ * could reach indexed its balances: the first metered index rejects the chain
+ * outright and it has no public Blockscout instance. The second metered index
+ * serves it, verified live against PURR (11,362 holders), and is the only
+ * ERC-20 source that chain has, so a problem with that index takes HyperEVM
+ * token import down with no fallback behind it.
  *
- * Keep in step with MORALIS_CHAIN_IDS and BLOCKSCOUT_BASE_URLS in
- * lib/contract-holders.ts: a chain listed here with no backing index would
- * promise an import that fails.
+ * Keep in step with MORALIS_CHAIN_IDS, OPENSEA_CHAIN_SLUGS and
+ * BLOCKSCOUT_BASE_URLS in lib/contract-holders.ts: a chain listed here with no
+ * backing index would promise an import that fails. The UI uses this list to
+ * warn before a lookup that would fail server-side.
  */
 export const ERC20_SUPPORTED_CHAINS: SupportedChain[] = [
   'ethereum',
@@ -90,4 +89,5 @@ export const ERC20_SUPPORTED_CHAINS: SupportedChain[] = [
   'polygon',
   'optimism',
   'bsc',
+  'hyperevm',
 ];
