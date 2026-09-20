@@ -2529,6 +2529,26 @@ export default function Home() {
           {runNarration}
         </p>
 
+        {/* The X list outcome, mounted unconditionally for the same reason the
+            narration above it is.
+
+            It used to sit inside the `complete` branch, beside the results it
+            was about, which reads correctly and cannot work: the callback
+            returns from x.com to the site root, and the page boots there in
+            `upload` with `results` empty, so the branch holding this never
+            rendered and the `x_list` parameter was never read. A list job runs
+            for about sixteen minutes and then reported nothing to anybody, on
+            every run, because the one component that reports it was mounted
+            behind state the round trip had already discarded.
+
+            Its own comment said it "renders nothing at all when there is no
+            list outcome in the URL, which is every other visit", which is what
+            it was written for and describes this position rather than the old
+            one. Nothing else moves: it still reads the same parameters, still
+            strips them once read, and still renders nothing on an ordinary
+            visit. */}
+        <XListStatus />
+
         {/* Processing State */}
         {state === 'processing' && (
           <ProgressBar
@@ -2889,11 +2909,6 @@ export default function Home() {
                 }}
               />
             )}
-            {/* Above the stats because it is about something in flight, and
-                the thing a person who has just come back from x.com is looking
-                for. It renders nothing at all when there is no list outcome in
-                the URL, which is every other visit. */}
-            <XListStatus />
             {/* Outside OverflowMenu deliberately: see XListAction's header.
                 A dialog inside the menu panel is unmounted by the click that
                 opens it, and the symptom is a menu row that does nothing. */}

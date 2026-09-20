@@ -11109,6 +11109,41 @@ async function main() {
       /<span className="sr-only">X<\/span>/.test(homeSrc)
     );
 
+    /**
+     * The X list outcome is mounted where the callback can actually reach it.
+     *
+     * `/api/x/callback` redirects to the site root carrying `x_list`, and the
+     * homepage boots there in `upload` with `results` empty. `XListStatus`
+     * sat inside the `state === 'complete' && results.length > 0` branch,
+     * which reads correctly beside the results it describes and cannot ever
+     * run: the round trip discards that state on its way through x.com. A
+     * list job takes about sixteen minutes and then reported nothing to
+     * anybody, on every run.
+     *
+     * Asserted positionally, because the defect is placement rather than
+     * absence: the component was present the whole time. It must appear
+     * BEFORE the first state branch, which is what "mounted unconditionally"
+     * looks like in this file. The `runNarration` region above it carries the
+     * same requirement for the same reason and is the precedent.
+     *
+     * Both markers must exist before the comparison means anything, so a
+     * rename fails loudly here rather than passing over a check it never
+     * performed.
+     */
+    {
+      const statusMount = homeSrc.indexOf('<XListStatus />');
+      const firstStateBranch = homeSrc.indexOf("{state === 'processing'");
+      const completeBranch = homeSrc.indexOf("{state === 'complete'");
+      ok(
+        'the X list outcome is mounted outside the result branches, so a callback can show it',
+        statusMount > 0 &&
+          firstStateBranch > 0 &&
+          completeBranch > 0 &&
+          statusMount < firstStateBranch &&
+          statusMount < completeBranch
+      );
+    }
+
     ok(
       'anonymous daily throughput is capped below the uncapped per-job product',
       anonPerDay < jobsPerHour * 24 * anonPerJob

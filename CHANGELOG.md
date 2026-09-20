@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (an X list job can report that it finished)
+
+- **The X list outcome is mounted where the callback can reach it.**
+  `/api/x/callback` redirects to the site root carrying `x_list`, and the
+  homepage boots there in `upload` with `results` empty. `XListStatus` sat
+  inside the `state === 'complete' && results.length > 0` branch, which reads
+  correctly beside the results it describes and can never run: the round trip
+  through x.com discards that state on the way. So a list job ran for about
+  sixteen minutes and then reported nothing to anybody, on every run, including
+  every failure. The component moves up beside the run narration, which is
+  mounted unconditionally for the same reason.
+- Nothing else changes. It reads the same two parameters, still strips them
+  once read so a refresh cannot replay a one-time outcome, and still renders
+  nothing on an ordinary visit, which is what its own comment always claimed it
+  did.
+- **Asserted positionally**, because the defect was placement rather than
+  absence and the component was present the whole time:
+  `scripts/check-invariants.ts` now requires the mount to appear before the
+  first state branch, and fails if it moves back inside one.
+
 ### 2026-09-20 (Sharper hero portraits)
 
 - Fetch the 400px X portrait variant instead of enlarging 48px thumbnails.
