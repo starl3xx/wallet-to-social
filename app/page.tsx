@@ -60,7 +60,11 @@ const FarcasterDMModal = dynamic(() =>
 import { getUserId } from '@/lib/user-id';
 import { Analytics, getSessionId } from '@/lib/client-analytics';
 import { TIER_LIMITS, tierCanUseENS, type UserTier } from '@/lib/access';
-import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
+import {
+  FREE_MATCHES_PER_WINDOW,
+  FREE_WINDOW_DAYS,
+  expectedMatches,
+} from '@/lib/packs';
 import {
   SUPPORTED_CHAINS,
   CHAIN_LABELS,
@@ -269,6 +273,28 @@ export default function Home() {
     return Math.min(TIER_LIMITS.free, credits.maxWallets ?? TIER_LIMITS.free);
   })();
   const overWalletLimit = walletLimit !== null && wallets.length > walletLimit;
+
+  /**
+   * What this list is likely to cost, against what is held.
+   *
+   * Separate from `overWalletLimit`, which is the enumeration bound and a
+   * refusal. This one is a warning about money and never blocks: a wallet
+   * count inside the ceiling can still resolve past the balance, and until
+   * the submit path learned that, the two numbers were on screen together in
+   * different units with nothing comparing them.
+   *
+   * Unmetered and free-allowance accounts are excluded: the first is not
+   * metered at all, and the second is already told about locked rows by the
+   * results banner in terms that fit it.
+   */
+  const likelyMatches = expectedMatches(wallets.length);
+  const overBalance =
+    !credits.loading &&
+    !credits.unmetered &&
+    !credits.onFreeAllowance &&
+    credits.available !== null &&
+    wallets.length > 0 &&
+    likelyMatches > credits.available;
 
   // Paste addresses mode
   const [showPasteInput, setShowPasteInput] = useState(false);
@@ -2334,6 +2360,31 @@ export default function Home() {
                       Extra columns: {extraColumns.join(', ')}
                     </p>
                   )}
+                  {/* What this list is likely to COST, beside what it is.
+
+                      The preflight card answered "how long will this take"
+                      and never "what will this spend", so the balance and the
+                      file sat on the same screen in different units with
+                      nothing bringing them together. The arithmetic already
+                      existed in the buy modal, where it is applied to packs
+                      for sale and never to the pack already owned, which is
+                      how somebody could load 2,500 wallets against 250
+                      matches and be told nothing at all.
+
+                      `caution` because this is approaching a limit, which is
+                      the half of that token's definition in CLAUDE.md that
+                      had no implementation anywhere until now. It warns and
+                      does not block: the estimate can be wrong in both
+                      directions, and refusing a list somebody may want run
+                      partially is the angrier mistake. */}
+                  {overBalance && (
+                    <p className="text-sm text-caution">
+                      Likely about {likelyMatches.toLocaleString()} matches,
+                      more than the {credits.available?.toLocaleString()} you
+                      hold. We will run the whole list and show what your
+                      credits cover; the rest stays locked until you top up.
+                    </p>
+                  )}
                 </div>
                 <Button
                   variant="outline"
@@ -2801,8 +2852,16 @@ export default function Home() {
                       {(openMatches + lockedMatches).toLocaleString()}
                     </span>{' '}
                     matches.
+                    {/* "Your free allowance" was hardcoded and could never be
+                        true for a buyer, because until the gate applied to
+                        both meters a pack job was never locked at all. Now
+                        that it can be, the sentence has to name the meter that
+                        actually paid, and `credits.onFreeAllowance` is the
+                        same fact the server billed against. */}
                     {user
-                      ? ` Your free allowance covered ${openMatches.toLocaleString()}; `
+                      ? credits.onFreeAllowance
+                        ? ` Your free allowance covered ${openMatches.toLocaleString()}; `
+                        : ` Your credits covered ${openMatches.toLocaleString()}; `
                       : ` The first ${openMatches.toLocaleString()} are open without an account; `}
                     <span className="text-caution">
                       <span className="tabular-nums">

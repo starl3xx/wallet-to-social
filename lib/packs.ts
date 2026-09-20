@@ -185,8 +185,65 @@ export const FREE_WINDOW_DAYS = 30;
  * safety factor and cannot bite anyone whose list resembles a real one.
  *
  * It is a guard against enumeration, not a quota, which is why it is generous.
+ *
+ * Its generosity is also, exactly, the room a pack used to be overspent in,
+ * and the two facts are the same arithmetic read twice: 10x wallets at the
+ * measured rate is 2.37x the matches. A Trial holder could submit 2,500
+ * wallets against 250 matches, resolve about 593, and be shown every one. So
+ * this bound answers "is this list real", and `deliverableMatches` below
+ * answers "what has this account paid for". Letting one number answer both
+ * questions is what made the second one unanswered.
  */
 export const SUBMISSION_MULTIPLIER = 10;
+
+/**
+ * Matches delivered past the balance before the rest is locked.
+ *
+ * A match rate is unknowable before the job runs, so a list sized honestly
+ * against a pack can still overshoot it, and locking the 251st match on a
+ * 250-match pack would punish somebody for arithmetic they could not have
+ * done. This is the width of that near-miss: generous enough that nobody
+ * meets the gate by bad luck, small enough that it cannot be farmed.
+ *
+ * It is a fraction of the REMAINING balance rather than of the pack, so it
+ * shrinks as the pack is spent and a nearly empty account cannot use it to
+ * pull another list through.
+ */
+export const GOODWILL_OVERAGE_RATE = 0.1;
+
+/**
+ * Matches this balance is expected to produce from `walletCount` wallets.
+ *
+ * The one place the measured rate is turned into an expectation, so the buy
+ * modal, the submit warning and the contract importer cannot disagree about
+ * what a list will cost. It is an estimate and is never billed: billing
+ * counts matches that actually resolved.
+ */
+export function expectedMatches(walletCount: number): number {
+  return Math.ceil(Math.max(0, walletCount) * MEASURED_MATCH_RATE);
+}
+
+/**
+ * Wallets this many matches is expected to cover, the inverse of the above.
+ *
+ * The contract importer asks this rather than `SUBMISSION_MULTIPLIER`,
+ * because "how many holders can this pack pay for" and "is this caller
+ * enumerating us" are different questions and the importer was answering the
+ * wrong one. Filling to the enumeration ceiling put every contract import on
+ * the worst case by construction rather than by accident.
+ */
+export function walletsCoveredBy(matches: number): number {
+  return Math.floor(Math.max(0, matches) / MEASURED_MATCH_RATE);
+}
+
+/**
+ * How many of `matches` this account may be shown, balance plus the near-miss
+ * margin. Anything past it is locked rather than given away.
+ */
+export function deliverableMatches(available: number): number {
+  const balance = Math.max(0, available);
+  return balance + Math.ceil(balance * GOODWILL_OVERAGE_RATE);
+}
 
 /**
  * The enumeration ceiling on legacy Unlimited accounts.

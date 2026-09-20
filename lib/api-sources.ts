@@ -135,6 +135,15 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   opensea_profile: 'attested-social',
 
   /**
+   * A name-registry profile where the wallet owns the name and the social
+   * account carries the registry's own verified flag, set by wallet sign-in
+   * plus platform OAuth: both halves owner-established. Only entries the
+   * registry marks verified AND public are ingested; owner-typed unverified
+   * text is skipped at the adapter, so this id never labels a weaker claim.
+   */
+  ud_profile: 'attested-social',
+
+  /**
    * A creator profile where the social account is attached through a flow the
    * platform records as a dated link event, and wallets are connected to the
    * same account.
@@ -247,19 +256,35 @@ export function isAttestedSource(value: unknown): boolean {
  * Used by the writers that must not overwrite attested evidence, and by the
  * conflict resolver deciding whose handle may replace whose.
  */
+/**
+ * The entries above that are ONLY identity mappings.
+ *
+ * `publicSources` has to compose with itself, so the table maps each class
+ * name to itself. Those three are not internal source ids and can never
+ * appear in `social_graph.sources`, so a writer asking "did an attested
+ * source supply this" must not match them.
+ *
+ * `manual` is deliberately NOT in this list, and it is the whole reason the
+ * list is written out rather than derived from `cls === id`. It is both a
+ * class and a real `sources` value, which the table says in as many words
+ * ("Reviewed by us. Doubles as the identity mapping below.") and which
+ * `lib/social-graph.ts` relies on wherever it guards `'manual' = ANY(sources)`.
+ * Excluding it by that rule made `isAttestedSourceId('manual')` answer false,
+ * which would have told every writer here that an admin-curated row carried
+ * no attested evidence: the single strongest row in the table read as the
+ * weakest.
+ */
+const CLASS_ALIASES: ReadonlySet<string> = new Set([
+  'onchain',
+  'farcaster',
+  'attested-social',
+]);
+
 export const ATTESTED_SOURCE_IDS: ReadonlySet<string> = new Set(
   Object.entries(SOURCE_CLASSES)
     .filter(
       ([id, cls]) =>
-        cls !== undefined &&
-        ATTESTED_SOURCES.has(cls) &&
-        // The identity mappings above (`onchain: 'onchain'`) exist so
-        // `publicSources` composes with itself. They are public class names,
-        // not internal source ids, and a writer asking "did an attested
-        // source supply this" must not match on them: nothing in
-        // `social_graph.sources` is ever a class name, so including them
-        // would only widen the set with values that can never appear.
-        cls !== id
+        cls !== undefined && ATTESTED_SOURCES.has(cls) && !CLASS_ALIASES.has(id)
     )
     .map(([id]) => id)
 );

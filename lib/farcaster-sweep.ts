@@ -320,7 +320,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
       const held = (await db.execute(sql`
         SELECT wallet
         FROM social_graph
-        WHERE wallet = ANY(${candidates.map((c) => c.wallet)}::text[])
+        WHERE wallet = ANY(${sql.param(candidates.map((c) => c.wallet))}::text[])
           AND twitter_handle IS NOT NULL
           AND EXISTS (
             SELECT 1 FROM unnest(COALESCE(sources, ARRAY[]::text[])) AS s

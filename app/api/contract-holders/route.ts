@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
 import { canSubmit, hasPaidAccess, legacyTierIsUnmetered } from '@/lib/credits';
+import { walletsCoveredBy } from '@/lib/packs';
 import {
   getContractHolders,
   hasPublicHolderFallback,
@@ -132,18 +133,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cap the import at what this account can actually submit, so the feature
-    // cannot hand someone a list that Start Lookup then refuses. For a legacy
-    // tier that is the per-lookup limit; for a pack holder it is the credit
-    // ceiling (remaining matches x SUBMISSION_MULTIPLIER). `access.walletLimit`
-    // alone would cap an Index buyer at 500, because their tier stays 'free'.
+    /**
+     * Cap the import at what this balance can PAY FOR, not at what it may
+     * submit.
+     *
+     * These are different questions and this route was answering the wrong
+     * one. `canSubmit().maxWallets` is `balance x SUBMISSION_MULTIPLIER`, an
+     * anti-enumeration bound deliberately set so it "cannot bite anyone whose
+     * list resembles a real one" (lib/packs.ts). Asking for exactly that
+     * number meant every contract import filled to the widest list the
+     * account could submit rather than the largest it could afford: a Trial
+     * holder importing a 10,000-holder contract got 2,500 wallets, worth
+     * about 593 matches against a 250-match pack, and met the gate with a
+     * third of the file locked. The ceiling was doing its job; it was simply
+     * never the right ceiling for this button.
+     *
+     * `walletsCoveredBy` inverts the measured rate instead, so the import is
+     * the size the pack can actually cover, and `coverageCap` travels in the
+     * response so the modal can say WHY it stopped there. A truncation the
+     * person cannot explain is the surprise this is meant to avoid.
+     *
+     * Legacy unmetered tiers keep the per-lookup limit: they have no balance
+     * to cover anything with, and were never metered.
+     */
     let importCap: number | undefined;
+    let coverageCap: number | null = null;
     if (legacyTierIsUnmetered(access.tier)) {
       importCap = Number.isFinite(access.walletLimit)
         ? access.walletLimit
         : undefined;
     } else {
-      importCap = (await canSubmit(session.user.id, 0, access.tier)).maxWallets;
+      const verdict = await canSubmit(session.user.id, 0, access.tier);
+      coverageCap = walletsCoveredBy(verdict.balance.available);
+      // The enumeration bound still applies; this only ever tightens it.
+      importCap = Math.min(verdict.maxWallets, Math.max(1, coverageCap ?? 0));
     }
 
     const result = await getContractHolders(contractAddress, chain, importCap);
@@ -177,6 +200,16 @@ export async function POST(request: NextRequest) {
       totalHolders: result.totalHolders,
       truncated: result.truncated,
       appliedLimit: result.appliedLimit,
+      /**
+       * Why it stopped there, when the reason was the balance rather than the
+       * contract. Null for a legacy tier and whenever the enumeration bound
+       * was the tighter of the two, so the modal only explains a coverage
+       * truncation when coverage is what truncated it.
+       */
+      coverageCap:
+        coverageCap !== null && coverageCap <= (importCap ?? Infinity)
+          ? coverageCap
+          : null,
       chain: result.chain,
     });
   } catch (error) {
