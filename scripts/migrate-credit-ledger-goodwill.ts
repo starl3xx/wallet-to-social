@@ -43,20 +43,59 @@
  */
 import { neon } from '@neondatabase/serverless';
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error('DATABASE_URL is required');
-  process.exit(1);
-}
-if (url.includes('-pooler')) {
+const raw = process.env.DATABASE_URL;
+if (!raw) {
   console.error(
-    'Refusing to run DDL through the pooler. Drop "-pooler" from the host: ' +
-      'a bare SET can outlive the connection on a shared backend.'
+    'DATABASE_URL is required. Run this as:\n' +
+      '  npx tsx --env-file=.env.local scripts/migrate-credit-ledger-goodwill.ts'
   );
   process.exit(1);
 }
 
-const sql = neon(url);
+/**
+ * The direct endpoint, derived rather than demanded.
+ *
+ * DDL must not go through the pooler: Neon keeps a bare `SET` on a shared
+ * server backend across client connections, so a migration can leave one set
+ * on a backend the app then uses. The first version of this script refused a
+ * pooler URL and told the operator to edit it, which turned a one-line
+ * migration into shell surgery around `.env.local` — and `DATABASE_URL` there
+ * IS the pooler, so that refusal fired every time the documented invocation
+ * was used.
+ *
+ * Neon's own convention is that the direct host is the pooled host without
+ * `-pooler`, which is what CLAUDE.md already instructs a person to do by
+ * hand. Doing it here is the same rule with the footgun removed.
+ *
+ * Narrow on purpose: only a `*.neon.tech` host is rewritten. Anything else
+ * carrying `-pooler` is somebody else's topology and is still refused, because
+ * guessing at an unknown provider's direct endpoint is how a migration lands
+ * somewhere nobody intended.
+ */
+function directEndpoint(input: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    console.error('DATABASE_URL is not a valid URL');
+    process.exit(1);
+  }
+  if (!parsed.hostname.includes('-pooler')) return input;
+
+  if (!parsed.hostname.endsWith('.neon.tech')) {
+    console.error(
+      'Refusing to run DDL through what looks like a pooler on a host this ' +
+        'script does not know. Supply the direct endpoint explicitly.'
+    );
+    process.exit(1);
+  }
+
+  parsed.hostname = parsed.hostname.replace('-pooler', '');
+  console.log(`  using the direct endpoint: ${parsed.hostname}`);
+  return parsed.toString();
+}
+
+const sql = neon(directEndpoint(raw));
 
 async function main() {
   console.log('Adding credit_ledger.goodwill_matches…');
