@@ -10587,7 +10587,20 @@ async function main() {
         /export async function countRevocationCandidates/.test(sweep) &&
         // One in the helper, one in the UPDATE. A third means somebody kept a
         // private copy of the predicate again.
-        (sweepSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 2 &&
+        //
+        // Counted by SHAPE, not by the keyword. Counting bare `NOT EXISTS`
+        // assumed this file had exactly one subject, and it stopped being
+        // true the moment the sweep grew an unrelated `NOT EXISTS` to ask
+        // whether an attested source holds the handle. That tripped this
+        // assertion on code with no private copy of anything, which is a
+        // check reporting the wrong defect rather than no defect. The
+        // correlated equality against the seen table is what makes one of
+        // these the revocation predicate.
+        (
+          sweepSql.match(
+            /NOT EXISTS\s*\([\s\S]{0,200}?s\.wallet = social_graph\.wallet/g
+          ) ?? []
+        ).length === 2 &&
         (cleanupSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 1
     );
 

@@ -293,15 +293,50 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
    * No `twitterUserId`: Farcaster records a verified X account as a bare
    * username, so these rows can only ever settle on the liveness rule.
    */
-  const attestedLinks: AttestedLink[] = deduped
+  const candidates: AttestedLink[] = deduped
     .filter((r) => r.twitterHandle)
     .map((r) => ({ wallet: r.wallet, handle: r.twitterHandle as string }));
-  if (attestedLinks.length > 0) {
+  if (candidates.length > 0) {
     try {
-      await recordConflicts(attestedLinks, {
-        id: 'farcaster_sweep',
-        quality: 65,
-      });
+      /**
+       * Only the wallets this sweep is about to YIELD on.
+       *
+       * The first version recorded a conflict for every disagreement, which
+       * is right for `ingestLinks` because it is fill-only for everyone, and
+       * wrong here because this sweep still overwrites a handle no other
+       * attested source wrote. Those rows landed with `ours` equal to a
+       * handle the very next statement replaced, so the conflict was already
+       * settled the moment it was written: the resolver and `twitter.also`
+       * both require `ours` to match what is served, so it could never be
+       * resolved, surfaced or closed, and simply accumulated in the admin
+       * queue. That is the inert class `closeBothDead` exists to argue
+       * against, manufactured on purpose.
+       *
+       * A conflict is worth recording exactly where the disagreement
+       * SURVIVES the write, which is where an attested source we do not
+       * speak for holds the handle. The same predicate as the CASE below,
+       * asked once in advance.
+       */
+      const held = (await db.execute(sql`
+        SELECT wallet
+        FROM social_graph
+        WHERE wallet = ANY(${candidates.map((c) => c.wallet)}::text[])
+          AND twitter_handle IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM unnest(COALESCE(sources, ARRAY[]::text[])) AS s
+            WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})
+          )
+      `)) as unknown as { rows: Array<{ wallet: string }> };
+      const yielding = new Set(held.rows.map((r) => r.wallet));
+      const attestedLinks = candidates.filter((c) => yielding.has(c.wallet));
+      if (attestedLinks.length > 0) {
+        // `recordConflicts` applies the handle-differs test itself, so this
+        // only has to narrow the set to rows whose handle we will keep.
+        await recordConflicts(attestedLinks, {
+          id: 'farcaster_sweep',
+          quality: 65,
+        });
+      }
     } catch (error) {
       // A conflict row is a record, not a gate. Losing one must not cost the
       // sweep the Farcaster identities it came to write.
@@ -407,6 +442,8 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
               OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid
               OR (EXCLUDED.twitter_handle IS NOT NULL
                   AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(${socialGraph.twitterRenamedFrom})
+                  AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s
+                                  WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)}))
                   AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
             THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
         },
