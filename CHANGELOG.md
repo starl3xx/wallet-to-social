@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (Unstoppable Domains profile harvest)
+
+- **New attested source `ud_profile`** (`scripts/harvest-ud-profiles.ts`):
+  reverse-resolves graph wallets missing an X handle to their Unstoppable
+  domain, reads the domain profile, and ingests the X entry only where the
+  registry marks it `verified` AND `public` (wallet sign-in plus platform
+  OAuth, both halves owner-established). Unverified owner-typed text is
+  counted and skipped at the adapter, so the source id never labels a weaker
+  claim. Fill-only through `lib/attested-links.ts`, quality 45, public class
+  `attested-social`.
+- Both endpoints are keyless and carry no published terms or limits: the
+  provider is mid-rebrand and its partner program is gone (the old dashboard
+  answers 410). Harvested now, deliberately, while the endpoints answer;
+  checkpointed in `ingest_state` (`ud_profile_harvest`) and budgeted per run
+  so an endpoint change mid-walk loses nothing. Daily workflow
+  `ud-profile-harvest.yml` (07:45 UTC) walks missing-X wallets; a targeted
+  mode (`--limit`/`--wallets`) mirrors the marketplace enrichment's
+  most-followed-first default.
+- The walk is address-side (up to two requests per wallet). If the measured
+  domain hit rate makes that arithmetic bad, the successor is domain-side
+  enumeration off the registry contracts, the same shape as the ENS harvest.
+
 ### 2026-09-20 (a pack stops being worth 2.37 times what it sold for)
 
 - **A paid job is now metered.** The match gate armed only when

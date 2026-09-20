@@ -769,6 +769,7 @@ export function calculateQualityScore(
       case 'sybil_list':
       case 'snapshot_profile':
       case 'opensea_profile':
+      case 'ud_profile':
       /**
        * The owner, in person, on our own page: a wallet signature and an X
        * sign-in in one session.
@@ -846,6 +847,7 @@ export function isTwitterVerified(sources: string[]): boolean {
       s === 'sybil_list' ||
       s === 'snapshot_profile' ||
       s === 'opensea_profile' ||
+      s === 'ud_profile' ||
       s === 'basename_record' ||
       s === 'zora_profile' ||
       // Same reason as every entry above it: `lib/attested-links.ts` writes

@@ -1,0 +1,59 @@
+# Daily Unstoppable Domains profile harvest: reverse-resolves graph wallets
+# that are missing an X handle, reads the domain profile, and ingests only
+# registry-verified social entries through the shared attested-link ingest
+# (source 'ud_profile').
+#
+# Daily rather than weekly, deliberately: the provider is mid-rebrand, its
+# partner program is gone, and the keyless endpoints have no promised
+# lifetime, so the corpus is harvested while it answers. Checkpointed in
+# ingest_state ('ud_profile_harvest'), so a budget stop or an endpoint
+# failure mid-walk loses nothing.
+#
+# The walk is address-side (two requests per wallet that owns a domain, one
+# per wallet that does not). If the measured domain hit rate makes that
+# arithmetic bad, the successor is domain-side enumeration off the registry
+# contracts, the same shape as the ENS harvest; this workflow's budget knob
+# is what buys time to decide.
+#
+# Required repository secrets: DATABASE_URL. The role behind it needs the
+# ingestLinks write set (social_graph, handle_conflicts, ingest_state) —
+# granted to sweep_runner by scripts/migrate-grant-harvest-writes.ts.
+name: ud-profile-harvest
+
+on:
+  schedule:
+    - cron: '45 7 * * *' # 07:45 UTC, after the seed cron, before x-reachability
+  workflow_dispatch:
+    inputs:
+      max_requests:
+        description: 'HTTP request budget'
+        required: false
+        default: '3000'
+        type: string
+
+concurrency:
+  group: ud-profile-harvest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    # 3000 requests at a 400ms pause plus latency is roughly 40 minutes.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: — that form is shell injection
+      # with secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/harvest-ud-profiles.ts --walk --commit --max-requests "$MAX_REQUESTS"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_REQUESTS: ${{ inputs.max_requests || '3000' }}
