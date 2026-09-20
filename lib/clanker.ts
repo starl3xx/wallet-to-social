@@ -35,7 +35,8 @@ import {
   type AttestedLink,
   type LinkSource,
 } from './attested-links';
-import { isConfigured, resolverHeaders, resolverUrl } from './x-resolver';
+import { resolverUrl } from './x-resolver';
+import { isHandle, resolveByIds, type ResolveByIdsResult } from './x-accounts';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 
@@ -170,8 +171,6 @@ async function rpc(method: string, params: unknown[]): Promise<unknown> {
   return null;
 }
 
-/** X allows letters, digits and underscore, up to 15. */
-const isHandle = (s: string) => /^[A-Za-z0-9_]{1,15}$/.test(s);
 /** Account ids are long integers. Five digits is far below any real one. */
 const isAccountId = (s: string) => /^\d{5,}$/.test(s);
 
@@ -231,76 +230,21 @@ function parseDeploy(log: {
  * we do not know the handle, and inventing one is the failure mode this whole
  * pipeline exists to avoid.
  */
-interface ResolveResult {
-  /** Account id to handle, for the ids the resolver knew. */
-  resolved: Map<string, string>;
-  /**
-   * The ids the resolver actually answered about, whether or not it knew them.
-   *
-   * This is the load-bearing half. "The resolver told us it has no such user"
-   * and "we could not reach the resolver" both leave an id unresolved, and only
-   * the first is evidence about the id. Counting the second as evidence would
-   * let one outage retire ids that are perfectly fine, which is the mistake
-   * `x_handle_attempts` was created to stop in the handle sweep.
-   *
-   * Note that "reached the resolver" is not the same as a 200. See the status
-   * check below: this provider answers its own failures with HTTP 200.
-   */
-  answered: Set<string>;
-}
-
-async function resolveAccountIds(ids: string[]): Promise<ResolveResult> {
-  const resolved = new Map<string, string>();
-  const answered = new Set<string>();
-  if (!isConfigured() || ids.length === 0) return { resolved, answered };
-
-  for (let i = 0; i < ids.length; i += 100) {
-    const chunk = ids.slice(i, i + 100);
-    try {
-      const res = await fetch(
-        resolverUrl(
-          `/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`
-        ),
-        { headers: resolverHeaders() }
-      );
-      if (!res.ok) continue;
-      const body = (await res.json()) as {
-        status?: string;
-        msg?: string;
-        users?: Array<{ id?: string; userName?: string }>;
-      };
-
-      /**
-       * `res.ok` is not the test. This resolver reports its own failures as
-       * HTTP 200 with `status: "error"` and a message: out of credits, rate
-       * limited, upstream trouble. `resolve()` in `lib/x-accounts.ts` already
-       * knows this and treats anything that is not `success` as no answer.
-       *
-       * Reading those bodies as answers is the exact bug this file is meant to
-       * be immune to: five error responses in a row would retire live account
-       * ids and walk the frontier past deploys that were never denied. An
-       * outage must not be able to manufacture evidence.
-       *
-       * A missing `users` array is an unrecognised shape rather than an empty
-       * result, and the shape is not ours to rely on, so it is not an answer
-       * either. Both fall through to the next run, which is the safe direction:
-       * the frontier holds.
-       */
-      if (body.status !== 'success' || !Array.isArray(body.users)) continue;
-
-      // Only now is the chunk evidence. An id absent from `users` in a
-      // successful response is one the resolver denies knowing.
-      for (const id of chunk) answered.add(id);
-      for (const u of body.users) {
-        if (u.id && u.userName && isHandle(u.userName))
-          resolved.set(u.id, u.userName);
-      }
-    } catch {
-      // Leave them unresolved and unanswered; the next run tries again.
-    }
-    await sleep(200);
-  }
-  return { resolved, answered };
+/**
+ * The implementation lives in `lib/x-accounts.ts` now, beside the `resolve()`
+ * that already guards this provider's HTTP-200-with-status-error habit, and it
+ * carries a 15s AbortSignal that this copy did not: the original passed only
+ * headers and so inherited undici's 300s header timeout, which equals the cron
+ * route's entire maxDuration.
+ *
+ * Kept as a named wrapper rather than inlined at the call site so the thing
+ * this file cares about stays legible: `answered` is the load-bearing half,
+ * because "the resolver told us it has no such user" and "we could not reach
+ * the resolver" both leave an id unresolved and only the first is evidence.
+ * Counting the second would let one outage retire ids that are perfectly fine.
+ */
+async function resolveAccountIds(ids: string[]): Promise<ResolveByIdsResult> {
+  return resolveByIds(ids);
 }
 
 /**
