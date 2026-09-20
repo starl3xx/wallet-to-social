@@ -221,6 +221,26 @@ export function hasSecondHolderIndex(chain: SupportedChain): boolean {
 }
 
 /**
+ * Is the second index the ONLY ERC-20 holder source this chain has?
+ *
+ * True for HyperEVM alone today: no first-index coverage and no explorer.
+ * Exported for the seed cron's discovery gate, which must refuse such a chain
+ * when the second index's key is missing. `usesMeteredHolderIndex` cannot
+ * carry that refusal, because it answers false for HyperEVM the same way it
+ * does for Robinhood, and Robinhood seeds fine without any key. Caught by
+ * review on the first version of the gate: a keyless deploy seeded HyperEVM
+ * straight into OPENSEA_NOT_CONFIGURED and a zero-holder row that locks each
+ * token out for FAILURE_RETRY_DAYS.
+ */
+export function secondIndexIsOnlyHolderSource(chain: SupportedChain): boolean {
+  return (
+    chain in OPENSEA_CHAIN_SLUGS &&
+    !(chain in MORALIS_CHAIN_IDS) &&
+    !(chain in BLOCKSCOUT_BASE_URLS)
+  );
+}
+
+/**
  * Does a spent metered allowance still have somewhere to go on this chain?
  *
  * Exported so the import route can tell the customer something true. Reaching
@@ -1408,6 +1428,7 @@ async function fetchHoldersOpenSea(
   // Same shape as estimateRequests: the page count, plus one for the request
   // that discovers the end.
   const MAX_PAGES = Math.ceil(limit / 100) + 1;
+  let pagesFetched = 0;
 
   for (let page = 0; page < MAX_PAGES && seen.size < limit; page++) {
     const remaining = deadlineMs - Date.now();
@@ -1440,6 +1461,7 @@ async function fetchHoldersOpenSea(
         );
       }
       data = await res.json();
+      pagesFetched++;
     } catch (error) {
       // A page that fails after holders are collected should not lose them; the
       // list is correctly marked truncated by the total already captured. Only
@@ -1463,6 +1485,21 @@ async function fetchHoldersOpenSea(
 
     if (!data.next) break;
     cursor = data.next;
+  }
+
+  /**
+   * Zero pages is a non-attempt, never an answer.
+   *
+   * A caller arriving with the shared deadline already spent breaks out of the
+   * loop before the first request, and returning the empty set as a success
+   * would read downstream as "the index says nobody holds this":
+   * `getERC20Holders` skips the public explorer behind it and
+   * `getContractHolders` raises NO_HOLDERS, telling a customer their contract
+   * has no holders because a rescue ran out of time before it started. An
+   * empty PAGE stays an answer: the index was asked and said so.
+   */
+  if (pagesFetched === 0) {
+    throw new Error('Second holder index had no time before the deadline');
   }
 
   const wallets = Array.from(seen.keys()).slice(0, limit);

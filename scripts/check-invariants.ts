@@ -3810,6 +3810,34 @@ async function main() {
         displayBranch !== -1 && rawBranch !== -1 && displayBranch < rawBranch
       );
     }
+    /**
+     * A rescue that never got to ask is not an empty answer. With the shared
+     * deadline already spent, the second index's paging loop exits before its
+     * first request, and returning that empty set as a success would skip the
+     * public explorer behind it and surface to the customer as NO_HOLDERS: a
+     * timeout dressed up as "this contract has no token holders". Caught by
+     * review. The fetcher must throw when zero pages were fetched, and only
+     * then.
+     */
+    {
+      // The comma form is the return object; the semicolon form two hundred
+      // lines earlier is the same field in the return TYPE, and ending the
+      // slice there would leave the loop outside it.
+      const fetcher = sliceBetween(
+        holders,
+        'async function fetchHoldersOpenSea',
+        'balancesAreDisplayUnits: true,'
+      );
+      const zeroPagesThrow =
+        /if \(pagesFetched === 0\) \{[\s\S]{0,200}?throw new Error/.exec(
+          fetcher
+        );
+      ok(
+        'a deadline-starved second-index attempt throws instead of answering "no holders"',
+        zeroPagesThrow !== null &&
+          zeroPagesThrow.index < fetcher.indexOf('return {')
+      );
+    }
 
     /**
      * Every supported chain can serve an NFT holder list some way.
@@ -3971,20 +3999,36 @@ async function main() {
      * attempt marker, and cannot leave a zero-holder row that locks a healthy
      * token out for FAILURE_RETRY_DAYS.
      *
-     * The gate reads `usesMeteredHolderIndex` on purpose, which is the
-     * opposite of the assertion above it, and the two are not in tension: the
-     * chain list answers "does an ERC-20 index exist here", this answers "is
-     * that index the dead one, with nothing behind it".
+     * The gate reads two predicates on purpose, neither of which is the chain
+     * list above it, and none of the three are in tension: the list answers
+     * "does an ERC-20 index exist here", `usesMeteredHolderIndex` answers "is
+     * the first index the dead one", and `secondIndexIsOnlyHolderSource`
+     * answers "is the missing key the whole story". The second predicate is
+     * review's addition: HyperEVM is not metered, so the metered predicate
+     * alone let a keyless deploy seed it straight into
+     * OPENSEA_NOT_CONFIGURED, the exact poison row this gate exists to
+     * prevent, on the one chain whose only ERC-20 source is that key.
      */
-    ok(
-      'ERC-20 discovery on a metered chain without a second index is refused, before a slot is spent',
-      /if \(usesMeteredHolderIndex\(chain\) && !hasSecondHolderIndex\(chain\)\) \{[\s\S]{0,400}?continue;/.test(
+    const seedGate =
+      /if \(\s*\(usesMeteredHolderIndex\(chain\) \|\|\s*secondIndexIsOnlyHolderSource\(chain\)\)\s*&&\s*!hasSecondHolderIndex\(chain\)\s*\) \{[\s\S]{0,400}?continue;/.exec(
         seed
-      ) &&
-        seed.indexOf(
-          'if (usesMeteredHolderIndex(chain) && !hasSecondHolderIndex(chain)) {'
-        ) > seed.indexOf('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
+      );
+    ok(
+      'ERC-20 discovery on a chain no holder index can serve is refused, before a slot is spent',
+      seedGate !== null &&
+        seedGate.index >
+          seed.indexOf('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
     );
+    {
+      const { secondIndexIsOnlyHolderSource } =
+        await import('@/lib/contract-holders');
+      ok(
+        'hyperevm is the chain the keyless refusal exists for, and robinhood is untouched by it',
+        secondIndexIsOnlyHolderSource('hyperevm') &&
+          !secondIndexIsOnlyHolderSource('robinhood') &&
+          !secondIndexIsOnlyHolderSource('bsc')
+      );
+    }
 
     /**
      * And no version of that gate may take Robinhood with it.

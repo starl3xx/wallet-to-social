@@ -32,6 +32,7 @@ import { sql } from 'drizzle-orm';
 import {
   getContractHolders,
   hasSecondHolderIndex,
+  secondIndexIsOnlyHolderSource,
   usesMeteredHolderIndex,
   type HolderResult,
 } from './contract-holders';
@@ -861,15 +862,24 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
      * attempt marker, and cannot leave a zero-holder row that locks a healthy
      * token out for FAILURE_RETRY_DAYS.
      *
+     * The second clause covers the chain the metered predicate cannot see:
+     * HyperEVM is not metered, so a keyless deploy sailed past the first
+     * version of this gate and seeded straight into OPENSEA_NOT_CONFIGURED,
+     * the exact poison row this gate exists to prevent, on the one chain
+     * whose only ERC-20 source is that key. Caught in review.
+     *
      * Robinhood Chain never had a stake in any of this: its explorer is its
-     * own primary index, `usesMeteredHolderIndex` answers false, and it seeded
+     * own primary index, both predicates answer false for it, and it seeded
      * straight through the retirement.
      */
-    if (usesMeteredHolderIndex(chain) && !hasSecondHolderIndex(chain)) {
+    if (
+      (usesMeteredHolderIndex(chain) || secondIndexIsOnlyHolderSource(chain)) &&
+      !hasSecondHolderIndex(chain)
+    ) {
       console.log(
-        `ERC-20 seeding skipped on ${chain}: the metered holder index is dead ` +
-          `and no second index serves this chain, so a seed would spend a ` +
-          `slot to receive a 401 (docs/GROWTH.md).`
+        `ERC-20 seeding skipped on ${chain}: no holder index can serve it ` +
+          `right now (first index dead, second index absent or keyless), so ` +
+          `a seed would spend a slot on a certain failure (docs/GROWTH.md).`
       );
       continue;
     }
