@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the data tab shows what the graph is made of)
+
+- **Graph composition pane** at the top of the admin Data tab
+  (`components/admin/GraphComposition.tsx` over
+  `GET /api/admin/graph-composition`): topline stat tiles (wallets, resolve
+  to a social, X handles, Farcaster, live X handles) and a per-source bar
+  chart. Two figures per source, deliberately: `wallets` is every row
+  carrying the label, `sole` is rows where it is the only label, which is
+  the best-source figure volume can't fake, and the sort toggle exists for
+  exactly that comparison.
+- Bars are magnitude on the single brand hue with identity in the row
+  label, per the design language; rates stay figures per the Meter rule.
+  The green dot marks sources whose public evidence class is
+  owner-attested, mapped through the existing allowlist so the pane keeps
+  no copy of it; an unmapped id shows as `unmapped`, which on this pane is
+  a finding, not a leak.
+- Measured on live data before shipping: the two aggregate scans take
+  about 9 seconds on 5.27M rows, inside the route's 60-second ceiling.
+
 ### 2026-09-20 (the grant pays for the thing only a claim can supply)
 
 - **A claim now earns credits only when it adds an account number we lacked**,
