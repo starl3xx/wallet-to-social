@@ -1799,6 +1799,73 @@ async function main() {
               !/onClick=\{\(\) => setMode\(/.test(flow)
           );
 
+          /**
+           * The page can say what it already holds.
+           *
+           * Until this existed, `/claim` had three routes (challenge, start,
+           * withdraw) and none of them could answer "have I claimed". So it
+           * showed an identical card to somebody who had claimed an hour
+           * earlier and somebody who never had, while promising "control of
+           * your own row" and telling them to withdraw "with the same
+           * wallet" without naming which. The only confirmation that ever
+           * appeared was a banner whose URL parameter `ClaimOutcome` strips
+           * as it reads, so one reload erased it while the row sat in the
+           * database saying `completed`.
+           *
+           * Three halves, because each alone leaves the promise unkept: the
+           * route exists, the flow reads it, and a withdrawal refetches so
+           * the panel cannot keep showing a pairing that was just removed.
+           */
+          const mineRoute = withoutComments(
+            readFileSync('app/api/claim/mine/route.ts', 'utf8')
+          ).replace(/\s+/g, ' ');
+          ok(
+            'the page can read back what it holds for this account',
+            /'\/api\/claim\/mine'/.test(flow) &&
+              /export async function GET/.test(mineRoute)
+          );
+          ok(
+            'and a withdrawal refreshes it rather than leaving the removed pair on screen',
+            /await loadHeld\(\)/.test(flow)
+          );
+
+          /**
+           * It reports completed pairings and nothing else.
+           *
+           * `awaiting_x` is a claim in flight, so naming it would report a
+           * pairing that does not exist yet, and `withdrawn` is the case
+           * whose whole point is that the answer became nothing. Asserted as
+           * the refusal, because the wrong filter here publishes a pairing
+           * somebody asked us to stop holding, back to them, as though we
+           * still did.
+           */
+          ok(
+            'the claims it reports are the completed ones only',
+            /status = 'completed'/.test(mineRoute) &&
+              !/awaiting_x/.test(mineRoute) &&
+              !/'withdrawn'/.test(mineRoute)
+          );
+
+          /**
+           * Scoped by the session, never by a parameter, and carrying no
+           * credential.
+           *
+           * A user id taken from the request would let anybody enumerate
+           * which wallets belong to which account, which is the pairing this
+           * product sells. And the panel needs no signature, verifier or
+           * nonce, so returning one would be putting a credential somewhere
+           * it has no reason to be: the same argument the callback makes for
+           * keeping no access token.
+           */
+          ok(
+            'it reads the session for the account and returns no credential',
+            /user_id = \$\{session\.user\.id\}/.test(mineRoute) &&
+              !/searchParams/.test(mineRoute) &&
+              !/signature/.test(mineRoute) &&
+              !/code_verifier/.test(mineRoute) &&
+              !/state_nonce/.test(mineRoute)
+          );
+
           ok(
             'signing in from the claim card returns to the claim page',
             /next="\/claim"/.test(flow) &&

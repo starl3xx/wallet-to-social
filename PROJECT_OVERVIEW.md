@@ -537,19 +537,27 @@ writes, what it earns and what we keep, in that order, before it asks for
 anything, because the first thing we ask a stranger should not be an account
 for a page whose subject is what we already hold about them.
 
-| File                                       | Does                                                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/attestation.ts`                       | The challenge a wallet signs, the frozen `ATTESTATION_CUTOFF` that is the entire grant gate, and `ClaimIntent`                 |
-| `lib/attestation-consent.ts`               | Hash-pinned consent versions. A correction ADDS a version, never edits one, so a row points at the words it actually agreed to |
-| `lib/claim-callback.ts`                    | The X half: reads the account once, keeps the numeric id, never the token. Also `cleanupAbandonedClaims`                       |
-| `components/ClaimFlow.tsx`                 | EIP-6963 discovery, the wallet signature, and the claim/withdraw mode toggle                                                   |
-| `app/api/claim/{challenge,start,withdraw}` | Issue, begin, and take back                                                                                                    |
+| File                                            | Does                                                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/attestation.ts`                            | The challenge a wallet signs, the frozen `ATTESTATION_CUTOFF` that is the entire grant gate, and `ClaimIntent`                 |
+| `lib/attestation-consent.ts`                    | Hash-pinned consent versions. A correction ADDS a version, never edits one, so a row points at the words it actually agreed to |
+| `lib/claim-callback.ts`                         | The X half: reads the account once, keeps the numeric id, never the token. Also `cleanupAbandonedClaims`                       |
+| `components/ClaimFlow.tsx`                      | EIP-6963 discovery, the wallet signature, and the claim/withdraw mode toggle                                                   |
+| `app/api/claim/{challenge,start,withdraw,mine}` | Issue, begin, take back, and read back what this account holds                                                                 |
 
 **A challenge carries an intent, in the signed text and in the HMAC prefix.**
 Claiming and withdrawing are opposite acts and were once proved by identical
 bytes, so a signature for either satisfied the other and somebody withdrawing
 was shown the claim text in their wallet. Each route states its own intent and
 never reads it from the request body. No function defaults it.
+
+**The page shows what it already holds.** `GET /api/claim/mine` returns this
+account's completed pairings, scoped by the session cookie and never by a
+parameter, carrying no signature or verifier. Without it the page had no way
+to answer "have I claimed", while promising control of your own row and
+telling you to withdraw with "the same wallet" it would not name. The only
+confirmation that existed was the `?claim=` banner, whose parameter
+`ClaimOutcome` strips as it reads, so a reload erased it.
 
 **The page asks for an account before it asks for a wallet.** Both routes need
 a session and the challenge answers 401 without one, but that refusal used to
