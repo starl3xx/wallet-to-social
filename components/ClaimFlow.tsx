@@ -205,10 +205,16 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         /**
          * Everything in this try is ours: a fetch, a JSON body, a redirect.
          * None of it is the wallet's doing, so none of it says the wallet
-         * failed. Nothing has been recorded at this point either, and saying
-         * so is what stops somebody worrying about a half-written claim.
+         * failed.
+         *
+         * It does NOT say nothing was recorded, which the first version did.
+         * A request that fails in flight may have been served, so an
+         * unfinished claim row can exist; what is certainly true is that no
+         * account was attached and nothing reached the index. Saying the
+         * stronger thing would be guessing about state we cannot see from
+         * here.
          */
-        setError('We could not reach the server. Nothing was recorded.');
+        setError('We could not reach the server. Nothing was published.');
         setStage('idle');
       }
     },

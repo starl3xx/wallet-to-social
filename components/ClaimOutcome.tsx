@@ -40,18 +40,19 @@ const OUTCOMES: Record<string, { tone: Tone; title: string; detail: string }> =
       tone: 'done',
       title: 'Your address is claimed',
       detail:
-        'The record now says the owner published this account. If it earned credits, they are on your account already.',
+        'The record now says the owner published this account. If the claim added something we did not already hold, and the address qualified, the matches are on your account.',
     },
     cancelled: {
       tone: 'neutral',
       title: 'You cancelled at X',
       detail:
-        'Nothing was recorded. Your signature is not kept and no part of the claim was written.',
+        'No account was attached and nothing was published. The signature you made is kept with the unfinished claim, which expires after thirty minutes.',
     },
     refused: {
       tone: 'caution',
       title: 'X refused the authorization',
-      detail: 'Nothing was recorded. You can start again whenever you like.',
+      detail:
+        'No account was attached and nothing was published. You can start again whenever you like.',
     },
     signed_out: {
       tone: 'caution',
@@ -69,23 +70,25 @@ const OUTCOMES: Record<string, { tone: Tone; title: string; detail: string }> =
       tone: 'caution',
       title: 'X did not complete the sign-in',
       detail:
-        'Nothing was recorded. This is usually temporary; trying again shortly is the right move.',
+        'No account was attached and nothing was published. This is usually temporary; trying again shortly is the right move.',
     },
     identity_failed: {
       tone: 'caution',
       title: 'We could not read your account name',
       detail:
-        'You authorized us, but the account read did not come back. Nothing was recorded. Please try again, and write to us if it happens twice.',
+        'You authorized us, but the account read did not come back, so nothing was published. Please try again, and write to us if it happens twice.',
     },
     invalid: {
       tone: 'caution',
       title: 'That link was incomplete',
-      detail: 'Nothing was recorded. Start the claim again from this page.',
+      detail:
+        'No account was attached and nothing was published. Start the claim again from this page.',
     },
     unavailable: {
       tone: 'caution',
       title: 'Claiming is unavailable right now',
-      detail: 'Nothing was recorded. Please try again later.',
+      detail:
+        'No account was attached and nothing was published. Please try again later.',
     },
   };
 
@@ -126,7 +129,8 @@ export function ClaimOutcome() {
   const shown = OUTCOMES[outcome] ?? {
     tone: 'caution' as Tone,
     title: 'That claim did not finish',
-    detail: 'Nothing was recorded. Starting again from this page is safe.',
+    detail:
+      'No account was attached and nothing was published. Starting again from this page is safe.',
   };
 
   return (

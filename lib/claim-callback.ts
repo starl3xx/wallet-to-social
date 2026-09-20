@@ -22,6 +22,7 @@
  * `not_found`, because telling "no such claim" from "not your claim" is what
  * turns a uuid in a URL into a probe.
  */
+import { createHmac } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -37,9 +38,112 @@ import {
   X_API_BASE,
 } from '@/lib/x-oauth';
 import { getSiteUrl } from '@/lib/site-url';
+import { ingestLinks, type LinkSource } from '@/lib/attested-links';
+import { grantCredits } from '@/lib/credits';
+import {
+  walletPredatesCutoff,
+  ATTESTATION_GRANT_MATCHES,
+  ATTESTATION_GRANT_BUDGET,
+} from '@/lib/attestation';
 
 /** Bounded, for the reason lib/x-accounts.ts gives about undici's default. */
 const TOKEN_TIMEOUT_MS = 10_000;
+
+/**
+ * The source this flow writes under. Quality must equal what
+ * `calculateQualityScore` computes for it, or a wallet scores one way after
+ * an ingest and another after a lookup.
+ */
+const OWNER_ATTESTED: LinkSource = { id: 'owner_attested', quality: 45 };
+
+/**
+ * The uniqueness key that survives an erase.
+ *
+ * "One grant per account, ever" has to keep holding after a withdrawal
+ * removes the plaintext, and removal is the entire point of a withdrawal, so
+ * the key cannot be the identity. Peppered rather than plain sha256: an X
+ * account id is a short number from a small space, and an unkeyed digest of
+ * one is reversible by anybody who can count.
+ */
+function accountKey(xUserId: string): string {
+  return createHmac(
+    'sha256',
+    process.env.ATTESTATION_ID_PEPPER || process.env.ATTESTATION_SECRET || ''
+  )
+    .update(xUserId)
+    .digest('hex');
+}
+
+/**
+ * Grant the matches, once per account ever, inside the budget.
+ *
+ * Reserved on the attestation row rather than in `credit_lots`, because
+ * `grantCredits` leaves `stripe_payment_id` null so its unique index does not
+ * apply: the grant rail is deliberately repeatable and therefore cannot be
+ * the idempotency key.
+ *
+ * Every refusal here is silent to the person on purpose. They completed a
+ * claim, which is the thing that mattered; "your attestation was recorded but
+ * you already claimed with this account" is a true sentence that the outcome
+ * copy says without this function needing to fail.
+ */
+async function maybeGrant(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  claimId: string,
+  userId: string,
+  wallet: string
+): Promise<void> {
+  let eligible: boolean;
+  try {
+    eligible = await walletPredatesCutoff(wallet);
+  } catch {
+    // A failed read refuses the grant rather than making one it cannot
+    // justify. The claim itself is already written.
+    return;
+  }
+  if (!eligible) return;
+
+  const spent = (await db.execute(sql`
+    SELECT COALESCE(SUM(granted_matches), 0)::int AS total
+    FROM identity_attestations
+    WHERE grant_claimed_at IS NOT NULL
+  `)) as unknown as { rows: Array<{ total: number }> };
+  if (
+    (spent.rows[0]?.total ?? 0) + ATTESTATION_GRANT_MATCHES >
+    ATTESTATION_GRANT_BUDGET
+  ) {
+    console.error('claim grant budget exhausted; recording claim without it');
+    return;
+  }
+
+  /**
+   * The reservation. The partial unique index on `x_user_id_hmac` where
+   * `grant_claimed_at IS NOT NULL` is what makes this once-ever: a second
+   * claim by the same account raises rather than double-granting, and the
+   * catch turns that into no grant rather than an error page.
+   */
+  try {
+    const reserved = (await db.execute(sql`
+      UPDATE identity_attestations
+      SET grant_claimed_at = now(),
+          granted_matches  = ${ATTESTATION_GRANT_MATCHES},
+          updated_at       = now()
+      WHERE id = ${claimId}::uuid
+        AND grant_claimed_at IS NULL
+      RETURNING id
+    `)) as unknown as { rows: Array<{ id: string }> };
+    if (reserved.rows.length === 0) return;
+  } catch {
+    // The unique index refused it: this account has been granted before.
+    return;
+  }
+
+  await grantCredits(
+    userId,
+    ATTESTATION_GRANT_MATCHES,
+    `identity claim ${claimId}`
+  );
+}
 
 function back(outcome: string, claimId?: string): NextResponse {
   const url = new URL(getSiteUrl());
@@ -218,18 +322,64 @@ export async function completeClaimCallback(input: {
    * put in one: the read above is the only thing this flow ever needed the
    * credential for, and it is finished.
    */
-  await db.execute(sql`
+  const claimed = (await db.execute(sql`
     UPDATE identity_attestations
-    SET x_user_id     = ${xUserId},
-        x_handle      = ${handle.toLowerCase()},
-        code_verifier = NULL,
-        state_nonce   = NULL,
-        status        = 'completed',
-        completed_at  = now(),
-        updated_at    = now()
+    SET x_user_id      = ${xUserId},
+        x_user_id_hmac = ${accountKey(xUserId)},
+        x_handle       = ${handle.toLowerCase()},
+        code_verifier  = NULL,
+        state_nonce    = NULL,
+        status         = 'completed',
+        completed_at   = now(),
+        updated_at     = now()
     WHERE id = ${claim.id}::uuid
       AND status = 'awaiting_x'
-  `);
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+
+  /**
+   * The losing side of a race gets no write and no grant.
+   *
+   * Two callbacks arriving together both passed the checks above, and the
+   * `status = 'awaiting_x'` predicate is what decides between them. Without
+   * this the loser would go on to write the graph and grant credits a second
+   * time for one claim.
+   */
+  if (claimed.rows.length === 0) return back('not_found');
+
+  /**
+   * The write into the index, through the shared attested ingest rather than
+   * around it.
+   *
+   * `ingestLinks` carries the guards every other source inherits: the
+   * renamed-from refusal, the conflict record where two sources disagree, and
+   * the quality floor that has to equal what `calculateQualityScore` computes
+   * for this source. Writing `social_graph` directly from here would be a
+   * second writer with none of that, which is the shape `lib/attested-links.ts`
+   * exists to prevent.
+   */
+  await ingestLinks(
+    [
+      {
+        wallet: claim.wallet,
+        handle: handle.toLowerCase(),
+        twitterUserId: xUserId,
+      },
+    ],
+    OWNER_ATTESTED
+  );
+
+  /**
+   * The grant, reserved by THIS row rather than by `credit_lots`.
+   *
+   * `grantCredits` leaves `stripe_payment_id` null on purpose so the unique
+   * index does not apply, which means the grant rail is deliberately
+   * repeatable and cannot be the idempotency key. `grant_claimed_at` on the
+   * attestation is: the partial unique index on `x_user_id_hmac` refuses a
+   * second grant for an account that already has one, so the UPDATE either
+   * reserves the grant or tells us somebody already did.
+   */
+  await maybeGrant(db, claim.id, session.user.id, claim.wallet);
 
   return back('completed', claim.id);
 }
