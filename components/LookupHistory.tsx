@@ -40,6 +40,17 @@ interface LookupHistoryProps {
    */
   entitled: boolean;
   onAddAddresses?: (lookupId: string, existingWallets: string[]) => void;
+  /**
+   * What to render instead of nothing when there is no history to show.
+   *
+   * The default is silence, which is right on the homepage: this is the last
+   * card under a hero and three ways to start a lookup, so an empty card there
+   * is noise about an absence the visitor can already see. On a dashboard it is
+   * the opposite case, because for a new account this is the first thing on the
+   * page and rendering nothing leaves it blank. A caller that has no hero above
+   * it passes what to say.
+   */
+  emptyState?: React.ReactNode;
 }
 
 // How many entries to show. Free and signed in without a pack see the latest
@@ -53,6 +64,7 @@ export const LookupHistory = memo(function LookupHistory({
   onLoadLookup,
   entitled,
   onAddAddresses,
+  emptyState,
 }: LookupHistoryProps) {
   const { user } = useAuth();
   const [history, setHistory] = useState<LookupSummary[]>([]);
@@ -200,6 +212,19 @@ export const LookupHistory = memo(function LookupHistory({
   }
 
   if (error || history.length === 0) {
+    // A caller with nothing above this card says what belongs in the gap.
+    // Note this branch still conflates a failed read with an empty one, which
+    // is pre-existing: the copy is therefore written to be true of both.
+    if (emptyState) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>My lookups</CardTitle>
+          </CardHeader>
+          <CardContent>{emptyState}</CardContent>
+        </Card>
+      );
+    }
     return null; // Don't show if no history or error
   }
 

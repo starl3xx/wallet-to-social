@@ -2,6 +2,44 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the account gets a page)
+
+- **`/dashboard`**, the first surface that shows a signed-in account what it
+  owns. Everything on it was already finished and session-authorized and
+  reachable by no button: the page adds no endpoint, no table and no migration.
+  Reached from the account menu only, since it is private.
+- **`lib/use-credits.ts` stops discarding four fields `/api/credits` already
+  returns.** `lots`, `freeUsedThisWindow`, `freeWindowResetsAt` and
+  `freeAllowance` were fetched on every page load and mapped away, so the header
+  could show one aggregate number and nothing could answer which pack an account
+  holds or when it lapses. The admin console rendered a customer's lots for
+  staff; the customer had no surface for them. Additive, so both existing
+  callers are unaffected.
+- **Balance, packs and expiry.** A bar for the free window, which has a
+  denominator and a reset and is therefore honest; a count and a date for a
+  pack, never a bar, because a draining bar turns a balance into an emergency. A
+  lot inside 30 days of lapsing takes `caution`. An unmetered legacy or
+  whitelisted account gets a sentence instead of a zero, because those tiers
+  were sold before credits existed and a meter would imply one they never agreed
+  to. Pack names go through `isPackId`, since `lots[].pack` is free text and a
+  support grant writes `grant`.
+- **Saved lookups, claimed addresses, and a developer panel.** `LookupHistory`
+  grows an optional `emptyState`: rendering nothing is right on the homepage,
+  which has a hero and three inputs above it, and wrong on a dashboard where it
+  is the first thing a new account sees. The claims panel is a second reader of
+  `/api/claim/mine`, not a replacement, because an invariant requires
+  `ClaimFlow.tsx` to keep reading it too.
+- **Connected applications stay reachable without credits.**
+  `/api/oauth/connections` is deliberately not behind the developer guard, so
+  the control that opens them is offered to every signed-in account rather than
+  only to paying ones. Putting it inside the paid branch would have
+  reintroduced the defect that route's comment describes.
+- Deliberately absent, each with its reason recorded in `PROJECT_OVERVIEW.md`:
+  the upload widget (needs the block lifted out of `app/page.tsx` first), a
+  running-jobs and an X-lists module (`/api/jobs` and `/api/x/lists` export POST
+  only, and an index for either needs a route plus an index migration), a
+  results preview, an activity feed and any chart.
+
 ### 2026-09-20 (fifty refusals in a row are a wall, not fifty outcomes)
 
 - **The domain-side UD harvest grows a circuit breaker**: fifty consecutive

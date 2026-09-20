@@ -7,6 +7,7 @@ import {
   SignIn as LogIn,
   SignOut as LogOut,
   Key as KeyRound,
+  SquaresFour as LayoutDashboard,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -132,6 +133,14 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
               credits. Without them the modal explains what the API does
               and routes to the packs, which is a better answer than
               hiding the entrance entirely. */}
+          {/* The account surface, and the only link to it. The dashboard is
+              deliberately not in the header row or the footer: it is a private
+              page, so it is reached from the account control rather than
+              advertised to signed-out visitors and crawlers. */}
+          <MenuItem href="/dashboard">
+            <LayoutDashboard className="h-4 w-4" aria-hidden />
+            Dashboard
+          </MenuItem>
           <MenuItem onClick={() => setApiKeysOpen(true)}>
             <KeyRound className="h-4 w-4" aria-hidden />
             API keys

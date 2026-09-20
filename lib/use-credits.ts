@@ -26,7 +26,35 @@ import { useEffect, useState } from 'react';
  * quietly adding them would be a pricing change dressed as a bug fix.
  *
  * `available` is the volume meter, which the free allowance does feed.
+ *
+ * ## Why the lots and the free window are here
+ *
+ * `/api/credits` has always returned `lots`, `freeUsedThisWindow`,
+ * `freeWindowResetsAt` and `freeAllowance`, and this hook mapped all four away.
+ * The header can therefore show one aggregate number and nothing can answer the
+ * two questions a buyer actually asks: which pack am I holding, and when does it
+ * lapse. The admin console renders a customer's lots for staff; the customer had
+ * no surface for them anywhere. Keeping the fields costs one round trip that was
+ * already being made.
+ *
+ * They are nullable rather than defaulted, because an unmetered account is sent
+ * no numbers at all and a zero there would be a meter it never agreed to.
  */
+
+/** One purchased lot, as `/api/credits` reports it. */
+export interface CreditLot {
+  remaining: number;
+  /**
+   * Free text, not a `PackId`. `grantCredits` writes `grant` and the x402 rail
+   * writes `agent`, neither of which is a key of `PACKS`, so a reader must go
+   * through `isPackId` before indexing or it renders `undefined` for a support
+   * grant.
+   */
+  pack: string;
+  /** ISO date, or null for a lot that does not lapse. */
+  expiresAt: string | null;
+}
+
 export interface CreditsView {
   /** Matches left. Null while loading, and for an unmetered account. */
   available: number | null;
@@ -48,6 +76,24 @@ export interface CreditsView {
    * not, and the two need telling apart to say which applies.
    */
   onFreeAllowance: boolean;
+  /**
+   * The purchased lots behind `available`, newest first as the server orders
+   * them. Null while loading, when signed out, and for an unmetered account.
+   * Empty means signed in with no live lot, which is a different thing and
+   * reads as such.
+   */
+  lots: CreditLot[] | null;
+  /** Matches spent inside the current free window. Null when it does not apply. */
+  freeUsedThisWindow: number | null;
+  /**
+   * When the next free matches return. This is the oldest still-counted debit
+   * plus the window, so the allowance dribbles back rather than resetting in
+   * one go, and it is null when nothing has been spent. Copy must say when
+   * matches return, never that anything resets on a fixed date.
+   */
+  freeWindowResetsAt: string | null;
+  /** The window's size, from the server rather than typed into a page. */
+  freeAllowance: number | null;
   loading: boolean;
 }
 
@@ -57,6 +103,10 @@ const INITIAL: CreditsView = {
   entitled: false,
   maxWallets: null,
   onFreeAllowance: false,
+  lots: null,
+  freeUsedThisWindow: null,
+  freeWindowResetsAt: null,
+  freeAllowance: null,
   loading: true,
 };
 
@@ -92,6 +142,19 @@ export function useCredits(signedIn: boolean): CreditsView {
               ? d.maxWallets
               : null,
           onFreeAllowance: !d.unmetered && !!d.onFreeAllowance,
+          // An unmetered account is sent none of these, so it keeps null
+          // rather than being handed a zero it never agreed to.
+          lots: !d.unmetered && Array.isArray(d.lots) ? d.lots : null,
+          freeUsedThisWindow:
+            !d.unmetered && typeof d.freeUsedThisWindow === 'number'
+              ? d.freeUsedThisWindow
+              : null,
+          freeWindowResetsAt:
+            !d.unmetered && typeof d.freeWindowResetsAt === 'string'
+              ? d.freeWindowResetsAt
+              : null,
+          freeAllowance:
+            typeof d.freeAllowance === 'number' ? d.freeAllowance : null,
           loading: false,
         });
       })

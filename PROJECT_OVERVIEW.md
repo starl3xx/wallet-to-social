@@ -122,6 +122,7 @@ an anti-enumeration ceiling of 1,000,000 wallets in a rolling 24 hours, which is
 wallet-to-social/
 ├── app/
 │   ├── page.tsx              # Main upload/results page
+│   ├── dashboard/page.tsx    # The signed-in account surface (noindex)
 │   ├── admin/page.tsx        # Admin dashboard
 │   ├── vs/                   # Competitor comparison pages (SEO)
 │   │   ├── addressable/
@@ -527,6 +528,48 @@ chatter (`initialize`, `tools/list`) reaches no handler and is bounded by IP at
 path no key-based limit covers. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
+
+### The dashboard
+
+`app/dashboard/page.tsx` is the signed-in account surface at `/dashboard`. It
+assembles what the account owns out of endpoints that already existed and had no
+button: the credit lots and free window from `/api/credits`, saved lookups from
+`/api/history`, claimed addresses from `/api/claim/mine`, and the developer plan
+and usage from `/api/developer/usage`. It adds no endpoint and no table.
+
+| File                                        | Role                                                           |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `app/dashboard/page.tsx`                    | The page: three-way auth branch, then the modules in order     |
+| `app/dashboard/layout.tsx`                  | Metadata only, so the client page can be noindexed             |
+| `components/dashboard/BalancePanel.tsx`     | Balance, packs and expiry, plus the free window                |
+| `components/dashboard/ClaimedAddresses.tsx` | A second reader of `/api/claim/mine`, never a replacement      |
+| `components/dashboard/DeveloperPanel.tsx`   | Plan, monthly totals, and the way into keys and connected apps |
+
+**It is private, so it is noindexed and absent from the sitemap.** The layout
+carries `robots: { index: false, follow: false }` rather than a robots.txt
+Disallow, for the reason `app/admin/layout.tsx` records: a disallowed URL can
+still be indexed from a link, and a noindex cannot be read on a page the crawler
+is forbidden to fetch. It declares no canonical, because a canonical is a request
+to be indexed. The only link to it is the account menu in `components/AccessBanner.tsx`.
+
+**Gating is `entitled`, never `tier`.** The page reads `useCredits(!!user)` and
+passes `entitled` down. The developer panel decides access before it fetches,
+because `requireDeveloperAccess` defaults `requireApiTier` to true and answers
+403 for listing keys and reading usage, not only for minting one. Connected
+applications sit behind the keys dialog rather than inside the paid branch,
+because `/api/oauth/connections` is deliberately not behind that guard: somebody
+on the free allowance can connect an assistant and must be able to disconnect it.
+
+**Deliberately not on it, each for a stated reason.** No upload widget, because
+the block and its submit handler are entangled with `app/page.tsx` and two submit
+paths would have to agree about `canSubmit`, `maxWallets`, the anonymous gate and
+the save-to-history semantics. No results table, no activity feed and no chart: a
+chart answers "how has this been going" and the page answers "where do I stand".
+No running-jobs or X-lists module, because `/api/jobs` and `/api/x/lists` export
+POST only and an index for either needs a route and an index migration first
+(`lookup_jobs` has no index on `user_id`; `x_list_jobs` has none beyond its
+primary key). Opening a saved lookup sends the reader to the homepage's list,
+because saved results are in-app state there and no URL opens one.
 
 ### Claiming an address
 
