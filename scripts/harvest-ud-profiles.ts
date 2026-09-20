@@ -389,14 +389,22 @@ async function runWalk(args: Args) {
 
   logCounts(counts, walletsSeen);
   if (args.commit) {
-    // Whatever the budget stop left unflushed.
-    if (links.length > 0) {
-      await ingestLinks(links, SOURCE);
-      await saveCheckpoint(cursor);
+    // Whatever the budget stop left unflushed. The checkpoint saves whenever
+    // the cursor moved, not only when the partial page found handles: at the
+    // measured hit rate nearly every page finds nothing, and dropping the
+    // cursor for that made the next run re-pay a whole page of requests.
+    if (links.length > 0) await ingestLinks(links, SOURCE);
+    if (walletsSeen > 0 && !exhausted) await saveCheckpoint(cursor);
+    // A finished walk wraps to the start rather than parking at the highest
+    // address: the walk exists for wallets that ENTER the graph missing an X
+    // handle, and a new row can sort anywhere in the keyset. The budget makes
+    // the re-walk cheap per run, and the fill-only ingest makes it harmless.
+    if (exhausted) {
+      await saveCheckpoint('0x0000000000000000000000000000000000000000');
     }
     console.log(
       exhausted
-        ? '\nReached the end of the missing-X wallets.'
+        ? '\nReached the end of the missing-X wallets; checkpoint wrapped to the start.'
         : `\nRequest budget (${args.maxRequests}) reached; re-run to continue from the checkpoint.`
     );
   } else {
