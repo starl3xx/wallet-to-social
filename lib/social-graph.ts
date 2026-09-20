@@ -848,6 +848,28 @@ export function isTwitterVerified(sources: string[]): boolean {
       s === 'opensea_profile' ||
       s === 'basename_record' ||
       s === 'zora_profile' ||
+      /**
+       * The two Farcaster ids, which were the list's third omission.
+       *
+       * `lib/farcaster-sweep.ts` writes `twitter_verified = true` for a
+       * handle out of `verified_accounts` directly, so the same evidence
+       * stored `true` when the sweep wrote the row and `false` when a live
+       * lookup merged it: one wallet's provenance decided by which code path
+       * reached it last. `lib/api-sources.ts` classes both as `farcaster`,
+       * which is in `ATTESTED_SOURCES`, and
+       * `scripts/check-published-figures.ts` already counts both in the
+       * published attested share, so this list was the only reader
+       * disagreeing.
+       *
+       * Deriving the whole list from `ATTESTED_SOURCE_IDS` was tried and is
+       * wrong: this column does not mean "attested class". It means a source
+       * that writes `verified = true` ingested the row, which is why
+       * `zora_profile` belongs here and is deliberately absent from the
+       * published figure. The block in `scripts/check-invariants.ts` that
+       * pins exactly that divergence is what caught the attempt.
+       */
+      s === 'neynar' ||
+      s === 'farcaster_sweep' ||
       // Same reason as every entry above it: `lib/attested-links.ts` writes
       // twitter_verified = true for what it ingests, so a source missing from
       // this list is silently unverified by the next live lookup that merges

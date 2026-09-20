@@ -233,6 +233,43 @@ export function isAttestedSource(value: unknown): boolean {
 }
 
 /**
+ * The INTERNAL source ids whose evidence class is attested, DERIVED from the
+ * table above rather than listed again.
+ *
+ * `ATTESTED_SOURCES` is over public classes and answers a question about a
+ * serialized response. Writers inside the pipeline hold internal ids
+ * (`owner_attested`, `ens_onchain`, `ethos`…) and need the same question
+ * answered about those, which until now meant each writer carrying its own
+ * hand-written list. This repo already has two functions that drifted exactly
+ * that way, so the list is computed once, here, beside the classification it
+ * is derived from.
+ *
+ * Used by the writers that must not overwrite attested evidence, and by the
+ * conflict resolver deciding whose handle may replace whose.
+ */
+export const ATTESTED_SOURCE_IDS: ReadonlySet<string> = new Set(
+  Object.entries(SOURCE_CLASSES)
+    .filter(
+      ([id, cls]) =>
+        cls !== undefined &&
+        ATTESTED_SOURCES.has(cls) &&
+        // The identity mappings above (`onchain: 'onchain'`) exist so
+        // `publicSources` composes with itself. They are public class names,
+        // not internal source ids, and a writer asking "did an attested
+        // source supply this" must not match on them: nothing in
+        // `social_graph.sources` is ever a class name, so including them
+        // would only widen the set with values that can never appear.
+        cls !== id
+    )
+    .map(([id]) => id)
+);
+
+/** Whether an internal source id carries attested evidence. */
+export function isAttestedSourceId(value: unknown): boolean {
+  return typeof value === 'string' && ATTESTED_SOURCE_IDS.has(value);
+}
+
+/**
  * Translates internal source identifiers into public evidence classes.
  * Deduplicates, drops anything unrecognized, and returns undefined rather
  * than an empty array so callers can omit the field entirely.

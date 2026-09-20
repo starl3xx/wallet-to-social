@@ -25,6 +25,8 @@
 
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
+import { ATTESTED_SOURCE_IDS } from './api-sources';
+import { recordConflicts, type AttestedLink } from './attested-links';
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { checkBackgroundBudget, recordSpend } from './neynar-budget';
 /**
@@ -231,6 +233,34 @@ function usersToRows(users: NeynarUser[]): SweepRow[] {
  * Upsert sweep rows. Farcaster fields are authoritative from the sweep;
  * everything else is untouched. last_updated_at moves only on identity change.
  */
+/**
+ * Attested sources this sweep does not speak for, as a SQL array literal.
+ *
+ * Farcaster's own two ids are removed, because they ARE this sweep: guarding
+ * against them would stop it ever updating a handle it wrote itself, which is
+ * the job. Everything else attested outranks a Farcaster username, and the
+ * asymmetry is the evidence rather than a preference: Farcaster stores a
+ * verified X account as a NAME, captured once, with no account id and no
+ * later check, while `owner_attested` is a signature taken in a session and
+ * `ens_onchain` is a record only the name's owner can set.
+ *
+ * Derived from `ATTESTED_SOURCE_IDS` rather than typed out, because a
+ * hand-copied list is how the two reachability queries in this repo already
+ * came to disagree. The ids are our own constants and are asserted to be
+ * bare identifiers before being inlined, so the literal cannot carry a quote.
+ */
+const OTHER_ATTESTED_SQL = (() => {
+  const ids = [...ATTESTED_SOURCE_IDS].filter(
+    (id) => id !== 'farcaster_sweep' && id !== 'neynar'
+  );
+  for (const id of ids) {
+    if (!/^[a-z0-9_]+$/.test(id)) {
+      throw new Error(`source id is not a bare identifier: ${id}`);
+    }
+  }
+  return `ARRAY[${ids.map((id) => `'${id}'`).join(', ')}]::text[]`;
+})();
+
 async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
   const db = getDb();
   if (!db || rows.length === 0) return 0;
@@ -240,6 +270,44 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
   const byWallet = new Map<string, SweepRow>();
   for (const r of rows) byWallet.set(r.wallet, r);
   const deduped = Array.from(byWallet.values());
+
+  /**
+   * The disagreement is written down BEFORE the upsert, and now it happens at
+   * all.
+   *
+   * `lib/conflict-resolution.ts` says `handle_conflicts` rows "are written by
+   * every attested ingest" and PROJECT_OVERVIEW said the same. This sweep is
+   * an attested ingest by that file's own classification (`farcaster_sweep`
+   * maps to the `farcaster` class) and it wrote none: an X handle from
+   * Farcaster that contradicted a stored one used to overwrite it outright,
+   * leaving no row for the resolver, the admin queue or `twitter.also` to
+   * ever see. Now the sweep declines to overwrite other attested evidence and
+   * records what it saw instead, which is the same shape every `ingestLinks`
+   * caller has.
+   *
+   * Before the write, for the reason `ingestLinks` orders it that way: the
+   * comparison is against the handle currently stored, so running it
+   * afterwards would compare the incoming handle against itself and find
+   * nothing.
+   *
+   * No `twitterUserId`: Farcaster records a verified X account as a bare
+   * username, so these rows can only ever settle on the liveness rule.
+   */
+  const attestedLinks: AttestedLink[] = deduped
+    .filter((r) => r.twitterHandle)
+    .map((r) => ({ wallet: r.wallet, handle: r.twitterHandle as string }));
+  if (attestedLinks.length > 0) {
+    try {
+      await recordConflicts(attestedLinks, {
+        id: 'farcaster_sweep',
+        quality: 65,
+      });
+    } catch (error) {
+      // A conflict row is a record, not a gate. Losing one must not cost the
+      // sweep the Farcaster identities it came to write.
+      console.error('farcaster sweep conflict recording failed:', error);
+    }
+  }
 
   const now = new Date();
   let upserted = 0;
@@ -293,6 +361,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterHandle: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterHandle}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterHandle}
+            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterHandle}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterHandle}
@@ -300,6 +369,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterUrl: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterUrl}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterUrl}
+            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterUrl}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_url
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterUrl}
@@ -307,6 +377,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterVerified: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterVerified}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterVerified}
+            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterVerified}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN true
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN false
             ELSE ${socialGraph.twitterVerified}

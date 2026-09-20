@@ -9,6 +9,14 @@
  * attested sources is evidence, and a rule that let the last writer win would
  * throw the evidence away.
  *
+ * That first sentence was untrue for eleven months and is worth saying so.
+ * Only the `ingestLinks` callers wrote conflict rows. `lib/ens-harvest.ts`,
+ * which carries the strongest class in the product, dropped every
+ * disagreement silently, and `lib/farcaster-sweep.ts` overwrote the stored
+ * handle outright and recorded nothing. Both now call `recordConflicts`
+ * before they write, and `scripts/check-invariants.ts` asserts the property
+ * for every attested writer rather than for the two that were found.
+ *
  * Measured on the open queue on 2026-08-22, 2,914 conflicts fell into three
  * buckets by what `x_accounts` says about each side:
  *

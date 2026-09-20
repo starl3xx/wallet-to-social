@@ -8730,6 +8730,84 @@ async function main() {
     );
   }
 
+  // ------------------ Every attested writer records what it disagreed with
+  /**
+   * `lib/conflict-resolution.ts` opens by saying `handle_conflicts` rows "are
+   * written by every attested ingest", and PROJECT_OVERVIEW said the same.
+   * Both were false, and false in the flattering direction: only the
+   * `ingestLinks` callers wrote them.
+   *
+   * Two attested writers of `social_graph.twitter_handle` sat outside that
+   * path. `lib/ens-harvest.ts` writes `ens_onchain`, the strongest class in
+   * the product, and dropped every disagreement silently. `lib/farcaster-sweep.ts`
+   * did worse: it OVERWROTE the stored handle, including one an owner had
+   * just signed for through `/claim`, left `owner_attested` sitting in
+   * `sources` beside a handle that owner never gave, and recorded nothing.
+   *
+   * Asserted as the property rather than as two file names: every writer that
+   * sets a twitter handle outside `ingestLinks` must call `recordConflicts`.
+   * A third writer added later fails this until it does the same, which is
+   * the whole point — the claim in those two files is repo-wide, so the check
+   * has to be too.
+   */
+  {
+    const ATTESTED_WRITERS = [
+      'lib/ens-harvest.ts',
+      'lib/farcaster-sweep.ts',
+    ] as const;
+    for (const file of ATTESTED_WRITERS) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} records the disagreement it found`,
+        /recordConflicts\(/.test(src)
+      );
+      ok(
+        `${file} records it BEFORE it writes`,
+        // The comparison is against the handle currently stored, so running
+        // it after the upsert compares the incoming handle with itself and
+        // finds nothing. `ingestLinks` orders it the same way and says so.
+        src.indexOf('recordConflicts(') < src.indexOf('onConflictDoUpdate')
+      );
+    }
+
+    const sweep = withoutComments(
+      readFileSync('lib/farcaster-sweep.ts', 'utf8')
+    );
+    ok(
+      'the Farcaster sweep yields to attested evidence it does not speak for',
+      // A Farcaster username is a name captured once with no account id and
+      // no recheck; `owner_attested` is a signature taken in a session. The
+      // guard is derived from the classification rather than hand-listed,
+      // because a hand-copied list is how two reachability queries in this
+      // repo already came to disagree.
+      /OTHER_ATTESTED_SQL/.test(sweep) &&
+        /ATTESTED_SOURCE_IDS/.test(sweep) &&
+        // Ordering, not absence. The overwrite arm is still there and still
+        // correct for a row no other attested source wrote; what matters is
+        // that the guard is reached FIRST, because a CASE takes the first arm
+        // that matches. Asserting the old line was gone failed here, on code
+        // that was right.
+        sweep.indexOf('sql.raw(OTHER_ATTESTED_SQL)') <
+          sweep.indexOf(
+            'WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle'
+          )
+    );
+
+    const sourcesModule2 = await import('@/lib/api-sources');
+    ok(
+      'the attested id set excludes the aggregated source and the class aliases',
+      // `zora_profile` is `aggregated`: its wallet half carries no evidence,
+      // so a writer asking "did an attested source supply this" must not
+      // match it. The class names are identity entries that exist so
+      // `publicSources` composes with itself, and never appear in a row.
+      !sourcesModule2.ATTESTED_SOURCE_IDS.has('zora_profile') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('onchain') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('farcaster') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('owner_attested') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('ens_onchain')
+    );
+  }
+
   // ------------------ The attested set is written down in two places, in step
   /**
    * `scripts/check-published-figures.ts` carries a hand-written list of the
