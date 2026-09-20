@@ -1439,6 +1439,50 @@ async function main() {
          * while the code never did it, which is the same disagreement in the
          * other direction.
          */
+        /**
+         * Withdrawal exists, because the page promises it.
+         *
+         * Twice on the page and once in the consent text. A claim flow whose
+         * withdrawal is not built is a promise the code does not keep, which
+         * is the defect this file exists for, and the promise is the kind a
+         * person relies on when deciding to attest at all.
+         */
+        const withdraw = withoutComments(
+          readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+
+        ok(
+          'a withdrawal suppresses BEFORE it erases',
+          // The triggers stop a suppressed identifier landing again, so
+          // erasing first leaves a window where the next ingest writes the
+          // pair straight back. Withdrawing is precisely a request that this
+          // stops happening.
+          withdraw.indexOf('insertSuppressions(') > 0 &&
+            withdraw.indexOf('insertSuppressions(') <
+              withdraw.indexOf('eraseIdentifier(')
+        );
+        ok(
+          'a withdrawal uses the signature lane, which was reserved for exactly this',
+          /'wallet_sig'/.test(withdraw)
+        );
+        ok(
+          'a withdrawal suppresses the wallet and NOT the handle',
+          // Suppressing the handle would remove that account from every other
+          // wallet's record. The person is withdrawing one pairing, not
+          // asking to be erased from the index.
+          /\[\{ kind: 'wallet', identifier: wallet \}\]/.test(withdraw) &&
+            !/kind: 'twitter'/.test(withdraw)
+        );
+        ok(
+          'a withdrawal clears the identity but keeps the grant key',
+          // The HMAC outliving the identity is what stops the grant being
+          // farmed by claiming and withdrawing in a loop, and it is the
+          // reason the column is an HMAC rather than the id.
+          /x_handle = NULL/.test(withdraw) &&
+            /signature = NULL/.test(withdraw) &&
+            !/x_user_id_hmac = NULL/.test(withdraw)
+        );
+
         ok(
           'a claim writes through the shared ingest and never straight into the graph',
           /await ingestLinks\(/.test(cb) &&
