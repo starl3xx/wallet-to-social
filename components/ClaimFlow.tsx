@@ -171,19 +171,24 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
    */
   const [held, setHeld] = useState<Held[] | null>(null);
 
+  /**
+   * A failed read leaves what we already knew, and never invents an answer.
+   *
+   * The first version set `null` on failure, which is right for the first
+   * load (no panel, because nothing was learned) and wrong for every later
+   * one: a refetch that failed after a withdrawal hid EVERY remaining claim,
+   * so removing one pairing could make somebody's other addresses vanish.
+   * Leaving the previous array alone is the smaller error, and the withdrawal
+   * path below drops the removed wallet itself rather than relying on this.
+   */
   const loadHeld = useCallback(async () => {
     try {
       const res = await fetch('/api/claim/mine');
-      if (!res.ok) {
-        // A failed read is not "nothing claimed". Leaving it null keeps the
-        // panel absent rather than asserting an emptiness we did not learn.
-        setHeld(null);
-        return;
-      }
+      if (!res.ok) return;
       const json = await res.json();
-      setHeld(Array.isArray(json.claims) ? json.claims : []);
+      if (Array.isArray(json.claims)) setHeld(json.claims);
     } catch {
-      setHeld(null);
+      // Same reasoning: keep what we had.
     }
   }, []);
 
@@ -394,13 +399,23 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
             setStage('idle');
             return;
           }
+          /**
+           * The panel loses this pairing BEFORE the sentence claiming it did.
+           *
+           * Refetch-then-announce still put the removed address on screen
+           * beside "Withdrawn" for the length of a round trip, and a refetch
+           * that failed left it there indefinitely. Dropping it locally
+           * first makes the panel agree with the message at the moment the
+           * message appears, and owes nothing to a second request; the
+           * refetch that follows only reconciles the rest.
+           */
+          setHeld((current) =>
+            current ? current.filter((h) => h.wallet !== wallet) : current
+          );
+          await loadHeld();
           setDone(
             'Withdrawn. The pair is out of the index, and this address will not be collected again.'
           );
-          // The panel above says what we hold, and a moment ago that included
-          // this. Leaving it would put the removed pairing on the same screen
-          // as the sentence saying it was removed.
-          await loadHeld();
           setStage('idle');
           return;
         }

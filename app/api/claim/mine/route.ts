@@ -67,11 +67,31 @@ export async function GET() {
    * of them and an endpoint that returns a credential it does not need is how
    * one ends up somewhere it should not be.
    */
+  /**
+   * One row per wallet, the newest, because a correction leaves the old one
+   * standing.
+   *
+   * `start` inserts unconditionally and nothing unique-constrains a completed
+   * pair (the withdraw route says so in as many words, which is why it
+   * updates every row for a wallet rather than the newest). So somebody who
+   * claims an address, renames on X and claims it again has two `completed`
+   * rows for one address. Serving both would count one address as two and
+   * name a pairing that has been superseded, which on a page about the record
+   * we hold is the wrong answer twice over.
+   *
+   * `DISTINCT ON` needs its ordering to lead with the distinct key, so the
+   * newest-first ordering the page wants is applied by the outer select.
+   */
   const rows = (await db.execute(sql`
     SELECT wallet, x_handle, granted_matches, completed_at
-    FROM identity_attestations
-    WHERE user_id = ${session.user.id}
-      AND status = 'completed'
+    FROM (
+      SELECT DISTINCT ON (wallet)
+             wallet, x_handle, granted_matches, completed_at
+      FROM identity_attestations
+      WHERE user_id = ${session.user.id}
+        AND status = 'completed'
+      ORDER BY wallet, completed_at DESC NULLS LAST
+    ) newest
     ORDER BY completed_at DESC NULLS LAST
     LIMIT 100
   `)) as unknown as {

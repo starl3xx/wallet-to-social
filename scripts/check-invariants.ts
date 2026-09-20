@@ -1825,8 +1825,34 @@ async function main() {
               /export async function GET/.test(mineRoute)
           );
           ok(
-            'and a withdrawal refreshes it rather than leaving the removed pair on screen',
-            /await loadHeld\(\)/.test(flow)
+            'and a withdrawal drops the removed pair before it says it did',
+            // Locally first, so the panel agrees with the sentence at the
+            // moment the sentence appears and owes nothing to a second
+            // request that can fail. Ordering asserted, because announcing
+            // first is exactly what put the removed address on screen beside
+            // the word "Withdrawn".
+            /setHeld\(\(current\) =>/.test(flow) &&
+              /await loadHeld\(\)/.test(flow) &&
+              // Against the withdrawal's OWN sentence, not a bare `setDone(`:
+              // the first of those in this file is the `setDone(null)` reset
+              // at the top of `run`, which precedes everything and made this
+              // comparison pass while proving nothing.
+              flow.indexOf('setHeld((current) =>') <
+                flow.indexOf('Withdrawn. The pair is out of the index')
+          );
+          ok(
+            'a failed read of the panel keeps what it had rather than emptying it',
+            // Setting null on a refetch failure hid every remaining claim, so
+            // withdrawing one address could make the others disappear.
+            !/setHeld\(null\)/.test(flow)
+          );
+          ok(
+            'the panel lists one row per address, not one per claim',
+            // `start` inserts unconditionally and nothing unique-constrains a
+            // completed pair, so a corrected claim leaves the old row
+            // standing. Serving both counts one address as two and names a
+            // pairing that has been superseded.
+            /DISTINCT ON \(wallet\)/.test(mineRoute)
           );
 
           /**
