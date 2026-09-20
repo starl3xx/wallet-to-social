@@ -2,6 +2,47 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (withdrawal, which the page had been promising)
+
+- **`POST /api/claim/withdraw`**, reachable from `/claim` itself. The page
+  promised twice that a claim could be taken back and nothing could take one
+  back; a promise whose control lives elsewhere is barely a promise, so the
+  control is on the page that makes it.
+- **Every row for the wallet, not the most recent one.** `start` inserts
+  unconditionally and nothing unique-constrains a completed pair, so one wallet
+  can carry several. Withdrawing the newest left the earlier ones holding the
+  handle, the account id and the signature. `awaiting_x` rows are cancelled in
+  the same statement: a claim opened before the withdrawal could otherwise come
+  back through the callback afterwards and re-complete the pairing.
+- **Suppress, then erase**, the order the operator endpoint uses. The triggers
+  have to stop the pair LANDING before the rows go, or the next ingest writes
+  it straight back. The wallet only: suppressing the handle would remove that
+  account from every other wallet's record, and a withdrawal is one pairing
+  rather than a request to be erased from the index.
+- **A claim and a withdrawal stop proving each other.** Both were proved by
+  signing identical bytes, so a signature gathered for either satisfied the
+  other, and somebody withdrawing was shown the claim text in their wallet:
+  asked to approve that the record "can name the account you choose" in order
+  to remove an account. A challenge now carries an intent, in the signed text
+  and in the HMAC prefix, and each route states its own rather than reading it
+  from the request body.
+- **The suppression refusal is claim-only**, which is what makes a
+  half-finished withdrawal finishable. Suppress-then-erase means a failure
+  between the two left the wallet suppressed with the pairing still served, and
+  the retry was told the address "has been removed from the index at its owner
+  request": success language for a withdrawal that had removed nothing.
+- **An abandoned claim stops keeping a signature for ever.** A row is born
+  holding the wallet signature and the PKCE verifier, and only a completed
+  callback or a withdrawal cleared either, so closing the X consent tab left
+  both indefinitely. The cleanup cron now clears the payload at thirty minutes,
+  matching what the callback already enforces at read time, and keeps the row:
+  "started and did not finish" is true and harmless once the payload is gone.
+- The withdrawal control is a mode rather than a second row of buttons, so both
+  actions get the same wallet choice. It passed `providers[0]` first, which is
+  whichever extension announced first rather than one anybody picked, and the
+  heading and body went on describing a trip to X that a withdrawal never
+  makes.
+
 ### 2026-09-20 (the table a claim lands in, and the boundary it is argued into)
 
 - `identity_attestations`: one row per `/claim`, and the pending state for the

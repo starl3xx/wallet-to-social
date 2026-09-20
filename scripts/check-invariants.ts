@@ -1060,7 +1060,7 @@ async function main() {
     const claim = await import('@/lib/attestation');
     const at = Date.now();
     const claimUser = 'invariant-check-user';
-    const claimCh = claim.issueClaimChallenge(wallet, claimUser, at);
+    const claimCh = claim.issueClaimChallenge(wallet, claimUser, 'claim', at);
     ok(
       'a claim challenge is issued, or the secret is simply unset',
       claim.isConfigured() ? claimCh !== null : claimCh === null
@@ -1079,6 +1079,7 @@ async function main() {
           await claim.verifyClaim({
             wallet,
             userId: claimUser,
+            intent: 'claim',
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, challengeMessage(wallet, at)),
@@ -1100,6 +1101,7 @@ async function main() {
           await claim.verifyClaim({
             wallet,
             userId: claimUser,
+            intent: 'claim',
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, claimCh.message),
@@ -1128,6 +1130,7 @@ async function main() {
           await claim.verifyClaim({
             wallet,
             userId: 'a-different-account',
+            intent: 'claim',
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, claimCh.message),
@@ -1136,13 +1139,126 @@ async function main() {
       );
       ok(
         'and the token itself differs per account, so the binding is in the HMAC',
-        claim.issueClaimChallenge(wallet, claimUser, at)!.token !==
-          claim.issueClaimChallenge(wallet, 'somebody-else', at)!.token
+        claim.issueClaimChallenge(wallet, claimUser, 'claim', at)!.token !==
+          claim.issueClaimChallenge(wallet, 'somebody-else', 'claim', at)!.token
       );
       ok(
         'the claim message says no funds move and no approval is granted',
         /no funds move/i.test(claimCh.message) &&
           /no approval is granted/i.test(claimCh.message)
+      );
+
+      /**
+       * Giving the record an account and taking it back are separate
+       * permissions, and a signature for one must not buy the other.
+       *
+       * Before the intent existed both were proved by signing identical
+       * bytes, so a signature gathered for either was spendable on the other
+       * inside the five-minute window. The person-facing half was worse than
+       * the replay: somebody withdrawing was shown the CLAIM text in their
+       * wallet and asked to approve that the record "can name the account you
+       * choose", which is the opposite of what they had clicked. A wallet
+       * prompt is the one piece of text in this flow that a person is
+       * expected to read, and it was describing the wrong act.
+       *
+       * Asserted as the refusal, in both directions, through the real
+       * verifier with real signatures. The withdrawal challenge is built the
+       * same way the withdraw route's caller builds it, so nothing here
+       * recomputes what it is testing.
+       */
+      const withdrawCh = claim.issueClaimChallenge(
+        wallet,
+        claimUser,
+        'withdraw',
+        at
+      )!;
+      ok(
+        'the two intents sign different text, so the wallet prompt says which one',
+        withdrawCh.message !== claimCh.message &&
+          /identity withdrawal/i.test(withdrawCh.message) &&
+          !/identity claim/i.test(withdrawCh.message) &&
+          // The sentence that is being corrected: a withdrawal must not ask
+          // anybody to agree that we may name an account.
+          !/name the account you choose/i.test(withdrawCh.message)
+      );
+      ok(
+        'a withdrawal signature is refused by the claim route, and the reverse',
+        // Withdrawal challenge, withdrawal signature, presented as a claim.
+        !(
+          await claim.verifyClaim({
+            wallet,
+            userId: claimUser,
+            intent: 'claim',
+            issuedAt: at,
+            token: withdrawCh.token,
+            signature: await sign(buyer, withdrawCh.message),
+          })
+        ).ok &&
+          // And a perfectly good claim, presented as a withdrawal.
+          !(
+            await claim.verifyClaim({
+              wallet,
+              userId: claimUser,
+              intent: 'withdraw',
+              issuedAt: at,
+              token: claimCh.token,
+              signature: await sign(buyer, claimCh.message),
+            })
+          ).ok
+      );
+      ok(
+        'and the token itself differs per intent, so the binding is in the HMAC',
+        /**
+         * The second enforcement, asserted separately because the first one
+         * hides it.
+         *
+         * The cross-spend refusal above passes on the message text alone: a
+         * signature over the withdrawal words does not verify against the
+         * claim words whatever the token says. So deleting the intent from
+         * the HMAC input left every assertion here green, which this check
+         * found by trying it. The same shape as the neighbouring
+         * per-account assertion, and for the same reason the recovery
+         * separation is asserted twice: either layer alone is a single point
+         * of failure, and a check that only exercises the outer one cannot
+         * tell you the inner one is gone.
+         */
+        withdrawCh.token !==
+          claim.issueClaimChallenge(wallet, claimUser, 'claim', at)!.token
+      );
+      ok(
+        'a withdrawal signature is accepted by the flow that asked for it',
+        // The matching success, so the refusals above cannot pass by
+        // refusing everything.
+        (
+          await claim.verifyClaim({
+            wallet,
+            userId: claimUser,
+            intent: 'withdraw',
+            issuedAt: at,
+            token: withdrawCh.token,
+            signature: await sign(buyer, withdrawCh.message),
+          })
+        ).ok
+      );
+      ok(
+        'each route states its own intent rather than reading it from the body',
+        // A route that took the intent from the request would let the
+        // presenter of a captured signature relabel it, which is exactly the
+        // separation the two assertions above establish.
+        /intent: 'claim'/.test(
+          withoutComments(readFileSync('app/api/claim/start/route.ts', 'utf8'))
+        ) &&
+          /intent: 'withdraw'/.test(
+            withoutComments(
+              readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+            )
+          ) &&
+          !/intent:\s*body\./.test(
+            readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+          ) &&
+          !/intent:\s*body\./.test(
+            readFileSync('app/api/claim/start/route.ts', 'utf8')
+          )
       );
     }
 
@@ -1233,6 +1349,42 @@ async function main() {
         'a suppressed wallet is refused before a challenge is issued',
         /isSuppressed\('wallet', \[wallet\]\)/.test(route) &&
           route.indexOf('isSuppressed(') < route.indexOf('issueClaimChallenge(')
+      );
+
+      /**
+       * …for a CLAIM. A withdrawal of a suppressed wallet is somebody
+       * finishing the suppression, not evading it.
+       *
+       * The withdraw route suppresses first and erases second, and that order
+       * is load-bearing: the triggers have to be in place before the rows go
+       * or the next ingest writes the pair back. So a withdrawal that failed
+       * after the suppression insert left the wallet suppressed with the
+       * pairing still served, and the retry landed here and was told the
+       * address "has been removed from the index at its owner request".
+       * Success language, for a withdrawal that had removed nothing, with no
+       * way for the person to tell and no way to finish it.
+       *
+       * Both halves are asserted because either alone permits the bug: the
+       * guard has to exist AND the refusal has to sit inside it. An
+       * `isSuppressed` call before the branch would refuse withdrawals again
+       * while this file still found the words it was looking for.
+       */
+      ok(
+        'a withdrawal is exempt from that refusal, so a half-finished one can be retried',
+        /if \(intent === 'claim'\) \{/.test(route) &&
+          route.indexOf("if (intent === 'claim') {") <
+            route.indexOf('isSuppressed(') &&
+          // Exactly one, so the exempted branch is the only one that checks.
+          route.split('isSuppressed(').length === 2
+      );
+      ok(
+        'an unrecognised intent is refused rather than read as a claim',
+        // The value decides which act the resulting signature can be spent
+        // on, so coercing a typo to the more powerful of the two is the
+        // wrong direction to fail in.
+        /error: 'invalid_intent'/.test(route) &&
+          route.indexOf("error: 'invalid_intent'") <
+            route.indexOf('issueClaimChallenge(')
       );
       ok(
         'a failed eligibility read refuses, rather than serving earns_credits false',
@@ -1439,6 +1591,153 @@ async function main() {
          * while the code never did it, which is the same disagreement in the
          * other direction.
          */
+        /**
+         * Withdrawal exists, because the page promises it.
+         *
+         * Twice on the page and once in the consent text. A claim flow whose
+         * withdrawal is not built is a promise the code does not keep, which
+         * is the defect this file exists for, and the promise is the kind a
+         * person relies on when deciding to attest at all.
+         */
+        const withdraw = withoutComments(
+          readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+
+        /**
+         * And it is reachable, which is the half that makes it real.
+         *
+         * A finished route with no control is the shape this product already
+         * carries three times over: `DELETE /api/history/[id]`, API key
+         * rotation and `GET /api/developer/usage` are all built,
+         * session-authorized and called by nothing. The page promises
+         * withdrawal twice, so a route nobody can press would be most of the
+         * way to a promise nothing keeps.
+         */
+        {
+          const flow = withoutComments(
+            readFileSync('components/ClaimFlow.tsx', 'utf8')
+          );
+          ok(
+            'the page can actually reach the withdrawal',
+            /'\/api\/claim\/withdraw'/.test(flow) &&
+              /setMode\('withdraw'\)/.test(flow)
+          );
+          /**
+           * And it withdraws with a wallet the person PICKED.
+           *
+           * The first version passed `providers[0]`, whichever extension
+           * announced first, which is precisely what this file's own header
+           * says is not a choice the person made. Somebody who attested with
+           * a later-announced wallet could not withdraw that pairing at all.
+           * The assertion pinned it, so the check would have defended the
+           * bug: the same shape as the scope set that pinned a missing
+           * `tweet.read`.
+           */
+          ok(
+            'neither action picks a wallet by announcement order',
+            !/providers\[0\]/.test(flow) &&
+              /run\(p\.provider, mode\)/.test(flow)
+          );
+        }
+
+        /**
+         * An abandoned claim does not keep a signature for ever.
+         *
+         * The same problem `cleanupAbandonedListJobs` was written for, one
+         * flow over: a row born `awaiting_x` holds the wallet signature, the
+         * PKCE verifier and the state nonce, and only a completed callback or
+         * a withdrawal clears them. Somebody who closes the consent tab
+         * reaches neither.
+         *
+         * Both halves asserted, because the sweep existing and the sweep
+         * RUNNING are different facts and this repo has shipped the first
+         * without the second: `lib/auth.ts` carried three cleanup functions
+         * that nothing called, which is why the cleanup cron exists at all.
+         */
+        ok(
+          'an abandoned claim is swept, and the sweep is actually called',
+          /export async function cleanupAbandonedClaims/.test(cb) &&
+            /signature = NULL/.test(cb) &&
+            /code_verifier = NULL/.test(cb) &&
+            /await cleanupAbandonedClaims\(\)/.test(
+              withoutComments(
+                readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+              )
+            )
+        );
+
+        ok(
+          'a withdrawal suppresses BEFORE it erases',
+          // The triggers stop a suppressed identifier landing again, so
+          // erasing first leaves a window where the next ingest writes the
+          // pair straight back. Withdrawing is precisely a request that this
+          // stops happening.
+          withdraw.indexOf('insertSuppressions(') > 0 &&
+            withdraw.indexOf('insertSuppressions(') <
+              withdraw.indexOf('eraseIdentifier(')
+        );
+        ok(
+          'a withdrawal uses the signature lane, which was reserved for exactly this',
+          /'wallet_sig'/.test(withdraw)
+        );
+        ok(
+          'a withdrawal suppresses the wallet and NOT the handle',
+          // Suppressing the handle would remove that account from every other
+          // wallet's record. The person is withdrawing one pairing, not
+          // asking to be erased from the index.
+          /\[\{ kind: 'wallet', identifier: wallet \}\]/.test(withdraw) &&
+            !/kind: 'twitter'/.test(withdraw)
+        );
+        /**
+         * A withdrawal covers every row for that wallet, and the callback
+         * cannot undo it afterwards.
+         *
+         * `start` inserts unconditionally and nothing unique-constrains a
+         * completed pair, so a wallet can carry several rows. Withdrawing the
+         * most recent left the earlier ones holding the handle, the account
+         * id and the signature, which is the opposite of what withdrawing
+         * means.
+         *
+         * The second half is the one with a moving part: a claim opened
+         * BEFORE the withdrawal could still arrive at the callback after it
+         * and re-complete the pairing. The triggers would refuse the graph
+         * write, so the index would stay clean while the row said `completed`
+         * and the page said the address was claimed. The gap between what we
+         * tell somebody and what we did is the thing being closed.
+         */
+        ok(
+          'a withdrawal covers every row for that wallet, not just the newest',
+          /WHERE user_id = \$\{session\.user\.id\} AND wallet = \$\{wallet\} AND status IN \('completed', 'awaiting_x'\)/.test(
+            withdraw
+          ) && !/LIMIT 1/.test(withdraw)
+        );
+        {
+          // The CALL SITE, not the identifier: `X_TOKEN_URL` appears in the
+          // import first, so anchoring on the bare name compares against the
+          // top of the file and the position means nothing. That mistake was
+          // made twice in this file already and both times it failed loudly,
+          // which is the only reason it is not in the code.
+          const suppressCheck = cb.indexOf("isSuppressed('wallet'");
+          const exchange = cb.indexOf('fetch(X_TOKEN_URL');
+          ok(
+            'a claim opened before a withdrawal cannot complete after it',
+            // Before the token exchange, so a withdrawn claim costs no round
+            // trip to X and mints no credential for a flow that cannot
+            // finish.
+            suppressCheck > 0 && exchange > 0 && suppressCheck < exchange
+          );
+        }
+
+        ok(
+          'a withdrawal clears the identity but keeps the grant key',
+          // The HMAC outliving the identity is what stops the grant being
+          // farmed by claiming and withdrawing in a loop, and it is the
+          // reason the column is an HMAC rather than the id.
+          /x_handle = NULL/.test(withdraw) &&
+            /signature = NULL/.test(withdraw) &&
+            !/x_user_id_hmac = NULL/.test(withdraw)
+        );
+
         ok(
           'a claim writes through the shared ingest and never straight into the graph',
           /await ingestLinks\(/.test(cb) &&

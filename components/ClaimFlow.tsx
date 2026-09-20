@@ -82,6 +82,19 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
   const [providers, setProviders] = useState<Announced[] | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  /**
+   * Which action the wallet buttons perform.
+   *
+   * A mode rather than a second row of buttons, because BOTH actions need the
+   * person to choose a wallet and the choice is the same list either way.
+   * The first version hardcoded `providers[0]` for withdrawing, which is
+   * whichever extension announced first: exactly the thing this file's own
+   * header says is not a choice the person made, one function further down.
+   * Somebody who attested with a later-announced wallet could not withdraw
+   * that pairing at all.
+   */
+  const [mode, setMode] = useState<'claim' | 'withdraw'>('claim');
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -111,9 +124,10 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
     };
   }, []);
 
-  const claim = useCallback(
-    async (provider: Eip1193Provider) => {
+  const run = useCallback(
+    async (provider: Eip1193Provider, mode: 'claim' | 'withdraw') => {
       setError(null);
+      setDone(null);
       setStage('connecting');
 
       /**
@@ -144,8 +158,15 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
       }
 
       try {
+        /**
+         * The intent travels with the request, so the challenge that comes
+         * back can only be spent on the thing this button does. It also
+         * decides the text the wallet shows, which is the half the person
+         * reads: withdrawing used to display the claim message and ask them
+         * to agree the record "can name the account you choose".
+         */
         const challengeRes = await fetch(
-          `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}`
+          `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}&intent=${mode}`
         );
         const challenge = await challengeRes.json();
         if (!challengeRes.ok) {
@@ -176,6 +197,36 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         }
 
         setStage('starting');
+
+        /**
+         * Withdrawing ends here. It needs no consent version, because taking
+         * something back is not agreeing to anything, and no trip to X,
+         * because the account half is what is being removed.
+         */
+        if (mode === 'withdraw') {
+          const res = await fetch('/api/claim/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              wallet,
+              issued_at: challenge.issued_at,
+              token: challenge.token,
+              signature,
+            }),
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            setError(json.message ?? 'That withdrawal could not be completed.');
+            setStage('idle');
+            return;
+          }
+          setDone(
+            'Withdrawn. The pair is out of the index, and this address will not be collected again.'
+          );
+          setStage('idle');
+          return;
+        }
+
         const startRes = await fetch('/api/claim/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -225,12 +276,28 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
 
   return (
     <div className="rounded-lg border border-border bg-fill-well p-5">
-      <h2 className="text-lg font-medium">Start a claim</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        You will sign a message with your wallet, then sign in to X. Both happen
-        in this order because a signature proves the address and the sign-in
-        proves the account, and the record needs the pair.
-      </p>
+      {/* The heading and the description follow the mode, because the two
+          modes take different steps and describing the wrong one is how a
+          person ends up waiting for a trip to X that a withdrawal never
+          makes. The buttons relabelled here before this text did, which is
+          the more misleading half of the two: the instruction is what
+          somebody reads to know what is about to happen. */}
+      <h2 className="text-lg font-medium">
+        {mode === 'withdraw' ? 'Withdraw a claim' : 'Start a claim'}
+      </h2>
+      {mode === 'withdraw' ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          You will sign a message with the wallet you claimed with, and that is
+          the whole step. There is no trip to X: the account half is what is
+          being removed, so nothing needs to prove it again.
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          You will sign a message with your wallet, then sign in to X. Both
+          happen in this order because a signature proves the address and the
+          sign-in proves the account, and the record needs the pair.
+        </p>
+      )}
 
       {providers === null ? (
         /* Asked, not yet answered. Saying nothing here is the point: the
@@ -252,12 +319,58 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
               key={p.info.uuid}
               variant="outline"
               disabled={busy}
-              onClick={() => claim(p.provider)}
+              onClick={() => run(p.provider, mode)}
             >
-              {p.info.name}
+              {mode === 'withdraw'
+                ? `Withdraw with ${p.info.name}`
+                : p.info.name}
             </Button>
           ))}
         </div>
+      )}
+
+      {/* A mode switch rather than a second control, so both actions get the
+          same wallet choice. It is a link rather than a button of equal
+          weight: the page should not present taking something back as the
+          same size of choice as giving it. It stays on THIS page because the
+          page promises withdrawal twice, and a promise whose control lives
+          elsewhere is barely a promise. */}
+      {providers !== null && providers.length > 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          {mode === 'claim' ? (
+            <>
+              Claimed before and changed your mind?{' '}
+              <Button
+                variant="link"
+                size="inline"
+                disabled={busy}
+                onClick={() => setMode('withdraw')}
+              >
+                Withdraw instead
+              </Button>
+              , with the same wallet you used.
+            </>
+          ) : (
+            <>
+              Withdrawing removes the pair and stops us collecting it again.{' '}
+              <Button
+                variant="link"
+                size="inline"
+                disabled={busy}
+                onClick={() => setMode('claim')}
+              >
+                Go back to claiming
+              </Button>
+              .
+            </>
+          )}
+        </p>
+      )}
+
+      {done && (
+        <p role="status" className="mt-3 text-sm text-attested">
+          {done}
+        </p>
       )}
 
       {busy && (

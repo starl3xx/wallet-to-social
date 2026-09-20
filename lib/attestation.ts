@@ -98,7 +98,26 @@ export function isConfigured(): boolean {
 }
 
 /**
- * The token binds the account as well as the wallet and the moment.
+ * Which of the two things a challenge authorises.
+ *
+ * Giving the record an account and taking it back are opposite acts, and
+ * before this existed both were proved by signing the same bytes. That was
+ * wrong in two directions at once. A person withdrawing was shown the claim
+ * text in their wallet and asked to agree that the record "can name the
+ * account you choose", which is not what they were doing. And a signature
+ * gathered for either purpose satisfied the other, so one captured inside the
+ * five-minute window could be spent on the act its signer did not approve.
+ *
+ * Every function here takes it and NONE of them defaults it. A default is how
+ * a call site that forgets reverts to the old behaviour silently, and the old
+ * behaviour is the defect: `withdraw` omitting it would have fallen back to
+ * `'claim'` and accepted a claim signature again, with nothing to say so.
+ */
+export type ClaimIntent = 'claim' | 'withdraw';
+
+/**
+ * The token binds the account and the intent as well as the wallet and the
+ * moment.
  *
  * `userId` is in here because without it a signature is a transferable
  * bearer, which is how the first version of this was wrong. The HMAC covered
@@ -112,15 +131,21 @@ export function isConfigured(): boolean {
  * With the account in the HMAC, a token issued to one session simply fails to
  * verify under another, so a leaked signature is useless without the session
  * it was issued to.
+ *
+ * `intent` is the prefix rather than another field for the reason the `claim:`
+ * prefix was one already: it domain-separates the whole input, so the two
+ * kinds of token occupy disjoint spaces instead of differing in a value some
+ * later reader might treat as advisory.
  */
 function sign(
   wallet: string,
   userId: string,
   issuedAt: number,
+  intent: ClaimIntent,
   key: string
 ): string {
   return createHmac('sha256', key)
-    .update(`claim:${userId}:${wallet.toLowerCase()}:${issuedAt}`)
+    .update(`${intent}:${userId}:${wallet.toLowerCase()}:${issuedAt}`)
     .digest('hex');
 }
 
@@ -132,15 +157,30 @@ function sign(
  * carries the wallet and the moment.
  *
  * The first line differs from the recovery challenge's on purpose, and the
- * `claim:` prefix inside the HMAC does the same job machine-side: a signature
+ * intent prefix inside the HMAC does the same job machine-side: a signature
  * taken here cannot be replayed against key recovery even if both secrets
  * leaked, because the signed bytes are different.
+ *
+ * The two intents likewise say different things, and that is the half a
+ * person can actually check. The HMAC protects us; this protects them. Being
+ * asked to approve "so the record can name the account you choose" in order
+ * to REMOVE an account is the kind of wrong that a wallet prompt makes
+ * invisible, because the one text everybody has learned to skim is the one in
+ * the box.
  */
-export function claimMessage(wallet: string, issuedAt: number): string {
+export function claimMessage(
+  wallet: string,
+  issuedAt: number,
+  intent: ClaimIntent
+): string {
   return [
-    'walletlink.social identity claim',
+    intent === 'withdraw'
+      ? 'walletlink.social identity withdrawal'
+      : 'walletlink.social identity claim',
     '',
-    'Sign this to confirm you control this address, so the record we hold for it can name the account you choose.',
+    intent === 'withdraw'
+      ? 'Sign this to confirm you control this address, so the account we hold against it is removed and not collected again.'
+      : 'Sign this to confirm you control this address, so the record we hold for it can name the account you choose.',
     'It authorises nothing else. No funds move and no approval is granted.',
     '',
     `Wallet: ${wallet.toLowerCase()}`,
@@ -166,14 +206,15 @@ export interface ClaimChallenge {
 export function issueClaimChallenge(
   wallet: string,
   userId: string,
+  intent: ClaimIntent,
   issuedAt: number = Date.now()
 ): ClaimChallenge | null {
   const key = secret();
   if (!key) return null;
   return {
-    message: claimMessage(wallet, issuedAt),
+    message: claimMessage(wallet, issuedAt, intent),
     issuedAt,
-    token: sign(wallet, userId, issuedAt, key),
+    token: sign(wallet, userId, issuedAt, intent, key),
     expiresAt: new Date(issuedAt + CHALLENGE_TTL_MS).toISOString(),
   };
 }
@@ -203,6 +244,13 @@ export async function verifyClaim(input: {
    * must not verify under another: see `sign`.
    */
   userId: string;
+  /**
+   * What the caller is about to do. Each route states its own and never the
+   * request's: taking it from the body would let the presenter of a captured
+   * claim signature relabel it as a withdrawal, which is the whole thing the
+   * intent exists to stop.
+   */
+  intent: ClaimIntent;
   issuedAt: number;
   token: string;
   signature: string;
@@ -210,7 +258,13 @@ export async function verifyClaim(input: {
   const key = secret();
   if (!key) return { ok: false, reason: 'not_configured' };
 
-  const expected = sign(input.wallet, input.userId, input.issuedAt, key);
+  const expected = sign(
+    input.wallet,
+    input.userId,
+    input.issuedAt,
+    input.intent,
+    key
+  );
   const a = Buffer.from(expected);
   const b = Buffer.from(input.token);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
@@ -227,7 +281,7 @@ export async function verifyClaim(input: {
   try {
     const valid = await verifyMessage({
       address: input.wallet.toLowerCase() as `0x${string}`,
-      message: claimMessage(input.wallet, input.issuedAt),
+      message: claimMessage(input.wallet, input.issuedAt, input.intent),
       signature: input.signature as `0x${string}`,
     });
     return valid ? { ok: true } : { ok: false, reason: 'bad_signature' };

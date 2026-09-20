@@ -31,6 +31,7 @@ import {
   isConfigured,
   CHALLENGE_TTL_MS,
   ATTESTATION_GRANT_MATCHES,
+  type ClaimIntent,
 } from '@/lib/attestation';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
 import { isSuppressed } from '@/lib/suppression';
@@ -73,26 +74,60 @@ export async function GET(request: NextRequest) {
   }
 
   /**
+   * An unrecognised intent is refused rather than read as a claim.
+   *
+   * The two are opposite acts and this value decides which one the resulting
+   * signature can be spent on, so defaulting a typo to the more powerful of
+   * them is the wrong direction to fail in.
+   */
+  const intentParam = request.nextUrl.searchParams.get('intent') ?? 'claim';
+  if (intentParam !== 'claim' && intentParam !== 'withdraw') {
+    return NextResponse.json(
+      { error: 'invalid_intent', message: 'Unknown intent.' },
+      { status: 400 }
+    );
+  }
+  const intent: ClaimIntent = intentParam;
+
+  /**
    * Refused before a challenge exists, not after a signature arrives.
    *
    * A suppressed wallet asked us to stop holding it. Issuing a challenge for
    * one and refusing later would be asking somebody to prove control of an
    * address so we could tell them we will not use it, which is worse than
    * refusing at the door.
+   *
+   * Claiming only. A withdrawal of a suppressed wallet is not somebody
+   * ignoring the suppression, it is somebody FINISHING it, and refusing that
+   * left a real trap: `POST /api/claim/withdraw` suppresses first and then
+   * erases, because the triggers have to be in place before the rows go or
+   * the next ingest writes the pair straight back. If the erase or the
+   * attestation update then failed, the wallet was already suppressed, so the
+   * retry arrived here and was told the address "has been removed from the
+   * index" — success language for a withdrawal that had not removed it. The
+   * person could not finish it and had no way to see that it was unfinished.
+   *
+   * Letting a withdrawal through costs nothing, because the challenge alone
+   * authorises nothing: the withdraw route still requires a signature from
+   * the wallet AND a completed attestation owned by the session presenting
+   * it, so the worst a stranger obtains here is text they could already
+   * derive.
    */
-  const hits = await isSuppressed('wallet', [wallet]);
-  if (hits.size > 0) {
-    return NextResponse.json(
-      {
-        error: 'suppressed',
-        message:
-          'This address has been removed from the index at its owner request.',
-      },
-      { status: 403 }
-    );
+  if (intent === 'claim') {
+    const hits = await isSuppressed('wallet', [wallet]);
+    if (hits.size > 0) {
+      return NextResponse.json(
+        {
+          error: 'suppressed',
+          message:
+            'This address has been removed from the index at its owner request.',
+        },
+        { status: 403 }
+      );
+    }
   }
 
-  const challenge = issueClaimChallenge(wallet, session.user.id);
+  const challenge = issueClaimChallenge(wallet, session.user.id, intent);
   if (!challenge) {
     return NextResponse.json(
       { error: 'not_configured', message: 'Claiming is unavailable.' },

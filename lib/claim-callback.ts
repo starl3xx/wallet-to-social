@@ -40,6 +40,7 @@ import {
 import { getSiteUrl } from '@/lib/site-url';
 import { ingestLinks, type LinkSource } from '@/lib/attested-links';
 import { grantCredits } from '@/lib/credits';
+import { isSuppressed } from '@/lib/suppression';
 import {
   walletPredatesCutoff,
   ATTESTATION_GRANT_MATCHES,
@@ -169,6 +170,42 @@ async function maybeGrant(
   }
 }
 
+/**
+ * Abandoned consent screens, and what they leave behind.
+ *
+ * Exactly the problem `cleanupAbandonedListJobs` was written for, one flow
+ * over. A row is created `awaiting_x` holding the wallet signature, the PKCE
+ * verifier and the state nonce, and only a completed callback or a withdrawal
+ * clears any of that. Somebody who opens the X consent screen and closes the
+ * tab reaches neither, so a signature and a live verifier sit in the table
+ * indefinitely. Not keeping material longer than the job needs it is the one
+ * thing this design is for, and the abandoned case quietly did the opposite.
+ *
+ * Thirty minutes matches what the callback enforces at read time, so the sweep
+ * clears the payload rather than defining the deadline. The row is cancelled
+ * rather than deleted, because "you started a claim and did not finish it" is
+ * a true thing worth being able to see, and what makes it harmless is that
+ * the payload is gone rather than that the row is.
+ */
+export async function cleanupAbandonedClaims(): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  const purged = (await db.execute(sql`
+    UPDATE identity_attestations
+    SET status        = 'cancelled',
+        error         = 'authorization never completed',
+        signature     = NULL,
+        code_verifier = NULL,
+        state_nonce   = NULL,
+        completed_at  = now(),
+        updated_at    = now()
+    WHERE status = 'awaiting_x'
+      AND created_at < now() - interval '30 minutes'
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+  return purged.rows.length;
+}
+
 function back(outcome: string, claimId?: string): NextResponse {
   const url = new URL(getSiteUrl());
   url.pathname = '/claim';
@@ -253,6 +290,32 @@ export async function completeClaimCallback(input: {
     !secretEquals(claim.state_nonce, input.nonce)
   ) {
     return back('not_found');
+  }
+
+  /**
+   * Suppressed since the claim was opened, which includes withdrawn.
+   *
+   * A withdrawal suppresses the wallet and cancels this account's pending
+   * claims, but a claim opened before it could still arrive here afterwards
+   * and re-complete the pairing that was just removed. The triggers would
+   * refuse the graph write, so the index would stay clean, and the row would
+   * still say `completed` and the page would still say the address was
+   * claimed. That gap between what we tell somebody and what we did is the
+   * thing worth closing.
+   *
+   * Checked before the token exchange rather than after, so a withdrawn claim
+   * costs no round trip to X and no credential is minted for a flow that
+   * cannot finish.
+   */
+  try {
+    const hits = await isSuppressed('wallet', [claim.wallet]);
+    if (hits.size > 0) return back('not_found', claim.id);
+  } catch (error) {
+    // Failure closed: the suppression read is the one query that must not
+    // fall through to "carry on", which is the posture lib/suppression.ts
+    // states for every caller.
+    console.error('claim suppression read failed; refusing:', error);
+    return back('unavailable', claim.id);
   }
 
   // --- exchange -------------------------------------------------------------
