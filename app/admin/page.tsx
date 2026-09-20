@@ -52,6 +52,7 @@ import {
   DependencyHealth,
   UniversalSearch,
   WalletEnrichment,
+  GraphComposition,
   LookupDashboard,
   UsageMeter,
   AccountDetail,
@@ -1499,6 +1500,10 @@ export default function AdminPage() {
           )}
           {activeTab === 'data' && (
             <div className="space-y-6">
+              {/* Composition first: the counts and the source chart are the
+                  read half of this destination, and the enrichment and
+                  conflict tools below act on what they show. */}
+              <GraphComposition password={password} />
               <WalletEnrichment password={password} />
               <HandleConflicts password={password} />
             </div>
