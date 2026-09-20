@@ -236,12 +236,7 @@ const MUTATIONS: Mutation[] = [
     from: '        AND ox.user_id <> g.twitter_user_id\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`',
     to: '        AND ox.user_id <> g.twitter_user_id`',
   },
-  {
-    name: 'the id-anchored rung fires though the graph already holds an id',
-    file: 'lib/conflict-resolution.ts',
-    from: 'sql`g.twitter_user_id IS NULL\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`',
-    to: 'sql`c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`',
-  },
+
   {
     name: 'a gifted pack silently ends the welcome sequence again',
     file: 'lib/welcome-sequence.ts',

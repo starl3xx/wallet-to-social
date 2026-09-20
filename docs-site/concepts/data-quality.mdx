@@ -139,20 +139,18 @@ wallet, that is evidence something moved. The conflicting account id is never
 written beside a handle it does not belong to, and the disagreement is kept.
 
 We settle a disagreement only where the evidence decides it, and the evidence
-can decide it three ways. Where the handle we hold reaches nobody and the other
+can decide it two ways. Where the handle we hold reaches nobody and the other
 one is live on a recent check, we follow the rename. Where the handle we hold
 still resolves but to a different account than the one the owner attested, the
 name was freed and re-registered: “live” is true of the string and false of the
-person, and we follow the owner. And where the challenger carries the owner’s
-permanent account id, confirmed against the account it resolves to today, while
-the handle we hold is a bare string no id ever confirmed, the anchored statement
-outweighs the unanchored one.
+person, and we follow the owner.
 
-In every settled case the replaced handle is kept, so the change can be
-explained rather than appearing as a correction out of nowhere. Where both
-accounts are live and both carry consistent ids, two owner statements disagree
-and neither outweighs the other: we keep the handle the record already had and
-settle nothing, because picking a winner there would be a guess.
+In both settled cases the replaced handle is kept, so the change can be
+explained rather than appearing as a correction out of nowhere. Everywhere
+else, including where both accounts are live, we keep the handle the record
+already had and settle nothing: a handle that still reaches its owner is never
+replaced on the strength of a newer claim alone, however well that claim is
+attested, because the newer claim is exactly what a stolen key would produce.
 
 If you are running outreach on a list you enriched a while ago, re-check it
 rather than assuming a handle that was attested is still live. `meta.stale` and

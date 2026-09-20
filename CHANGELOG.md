@@ -4,15 +4,17 @@ All notable changes to walletlink.social. Newest first.
 
 ### 2026-09-20 (conflict resolution grows three rungs and a bigger budget)
 
-- **Two new swap rungs** in `lib/conflict-resolution.ts`, each re-tested
-  inside the statement that writes: `reassigned` (ours is live but resolves
-  to a different numeric account than the one the graph holds, so the string
-  was freed and re-registered; challenger id required and confirmed) and
-  `id-anchored` (the graph holds no id beside ours and the challenger's
-  supplied id equals the id its handle resolves to today; no condition on
-  ours at all, which is what lets 658 queued rows close without spending a
-  lookup on our side). Where both sides are live and id-consistent, nothing
-  acts: two owner statements disagree and neither outweighs the other.
+- **A new swap rung** in `lib/conflict-resolution.ts`, re-tested inside the
+  statement that writes: `reassigned` (ours is live but resolves to a
+  different numeric account than the one the graph holds, so the string was
+  freed and re-registered; challenger id required and confirmed). A second
+  drafted rung, swapping a live bare-string ours for an id-anchored
+  challenger, was removed in review: every id-carrying attested route can be
+  driven by a wallet signature plus the attacker's own X account, so it
+  would have let a stolen key replace a working handle, the exact rewrite
+  the claim path records-instead-of-writes to prevent. A swap needs
+  evidence against ours, never just evidence for theirs; live-ours rows
+  that cannot be shown wrong stay on the queue.
 - **A second inert-row closure**: challenger dead while ours is live closes
   as `ours stands`, nothing chosen, with the same reopen-on-revival rule as
   the both-dead pass and for the same reason: liveness never touches

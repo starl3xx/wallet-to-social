@@ -63,16 +63,15 @@
  *                      holds: the string was freed and re-registered, so
  *                      "live" is true of the name and false of the person.
  *                      Challenger id required and confirmed.
- *      `id-anchored`   the graph holds no account id beside ours, and the
- *                      challenger's supplied id equals the id its handle
- *                      resolves to now: an id-anchored, live-confirmed owner
- *                      statement against a bare string. No condition on ours
- *                      at all.
- *
- *      Where both sides are id-consistent (ours live and resolving to the id
- *      the graph holds, theirs id-confirmed), nothing acts: that residue is
- *      a judgment call between two live owner statements, and it stays on
- *      the queue for eyes.
+ *      Where ours is LIVE and cannot be shown wrong, nothing acts, however
+ *      strong the challenger's evidence is. A rung that swapped a live
+ *      bare-string ours for an id-confirmed challenger was drafted and
+ *      removed in review (Bugbot, 2026-09-20): every id-carrying attested
+ *      route can be driven by a wallet signature plus the attacker's own X
+ *      account, so it would have let a stolen key replace a working handle,
+ *      which is the exact rewrite the claim path records-instead-of-writes
+ *      to prevent. A swap needs evidence AGAINST ours, never just evidence
+ *      for theirs; the live-ours residue stays on the queue for eyes.
  *
  * A check older than the window is re-run first, through the same sweep the
  * reachability cron uses, within a credit cap. Freshness is not decoration: a
@@ -140,17 +139,6 @@ export const RESOLUTION_REASSIGNED =
   'accepted-theirs: ours reassigned to another account';
 
 /**
- * Both live, but only one side is anchored: theirs carries the owner's
- * numeric account id and that id is what the handle resolves to today, while
- * our side is a bare string no id ever confirmed. An id-anchored,
- * live-confirmed owner statement outweighs an unanchored string. Where BOTH
- * sides are id-consistent, nothing here acts: that residue is a judgment
- * call and stays on the queue.
- */
-export const RESOLUTION_ID_ANCHORED =
-  'accepted-theirs: id-anchored over bare string';
-
-/**
  * The challenger reaches nobody. Nothing can ever swap to it, so the row is
  * inert the same way a both-dead row is: closed as bookkeeping, ours stands,
  * nothing chosen. Reopened by the same pass if the challenger comes back.
@@ -193,7 +181,7 @@ export type BlockedReason =
   | 'challenger-dead';
 
 /** Which acceptance rule a qualified row goes through. */
-export type SwapRung = 'unreachable' | 'reassigned' | 'id-anchored';
+export type SwapRung = 'unreachable' | 'reassigned';
 
 export interface ResolveSample {
   wallet: string;
@@ -295,11 +283,9 @@ const DEAD = new Set(['not_found', 'unavailable']);
  *
  * Live-ours rows used to be excluded here, and the exclusion was right while
  * the only rule was "ours dead, theirs live". Two of the rungs added on
- * 2026-09-20 act on a live ours: a reassigned string (live, wrong account)
- * and an id-anchored challenger against a bare string. Both decide on the
- * challenger's evidence, so their rechecks are mostly the challenger's, and
- * `recheckList` still spends the budget on the closest-to-closing rows
- * first.
+ * 2026-09-20 act on a live ours only where it can be shown wrong: a
+ * reassigned string (live, wrong account). The recheck budget still lands
+ * on the closest-to-closing rows first through `recheckList`.
  */
 async function loadCandidates(recheckDays: number): Promise<CandidateRow[]> {
   const db = getDb();
@@ -339,17 +325,10 @@ async function loadCandidates(recheckDays: number): Promise<CandidateRow[]> {
  * everywhere. Only then does the state of ours pick the rung:
  *
  *   ours fresh-dead                              -> 'unreachable' (id optional)
- *   graph holds no id, challenger id-confirmed   -> 'id-anchored' (ours state
- *                                                   irrelevant: the decision
- *                                                   rests on the challenger)
  *   ours fresh-live, ids known and different     -> 'reassigned'
- *   ours fresh-live, ids known and equal         -> both-live-ambiguous
- *   ours fresh-live, challenger has no id        -> challenger-no-id
- *
- * The id-anchored rung deliberately skips the ours lookup: whether the bare
- * string is live or dead changes nothing about which side carries evidence,
- * and not looking is what lets 658 queued rows (measured 2026-09-20) close
- * without spending a lookup on our side of each.
+ *   ours fresh-live, otherwise                   -> both-live-ambiguous, or
+ *                                                   challenger-no-id where
+ *                                                   theirs carries no anchor
  */
 function classify(row: CandidateRow): Classified {
   const oursFresh = row.ours_fresh === true;
@@ -389,10 +368,6 @@ function classify(row: CandidateRow): Classified {
     return { row, rung: 'unreachable', reason: null, needs: [] };
   }
 
-  if (row.graph_user_id === null && theirsAnchored) {
-    return { row, rung: 'id-anchored', reason: null, needs: [] };
-  }
-
   if (row.ours_status === null) {
     return { row, rung: null, reason: 'ours-unchecked', needs };
   }
@@ -408,6 +383,11 @@ function classify(row: CandidateRow): Classified {
       if (row.ours_user_id !== row.graph_user_id) {
         return { row, rung: 'reassigned', reason: null, needs: [] };
       }
+      return { row, rung: null, reason: 'both-live-ambiguous', needs: [] };
+    }
+    if (row.graph_user_id === null) {
+      // Ours is live and id-less: nothing can show it wrong, so nothing
+      // swaps it, whatever the challenger carries. See the header.
       return { row, rung: null, reason: 'both-live-ambiguous', needs: [] };
     }
     // Live with no id on record from its last live check: an internal shape
@@ -510,38 +490,27 @@ async function acceptBatch(
 
   /**
    * The per-rung qualification, re-tested in-statement like every other
-   * condition here. Three rules, one shape:
+   * condition here. Two rules, one shape:
    *
    *   unreachable  ours fresh-dead; the challenger's id optional, because a
    *                dead ours protects nothing.
    *   reassigned   ours fresh-live but resolving to a different account than
    *                the one the graph holds; challenger id-confirmed.
-   *   id-anchored  the graph holds no id beside ours; challenger
-   *                id-confirmed. No condition on ours at all: the decision
-   *                rests entirely on the challenger's evidence, which is why
-   *                the ox join is LEFT for this rung.
    */
   const oursRule =
     rung === 'unreachable'
       ? sql`ox.status IN ('not_found', 'unavailable')
         AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)
         AND (c.their_user_id IS NULL OR c.their_user_id = tx.user_id)`
-      : rung === 'reassigned'
-        ? sql`ox.status = 'live'
+      : sql`ox.status = 'live'
         AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)
         AND ox.user_id IS NOT NULL
         AND g.twitter_user_id IS NOT NULL
         AND ox.user_id <> g.twitter_user_id
-        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`
-        : sql`g.twitter_user_id IS NULL
         AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;
 
   const resolution =
-    rung === 'unreachable'
-      ? RESOLUTION
-      : rung === 'reassigned'
-        ? RESOLUTION_REASSIGNED
-        : RESOLUTION_ID_ANCHORED;
+    rung === 'unreachable' ? RESOLUTION : RESOLUTION_REASSIGNED;
 
   const result = (await db.execute(sql`
     WITH keys AS (
@@ -691,7 +660,7 @@ export async function resolveUnreachableConflicts(
     candidates: classified.length,
     eligible: eligible.length,
     accepted: 0,
-    acceptedByRung: { unreachable: 0, reassigned: 0, 'id-anchored': 0 },
+    acceptedByRung: { unreachable: 0, reassigned: 0 },
     walletsUpdated: 0,
     cacheRowsDeleted: 0,
     closedBothDead: 0,
@@ -706,7 +675,7 @@ export async function resolveUnreachableConflicts(
   // rechecks nothing: every one of those is a write.
   if (dryRun) return outcome;
 
-  const RUNGS: SwapRung[] = ['unreachable', 'reassigned', 'id-anchored'];
+  const RUNGS: SwapRung[] = ['unreachable', 'reassigned'];
   for (const rung of RUNGS) {
     const rows = toAccept.filter((e) => e.rung === rung).map((e) => e.row);
     for (let i = 0; i < rows.length; i += BATCH) {

@@ -1,7 +1,7 @@
 /**
- * Resolve the handle conflicts the evidence settles: ours unreachable, ours
- * reassigned to another account, or an id-anchored challenger against a bare
- * string. The rules, exactly, are the header of lib/conflict-resolution.ts.
+ * Resolve the handle conflicts the evidence settles: ours unreachable, or
+ * ours reassigned to another account. The rules, exactly, are the header of
+ * lib/conflict-resolution.ts.
  *
  * Usage:
  *   npx tsx --env-file=.env.local scripts/resolve-handle-conflicts.ts [--dry-run] [--limit N] [--credit-cap N] [--recheck-days N]

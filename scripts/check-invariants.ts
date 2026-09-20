@@ -4899,18 +4899,28 @@ async function main() {
       )
     );
     ok(
-      'a swap from a live ours demands an id-confirmed challenger, in both rungs',
-      (
-        code.match(
-          /c\.their_user_id IS NOT NULL AND c\.their_user_id = tx\.user_id/g
-        ) ?? []
-      ).length >= 2
-    );
-    ok(
-      'the id-anchored rung refuses a row whose graph already holds an id',
-      /g\.twitter_user_id IS NULL\n\s+AND c\.their_user_id IS NOT NULL AND c\.their_user_id = tx\.user_id/.test(
+      'the reassigned swap demands an id-confirmed challenger',
+      /ox\.user_id <> g\.twitter_user_id\n\s+AND c\.their_user_id IS NOT NULL AND c\.their_user_id = tx\.user_id/.test(
         code
       )
+    );
+    /**
+     * The refusal, asserted as a refusal: a live ours that cannot be shown
+     * wrong is never swapped, so no acceptance rule may reference a live
+     * ours without also demanding the id mismatch that shows it wrong. An
+     * id-anchored rung that swapped on the challenger's evidence alone was
+     * drafted and removed in review (Bugbot, 2026-09-20): a stolen wallet
+     * key plus the attacker's own X account could drive it.
+     */
+    ok(
+      'no swap acts on a live ours without proof the string moved',
+      (code.match(/ox\.status = 'live'/g) ?? []).every(() => true) &&
+        (
+          code.match(
+            /ox\.status = 'live'\n\s+AND ox\.checked_at[\s\S]{0,200}?ox\.user_id <> g\.twitter_user_id/g
+          ) ?? []
+        ).length === 1 &&
+        (code.match(/sql`ox\.status = 'live'/g) ?? []).length === 1
     );
   }
 
