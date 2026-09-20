@@ -251,12 +251,25 @@ export async function POST(request: NextRequest) {
   const capped = withUs.slice(0, X_LIST_MEMBER_MAX);
 
   /**
-   * Every count below is about THEIR accounts, and ours is always exactly one
-   * row at index 0 that always survives the slice, so one subtraction covers
-   * it with no branch. The branch was the bug: it made `dropped` depend on
-   * whether we happened to be a holder.
+   * How many of THEIR submitted handles made it in.
+   *
+   * Ours is always one row at index 0 that always survives the slice, so the
+   * base is `capped.length - 1`. The exception is when our account is itself
+   * a holder: then the customer submitted our handle too, our single row is
+   * also one of theirs, and subtracting it would lose a handle they sent.
+   *
+   * The distinction matters because these three figures are read together.
+   * `members + dropped + unresolved` has to equal the number of handles
+   * submitted, or the confirmation copy accounts for every handle but one and
+   * the missing row looks like a bug in the lookup rather than in this sum.
+   *
+   * Note this is NOT the conditional that was wrong before. That one decided
+   * whether to prepend, so a holder past the cap got neither the prepend nor
+   * a slot. The prepend above is unconditional; this is arithmetic over a
+   * fact that genuinely differs between the two cases.
    */
-  const theirsIncluded = capped.length - 1;
+  const weAreAlsoAHolder = theirs.length !== members.length;
+  const theirsIncluded = capped.length - (weAreAlsoAHolder ? 0 : 1);
 
   const verifier = randomBytes(32).toString('base64url');
   const nonce = randomBytes(16).toString('base64url');
@@ -312,7 +325,7 @@ export async function POST(request: NextRequest) {
     // the list will be short by this many. Measured against `theirs`, so a
     // customer who happens to hold the token through our own account is not
     // told one of their accounts was dropped.
-    dropped: theirs.length - theirsIncluded,
+    dropped: members.length - theirsIncluded,
     unresolved: handles.length - members.length,
   });
 }

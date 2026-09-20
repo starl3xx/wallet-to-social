@@ -1467,8 +1467,11 @@ async function main() {
           /const withUs = \[ \{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE \}, \.\.\.theirs, \]/.test(
             listRoute
           ) &&
-          // No conditional prepend anywhere: that shape is the defect above.
-          !/alreadyAMember/.test(listRoute) &&
+          // The prepend takes no condition at all. Asserted as the absence of
+          // a ternary around it rather than of any boolean in the file: the
+          // COUNTS below legitimately branch on whether we are also a holder,
+          // and forbidding every flag here would block that correct fix.
+          !/const withUs = \w+ \?/.test(listRoute) &&
           // Capped AFTER we are prepended, so a list can never exceed X's max
           // by carrying us on top of a full one.
           /const capped = withUs\.slice\(0, X_LIST_MEMBER_MAX\)/.test(listRoute)
@@ -1488,9 +1491,22 @@ async function main() {
         // always survives the slice, so a conditional here could only ever be
         // wrong: the branch is what made `dropped` depend on whether we
         // happened to hold the token.
-        /const theirsIncluded = capped\.length - 1/.test(listRoute) &&
+        // The three figures are read together and must account for every
+        // submitted handle: members + dropped + unresolved = handles.length.
+        // That only holds if `theirsIncluded` keeps our row when our account
+        // is ALSO one of their holders, because then the customer submitted
+        // that handle and subtracting it loses one of theirs. Without the
+        // branch the sum is short by exactly one, and a confirmation screen
+        // that accounts for every handle but one reads as a lookup bug.
+        /const weAreAlsoAHolder = theirs\.length !== members\.length/.test(
+          listRoute
+        ) &&
+          /const theirsIncluded = capped\.length - \(weAreAlsoAHolder \? 0 : 1\)/.test(
+            listRoute
+          ) &&
           /members: theirsIncluded/.test(listRoute) &&
-          /dropped: theirs\.length - theirsIncluded/.test(listRoute)
+          /dropped: members\.length - theirsIncluded/.test(listRoute) &&
+          /unresolved: handles\.length - members\.length/.test(listRoute)
       );
 
       /**
