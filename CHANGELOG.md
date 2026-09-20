@@ -12,6 +12,33 @@ All notable changes to walletlink.social. Newest first.
 - The module comment listing which footer links carry the external arrow was
   updated in the same change, since it named Changelog as one of them.
 
+### 2026-09-20 (the batched resolve gets a timeout, a pure parser and one home)
+
+- **The by-id resolve had no request timeout.** `lib/clanker.ts` passed only
+  headers, so it inherited undici's default 300s header timeout, which equals
+  the cron route's entire `maxDuration`. One provider socket that accepts and
+  never answers would consume a whole run. The by-handle `resolve()` next door
+  has carried a 15s ceiling for exactly this reason since it was written.
+- Moved to `lib/x-accounts.ts`, beside the `resolve()` that already guards this
+  provider's habit of reporting its own failures as HTTP 200 with
+  `status: "error"`. One implementation rather than two: a second spelling of
+  that parse is how one copy keeps the status check and the other quietly
+  loses it.
+- `parseBatchByIds` is pure and exported, so the refusal can be asserted by
+  feeding it a body rather than by mocking a socket. Three assertions: an
+  error body carrying a plausible user is not evidence about any id, a success
+  body with no `users` array is an unrecognised shape rather than an empty
+  answer, and a real answer resolves only what passes the handle rule.
+- **`CREDITS_PER_BATCHED_LOOKUP` stops being a dead constant.** It was exported
+  and referenced by nothing while its own doc comment asserted that "the second
+  pass and every pass after it goes by id". No pass did. The comment now says
+  what is true, and `resolveByIds` charges against the constant, so the batched
+  price is finally spent by something.
+- `isHandle` moved with the resolve rather than being duplicated, so the caller
+  and the validator cannot disagree about what a handle is.
+- No behaviour change to what Clanker ingests: same endpoint, same chunk size,
+  same `answered` semantics, which remain the load-bearing half.
+
 ### 2026-09-20 (a handle ENS never supplied stops being labeled as attested)
 
 - **The ENS harvest stamped rows for writes it had just refused.** The handle
