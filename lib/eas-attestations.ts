@@ -97,6 +97,34 @@ const SCHEMAS: SchemaSource[] = [
       '0xcfcf329b79035809704e8d33780714ddf7815a06490a94d57fac562937edbcef',
     shape: 'twitter-handle',
   },
+  /**
+   * The same issuer's KOL schema (`string twitterHandle, address kol`),
+   * verified live on 2026-09-20: one verifier attests, the recipient is the
+   * kol address itself, and the handle field carries a real handle string.
+   * The same trust shape as cyberID, the same decode (the field is also
+   * named `twitterHandle`), so the same class.
+   *
+   * The issuer's ORG schema (`orgTwitterHandle, orgEmailSuffix, member`,
+   * 884 rows) was examined at the same time and REJECTED: it binds a
+   * member's wallet to the ORGANIZATION'S handle, so ingesting it would
+   * stamp one org account onto every employee wallet. A handle on a row in
+   * this graph is a claim about who is behind the wallet, and those rows
+   * make no such claim.
+   */
+  {
+    label: 'kol (Optimism)',
+    endpoint: 'https://optimism.easscan.org/graphql',
+    schemaId:
+      '0xb6c8dfac0592b71180d4543ebbe5d63640e5153dcf2acb1b242165f02d9785c8',
+    shape: 'twitter-handle',
+  },
+  {
+    label: 'kol (Base)',
+    endpoint: 'https://base.easscan.org/graphql',
+    schemaId:
+      '0xb6c8dfac0592b71180d4543ebbe5d63640e5153dcf2acb1b242165f02d9785c8',
+    shape: 'twitter-handle',
+  },
 ];
 
 const PAGE = 100;
