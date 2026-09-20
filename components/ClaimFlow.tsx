@@ -158,8 +158,15 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
       }
 
       try {
+        /**
+         * The intent travels with the request, so the challenge that comes
+         * back can only be spent on the thing this button does. It also
+         * decides the text the wallet shows, which is the half the person
+         * reads: withdrawing used to display the claim message and ask them
+         * to agree the record "can name the account you choose".
+         */
         const challengeRes = await fetch(
-          `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}`
+          `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}&intent=${mode}`
         );
         const challenge = await challengeRes.json();
         if (!challengeRes.ok) {
@@ -269,12 +276,28 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
 
   return (
     <div className="rounded-lg border border-border bg-fill-well p-5">
-      <h2 className="text-lg font-medium">Start a claim</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        You will sign a message with your wallet, then sign in to X. Both happen
-        in this order because a signature proves the address and the sign-in
-        proves the account, and the record needs the pair.
-      </p>
+      {/* The heading and the description follow the mode, because the two
+          modes take different steps and describing the wrong one is how a
+          person ends up waiting for a trip to X that a withdrawal never
+          makes. The buttons relabelled here before this text did, which is
+          the more misleading half of the two: the instruction is what
+          somebody reads to know what is about to happen. */}
+      <h2 className="text-lg font-medium">
+        {mode === 'withdraw' ? 'Withdraw a claim' : 'Start a claim'}
+      </h2>
+      {mode === 'withdraw' ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          You will sign a message with the wallet you claimed with, and that is
+          the whole step. There is no trip to X: the account half is what is
+          being removed, so nothing needs to prove it again.
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          You will sign a message with your wallet, then sign in to X. Both
+          happen in this order because a signature proves the address and the
+          sign-in proves the account, and the record needs the pair.
+        </p>
+      )}
 
       {providers === null ? (
         /* Asked, not yet answered. Saying nothing here is the point: the

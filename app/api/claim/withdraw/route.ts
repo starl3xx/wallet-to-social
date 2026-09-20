@@ -98,6 +98,9 @@ export async function POST(request: NextRequest) {
   const verified = await verifyClaim({
     wallet,
     userId: session.user.id,
+    // Stated here, never read from the body: a claim signature must not be
+    // spendable as a withdrawal by relabelling it in the request.
+    intent: 'withdraw',
     issuedAt: Number(body.issued_at),
     token: typeof body.token === 'string' ? body.token : '',
     signature: typeof body.signature === 'string' ? body.signature : '',
