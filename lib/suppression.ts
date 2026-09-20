@@ -206,6 +206,24 @@ export function scrubResultRow(
 
   const twitterSuppressed =
     walletSuppressed || kindHit(sets, 'twitter', row.twitter_handle);
+  /**
+   * The handle this row changed FROM, checked entirely on its own.
+   *
+   * Independent of the live handle in BOTH directions, which mirrors the
+   * `suppression_guard_row` trigger verbatim: "a match on it must not clear
+   * the live handle beside it, and a match on the live handle must not clear
+   * it."
+   *
+   * The reason is that the two strings are not reliably the same person. The
+   * conflict resolver swaps when OUR handle reaches nobody and another source
+   * names a live account for the wallet, so the string left in
+   * `twitter_renamed_from` is frequently a handle that never belonged to the
+   * wallet's owner at all. Coupling the two would erase a stranger's handle
+   * on one removal and, worse, make this file disagree with the trigger about
+   * what a suppression means.
+   */
+  const renamedFromSuppressed =
+    walletSuppressed || kindHit(sets, 'twitter', row.twitter_renamed_from);
   const alsoSuppressed =
     row.twitter_also !== undefined &&
     (walletSuppressed || kindHit(sets, 'twitter', row.twitter_also.handle));
@@ -219,6 +237,7 @@ export function scrubResultRow(
   const touched =
     walletSuppressed ||
     (twitterSuppressed && row.twitter_handle !== undefined) ||
+    (renamedFromSuppressed && row.twitter_renamed_from !== undefined) ||
     alsoSuppressed ||
     (farcasterSuppressed && row.farcaster !== undefined) ||
     (ensSuppressed && row.ens_name !== undefined) ||
@@ -227,6 +246,13 @@ export function scrubResultRow(
   if (!touched) return row;
 
   const next: WalletSocialResult = { ...row };
+
+  // Before the block below, because that one is conditional on the CURRENT
+  // handle and this column has to go even when only the old handle was the
+  // one removed.
+  if (renamedFromSuppressed) {
+    delete next.twitter_renamed_from;
+  }
 
   if (twitterSuppressed || walletSuppressed) {
     delete next.twitter_handle;

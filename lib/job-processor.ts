@@ -977,6 +977,14 @@ function mergeGraphRow(
     lens: stored.lens || existing.lens,
     github: stored.github || existing.github,
     twitter_verified: stored.twitter_verified ?? existing.twitter_verified,
+    /**
+     * Carried explicitly, because the spread above is `...existing` and the
+     * in-flight result never has this: only the graph row does. Leaving it off
+     * the list would read the column, map it, and then drop it one function
+     * later, which is the exact shape `agent_detection_source` failed in.
+     */
+    twitter_renamed_from:
+      stored.twitter_renamed_from ?? existing.twitter_renamed_from,
     farcaster_verified:
       stored.farcaster_verified ?? existing.farcaster_verified,
     source: [...existing.source, 'graph'],

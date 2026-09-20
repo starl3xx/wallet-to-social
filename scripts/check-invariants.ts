@@ -7199,6 +7199,129 @@ async function main() {
   }
 
   /**
+   * A settled rename reaches the reader, or the column is dead again.
+   *
+   * `twitter_renamed_from` has been written since 2026-08-22, carries 2,208
+   * rows, and was rendered nowhere. Surfacing it is only half the job: the
+   * graph read maps it, and `mergeGraphRow` then rebuilds the result with
+   * `...existing` and an explicit field list, so a field left off that list is
+   * read out of the database and dropped one function later.
+   *
+   * That is not a hypothetical shape. `agent_detection_source` failed exactly
+   * this way earlier the same day: three writers filled it and all four
+   * readers dropped it, so a value that was stored was indistinguishable from
+   * one that was never stored. Asserted as the whole trip rather than the
+   * mapping alone.
+   */
+  {
+    const graphSrc = withoutComments(
+      readFileSync('lib/social-graph.ts', 'utf8')
+    );
+    const jobSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    const tableSrc = withoutComments(
+      readFileSync('components/ResultsTable.tsx', 'utf8')
+    );
+    /**
+     * A previous handle is still a handle, so every path that withholds an
+     * identity has to withhold this one.
+     *
+     * Adding a field to `WalletSocialResult` is the cheap half. Three separate
+     * paths strip identities from a row and each carries its own list, so a
+     * field absent from any one of them is served: `LOCKED_FIELDS` on a row
+     * the customer has not paid for, `RESULT_STRIP` on a right-to-removal
+     * erase, and `scrubResultRow` on the way out of a job.
+     *
+     * Withholding the current handle while naming the one it changed FROM
+     * withholds nothing, because `twitter_renamed_from` means this same
+     * account changed name. Caught in review before it shipped.
+     */
+    ok(
+      'a locked row withholds the previous handle like any other identity',
+      /'twitter_renamed_from',/.test(
+        withoutComments(readFileSync('lib/match-gate.ts', 'utf8'))
+      ) &&
+        /delete next\.twitter_renamed_from;/.test(
+          withoutComments(readFileSync('lib/suppression.ts', 'utf8'))
+        )
+    );
+
+    /**
+     * The previous handle and the live one stay UNCOUPLED, in both
+     * directions, because they are frequently different people.
+     *
+     * `suppression_guard_row` states the rule in its own words: "a match on
+     * it must not clear the live handle beside it, and a match on the live
+     * handle must not clear it." The conflict resolver swaps when OUR handle
+     * reaches nobody and another source names a live account for the wallet,
+     * so the string left behind in `twitter_renamed_from` is frequently a
+     * handle that never belonged to this wallet's owner.
+     *
+     * Asserted as the REFUSAL, because the tempting change is the one that
+     * looks more private: coupling the two reads as "erase more", and it
+     * would erase a stranger's handle on somebody else's removal and put this
+     * file at odds with the trigger it mirrors. That coupling was written and
+     * removed once already.
+     */
+    {
+      const supp = withoutComments(
+        readFileSync('lib/suppression.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'removing the live handle does not erase the one it replaced',
+        // Its own test, on itself.
+        /kindHit\(sets, 'twitter', row\.twitter_renamed_from\)/.test(supp) &&
+          // And NOT taken along by the live handle's own flag.
+          !/const renamedFromSuppressed = [^;]*twitterSuppressed/.test(supp) &&
+          // The wallet is the one kind that does take everything, which is
+          // the trigger's RETURN NULL and is not a coupling of the two.
+          /const renamedFromSuppressed = walletSuppressed \|\|/.test(supp)
+      );
+      ok(
+        'and the erase map leaves it out of the handle kind for the same reason',
+        (
+          withoutComments(readFileSync('lib/removal-admin.ts', 'utf8')).match(
+            /'twitter_renamed_from',/g
+          ) ?? []
+        ).length === 1
+      );
+    }
+
+    ok(
+      'a settled rename survives the graph read, the merge and the panel',
+      /twitter_renamed_from: record\.twitterRenamedFrom/.test(graphSrc) &&
+        /twitter_renamed_from:\s*stored\.twitter_renamed_from \?\? existing\.twitter_renamed_from/.test(
+          jobSrc
+        ) &&
+        /result\.twitter_renamed_from &&/.test(tableSrc)
+    );
+
+    /**
+     * And it stays out of the public shape.
+     *
+     * Not caution: adding it to `/v1` is a response-shape change across every
+     * reverse and lookup route, and `docs-site` plus `openapi.yaml` would have
+     * to move with it. That is a decision with its own PR, and the failure
+     * mode of doing it by accident is shipping an undocumented field to paying
+     * customers.
+     */
+    ok(
+      'the rename is not published on the v1 shape by accident',
+      !/twitter_renamed_from/.test(
+        withoutComments(readFileSync('lib/api-sources.ts', 'utf8'))
+      ) &&
+        !readdirSync('docs-site/api-reference', { recursive: true })
+          .filter((f) => typeof f === 'string' && f.endsWith('.mdx'))
+          .some((f) =>
+            readFileSync(`docs-site/api-reference/${f}`, 'utf8').includes(
+              'twitter_renamed_from'
+            )
+          )
+    );
+  }
+
+  /**
    * An outage must not be able to manufacture evidence.
    *
    * The batched-by-id resolve is the only question whose answer survives a

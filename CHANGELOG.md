@@ -31,6 +31,46 @@ All notable changes to walletlink.social. Newest first.
   and contains no raw source id at all, the class this maps to already exists
   in it, and no row carries the source.
 
+### 2026-09-20 (a settled rename finally says so)
+
+- **`twitter_renamed_from` has been written since 2026-08-22, carries 2,208
+  rows, and was rendered nowhere.** A customer who exported a list last week
+  and saw a different handle today had no way to tell a correction from a
+  mistake, which is the one thing that column can explain.
+- The row modal's Evidence panel now says it, with the attested mark: we held
+  the old handle, it stopped reaching anyone, and a source the owner published
+  named the new one. That is a measured fact rather than an inference, which
+  is what earns the green.
+- Carried through the whole trip, not just mapped. `mergeGraphRow` rebuilds a
+  result from `...existing` plus an explicit field list, so a field left off
+  that list is read out of the database and dropped one function later. That
+  is not hypothetical: `agent_detection_source` failed in exactly that shape
+  earlier the same day, with three writers filling it and all four readers
+  dropping it. The assertion covers the read, the merge and the panel
+  together, and was verified by removing the merge line.
+- **A previous handle is still a handle**, so the match gate withholds it on a
+  row the customer has not paid for, and the suppression scrub erases it when
+  it is itself removed. Adding a field to the result type is the cheap half:
+  each strip path carries its own list, and a field absent from one of them is
+  served.
+- **The previous handle and the live one stay uncoupled**, in both directions,
+  and that is the opposite of what the first version of this change did. The
+  `suppression_guard_row` trigger states the rule in its own words: "a match on
+  it must not clear the live handle beside it, and a match on the live handle
+  must not clear it." The reason is that the two strings are frequently
+  different people. The conflict resolver swaps when OUR handle reaches nobody
+  and another source names a live account for the wallet, so the replaced
+  string often never belonged to that wallet's owner at all. Coupling them
+  would erase a stranger's handle on somebody else's removal, and would put the
+  serve path at odds with the trigger it is documented to mirror.
+- That is asserted as the refusal rather than the behaviour, because the
+  tempting change is the one that looks more private: coupling reads as
+  "erase more". It was written once and removed.
+- **Deliberately not on `/v1`.** Publishing it is a response-shape change
+  across every reverse and lookup route, and `docs-site` and `openapi.yaml`
+  would move with it. A second assertion keeps it off the public shape so it
+  cannot get there by accident.
+
 ### 2026-09-20 (every X list the tool builds carries where it came from)
 
 - **@walletlinketh is added to every list**, first rather than last. First for a
