@@ -261,6 +261,27 @@ const OTHER_ATTESTED_SQL = (() => {
   return `ARRAY[${ids.map((id) => `'${id}'`).join(', ')}]::text[]`;
 })();
 
+/**
+ * When this sweep must leave the stored handle alone.
+ *
+ * TWO conditions, and the second was missing. An attested source we do not
+ * speak for holds the handle AND there is actually a handle to hold. Without
+ * the null test the guard fired on rows that carry an attested label and no X
+ * account at all — a `com.github`-only ENS harvest writes `ens_onchain` and no
+ * handle — so the sweep refused to FILL them and the conflict query, which
+ * does require a handle, recorded nothing either. The majority attested route
+ * was dropped on exactly the rows with the most room for it.
+ *
+ * Yielding is about not OVERWRITING. Filling an empty column overwrites
+ * nothing.
+ *
+ * Written once and interpolated at all four sites, because this predicate
+ * disagreeing with itself across a CASE is the failure it was just fixed for.
+ */
+const YIELDS_TO_ATTESTED_SQL = (sources: string, handle: string) =>
+  `(EXISTS (SELECT 1 FROM unnest(COALESCE(${sources}, ARRAY[]::text[])) AS s ` +
+  `WHERE s = ANY(${OTHER_ATTESTED_SQL})) AND ${handle} IS NOT NULL)`;
+
 async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
   const db = getDb();
   if (!db || rows.length === 0) return 0;
@@ -396,7 +417,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterHandle: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterHandle}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterHandle}
-            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterHandle}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterHandle}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterHandle}
@@ -404,7 +425,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterUrl: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterUrl}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterUrl}
-            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterUrl}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterUrl}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_url
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterUrl}
@@ -412,7 +433,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterVerified: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterVerified}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterVerified}
-            WHEN EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})) THEN ${socialGraph.twitterVerified}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterVerified}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN true
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN false
             ELSE ${socialGraph.twitterVerified}
@@ -442,8 +463,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
               OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid
               OR (EXCLUDED.twitter_handle IS NOT NULL
                   AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(${socialGraph.twitterRenamedFrom})
-                  AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) AS s
-                                  WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)}))
+                  AND NOT ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))}
                   AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
             THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
         },

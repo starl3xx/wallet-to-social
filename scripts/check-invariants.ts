@@ -8886,7 +8886,11 @@ async function main() {
         // that the guard is reached FIRST, because a CASE takes the first arm
         // that matches. Asserting the old line was gone failed here, on code
         // that was right.
-        sweep.indexOf('sql.raw(OTHER_ATTESTED_SQL)') <
+        // Anchored on the GUARD, not on `OTHER_ATTESTED_SQL`. Once the
+        // predicate moved into a helper, that constant's first occurrence was
+        // its own definition near the top of the file, so this comparison
+        // stopped describing the CASE and passed for the wrong reason.
+        sweep.indexOf('YIELDS_TO_ATTESTED_SQL(') <
           sweep.indexOf(
             'WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle'
           )
@@ -8921,6 +8925,26 @@ async function main() {
       sourcesModule2.ATTESTED_SOURCE_IDS.has('manual') &&
         sourcesModule2.isAttestedSourceId('manual') &&
         !sourcesModule2.isAttestedSourceId('zora_profile')
+    );
+    ok(
+      'yielding requires a handle to yield to, so an empty row still fills',
+      /**
+       * The guard fired on any row carrying an attested label, including rows
+       * with no X handle at all: a `com.github`-only ENS harvest writes
+       * `ens_onchain` and no handle. The sweep therefore refused to FILL
+       * those, and the conflict query (which does require a handle) recorded
+       * nothing either, so the majority attested route was dropped on exactly
+       * the rows with the most room for it.
+       *
+       * Yielding is about not overwriting; filling an empty column overwrites
+       * nothing. One predicate, used at all four sites, so the CASE arms and
+       * the timestamp guard cannot disagree about what "yield" means.
+       */
+      /const YIELDS_TO_ATTESTED_SQL/.test(sweep) &&
+        /IS NOT NULL\)`/.test(sweep) &&
+        // Every use goes through it: three CASE arms and the lastUpdatedAt
+        // guard. A fifth spelling is the drift this replaced.
+        (sweep.match(/YIELDS_TO_ATTESTED_SQL\(/g) ?? []).length === 4
     );
     ok(
       'the sweep binds its wallet list as one array parameter',
