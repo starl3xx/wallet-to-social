@@ -1200,8 +1200,29 @@ async function finalizeJobWithResults(
         job.wallets.length,
         options.tier ?? 'free'
       );
-      if (charge.paidFrom === 'free' && charge.billed < anySocialFound) {
-        matchesDelivered = charge.billed;
+      /**
+       * The gate arms on either meter now, and on `delivered` rather than
+       * `billed`.
+       *
+       * It used to arm only when `paidFrom === 'free'`, so a pack job was
+       * never gated: it was billed for every match, `drawDown` collected what
+       * the lots held, and the rest was given away silently. Since
+       * `canSubmit` allows ten times the balance in WALLETS, and ten times
+       * the wallets is 2.37 times the matches at the measured rate, a Trial
+       * pack bought at 250 matches could be shown about 593 — and the
+       * contract importer asked for exactly that ceiling, so it landed there
+       * by construction rather than by accident.
+       *
+       * `delivered` is `billed` plus the near-miss margin, so a list that
+       * overshoots slightly still comes back whole and only a genuine
+       * overshoot meets the gate.
+       *
+       * `legacy` and the uncharged paths report `delivered` equal to the
+       * match count, so this comparison leaves them alone without needing to
+       * name them.
+       */
+      if (charge.delivered < anySocialFound) {
+        matchesDelivered = charge.delivered;
         gateIsFresh = !charge.duplicate;
       }
     } catch (error) {

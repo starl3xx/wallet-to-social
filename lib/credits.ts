@@ -34,6 +34,7 @@ import {
   FREE_MATCHES_PER_WINDOW,
   FREE_WINDOW_DAYS,
   SUBMISSION_MULTIPLIER,
+  deliverableMatches,
   LEGACY_UNLIMITED_DAILY_WALLETS,
   PACKS,
   X402_PACKS,
@@ -380,8 +381,21 @@ async function walletsSubmittedSince(
 }
 
 export interface JobCharge {
-  /** Matches actually debited, which is also the number the owner may see. */
+  /** Matches actually debited against the balance. */
   billed: number;
+  /**
+   * Matches delivered past `billed` and not charged for, because a match rate
+   * is unknowable before a job runs and a near miss should not be punished.
+   * Recorded rather than absorbed, so what we give away is countable.
+   */
+  goodwill: number;
+  /**
+   * What the owner may be shown: `billed + goodwill`. Everything past it is
+   * locked, on the free allowance and on a pack alike. This is the number the
+   * caller builds the gate from, and it is separate from `billed` because
+   * those two stopped being the same thing when goodwill arrived.
+   */
+  delivered: number;
   /** True when this job already carries a debit; nothing changed. */
   duplicate: boolean;
   paidFrom: 'free' | 'lots' | 'legacy' | null;
@@ -404,7 +418,17 @@ export async function chargeForJob(
    */
   if (legacyTierIsUnmetered(tier)) {
     const db = getDb();
-    if (!db) return { billed: 0, duplicate: false, paidFrom: null };
+    // `delivered: matches` on every path that does not charge: the caller
+    // gates on `delivered`, so a 0 here would lock a job precisely because we
+    // failed to bill it.
+    if (!db)
+      return {
+        billed: 0,
+        goodwill: 0,
+        delivered: matches,
+        duplicate: false,
+        paidFrom: null,
+      };
     try {
       await db.insert(creditLedger).values({
         userId,
@@ -415,15 +439,41 @@ export async function chargeForJob(
       });
     } catch {
       // Already recorded for this job.
-      return { billed: 0, duplicate: true, paidFrom: 'legacy' };
+      return {
+        billed: 0,
+        goodwill: 0,
+        delivered: matches,
+        duplicate: true,
+        paidFrom: 'legacy',
+      };
     }
-    return { billed: 0, duplicate: false, paidFrom: 'legacy' };
+    return {
+      billed: 0,
+      goodwill: 0,
+      delivered: matches,
+      duplicate: false,
+      paidFrom: 'legacy',
+    };
   }
 
-  if (matches <= 0) return { billed: 0, duplicate: false, paidFrom: null };
+  if (matches <= 0)
+    return {
+      billed: 0,
+      goodwill: 0,
+      delivered: 0,
+      duplicate: false,
+      paidFrom: null,
+    };
 
   const db = getDb();
-  if (!db) return { billed: 0, duplicate: false, paidFrom: null };
+  if (!db)
+    return {
+      billed: 0,
+      goodwill: 0,
+      delivered: matches,
+      duplicate: false,
+      paidFrom: null,
+    };
 
   const balance = await getBalance(userId);
   const paidFrom = balance.onFreeAllowance ? 'free' : 'lots';
@@ -440,17 +490,35 @@ export async function chargeForJob(
    * drained the window between submit and finish; the row still lands, for
    * idempotency and the wallets-submitted record.
    *
-   * Lots are unchanged: a pack buyer is billed in full and shown everything,
-   * and `drawDown` floors at the lot boundary as before.
+   * Lots now work the same way, which they did not.
+   *
+   * A pack buyer used to be billed in full and shown everything, and
+   * `drawDown` quietly absorbed whatever the lots could not cover. Because
+   * `canSubmit` allows ten times the balance in WALLETS, and ten times the
+   * wallets is 2.37 times the matches at the measured rate, that made a Trial
+   * pack worth up to 593 matches instead of 250, every time, and the contract
+   * importer asked for exactly the ceiling so it landed there by
+   * construction. The ledger recorded the full number, the lots paid what
+   * they had, and nothing compared the two.
+   *
+   * So both rails bill what the balance holds and deliver a fixed margin past
+   * it. The margin exists because a match rate cannot be known before the job
+   * runs and a near miss is not abuse; it is a fraction of the remaining
+   * balance, so it shrinks as a pack empties.
    */
-  const billed =
-    paidFrom === 'free' ? Math.min(matches, balance.available) : matches;
+  const billed = Math.min(matches, balance.available);
+  const goodwill = Math.min(
+    matches - billed,
+    deliverableMatches(balance.available) - balance.available
+  );
+  const delivered = billed + goodwill;
 
   try {
     await db.insert(creditLedger).values({
       userId,
       jobId,
       matches: billed,
+      goodwillMatches: goodwill,
       walletsSubmitted,
       paidFrom,
     });
@@ -465,6 +533,7 @@ export async function chargeForJob(
     const [existing] = await db
       .select({
         matches: creditLedger.matches,
+        goodwillMatches: creditLedger.goodwillMatches,
         paidFrom: creditLedger.paidFrom,
       })
       .from(creditLedger)
@@ -472,15 +541,34 @@ export async function chargeForJob(
         and(eq(creditLedger.jobId, jobId), ne(creditLedger.paidFrom, 'unlock'))
       )
       .limit(1);
+    const wasBilled = existing?.matches ?? 0;
+    const wasGoodwill = existing?.goodwillMatches ?? 0;
     return {
-      billed: existing?.matches ?? 0,
+      billed: wasBilled,
+      goodwill: wasGoodwill,
+      // Rebuilt from the row rather than recomputed from the balance, which
+      // has moved since: recomputing would widen or narrow the gate on a
+      // retry and show a different set of rows than the first pass did.
+      delivered: wasBilled + wasGoodwill,
       duplicate: true,
       paidFrom: (existing?.paidFrom as JobCharge['paidFrom']) ?? null,
     };
   }
 
   if (paidFrom === 'lots') {
-    await drawDown(userId, billed);
+    /**
+     * Only `billed` is drawn, and the shortfall is now checked rather than
+     * discarded. Because `billed` is capped at the balance above, the lots
+     * can always cover it and this should be zero; a non-zero value means a
+     * concurrent job moved the balance between the read and the draw, which
+     * is worth a line in the log rather than silence.
+     */
+    const uncovered = await drawDown(userId, billed);
+    if (uncovered > 0) {
+      console.error(
+        `credit drawdown short by ${uncovered} on job ${jobId}: a concurrent job moved the balance`
+      );
+    }
   }
 
   // `walletsUsed` predates the ledger and is a lifetime record of work run, not
@@ -490,7 +578,7 @@ export async function chargeForJob(
     .set({ walletsUsed: sql`${users.walletsUsed} + ${walletsSubmitted}` })
     .where(eq(users.id, userId));
 
-  return { billed, duplicate: false, paidFrom };
+  return { billed, goodwill, delivered, duplicate: false, paidFrom };
 }
 
 /**
@@ -604,9 +692,9 @@ export async function unlockJobMatches(
  * An overspend (see the module header) simply consumes every lot to its
  * granted amount and stops; `getBalance` then floors at zero.
  */
-async function drawDown(userId: string, matches: number): Promise<void> {
+async function drawDown(userId: string, matches: number): Promise<number> {
   const db = getDb();
-  if (!db) return;
+  if (!db) return matches;
 
   let owed = matches;
   const now = new Date();
@@ -659,6 +747,18 @@ async function drawDown(userId: string, matches: number): Promise<void> {
     // taken, so nothing is subtracted.
     owed -= Number(row?.taken ?? 0);
   }
+
+  /**
+   * What the lots could not cover, returned rather than dropped.
+   *
+   * `owed` used to be a local the loop simply stopped using, so a job billed
+   * for more than the account held left the ledger saying one number and the
+   * lots another, with nothing anywhere recording the difference and no query
+   * able to surface it: `getBalance` floors at zero and `LEAST` clamps each
+   * take, so the shortfall was invisible by construction. Callers now decide
+   * what it means instead of never learning it happened.
+   */
+  return owed;
 }
 
 /**

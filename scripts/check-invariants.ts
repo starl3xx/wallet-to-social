@@ -9463,6 +9463,99 @@ async function main() {
     const v1Route = withoutComments(
       readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
     );
+    /**
+     * A pack is metered, and the near-miss margin has a ceiling.
+     *
+     * Until this existed the gate armed only on `paidFrom === 'free'`, so a
+     * pack job was billed for every match, `drawDown` collected what the lots
+     * held and the rest was given away with no row, log or query able to see
+     * it. The size of the giveaway was not incidental: `canSubmit` allows ten
+     * times the balance in WALLETS, and ten times the wallets is 2.37 times
+     * the matches at the measured rate, so a 250-match Trial could be shown
+     * about 593 — and the contract importer asked for exactly that ceiling,
+     * putting every import on the worst case by construction.
+     *
+     * Asserted through the real functions, as refusals: the margin is
+     * bounded, it is a fraction of the REMAINING balance so it cannot be
+     * farmed by an empty account, and the two questions the two bounds answer
+     * are kept apart.
+     */
+    {
+      const packs = await import('@/lib/packs');
+      ok(
+        'the deliverable margin is bounded and scales with what is left',
+        // 250 -> 275, never the 593 the enumeration ceiling would have paid.
+        packs.deliverableMatches(250) === 275 &&
+          packs.deliverableMatches(0) === 0 &&
+          packs.deliverableMatches(250) <
+            250 * packs.SUBMISSION_MULTIPLIER * packs.MEASURED_MATCH_RATE
+      );
+      ok(
+        'an empty balance cannot pull a list through on goodwill alone',
+        // The margin is a fraction of the remainder, so it vanishes with it.
+        // A flat margin would leave a spent account able to keep taking it.
+        packs.deliverableMatches(0) === 0 &&
+          packs.deliverableMatches(10) < packs.deliverableMatches(250)
+      );
+      ok(
+        'the importer sizes on what a balance covers, not on the enumeration bound',
+        // 250 matches is ~1,054 wallets at the measured rate, against the
+        // 2,500 the anti-enumeration multiplier would have allowed. The two
+        // bounds answer different questions and this keeps them apart.
+        packs.walletsCoveredBy(250) < 250 * packs.SUBMISSION_MULTIPLIER &&
+          packs.walletsCoveredBy(250) ===
+            Math.floor(250 / packs.MEASURED_MATCH_RATE) &&
+          packs.walletsCoveredBy(0) === 0
+      );
+      ok(
+        'the estimate and the coverage bound are inverses of one rate',
+        // Two surfaces disagreeing about what a list will cost is how the
+        // buy modal came to know this and the submit path not to.
+        packs.expectedMatches(packs.walletsCoveredBy(250)) <= 250 &&
+          packs.expectedMatches(1500) ===
+            Math.ceil(1500 * packs.MEASURED_MATCH_RATE)
+      );
+
+      const credits = readFileSync('lib/credits.ts', 'utf8');
+      ok(
+        'the debit is capped at the balance on BOTH meters',
+        // `paidFrom === 'free' ? Math.min(...) : matches` is the line that
+        // billed a pack for more than it held and left `drawDown` to absorb
+        // the difference. Asserted as the refusal of that shape.
+        /const billed = Math\.min\(matches, balance\.available\)/.test(
+          credits
+        ) &&
+          !/paidFrom === 'free' \? Math\.min\(matches, balance\.available\)/.test(
+            credits
+          )
+      );
+      ok(
+        'the shortfall from the lots is returned rather than discarded',
+        // `owed` was a local the loop stopped using, which is why the
+        // giveaway was invisible: nothing downstream could learn it happened.
+        /async function drawDown\([^)]*\): Promise<number>/.test(credits) &&
+          /return owed;/.test(credits)
+      );
+      ok(
+        'what is given away is recorded on the row rather than inferred',
+        /goodwillMatches: goodwill/.test(credits)
+      );
+
+      for (const worker of [
+        'lib/job-processor.ts',
+        'inngest/functions/wallet-lookup.ts',
+      ]) {
+        const src = withoutComments(readFileSync(worker, 'utf8'));
+        ok(
+          `${worker} gates a paid job as well as a free one`,
+          /charge\.delivered < anySocialFound/.test(src) &&
+            !/charge\.paidFrom === 'free' && charge\.billed < anySocialFound/.test(
+              src
+            )
+        );
+      }
+    }
+
     ok(
       'the job results route gates on matches_delivered',
       jobRoute.includes('gateResults(') && jobRoute.includes('matchesDelivered')

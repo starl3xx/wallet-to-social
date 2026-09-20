@@ -352,6 +352,8 @@ The meter:
 
 - `getBalance(userId)`: Live lots first, otherwise the rolling free window over `credit_ledger`
 - `canSubmit(userId, walletCount, tier)`: Pre-flight check; a submission may be at most remaining matches × `SUBMISSION_MULTIPLIER`
+- **That bound answers "is this list real", never "can this account afford it".** Ten times the wallets is 2.37 times the matches at the measured rate, so it alone let a 250-match Trial be shown ~593. `deliverableMatches(available)` answers the second question: balance plus a 10% near-miss margin, and everything past it is locked on a pack exactly as on the free allowance. `walletsCoveredBy(matches)` is the inverse, and the contract importer sizes on it rather than on the enumeration ceiling it used to fill to by construction.
+- `credit_ledger.goodwill_matches` records what a job was shown and not charged for. Before it, the ledger held the full count, the lots paid what they had, and `drawDown` dropped the difference with nothing able to surface it: `getBalance` floors at zero and each take clamps with `LEAST`.
 - `chargeForJob()`: Post-hoc debit when a job completes, idempotent on job id; `chargeForApiCall()`: the same per API call, charged every time
 - `hasPaidAccess(userId, tier)`: The server-side feature gate (legacy tier, whitelist, or a live lot; the free allowance never counts)
 - `legacyTierIsUnmetered(tier)`: `pro` and `unlimited`, which are never debited
