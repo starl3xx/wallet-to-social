@@ -236,6 +236,15 @@ const MUTATIONS: Mutation[] = [
     from: '        AND ox.user_id <> g.twitter_user_id\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`',
     to: '        AND ox.user_id <> g.twitter_user_id`',
   },
+  {
+    // The removed id-anchored rung, reintroduced exactly: a branch that
+    // swaps a live ours on the challenger's evidence alone. The refusal
+    // assertion must catch its return.
+    name: 'a swap branch appears with no condition on ours at all',
+    file: 'lib/conflict-resolution.ts',
+    from: "      : sql`ox.status = 'live'\n        AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)\n        AND ox.user_id IS NOT NULL\n        AND g.twitter_user_id IS NOT NULL\n        AND ox.user_id <> g.twitter_user_id\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;",
+    to: '      : sql`g.twitter_user_id IS NULL\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;',
+  },
 
   {
     name: 'a gifted pack silently ends the welcome sequence again',

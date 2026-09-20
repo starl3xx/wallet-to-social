@@ -4912,16 +4912,28 @@ async function main() {
      * drafted and removed in review (Bugbot, 2026-09-20): a stolen wallet
      * key plus the attacker's own X account could drive it.
      */
-    ok(
-      'no swap acts on a live ours without proof the string moved',
-      (code.match(/ox\.status = 'live'/g) ?? []).every(() => true) &&
-        (
-          code.match(
-            /ox\.status = 'live'\n\s+AND ox\.checked_at[\s\S]{0,200}?ox\.user_id <> g\.twitter_user_id/g
-          ) ?? []
-        ).length === 1 &&
-        (code.match(/sql`ox\.status = 'live'/g) ?? []).length === 1
-    );
+    {
+      /**
+       * Asserted over the rule text itself, not over the file: extract the
+       * oursRule ternary and require every acceptance branch to condition on
+       * ours' own state. Re-adding the removed id-anchored rung means adding
+       * a branch with no `ox.` reference, which fails the every() below; the
+       * first version of this assertion opened with a clause that was always
+       * true and would have passed that exact re-addition (Bugbot,
+       * 2026-09-20).
+       */
+      const ruleStart = code.indexOf('const oursRule =');
+      const ruleEnd = code.indexOf('`;', ruleStart);
+      const rule = code.slice(ruleStart, ruleEnd);
+      const branches = rule.split('sql`').slice(1);
+      ok(
+        'every acceptance branch conditions on ours, and only two exist',
+        ruleStart !== -1 &&
+          branches.length === 2 &&
+          branches.every((b) => /ox\.status/.test(b)) &&
+          /ox\.user_id <> g\.twitter_user_id/.test(branches[1] ?? '')
+      );
+    }
   }
 
   // ------------------------------- The reverse answer corroborates itself
