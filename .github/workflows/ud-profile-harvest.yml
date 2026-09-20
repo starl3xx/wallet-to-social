@@ -3,17 +3,16 @@
 # registry-verified social entries through the shared attested-link ingest
 # (source 'ud_profile').
 #
-# Daily rather than weekly, deliberately: the provider is mid-rebrand, its
-# partner program is gone, and the keyless endpoints have no promised
-# lifetime, so the corpus is harvested while it answers. Checkpointed in
-# ingest_state ('ud_profile_harvest'), so a budget stop or an endpoint
-# failure mid-walk loses nothing.
-#
-# The walk is address-side (two requests per wallet that owns a domain, one
-# per wallet that does not). If the measured domain hit rate makes that
-# arithmetic bad, the successor is domain-side enumeration off the registry
-# contracts, the same shape as the ENS harvest; this workflow's budget knob
-# is what buys time to decide.
+# Weekly, and deliberately modest: the 2026-09-20 probe measured the address-
+# side arithmetic and it is bad. 300 of the graph's most-followed missing-X
+# wallets resolved to 1 domain (0.33%) and 0 verified handles; this graph's
+# population and the registry's barely overlap. This walk stays as the cheap
+# incremental for wallets that enter the graph missing an X handle, and the
+# corpus path is domain-side enumeration off the registry contracts (the ENS
+# harvest shape), where every request lands on a real domain and unseen
+# wallets arrive with their handles. Checkpointed in ingest_state
+# ('ud_profile_harvest'), so a budget stop or an endpoint failure mid-walk
+# loses nothing.
 #
 # Required repository secrets: DATABASE_URL. The role behind it needs the
 # ingestLinks write set (social_graph, handle_conflicts, ingest_state) —
@@ -22,7 +21,7 @@ name: ud-profile-harvest
 
 on:
   schedule:
-    - cron: '45 7 * * *' # 07:45 UTC, after the seed cron, before x-reachability
+    - cron: '45 7 * * 0' # Sunday 07:45 UTC, after the seed cron, before x-reachability
   workflow_dispatch:
     inputs:
       max_requests:

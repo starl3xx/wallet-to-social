@@ -20,9 +20,14 @@ All notable changes to walletlink.social. Newest first.
   `ud-profile-harvest.yml` (07:45 UTC) walks missing-X wallets; a targeted
   mode (`--limit`/`--wallets`) mirrors the marketplace enrichment's
   most-followed-first default.
-- The walk is address-side (up to two requests per wallet). If the measured
-  domain hit rate makes that arithmetic bad, the successor is domain-side
-  enumeration off the registry contracts, the same shape as the ENS harvest.
+- The walk is address-side (up to two requests per wallet), and the probe
+  measured that arithmetic before the schedule was set: 300 of the graph's
+  most-followed missing-X wallets resolved to 1 domain (0.33%) and 0 verified
+  handles. This graph's population and the registry's barely overlap, so the
+  workflow runs weekly as a cheap incremental, and the corpus path is
+  domain-side enumeration off the registry contracts (the ENS harvest shape),
+  where every request lands on a real domain and unseen wallets arrive with
+  their handles. That is the follow-up, not this change.
 
 ### 2026-09-20 (a pack stops being worth 2.37 times what it sold for)
 
