@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (fifty refusals in a row are a wall, not fifty outcomes)
+
+- **The domain-side UD harvest grows a circuit breaker**: fifty consecutive
+  refused-name responses abort the run instead of counting as outcomes. The
+  evening's 40,000-read backfill hit exactly this: the provider's profile
+  endpoint began answering 406 to this kind of client entirely (verified
+  from a second network: a domain that answered 200 at midday answered 406
+  by evening, while the resolve endpoint kept working), and the run recorded
+  39,994 "invalid names" while its checkpoints marched past 40,000 domains
+  nobody read. The eth-cns checkpoint was rewound to 9,097,250, the last
+  genuinely read window, so those domains are re-read if the endpoint
+  returns.
+- A blocked run now fails visibly in Actions at a cost of fifty reads, which
+  is the right monitoring shape: the twice-daily schedule keeps probing, and
+  a green run is once again evidence the corpus is flowing.
+
 ### 2026-09-20 (conflict resolution grows three rungs and a bigger budget)
 
 - **A new swap rung** in `lib/conflict-resolution.ts`, re-tested inside the
