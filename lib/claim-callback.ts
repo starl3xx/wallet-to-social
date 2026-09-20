@@ -29,6 +29,7 @@ import { getDb } from '@/db';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { secretEquals } from '@/lib/secret-box';
 import {
+  isConfigured as xConfigured,
   basicAuthHeader,
   clientId,
   redirectUri,
@@ -49,10 +50,41 @@ function back(outcome: string, claimId?: string): NextResponse {
 }
 
 export async function completeClaimCallback(input: {
-  code: string;
+  code: string | null;
   id: string;
   nonce: string;
+  /** X's own refusal, echoed back with the state. */
+  denied: string | null;
 }): Promise<NextResponse> {
+  /**
+   * This flow's own refusals, answered on this flow's own page.
+   *
+   * They live here rather than in the shared route because X echoes `state`
+   * on an error too: handling them upstream sent somebody who cancelled a
+   * claim to the homepage carrying the list flow's vocabulary.
+   *
+   * `access_denied` is somebody pressing Cancel, which is a decision rather
+   * than a fault and does not deserve a scary page.
+   */
+  if (input.denied) {
+    return back(
+      input.denied === 'access_denied' ? 'cancelled' : 'refused',
+      input.id
+    );
+  }
+
+  /**
+   * Only the X client, deliberately NOT the secret box.
+   *
+   * The box seals a list's access token. This flow stores no token, so
+   * requiring the key here would refuse a working claim for a missing secret
+   * it never touches, which is exactly what the shared gate upstream used to
+   * do.
+   */
+  if (!xConfigured()) return back('unavailable', input.id);
+
+  if (!input.code) return back('invalid', input.id);
+
   const db = getDb();
   if (!db) return back('unavailable');
 
@@ -107,7 +139,7 @@ export async function completeClaimCallback(input: {
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code: input.code,
+        code: input.code!,
         redirect_uri: redirectUri(),
         code_verifier: claim.code_verifier,
         client_id: clientId(),

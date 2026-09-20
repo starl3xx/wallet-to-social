@@ -68,33 +68,46 @@ function back(outcome: string, jobId?: string): NextResponse {
 }
 
 export async function GET(request: NextRequest) {
-  if (!xConfigured() || !boxConfigured()) return back('unavailable');
-
   const params = request.nextUrl.searchParams;
-
-  /**
-   * X's own refusal, passed through before anything else is read. The common
-   * value is `access_denied`, which is somebody pressing Cancel and is not an
-   * error worth a scary page.
-   */
   const denied = params.get('error');
-  if (denied) return back(denied === 'access_denied' ? 'cancelled' : 'refused');
-
   const code = params.get('code');
   const parsed = parseCallbackState(params.get('state') ?? '');
-  if (!code || !parsed) return back('invalid');
 
   /**
-   * One redirect URI, two flows, and the state says which.
+   * Routed BEFORE any refusal, which is the whole reason the parse moved up
+   * here.
    *
-   * X matches the callback string exactly against what is registered in the
-   * developer portal, so a second route would need an out-of-band change
-   * nothing here can verify. The claim flow is handled in its own module and
-   * returns its own redirect; this function stays the list flow it was.
+   * X echoes `state` on an authorization error as well as on success, so the
+   * refusals below are reachable by a claim. Answering them from this
+   * function sent a cancelled claim to the homepage carrying `x_list`, which
+   * is the wrong page and the wrong vocabulary for somebody who was halfway
+   * through claiming an address.
+   *
+   * The config gate moved with it for a second reason: it requires the secret
+   * box, which exists to seal a list's access token. The claim flow stores no
+   * token and never needs the box, so gating it here refused a working flow
+   * for a missing key it does not use, while `POST /api/claim/start` checked
+   * no such thing. A flow that starts and then cannot finish is the worst
+   * arrangement of the two.
    */
-  if (parsed.flow === 'claim') {
-    return completeClaimCallback({ code, id: parsed.id, nonce: parsed.nonce });
+  if (parsed?.flow === 'claim') {
+    return completeClaimCallback({
+      code,
+      id: parsed.id,
+      nonce: parsed.nonce,
+      denied,
+    });
   }
+
+  if (!xConfigured() || !boxConfigured()) return back('unavailable');
+
+  /**
+   * X's own refusal. The common value is `access_denied`, which is somebody
+   * pressing Cancel and is not an error worth a scary page.
+   */
+  if (denied) return back(denied === 'access_denied' ? 'cancelled' : 'refused');
+
+  if (!code || !parsed) return back('invalid');
 
   const jobId = parsed.id;
   const nonce = parsed.nonce;

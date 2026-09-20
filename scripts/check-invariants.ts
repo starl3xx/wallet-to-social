@@ -1324,6 +1324,51 @@ async function main() {
         const cb = withoutComments(
           readFileSync('lib/claim-callback.ts', 'utf8')
         ).replace(/\s+/g, ' ');
+        /**
+         * A claim is routed before any shared refusal runs.
+         *
+         * X echoes `state` on an authorization error as well as on success,
+         * so every refusal in the shared route is reachable by a claim. When
+         * they ran first, somebody who cancelled a claim landed on the
+         * homepage carrying `x_list`, which is the wrong page and the wrong
+         * vocabulary, and the config gate refused the flow for a missing
+         * secret-box key it never uses while `claim/start` checked no such
+         * thing: a flow that starts and then cannot finish.
+         *
+         * Asserted positionally, because the defect is ordering rather than
+         * absence. Every one of these was present and simply ran too early.
+         */
+        const shared = withoutComments(
+          readFileSync('app/api/x/callback/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const claimBranch = shared.indexOf("parsed?.flow === 'claim'");
+        const boxGate = shared.indexOf('boxConfigured()');
+        const cancelRefusal = shared.indexOf("'cancelled' : 'refused'");
+        const invalidRefusal = shared.indexOf("back('invalid')");
+        ok(
+          'a claim is routed before the shared config gate and the shared refusals',
+          // Each marker must EXIST before its position means anything. An
+          // indexOf that matched nothing returns -1, and `x < -1` is false,
+          // so a mistyped marker fails loudly rather than passing over a
+          // check it never performed.
+          claimBranch > 0 &&
+            boxGate > 0 &&
+            cancelRefusal > 0 &&
+            invalidRefusal > 0 &&
+            claimBranch < boxGate &&
+            claimBranch < cancelRefusal &&
+            claimBranch < invalidRefusal
+        );
+        ok(
+          'the claim flow answers its own cancel, and does not require the box',
+          /input\.denied === 'access_denied' \? 'cancelled' : 'refused'/.test(
+            withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+          ) &&
+            !/boxConfigured/.test(
+              withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+            )
+        );
+
         ok(
           'the claim callback never stores the access token',
           !/access_token\s*=/.test(cb) &&
