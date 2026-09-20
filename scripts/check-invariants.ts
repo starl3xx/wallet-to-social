@@ -1440,6 +1440,76 @@ async function main() {
       );
 
       /**
+       * Our own account goes in FIRST, and by id.
+       *
+       * First because a member added last is a member a stalled list never
+       * reaches: measured on a live job that stopped at 103 of 290 on an
+       * account X refused, and would have been marked failed with 187 never
+       * attempted. Appending would have left us out of exactly the lists that
+       * went wrong.
+       *
+       * By id because a handle is a string its owner can change, which is the
+       * thing this codebase keeps rediscovering. Building the member from a
+       * hardcoded handle would mean our own rename quietly adding a stranger
+       * to every customer list.
+       */
+      ok(
+        'the tool adds its own account first, by id, and never twice',
+        // FILTERED then unconditionally prepended, which is not the same as
+        // skipping the prepend when already present. Testing membership
+        // against the full resolved list and truncating afterwards leaves an
+        // account that is a holder but sits past the cap with neither the
+        // prepend nor a place in the slice, so the list carries nobody.
+        // Position must not decide whether we are in it.
+        /const theirs = members\.filter\(\(m\) => m\.id !== WALLETLINK_X_USER_ID\)/.test(
+          listRoute
+        ) &&
+          /const withUs = \[ \{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE \}, \.\.\.theirs, \]/.test(
+            listRoute
+          ) &&
+          // The prepend takes no condition at all. Asserted as the absence of
+          // a ternary around it rather than of any boolean in the file: the
+          // COUNTS below legitimately branch on whether we are also a holder,
+          // and forbidding every flag here would block that correct fix.
+          !/const withUs = \w+ \?/.test(listRoute) &&
+          // Capped AFTER we are prepended, so a list can never exceed X's max
+          // by carrying us on top of a full one.
+          /const capped = withUs\.slice\(0, X_LIST_MEMBER_MAX\)/.test(listRoute)
+      );
+
+      /**
+       * And the counts reported back stay the customer's.
+       *
+       * `capped` now holds a member the caller did not ask for. Reporting its
+       * length as theirs makes `dropped` read -1 on any list under the cap,
+       * which is the kind of number that survives review because it looks like
+       * a rounding artefact rather than a miscount.
+       */
+      ok(
+        'the counts returned to the caller exclude the member we added',
+        // One subtraction, no branch. Ours is exactly one row at index 0 that
+        // always survives the slice, so a conditional here could only ever be
+        // wrong: the branch is what made `dropped` depend on whether we
+        // happened to hold the token.
+        // The three figures are read together and must account for every
+        // submitted handle: members + dropped + unresolved = handles.length.
+        // That only holds if `theirsIncluded` keeps our row when our account
+        // is ALSO one of their holders, because then the customer submitted
+        // that handle and subtracting it loses one of theirs. Without the
+        // branch the sum is short by exactly one, and a confirmation screen
+        // that accounts for every handle but one reads as a lookup bug.
+        /const weAreAlsoAHolder = theirs\.length !== members\.length/.test(
+          listRoute
+        ) &&
+          /const theirsIncluded = capped\.length - \(weAreAlsoAHolder \? 0 : 1\)/.test(
+            listRoute
+          ) &&
+          /members: theirsIncluded/.test(listRoute) &&
+          /dropped: members\.length - theirsIncluded/.test(listRoute) &&
+          /unresolved: handles\.length - members\.length/.test(listRoute)
+      );
+
+      /**
        * No overflow-menu row owns a dialog.
        *
        * `OverflowMenu` renders its panel as `{open && ...}` and closes on any

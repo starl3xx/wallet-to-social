@@ -50,6 +50,16 @@ const DESCRIPTION_MAX = 100;
 const X_LIST_MEMBER_MAX = 5000;
 
 /**
+ * Our own handle, for the sentence that discloses it. Restated here for the
+ * same reason as the cap above: `lib/x-oauth.ts` holds the id this is actually
+ * built from, and that module reads a client secret.
+ *
+ * Display only. Nothing is looked up by this string, and the list is built
+ * from the numeric id, which is the half a rename cannot move.
+ */
+const WALLETLINK_X_HANDLE = 'walletlinketh';
+
+/**
  * The row in the overflow menu, and nothing else.
  *
  * It owns no dialog and no state worth losing, because this component is
@@ -193,8 +203,9 @@ export function XListDialog({
           <ModalTitle>Create an X list</ModalTitle>
           <ModalDescription>
             {handles.length.toLocaleString()} reachable handles, added to a list
-            in your own X account. You&rsquo;ll authorize with X on the next
-            screen.
+            in your own X account, along with @{WALLETLINK_X_HANDLE} so the list
+            carries where it came from. You&rsquo;ll authorize with X on the
+            next screen.
           </ModalDescription>
         </ModalHeader>
 

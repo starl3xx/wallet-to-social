@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (every X list the tool builds carries where it came from)
+
+- **@walletlinketh is added to every list**, first rather than last. First for a
+  reason measured on a live job the same day: a list of 290 stalled at member
+  103 on an account X refused, and a member added last is a member a stalled
+  list never reaches. Appending would have left us out of exactly the lists
+  that went wrong.
+- Added **by numeric id**, never by handle. A handle is a string its owner can
+  change, which is the thing this codebase keeps rediscovering, and building
+  the member from a hardcoded handle would mean our own rename quietly adding
+  a stranger to every customer list.
+- It takes one of X's 5,000 slots rather than sitting on top of them, so a list
+  can never exceed the cap by carrying us. Skipped when the account is already
+  a holder, because X refuses a duplicate and the refusal would be counted
+  against the customer's own numbers.
+- **Disclosed in the dialog before anyone authorizes**, in the description
+  rather than on the confirmation screen, because that screen only appears when
+  something was dropped and a clean list would never have shown it. It is the
+  customer's list, and a guest they did not ask for is something to be told
+  about while they can still decide.
+- Our account is **filtered out and unconditionally prepended**, not skipped
+  when already present, and the difference is a real hole rather than a style
+  choice: testing membership against the full resolved list and truncating
+  afterwards leaves an account that is a holder but sits past the 5,000 cap
+  with neither the prepend nor a place in the slice, so the list would carry
+  nobody. Filtering first makes position irrelevant.
+- Two assertions: that we go in first and by id and never twice, and that the
+  counts returned to the caller still exclude us. The second one matters more
+  than it looks, because `capped` now holds a member the caller did not ask
+  for: reporting its length as theirs makes `dropped` read -1 on any list under
+  the cap, which is the kind of number that survives review because it reads as
+  a rounding artefact rather than a miscount. Both verified against the real
+  defect.
+
 ### 2026-09-20 (the footer stops linking to this file)
 
 - The Project column linked Changelog straight at `CHANGELOG.md` on GitHub.
