@@ -171,19 +171,29 @@ export default function ClaimPage() {
                 which removes the pair and stops us collecting it again.
               </p>
               <p>
-                If we already knew about your address before{' '}
-                {ATTESTATION_CUTOFF_HUMAN}, we credit your account with{' '}
-                {ATTESTATION_GRANT_MATCHES} matches, once per X account. That is
-                the whole condition, and it is about us rather than about you:
-                an address we had indexed before we asked anyone to claim one
-                was recorded for reasons that had nothing to do with earning
-                credits, which is what makes it evidence we cannot be sold.
+                We credit your account with {ATTESTATION_GRANT_MATCHES} matches,
+                once per X account, when two things are both true: we already
+                knew about your address before {ATTESTATION_CUTOFF_HUMAN}, and
+                your claim gives us the account number we were missing for it.
               </p>
               <p>
-                A newer address earns nothing, and the claim is still written,
+                The first is about us rather than about you. An address we had
+                indexed before we asked anyone to claim one was recorded for
+                reasons that had nothing to do with earning credits, which is
+                what makes it evidence we cannot be sold.
+              </p>
+              <p>
+                The second is the part only you can supply. An account name can
+                be changed by its owner and reused by a stranger; the account
+                number cannot. Most of what we hold came without one, so a
+                confirmation that adds it is the difference between a record
+                that ages and one that stays true.
+              </p>
+              <p>
+                Anything else earns nothing, and the claim is still written,
                 because a correction from the owner is worth having whether or
-                not we pay for it. Which of the two yours is appears as soon as
-                you connect the wallet, before there is anything to approve.
+                not we pay for it. Which case yours is appears as soon as you
+                connect the wallet, before there is anything to approve.
               </p>
             </Detail>
 

@@ -92,8 +92,22 @@ async function maybeGrant(
   db: NonNullable<ReturnType<typeof getDb>>,
   claimId: string,
   userId: string,
-  wallet: string
+  wallet: string,
+  /**
+   * Whether this claim supplied an account id the index lacked.
+   *
+   * The second half of the gate, and the half that says what the grant
+   * is actually buying. The cutoff answers "is this evidence we could
+   * not have bought"; this answers "is it evidence we did not already
+   * have". Both are required, because either alone pays for the wrong
+   * thing: the cutoff alone paid for an owner attestation that Farcaster
+   * mostly supplies for free, and an id gap alone would let a wallet
+   * created this morning earn credits.
+   */
+  addsAccountId: boolean
 ): Promise<void> {
+  if (!addsAccountId) return;
+
   let eligible: boolean;
   try {
     eligible = await walletPredatesCutoff(wallet);
@@ -470,6 +484,51 @@ export async function completeClaimCallback(input: {
    * the worst moment available to fail. The attestation is recorded either
    * way and the daily ingest paths reach the same rows.
    */
+  /**
+   * Whether this claim is about to supply an account id we did not have.
+   *
+   * Read BEFORE the ingest, because the ingest is what changes the answer.
+   *
+   * This is the one thing a claim provides that nothing else can. Farcaster
+   * records a verified X account as a bare username: `verified_accounts`
+   * carries no numeric id, so no Farcaster-derived handle has one, and
+   * `lib/handle-reachability.ts` needs one to tell a rename from a
+   * suspension. Measured on 2026-09-20: 1,048,530 wallets hold an X handle
+   * alongside an FID with no id beside it, against 86,894 that have one.
+   *
+   * A missing row answers false, which is correct and not a fallback: a
+   * wallet we have never seen cannot have an id we are missing, and the
+   * cutoff below refuses it anyway.
+   *
+   * `twitter_handle IS NOT NULL` is load-bearing and matches the challenge
+   * route exactly. Without it, every pre-cutoff row with a null id qualified,
+   * including FID-only rows, ENS-only rows and persisted negatives: the page
+   * told those people they would earn nothing and then paid them, out of a
+   * budget meant for the one thing a claim uniquely supplies. A number on a
+   * handle we already serve can only come from an X sign-in. A brand new
+   * pairing cannot say the same, because a sweep may find it tomorrow.
+   */
+  let addsAccountId = false;
+  try {
+    const before = (await db.execute(sql`
+      SELECT twitter_user_id
+      FROM social_graph
+      WHERE wallet = ${claim.wallet}
+        AND twitter_handle IS NOT NULL
+      LIMIT 1
+    `)) as unknown as { rows: Array<{ twitter_user_id: string | null }> };
+    addsAccountId =
+      before.rows.length > 0 && before.rows[0].twitter_user_id === null;
+  } catch (error) {
+    /**
+     * A failed read refuses the grant rather than awarding one it cannot
+     * justify, which is the same posture `walletPredatesCutoff` takes and for
+     * the same reason: the money answer must not be decided by a query that
+     * did not run. The claim itself is unaffected.
+     */
+    console.error('claim id-gap read failed; grant refused:', error);
+  }
+
   try {
     await ingestLinks(
       [
@@ -496,7 +555,13 @@ export async function completeClaimCallback(input: {
    * reserves the grant or tells us somebody already did.
    */
   try {
-    await maybeGrant(db, claim.id, session.user.id, claim.wallet);
+    await maybeGrant(
+      db,
+      claim.id,
+      session.user.id,
+      claim.wallet,
+      addsAccountId
+    );
   } catch (error) {
     // Same reasoning as the ingest above: the claim is already recorded, and
     // a failed grant must not turn a finished authorization into a 500.

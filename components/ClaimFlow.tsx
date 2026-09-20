@@ -347,10 +347,50 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
          * omitted.
          */
         if (mode === 'claim') {
+          /**
+           * The invitation comes first, because it is the reason to finish.
+           *
+           * We hold a handle for this address with no account id behind it,
+           * which is the state 1,048,530 wallets were in: Farcaster records a
+           * verified X account as a bare username, so nothing it gives us can
+           * tell a rename from a suspension later. Confirming is the only
+           * thing that supplies the id.
+           *
+           * It never names the handle. The route returns one bit and not the
+           * value, because telling a caller what we hold for an address they
+           * typed would be giving away the reverse lookup, which is sold.
+           */
+          const invitation = challenge.adds_account_id
+            ? 'We hold an X account for this address with no account number behind it, which is what tells a rename from a suspension. Confirming supplies it. '
+            : '';
+          /**
+           * The no-credit sentence names a reason only where one is known.
+           *
+           * It first offered both as alternatives, which contradicted the
+           * invitation directly above it: a post-cutoff address with a gap
+           * was told "either we saw this after the cutoff, or we already hold
+           * the account number", one sentence after being told we hold no
+           * account number for it.
+           *
+           * Naming the second reason instead was worse, and is the mistake
+           * worth recording. `adds_account_id` is false in FOUR cases: we
+           * hold a number already, the address has no handle at all, there is
+           * no row, or the gap read failed. Saying "we already hold the
+           * account number" covered one of them and was a false statement
+           * about our own index in the other three, told to somebody at the
+           * moment they are asked to sign.
+           *
+           * So a reason is given only where one bit determines it. With a gap
+           * and no credits, the cutoff is the only explanation left and the
+           * copy says so. Without a gap, four explanations remain and the
+           * copy says none of them, because picking one is inventing it.
+           */
           setWorth(
             challenge.earns_credits
-              ? `We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
-              : 'We first saw this address after the cutoff, so this claim earns no credits. It still corrects the record.'
+              ? `${invitation}We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
+              : challenge.adds_account_id
+                ? `${invitation}We first saw this address too recently for it to earn credits. It still corrects the record.`
+                : 'This claim earns no credits. It still records that you control this address.'
           );
         }
 
