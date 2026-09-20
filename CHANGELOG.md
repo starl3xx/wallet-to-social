@@ -43,6 +43,30 @@ All notable changes to walletlink.social. Newest first.
   `scripts/check-invariants.ts` now asserts the same eight near misses against
   it that `/claim` already refuses (`/dashboards`, `//dashboard`,
   `/dashboard?next=…`, `/dashboard/../admin` and the rest).
+- **A failed read is never rendered as a fact about the account.** `useCredits`
+  grows a `failed` flag and now throws on a non-2xx instead of falling through
+  to `.json()`, because a 500 answering with an HTML error page used to settle
+  as `available: 0`. The balance card, the developer card and the lookups list
+  each say so rather than showing a zero, an empty list or an upgrade pitch. A
+  paying account was being told to buy a pack it already owns, both while the
+  balance loaded and permanently if the read failed.
+- **"Wallets you can submit now" no longer overstates the free allowance by
+  2x.** `maxWallets` is the balance times the submission multiplier, which on
+  the free allowance is not the binding limit: the per-lookup cap is, so 100
+  free matches reported 1,000 wallets against a server that refuses above
+  `TIER_LIMITS.free`. Clamped the way the homepage already clamps it.
+- **A pack's expiry date renders.** `Badge` is capped at 12ch and truncates,
+  which is right for a name somebody chose and wrong for a formatted date:
+  `Expires Sep 20, 2026` uppercased to twenty characters and rendered
+  `EXPIRES…`, losing the one thing the badge exists to say, with no `title` to
+  recover it.
+- `MenuItem` with an `href` no longer forces `target="_blank"`. New tabs are
+  opt-in through `external`, and an internal route goes through the router.
+  Nothing passed `href` before the dashboard did, so no caller relied on it.
+- Also from review: an accessible name on the free-window bar, real headings on
+  the cards, the invalid-date guard the claims panel was missing (`Intl.format`
+  throws rather than returning a string), mono tabular dates, and reflow fixes
+  for a long email address and a long handle at 320 and 360px.
 - Deliberately absent, each with its reason recorded in `PROJECT_OVERVIEW.md`:
   the upload widget (needs the block lifted out of `app/page.tsx` first), a
   running-jobs and an X-lists module (`/api/jobs` and `/api/x/lists` export POST

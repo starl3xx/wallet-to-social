@@ -320,10 +320,10 @@ export async function cleanupExpiredAuth(): Promise<{
  *
  * A magic link that carries a caller-supplied return path is an open redirect
  * with a stamp of authenticity on it, so this is not a sanitiser: it is an
- * allowlist of two shapes. A path matches only if it is the OAuth consent
+ * allowlist of three shapes. A path matches only if it is the OAuth consent
  * screen carrying one opaque request id, and that id was minted by
- * `createAuthorizationRequest` before the link was ever sent, or if it is
- * the literal string `/claim`.
+ * `createAuthorizationRequest` before the link was ever sent, or if it is one
+ * of the two literal strings `/claim` and `/dashboard`.
  *
  * Nothing an OAuth client supplied travels through the mail round trip. The
  * client's `redirect_uri`, `state` and `client_id` are all in the row this id

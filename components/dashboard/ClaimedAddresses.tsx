@@ -53,6 +53,17 @@ const DATE = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
 });
 
+/**
+ * `Intl.DateTimeFormat.format` throws a RangeError on an invalid date rather
+ * than returning a string, so an unparseable timestamp would take the whole
+ * panel down instead of costing one cell. The sibling panels guard the same
+ * way.
+ */
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? 'Date unknown' : DATE.format(d);
+}
+
 export function ClaimedAddresses() {
   const [claims, setClaims] = useState<Claim[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -89,7 +100,9 @@ export function ClaimedAddresses() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Claimed addresses</CardTitle>
+        <CardTitle>
+          <h2 className="leading-none font-semibold">Claimed addresses</h2>
+        </CardTitle>
         <CardDescription>
           Addresses you have proved you control. A claim is published under your
           own name and can be withdrawn from the claim page with the same
@@ -126,7 +139,9 @@ export function ClaimedAddresses() {
                 key={c.wallet}
                 className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border border-border px-4 py-3"
               >
-                <span className="flex items-center gap-2">
+                {/* `min-w-0` and `flex-wrap` so a long handle drops to its own
+                    line instead of pushing the row past a 320px viewport. */}
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span
                     className="h-1.5 w-1.5 flex-none rounded-full bg-attested"
                     aria-hidden
@@ -138,15 +153,18 @@ export function ClaimedAddresses() {
                     {`${c.wallet.slice(0, 6)}…${c.wallet.slice(-4)}`}
                   </span>
                   {c.handle && (
-                    <span className="font-mono text-sm text-muted-foreground">
+                    <span
+                      className="truncate font-mono text-sm text-muted-foreground"
+                      title={`@${c.handle}`}
+                    >
                       @{c.handle}
                     </span>
                   )}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {c.completed_at
-                    ? DATE.format(new Date(c.completed_at))
-                    : 'Date unknown'}
+                {/* A date is machine data in its own element, so it is mono
+                    and tabular: a column of them has to align. */}
+                <span className="font-mono text-sm tabular-nums text-muted-foreground">
+                  {c.completed_at ? formatDate(c.completed_at) : 'Date unknown'}
                 </span>
               </li>
             ))}

@@ -20,10 +20,10 @@ interface SendMagicLinkRequest {
    * user's own typing.
    *
    * Accepted only when `isAllowedReturnPath` recognises it, which it does for
-   * exactly two shapes: the OAuth consent screen carrying one opaque request
-   * id, and the literal `/claim`. Anything else is dropped silently rather
-   * than refused, because a caller that sent a bad `next` still wants their
-   * sign-in link.
+   * exactly three shapes: the OAuth consent screen carrying one opaque request
+   * id, and the literals `/claim` and `/dashboard`. Anything else is dropped
+   * silently rather than refused, because a caller that sent a bad `next`
+   * still wants their sign-in link.
    */
   next?: string;
 }

@@ -63,6 +63,12 @@ export function DeveloperPanel({
   const upgradeModal = useUpgradeModal();
   const [keysOpen, setKeysOpen] = useState(false);
   const [totals, setTotals] = useState<UsageTotals | null>(null);
+  // Three states, not one. `totals === null` alone cannot tell "still asking"
+  // from "we could not ask" from "genuinely nothing this month", and only the
+  // last of those is a fact about the account. Loading is derived rather than
+  // stored, because storing it means writing it from the effect body, which is
+  // the cascading render React objects to.
+  const [usageFailed, setUsageFailed] = useState(false);
 
   const entitled = credits.entitled;
   const planId = apiPlanForAccount(tier, entitled);
@@ -76,17 +82,21 @@ export function DeveloperPanel({
     if (!entitled) return;
     let cancelled = false;
     fetch('/api/developer/usage?period=month')
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error(`usage read failed: ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
-        if (cancelled || !d?.totals) return;
+        if (cancelled) return;
         setTotals({
-          total_requests: d.totals.total_requests ?? 0,
-          total_credits: d.totals.total_credits ?? 0,
-          total_wallets: d.totals.total_wallets ?? 0,
+          total_requests: d?.totals?.total_requests ?? 0,
+          total_credits: d?.totals?.total_credits ?? 0,
+          total_wallets: d?.totals?.total_wallets ?? 0,
         });
       })
       .catch(() => {
-        /* A missing usage read leaves the panel without totals, not broken. */
+        if (cancelled) return;
+        setUsageFailed(true);
       });
     return () => {
       cancelled = true;
@@ -94,6 +104,7 @@ export function DeveloperPanel({
       // sign in on the same tab cannot read the previous one's numbers while
       // its own fetch is in flight.
       setTotals(null);
+      setUsageFailed(false);
     };
   }, [entitled]);
 
@@ -101,11 +112,18 @@ export function DeveloperPanel({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Developer</CardTitle>
+          <CardTitle>
+            <h2 className="leading-none font-semibold">Developer</h2>
+          </CardTitle>
           <CardDescription>
-            {entitled && plan
-              ? `The ${plan.name} plan: ${plan.requestsPerMinute.toLocaleString()} requests a minute and up to ${plan.maxBatchSize.toLocaleString()} addresses a batch.`
-              : 'API access comes with credits, and draws on the same balance.'}
+            {/* Neutral while the balance is still loading. The upsell used to
+                render during the credits fetch and again if it failed, so a
+                paying account was told to buy a pack it already owns. */}
+            {credits.loading || credits.failed
+              ? 'API access comes with credits, and draws on the same balance.'
+              : entitled && plan
+                ? `The ${plan.name} plan: ${plan.requestsPerMinute.toLocaleString()} requests a minute and up to ${plan.maxBatchSize.toLocaleString()} addresses a batch.`
+                : 'API access comes with credits, and draws on the same balance.'}
           </CardDescription>
           <CardAction>
             {/* Offered to every signed-in account, because the dialog is also
@@ -117,9 +135,23 @@ export function DeveloperPanel({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {entitled ? (
-            totals ? (
-              <dl className="flex flex-wrap gap-x-12 gap-y-4">
+          {credits.loading ? (
+            <p className="text-sm text-muted-foreground">One moment…</p>
+          ) : credits.failed ? (
+            <p className="text-sm text-muted-foreground">
+              We could not read your account just now. Connected applications
+              are still reachable from keys and apps.
+            </p>
+          ) : entitled ? (
+            usageFailed ? (
+              <p className="text-sm text-muted-foreground">
+                We could not read your API usage just now. Your keys are
+                unaffected.
+              </p>
+            ) : totals === null ? (
+              <p className="text-sm text-muted-foreground">One moment…</p>
+            ) : (
+              <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-8">
                 <Figure
                   variant="stat"
                   value={totals.total_requests.toLocaleString()}
@@ -136,10 +168,6 @@ export function DeveloperPanel({
                   label="Wallets resolved"
                 />
               </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No API usage recorded this month.
-              </p>
             )
           ) : (
             <div className="space-y-3">
@@ -149,6 +177,7 @@ export function DeveloperPanel({
               </p>
               <Button
                 size="sm"
+                variant="soft"
                 onClick={() => upgradeModal.open(undefined, 'dashboard-api')}
               >
                 Buy credits

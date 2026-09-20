@@ -77,10 +77,10 @@ export interface CreditsView {
    */
   onFreeAllowance: boolean;
   /**
-   * The purchased lots behind `available`, newest first as the server orders
-   * them. Null while loading, when signed out, and for an unmetered account.
-   * Empty means signed in with no live lot, which is a different thing and
-   * reads as such.
+   * The purchased lots behind `available`, soonest expiry first, which is the
+   * order they are spent in. Null while loading, when signed out, and for an
+   * unmetered account. Empty means signed in with no live lot, which is a
+   * different thing and reads as such.
    */
   lots: CreditLot[] | null;
   /** Matches spent inside the current free window. Null when it does not apply. */
@@ -94,6 +94,14 @@ export interface CreditsView {
   freeWindowResetsAt: string | null;
   /** The window's size, from the server rather than typed into a page. */
   freeAllowance: number | null;
+  /**
+   * The read did not land. Separate from `loading` because the two need
+   * telling apart: a surface that renders a failed read as settled data shows
+   * `available: 0` as though the account were empty, which is a claim about
+   * the balance rather than about the request. Anything that would read as a
+   * fact about the account belongs behind this.
+   */
+  failed: boolean;
   loading: boolean;
 }
 
@@ -107,6 +115,7 @@ const INITIAL: CreditsView = {
   freeUsedThisWindow: null,
   freeWindowResetsAt: null,
   freeAllowance: null,
+  failed: false,
   loading: true,
 };
 
@@ -126,7 +135,13 @@ export function useCredits(signedIn: boolean): CreditsView {
 
     let cancelled = false;
     fetch('/api/credits')
-      .then((r) => r.json())
+      // A non-2xx used to fall through to `.json()`, so a 500 that answered
+      // with an HTML error page resolved to a parse failure and a 401 to an
+      // object with no fields, both of which settled as `available: 0`.
+      .then((r) => {
+        if (!r.ok) throw new Error(`credits read failed: ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (cancelled) return;
         setView({
@@ -155,11 +170,15 @@ export function useCredits(signedIn: boolean): CreditsView {
               : null,
           freeAllowance:
             typeof d.freeAllowance === 'number' ? d.freeAllowance : null,
+          failed: false,
           loading: false,
         });
       })
       .catch(() => {
-        if (!cancelled) setView({ ...INITIAL, loading: false });
+        // `entitled` stays false, which is the safe direction for a gate. What
+        // must not happen is a surface reading the zero beside it as a fact,
+        // so the failure is reported rather than implied.
+        if (!cancelled) setView({ ...INITIAL, failed: true, loading: false });
       });
 
     return () => {

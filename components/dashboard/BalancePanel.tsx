@@ -11,8 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { Figure } from '@/components/ui/figure';
 import { Progress } from '@/components/ui/progress';
+import { TIER_LIMITS } from '@/lib/access';
 import { CREDIT_LIFETIME_MONTHS, isPackId, PACKS } from '@/lib/packs';
 import type { CreditsView } from '@/lib/use-credits';
 
@@ -74,8 +76,15 @@ function packName(pack: string): string {
 export function BalancePanel({ credits }: { credits: CreditsView }) {
   const upgradeModal = useUpgradeModal();
 
+  // Soft, not filled. The page's one filled action is "Run a lookup" at the
+  // hero scale; a second filled violet here, beside the header's own Buy
+  // credits, makes three of one action in a view and none of them the action.
   const buy = (
-    <Button size="sm" onClick={() => upgradeModal.open(undefined, 'dashboard')}>
+    <Button
+      size="sm"
+      variant="soft"
+      onClick={() => upgradeModal.open(undefined, 'dashboard')}
+    >
       Buy credits
     </Button>
   );
@@ -84,10 +93,33 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Balance</CardTitle>
+          <CardTitle>
+            <h2 className="leading-none font-semibold">Balance</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">One moment…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // A failed read is not a balance of zero. Rendering the zero beside a
+  // "buy a pack" pitch tells somebody who may hold thousands of credits that
+  // they hold none, and asks them to pay for it.
+  if (credits.failed) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2 className="leading-none font-semibold">Balance</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            We could not read your balance just now. Nothing has changed; reload
+            to try again.
+          </p>
         </CardContent>
       </Card>
     );
@@ -99,7 +131,9 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Balance</CardTitle>
+          <CardTitle>
+            <h2 className="leading-none font-semibold">Balance</h2>
+          </CardTitle>
           <CardDescription>
             This account is not metered, so there is no balance to spend and
             nothing expires.
@@ -112,10 +146,29 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
   const lots = credits.lots ?? [];
   const hasLots = lots.length > 0;
 
+  /**
+   * What one submission may actually hold.
+   *
+   * `maxWallets` is the balance times the submission multiplier, and on the
+   * free allowance that is not the binding limit: the demo keeps its
+   * per-lookup cap, so 100 free matches report 1,000 wallets against a server
+   * that refuses above `TIER_LIMITS.free`. The homepage already clamps this
+   * exact number the same way; stating the unclamped one here would have the
+   * page promise twice what the submit path allows.
+   */
+  const submittable =
+    credits.maxWallets === null
+      ? null
+      : credits.onFreeAllowance
+        ? Math.min(TIER_LIMITS.free, credits.maxWallets)
+        : credits.maxWallets;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Balance</CardTitle>
+        <CardTitle>
+          <h2 className="leading-none font-semibold">Balance</h2>
+        </CardTitle>
         <CardDescription>
           {hasLots
             ? `Credits are bought once and last ${CREDIT_LIFETIME_MONTHS} months. They are spent oldest first, by expiry.`
@@ -125,14 +178,19 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
       </CardHeader>
 
       <CardContent className="space-y-6">
-        <dl className="flex flex-wrap gap-x-12 gap-y-4">
+        {/* The operational stat tier, the same anatomy the developer panel
+            uses. Two figure tiers in adjacent cards would be one object drawn
+            two ways. `gap-x-12` unconditionally stacked these on a phone. */}
+        <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-8">
           <Figure
+            variant="stat"
             value={(credits.available ?? 0).toLocaleString()}
             label="Matches left"
           />
-          {credits.maxWallets !== null && (
+          {submittable !== null && (
             <Figure
-              value={credits.maxWallets.toLocaleString()}
+              variant="stat"
+              value={submittable.toLocaleString()}
               label="Wallets you can submit now"
             />
           )}
@@ -142,17 +200,29 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
         {credits.onFreeAllowance && credits.freeAllowance !== null && (
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-4">
-              <span className="text-sm text-muted-foreground">Free window</span>
+              <span
+                id="free-window-label"
+                className="text-sm text-muted-foreground"
+              >
+                Free window
+              </span>
               <span className="font-mono text-sm tabular-nums text-foreground">
                 {(credits.freeUsedThisWindow ?? 0).toLocaleString()} of{' '}
                 {credits.freeAllowance.toLocaleString()} used
               </span>
             </div>
+            {/* Named from the visible label, so the two cannot drift. Clamped
+                at both ends: the allowance is non-zero here, but a bar is a
+                value with a meaning and a negative or over-full one has none. */}
             <Progress
-              value={Math.min(
-                100,
-                ((credits.freeUsedThisWindow ?? 0) / credits.freeAllowance) *
-                  100
+              aria-labelledby="free-window-label"
+              value={Math.max(
+                0,
+                Math.min(
+                  100,
+                  ((credits.freeUsedThisWindow ?? 0) / credits.freeAllowance) *
+                    100
+                )
               )}
             />
             <p className="text-sm text-muted-foreground">
@@ -167,7 +237,7 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
 
         {hasLots && (
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-foreground">Your packs</h3>
+            <Eyebrow as="h3">Your packs</Eyebrow>
             <ul className="space-y-2">
               {lots.map((lot, i) => {
                 const left = lot.expiresAt ? daysUntil(lot.expiresAt) : null;
@@ -180,16 +250,31 @@ export function BalancePanel({ credits }: { credits: CreditsView }) {
                     <span className="text-sm font-medium text-foreground">
                       {packName(lot.pack)}
                     </span>
-                    <span className="flex items-center gap-3">
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="font-mono text-sm tabular-nums text-foreground">
                         {lot.remaining.toLocaleString()} left
                       </span>
+                      {/* `max-w-none` and a `title`, both deliberately.
+                          Badge is capped at 12ch and truncates, which is right
+                          for a name somebody chose and wrong for a formatted
+                          date: "Expires Sep 20, 2026" uppercases to twenty
+                          characters and renders as "EXPIRES…", losing the one
+                          thing the badge exists to say. A date is bounded and
+                          ours, so the cap comes off the way it does for the
+                          fixed strings in the header, and the design language
+                          asks for the full value in a `title` besides. */}
                       {lot.expiresAt ? (
-                        <Badge tone={soon ? 'caution' : 'muted'}>
+                        <Badge
+                          tone={soon ? 'caution' : 'muted'}
+                          className="max-w-none"
+                          title={`Expires ${formatDate(lot.expiresAt)}`}
+                        >
                           Expires {formatDate(lot.expiresAt)}
                         </Badge>
                       ) : (
-                        <Badge tone="muted">No expiry</Badge>
+                        <Badge tone="muted" className="max-w-none">
+                          No expiry
+                        </Badge>
                       )}
                     </span>
                   </li>

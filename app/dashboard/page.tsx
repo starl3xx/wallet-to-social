@@ -126,14 +126,20 @@ export default function DashboardPage() {
     <PageShell>
       <div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-2">
+          {/* `min-w-0` so the flex item may actually shrink. Without it the
+              item's min-content width is the longest unbreakable run in the
+              address, and a long one pushes the row past a 320px viewport
+              however the text is allowed to wrap. */}
+          <div className="min-w-0 space-y-2">
             <h1 className="text-2xl font-light tracking-[var(--tracking-title)] text-foreground">
               Dashboard
             </h1>
             {/* An email address is machine data in its own element, so it is
-              mono. It is not the heading: a heading that changes per account
-              gives the page no stable name. */}
-            <p className="font-mono text-sm break-words text-muted-foreground">
+                mono. It is not the heading: a heading that changes per account
+                gives the page no stable name. `break-all`, because an address
+                has no spaces to break at and `break-words` only helps where
+                there is already a word boundary. */}
+            <p className="font-mono text-sm break-all text-muted-foreground">
               {user.email}
             </p>
           </div>

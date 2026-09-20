@@ -213,15 +213,25 @@ export const LookupHistory = memo(function LookupHistory({
 
   if (error || history.length === 0) {
     // A caller with nothing above this card says what belongs in the gap.
-    // Note this branch still conflates a failed read with an empty one, which
-    // is pre-existing: the copy is therefore written to be true of both.
+    // Empty and failed are told apart here rather than merged: "nothing saved
+    // yet" is a claim about the account, and a read that did not land has no
+    // standing to make it. The homepage passes no `emptyState` and keeps the
+    // original silence for both.
     if (emptyState) {
       return (
         <Card>
           <CardHeader>
             <CardTitle>My lookups</CardTitle>
           </CardHeader>
-          <CardContent>{emptyState}</CardContent>
+          <CardContent>
+            {error ? (
+              <p className="text-sm text-muted-foreground">
+                We could not read your lookups just now. Nothing has changed.
+              </p>
+            ) : (
+              emptyState
+            )}
+          </CardContent>
         </Card>
       );
     }
