@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (signing in from a claim comes back to the claim)
+
+- **`/claim` is the second path a sign-in link may return to.** The card above
+  offers a Sign in, and sign-in is a magic link, so it always leaves the page
+  and `/api/auth/verify` decides where the person lands. Without a return path
+  that is the home page, which abandons the claim they were part-way through.
+- `isAllowedReturnPath` now accepts two shapes rather than one. The new one is
+  a **literal compared with `===`**, carrying no query, which is what keeps it
+  from widening the allowlist: the danger it exists for is caller-supplied data
+  surviving a mailbox with our own authenticity attached, and a fixed literal
+  supplies none. Tampering produces either that exact page or a refusal.
+- Eight near misses are asserted as refusals (`/claim?next=…`, `/claim/../admin`,
+  `/claimants`, `/claim.evil.example.com`, `//claim`, a fragment, a trailing
+  space, and the path with no leading slash), because each is a real way a
+  `startsWith` test fails. Verified by making it a prefix test: six of them fire.
+- The comment that prompted this said the session refreshed in place and the
+  wallet buttons simply replaced the card. That was never true of a mailbox
+  round trip, and it was written in the same change that introduced the card.
+
+### 2026-09-20 (the wallet stops being asked first)
+
+- **`/claim` says an account is needed before it asks for a wallet.** Both
+  routes behind the page require a session and the challenge answers 401
+  without one, correctly, but that refusal arrived after the wallet prompt:
+  somebody signed out pressed their wallet, approved a connection, and only
+  then learned an account was required. A connection approval is a real thing
+  to ask of a person, and the page spent one delivering a fact it already held.
+- The signed-out state offers a Sign in that opens the modal in place, on the
+  `LookupHistory` precedent and at `soft` weight rather than filled, because
+  the header already carries one. `AuthProvider` refreshes the session without
+  a navigation, so the wallet buttons replace the card and nothing read on the
+  way down is lost.
+- **The session-loading state gets its own branch**, for the reason
+  `providers === null` has one: "not answered yet" is not "answered no", and
+  rendering the signed-out card during the session fetch would tell a signed-in
+  person to sign in.
+- The withdraw switch is behind the session too. It sits outside the branch
+  chain and stayed reachable, which would have offered a second action ending
+  at the same 401 as the first.
+
 ### 2026-09-20 (the claim page had no way in)
 
 - **`/claim` is linked from the footer, the sitemap and the privacy policy.** It

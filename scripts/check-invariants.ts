@@ -1638,6 +1638,54 @@ async function main() {
             !/providers\[0\]/.test(flow) &&
               /run\(p\.provider, mode\)/.test(flow)
           );
+
+          /**
+           * And neither is offered before we know there is a session.
+           *
+           * Both routes require one and the challenge answers 401 without
+           * it, correctly, but that refusal used to arrive AFTER the wallet
+           * prompt: somebody signed out pressed their wallet, approved a
+           * connection, and only then learned an account was required. A
+           * connection approval is a real thing to ask of a person, and this
+           * page spent one to deliver a fact it already held.
+           *
+           * Asserted as the ordering, because the defect is an ordering: the
+           * signed-out branch has to come before anything that offers a
+           * wallet. The withdraw switch is checked separately since it sits
+           * outside that chain and was the half that stayed reachable.
+           */
+          /**
+           * And signing in from here comes back here.
+           *
+           * Sign-in is a magic link, so it always leaves the page and
+           * `/api/auth/verify` decides where the person lands. Without a
+           * return path that is the home page, which abandons the claim they
+           * were part-way through. The first version of this card shipped
+           * with a comment claiming the session refreshed in place and the
+           * buttons simply replaced it, which was never true of a mailbox
+           * round trip.
+           *
+           * Both halves, because the allowlist entry is useless if the value
+           * never leaves the browser: the card has to ASK for the return
+           * path, and the modal has to SEND it.
+           */
+          ok(
+            'signing in from the claim card returns to the claim page',
+            /next="\/claim"/.test(flow) &&
+              /origin: originTag\(\), next/.test(
+                withoutComments(
+                  readFileSync('components/AuthModal.tsx', 'utf8')
+                )
+              )
+          );
+
+          ok(
+            'no wallet is offered before the session is known',
+            flow.indexOf('!user ?') < flow.indexOf('providers === null ?') &&
+              flow.indexOf('!user ?') > -1 &&
+              // The switch is its own element, so its own gate.
+              /\{user && providers !== null/.test(flow)
+          );
         }
 
         /**
@@ -2990,6 +3038,37 @@ async function main() {
       'the consent path with one request id is accepted, so the checks below are not vacuous',
       isAllowedReturnPath(good)
     );
+
+    /**
+     * The second shape, and every near miss of it.
+     *
+     * `/claim` was added because that page asks for an account before it asks
+     * for a wallet, so a signed-out person reaches sign-in from there and the
+     * home page abandons what they were doing. It is compared with `===` and
+     * carries no query, which is what keeps it from widening the allowlist:
+     * the danger here is caller-supplied data surviving a mailbox with our
+     * authenticity attached, and a literal supplies none.
+     *
+     * The near misses below are the whole reason this is not a `startsWith`.
+     * Each is a real way a prefix test fails, and each must refuse.
+     */
+    ok('the claim page is accepted', isAllowedReturnPath('/claim'));
+    for (const nearMiss of [
+      '/claim?next=https://evil.example.com',
+      '/claim/../admin',
+      '/claimants',
+      '/claim.evil.example.com',
+      '//claim',
+      '/claim#@evil.example.com',
+      '/claim ',
+      'claim',
+    ]) {
+      ok(
+        `the sign-in return path refuses ${nearMiss}`,
+        !isAllowedReturnPath(nearMiss)
+      );
+    }
+
     for (const hostile of [
       'https://evil.example.com',
       '//evil.example.com',

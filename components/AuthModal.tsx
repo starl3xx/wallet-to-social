@@ -23,11 +23,23 @@ import { originTag } from '@/lib/first-touch';
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Where the verified link should land, when the page opening this modal
+   * cannot be resumed from the home page.
+   *
+   * Passed on unchecked, deliberately: `isAllowedReturnPath` runs in
+   * `send-magic-link` before the mail is composed and again in
+   * `/api/auth/verify` before the redirect, and the second is the check an
+   * attacker has to get past. A third copy here would be a client-side
+   * sanitiser that the server must not trust anyway, and the kind that
+   * eventually disagrees with the one that matters.
+   */
+  next?: string;
 }
 
 type AuthState = 'email' | 'sent';
 
-export function AuthModal({ open, onOpenChange }: AuthModalProps) {
+export function AuthModal({ open, onOpenChange, next }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [state, setState] = useState<AuthState>('email');
   const [loading, setLoading] = useState(false);
@@ -70,7 +82,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       const response = await fetch('/api/auth/send-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, origin: originTag() }),
+        body: JSON.stringify({ email, origin: originTag(), next }),
       });
 
       const data = await response.json();

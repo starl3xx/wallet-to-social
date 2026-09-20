@@ -34,8 +34,11 @@
  * place an attacker controls.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { SignIn } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { InlineError } from '@/components/ui/inline-error';
+import { AuthModal } from '@/components/AuthModal';
+import { useAuth } from '@/components/AuthProvider';
 
 /** The slice of EIP-1193 this flow uses. */
 interface Eip1193Provider {
@@ -95,6 +98,22 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
    * that pairing at all.
    */
   const [mode, setMode] = useState<'claim' | 'withdraw'>('claim');
+  /**
+   * The account half, known before the wallet is touched.
+   *
+   * Both routes behind this require a session, and without one the challenge
+   * answers 401. That refusal is correct, but it arrived AFTER the wallet
+   * prompt: somebody signed out pressed their wallet, approved a connection,
+   * and only then learned an account was required. A connection approval is a
+   * real thing to ask of somebody, and spending one to discover a fact the
+   * page already had is the wrong order.
+   *
+   * `isLoading` gets its own branch for the reason `providers === null` does:
+   * "not answered yet" is not "answered no", and rendering the signed-out
+   * state during the session fetch would tell a signed-in person to sign in.
+   */
+  const { user, isLoading: authLoading } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -299,7 +318,32 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         </p>
       )}
 
-      {providers === null ? (
+      {/* The account is checked before the wallet, because it is the half we
+          can know without asking anybody for anything. */}
+      {authLoading ? (
+        <p className="mt-4 text-sm text-muted-foreground">One moment…</p>
+      ) : !user ? (
+        <div className="mt-4">
+          <p className="text-sm text-muted-foreground">
+            A claim belongs to an account, so this needs you signed in. We say
+            so here rather than after your wallet asks: approving a connection
+            only to be told an account is required spends a prompt on something
+            this page already knew.
+          </p>
+          {/* Soft, not the filled primary, on the LookupHistory precedent: the
+              header already carries a Sign in of its own, and two filled
+              violet buttons in one view makes neither of them the action. */}
+          <Button
+            size="sm"
+            variant="soft"
+            className="mt-3"
+            onClick={() => setAuthOpen(true)}
+          >
+            <SignIn className="h-4 w-4" aria-hidden />
+            Sign in
+          </Button>
+        </div>
+      ) : providers === null ? (
         /* Asked, not yet answered. Saying nothing here is the point: the
            alternative told everybody to install a wallet before discovery
            had run. */
@@ -334,8 +378,13 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           weight: the page should not present taking something back as the
           same size of choice as giving it. It stays on THIS page because the
           page promises withdrawal twice, and a promise whose control lives
-          elsewhere is barely a promise. */}
-      {providers !== null && providers.length > 0 && (
+          elsewhere is barely a promise.
+
+          Behind the session too. Withdrawing needs one exactly as claiming
+          does (the route matches on the session's own user id), so offering
+          the switch to somebody signed out would be offering a second action
+          that ends at the same 401 as the first. */}
+      {user && providers !== null && providers.length > 0 && (
         <p className="mt-4 text-sm text-muted-foreground">
           {mode === 'claim' ? (
             <>
@@ -386,6 +435,21 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           <InlineError>{error}</InlineError>
         </div>
       )}
+
+      {/* `next` is the whole point of opening the modal here.
+
+          Sign-in is a magic link, so it always leaves the page: the person
+          reads the mail, presses the link, and `/api/auth/verify` decides
+          where they land. Without a return path that is the home page, which
+          abandons the thing they were doing. An earlier version of this
+          comment claimed the session refreshed in place and the buttons
+          simply replaced this card, which was never true of a mailbox round
+          trip and is the defect shape scripts/check-invariants.ts exists for.
+
+          `/claim` is one of the two paths `isAllowedReturnPath` accepts. It
+          is checked there and not here, because the server's check is the one
+          an attacker has to get past. */}
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next="/claim" />
     </div>
   );
 }
