@@ -284,6 +284,16 @@ async function fetchNewUriLogs(
 // Stage 2: profile reads (the budgeted resource)
 // ============================================================================
 
+/**
+ * How many consecutive refused-name responses mean the endpoint is refusing
+ * US, not the names. One flagged domain is an outcome; the wall this ran
+ * into was 39,994 of 39,996 reads answering 406 (2026-09-20, the evening
+ * the provider's profile endpoint stopped answering this kind of client at
+ * all), while the checkpoints marched past 40,000 domains nobody read.
+ * Fifty ordinary names in a row do not all trip a content filter.
+ */
+const SYSTEMIC_REFUSAL_LIMIT = 50;
+
 type Outcome =
   | 'invalidName'
   | 'noProfile'
@@ -347,10 +357,26 @@ async function readProfile(
   }
 }
 
-/** A small worker pool: WORKERS readers, each pausing PAUSE_MS per read. */
+/**
+ * A small worker pool: WORKERS readers, each pausing PAUSE_MS per read.
+ *
+ * The consecutive-refusal counter is shared across workers on purpose: a
+ * systemic wall answers every worker the same way, and the run must stop
+ * BEFORE its window completes, so the checkpoint never advances past
+ * domains the wall swallowed. The throw aborts the window; per-window
+ * checkpointing does the rest.
+ */
 async function readProfiles(
   domains: MintedDomain[],
-  counts: Record<Outcome, number>
+  counts: Record<Outcome, number>,
+  /**
+   * Run-level, threaded through every window of every registry, because the
+   * wall is client-level: a run whose windows each hold fewer domains than
+   * the limit would otherwise reset the count at every window boundary and
+   * never trip, advancing checkpoints past unread names with a green
+   * conclusion (Bugbot, on the very change that added the breaker).
+   */
+  refusals: { consecutive: number }
 ): Promise<Array<{ domain: MintedDomain; handle: string }>> {
   const hits: Array<{ domain: MintedDomain; handle: string }> = [];
   let next = 0;
@@ -359,6 +385,18 @@ async function readProfiles(
       const domain = domains[next++];
       const { handle, outcome } = await readProfile(domain.name);
       counts[outcome]++;
+      if (outcome === 'invalidName') {
+        refusals.consecutive++;
+        if (refusals.consecutive >= SYSTEMIC_REFUSAL_LIMIT) {
+          throw new Error(
+            `UD API refused ${SYSTEMIC_REFUSAL_LIMIT} names in a row (last: ${domain.name}): ` +
+              'the endpoint is refusing this client, not these names. ' +
+              'Aborting so the checkpoint stays behind the unread domains.'
+          );
+        }
+      } else {
+        refusals.consecutive = 0;
+      }
       if (handle) hits.push({ domain, handle });
       await new Promise((r) => setTimeout(r, PAUSE_MS));
     }
@@ -485,7 +523,8 @@ async function walkRegistry(
   cfg: RegistryConfig,
   args: Args,
   totals: Totals,
-  remainingReads: () => number
+  remainingReads: () => number,
+  refusals: { consecutive: number }
 ): Promise<'exhausted' | 'budget'> {
   const provider = getProvider(cfg);
   const head = await provider.getBlockNumber();
@@ -537,7 +576,7 @@ async function walkRegistry(
     }
 
     if (domains.length > 0) {
-      const hits = await readProfiles(domains, totals.counts);
+      const hits = await readProfiles(domains, totals.counts, refusals);
       totals.reads += domains.length;
       totals.domains += domains.length;
 
@@ -622,8 +661,11 @@ async function main() {
   const remainingReads = () => args.maxReads - totals.reads;
 
   let stopped: 'exhausted' | 'budget' = 'exhausted';
+  // One refusal streak for the whole run: the wall is client-level, so a
+  // registry boundary must not grant it a fresh count either.
+  const refusals = { consecutive: 0 };
   for (const cfg of registries) {
-    stopped = await walkRegistry(cfg, args, totals, remainingReads);
+    stopped = await walkRegistry(cfg, args, totals, remainingReads, refusals);
     if (stopped === 'budget') break;
   }
 

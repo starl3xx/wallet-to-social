@@ -1,5 +1,7 @@
 /**
- * Resolve the handle conflicts where our handle reaches nobody and theirs is live.
+ * Resolve the handle conflicts the evidence settles: ours unreachable, or
+ * ours reassigned to another account. The rules, exactly, are the header of
+ * lib/conflict-resolution.ts.
  *
  * Usage:
  *   npx tsx --env-file=.env.local scripts/resolve-handle-conflicts.ts [--dry-run] [--limit N] [--credit-cap N] [--recheck-days N]
@@ -68,7 +70,7 @@ async function main() {
 
   console.log(`\n${'─'.repeat(64)}`);
   console.log(
-    `candidates      ${out.candidates.toLocaleString()}  (open, ours not known live)`
+    `candidates      ${out.candidates.toLocaleString()}  (open, served by the graph)`
   );
   console.log(
     `eligible        ${out.eligible.toLocaleString()}  (qualify now)`
@@ -96,13 +98,17 @@ async function main() {
     console.log(
       `accepted        ${out.accepted.toLocaleString()} conflicts on ${out.walletsUpdated.toLocaleString()} wallets`
     );
+    for (const [rung, n] of Object.entries(out.acceptedByRung)) {
+      if (n > 0) console.log(`  ${rung.padEnd(18)} ${n.toLocaleString()}`);
+    }
     console.log(`cache rows gone ${out.cacheRowsDeleted.toLocaleString()}`);
     console.log(
-      `closed inert    ${out.closedBothDead.toLocaleString()} (neither handle reachable)`
+      `closed inert    ${out.closedBothDead.toLocaleString()} (neither handle reachable), ` +
+        `${out.closedChallengerDead.toLocaleString()} (challenger unreachable, ours stands)`
     );
-    if (out.reopenedBothDead > 0) {
+    if (out.reopenedBothDead > 0 || out.reopenedChallengerDead > 0) {
       console.log(
-        `reopened        ${out.reopenedBothDead.toLocaleString()} (a side is live again)`
+        `reopened        ${(out.reopenedBothDead + out.reopenedChallengerDead).toLocaleString()} (a side is live again)`
       );
     }
   }

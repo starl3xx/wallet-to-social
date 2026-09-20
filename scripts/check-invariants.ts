@@ -4834,9 +4834,13 @@ async function main() {
         )
     );
     ok(
+      // The two dead-status tests ADJACENT, not merely present: the
+      // challenger-dead close (2026-09-20) also carries a t-side dead test,
+      // so existence alone stopped proving anything about this statement.
       'it closes only rows where neither side is live',
-      /o\.status IN \('not_found', 'unavailable'\)/.test(code) &&
-        /t\.status IN \('not_found', 'unavailable'\)/.test(code)
+      /o\.status IN \('not_found', 'unavailable'\)\n\s+AND t\.status IN \('not_found', 'unavailable'\)/.test(
+        code
+      )
     );
     ok(
       'a closed-as-inert row is labelled differently from an accepted one',
@@ -4869,6 +4873,67 @@ async function main() {
       code.indexOf('SET resolved_at = NULL') <
         code.indexOf('SET resolved_at = now()')
     );
+
+    /**
+     * The 2026-09-20 rungs. A close or a swap that acts on a live ours is
+     * only safe under conditions the statements must carry themselves, so
+     * each condition is asserted against the statement text, adjacency and
+     * all, for the reason the both-dead pair above is: these SQL fragments
+     * share vocabulary, and an existence test over the whole file proves
+     * nothing once a string appears twice.
+     */
+    ok(
+      'the challenger-dead close demands a live ours and a fresh-dead theirs',
+      /o\.status = 'live'\n\s+AND t\.status IN \('not_found', 'unavailable'\)\n\s+AND t\.checked_at > now\(\) - make_interval\(days => \$\{recheckDays\}\)/.test(
+        code
+      )
+    );
+    ok(
+      'a challenger-dead closure is labelled as ours standing, never as accepted',
+      code.includes("'closed: challenger unreachable, ours stands'")
+    );
+    ok(
+      'a challenger-dead closure reopens when the challenger is live again',
+      /SET resolved_at = NULL,[\s\S]{0,300}?c\.resolution = \$\{RESOLUTION_CHALLENGER_DEAD\}[\s\S]{0,120}?t\.status = 'live'/.test(
+        code
+      )
+    );
+    ok(
+      'the reassigned swap demands an id-confirmed challenger',
+      /ox\.user_id <> g\.twitter_user_id\n\s+AND c\.their_user_id IS NOT NULL AND c\.their_user_id = tx\.user_id/.test(
+        code
+      )
+    );
+    /**
+     * The refusal, asserted as a refusal: a live ours that cannot be shown
+     * wrong is never swapped, so no acceptance rule may reference a live
+     * ours without also demanding the id mismatch that shows it wrong. An
+     * id-anchored rung that swapped on the challenger's evidence alone was
+     * drafted and removed in review (Bugbot, 2026-09-20): a stolen wallet
+     * key plus the attacker's own X account could drive it.
+     */
+    {
+      /**
+       * Asserted over the rule text itself, not over the file: extract the
+       * oursRule ternary and require every acceptance branch to condition on
+       * ours' own state. Re-adding the removed id-anchored rung means adding
+       * a branch with no `ox.` reference, which fails the every() below; the
+       * first version of this assertion opened with a clause that was always
+       * true and would have passed that exact re-addition (Bugbot,
+       * 2026-09-20).
+       */
+      const ruleStart = code.indexOf('const oursRule =');
+      const ruleEnd = code.indexOf('`;', ruleStart);
+      const rule = code.slice(ruleStart, ruleEnd);
+      const branches = rule.split('sql`').slice(1);
+      ok(
+        'every acceptance branch conditions on ours, and only two exist',
+        ruleStart !== -1 &&
+          branches.length === 2 &&
+          branches.every((b) => /ox\.status/.test(b)) &&
+          /ox\.user_id <> g\.twitter_user_id/.test(branches[1] ?? '')
+      );
+    }
   }
 
   // ------------------------------- The reverse answer corroborates itself
