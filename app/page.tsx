@@ -25,14 +25,19 @@ import {
 import { RecentWins } from '@/components/RecentWins';
 import { PageShell } from '@/components/ui/page-shell';
 import { HomeFaq } from '@/components/HomeFaq';
+import { IdentityHero } from '@/components/IdentityHero';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Figure } from '@/components/ui/figure';
+import { RollingNumber } from '@/components/ui/rolling-number';
 import { Card } from '@/components/ui/card';
 import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
-import { XMark } from '@/components/ui/brand-marks';
 import { useAuth } from '@/components/AuthProvider';
 import { useUpgradeModal } from '@/components/UpgradeModalProvider';
-import { INDEXED_WALLETS, KNOWN_AGENTS_SHORT } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  WALLETS_WITH_X,
+  FARCASTER_WALLETS,
+} from '@/lib/public-figures';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 
 // Lazy-load modals: not needed until user interaction. The buy-credits modal
@@ -160,6 +165,11 @@ export default function Home() {
   // The constant is the fallback when the live stats fetch fails. It is the
   // same figure, kept in lib/public-figures.ts so static copy agrees with it.
   const [indexedWallets, setIndexedWallets] = useState<string | null>(null);
+  const [linkedWallets, setLinkedWallets] = useState<{
+    x: string;
+    farcaster: string;
+  } | null>(null);
+  const [newWallets, setNewWallets] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,8 +180,23 @@ export default function Home() {
           return;
         // Only trust index-scale numbers; dev/empty databases keep the fallback
         if (data.total_wallets >= 1_000_000) {
-          const millions = (data.total_wallets / 1_000_000).toFixed(1);
-          setIndexedWallets(`${millions.replace(/\.0$/, '')}M`);
+          const compact = new Intl.NumberFormat('en-US', {
+            notation: 'compact',
+            maximumFractionDigits: 2,
+          });
+          setIndexedWallets(compact.format(data.total_wallets));
+          if (
+            Number.isInteger(data.twitter) &&
+            data.twitter >= 0 &&
+            Number.isInteger(data.farcaster) &&
+            data.farcaster >= 0
+          )
+            setLinkedWallets({
+              x: compact.format(data.twitter),
+              farcaster: compact.format(data.farcaster),
+            });
+          if (Number.isInteger(data.new_wallets_7d) && data.new_wallets_7d >= 0)
+            setNewWallets(data.new_wallets_7d);
         }
       })
       .catch(() => {
@@ -865,7 +890,7 @@ export default function Home() {
    */
   const runNarration = useMemo(() => {
     if (state === 'complete' && progress.total > 0) {
-      return `Lookup complete. ${progress.twitterFound.toLocaleString()} X and ${progress.farcasterFound.toLocaleString()} Farcaster accounts from ${progress.total.toLocaleString()} wallets.`;
+      return `Lookup complete. ${progress.twitterFound.toLocaleString()} 𝕏 and ${progress.farcasterFound.toLocaleString()} Farcaster accounts from ${progress.total.toLocaleString()} wallets.`;
     }
     if (state !== 'processing' || progress.total === 0) return '';
     const quarter = Math.floor((progress.processed / progress.total) * 4);
@@ -1467,7 +1492,7 @@ export default function Home() {
               sendNotification('Lookup complete', {
                 // "X", never "Twitter", in anything a person reads; a
                 // notification and a tab title are copy too.
-                body: `Found ${data.stats.twitterFound} X and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
+                body: `Found ${data.stats.twitterFound} 𝕏 and ${data.stats.farcasterFound} Farcaster accounts from ${data.progress.total} wallets`,
               });
             } else {
               console.log(
@@ -1478,7 +1503,7 @@ export default function Home() {
 
             // Also update page title as a reliable fallback (works when tab is backgrounded)
             const originalTitle = document.title;
-            document.title = `✓ Lookup complete: ${data.stats.twitterFound} X, ${data.stats.farcasterFound} Farcaster`;
+            document.title = `✓ Lookup complete: ${data.stats.twitterFound} 𝕏, ${data.stats.farcasterFound} Farcaster`;
             // Reset title when user focuses the window
             const resetTitle = () => {
               document.title = originalTitle;
@@ -1949,7 +1974,7 @@ export default function Home() {
           rule of its own: that rule stopped at the container edge while the
           shell's ran edge to edge on every other page, and the shell's is the
           one that stays. */}
-      <div className="mb-8 border-b border-border pb-6">
+      <div className="mb-6 grid gap-3 border-b border-border pb-4 lg:grid-cols-[1fr_auto] lg:gap-x-8 lg:gap-y-2">
         {/* The same opening as every other page: a display h1 with the one
             emphasis span, a 300-weight lede, then the proof row as Figures.
             This was the only page without the signature, a muted 14px line
@@ -1957,114 +1982,57 @@ export default function Home() {
             link is gone from here; the footer's Compare column carries it.
             No `sm:text-5xl` step on this page, so the dropzone stays above
             the fold at 1280x900. */}
-        <h1 className="max-w-[17ch] text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)]">
+        <h1 className="max-w-[17ch] text-3xl font-extralight leading-tight tracking-[var(--tracking-display)]">
           Wallets in.{' '}
           <em className="font-semibold not-italic text-accent-brand">People</em>{' '}
           out.
         </h1>
-        <div className="mt-3 flex flex-col gap-6 lg:-mt-2 lg:flex-row lg:items-baseline-last lg:justify-between lg:gap-12">
-          <p className="max-w-[46ch] text-lg font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground">
-            {/* The word AND the glyph. `aria-label` on an SVG is announced by
-                a screen reader and invisible to a text extractor, so the most
-                quoted sentence on the domain came out of Readability as "Turn a
-                wallet list into the and Farcaster accounts behind it." An
-                sr-only text node is clipped rather than removed, so it lands in
-                textContent and the sentence survives extraction. The label prop
-                is dropped so the mark goes aria-hidden and the name is not
-                announced twice. */}
-            Turn a wallet list into the <span className="sr-only">X</span>
-            <XMark
-              className="inline h-4 w-4 align-[-0.125em]"
-              aria-hidden
-            />{' '}
-            and Farcaster accounts behind it.
+        <div className="flex flex-col gap-4 lg:contents">
+          <p className="text-base font-light leading-snug tracking-[var(--tracking-lead)] text-muted-foreground lg:col-start-1 lg:row-start-2 lg:whitespace-nowrap">
+            Turn a list of wallet addresses into the{' '}
+            <span className="sr-only">X</span>
+            <span aria-hidden="true">𝕏</span> and Farcaster accounts behind it
           </p>
-          {/* The proof row, the same three figures the /vs pages set as
-            Figure. They were 12px spans on one line with middots between
-            them, and on a phone the middot dangled at the end of line one;
-            flex-wrap with gaps needs no separator. The green mark sits on
-            the measured claim, coverage, as it does on the /vs proof strip
-            (`Figure attested` on the same 100%); the count is context. No
-            pulse: a pulse says the system is running, and Recent wins
-            already carries that one below. Gaps 48/16: the /vs row's
-            40/20/20 are not spacing steps.
-
-            Two things changed here, and the rule is the one that mattered. It
-            sat on this element as a `border-t`, directly above the figures and
-            below the lede, which put a full-width hairline between two halves
-            of one thought and gave three 12px labels the same opening weight
-            as the h1. The block read as a statistics panel that happened to
-            sit under a headline. The rule now closes the hero on the wrapper,
-            so the h1, the lede and the figures are one group and the hairline
-            marks the boundary that was always meant to be marked: hero from
-            dropzone.
-
-            Then the row itself. The h1 is capped at 17ch and the lede at 46ch,
-            so above `lg` the right half of the hero was empty while the
-            figures sat alone on their own line beneath. They now share that
-            line, aligned on `items-baseline` so the lede sits on the same
-            baseline as the figure values.
-
-            `items-baseline-last`, not `items-baseline`, and the difference is
-            the whole of it. The figures block is two lines and the lede is one,
-            so aligning FIRST baselines puts the lede level with the values and
-            strands it at the top with the labels hanging beneath: a strip of
-            empty space under the lede, beside two lines of text. Aligning LAST
-            baselines puts it on the label line, which is what reads as level.
-
-            That costs 31px of downward drift, because the last baseline is a
-            line lower than the first, and `lg:-mt-2` is what pays it back. The
-            eight pixels are not a nudge to taste: they are the most that can be
-            returned before the values close on the headline, measured at 1440
-            against absolute page positions rather than judged from a crop.
-
-            Two earlier attempts are worth recording so they are not tried
-            again. `items-end` pushed the lede to the bottom of a box the
-            figures had sized, opening 19px above it that belonged to no margin.
-            `items-baseline` then aligned it to the values, which is what was
-            asked for literally and is exactly what leaves the empty strip. It reclaims 54px above the fold,
-            which on this page is the difference between the dropzone starting
-            at 306px and at 262px.
-
-            Below `lg` they stack and nothing else changes: the figures keep
-            their own row, the 16px gaps still fit three figures across a
-            390px phone, and the order is the same one the eye reads anyway.
-
-            The row's own gaps are 24 and 48, not the 20 and 40 this shipped
-            with for one commit. Those are not spacing steps, which the note
-            above already said in passing and the footer had already been
-            cleaned of once. Nothing enforces that yet: a `spacing-scale` rule
-            was written for `check-design-language.mjs` and withdrawn, because
-            it turned out the tree already holds 19 fractional gaps (14 at 1.5,
-            3 at 0.5, 2 at 2.5) that are equally off the scale, and rounding
-            each of them is a judgement per site rather than a rename. That is
-            its own change. */}
-          {/* `gap-x-4` below `sm`, not 48px. The three figures measure 80.4 +
-            100.5 + 92.1 = 273px, and two 48px gaps ask for 369px against the
-            342px a 390px phone gives this column, so the row wrapped 2 + 1 and
-            cost 137px instead of 69px: more than the h1 and the lede together,
-            and the largest single reason the opening block read as massive on a
-            phone. 16px gaps need 305px, which is the only step on the scale that
-            still fits at 360, where the `xs` breakpoint says a phone stops.
-            Above `sm` nothing changes. The figure strings are live, so a wider
-            index number puts 360 back on two rows; that is the graceful end of
-            this, not a break. */}
-          {/* `lg:flex-nowrap` is what makes the row's `items-baseline` work.
-              A flex container that is allowed to wrap has no first baseline to
-              offer: the spec says a multi-line container synthesises one from
-              its border box, so the lede was being aligned to this element's
-              box rather than to the baseline of "4.8M" inside it, and the
-              figures sat a few pixels high with no margin to blame. At `lg`
-              the three figures fit on one line anyway, so forbidding the wrap
-              costs nothing and hands back a real baseline. Below `lg` the row
-              is `flex-col` and none of this applies. */}
-          <dl className="flex flex-wrap gap-x-4 gap-y-4 sm:gap-x-12 lg:shrink-0 lg:flex-nowrap">
+          {/* Keep proof beside the complete headline block, not below it. */}
+          <dl className="grid grid-cols-3 items-start gap-x-4 gap-y-4 sm:gap-x-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+            <div className="flex flex-col">
+              <dt className="mt-1 text-xs text-muted-foreground">
+                wallets indexed
+              </dt>
+              <dd className="order-first ml-0 text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)] text-foreground">
+                <RollingNumber value={indexedWallets ?? INDEXED_WALLETS} />
+              </dd>
+              {newWallets !== null && newWallets > 0 && (
+                <dd
+                  className="ml-0 mt-1 text-xs text-attested"
+                  title="Addresses first added to the graph in the past 7 days that currently have at least one indexed identity. Refreshed hourly; excludes updates to older addresses."
+                >
+                  +{newWallets.toLocaleString('en-US')} added ·{' '}
+                  <span className="whitespace-nowrap">7 days</span>
+                </dd>
+              )}
+            </div>
             <Figure
-              value={indexedWallets ?? INDEXED_WALLETS}
-              label="wallets indexed"
+              value={
+                <RollingNumber
+                  value={
+                    linkedWallets?.x ?? WALLETS_WITH_X.replace(' million', 'M')
+                  }
+                />
+              }
+              label="wallets linked to 𝕏"
             />
-            <Figure value="100%" label="Farcaster coverage" attested />
-            <Figure value={KNOWN_AGENTS_SHORT} label="known AI agents" />
+            <Figure
+              value={
+                <RollingNumber
+                  value={
+                    linkedWallets?.farcaster ??
+                    FARCASTER_WALLETS.replace(' million', 'M')
+                  }
+                />
+              }
+              label="linked to Farcaster"
+            />
           </dl>
         </div>
       </div>
@@ -2117,6 +2085,7 @@ export default function Home() {
         {/* Upload State */}
         {state === 'upload' && (
           <div className="space-y-6">
+            <IdentityHero />
             {/* The three input methods as peers. Contract import shows locked
                   rather than hidden on accounts without credits, so the layout
                   is stable and the feature is discoverable before it is

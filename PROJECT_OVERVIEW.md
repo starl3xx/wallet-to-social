@@ -1135,3 +1135,31 @@ When making significant changes, update:
 3. `CLAUDE.md` - If adding new patterns or commands
 4. `docs/OPERATIONS.md` - If operational posture moved (a pipeline paused or resumed, a standing constraint changed)
 5. `docs/AGENT-SYSTEM.md` - If the change touches the agent surface (API, MCP, plugin, llms.txt, agent docs)
+
+### Landing identity hero
+
+`components/IdentityHero.tsx` mounts the native DOM/canvas graph between the
+landing headline and upload card. Shadow DOM isolates its styles while inheriting
+the site's theme tokens and font. Controller/template modules load asynchronously;
+there is no iframe, graph library or visitor-side social API request.
+
+`GET /api/hero` reads the `landing_identity_hero_v1` JSON snapshot in existing
+`ingest_state`, filters current suppressions on every request, and refuses data
+older than seven days. The final response is private/no-store so removals are not
+hidden behind a CDN cache. Missing data never prevents the upload flow.
+`GET /api/cron/refresh-hero` requires `CRON_SECRET` and refreshes daily at 09:20 UTC
+when deployed. `scripts/refresh-landing-hero.ts` bootstraps that same single row.
+No schema migration is needed.
+
+Reviewed seeds in `lib/identity-hero/seeds.json` pin public people, Farcaster FIDs,
+primary wallets and numeric X ids. A refresh reads actual graph links, excludes
+conflicting handles/ids and oversized clusters, and rechecks the exact sample
+wallets. Jesse and Vitalik are featured when their records remain valid. The
+illustrative background mesh is not evidence of transfers or social relationships.
+
+Portrait refresh uses the existing `X_RESOLVER_API_BASE` / `X_RESOLVER_API_KEY`
+configuration, checks the stable account id, and stores bounded 160px WebP bytes
+inside the durable snapshot. Downloads allow only HTTPS `pbs.twimg.com`, refuse
+redirects, and cap time, bytes and decoded pixels. Transient failures retain the
+cached portrait; a known identity mismatch excludes the profile. Reviewed local
+portraits provide initial fallback. API keys and source image URLs stay server-side.

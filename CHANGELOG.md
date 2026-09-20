@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (landing graph proof points)
+
+- Compact the landing header and show indexed wallets, X-linked wallets,
+  and Farcaster-linked wallets from the existing public stats response.
+- Show rolling seven-day additions using preserved `first_seen_at` values
+  for addresses with an indexed identity. This excludes refreshes and
+  enrichment of older addresses; it is not net growth or unique people.
+  The count shares the hourly stats cache and is omitted when unavailable.
+
+### 2026-09-20 (reviewed hero lineup)
+
+- Feature Jesse Pollak, Vitalik Buterin, Dan Romero, Coop, Linda Xie,
+  Tim Beiko, and Balaji in the landing graph. Pin their X account IDs,
+  cache compact portraits, and use reviewed primary wallets. Linda's
+  primary now matches the indexed `lindaxie` identity. The opening
+  five-wallet lookup keeps Jesse, Vitalik, and Dan as its anchors.
+
 ### 2026-09-20 (the API pipeline applies the entitlement it was already given)
 
 - **`inngest/functions/wallet-lookup.ts` had no paid-field handling at all**,
@@ -7561,3 +7578,20 @@ ALTER TABLE lookup_history ADD COLUMN IF NOT EXISTS input_source TEXT;
 - CSV upload and export
 
 ---
+
+## 2026-09-20 — Native landing identity graph
+
+- Replaced the local iframe preview with a native, asynchronously loaded hero,
+  preserving the slow X portrait reveal, subtle pulse, Phosphor icons and site themes.
+- Added a daily server refresh and durable graph snapshot, including real wallet
+  evidence, stable X identity checks, cached WebP portraits and sample validation.
+- Enforced serve-time removals, bounded staleness and graceful unavailability;
+  moved static mockup identity payloads outside the public site.
+
+- Added sparse interactive wallet icons to existing mesh vertices. Hover or keyboard
+  focus reveals an address; selection opens its indexed profile and wallet evidence.
+  Desktop shows at most 14; mobile shows at most four, using the loaded snapshot.
+
+- Polished hero depth using existing theme tokens, softened the resolved example
+  panel, and added a 1.6-second wallet-to-person trace before expanding the indexed
+  wallet connections. Pause/reduced motion skip directly to the selected record.
