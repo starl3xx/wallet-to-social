@@ -200,6 +200,10 @@ async function main() {
     const page = await fetchPage(cursor);
     totals.requests++;
     if (page.items.length === 0) {
+      // Both end-of-walk shapes reset the checkpoint, or the stale cursor
+      // pins every later run on this same empty page and the monthly touch
+      // quietly dies after the backfill (caught in review).
+      if (args.commit) await saveCheckpoint(null);
       exhausted = true;
       break;
     }
