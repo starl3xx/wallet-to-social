@@ -1199,8 +1199,25 @@ async function main() {
       const consent = await import('@/lib/attestation-consent');
       ok(
         'the shipped consent text is frozen, so a stored hash still means something',
+        // Every version ever shipped, not only the current one. The point is
+        // that a row pointing at an OLD id still resolves to the words that
+        // row agreed to, so pinning only the newest would leave exactly the
+        // rows that need this unprotected.
         consent.hashForVersion('2026-09-20.1') ===
-          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774'
+          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774' &&
+          consent.hashForVersion('2026-09-20.2') ===
+            '499254259e58528a8977fb2291d9ebb915d70705dee0dfb57544ca80e300e443'
+      );
+      ok(
+        'a correction ADDS a version rather than editing one',
+        // v1 promised that an owner claim takes the place of a handle we
+        // already hold. The code never did that and, after review, should
+        // not. The fix was a new version: v1 is still here, byte for byte,
+        // which is what the pinned hash above proves.
+        consent.CONSENT_VERSIONS.length >= 2 &&
+          consent.CURRENT_CONSENT.id === '2026-09-20.2' &&
+          /takes its place/.test(consent.CONSENT_VERSIONS[0].text) &&
+          !/takes its place/.test(consent.CURRENT_CONSENT.text)
       );
       ok(
         'an unknown consent version is null rather than a throw',
@@ -1284,6 +1301,187 @@ async function main() {
         /'awaiting_x'/.test(start) &&
           /state', `claim:\$\{claimId\}\.\$\{nonce\}`/.test(start)
       );
+
+      /**
+       * One redirect URI, two flows, and the state decides which table is
+       * read before anything reads one.
+       *
+       * Getting this wrong is quiet: the list branch would look for a claim
+       * id in `x_list_jobs`, find nothing, and answer `not_found` to somebody
+       * whose authorization actually succeeded. The parse is in one place so
+       * the two callers cannot disagree about what a state looks like.
+       */
+      {
+        const oauth = await import('@/lib/x-oauth');
+        ok(
+          'a claim state routes to the claim flow and a list state does not',
+          oauth.parseCallbackState('claim:abc.def')?.flow === 'claim' &&
+            oauth.parseCallbackState('abc.def')?.flow === 'list' &&
+            oauth.parseCallbackState('claim:abc.def')?.id === 'abc' &&
+            oauth.parseCallbackState('abc.def')?.id === 'abc'
+        );
+        ok(
+          'a state missing either half is refused rather than half-parsed',
+          oauth.parseCallbackState('claim:') === null &&
+            oauth.parseCallbackState('.nonce') === null &&
+            oauth.parseCallbackState('abc') === null &&
+            oauth.parseCallbackState('abc.') === null
+        );
+
+        /**
+         * The claim callback keeps no credential, and there is nowhere to put
+         * one.
+         *
+         * The list callback stores a sealed token because it spends sixteen
+         * minutes adding members. This flow reads the account once and is
+         * finished, so the token is a liability rather than an asset.
+         * Asserted as the refusal: no write of it, and no column on the table
+         * that could accept one.
+         */
+        const cb = withoutComments(
+          readFileSync('lib/claim-callback.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        /**
+         * A claim is routed before any shared refusal runs.
+         *
+         * X echoes `state` on an authorization error as well as on success,
+         * so every refusal in the shared route is reachable by a claim. When
+         * they ran first, somebody who cancelled a claim landed on the
+         * homepage carrying `x_list`, which is the wrong page and the wrong
+         * vocabulary, and the config gate refused the flow for a missing
+         * secret-box key it never uses while `claim/start` checked no such
+         * thing: a flow that starts and then cannot finish.
+         *
+         * Asserted positionally, because the defect is ordering rather than
+         * absence. Every one of these was present and simply ran too early.
+         */
+        const shared = withoutComments(
+          readFileSync('app/api/x/callback/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const claimBranch = shared.indexOf("parsed?.flow === 'claim'");
+        const boxGate = shared.indexOf('boxConfigured()');
+        const cancelRefusal = shared.indexOf("'cancelled' : 'refused'");
+        const invalidRefusal = shared.indexOf("back('invalid')");
+        ok(
+          'a claim is routed before the shared config gate and the shared refusals',
+          // Each marker must EXIST before its position means anything. An
+          // indexOf that matched nothing returns -1, and `x < -1` is false,
+          // so a mistyped marker fails loudly rather than passing over a
+          // check it never performed.
+          claimBranch > 0 &&
+            boxGate > 0 &&
+            cancelRefusal > 0 &&
+            invalidRefusal > 0 &&
+            claimBranch < boxGate &&
+            claimBranch < cancelRefusal &&
+            claimBranch < invalidRefusal
+        );
+        ok(
+          'the claim flow answers its own cancel, and does not require the box',
+          /input\.denied === 'access_denied' \? 'cancelled' : 'refused'/.test(
+            withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+          ) &&
+            !/boxConfigured/.test(
+              withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+            )
+        );
+
+        /**
+         * Every outcome the callback can redirect with is one the page can
+         * say out loud.
+         *
+         * This failure has now happened twice in this codebase. The X list
+         * banner reported a sixteen-minute job to a view the redirect had
+         * already destroyed, and the first version of `/claim` ignored its
+         * own return parameters entirely: somebody who had signed a message
+         * and consented on x.com was shown the start form again, with nothing
+         * saying whether anything was recorded.
+         *
+         * Derived rather than listed. The outcomes are read out of the
+         * callback's own `back(...)` calls, so adding a ninth refusal there
+         * fails this until the page learns to explain it, which is the whole
+         * point: the list cannot drift because it is not a list.
+         */
+        const cbSrc = readFileSync('lib/claim-callback.ts', 'utf8');
+        const outcomes = new Set(
+          [...cbSrc.matchAll(/back\(\s*'([a-z_]+)'/g)].map((m) => m[1])
+        );
+        const panel = readFileSync('components/ClaimOutcome.tsx', 'utf8');
+        const unexplained = [...outcomes].filter(
+          (o) => !new RegExp(`\\b${o}:`).test(panel)
+        );
+        ok(
+          `every claim outcome has something the page can say (unexplained: ${unexplained.join(', ') || 'none'})`,
+          // The parser must find outcomes at all, or "nothing unexplained"
+          // would pass by matching nothing.
+          outcomes.size >= 5 && unexplained.length === 0
+        );
+        ok(
+          'the page reads the outcome and clears it, so a refresh cannot replay one',
+          /params\.get\('claim'\)/.test(panel) &&
+            /params\.delete\('claim'\)/.test(panel) &&
+            /params\.delete\('claim_id'\)/.test(panel)
+        );
+
+        /**
+         * An owner attestation does not overwrite a handle we already serve.
+         *
+         * Fill-only is the decision, not a limitation: overwriting on a
+         * signature alone would make "controls the private key" sufficient to
+         * rewrite an identity in a product sold on not guessing, and drained
+         * wallets with leaked keys are traded. The disagreement is recorded
+         * and settles only once the handle we serve stops reaching anyone.
+         *
+         * Asserted as the refusal, because the tempting change is the one
+         * that looks more respectful of the owner: a direct `social_graph`
+         * UPDATE here reads as honouring their proof and is exactly what must
+         * not happen. The first version of the page PROMISED that overwrite
+         * while the code never did it, which is the same disagreement in the
+         * other direction.
+         */
+        ok(
+          'a claim writes through the shared ingest and never straight into the graph',
+          /await ingestLinks\(/.test(cb) &&
+            !/UPDATE social_graph/.test(cb) &&
+            !/upsertManualSocialGraph/.test(cb)
+        );
+        ok(
+          'a failure after the claim is recorded cannot 500 the OAuth return',
+          // The person has finished authorizing; a throw here would turn that
+          // into an error page for work they cannot retry from.
+          /catch \(error\) \{ console\.error\('claim ingest failed after completion:'/.test(
+            cb
+          ) &&
+            /catch \(error\) \{ console\.error\('claim grant path failed after completion:'/.test(
+              cb
+            )
+        );
+        ok(
+          'a failed grant releases its reservation rather than locking the account out',
+          // The reservation is what the once-ever index keys on, so leaving it
+          // set after a failed insert marks an account permanently paid for
+          // credits it never received.
+          /releasing the reservation/.test(cb) &&
+            /SET grant_claimed_at = NULL, granted_matches = NULL/.test(cb)
+        );
+
+        ok(
+          'the claim callback never stores the access token',
+          !/access_token\s*=/.test(cb) &&
+            !/seal\(/.test(cb) &&
+            !/access_token/.test(
+              withoutComments(
+                readFileSync('scripts/migrate-identity-attestations.ts', 'utf8')
+              )
+            )
+        );
+        ok(
+          'and it clears the nonce in the same statement that records the account',
+          /state_nonce = NULL/.test(cb) &&
+            /code_verifier = NULL/.test(cb) &&
+            /AND status = 'awaiting_x'/.test(cb)
+        );
+      }
 
       ok(
         'the claim surface has its own rate-limit bucket',

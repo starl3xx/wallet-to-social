@@ -1,0 +1,278 @@
+'use client';
+
+/**
+ * Connect a wallet, sign the challenge, and hand off to X.
+ *
+ * ## No wallet library, on purpose
+ *
+ * There is no wagmi, no RainbowKit and no WalletConnect anywhere in this app,
+ * and this adds none of them. What the flow needs is one signature from a
+ * browser extension, which EIP-6963 and EIP-1193 give directly: the provider
+ * announces itself, `eth_requestAccounts` names the address and
+ * `personal_sign` signs the text. A connector library is worth its weight when
+ * an app is transacting across chains and sessions; here it would be a
+ * dependency, a bundle and a config surface for two RPC calls.
+ *
+ * ## EIP-6963 rather than `window.ethereum`
+ *
+ * `window.ethereum` is whichever extension won the race to define it, which
+ * with two wallets installed is not a choice the person made. EIP-6963 asks
+ * every provider to announce itself and lets them pick.
+ *
+ * There is deliberately NO fallback to the legacy global. A wallet that does
+ * not announce itself gets the empty state below, which says so and says what
+ * to do, and that is a better outcome than silently signing with whichever
+ * extension happened to win: this flow writes an identity, and the address it
+ * writes must be one the person chose. An earlier draft of this comment
+ * claimed the fallback existed while the code had none, which is the defect
+ * shape `scripts/check-invariants.ts` exists for.
+ *
+ * ## What the page does NOT do
+ *
+ * It does not verify the signature. That is the server's job and doing it here
+ * as well would be a second implementation of the thing that matters, in the
+ * place an attacker controls.
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { InlineError } from '@/components/ui/inline-error';
+
+/** The slice of EIP-1193 this flow uses. */
+interface Eip1193Provider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+}
+
+interface Announced {
+  info: { uuid: string; name: string; rdns: string };
+  provider: Eip1193Provider;
+}
+
+type Stage = 'idle' | 'connecting' | 'signing' | 'starting';
+
+/**
+ * What to say when the WALLET refused, which is not the same as a failure.
+ *
+ * EIP-1193 gives a user rejection code 4001. Telling somebody their signature
+ * failed when they pressed Cancel is the kind of message that teaches people
+ * to distrust the next prompt, so a rejection says it was a rejection and
+ * says nothing was recorded.
+ */
+function walletFailure(e: unknown, step: 'connect' | 'sign'): string {
+  if ((e as { code?: number })?.code === 4001) {
+    return step === 'connect'
+      ? 'You closed your wallet without connecting. Nothing was recorded.'
+      : 'You cancelled that. Nothing was recorded.';
+  }
+  return step === 'connect'
+    ? 'That wallet could not connect.'
+    : 'That wallet could not complete the signature.';
+}
+
+export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
+  /**
+   * `null` means "not asked yet", which is a different state from "asked and
+   * nobody answered" and has to render differently.
+   *
+   * An empty array from the first paint told every visitor to install a
+   * wallet, including the ones who had one: this is a client component, so
+   * the static HTML and the first client render both happen before discovery
+   * can have run. On a slow load that message sat there long enough to be
+   * believed and acted on.
+   */
+  const [providers, setProviders] = useState<Announced[] | null>(null);
+  const [stage, setStage] = useState<Stage>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * EIP-6963 discovery. Providers answer the request event by announcing, so
+   * the listener goes up before the request goes out.
+   *
+   * Announcements are synchronous in practice, but the empty result is only
+   * COMMITTED after a turn of the event loop: a provider that announces a
+   * tick late would otherwise be reported as absent and then appear, which
+   * reads as the page changing its mind.
+   */
+  useEffect(() => {
+    const seen = new Map<string, Announced>();
+    const onAnnounce = (event: Event) => {
+      const detail = (event as CustomEvent<Announced>).detail;
+      if (!detail?.info?.uuid) return;
+      seen.set(detail.info.uuid, detail);
+      setProviders([...seen.values()]);
+    };
+    window.addEventListener('eip6963:announceProvider', onAnnounce);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    const settle = window.setTimeout(() => {
+      setProviders((current) => current ?? [...seen.values()]);
+    }, 300);
+    return () => {
+      window.clearTimeout(settle);
+      window.removeEventListener('eip6963:announceProvider', onAnnounce);
+    };
+  }, []);
+
+  const claim = useCallback(
+    async (provider: Eip1193Provider) => {
+      setError(null);
+      setStage('connecting');
+
+      /**
+       * The wallet calls get their own try, and nothing else is inside it.
+       *
+       * One try around the whole path reported a failed fetch, a bad JSON
+       * body and anything after a successful signature as "that wallet could
+       * not complete the signature", which is wrong in the most confusing
+       * direction: it blames the wallet for our own network, and it says the
+       * signature failed in cases where it succeeded.
+       */
+      let wallet: string;
+      try {
+        const accounts = (await provider.request({
+          method: 'eth_requestAccounts',
+        })) as string[];
+        const first = accounts?.[0]?.toLowerCase();
+        if (!first) {
+          setError('That wallet did not return an address.');
+          setStage('idle');
+          return;
+        }
+        wallet = first;
+      } catch (e) {
+        setError(walletFailure(e, 'connect'));
+        setStage('idle');
+        return;
+      }
+
+      try {
+        const challengeRes = await fetch(
+          `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}`
+        );
+        const challenge = await challengeRes.json();
+        if (!challengeRes.ok) {
+          setError(challenge.message ?? 'We could not start a claim.');
+          setStage('idle');
+          return;
+        }
+
+        setStage('signing');
+        /**
+         * `personal_sign` takes the message first and the address second,
+         * which is the opposite of `eth_sign` and a common way to get a
+         * confusing refusal from the wallet rather than a signature.
+         *
+         * Its own try, so a rejection here is reported as a rejection and a
+         * failure after it is not reported as one.
+         */
+        let signature: string;
+        try {
+          signature = (await provider.request({
+            method: 'personal_sign',
+            params: [challenge.message, wallet],
+          })) as string;
+        } catch (e) {
+          setError(walletFailure(e, 'sign'));
+          setStage('idle');
+          return;
+        }
+
+        setStage('starting');
+        const startRes = await fetch('/api/claim/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wallet,
+            issued_at: challenge.issued_at,
+            token: challenge.token,
+            signature,
+            consent_version: consentVersion,
+          }),
+        });
+        const started = await startRes.json();
+        if (!startRes.ok || !started.authorize_url) {
+          setError(started.message ?? 'That claim could not be started.');
+          setStage('idle');
+          return;
+        }
+
+        /**
+         * A full navigation, not a popup, for the reason the X list flow
+         * gives: a popup is blocked often enough that the failure would be
+         * invisible, and a consent screen is a page somebody should see at
+         * full size with the address bar showing.
+         */
+        window.location.href = started.authorize_url;
+      } catch {
+        /**
+         * Everything in this try is ours: a fetch, a JSON body, a redirect.
+         * None of it is the wallet's doing, so none of it says the wallet
+         * failed.
+         *
+         * It does NOT say nothing was recorded, which the first version did.
+         * A request that fails in flight may have been served, so an
+         * unfinished claim row can exist; what is certainly true is that no
+         * account was attached and nothing reached the index. Saying the
+         * stronger thing would be guessing about state we cannot see from
+         * here.
+         */
+        setError('We could not reach the server. Nothing was published.');
+        setStage('idle');
+      }
+    },
+    [consentVersion]
+  );
+
+  const busy = stage !== 'idle';
+
+  return (
+    <div className="rounded-lg border border-border bg-fill-well p-5">
+      <h2 className="text-lg font-medium">Start a claim</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        You will sign a message with your wallet, then sign in to X. Both happen
+        in this order because a signature proves the address and the sign-in
+        proves the account, and the record needs the pair.
+      </p>
+
+      {providers === null ? (
+        /* Asked, not yet answered. Saying nothing here is the point: the
+           alternative told everybody to install a wallet before discovery
+           had run. */
+        <p className="mt-4 text-sm text-muted-foreground">
+          Looking for a wallet…
+        </p>
+      ) : providers.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">
+          No browser wallet announced itself. Install one, or open this page in
+          a wallet&rsquo;s own browser. Smart-contract wallets are not supported
+          yet: we can only verify a signature made by an ordinary account.
+        </p>
+      ) : (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {providers.map((p) => (
+            <Button
+              key={p.info.uuid}
+              variant="outline"
+              disabled={busy}
+              onClick={() => claim(p.provider)}
+            >
+              {p.info.name}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {busy && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {stage === 'connecting' && 'Waiting for your wallet…'}
+          {stage === 'signing' && 'Approve the message in your wallet…'}
+          {stage === 'starting' && 'Checking the signature…'}
+        </p>
+      )}
+
+      {error && (
+        <div className="mt-3">
+          <InlineError>{error}</InlineError>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -49,6 +49,39 @@ export const CONSENT_VERSIONS: readonly ConsentVersion[] = [
       'Undoing it: you can withdraw at any time from the same page, with the same wallet. Withdrawing removes the pair from the index and stops us collecting it again.',
     ].join('\n'),
   },
+  /**
+   * Added rather than edited, which is the whole mechanism working.
+   *
+   * Version 1 said "yours takes its place" about an address we already hold a
+   * different account for. That was never what the code did and, after
+   * review, is not what it should do: overwriting on a signature alone makes
+   * a stolen key enough to rewrite an identity. The claim records a
+   * disagreement instead, and settles when the handle we serve stops
+   * reaching anyone.
+   *
+   * Version 1 stays exactly as it was. Nobody has consented to it in
+   * production, and it is kept anyway, because the rule that makes a stored
+   * hash mean anything is that it holds whether or not a given version was
+   * ever used.
+   */
+  {
+    id: '2026-09-20.2',
+    text: [
+      'You are confirming that you control this wallet address and this X account.',
+      '',
+      'What we do with it: we record the pair in our index, which is a commercial product. The record says that the owner of this address published this account, and customers can see it.',
+      '',
+      'Where we hold nothing for this address, your claim fills it. Where we already hold the same account, your claim confirms it and adds the account id, which is the part that survives a rename.',
+      '',
+      'Where we hold a different account, we record that you disagree and keep serving what we have until the handle we hold stops reaching anyone. A signature proves control of a key, and keys are lost and sold, so we do not let one rewrite an identity outright.',
+      '',
+      'What we keep: the address, the account name and its numeric id, the signature you just made, and the fact that you agreed to this text.',
+      '',
+      'What we do not keep: any access to your X account. We read your account name once and discard the token in the same request. Nothing here can post, follow, or read your messages.',
+      '',
+      'Undoing it: you can withdraw at any time from the same page, with the same wallet. Withdrawing removes the pair from the index and stops us collecting it again.',
+    ].join('\n'),
+  },
 ] as const;
 
 /** The version a new claim is recorded against. */
