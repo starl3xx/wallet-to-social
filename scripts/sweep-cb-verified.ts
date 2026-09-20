@@ -66,7 +66,15 @@ async function fetchPage(afterTime: number): Promise<Row[]> {
     if (json.errors?.length) {
       throw new Error(`easscan errors: ${json.errors[0].message}`);
     }
-    return json.data?.attestations ?? [];
+    // A missing payload is a malformed answer, never the end of the set: an
+    // empty page here marks the walk complete and unlocks the delete pass,
+    // so only a PRESENT, empty array may say so.
+    if (!Array.isArray(json.data?.attestations)) {
+      throw new Error(
+        `easscan returned no attestations array: ${JSON.stringify(json).slice(0, 200)}`
+      );
+    }
+    return json.data.attestations;
   }
 }
 
@@ -120,6 +128,13 @@ async function main() {
         FROM unnest(${sql.param(wallets.map((w) => w.wallet))}::text[],
                     ${sql.param(wallets.map((w) => w.uid))}::text[],
                     ${sql.param(wallets.map((w) => w.time))}::bigint[]) AS t(wallet, uid, time)
+        -- Belt to the storage trigger's suspenders: a removed wallet is
+        -- excluded here explicitly, and refused by the guard if this line
+        -- ever drifts.
+        WHERE NOT EXISTS (
+          SELECT 1 FROM suppressed_identifiers si
+          WHERE si.kind = 'wallet' AND si.identifier = t.wallet
+        )
         ON CONFLICT (wallet) DO UPDATE SET
           uid = EXCLUDED.uid,
           attested_at = EXCLUDED.attested_at,

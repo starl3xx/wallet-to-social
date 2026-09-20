@@ -13,6 +13,13 @@ All notable changes to walletlink.social. Newest first.
   quality signal, not an identity link: one boolean, no handle, nothing
   near the attested-links machinery, no product surface change yet beyond
   the admin composition pane's overlap tile.
+- **Inside the removal boundary from day one, after review caught it
+  outside**: the table is declared in the schema, carries the suppression
+  skip trigger (a removed wallet's re-insert is silently refused, which on
+  a weekly full resync is the designed outcome), is deleted with quarantine
+  by the wallet-kind erasure, and the sweep excludes suppressed wallets
+  explicitly as a second line. The sweep also refuses a malformed page as
+  the end of the set, since an empty page unlocks the delete pass.
 - Its own table rather than a `social_graph` column, deliberately: the set
   mostly does not intersect the graph, a column would go stale for wallets
   that arrive after their attestation was swept, and a weekly FULL resync
