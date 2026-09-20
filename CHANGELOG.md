@@ -2,6 +2,35 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the table a claim lands in, and the boundary it is argued into)
+
+- `identity_attestations`: one row per `/claim`, and the pending state for the
+  X round trip, the same shape as `x_list_jobs` and for the same reason. It is
+  born holding a verifier and a nonce and no proof of anything.
+- **No access token column**, unlike its neighbour. That table keeps one
+  because it spends sixteen minutes adding members; this flow reads the account
+  once and drops the credential in the same request, so storing one would be
+  storing it for no reason.
+- **The account id is hashed and the wallet is not.** One grant per account,
+  ever, has to keep holding after a withdrawal erases the plaintext, and
+  removal is the entire point of a withdrawal, so the uniqueness key cannot be
+  the identity. The wallet stays clear because it is the join key into
+  `social_graph`, which already holds it that way.
+- Added to `READ_ONLY_TABLES` in the same change rather than printed as a
+  follow-up, and deliberately **not** to the backup list: a restore would
+  resurrect an attestation somebody has since withdrawn.
+- **Argued into `SUPPRESSION_EXCLUDED_TABLES`, not silently omitted.** The
+  deciding reason is the `x_list_jobs` reason with a different victim:
+  `suppression_guard_skip` discards every later UPDATE to a guarded row, and
+  the important UPDATE here is the withdrawal. A guard would make the one
+  action a person takes to undo their own attestation the one action that
+  silently does nothing.
+- Declared in `db/schema.ts` before anything reads it, which is usually wrong
+  and is right here: the invariant derives identity-carrying tables by parsing
+  that file, so a table holding a wallet and a handle that it does not declare
+  is a table the boundary check cannot see. Verified by renaming the table so
+  it fell outside the argument, and confirming the check names it as uncovered.
+
 ### 2026-09-20 (the claim challenge, and the gate that cannot be bought)
 
 - `lib/attestation.ts`: the wallet-signature half of `/claim`. The shape is
