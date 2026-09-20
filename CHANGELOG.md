@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the claim challenge, and the gate that cannot be bought)
+
+- `lib/attestation.ts`: the wallet-signature half of `/claim`. The shape is
+  copied from `lib/x402-recovery.ts` because the hard parts were solved there
+  the expensive way: the HMAC is checked before the expiry so timing leaks
+  nothing, and `issuedAt` is a parameter so a check can exercise the real
+  function rather than reimplementing it.
+- **The secret and the message text are its own, and that is the point.** Two
+  flows now ask a wallet to sign, and they authorise different things: one
+  hands out an API key, the other writes an identity into the index. The text
+  differs so a person approving it in a wallet can tell them apart, and the
+  HMAC input is prefixed so the signed bytes differ even if both secrets
+  leaked. Both halves are asserted, because either alone is a single point of
+  failure.
+- **The eligibility cutoff is a committed literal, never the clock.** A
+  signed-in free account can put a thousand addresses into the graph every
+  thirty days at no cost, so graph membership is abundant going forward and
+  scarce only retroactively. A cutoff that moved with the clock would make
+  every wallet eligible once it had aged, which is the same as having no gate
+  while looking like one.
+- Stated plainly in the module, because it would be easy to oversell: this gate
+  cannot be bought and cannot be moved by the feature that reads it, and it
+  still does nothing against somebody who already controls pre-cutoff wallets.
+  It is the cheap first filter in front of the per-account limit and the
+  budget, not the security story.
+- A failed eligibility read **throws rather than answering false**. The two are
+  not the same: false denies a grant somebody earned, silently, on the one path
+  where the person is watching.
+- Four of these assertions were silently skipping on the first run, because
+  `ATTESTATION_SECRET` was unset and the challenge issuer returns null without
+  it. That is how a check reports clean over code it never ran, so the checker
+  now stubs it, with a different value from the recovery secret so the HMAC
+  prefix is actually exercised.
+
 ### 2026-09-20 (the owner-attested source exists before anything writes it)
 
 - Declares `owner_attested`, the source a wallet signature plus an account
