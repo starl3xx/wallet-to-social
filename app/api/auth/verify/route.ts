@@ -31,12 +31,12 @@ export async function GET(request: NextRequest) {
   /**
    * Where a verified link lands.
    *
-   * The home page, unless `next` names the OAuth consent screen. The check is
-   * `isAllowedReturnPath`, which accepts one shape and one only: an
-   * `/oauth/authorize` path carrying a single opaque request id. It is checked
-   * here and not only at send time, because this is the check an attacker has
-   * to get past. Tampering with the parameter can therefore change which
-   * pending consent the user lands on, never whether they land on this site.
+   * The home page, unless `next` names one of the two paths
+   * `isAllowedReturnPath` accepts: an `/oauth/authorize` path carrying a
+   * single opaque request id, or the literal `/claim`. It is checked here and
+   * not only at send time, because this is the check an attacker has to get
+   * past. Tampering with the parameter can therefore change which pending
+   * consent the user lands on, never whether they land on this site.
    *
    * The URL is built by appending the vetted path to `baseUrl`, so the host is
    * ours by construction rather than by inspection.

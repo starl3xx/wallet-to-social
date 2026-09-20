@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (signing in from a claim comes back to the claim)
+
+- **`/claim` is the second path a sign-in link may return to.** The card above
+  offers a Sign in, and sign-in is a magic link, so it always leaves the page
+  and `/api/auth/verify` decides where the person lands. Without a return path
+  that is the home page, which abandons the claim they were part-way through.
+- `isAllowedReturnPath` now accepts two shapes rather than one. The new one is
+  a **literal compared with `===`**, carrying no query, which is what keeps it
+  from widening the allowlist: the danger it exists for is caller-supplied data
+  surviving a mailbox with our own authenticity attached, and a fixed literal
+  supplies none. Tampering produces either that exact page or a refusal.
+- Eight near misses are asserted as refusals (`/claim?next=…`, `/claim/../admin`,
+  `/claimants`, `/claim.evil.example.com`, `//claim`, a fragment, a trailing
+  space, and the path with no leading slash), because each is a real way a
+  `startsWith` test fails. Verified by making it a prefix test: six of them fire.
+- The comment that prompted this said the session refreshed in place and the
+  wallet buttons simply replaced the card. That was never true of a mailbox
+  round trip, and it was written in the same change that introduced the card.
+
 ### 2026-09-20 (the wallet stops being asked first)
 
 - **`/claim` says an account is needed before it asks for a wallet.** Both

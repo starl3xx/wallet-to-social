@@ -436,11 +436,20 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         </div>
       )}
 
-      {/* Signing in here rather than sending them to the header and back:
-          `AuthProvider` refreshes the session in place, so the wallet buttons
-          replace this card without a navigation, and nothing they had read on
-          the way down is lost. */}
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+      {/* `next` is the whole point of opening the modal here.
+
+          Sign-in is a magic link, so it always leaves the page: the person
+          reads the mail, presses the link, and `/api/auth/verify` decides
+          where they land. Without a return path that is the home page, which
+          abandons the thing they were doing. An earlier version of this
+          comment claimed the session refreshed in place and the buttons
+          simply replaced this card, which was never true of a mailbox round
+          trip and is the defect shape scripts/check-invariants.ts exists for.
+
+          `/claim` is one of the two paths `isAllowedReturnPath` accepts. It
+          is checked there and not here, because the server's check is the one
+          an attacker has to get past. */}
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next="/claim" />
     </div>
   );
 }

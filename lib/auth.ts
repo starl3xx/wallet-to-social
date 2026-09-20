@@ -316,13 +316,14 @@ export async function cleanupExpiredAuth(): Promise<{
 }
 
 /**
- * The only destination a sign-in link may return to other than the home page.
+ * The only destinations a sign-in link may return to other than the home page.
  *
  * A magic link that carries a caller-supplied return path is an open redirect
  * with a stamp of authenticity on it, so this is not a sanitiser: it is an
- * allowlist of one shape. A path matches only if it is the OAuth consent
+ * allowlist of two shapes. A path matches only if it is the OAuth consent
  * screen carrying one opaque request id, and that id was minted by
- * `createAuthorizationRequest` before the link was ever sent.
+ * `createAuthorizationRequest` before the link was ever sent, or if it is
+ * the literal string `/claim`.
  *
  * Nothing an OAuth client supplied travels through the mail round trip. The
  * client's `redirect_uri`, `state` and `client_id` are all in the row this id
@@ -337,8 +338,28 @@ export async function cleanupExpiredAuth(): Promise<{
  */
 const RETURN_PATH = /^\/oauth\/authorize\?req=[A-Za-z0-9-]{36}$/;
 
+/**
+ * The second shape, and the reason it is a literal rather than a pattern.
+ *
+ * `/claim` needs the round trip for a plain reason: the page asks for an
+ * account before it asks for a wallet, so somebody signed out reaches the
+ * sign-in from there, and landing them on the home page afterwards abandons
+ * the thing they were doing. Nothing else on the site has that shape; every
+ * other sign-in is incidental to a page that still makes sense without it.
+ *
+ * It is compared with `===` and carries no query, which is what makes it
+ * categorically different from the pattern above rather than a widening of
+ * it. The danger this allowlist exists for is caller-supplied data surviving
+ * a mailbox with our authenticity attached, and a fixed literal supplies
+ * none: tampering with the parameter produces either this exact page or a
+ * refusal, with no third outcome to aim at. `/claim?next=…`, `//claim`,
+ * `/claim.evil.example.com` and `/claimants` are all simply not equal to it.
+ */
+const CLAIM_RETURN_PATH = '/claim';
+
 export function isAllowedReturnPath(path: string | null): boolean {
-  return typeof path === 'string' && RETURN_PATH.test(path);
+  if (typeof path !== 'string') return false;
+  return path === CLAIM_RETURN_PATH || RETURN_PATH.test(path);
 }
 
 // Cookie configuration
