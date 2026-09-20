@@ -20,12 +20,14 @@ export async function refreshPortrait(
     );
     if (!response.ok) return fallback;
     const { data } = await response.json();
+    if (!data) return fallback;
     if (
-      !data ||
-      String(data.id) !== userId ||
-      String(data.userName).toLowerCase() !== handle.toLowerCase()
+      (data.id != null && String(data.id) !== userId) ||
+      (typeof data.userName === 'string' &&
+        data.userName.toLowerCase() !== handle.toLowerCase())
     )
       return null;
+    if (data.id == null || typeof data.userName !== 'string') return fallback;
     const url = new URL(data.profilePicture);
     if (
       url.protocol !== 'https:' ||

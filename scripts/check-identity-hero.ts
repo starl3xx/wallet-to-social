@@ -83,6 +83,19 @@ const oldKey = process.env.X_RESOLVER_API_KEY;
 process.env.X_RESOLVER_API_BASE = 'https://resolver.test';
 process.env.X_RESOLVER_API_KEY = 'test';
 try {
+  for (const payload of [
+    {},
+    { data: null },
+    { data: {} },
+    { data: { id: '18876842' } },
+  ]) {
+    globalThis.fetch = async () => Response.json(payload);
+    assert.equal(
+      await refreshPortrait('jessepollak', '18876842', '/hero/cached.webp'),
+      '/hero/cached.webp',
+      'empty or incomplete resolver data retains the reviewed portrait'
+    );
+  }
   globalThis.fetch = async () =>
     Response.json({
       data: {

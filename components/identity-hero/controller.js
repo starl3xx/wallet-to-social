@@ -458,7 +458,13 @@ export function mountGraph(root, data) {
   document.addEventListener(
     'click',
     (event) => {
-      if (storyMode && !event.composedPath().includes($('#sample-panel')))
+      const path = event.composedPath();
+      // Skip/replay owns its story transition; do not clear its timers first.
+      if (
+        storyMode &&
+        !path.includes($('#sample-panel')) &&
+        !path.includes($('#reveal'))
+      )
         dismissSample();
     },
     { capture: true, signal: lifetime.signal }
