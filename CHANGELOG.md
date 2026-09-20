@@ -36,6 +36,16 @@ All notable changes to walletlink.social. Newest first.
   a rounding artefact rather than a miscount. Both verified against the real
   defect.
 
+### 2026-09-20 (the footer stops linking to this file)
+
+- The Project column linked Changelog straight at `CHANGELOG.md` on GitHub.
+  It is an engineering log, written for whoever works on this next, and it was
+  sitting one click from the footer of every page beside Privacy and the
+  support address. Removed; the file stays exactly where it is and is still
+  linked from the repository itself.
+- The module comment listing which footer links carry the external arrow was
+  updated in the same change, since it named Changelog as one of them.
+
 ### 2026-09-20 (the batched resolve gets a timeout, a pure parser and one home)
 
 - **The by-id resolve had no request timeout.** `lib/clanker.ts` passed only
