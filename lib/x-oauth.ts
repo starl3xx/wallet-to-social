@@ -84,6 +84,39 @@ export const X_SCOPES = [
 export const X_CLAIM_SCOPES = ['users.read', 'tweet.read'] as const;
 
 /**
+ * Which flow a callback belongs to, from its `state`.
+ *
+ * One registered redirect URI serves both flows, because X matches the
+ * callback string exactly against what is registered in the developer portal
+ * and a second URI is an out-of-band change nothing in this repository can
+ * verify. So the state carries the routing: `claim:<id>.<nonce>` for an
+ * identity claim, `<id>.<nonce>` for a list.
+ *
+ * Parsed in one place rather than sniffed at the call site, because the
+ * failure mode of getting it wrong is reading the wrong table for an id that
+ * does not exist there and answering `not_found` to a person whose
+ * authorization actually succeeded.
+ *
+ * Returns null for anything that is not both halves, which the caller turns
+ * into the same refusal a bad id gets. A prefix with no dot, or a dot at
+ * position zero, is not a state we issued.
+ */
+export type CallbackFlow = 'list' | 'claim';
+
+export function parseCallbackState(
+  state: string
+): { flow: CallbackFlow; id: string; nonce: string } | null {
+  const claim = state.startsWith('claim:');
+  const rest = claim ? state.slice('claim:'.length) : state;
+  const dot = rest.indexOf('.');
+  if (dot < 1) return null;
+  const id = rest.slice(0, dot);
+  const nonce = rest.slice(dot + 1);
+  if (!id || !nonce) return null;
+  return { flow: claim ? 'claim' : 'list', id, nonce };
+}
+
+/**
  * X caps a list name at 25 characters and a description at 100.
  *
  * Here rather than at the call site because both are enforced twice: the table

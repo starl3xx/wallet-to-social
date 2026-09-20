@@ -45,7 +45,9 @@ import {
   clientId,
   X_TOKEN_URL,
   X_API_BASE,
+  parseCallbackState,
 } from '@/lib/x-oauth';
+import { completeClaimCallback } from '@/lib/claim-callback';
 import { getSiteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
@@ -79,12 +81,23 @@ export async function GET(request: NextRequest) {
   if (denied) return back(denied === 'access_denied' ? 'cancelled' : 'refused');
 
   const code = params.get('code');
-  const state = params.get('state') ?? '';
-  const dot = state.indexOf('.');
-  if (!code || dot < 1) return back('invalid');
+  const parsed = parseCallbackState(params.get('state') ?? '');
+  if (!code || !parsed) return back('invalid');
 
-  const jobId = state.slice(0, dot);
-  const nonce = state.slice(dot + 1);
+  /**
+   * One redirect URI, two flows, and the state says which.
+   *
+   * X matches the callback string exactly against what is registered in the
+   * developer portal, so a second route would need an out-of-band change
+   * nothing here can verify. The claim flow is handled in its own module and
+   * returns its own redirect; this function stays the list flow it was.
+   */
+  if (parsed.flow === 'claim') {
+    return completeClaimCallback({ code, id: parsed.id, nonce: parsed.nonce });
+  }
+
+  const jobId = parsed.id;
+  const nonce = parsed.nonce;
 
   const db = getDb();
   if (!db) return back('unavailable');

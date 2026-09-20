@@ -1285,6 +1285,63 @@ async function main() {
           /state', `claim:\$\{claimId\}\.\$\{nonce\}`/.test(start)
       );
 
+      /**
+       * One redirect URI, two flows, and the state decides which table is
+       * read before anything reads one.
+       *
+       * Getting this wrong is quiet: the list branch would look for a claim
+       * id in `x_list_jobs`, find nothing, and answer `not_found` to somebody
+       * whose authorization actually succeeded. The parse is in one place so
+       * the two callers cannot disagree about what a state looks like.
+       */
+      {
+        const oauth = await import('@/lib/x-oauth');
+        ok(
+          'a claim state routes to the claim flow and a list state does not',
+          oauth.parseCallbackState('claim:abc.def')?.flow === 'claim' &&
+            oauth.parseCallbackState('abc.def')?.flow === 'list' &&
+            oauth.parseCallbackState('claim:abc.def')?.id === 'abc' &&
+            oauth.parseCallbackState('abc.def')?.id === 'abc'
+        );
+        ok(
+          'a state missing either half is refused rather than half-parsed',
+          oauth.parseCallbackState('claim:') === null &&
+            oauth.parseCallbackState('.nonce') === null &&
+            oauth.parseCallbackState('abc') === null &&
+            oauth.parseCallbackState('abc.') === null
+        );
+
+        /**
+         * The claim callback keeps no credential, and there is nowhere to put
+         * one.
+         *
+         * The list callback stores a sealed token because it spends sixteen
+         * minutes adding members. This flow reads the account once and is
+         * finished, so the token is a liability rather than an asset.
+         * Asserted as the refusal: no write of it, and no column on the table
+         * that could accept one.
+         */
+        const cb = withoutComments(
+          readFileSync('lib/claim-callback.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        ok(
+          'the claim callback never stores the access token',
+          !/access_token\s*=/.test(cb) &&
+            !/seal\(/.test(cb) &&
+            !/access_token/.test(
+              withoutComments(
+                readFileSync('scripts/migrate-identity-attestations.ts', 'utf8')
+              )
+            )
+        );
+        ok(
+          'and it clears the nonce in the same statement that records the account',
+          /state_nonce = NULL/.test(cb) &&
+            /code_verifier = NULL/.test(cb) &&
+            /AND status = 'awaiting_x'/.test(cb)
+        );
+      }
+
       ok(
         'the claim surface has its own rate-limit bucket',
         /'\/api\/claim': \{ limit: \d+, windowHours: \d+ \}/.test(
