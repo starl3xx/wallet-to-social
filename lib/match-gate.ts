@@ -68,6 +68,9 @@ const LOCKED_FIELDS = [
   'twitter_verified',
   'twitter_reachability',
   'twitter_also',
+  // The handle this row used to serve is still a handle, and withholding the
+  // current one while naming the previous one withholds nothing at all.
+  'twitter_renamed_from',
   // Beside the handle it counts, for the same reason `fc_followers` is here.
   // A locked row withholds the identity, and a follower count left on it
   // describes the identity precisely enough to be worth withholding too.
