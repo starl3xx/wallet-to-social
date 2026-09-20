@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (graph enrichment survives an Inngest replay)
+
+- **`enrich-social-graph` mutated `resultsMap` in place and returned nothing.**
+  `step.run` memoises its RESULT and skips the callback on a replay, so every
+  retry of a later step dropped the enrichment: a replayed job came back with
+  fewer identities than a first-pass one, and with `twitter_verified` and
+  `farcaster_verified` unset, blanking the attested marking.
+- **It billed correctly throughout**, which is why nothing caught it.
+  `chargeForJob` counts the same degraded map in `finalize`, so the customer
+  got less and paid less and no number disagreed with another.
+- The delta is **diffed against a snapshot**, not written branch by branch. The
+  fill rules are order-dependent — the verification copy reads the handle the
+  fill above may have just set — so a hand-written delta would have to restate
+  that order and could drift from it. A diff cannot.
+- Only changed fields on changed rows travel, which keeps the step result well
+  inside the 4MiB cap that shaped the scoring step's delta.
+- This was the last step in that file with the in-place shape.
+
 ### 2026-09-20 (the API pipeline applies the entitlement it was already given)
 
 - **`inngest/functions/wallet-lookup.ts` had no paid-field handling at all**,

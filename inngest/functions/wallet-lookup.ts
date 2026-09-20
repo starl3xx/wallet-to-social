@@ -378,13 +378,57 @@ export const walletLookup = inngest.createFunction(
       }
     }
 
-    // Step 5: Enrich from social graph
-    await step.run('enrich-social-graph', async () => {
+    /**
+     * Step 5: enrich from the social graph.
+     *
+     * RETURNS a delta, for the reason step 6 does. `step.run` memoises its
+     * RESULT and skips the callback on a replay, so this step mutated
+     * `resultsMap` in place and returned nothing: every retry of a later step
+     * dropped the enrichment entirely. A replayed job came back with fewer
+     * identities than a first-pass one and with `twitter_verified` and
+     * `farcaster_verified` unset, so the attested marking went blank, which
+     * is the same symptom the note at the verification copy below records
+     * fixing once already for a different cause.
+     *
+     * It billed correctly throughout, because `chargeForJob` counts the same
+     * degraded map in `finalize`. That is exactly why nothing caught it: the
+     * customer got less and paid less, and no number disagreed with another.
+     *
+     * The delta is computed by DIFFING the row against a snapshot rather than
+     * being written out branch by branch. The fill rules below are
+     * order-dependent (the verification copy reads the handle the fill above
+     * may have just set), so a hand-written delta would have to restate that
+     * order and could drift from it. A diff cannot.
+     */
+    const enrichFields = [
+      'ens_name',
+      'twitter_handle',
+      'twitter_url',
+      'farcaster',
+      'farcaster_url',
+      'fc_followers',
+      'twitter_verified',
+      'farcaster_verified',
+      'lens',
+      'github',
+    ] as const satisfies readonly (keyof WalletSocialResult)[];
+
+    type EnrichDelta = { wallet: string } & Partial<
+      Pick<WalletSocialResult, (typeof enrichFields)[number]>
+    >;
+
+    const enriched = await step.run('enrich-social-graph', async () => {
+      const deltas: EnrichDelta[] = [];
       try {
         const graphData = await getSocialGraphData(allWallets);
         for (const [wallet, result] of resultsMap) {
           const stored = graphData.get(wallet);
           if (stored) {
+            const before: Partial<WalletSocialResult> = {};
+            for (const key of enrichFields) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (before as any)[key] = result[key];
+            }
             const storedData = socialGraphToResult(stored);
             if (!result.ens_name && storedData.ens_name)
               result.ens_name = storedData.ens_name;
@@ -415,13 +459,33 @@ export const walletLookup = inngest.createFunction(
             if (!result.lens && storedData.lens) result.lens = storedData.lens;
             if (!result.github && storedData.github)
               result.github = storedData.github;
-            resultsMap.set(wallet, result);
+
+            // What actually changed, and only for rows where something did.
+            const delta: EnrichDelta = { wallet };
+            let touched = false;
+            for (const key of enrichFields) {
+              if (result[key] !== before[key]) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (delta as any)[key] = result[key];
+                touched = true;
+              }
+            }
+            if (touched) deltas.push(delta);
           }
         }
       } catch (error) {
         console.error('Social graph enrichment error:', error);
       }
+      return deltas;
     });
+
+    // Applied outside the step, so a replay reaches it. Idempotent: the same
+    // delta over the same row twice is the same row.
+    for (const d of enriched) {
+      const row = resultsMap.get(d.wallet);
+      if (!row) continue;
+      Object.assign(row, d);
+    }
 
     /**
      * Step 6: reachability, then priority scores.
