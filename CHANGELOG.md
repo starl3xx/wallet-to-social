@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (owner-set handles from the social protocol's account metadata)
+
+- **`lens_profile`**: a cursor walk of the social protocol's accounts
+  (`scripts/harvest-lens-profiles.ts`), ingesting the X handle an account's
+  OWNER set in its metadata attributes (keys `x`, `twitter`), written
+  against the controlling EOA. An owner-set record nobody checked: the
+  governance-profile tier, so the same class and quality floor. Probed
+  before building, which is the day's rule and the day's contrast: 12 of
+  the first 50 accounts carried the attribute, and the identity network
+  probed the same hour carried 0 in 560, so this adapter exists and that
+  one does not.
+- Measured on the first 3,000 accounts of the walk: 384 wallets the graph
+  had never seen, 159 fills of known wallets, 471 agreements with what
+  other sources already attested, 84 recorded disagreements. The graph has
+  been largely static since its biggest client shut down in early 2025, so
+  the workflow is a monthly touch plus manual dispatch for the backfill,
+  not a daily pipeline.
+
 ### 2026-09-20 (the graph learns which wallets a regulated exchange vouched for)
 
 - **`cb_verified_wallets`**: one row per wallet carrying a live
