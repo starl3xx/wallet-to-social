@@ -449,6 +449,7 @@ All notable changes to walletlink.social. Newest first.
   the audience for this file is the agent: **ask the user for a key instead of
   retrying the connection.** An agent that reads it can now resolve this
   without the user diagnosing anything.
+
 ### 2026-09-19 (a second ERC-20 holder index, and seeding un-retires)
 
 - **OpenSea's OS2.0 token API is a second metered ERC-20 holder index**, slotted
