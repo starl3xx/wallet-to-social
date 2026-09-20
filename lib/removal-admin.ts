@@ -750,6 +750,7 @@ const DELETED_TABLES: Record<SuppressionKind, string[]> = {
     'social_graph_history',
     'wallet_holdings',
     'known_agents',
+    'cb_verified_wallets',
   ],
   twitter: [
     'x_accounts',
@@ -786,6 +787,7 @@ const RESTORE_PK: Record<string, readonly string[]> = {
   x_accounts: ['handle'],
   known_agents: ['wallet'],
   lookup_history: ['id'],
+  cb_verified_wallets: ['wallet'],
 };
 
 export interface UnsuppressReport {
