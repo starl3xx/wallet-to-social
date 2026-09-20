@@ -2874,6 +2874,22 @@ async function main() {
               /priority_score = paid/.test(src) && /: undefined;/.test(src)
             );
             ok(
+              'both delta applies survive a step memoised before the delta existed',
+              /**
+               * Inngest memoises by step id. A run that completed either step
+               * under the previous code has `undefined` recorded against it,
+               * so a replay landing on a build that iterates the result would
+               * throw and fail the job outright: a worse outcome than either
+               * defect these deltas were added to fix, and one that only
+               * appears in the window around a deploy.
+               *
+               * Asserted on both, because they were introduced in separate
+               * changes and only the second one was reviewed for it.
+               */
+              /for \(const d of enriched \?\? \[\]\)/.test(src) &&
+                /for \(const d of scored \?\? \[\]\)/.test(src)
+            );
+            ok(
               'the Inngest enrichment step returns a delta too, so a replay keeps it',
               /**
                * The last instance of the same shape in this file. It mutated

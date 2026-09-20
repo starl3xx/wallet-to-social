@@ -479,9 +479,18 @@ export const walletLookup = inngest.createFunction(
       return deltas;
     });
 
-    // Applied outside the step, so a replay reaches it. Idempotent: the same
-    // delta over the same row twice is the same row.
-    for (const d of enriched) {
+    /**
+     * Applied outside the step, so a replay reaches it. Idempotent: the same
+     * delta over the same row twice is the same row.
+     *
+     * `?? []` is the deploy window, not defensive habit. Inngest memoises by
+     * step id, so a run that completed this step under the previous code has
+     * `undefined` recorded against it, and a replay landing on this build
+     * would read that back. Iterating it would throw and fail a job outright,
+     * which is a worse outcome than the enrichment this change restores.
+     * The same guard is on the scoring delta below for the same reason.
+     */
+    for (const d of enriched ?? []) {
       const row = resultsMap.get(d.wallet);
       if (!row) continue;
       Object.assign(row, d);
@@ -580,7 +589,9 @@ export const walletLookup = inngest.createFunction(
       }));
     });
 
-    for (const d of scored) {
+    // `?? []` for the reason given above the enrichment apply: a run that
+    // finished this step before the delta existed memoised `undefined`.
+    for (const d of scored ?? []) {
       const row = resultsMap.get(d.wallet);
       if (!row) continue;
       row.twitter_reachability = d.twitter_reachability;
