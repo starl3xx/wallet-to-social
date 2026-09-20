@@ -2,6 +2,14 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (Sharper hero portraits)
+
+- Fetch the 400px X portrait variant instead of enlarging 48px thumbnails.
+  Encode up to 320px WebP portraits without upscaling smaller originals, keeping
+  the existing 30 KB per-image limit and server-only refresh flow.
+- Refresh the seven bundled fallback portraits from identity-checked sources.
+  Existing materialized portraits improve on the next successful hero refresh.
+
 ### 2026-09-20 (the attestation adapter reads two more schemas)
 
 - **The KOL schema joins the onchain attestation sweep** (`string

@@ -37,6 +37,15 @@ export async function refreshPortrait(
       url.password
     )
       return fallback;
+    // X resolver portraits commonly point at a 48px `_normal` thumbnail.
+    // Select the bounded 400px source before encoding; enlarging the thumbnail
+    // cannot restore the detail needed on high-density screens.
+    if (url.pathname.startsWith('/profile_images/')) {
+      url.pathname = url.pathname.replace(
+        /_(normal|bigger|mini|200x200)(?=\.[a-z]+$)/i,
+        '_400x400'
+      );
+    }
     const image = await fetch(url, {
       signal: AbortSignal.timeout(5000),
       redirect: 'error',
@@ -71,8 +80,8 @@ export async function refreshPortrait(
       limitInputPixels: 20_000_000,
     })
       .rotate()
-      .resize(160, 160, { fit: 'cover' })
-      .webp({ quality: 78 })
+      .resize(320, 320, { fit: 'cover', withoutEnlargement: true })
+      .webp({ quality: 82 })
       .toBuffer();
     if (bytes.length > 30000) return fallback;
     return `data:image/webp;base64,${bytes.toString('base64')}`;
