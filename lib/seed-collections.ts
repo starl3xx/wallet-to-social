@@ -61,7 +61,7 @@ const NOVELTY_DAYS = 30;
 /**
  * How soon an UNFINISHED holder walk may continue.
  *
- * One day, not thirty: a contract whose last seed returned a continuation
+ * Hours, not thirty days: a contract whose last seed returned a continuation
  * cursor has more holders waiting, and making it sit out the full novelty
  * window would re-import nothing in the meantime — before cursors existed,
  * every 30-day re-seed re-fetched the same top slice by balance, so a
@@ -69,8 +69,16 @@ const NOVELTY_DAYS = 30;
  * still never outranks a never-seeded contract (see selectNovelCandidates),
  * so breadth comes first and the tail fills in on the days a chain has
  * nothing new.
+ *
+ * 20 hours and not 24, because the gate's consumer is a daily cron with
+ * jitter. Two 07:00 UTC runs are routinely less than 24 hours apart once
+ * scheduler drift and the earlier slots' runtime shift the moment a chain's
+ * token slot actually executes, and a 24-hour bar would skip the walk on
+ * every such day — coverage advancing every other day was the reviewed
+ * defect. 20 hours passes any daily cadence and still refuses a same-day
+ * re-run.
  */
-const CONTINUE_AFTER_DAYS = 1;
+const CONTINUE_AFTER_HOURS = 20;
 
 // Failed attempts get a much shorter lockout: long enough that a broken
 // contract can't wedge its chain's queue, short enough that a transient
@@ -380,7 +388,7 @@ export async function discoverTokenCandidates(
  * Lockouts are unchanged: a success without a walk sits out NOVELTY_DAYS, a
  * failed attempt (holders_imported = 0) sits out FAILURE_RETRY_DAYS — with
  * its cursor intact, so the retry continues rather than restarts — and a walk
- * continues no sooner than CONTINUE_AFTER_DAYS after its last slice.
+ * continues no sooner than CONTINUE_AFTER_HOURS after its last slice.
  */
 export async function selectNovelCandidates(
   candidates: SeedCandidate[]
@@ -396,7 +404,7 @@ export async function selectNovelCandidates(
            (resume_state IS NOT NULL) AS has_walk,
            last_seeded_at > now() - make_interval(days => ${NOVELTY_DAYS}) AS in_novelty_window,
            last_seeded_at > now() - make_interval(days => ${FAILURE_RETRY_DAYS}) AS in_retry_window,
-           last_seeded_at > now() - make_interval(days => ${CONTINUE_AFTER_DAYS}) AS walked_recently,
+           last_seeded_at > now() - make_interval(hours => ${CONTINUE_AFTER_HOURS}) AS walked_recently,
            extract(epoch from last_seeded_at) AS seeded_epoch
     FROM seeded_contracts
     WHERE chain = ${chain}
@@ -680,6 +688,40 @@ export async function seedContract(
           : undefined,
     }
   );
+
+  /**
+   * A resumed slice that comes back empty is the walk stepping off the end of
+   * the list, not a failure: getContractHolders only returns empty (rather
+   * than throwing NO_HOLDERS) when a resume cursor was in play. It must not
+   * fall through to recordSeed, whose holders_imported = 0 write is the state
+   * machine's failure marker; that would send a *finished* walk into the
+   * retry loop with its stale bookmark, re-stepping off the same end every
+   * FAILURE_RETRY_DAYS forever. Instead the bookmark clears and the cumulative
+   * walk total stands in as the success marker, which is also the truer
+   * number: the walk as a whole imported that many.
+   */
+  if (walkBefore && holders.wallets.length === 0) {
+    const db = getDb();
+    if (db) {
+      await db.execute(sql`
+        UPDATE seeded_contracts
+        SET resume_state = NULL,
+            holders_imported = ${walkBefore.walked},
+            last_seeded_at = now()
+        WHERE address = ${candidate.address} AND chain = ${candidate.chain}
+      `);
+    }
+    console.log(
+      `Walk complete for ${candidate.label} (${candidate.chain}): ` +
+        `${walkBefore.walked} holders across all slices, final step empty.`
+    );
+    return {
+      contract: candidate,
+      holdersImported: 0,
+      totalHolders: holders.totalHolders,
+      jobId: null,
+    };
+  }
 
   // Decided before recording: recordSeed needs to know whether this contract
   // should count as finished or stay in the retry window.

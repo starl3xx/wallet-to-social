@@ -1768,7 +1768,20 @@ export async function getContractHolders(
     );
   }
 
-  if (holdersResult.wallets.length === 0) {
+  /**
+   * Empty means two different things, told apart by how the fetch started.
+   *
+   * From the top of the list, zero holders is NO_HOLDERS: the index was asked
+   * about the whole contract and said nobody holds it. From a resume cursor,
+   * zero holders means the walk stepped off the end of the list — the
+   * previous slice happened to finish exactly on a page boundary, or holders
+   * dropped below the bookmark since. That is a successful completion, and
+   * throwing here instead would strand the bookmark: the caller that would
+   * clear it never runs, the row keeps retrying as a failure, and the
+   * contract occupies a seed slot forever importing nobody. Callers see the
+   * completion as an ordinary result with no wallets and no continuation.
+   */
+  if (holdersResult.wallets.length === 0 && !options.resume) {
     throw new Error('NO_HOLDERS');
   }
 

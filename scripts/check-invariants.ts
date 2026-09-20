@@ -5213,6 +5213,44 @@ async function main() {
           seed
         ) && seed.includes('resume_state = EXCLUDED.resume_state')
       );
+
+      /**
+       * A walk that steps off the end of the list must complete, not fail.
+       * The empty final slice used to throw NO_HOLDERS before anything could
+       * clear the bookmark, so the row failed into the retry loop and
+       * re-stepped off the same end every lockout, occupying a daily slot
+       * forever. Two halves, both required: getContractHolders only raises
+       * NO_HOLDERS for a fetch that started from the top, and seedContract's
+       * completion branch clears the bookmark BEFORE recordSeed can write the
+       * failure marker.
+       */
+      ok(
+        'an empty resumed slice completes the walk instead of failing it',
+        /wallets\.length === 0 && !options\.resume/.test(holders) &&
+          (() => {
+            const complete = seed.indexOf(
+              'walkBefore && holders.wallets.length === 0'
+            );
+            const record = seed.indexOf('await recordSeed(');
+            return complete !== -1 && record !== -1 && complete < record;
+          })()
+      );
+
+      /**
+       * The continue gate must sit UNDER the daily cadence. The cron is daily
+       * with jitter, so consecutive token slots are routinely less than 24
+       * hours apart; a bar at or above 24 hours skips the walk on every such
+       * day and coverage advances every other day, which was the reviewed
+       * defect.
+       */
+      const gateHours = /const CONTINUE_AFTER_HOURS = (\d+);/.exec(seed);
+      ok(
+        'the walk-continue gate is under the daily cadence, in hours',
+        gateHours !== null &&
+          Number(gateHours[1]) >= 1 &&
+          Number(gateHours[1]) < 24 &&
+          seed.includes('make_interval(hours => ${CONTINUE_AFTER_HOURS})')
+      );
     }
 
     /**

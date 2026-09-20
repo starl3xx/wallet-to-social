@@ -18,7 +18,8 @@ All notable changes to walletlink.social. Newest first.
   starts a fresh top slice rather than misreading a foreign cursor.
 - **Selection is breadth first, then depth.** Never-seeded contracts keep
   their rank order and their priority; contracts with an unfinished walk
-  become eligible after `CONTINUE_AFTER_DAYS` (1) and fill the days a chain
+  become eligible after `CONTINUE_AFTER_HOURS` (20, under a 24-hour cadence
+  so cron jitter cannot make walks skip alternate days) and fill the days a chain
   has nothing new, oldest walk first, where the slot used to idle on "no
   novel candidates". A finished walk clears its bookmark and refreshes on the
   normal 30-day cadence, restarting from the top.
