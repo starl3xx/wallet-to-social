@@ -1712,6 +1712,68 @@ async function main() {
           );
 
           /**
+           * The control is above the explanation, and the explanation is
+           * still on the page.
+           *
+           * The first version put three sections and about six hundred words
+           * before the claim card, so the one thing the page exists for sat
+           * below the fold. Both halves are asserted because either alone is
+           * the wrong page: moving the card up and deleting the disclosures
+           * would pass a layout check while removing what a person agreed to,
+           * and keeping the disclosures above it is what was wrong to begin
+           * with.
+           *
+           * The two facts that change a decision stay ABOVE the control
+           * rather than behind a click: that the index is sold, and that we
+           * take no access to the account. Hiding those two would be choosing
+           * exactly the wrong pair to hide.
+           */
+          {
+            const page = withoutComments(
+              readFileSync('app/claim/page.tsx', 'utf8')
+            );
+            ok(
+              'the claim control sits above the explanation',
+              /**
+               * BOTH operands checked for presence, not just one.
+               *
+               * The first version tested `indexOf('<Detail') > -1`, which is
+               * the operand the comparison already rejects: `<Detail>` has to
+               * exist for a real index to compare against. The one that can
+               * go missing is the control, and with it absent `indexOf`
+               * answers -1, which precedes every real index, so deleting the
+               * claim card outright passed a check named for keeping it
+               * first. The existence test landed on the safe operand, one
+               * assertion above the comment describing that exact trap.
+               */
+              page.includes('<ClaimFlow') &&
+                page.includes('<Detail') &&
+                page.indexOf('<ClaimFlow') < page.indexOf('<Detail')
+            );
+            ok(
+              'and the explanation is still on this page, not moved off it',
+              // Four disclosures, on the same URL. A link to a separate FAQ
+              // would satisfy a layout check and weaken the disclosure.
+              (page.match(/<Detail question=/g) ?? []).length >= 4
+            );
+            ok(
+              'the two facts that change a decision are above the control',
+              /**
+               * Present AND before, in that order, because `indexOf` answers
+               * -1 for absent and -1 is less than every real index. Written
+               * without the existence test this passed while the sentence was
+               * deleted, which is the same defect this file already records
+               * three times over and which I reintroduced here by hand.
+               */
+              page.includes('no access to your X account') &&
+                page.includes('an index we sell') &&
+                page.indexOf('no access to your X account') <
+                  page.indexOf('<ClaimFlow') &&
+                page.indexOf('an index we sell') < page.indexOf('<ClaimFlow')
+            );
+          }
+
+          /**
            * The once-per-account limit counts PAID claims, not claims.
            *
            * The partial unique index is on `x_user_id_hmac` WHERE

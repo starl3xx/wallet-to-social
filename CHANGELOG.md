@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the claim control stops being below the fold)
+
+- **`/claim` put three sections and about six hundred words above the claim
+  card**, so the one thing the page exists for sat below the fold on every
+  laptop. The control now comes straight after the heading.
+- The explanation moves into four collapsed disclosures **underneath, on the
+  same URL**. Not a separate FAQ page: a disclosure somebody has to navigate
+  away to find is weaker ground if anyone ever disputes what they agreed to,
+  and two copies of the same copy drift apart. Native `details`, so every
+  answer is in the HTML for a crawler rather than behind a click, which
+  matters because `/claim` is in the sitemap.
+- **Two facts stay above the control**: that the index is sold, and that we
+  take no access to the X account. Those are the pair that changes somebody's
+  mind, so hiding them behind a click would be choosing exactly the wrong two
+  to hide. Asserted, along with the ordering and the disclosures still being
+  present, because moving the card up and deleting the copy would pass a
+  layout check while removing what a person agreed to.
+- That assertion needed a second pass. Written as an `indexOf` comparison it
+  passed while the sentence was deleted, since `indexOf` answers -1 for absent
+  and -1 precedes every real index: the same defect this repo already records
+  three times, reintroduced by hand and caught by breaking it.
+
 ### 2026-09-20 (every attested ingest records its disagreements, finally)
 
 - **`lib/conflict-resolution.ts` said conflict rows "are written by every
