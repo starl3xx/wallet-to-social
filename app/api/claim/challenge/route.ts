@@ -35,6 +35,8 @@ import {
 } from '@/lib/attestation';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
 import { isSuppressed } from '@/lib/suppression';
+import { getDb } from '@/db';
+import { sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -142,6 +144,37 @@ export async function GET(request: NextRequest) {
    * this: answering false here would quietly tell somebody their claim earns
    * nothing because a query failed, and they would have no way to know.
    */
+  /**
+   * Whether confirming would add the one thing a claim uniquely supplies.
+   *
+   * A handle with no numeric id beside it has no rot detector: Farcaster
+   * records a verified X account as a bare username, so no Farcaster-derived
+   * handle carries an id, and 1,048,530 wallets were in exactly that state on
+   * 2026-09-20. This read decides both halves of what the page says next: the
+   * invitation, and whether the grant applies at all.
+   *
+   * A failed read answers false and the response still goes out. It is a
+   * prompt and a grant condition, not a gate on claiming, and refusing the
+   * whole challenge because this one query failed would stop somebody
+   * correcting their record over a sentence.
+   */
+  let idGap = false;
+  try {
+    const db = getDb();
+    if (db) {
+      const row = (await db.execute(sql`
+        SELECT twitter_user_id
+        FROM social_graph
+        WHERE wallet = ${wallet}
+          AND twitter_handle IS NOT NULL
+        LIMIT 1
+      `)) as unknown as { rows: Array<{ twitter_user_id: string | null }> };
+      idGap = row.rows.length > 0 && row.rows[0].twitter_user_id === null;
+    }
+  } catch (error) {
+    console.error('claim id-gap read failed; offering no invitation:', error);
+  }
+
   let eligible: boolean;
   try {
     eligible = await walletPredatesCutoff(wallet);
@@ -168,7 +201,21 @@ export async function GET(request: NextRequest) {
      * as one: the claim is still written, because a correction from the owner
      * is worth having whether or not we pay for it.
      */
-    earns_credits: eligible,
-    grant_matches: eligible ? ATTESTATION_GRANT_MATCHES : 0,
+    earns_credits: eligible && idGap,
+    grant_matches: eligible && idGap ? ATTESTATION_GRANT_MATCHES : 0,
+    /**
+     * Whether we hold a handle for this address with no account id behind it.
+     *
+     * ONE BIT, never the handle. Returning what we hold for a caller-supplied
+     * address would be giving away the reverse lookup, which is a paid
+     * feature, behind nothing but a session and ten requests an hour. So this
+     * says that confirming would ADD something and leaves the caller to learn
+     * what by completing the claim they were already starting.
+     *
+     * Even one bit is a disclosure, and it is the same class and through the
+     * same authenticated, rate-limited door as `earns_credits`, which has
+     * reported membership-and-age per address since this route existed.
+     */
+    adds_account_id: idGap,
   });
 }

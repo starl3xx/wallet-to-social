@@ -1377,6 +1377,68 @@ async function main() {
           // Exactly one, so the exempted branch is the only one that checks.
           route.split('isSuppressed(').length === 2
       );
+      /**
+       * The invitation is one bit, and the paid product stays paid.
+       *
+       * Telling a caller WHICH account we hold for an address they typed
+       * would be the reverse lookup, given away behind a session and ten
+       * requests an hour. `/check` refuses to name wallets for exactly this
+       * reason and says so on the page. So this route answers whether
+       * confirming would ADD an account number and never what the handle is.
+       *
+       * Asserted as the refusal: the response may not carry a handle.
+       */
+      ok(
+        'the challenge says an account number is missing without naming the account',
+        /adds_account_id: idGap/.test(route) &&
+          !/twitter_handle:/.test(route) &&
+          !/\bhandle:/.test(route)
+      );
+
+      /**
+       * The grant pays for the thing only a claim can supply.
+       *
+       * The cutoff alone paid for an owner attestation Farcaster mostly gives
+       * us free: measured 2026-09-20, 4,708,708 wallets carry an FID and
+       * 1,063,216 of those carry an X handle, against 86,894 rows anywhere
+       * carrying an account number. So the gate is both halves. The cutoff
+       * answers "could this evidence have been bought", the gap answers "did
+       * we already have it", and either alone pays for the wrong thing.
+       */
+      {
+        const callback = withoutComments(
+          readFileSync('lib/claim-callback.ts', 'utf8')
+        );
+        ok(
+          'a claim that adds no account number is not paid',
+          /if \(!addsAccountId\) return;/.test(callback)
+        );
+        ok(
+          'and the cutoff still applies, so a wallet made today cannot earn one',
+          // Narrowing the grant must not have swapped the anti-sybil half for
+          // the useful one. Both, or an address created this morning claims an
+          // unclaimed account and is paid for it.
+          /walletPredatesCutoff\(wallet\)/.test(callback) &&
+            /if \(!eligible\) return;/.test(callback)
+        );
+        ok(
+          'the gap is read BEFORE the ingest that closes it',
+          /**
+           * `ingestLinks` writes the account id, so asking afterwards answers
+           * "no gap" for precisely the claims that just filled one, and the
+           * grant would never be paid to anybody.
+           *
+           * Anchored on the QUERY, not on `addsAccountId =`. That matched
+           * `let addsAccountId = false` on the declaration line, which does
+           * not move when the read does, so the first version of this check
+           * passed with the read relocated below the ingest.
+           */
+          callback.indexOf('SELECT twitter_user_id') > -1 &&
+            callback.indexOf('SELECT twitter_user_id') <
+              callback.indexOf('await ingestLinks(')
+        );
+      }
+
       ok(
         'an unrecognised intent is refused rather than read as a claim',
         // The value decides which act the resulting signature can be spent

@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the grant pays for the thing only a claim can supply)
+
+- **A claim now earns credits only when it adds an account number we lacked**,
+  and the address predates the cutoff. Both halves, because either alone pays
+  for the wrong thing: the cutoff alone paid for an owner attestation Farcaster
+  mostly supplies free, and a gap alone would let an address created this
+  morning earn credits.
+- Measured on 2026-09-20: **4,708,708** wallets carry a Farcaster id and
+  **1,063,216** of those carry an X handle, against **86,894** rows anywhere
+  that carry an X account number. Farcaster records a verified X account as a
+  bare username, so nothing it gives us can tell a rename from a suspension.
+  **1,048,530** wallets sit in exactly that state.
+- The gap is read **before** the ingest that closes it, since `ingestLinks`
+  writes the account number and asking afterwards would answer "no gap" for
+  precisely the claims that just filled one.
+- **`/claim` invites the people who can close it.** Once a wallet is connected,
+  the challenge reports whether confirming would add an account number, and the
+  flow says so before anything is approved.
+- **It is one bit, never the handle.** Telling a caller which account we hold
+  for an address they typed would be the reverse lookup, given away behind a
+  session and ten requests an hour. Asserted as a refusal: the response may not
+  carry a handle.
+- That ordering assertion needed a second pass. Anchored on `addsAccountId =`
+  it matched the declaration, which does not move when the read does, so it
+  passed with the read relocated below the ingest. It anchors on the query now.
+
 ### 2026-09-20 (the claim control stops being below the fold)
 
 - **`/claim` put three sections and about six hundred words above the claim

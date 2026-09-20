@@ -256,10 +256,26 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
          * omitted.
          */
         if (mode === 'claim') {
+          /**
+           * The invitation comes first, because it is the reason to finish.
+           *
+           * We hold a handle for this address with no account id behind it,
+           * which is the state 1,048,530 wallets were in: Farcaster records a
+           * verified X account as a bare username, so nothing it gives us can
+           * tell a rename from a suspension later. Confirming is the only
+           * thing that supplies the id.
+           *
+           * It never names the handle. The route returns one bit and not the
+           * value, because telling a caller what we hold for an address they
+           * typed would be giving away the reverse lookup, which is sold.
+           */
+          const invitation = challenge.adds_account_id
+            ? 'We hold an X account for this address with no account number behind it, which is what tells a rename from a suspension. Confirming supplies it. '
+            : '';
           setWorth(
             challenge.earns_credits
-              ? `We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
-              : 'We first saw this address after the cutoff, so this claim earns no credits. It still corrects the record.'
+              ? `${invitation}We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
+              : `${invitation}This claim earns no credits: either we first saw this address after the cutoff, or we already hold the account number for it. It still corrects the record.`
           );
         }
 
