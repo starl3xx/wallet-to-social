@@ -149,6 +149,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      /**
+       * The page where somebody corrects or removes what we hold about them.
+       *
+       * Ranked with the comparisons rather than with /privacy, because unlike
+       * a policy it is a page a person acts on, and the search that brings
+       * them here ("walletlink wallet address claim", or their own handle
+       * beside ours) is one where the answer is a control rather than a
+       * paragraph.
+       *
+       * It carries a canonical and shipped with nothing linking to it, on the
+       * site or in here, which is the same defect the entry below records for
+       * the privacy policy: declaring a canonical URL asks to be indexed, and
+       * a sitemap that omits the page is the one place that request is made.
+       */
+      url: `${baseUrl}/claim`,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       // Low priority, but present: a policy nobody can find is not published,
       // and a directory listing has to name a reachable URL for it.
       url: `${baseUrl}/privacy`,

@@ -175,7 +175,20 @@ export function SiteFooter() {
             </FooterLink>
           </FooterColumn>
 
+          {/* "Claim your address" sits beside Privacy rather than under
+              Product, because it is not something to buy: it is the other
+              half of what the privacy page offers. That page tells somebody
+              in the index to write to us and wait for a person to run the
+              removal by hand; this is the same control exercised by
+              themselves, in a minute, for an address they can sign for.
+              Filing it under Product would sell it, and it is not for sale.
+
+              It is here at all because a page nobody can reach is not
+              published. /claim declares a canonical URL and shipped with no
+              link to it anywhere on the site, which is the privacy policy's
+              own lesson arriving on the page most like it. */}
           <FooterColumn title="Project">
+            <FooterLink href="/claim">Claim your address</FooterLink>
             <FooterLink href="/privacy">Privacy</FooterLink>
             <FooterLink href="mailto:help@walletlink.social">
               help@walletlink.social
