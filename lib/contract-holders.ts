@@ -62,6 +62,14 @@ export interface HolderResult {
    * keep the stale cursor.
    */
   continuation?: HolderWalkContinuation;
+  /**
+   * True when the requested resume cursor was actually consumed by the source
+   * that served this result. An empty result with this true is a walk
+   * reaching its end; an empty result cannot occur with it false, because
+   * that is NO_HOLDERS and throws. Callers deciding a walk's fate must key on
+   * this, never on having asked to resume.
+   */
+  resumeConsumed: boolean;
   tokenName: string;
   tokenSymbol: string;
   contractType: ContractType;
@@ -1125,6 +1133,7 @@ async function getERC20Holders(
   totalHolders: number;
   balances: Map<string, string>;
   balancesAreDisplayUnits?: boolean;
+  resumeConsumed?: boolean;
   continuation?: HolderWalkContinuation;
 }> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
@@ -1480,6 +1489,7 @@ async function fetchHoldersOpenSea(
   totalHolders: number;
   balances: Map<string, string>;
   balancesAreDisplayUnits: true;
+  resumeConsumed: boolean;
   continuation?: HolderWalkContinuation;
 }> {
   const slug = OPENSEA_CHAIN_SLUGS[chain];
@@ -1590,6 +1600,14 @@ async function fetchHoldersOpenSea(
     totalHolders,
     balances: new Map(wallets.map((w) => [w, seen.get(w) ?? ''])),
     balancesAreDisplayUnits: true,
+    /**
+     * True only when this fetch actually started from the caller's bookmark.
+     * "The caller asked to resume" is not the same fact: a different index can
+     * serve the call without ever seeing the cursor, and an empty answer from
+     * IT means "nobody holds this", not "the walk reached the end". Only the
+     * consumer of the cursor may declare the walk complete.
+     */
+    resumeConsumed: startCursor !== undefined,
     ...(nextCursor
       ? { continuation: { source: 'opensea' as const, cursor: nextCursor } }
       : {}),
@@ -1725,6 +1743,7 @@ export async function getContractHolders(
     totalHolders: number;
     balances?: Map<string, string>;
     balancesAreDisplayUnits?: boolean;
+    resumeConsumed?: boolean;
     continuation?: HolderWalkContinuation;
   };
 
@@ -1780,8 +1799,15 @@ export async function getContractHolders(
    * clear it never runs, the row keeps retrying as a failure, and the
    * contract occupies a seed slot forever importing nobody. Callers see the
    * completion as an ordinary result with no wallets and no continuation.
+   *
+   * The gate is `resumeConsumed`, never `options.resume`: asking to resume
+   * does not mean the cursor was used. A revived first index can serve the
+   * call without seeing the bookmark, and its empty answer is a real
+   * NO_HOLDERS, not a walk reaching its end — suppressing the throw on the
+   * request alone would clear the bookmark and abandon the unwalked tail
+   * (caught in review).
    */
-  if (holdersResult.wallets.length === 0 && !options.resume) {
+  if (holdersResult.wallets.length === 0 && !holdersResult.resumeConsumed) {
     throw new Error('NO_HOLDERS');
   }
 
@@ -1802,6 +1828,7 @@ export async function getContractHolders(
     // complete list. Every caller must handle 0 as "unknown".
     totalHolders: holdersResult.totalHolders,
     appliedLimit: effectiveLimit,
+    resumeConsumed: holdersResult.resumeConsumed === true,
     continuation: holdersResult.continuation,
     /**
      * Two ways a list can be short, and both must set this flag.

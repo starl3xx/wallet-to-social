@@ -5220,16 +5220,25 @@ async function main() {
        * clear the bookmark, so the row failed into the retry loop and
        * re-stepped off the same end every lockout, occupying a daily slot
        * forever. Two halves, both required: getContractHolders only raises
-       * NO_HOLDERS for a fetch that started from the top, and seedContract's
-       * completion branch clears the bookmark BEFORE recordSeed can write the
-       * failure marker.
+       * NO_HOLDERS for a fetch that did not consume a resume cursor, and
+       * seedContract's completion branch clears the bookmark BEFORE
+       * recordSeed can write the failure marker.
+       *
+       * Both sides key on CONSUMPTION (`resumeConsumed`), never on the
+       * request (`options.resume`): a revived first index can serve the call
+       * without seeing the bookmark, and its empty answer is a real
+       * NO_HOLDERS, not a finished walk. Keying on the request cleared the
+       * bookmark and abandoned the unwalked tail; also caught in review.
        */
       ok(
-        'an empty resumed slice completes the walk instead of failing it',
-        /wallets\.length === 0 && !options\.resume/.test(holders) &&
+        'an empty resumed slice completes the walk instead of failing it, and only when the cursor was consumed',
+        /wallets\.length === 0 && !holdersResult\.resumeConsumed/.test(
+          holders
+        ) &&
+          !/wallets\.length === 0 && !options\.resume\b/.test(holders) &&
           (() => {
             const complete = seed.indexOf(
-              'walkBefore && holders.wallets.length === 0'
+              'walkBefore && holders.resumeConsumed && holders.wallets.length === 0'
             );
             const record = seed.indexOf('await recordSeed(');
             return complete !== -1 && record !== -1 && complete < record;

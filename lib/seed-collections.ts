@@ -692,7 +692,9 @@ export async function seedContract(
   /**
    * A resumed slice that comes back empty is the walk stepping off the end of
    * the list, not a failure: getContractHolders only returns empty (rather
-   * than throwing NO_HOLDERS) when a resume cursor was in play. It must not
+   * than throwing NO_HOLDERS) when the resume cursor was actually consumed by
+   * the serving source, which is why the condition reads `resumeConsumed` and
+   * not merely `walkBefore`. It must not
    * fall through to recordSeed, whose holders_imported = 0 write is the state
    * machine's failure marker; that would send a *finished* walk into the
    * retry loop with its stale bookmark, re-stepping off the same end every
@@ -700,7 +702,7 @@ export async function seedContract(
    * walk total stands in as the success marker, which is also the truer
    * number: the walk as a whole imported that many.
    */
-  if (walkBefore && holders.wallets.length === 0) {
+  if (walkBefore && holders.resumeConsumed && holders.wallets.length === 0) {
     const db = getDb();
     if (db) {
       await db.execute(sql`
