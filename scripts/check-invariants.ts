@@ -1685,14 +1685,30 @@ async function main() {
            *
            * Asserted against the page as rendered, with the cutoff read
            * through the shared constant so the date cannot be written twice.
+           *
+           * The outcome banner is checked with it, because the invented
+           * condition had THREE homes and fixing the two on the page would
+           * have left the one a person reads last, after the trip to X, at
+           * the moment they are actually wondering whether they were paid.
+           * The phrase is matched wherever it appears rather than per file,
+           * so a fourth copy cannot arrive quietly.
            */
-          const claimPage = withoutComments(
-            readFileSync('app/claim/page.tsx', 'utf8')
-          );
+          for (const copyFile of [
+            'app/claim/page.tsx',
+            'components/ClaimOutcome.tsx',
+          ]) {
+            ok(
+              `${copyFile} does not describe a grant condition nothing implements`,
+              !/add(s|ed) something/.test(
+                withoutComments(readFileSync(copyFile, 'utf8'))
+              )
+            );
+          }
           ok(
             'the page states the grant condition that the code actually applies',
-            /ATTESTATION_CUTOFF_HUMAN/.test(claimPage) &&
-              !/adds something we did not already hold/.test(claimPage)
+            /ATTESTATION_CUTOFF_HUMAN/.test(
+              withoutComments(readFileSync('app/claim/page.tsx', 'utf8'))
+            )
           );
 
           /**
