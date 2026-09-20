@@ -436,14 +436,40 @@ async function upsertHarvestedRecords(
           // A refused rename must not stamp the row either: no source label
           // and no quality bump, unless the same record also fills github,
           // which is a real write that earns both.
+          //
+          // The second branch is the same rule for the commoner refusal, and
+          // it was missing. `twitterHandle` above is fill-if-empty: when the
+          // row already holds a handle that is not what ENS says, COALESCE
+          // keeps ours and the ENS handle is never written. The label and the
+          // score were appended anyway, so the row claimed `ens_onchain` for a
+          // handle ENS did not supply. That is not cosmetic: `isTwitterVerified`
+          // in lib/social-graph.ts counts `ens_onchain` as owner-attested, so
+          // the unearned label reads downstream as the owner having published
+          // a handle they did not publish, and GREATEST carried the score with
+          // it. Refusing to write a value and taking credit for writing it are
+          // the same statement here, which is why both branches live together.
+          //
+          // Scope, stated because the branch is narrower than the comment could
+          // be read to mean: this covers a disagreeing twitter handle only. A
+          // github-only record landing on a row whose github is already set
+          // still appends the label, and that case is unmeasured and left
+          // alone rather than widened blind.
           sources: sql`CASE
             WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.sources
+            WHEN social_graph.twitter_handle IS NOT NULL AND EXCLUDED.twitter_handle IS NOT NULL
+              AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
               AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
             THEN social_graph.sources
             WHEN 'ens_onchain' = ANY(social_graph.sources) THEN social_graph.sources
             ELSE array_append(COALESCE(social_graph.sources, ARRAY[]::text[]), 'ens_onchain') END`,
           dataQualityScore: sql`CASE
             WHEN lower(EXCLUDED.twitter_handle) = lower(social_graph.twitter_renamed_from)
+              AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
+            THEN social_graph.data_quality_score
+            WHEN social_graph.twitter_handle IS NOT NULL AND EXCLUDED.twitter_handle IS NOT NULL
+              AND lower(social_graph.twitter_handle) <> lower(EXCLUDED.twitter_handle)
               AND NOT (social_graph.github IS NULL AND EXCLUDED.github IS NOT NULL)
             THEN social_graph.data_quality_score
             ELSE GREATEST(COALESCE(social_graph.data_quality_score, 0), 50) END`,
