@@ -77,6 +77,21 @@ import {
  */
 process.env.X402_RECOVERY_SECRET = 'invariant-check-secret';
 
+/**
+ * And the claim flow's own secret, which must be DIFFERENT from the one above.
+ *
+ * Not tidiness: the assertions below check that a signature taken for one
+ * flow is refused by the other, and giving both flows the same secret here
+ * would leave the message-text binding as the only thing making that true.
+ * The HMAC prefix would then be untested while appearing tested.
+ *
+ * `lib/attestation.ts` reads `process.env` per call, like its neighbour, so
+ * setting it here is enough. Without it `issueClaimChallenge` returns null and
+ * every assertion behind it SKIPS silently, which is how a check comes to
+ * report clean over code it never ran.
+ */
+process.env.ATTESTATION_SECRET = 'invariant-check-claim-secret';
+
 const failures: string[] = [];
 let checked = 0;
 
@@ -1023,6 +1038,105 @@ async function main() {
     ok(
       'the signed message says no funds move, because a wallet shows it to a person',
       /no funds move/i.test(ch.message)
+    );
+
+    /**
+     * A claim challenge and a recovery challenge are not interchangeable.
+     *
+     * Two flows now ask a wallet to sign, and they authorise different things:
+     * one hands out an API key, the other writes an identity into the index.
+     * A signature captured for either must be refused by the other, or the
+     * cheaper flow becomes a way into the more expensive one.
+     *
+     * The separation is enforced twice and both are asserted, because either
+     * alone is a single point of failure: the visible message text differs so
+     * a person approving it can tell them apart, and the HMAC input is
+     * prefixed so the signed bytes differ even if both secrets leaked.
+     *
+     * Asserted as the refusal through the real functions. Recomputing either
+     * HMAC here would verify only itself, which is the mistake this whole
+     * block's neighbours record having made.
+     */
+    const claim = await import('@/lib/attestation');
+    const at = Date.now();
+    const claimCh = claim.issueClaimChallenge(wallet, at);
+    ok(
+      'a claim challenge is issued, or the secret is simply unset',
+      claim.isConfigured() ? claimCh !== null : claimCh === null
+    );
+    if (claimCh) {
+      ok(
+        'the two flows sign different text, so a person can tell them apart',
+        claimCh.message !== challengeMessage(wallet, at) &&
+          /identity claim/i.test(claimCh.message) &&
+          !/key recovery/i.test(claimCh.message)
+      );
+      ok(
+        'a recovery signature does not satisfy a claim, and the reverse',
+        // Signed over the RECOVERY text, presented to the claim verifier.
+        !(
+          await claim.verifyClaim({
+            wallet,
+            issuedAt: at,
+            token: claimCh.token,
+            signature: await sign(buyer, challengeMessage(wallet, at)),
+          })
+        ).ok &&
+          // And the claim text presented to the recovery verifier.
+          !(
+            await verifyRecovery({
+              wallet,
+              issuedAt: at,
+              token: tokenFor(wallet, at),
+              signature: await sign(buyer, claimCh.message),
+            })
+          ).ok
+      );
+      ok(
+        'a claim signature is accepted by the flow that asked for it',
+        (
+          await claim.verifyClaim({
+            wallet,
+            issuedAt: at,
+            token: claimCh.token,
+            signature: await sign(buyer, claimCh.message),
+          })
+        ).ok
+      );
+      ok(
+        'the claim message says no funds move and no approval is granted',
+        /no funds move/i.test(claimCh.message) &&
+          /no approval is granted/i.test(claimCh.message)
+      );
+    }
+
+    /**
+     * The cutoff is frozen, and that is the entire gate.
+     *
+     * A signed-in free account can put a thousand addresses into the graph
+     * every thirty days at no cost, so membership is abundant going forward
+     * and scarce only retroactively. A cutoff derived from the clock would
+     * make every wallet eligible once it had aged, which is the same as
+     * having no gate while looking like one.
+     */
+    const attestationSrc = withoutComments(
+      readFileSync('lib/attestation.ts', 'utf8')
+    );
+    ok(
+      'the eligibility cutoff is a committed literal, never the clock',
+      /export const ATTESTATION_CUTOFF = '[0-9T:\-Z.]+';/.test(
+        attestationSrc
+      ) &&
+        !/ATTESTATION_CUTOFF[^;]*Date\.now|ATTESTATION_CUTOFF[^;]*interval/.test(
+          attestationSrc
+        )
+    );
+    ok(
+      'an unreadable eligibility check refuses rather than answering false',
+      // The throw is the refusal. Answering false on a failed read would deny
+      // a grant somebody earned, silently, on the one path where the person
+      // is watching.
+      /throw new Error\('Claim eligibility unavailable/.test(attestationSrc)
     );
   }
 
