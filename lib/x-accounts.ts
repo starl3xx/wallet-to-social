@@ -43,8 +43,18 @@
  * handle that a stranger now holds.
  */
 import { getDb } from '@/db';
-import { resolverUrl } from './x-resolver';
+import { isConfigured, resolverHeaders, resolverUrl } from './x-resolver';
 import { sql } from 'drizzle-orm';
+
+/**
+ * The provider's own rule for a handle: 1 to 15 of `[A-Za-z0-9_]`.
+ *
+ * Here rather than in `lib/clanker.ts`, where it was, because the batched
+ * resolve moved here and validating what came back is part of the resolve. One
+ * definition, imported by the caller, so the two cannot disagree about what a
+ * handle is.
+ */
+export const isHandle = (s: string) => /^[A-Za-z0-9_]{1,15}$/.test(s);
 
 // Endpoint and key both come from the environment. See lib/x-resolver.ts.
 
@@ -65,13 +75,31 @@ const CONCURRENCY = 50;
 /**
  * Credits per lookup, from the published prices.
  *
- * Single lookups by handle cost 18. Batched lookups by id cost 10 once a request
- * carries 100 or more, which is why the second pass and every pass after it goes
- * by id: once a handle has resolved once, we hold its id and never need to pay
- * the by-name price for it again.
+ * Single lookups by handle cost 18. Batched lookups by id cost 10 once a
+ * request carries 100 or more, which is why `resolveByIds` chunks at exactly
+ * that size.
+ *
+ * What this comment used to say, and what was not true: that "the second pass
+ * and every pass after it goes by id". No pass did. `CREDITS_PER_BATCHED_LOOKUP`
+ * was exported and referenced by nothing, and `last_live_user_id` was written,
+ * indexed and read by nothing, for as long as both existed. The sweep in this
+ * file still resolves by handle, because the rows it checks are the ones with
+ * no stored id to use. The batched price is real and is now actually charged
+ * against, by `resolveByIds`, which is the only caller that has an id to spend
+ * it on.
  */
 export const CREDITS_PER_LOOKUP = 18;
 export const CREDITS_PER_BATCHED_LOOKUP = 10;
+
+/**
+ * Ids per batched request.
+ *
+ * Exactly the threshold the batched price applies at. A smaller chunk is not
+ * a smaller bill in any way this repo has measured, and what a short chunk
+ * actually bills is undocumented, so the size is pinned to the one number the
+ * price is quoted against rather than tuned.
+ */
+const BATCH_BY_ID_CHUNK = 100;
 
 /**
  * A known-live and a known-dead handle, re-checked during the run.
@@ -238,6 +266,114 @@ async function resolve(
     }
   }
   return null;
+}
+
+/**
+ * What one batched-by-id response is worth as evidence.
+ *
+ * Pure and exported so the refusal can be tested by feeding it a body rather
+ * than by mocking a socket. That matters more here than anywhere else in this
+ * file, because the trap is not an HTTP status.
+ *
+ * `res.ok` is not the test. This resolver reports its own failures as HTTP 200
+ * with `status: "error"` and a message: out of credits, rate limited, upstream
+ * trouble. `resolve()` above already knows this. Reading those bodies as
+ * answers is the bug the caller must be immune to, because an id absent from
+ * `users` in a body we wrongly called successful is an id we then treat as
+ * denied, and five of those in a row retire an account that was fine. An
+ * outage must not be able to manufacture evidence.
+ *
+ * A missing `users` array is an unrecognised shape rather than an empty
+ * result, and the shape is not ours to rely on, so it is not an answer either.
+ * Both fall through, which is the safe direction.
+ */
+export function parseBatchByIds(body: unknown): {
+  /** Account id to current handle, for the ids the resolver knew. */
+  resolved: Map<string, string>;
+  /** Whether this body is evidence about the ids that were asked for. */
+  answered: boolean;
+} {
+  const resolved = new Map<string, string>();
+  const b = body as {
+    status?: string;
+    users?: Array<{ id?: string; userName?: string }>;
+  } | null;
+  if (!b || b.status !== 'success' || !Array.isArray(b.users)) {
+    return { resolved, answered: false };
+  }
+  for (const u of b.users) {
+    if (u.id && u.userName && isHandle(u.userName)) {
+      resolved.set(u.id, u.userName);
+    }
+  }
+  return { resolved, answered: true };
+}
+
+/**
+ * Resolve numeric account ids to their current handles, batched.
+ *
+ * The id is the durable half of an X account: a rename changes the handle and
+ * leaves the id alone, so this is the only question whose answer survives one.
+ *
+ * Lifted here from `lib/clanker.ts`, which had the only implementation, for
+ * two reasons. The provider's HTTP-200-with-status-error habit is understood
+ * in this file and nowhere else, so the parse belongs beside `resolve()` that
+ * already guards it. And the original call passed only headers, so it
+ * inherited undici's default 300s header timeout, which equals the cron
+ * route's entire maxDuration: one provider socket that accepts and never
+ * answers would consume a whole run.
+ */
+export interface ResolveByIdsResult {
+  resolved: Map<string, string>;
+  /**
+   * The ids the resolver actually answered about, whether or not it knew them.
+   *
+   * The load-bearing half. "The resolver told us it has no such user" and "we
+   * could not reach the resolver" both leave an id unresolved, and only the
+   * first is evidence about the id.
+   */
+  answered: Set<string>;
+  /** At the published batched price, for the caller's budget accounting. */
+  creditsSpent: number;
+}
+
+export async function resolveByIds(ids: string[]): Promise<ResolveByIdsResult> {
+  const resolved = new Map<string, string>();
+  const answered = new Set<string>();
+  let creditsSpent = 0;
+  if (!isConfigured() || ids.length === 0) {
+    return { resolved, answered, creditsSpent };
+  }
+
+  for (let i = 0; i < ids.length; i += BATCH_BY_ID_CHUNK) {
+    const chunk = ids.slice(i, i + BATCH_BY_ID_CHUNK);
+    try {
+      const res = await fetch(
+        resolverUrl(
+          `/twitter/user/batch_info_by_ids?userIds=${chunk.join(',')}`
+        ),
+        {
+          headers: resolverHeaders(),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        }
+      );
+      if (!res.ok) continue;
+      const { resolved: got, answered: isEvidence } = parseBatchByIds(
+        await res.json()
+      );
+      if (!isEvidence) continue;
+
+      // Only now is the chunk evidence. An id absent from `users` in a
+      // successful response is one the resolver denies knowing.
+      creditsSpent += chunk.length * CREDITS_PER_BATCHED_LOOKUP;
+      for (const id of chunk) answered.add(id);
+      for (const [id, handle] of got) resolved.set(id, handle);
+    } catch {
+      // Leave them unresolved and unanswered; the next run tries again.
+    }
+    await sleep(200);
+  }
+  return { resolved, answered, creditsSpent };
 }
 
 /** One reading of the controls. */

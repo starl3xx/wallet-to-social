@@ -43,6 +43,7 @@ import {
   batchDeadlineMs,
   MIN_BATCH_DEADLINE_MS,
 } from '../lib/web3bio';
+import { parseBatchByIds } from '../lib/x-accounts';
 import {
   freshCastTime,
   FUTURE_SKEW_MS,
@@ -7004,6 +7005,79 @@ async function main() {
       flat.includes(
         "!isKindSuppressed(sets, 'wallet', link.wallet) && " +
           "!isKindSuppressed(sets, 'twitter', link.handle)"
+      )
+    );
+  }
+
+  /**
+   * An outage must not be able to manufacture evidence.
+   *
+   * The batched-by-id resolve is the only question whose answer survives a
+   * rename, and its trap is not an HTTP status: this provider reports its own
+   * failures as HTTP 200 with `status: "error"` (out of credits, rate limited,
+   * upstream trouble). A body like that carries no `users`, so reading it as
+   * an answer marks every id in the chunk as one the resolver DENIED knowing,
+   * and five of those in a row retire an account that was perfectly fine.
+   *
+   * Asserted through `parseBatchByIds` itself rather than by matching source,
+   * which is the whole reason it was extracted as a pure function: an
+   * assertion that re-implements the status check verifies only itself.
+   */
+  {
+    const errorBody = {
+      status: 'error',
+      msg: 'insufficient credits',
+      users: [{ id: '1', userName: 'alice' }],
+    };
+    const unknownShape = { status: 'success' };
+    const good = {
+      status: 'success',
+      users: [
+        { id: '1', userName: 'alice' },
+        { id: '2', userName: 'not a valid handle!' },
+      ],
+    };
+
+    ok(
+      'a provider error answered as HTTP 200 is not evidence about any id',
+      // The error body even carries a plausible user. Refused on status alone,
+      // because the users array of a failed call is not ours to interpret.
+      parseBatchByIds(errorBody).answered === false &&
+        parseBatchByIds(errorBody).resolved.size === 0
+    );
+    ok(
+      'a success body with no users array is an unrecognised shape, not an empty answer',
+      parseBatchByIds(unknownShape).answered === false
+    );
+    ok(
+      'and a real answer resolves only what passes the handle rule',
+      parseBatchByIds(good).answered === true &&
+        parseBatchByIds(good).resolved.get('1') === 'alice' &&
+        parseBatchByIds(good).resolved.has('2') === false
+    );
+
+    /**
+     * The timeout the lift exists for. `lib/clanker.ts` passed only headers,
+     * so the request inherited undici's 300s header timeout, which equals the
+     * cron route's entire maxDuration: one socket that accepts and never
+     * answers consumed a whole run.
+     */
+    const accounts = withoutComments(
+      readFileSync('lib/x-accounts.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the batched resolve bounds its own request',
+      /batch_info_by_ids[\s\S]{0,200}?signal: AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/.test(
+        accounts
+      )
+    );
+    ok(
+      'and there is one implementation of it, not two',
+      // The copy in lib/clanker.ts is gone, not merely unused. A second
+      // spelling of this parse is how one of them keeps the status check and
+      // the other quietly loses it.
+      !/batch_info_by_ids/.test(
+        withoutComments(readFileSync('lib/clanker.ts', 'utf8'))
       )
     );
   }
