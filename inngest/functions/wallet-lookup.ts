@@ -426,18 +426,28 @@ export const walletLookup = inngest.createFunction(
     /**
      * Step 6: reachability, then priority scores.
      *
-     * RETURNS the rows, and the map is rebuilt from the return value outside
-     * the step. That is this file's own pattern (`build-initial-results` and
-     * `check-cache` both do it) and it is not a style choice: `step.run`
-     * memoises its RESULT, so on a replay the callback does not execute at
-     * all. A step that mutates `resultsMap` in place and returns nothing
-     * therefore does nothing on the second pass, and `finalize` persists the
-     * pre-stamp map: no `x_followers`, and a score that still ignores X
-     * reach. The first version of this step did exactly that.
+     * RETURNS what it produced, and the caller applies it outside the step.
      *
-     * `enrich-social-graph` above still has that shape. It predates this
-     * change and is left alone here, but it loses its enrichment on a replay
-     * for the same reason and is worth fixing separately.
+     * Two constraints pull against each other here and the delta satisfies
+     * both. `step.run` memoises its RESULT, so on a replay the callback does
+     * not execute: a step that mutates `resultsMap` in place and returns
+     * nothing does nothing on the second pass, and `finalize` persists the
+     * pre-stamp map with no `x_followers` and a score that still ignores X
+     * reach. But a step result is capped at 4MiB, and by this point the rows
+     * carry handles, bios and URLs, so returning whole rows the way
+     * `build-initial-results` safely does with near-empty ones would fail a
+     * large job AFTER every lookup had already succeeded. The first version
+     * mutated in place; the second returned everything.
+     *
+     * So it returns the four values this step actually creates: the wallet to
+     * key on, the two fields `stampReachability` writes, and the score. That
+     * is tens of bytes a row rather than hundreds, and it is replay-safe
+     * because applying it is idempotent.
+     *
+     * `enrich-social-graph` above still mutates in place and returns nothing.
+     * It predates this change and is left alone here, but it loses its
+     * enrichment on a replay for the same reason and is worth fixing
+     * separately.
      */
     const scored = await step.run('calculate-scores', async () => {
       const all = Array.from(resultsMap.values());
@@ -479,12 +489,22 @@ export const walletLookup = inngest.createFunction(
         );
       }
 
-      return all;
+      // The delta, not the rows. See the note above the step.
+      return all.map((r) => ({
+        wallet: r.wallet,
+        twitter_reachability: r.twitter_reachability,
+        x_followers: r.x_followers,
+        priority_score: r.priority_score,
+      }));
     });
 
-    resultsMap = new Map<string, WalletSocialResult>(
-      scored.map((r) => [r.wallet, r])
-    );
+    for (const d of scored) {
+      const row = resultsMap.get(d.wallet);
+      if (!row) continue;
+      row.twitter_reachability = d.twitter_reachability;
+      row.x_followers = d.x_followers;
+      row.priority_score = d.priority_score;
+    }
 
     // Step 7: Finalize job
     await step.run('finalize', async () => {

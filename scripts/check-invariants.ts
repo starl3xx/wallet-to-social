@@ -2847,7 +2847,7 @@ async function main() {
           );
           if (worker.startsWith('inngest/')) {
             ok(
-              'the Inngest scoring step returns its rows rather than mutating in place',
+              'the Inngest scoring step returns a bounded delta, not rows and not nothing',
               /**
                * `step.run` memoises its RESULT. On a replay the callback does
                * not execute, so a step that mutates `resultsMap` in place and
@@ -2860,10 +2860,15 @@ async function main() {
                * asserts that shape rather than the absence of the broken one.
                */
               /const scored = await step\.run\('calculate-scores'/.test(src) &&
-                /return all;/.test(src) &&
-                /resultsMap = new Map<string, WalletSocialResult>\(\s*scored\.map/.test(
-                  src.replace(/\s+/g, ' ')
-                )
+                // A DELTA, not the rows. Returning whole rows is replay-safe
+                // and can exceed the 4MiB step-result cap on a large job,
+                // after every lookup has already succeeded; returning nothing
+                // is small and does nothing on a replay. The four values this
+                // step creates satisfy both.
+                /return all\.map\(\(r\) => \(\{/.test(src) &&
+                /priority_score: r\.priority_score,/.test(src) &&
+                !/return all;/.test(src) &&
+                /resultsMap\.get\(d\.wallet\)/.test(src)
             );
           }
 
