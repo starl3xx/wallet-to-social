@@ -1040,6 +1040,64 @@ export const xAccounts = pgTable(
   ]
 );
 
+/**
+ * One row per `/claim`: the owner proving a wallet and an account together.
+ *
+ * Declared here before any code reads it, which is usually the wrong thing to
+ * do and is right in this one case. `scripts/check-invariants.ts` derives the
+ * set of identity-carrying tables by parsing THIS file for columns that name a
+ * person, and requires each one to be either guarded by the suppression
+ * trigger or argued into `SUPPRESSION_EXCLUDED_TABLES`. A table holding a
+ * wallet and a handle that this file does not declare is a table the boundary
+ * check cannot see, so the declaration is what makes the exclusion reviewable
+ * rather than invisible.
+ *
+ * It is excluded, with the argument written out in the migration: a guard
+ * would silently discard the withdrawal, making the one action a person takes
+ * to undo their own attestation the one action that does nothing.
+ *
+ * No access token column, unlike `x_list_jobs`. The round trip reads the
+ * account once and drops the credential in the same request.
+ */
+export const identityAttestations = pgTable(
+  'identity_attestations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    wallet: text('wallet').notNull(),
+    signature: text('signature'),
+    challengeIssuedAt: timestamp('challenge_issued_at'),
+    xUserId: text('x_user_id'),
+    /**
+     * The uniqueness key that survives an erase.
+     *
+     * One grant per account, ever, has to keep holding after the plaintext is
+     * removed, and removal is the whole point of a withdrawal. So the key
+     * cannot be the identity: an HMAC under its own pepper answers "has this
+     * account claimed before" without being reversible into the account.
+     */
+    xUserIdHmac: text('x_user_id_hmac'),
+    xHandle: text('x_handle'),
+    consentVersion: text('consent_version').notNull(),
+    consentSha256: text('consent_sha256').notNull(),
+    status: text('status').notNull().default('awaiting_x'),
+    codeVerifier: text('code_verifier'),
+    stateNonce: text('state_nonce'),
+    grantClaimedAt: timestamp('grant_claimed_at'),
+    grantedMatches: integer('granted_matches'),
+    error: text('error'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => [
+    index('identity_attestations_user_idx').on(table.userId, table.createdAt),
+    index('identity_attestations_wallet_idx').on(table.wallet),
+  ]
+);
+
 export const walletHoldings = pgTable(
   'wallet_holdings',
   {
