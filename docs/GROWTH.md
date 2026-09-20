@@ -201,6 +201,14 @@ The searchable surface is uncapped from 22: of the 42 recognized ERC-20
 contracts, the 31 on rescued chains (plus Robinhood's 2, which never stopped)
 can seed again, and the 9 on BSC stay out, knowingly.
 
+**2026-09-20: coverage became monotonic.** `seeded_contracts.resume_state`
+bookmarks each unfinished holder walk, so a re-seed continues down the
+balance-sorted list instead of re-importing the same top 2,000 forever.
+Never-seeded contracts still outrank continuations (breadth first), and
+continuations fill the slots that used to end the day as "no novel
+candidates". The per-run cap and every budget guard are unchanged; what
+changed is that the same daily spend now always buys new wallets.
+
 ## Two funnels, never added together
 
 `purchases` and `revenue` in the report mean packs bought by people. The x402

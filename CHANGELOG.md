@@ -42,6 +42,39 @@ All notable changes to walletlink.social. Newest first.
   now carries the dated note that they are, and `app/lookups.mdx` is scoped to
   both meters rather than to the free allowance alone.
 
+### 2026-09-20 (holder walks resume instead of repeating)
+
+- **`seeded_contracts.resume_state` bookmarks an unfinished ERC-20 holder
+  walk** (`{source, cursor, walked}`). Every source returns holders sorted by
+  balance descending, so before this a re-seed after the novelty window
+  re-imported the same top 2,000 whales and exchanges forever, and a
+  1.7M-holder token's tail — the slice most likely to be real people — was
+  unreachable at any cadence. Now each slice passes the last slice's cursor
+  and continues down the list.
+- The cursor is the second index's keyset (base64 of [balance, address]), so
+  it survives across days; balance drift near the boundary can repeat or skip
+  a few wallets, which the wallet-keyed upserts absorb. It is source-tagged
+  and only the index that minted it may consume it: a revived first index
+  starts a fresh top slice rather than misreading a foreign cursor.
+- **Selection is breadth first, then depth.** Never-seeded contracts keep
+  their rank order and their priority; contracts with an unfinished walk
+  become eligible after `CONTINUE_AFTER_HOURS` (20, under a 24-hour cadence
+  so cron jitter cannot make walks skip alternate days) and fill the days a chain
+  has nothing new, oldest walk first, where the slot used to idle on "no
+  novel candidates". A finished walk clears its bookmark and refreshes on the
+  normal 30-day cadence, restarting from the top.
+- The squeeze path was the trap: `unmarkSeedAttempt` deletes a zero-holder
+  attempt row to restore next-day eligibility, and that DELETE would have
+  erased a walk's entire accumulated progress. Walk rows are backdated out of
+  the retry window instead. Five new invariants cover the ways a bookmark can
+  lie (wrong index, deleted progress, outranking new contracts, surviving a
+  finished walk, bookmarking an empty page); 1,017 now pass.
+- Migration: `scripts/migrate-seed-resume.ts` (idempotent, verified), and the
+  canonical DDL in `scripts/migrate-seed-tables.ts` carries the column for
+  fresh environments. `scripts/backfill-seed-resume.ts` reconstructs bookmarks
+  for walks seeded before the column existed, so yesterday's six token seeds
+  continue tomorrow instead of waiting out the novelty window.
+
 ### 2026-09-20 (the page said the wrong thing about money)
 
 - **`/claim` described a grant condition nothing implements.** It said credits
