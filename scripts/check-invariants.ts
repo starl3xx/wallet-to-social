@@ -5573,16 +5573,27 @@ async function main() {
        * anywhere in the ladder would be a path around the guard.
        */
       ok(
-        'a resume cursor is unwrapped once, behind its source guard',
+        // One unwrap PER SOURCE since the third index arrived (2026-09-20),
+        // each behind its own guard, and each fetcher fed only the cursor
+        // its source minted: page numbers and opaque cursors must not cross.
+        'every resume cursor is unwrapped behind its own source guard',
         holders.includes(
           "options.resume?.source === 'opensea' ? options.resume.cursor"
         ) &&
-          (holders.match(/options\.resume\.cursor/g) ?? []).length === 1 &&
+          holders.includes(
+            "options.resume?.source === 'chainbase' ? options.resume.cursor"
+          ) &&
+          (holders.match(/options\.resume\.cursor/g) ?? []).length === 2 &&
           (
             holders.match(
               /fetchHoldersOpenSea\(\s*address,\s*chain,\s*limit,\s*deadlineMs,\s*resumeCursor\s*\)/g
             ) ?? []
-          ).length === 3
+          ).length === 3 &&
+          (
+            holders.match(
+              /fetchHoldersChainbase\(\s*address,\s*chain,\s*limit,\s*deadlineMs,\s*chainbaseCursor\s*\)/g
+            ) ?? []
+          ).length === 1
       );
 
       /**
