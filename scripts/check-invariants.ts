@@ -1451,6 +1451,26 @@ async function main() {
           readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
         ).replace(/\s+/g, ' ');
 
+        /**
+         * And it is reachable, which is the half that makes it real.
+         *
+         * A finished route with no control is the shape this product already
+         * carries three times over: `DELETE /api/history/[id]`, API key
+         * rotation and `GET /api/developer/usage` are all built,
+         * session-authorized and called by nothing. The page promises
+         * withdrawal twice, so a route nobody can press would be most of the
+         * way to a promise nothing keeps.
+         */
+        ok(
+          'the page can actually reach the withdrawal',
+          /'\/api\/claim\/withdraw'/.test(
+            withoutComments(readFileSync('components/ClaimFlow.tsx', 'utf8'))
+          ) &&
+            /run\(providers\[0\]\.provider, 'withdraw'\)/.test(
+              withoutComments(readFileSync('components/ClaimFlow.tsx', 'utf8'))
+            )
+        );
+
         ok(
           'a withdrawal suppresses BEFORE it erases',
           // The triggers stop a suppressed identifier landing again, so

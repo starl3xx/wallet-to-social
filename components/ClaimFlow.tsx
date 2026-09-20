@@ -82,6 +82,7 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
   const [providers, setProviders] = useState<Announced[] | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -111,9 +112,10 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
     };
   }, []);
 
-  const claim = useCallback(
-    async (provider: Eip1193Provider) => {
+  const run = useCallback(
+    async (provider: Eip1193Provider, mode: 'claim' | 'withdraw') => {
       setError(null);
+      setDone(null);
       setStage('connecting');
 
       /**
@@ -176,6 +178,36 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         }
 
         setStage('starting');
+
+        /**
+         * Withdrawing ends here. It needs no consent version, because taking
+         * something back is not agreeing to anything, and no trip to X,
+         * because the account half is what is being removed.
+         */
+        if (mode === 'withdraw') {
+          const res = await fetch('/api/claim/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              wallet,
+              issued_at: challenge.issued_at,
+              token: challenge.token,
+              signature,
+            }),
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            setError(json.message ?? 'That withdrawal could not be completed.');
+            setStage('idle');
+            return;
+          }
+          setDone(
+            'Withdrawn. The pair is out of the index, and this address will not be collected again.'
+          );
+          setStage('idle');
+          return;
+        }
+
         const startRes = await fetch('/api/claim/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -252,12 +284,40 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
               key={p.info.uuid}
               variant="outline"
               disabled={busy}
-              onClick={() => claim(p.provider)}
+              onClick={() => run(p.provider, 'claim')}
             >
               {p.info.name}
             </Button>
           ))}
         </div>
+      )}
+
+      {/* Withdrawing sits under the claim buttons rather than beside them,
+          and it is a link rather than a second button of equal weight: it is
+          the rarer action and the page should not present taking something
+          back as the same size of choice as giving it. It is still HERE,
+          because the page promises it twice and a promise whose control
+          lives somewhere else is most of the way to a promise nothing
+          keeps. */}
+      {providers !== null && providers.length > 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Claimed before and changed your mind?{' '}
+          <Button
+            variant="link"
+            size="inline"
+            disabled={busy}
+            onClick={() => run(providers[0].provider, 'withdraw')}
+          >
+            Withdraw it
+          </Button>
+          , with the same wallet.
+        </p>
+      )}
+
+      {done && (
+        <p role="status" className="mt-3 text-sm text-attested">
+          {done}
+        </p>
       )}
 
       {busy && (
