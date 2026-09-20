@@ -1199,8 +1199,25 @@ async function main() {
       const consent = await import('@/lib/attestation-consent');
       ok(
         'the shipped consent text is frozen, so a stored hash still means something',
+        // Every version ever shipped, not only the current one. The point is
+        // that a row pointing at an OLD id still resolves to the words that
+        // row agreed to, so pinning only the newest would leave exactly the
+        // rows that need this unprotected.
         consent.hashForVersion('2026-09-20.1') ===
-          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774'
+          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774' &&
+          consent.hashForVersion('2026-09-20.2') ===
+            '499254259e58528a8977fb2291d9ebb915d70705dee0dfb57544ca80e300e443'
+      );
+      ok(
+        'a correction ADDS a version rather than editing one',
+        // v1 promised that an owner claim takes the place of a handle we
+        // already hold. The code never did that and, after review, should
+        // not. The fix was a new version: v1 is still here, byte for byte,
+        // which is what the pinned hash above proves.
+        consent.CONSENT_VERSIONS.length >= 2 &&
+          consent.CURRENT_CONSENT.id === '2026-09-20.2' &&
+          /takes its place/.test(consent.CONSENT_VERSIONS[0].text) &&
+          !/takes its place/.test(consent.CURRENT_CONSENT.text)
       );
       ok(
         'an unknown consent version is null rather than a throw',
@@ -1404,6 +1421,48 @@ async function main() {
           /params\.get\('claim'\)/.test(panel) &&
             /params\.delete\('claim'\)/.test(panel) &&
             /params\.delete\('claim_id'\)/.test(panel)
+        );
+
+        /**
+         * An owner attestation does not overwrite a handle we already serve.
+         *
+         * Fill-only is the decision, not a limitation: overwriting on a
+         * signature alone would make "controls the private key" sufficient to
+         * rewrite an identity in a product sold on not guessing, and drained
+         * wallets with leaked keys are traded. The disagreement is recorded
+         * and settles only once the handle we serve stops reaching anyone.
+         *
+         * Asserted as the refusal, because the tempting change is the one
+         * that looks more respectful of the owner: a direct `social_graph`
+         * UPDATE here reads as honouring their proof and is exactly what must
+         * not happen. The first version of the page PROMISED that overwrite
+         * while the code never did it, which is the same disagreement in the
+         * other direction.
+         */
+        ok(
+          'a claim writes through the shared ingest and never straight into the graph',
+          /await ingestLinks\(/.test(cb) &&
+            !/UPDATE social_graph/.test(cb) &&
+            !/upsertManualSocialGraph/.test(cb)
+        );
+        ok(
+          'a failure after the claim is recorded cannot 500 the OAuth return',
+          // The person has finished authorizing; a throw here would turn that
+          // into an error page for work they cannot retry from.
+          /catch \(error\) \{ console\.error\('claim ingest failed after completion:'/.test(
+            cb
+          ) &&
+            /catch \(error\) \{ console\.error\('claim grant path failed after completion:'/.test(
+              cb
+            )
+        );
+        ok(
+          'a failed grant releases its reservation rather than locking the account out',
+          // The reservation is what the once-ever index keys on, so leaving it
+          // set after a failed insert marks an account permanently paid for
+          // credits it never received.
+          /releasing the reservation/.test(cb) &&
+            /SET grant_claimed_at = NULL, granted_matches = NULL/.test(cb)
         );
 
         ok(

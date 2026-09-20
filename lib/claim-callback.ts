@@ -138,11 +138,35 @@ async function maybeGrant(
     return;
   }
 
-  await grantCredits(
-    userId,
-    ATTESTATION_GRANT_MATCHES,
-    `identity claim ${claimId}`
-  );
+  /**
+   * Reserved first, then issued, then RELEASED if issuing failed.
+   *
+   * The reservation has to come first, because it is what the once-ever
+   * unique index keys on and a grant made before reserving can be made twice.
+   * But leaving it set when `grantCredits` throws is worse than either: the
+   * account is then permanently recorded as paid and can never be granted
+   * again, for credits it never received, and nothing would ever surface it.
+   *
+   * So the failure path puts the row back. A retry can then reserve it again,
+   * and the worst case is a claim that is granted late rather than one that
+   * is silently never granted at all.
+   */
+  try {
+    await grantCredits(
+      userId,
+      ATTESTATION_GRANT_MATCHES,
+      `identity claim ${claimId}`
+    );
+  } catch (error) {
+    console.error('claim grant failed; releasing the reservation:', error);
+    await db.execute(sql`
+      UPDATE identity_attestations
+      SET grant_claimed_at = NULL,
+          granted_matches  = NULL,
+          updated_at       = now()
+      WHERE id = ${claimId}::uuid
+    `);
+  }
 }
 
 function back(outcome: string, claimId?: string): NextResponse {
@@ -358,16 +382,45 @@ export async function completeClaimCallback(input: {
    * second writer with none of that, which is the shape `lib/attested-links.ts`
    * exists to prevent.
    */
-  await ingestLinks(
-    [
-      {
-        wallet: claim.wallet,
-        handle: handle.toLowerCase(),
-        twitterUserId: xUserId,
-      },
-    ],
-    OWNER_ATTESTED
-  );
+  /**
+   * FILL-ONLY, and that is a decision rather than a limitation to fix later.
+   *
+   * Where we hold nothing, the claim fills it. Where we hold the same handle,
+   * it agrees and contributes the durable account id. Where we hold something
+   * DIFFERENT, `ingestLinks` records the disagreement and leaves the index
+   * alone; `lib/conflict-resolution.ts` settles it once the handle we serve
+   * stops reaching anyone.
+   *
+   * Overwriting on a signature alone would make "controls the private key"
+   * sufficient to rewrite an identity in a product sold on not guessing.
+   * Drained wallets with leaked keys are traded, and a buyer could bind one to
+   * any account they chose and have the public API serve it as attested.
+   * Routing the disagreement bounds that to the case where our own record has
+   * already stopped working, which is the case where changing it costs nobody
+   * anything.
+   *
+   * The page says this rather than promising a replacement, which the first
+   * version did and the code never did.
+   *
+   * Wrapped, with the claim already marked `completed`: a throw here would
+   * turn a finished authorization into a 500 on the OAuth return, which is
+   * the worst moment available to fail. The attestation is recorded either
+   * way and the daily ingest paths reach the same rows.
+   */
+  try {
+    await ingestLinks(
+      [
+        {
+          wallet: claim.wallet,
+          handle: handle.toLowerCase(),
+          twitterUserId: xUserId,
+        },
+      ],
+      OWNER_ATTESTED
+    );
+  } catch (error) {
+    console.error('claim ingest failed after completion:', error);
+  }
 
   /**
    * The grant, reserved by THIS row rather than by `credit_lots`.
@@ -379,7 +432,13 @@ export async function completeClaimCallback(input: {
    * second grant for an account that already has one, so the UPDATE either
    * reserves the grant or tells us somebody already did.
    */
-  await maybeGrant(db, claim.id, session.user.id, claim.wallet);
+  try {
+    await maybeGrant(db, claim.id, session.user.id, claim.wallet);
+  } catch (error) {
+    // Same reasoning as the ingest above: the claim is already recorded, and
+    // a failed grant must not turn a finished authorization into a 500.
+    console.error('claim grant path failed after completion:', error);
+  }
 
   return back('completed', claim.id);
 }

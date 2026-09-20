@@ -62,9 +62,18 @@ export default function ClaimPage() {
               it rather than that we matched it.
             </p>
             <p>
-              If we already hold a different account for that address, yours
-              replaces it. You are the owner and we were working from something
-              weaker.
+              If we hold nothing for that address, your claim fills it. If we
+              hold the same account, your claim confirms it and adds the account
+              id, which is the part that survives a rename.
+            </p>
+            <p>
+              If we hold a <em>different</em> account, we record that you
+              disagree and keep serving what we have until the handle we hold
+              stops reaching anyone. That is deliberate and it is not about
+              doubting you: a signature proves control of a key, and keys are
+              lost and sold. Letting one rewrite an identity outright would make
+              a stolen key enough to put anybody&rsquo;s name on anybody
+              else&rsquo;s address.
             </p>
           </div>
         </section>
