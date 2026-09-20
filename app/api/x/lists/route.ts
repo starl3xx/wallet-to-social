@@ -45,6 +45,8 @@ import {
   X_LIST_NAME_MAX,
   X_LIST_DESCRIPTION_MAX,
   X_LIST_MEMBER_MAX,
+  WALLETLINK_X_USER_ID,
+  WALLETLINK_X_HANDLE,
 } from '@/lib/x-oauth';
 
 export const runtime = 'nodejs';
@@ -218,7 +220,56 @@ export async function POST(request: NextRequest) {
    * of 8,000 and calling it the community is the number you set out to get
    * rather than the number that came back.
    */
-  const capped = members.slice(0, X_LIST_MEMBER_MAX);
+  /**
+   * Our own account rides along, first.
+   *
+   * First rather than last for a reason measured on a live job: a list of 290
+   * stalled at member 103 on an account X refused, and a member added last is
+   * a member a stalled list never reaches. First means it is in the list as
+   * soon as the list exists.
+   *
+   * It takes one of X's slots rather than being added on top of them, so a
+   * list can never exceed the cap.
+   *
+   * Removed and re-prepended rather than skipped when already present, which
+   * is not the same thing and the difference is a real hole: testing
+   * membership against the FULL resolved list and then truncating means an
+   * account that is a holder but sits past the cap gets neither the prepend
+   * nor a place in the slice, so the list would carry nobody. Filtering first
+   * makes position irrelevant, and X never sees a duplicate either way.
+   *
+   * Disclosed in the dialog before anyone authorizes, not discovered
+   * afterwards: it is the customer's list, and a guest in it they did not ask
+   * for is something they should be told about while they can still decide.
+   */
+  const theirs = members.filter((m) => m.id !== WALLETLINK_X_USER_ID);
+  const withUs = [
+    { id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE },
+    ...theirs,
+  ];
+
+  const capped = withUs.slice(0, X_LIST_MEMBER_MAX);
+
+  /**
+   * How many of THEIR submitted handles made it in.
+   *
+   * Ours is always one row at index 0 that always survives the slice, so the
+   * base is `capped.length - 1`. The exception is when our account is itself
+   * a holder: then the customer submitted our handle too, our single row is
+   * also one of theirs, and subtracting it would lose a handle they sent.
+   *
+   * The distinction matters because these three figures are read together.
+   * `members + dropped + unresolved` has to equal the number of handles
+   * submitted, or the confirmation copy accounts for every handle but one and
+   * the missing row looks like a bug in the lookup rather than in this sum.
+   *
+   * Note this is NOT the conditional that was wrong before. That one decided
+   * whether to prepend, so a holder past the cap got neither the prepend nor
+   * a slot. The prepend above is unconditional; this is arithmetic over a
+   * fact that genuinely differs between the two cases.
+   */
+  const weAreAlsoAHolder = theirs.length !== members.length;
+  const theirsIncluded = capped.length - (weAreAlsoAHolder ? 0 : 1);
 
   const verifier = randomBytes(32).toString('base64url');
   const nonce = randomBytes(16).toString('base64url');
@@ -260,10 +311,21 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     job_id: jobId,
     authorize_url: authorize.toString(),
-    members: capped.length,
+    /**
+     * The customer's own count, ours excluded from every number here.
+     *
+     * Computed by subtraction rather than taken from `capped.length`, which
+     * now carries a member the caller did not ask for: reporting that as
+     * theirs would make `dropped` read -1 on any list under the cap, and a
+     * negative truncation is the kind of number nobody questions because it
+     * looks like a rounding artefact.
+     */
+    members: theirsIncluded,
     // Said rather than implied: the caller asked for more than X allows, and
-    // the list will be short by this many.
-    dropped: members.length - capped.length,
+    // the list will be short by this many. Measured against `theirs`, so a
+    // customer who happens to hold the token through our own account is not
+    // told one of their accounts was dropped.
+    dropped: members.length - theirsIncluded,
     unresolved: handles.length - members.length,
   });
 }

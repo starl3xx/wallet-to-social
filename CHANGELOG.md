@@ -42,6 +42,50 @@ All notable changes to walletlink.social. Newest first.
   would move with it. A second assertion keeps it off the public shape so it
   cannot get there by accident.
 
+### 2026-09-20 (every X list the tool builds carries where it came from)
+
+- **@walletlinketh is added to every list**, first rather than last. First for a
+  reason measured on a live job the same day: a list of 290 stalled at member
+  103 on an account X refused, and a member added last is a member a stalled
+  list never reaches. Appending would have left us out of exactly the lists
+  that went wrong.
+- Added **by numeric id**, never by handle. A handle is a string its owner can
+  change, which is the thing this codebase keeps rediscovering, and building
+  the member from a hardcoded handle would mean our own rename quietly adding
+  a stranger to every customer list.
+- It takes one of X's 5,000 slots rather than sitting on top of them, so a list
+  can never exceed the cap by carrying us. Skipped when the account is already
+  a holder, because X refuses a duplicate and the refusal would be counted
+  against the customer's own numbers.
+- **Disclosed in the dialog before anyone authorizes**, in the description
+  rather than on the confirmation screen, because that screen only appears when
+  something was dropped and a clean list would never have shown it. It is the
+  customer's list, and a guest they did not ask for is something to be told
+  about while they can still decide.
+- Our account is **filtered out and unconditionally prepended**, not skipped
+  when already present, and the difference is a real hole rather than a style
+  choice: testing membership against the full resolved list and truncating
+  afterwards leaves an account that is a holder but sits past the 5,000 cap
+  with neither the prepend nor a place in the slice, so the list would carry
+  nobody. Filtering first makes position irrelevant.
+- Two assertions: that we go in first and by id and never twice, and that the
+  counts returned to the caller still exclude us. The second one matters more
+  than it looks, because `capped` now holds a member the caller did not ask
+  for: reporting its length as theirs makes `dropped` read -1 on any list under
+  the cap, which is the kind of number that survives review because it reads as
+  a rounding artefact rather than a miscount. Both verified against the real
+  defect.
+
+### 2026-09-20 (the footer stops linking to this file)
+
+- The Project column linked Changelog straight at `CHANGELOG.md` on GitHub.
+  It is an engineering log, written for whoever works on this next, and it was
+  sitting one click from the footer of every page beside Privacy and the
+  support address. Removed; the file stays exactly where it is and is still
+  linked from the repository itself.
+- The module comment listing which footer links carry the external arrow was
+  updated in the same change, since it named Changelog as one of them.
+
 ### 2026-09-20 (the batched resolve gets a timeout, a pure parser and one home)
 
 - **The by-id resolve had no request timeout.** `lib/clanker.ts` passed only
@@ -489,6 +533,40 @@ All notable changes to walletlink.social. Newest first.
   the audience for this file is the agent: **ask the user for a key instead of
   retrying the connection.** An agent that reads it can now resolve this
   without the user diagnosing anything.
+
+### 2026-09-19 (a second ERC-20 holder index, and seeding un-retires)
+
+- **OpenSea's OS2.0 token API is a second metered ERC-20 holder index**, slotted
+  into `getContractHolders` between Moralis and the public explorer. Verified
+  live before wiring: Toshi on Base returned 1,088,243 holders with a correct
+  total (Base was the chain the explorer fallback served worst), Chainlink on
+  Ethereum 912,096, PURR on HyperEVM 11,362. The key was already in the repo
+  for the weekly profile-enrichment cron.
+- **Yesterday's retirement narrows instead of reversing.** The discovery gate
+  becomes `usesMeteredHolderIndex(chain) && !hasSecondHolderIndex(chain)`: the
+  five metered chains OpenSea serves seed again, **BSC stays retired** (OpenSea
+  does not serve it, verified against the live `/chains` listing), and a deploy
+  missing the key refuses exactly as yesterday's gate did. The
+  `allowPublicFallback: false` policy stands untouched, because the second
+  index is our own key on our own plan, not free public infrastructure.
+- **HyperEVM gains token import and token seeding**, the first ERC-20 source
+  that chain has ever had. `ERC20_SUPPORTED_CHAINS` includes it, the modal
+  warning disappears by derivation, and the GeckoTerminal `hyperevm` network id
+  was confirmed against real pools (its `hyperliquid` sibling carries
+  HyperCore's 16-byte internal ids, which are not EVM contracts).
+- Two traps recorded in the fetcher for whoever touches it next: the provider's
+  `quantity` arrives in **display units** (a `balancesAreDisplayUnits` marker
+  keeps `toBagSizes` from dividing again, and the Bag now survives a failed
+  `decimals()` read on this path), and the pagination parameter is `cursor`
+  while the response field is named `next`; passing it back as `next` is
+  silently ignored and returns the first page forever.
+- `scripts/check-holder-fallback.ts` now unsets `OPENSEA_API_KEY` beside
+  `MORALIS_API_KEY`, or every probe would be answered by the second index and
+  the explorer canary would report green for coverage it never tested.
+- Docs: `docs-site/app/lookups.mdx` drops the HyperEVM token exclusion and
+  describes the three-source ladder; `docs/GROWTH.md` records the supersession
+  of the 2026-09-18 option-3 decision; the chain table in PROJECT_OVERVIEW.md
+  was rebuilt from the code (it still said Robinhood had no ERC-20 source).
 
 ### 2026-09-18 (ERC-20 seeding is retired, and stops failing daily)
 

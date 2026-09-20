@@ -49,8 +49,8 @@ const SOCIAL =
  * built is a roadmap wearing a design's clothes.
  *
  * Icons carry information rather than decoration: an arrow means the link leaves
- * the site, so Documentation, API reference, GitHub and Changelog are marked and
- * Blog is not. That is the only rule needed to stop a footer becoming a field of
+ * the site, so Documentation, API reference and GitHub are marked and Blog is
+ * not. That is the only rule needed to stop a footer becoming a field of
  * glyphs.
  *
  * The arrow and the GitHub mark are Phosphor, through the SSR entrypoint because
@@ -176,9 +176,6 @@ export function SiteFooter() {
           </FooterColumn>
 
           <FooterColumn title="Project">
-            <FooterLink href={`${REPO}/blob/main/CHANGELOG.md`} external>
-              Changelog
-            </FooterLink>
             <FooterLink href="/privacy">Privacy</FooterLink>
             <FooterLink href="mailto:help@walletlink.social">
               help@walletlink.social
