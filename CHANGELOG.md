@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (BNB token import comes back through a third index)
+
+- **A third metered ERC-20 holder index** in the ladder
+  (`fetchHoldersChainbase` in `lib/contract-holders.ts`), tried after the
+  second and before the public explorer, and like the second never gated on
+  `allowPublicFallback`: our own key on our own plan, so the seed cron may
+  use it. **BNB Chain is the reason it exists**: the first index has
+  answered 401 there since 2026-08-31, the second does not serve the chain,
+  no public explorer instance exists, and bsc was already in the seed order,
+  so this one rung revives both import and seeding without touching either.
+- Verified end to end against the live ladder before shipping: a bsc fetch
+  fell Moralis 401 to the third index and returned 250 holders
+  balance-descending with the true 1,911,884 total, the truncated flag, a
+  source-tagged resume cursor, and display-unit bags.
+- Walk cursors stay sourced: `HolderWalkContinuation` widens to
+  `'opensea' | 'chainbase'`, each fetcher unwraps only cursors it minted
+  (page numbers and opaque cursors must never cross), and the seed walk
+  passes both through. The continuation is minted on any unfinished stop,
+  including a deadline stop, because callers clear persisted walk state when
+  it is absent.
+- The rescue chain's `cause` bookkeeping now walks to the tail: with three
+  rungs behind the primary, the old fixed-depth append overwrote the middle
+  rung's failure, which was the only evidence it ran.
+
 ### 2026-09-20 (graph enrichment survives an Inngest replay)
 
 - **`enrich-social-graph` mutated `resultsMap` in place and returned nothing.**

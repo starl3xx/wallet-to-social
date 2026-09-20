@@ -683,8 +683,8 @@ export async function seedContract(
     {
       allowPublicFallback: false,
       resume:
-        walkBefore?.source === 'opensea'
-          ? { source: 'opensea', cursor: walkBefore.cursor }
+        walkBefore?.source === 'opensea' || walkBefore?.source === 'chainbase'
+          ? { source: walkBefore.source, cursor: walkBefore.cursor }
           : undefined,
     }
   );

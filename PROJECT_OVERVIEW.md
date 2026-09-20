@@ -1042,21 +1042,23 @@ signup.
 
 ## Supported Chains (contract import)
 
-| Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order) |
-| --------------- | -------- | ----------------- | ---------------------------------- |
-| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
-| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
-| Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea               |
-| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
-| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
-| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
-| BNB Chain       | 56       | Alchemy NFT API   | Moralis only (no fallback exists)  |
-| HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)    |
+| Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order)         |
+| --------------- | -------- | ----------------- | ------------------------------------------ |
+| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea                       |
+| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| BNB Chain       | 56       | Alchemy NFT API   | Moralis → Chainbase (since 2026-09-20)     |
+| HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)            |
 
 The Blockscout column is the public-explorer fallback and is refused to
-background seeding (`allowPublicFallback: false`); OpenSea is a second metered
-index on our own key, so seeding may use it. Moralis has been paused (401)
-since 2026-08-31, so in practice OpenSea is serving the ERC-20 imports.
+background seeding (`allowPublicFallback: false`); OpenSea and Chainbase are
+the second and third metered indexes on our own keys, so seeding may use both.
+Moralis has been paused (401) since 2026-08-31, so in practice OpenSea serves
+the ERC-20 imports, with Chainbase behind it and alone on BNB Chain, whose
+seeding un-retired when the rung landed (2026-09-20).
 
 Chain constants live in `lib/chains.ts`, deliberately free of dependencies so client
 components can import them without pulling `ethers` (imported by `lib/contract-holders.ts`)
