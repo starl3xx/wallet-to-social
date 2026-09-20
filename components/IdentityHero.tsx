@@ -52,12 +52,17 @@ export function IdentityHero() {
   return (
     <section
       aria-label="Walletlink identity graph"
-      className="identity-hero dark relative overflow-hidden rounded-lg border border-border bg-background text-foreground"
+      className="identity-hero dark relative grid overflow-hidden rounded-lg border border-border bg-background text-foreground"
     >
-      <div ref={host} />
+      <div
+        ref={host}
+        className="col-start-1 row-start-1"
+        style={{ visibility: status === 'ready' ? 'visible' : 'hidden' }}
+        inert={status !== 'ready'}
+      />
       {status !== 'ready' && (
         <div
-          className="flex min-h-[466px] max-[647px]:min-h-[830px] items-center justify-center p-6 text-center text-sm text-muted-foreground"
+          className="relative col-start-1 row-start-1 flex min-h-[466px] max-[647px]:min-h-[830px] items-center justify-center bg-background p-6 text-center text-sm text-muted-foreground"
           role="status"
         >
           {status === 'loading' ? (
