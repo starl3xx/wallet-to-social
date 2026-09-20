@@ -1799,6 +1799,105 @@ async function main() {
               !/onClick=\{\(\) => setMode\(/.test(flow)
           );
 
+          /**
+           * The page can say what it already holds.
+           *
+           * Until this existed, `/claim` had three routes (challenge, start,
+           * withdraw) and none of them could answer "have I claimed". So it
+           * showed an identical card to somebody who had claimed an hour
+           * earlier and somebody who never had, while promising "control of
+           * your own row" and telling them to withdraw "with the same
+           * wallet" without naming which. The only confirmation that ever
+           * appeared was a banner whose URL parameter `ClaimOutcome` strips
+           * as it reads, so one reload erased it while the row sat in the
+           * database saying `completed`.
+           *
+           * Three halves, because each alone leaves the promise unkept: the
+           * route exists, the flow reads it, and a withdrawal refetches so
+           * the panel cannot keep showing a pairing that was just removed.
+           */
+          const mineRoute = withoutComments(
+            readFileSync('app/api/claim/mine/route.ts', 'utf8')
+          ).replace(/\s+/g, ' ');
+          ok(
+            'the page can read back what it holds for this account',
+            /'\/api\/claim\/mine'/.test(flow) &&
+              /export async function GET/.test(mineRoute)
+          );
+          ok(
+            'and a withdrawal drops the removed pair before it says it did',
+            // Locally first, so the panel agrees with the sentence at the
+            // moment the sentence appears and owes nothing to a second
+            // request that can fail. Ordering asserted, because announcing
+            // first is exactly what put the removed address on screen beside
+            // the word "Withdrawn".
+            /setHeld\(\(current\) =>/.test(flow) &&
+              // Fired, never awaited. Awaiting it put a GET on the success
+              // path, so a hung `/api/claim/mine` held the card on "Checking
+              // the signature…" for a withdrawal that had already succeeded.
+              // The local drop above is what makes the panel correct; this
+              // only reconciles whatever else moved.
+              /void loadHeld\(\)/.test(flow) &&
+              !/await loadHeld\(\)/.test(flow) &&
+              // Against the withdrawal's OWN sentence, not a bare `setDone(`:
+              // the first of those in this file is the `setDone(null)` reset
+              // at the top of `run`, which precedes everything and made this
+              // comparison pass while proving nothing.
+              flow.indexOf('setHeld((current) =>') <
+                flow.indexOf('Withdrawn. The pair is out of the index')
+          );
+          ok(
+            'a failed read of the panel keeps what it had rather than emptying it',
+            // Setting null on a refetch failure hid every remaining claim, so
+            // withdrawing one address could make the others disappear.
+            !/setHeld\(null\)/.test(flow)
+          );
+          ok(
+            'the panel lists one row per address, not one per claim',
+            // `start` inserts unconditionally and nothing unique-constrains a
+            // completed pair, so a corrected claim leaves the old row
+            // standing. Serving both counts one address as two and names a
+            // pairing that has been superseded.
+            /DISTINCT ON \(wallet\)/.test(mineRoute)
+          );
+
+          /**
+           * It reports completed pairings and nothing else.
+           *
+           * `awaiting_x` is a claim in flight, so naming it would report a
+           * pairing that does not exist yet, and `withdrawn` is the case
+           * whose whole point is that the answer became nothing. Asserted as
+           * the refusal, because the wrong filter here publishes a pairing
+           * somebody asked us to stop holding, back to them, as though we
+           * still did.
+           */
+          ok(
+            'the claims it reports are the completed ones only',
+            /status = 'completed'/.test(mineRoute) &&
+              !/awaiting_x/.test(mineRoute) &&
+              !/'withdrawn'/.test(mineRoute)
+          );
+
+          /**
+           * Scoped by the session, never by a parameter, and carrying no
+           * credential.
+           *
+           * A user id taken from the request would let anybody enumerate
+           * which wallets belong to which account, which is the pairing this
+           * product sells. And the panel needs no signature, verifier or
+           * nonce, so returning one would be putting a credential somewhere
+           * it has no reason to be: the same argument the callback makes for
+           * keeping no access token.
+           */
+          ok(
+            'it reads the session for the account and returns no credential',
+            /user_id = \$\{session\.user\.id\}/.test(mineRoute) &&
+              !/searchParams/.test(mineRoute) &&
+              !/signature/.test(mineRoute) &&
+              !/code_verifier/.test(mineRoute) &&
+              !/state_nonce/.test(mineRoute)
+          );
+
           ok(
             'signing in from the claim card returns to the claim page',
             /next="\/claim"/.test(flow) &&
