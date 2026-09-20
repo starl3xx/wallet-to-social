@@ -2,6 +2,35 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the owner-attested source exists before anything writes it)
+
+- Declares `owner_attested`, the source a wallet signature plus an account
+  sign-in taken on our own page will write. Nothing writes it yet and no row
+  carries it, which is the point: the declaration is four coordinated edits
+  and an existing invariant already forces them into one change, so landing it
+  alone means the flow that follows is only a flow.
+- **Quality 45, the same as its peers, and that is arguable.** Every other
+  source in that group is a vendor's report of the same two proofs, while this
+  one is the proofs themselves and the only route yielding an account id we
+  control rather than one we were handed. That is a case for scoring it higher.
+  It gets 45 anyway: inventing a second trust tier for one source splits the
+  band the public class derives from, and the claim being made is identical.
+  Provenance and durability are not strength.
+- Named in `isTwitterVerified` for the reason every entry there exists:
+  `lib/attested-links.ts` writes `twitter_verified = true` for what it ingests,
+  so a source missing from that list is silently unverified by the next live
+  lookup that merges the row. That is the ethos defect, and it replays once per
+  source that forgets the line.
+- Public class `attested-social`, not a class of its own. The class names the
+  mechanism, and the mechanism is the same one every other entry with that
+  class describes. That we took the proofs ourselves is provenance, which the
+  class deliberately does not carry.
+- Carries `no-docs-needed`, which the docs-freshness gate's own message
+  sanctions for a change invisible to API consumers. Checked rather than
+  assumed: `docs-site/openapi.yaml` publishes an enum of evidence **classes**
+  and contains no raw source id at all, the class this maps to already exists
+  in it, and no row carries the source.
+
 ### 2026-09-20 (every X list the tool builds carries where it came from)
 
 - **@walletlinketh is added to every list**, first rather than last. First for a

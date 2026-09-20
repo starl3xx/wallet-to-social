@@ -769,6 +769,23 @@ export function calculateQualityScore(
       case 'sybil_list':
       case 'snapshot_profile':
       case 'opensea_profile':
+      /**
+       * The owner, in person, on our own page: a wallet signature and an X
+       * sign-in in one session.
+       *
+       * Scored with this group rather than above it, which is arguable and
+       * deliberate. Every source here is a vendor's report of the same two
+       * proofs, while this one is the proofs themselves, taken by us, and it
+       * is the only route that yields an account id we control rather than
+       * one we were handed. That is a case for 55.
+       *
+       * It gets 45 anyway. Inventing a second trust tier for a single source
+       * splits the band the public class is derived from, and the claim being
+       * made is the same claim: the owner established both halves. What makes
+       * this route special is provenance and durability, not strength, and
+       * neither is a reason to outrank a peer making the identical claim.
+       */
+      case 'owner_attested':
         // Attested sources where the owner established both halves: a wallet
         // signature plus an account sign-in, an onchain attestation issued after
         // the same proof, a token deploy the account itself requested, or a
@@ -830,7 +847,13 @@ export function isTwitterVerified(sources: string[]): boolean {
       s === 'snapshot_profile' ||
       s === 'opensea_profile' ||
       s === 'basename_record' ||
-      s === 'zora_profile'
+      s === 'zora_profile' ||
+      // Same reason as every entry above it: `lib/attested-links.ts` writes
+      // twitter_verified = true for what it ingests, so a source missing from
+      // this list is silently unverified by the next live lookup that merges
+      // the row. That is the ethos defect, and it replays for each new source
+      // that forgets this line.
+      s === 'owner_attested'
   );
 }
 

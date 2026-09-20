@@ -75,6 +75,20 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   ethos: 'attested-social',
 
   /**
+   * The owner, on our own page: a wallet signature and an account sign-in in
+   * one session.
+   *
+   * `attested-social` rather than a class of its own, because the class names
+   * the MECHANISM and the mechanism is identical to every other entry with
+   * this class: the address owner proved the wallet with a signature and the
+   * account with a sign-in. That we took the proofs ourselves rather than
+   * reading somebody else's record is provenance, and the class deliberately
+   * does not carry provenance. A consumer deciding whether to act on a row
+   * needs to know what was proved, not who watched it happen.
+   */
+  owner_attested: 'attested-social',
+
+  /**
    * Onchain attestations. The record lives on Base or Optimism, but the class is
    * still `attested-social` rather than `onchain`: `onchain` means the address
    * owner published it themselves, which is what an ENS text record is. Here a
