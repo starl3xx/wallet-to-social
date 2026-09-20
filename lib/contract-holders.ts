@@ -20,6 +20,24 @@ export type { SupportedChain };
 // Types
 export type ContractType = 'ERC-20' | 'ERC-721' | 'ERC-1155';
 
+/**
+ * A bookmark into a holder list that a later fetch can resume from.
+ *
+ * The cursor is the second index's keyset cursor (base64 of [balance,
+ * address]), which is why resuming across days works at all: it names a
+ * position in the balance ordering, not a page number in a session. Balances
+ * drift between runs, so a resumed walk can skip or repeat a few wallets near
+ * the boundary; the wallet-keyed upserts downstream make repeats free, and a
+ * skipped wallet is picked up on the next full refresh.
+ *
+ * `source` is part of the bookmark because a cursor is meaningless anywhere
+ * but the index that minted it. Nothing may hand one to a different source.
+ */
+export interface HolderWalkContinuation {
+  source: 'opensea';
+  cursor: string;
+}
+
 export interface HolderResult {
   wallets: string[];
   /**
@@ -36,6 +54,14 @@ export interface HolderResult {
   balances?: Record<string, number>;
   /** The per-lookup cap actually applied, so callers can report it accurately. */
   appliedLimit: number;
+  /**
+   * Where a later fetch should resume to continue walking this holder list,
+   * present only when the serving source supports resuming AND more holders
+   * remain. Absent means either the walk is complete or the source cannot
+   * resume; callers that persist walk state must clear it on absence, not
+   * keep the stale cursor.
+   */
+  continuation?: HolderWalkContinuation;
   tokenName: string;
   tokenSymbol: string;
   contractType: ContractType;
@@ -93,6 +119,14 @@ export interface HolderFetchOptions {
    * prevent.
    */
   allowPublicFallback?: boolean;
+  /**
+   * Resume a holder walk from a bookmark a previous fetch returned as
+   * `continuation`. Honored only when the source that minted the cursor is
+   * the one serving this call: a walk bookmarked on the second index while a
+   * revived first index now answers starts over from the top instead, which
+   * is correct — the cursor names a position in the OTHER index's ordering.
+   */
+  resume?: HolderWalkContinuation;
 }
 
 // ERC-165 interface IDs
@@ -1091,6 +1125,7 @@ async function getERC20Holders(
   totalHolders: number;
   balances: Map<string, string>;
   balancesAreDisplayUnits?: boolean;
+  continuation?: HolderWalkContinuation;
 }> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
   // at all, "no support for this chain" is the accurate error, and configuring a key
@@ -1100,6 +1135,15 @@ async function getERC20Holders(
   const secondIndex = OPENSEA_CHAIN_SLUGS[chain];
   const deadlineMs =
     options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
+  /**
+   * The one place a resume cursor is unwrapped, guarded by the source that
+   * minted it. Every fetchHoldersOpenSea call site below passes this and
+   * nothing else, so a bookmark from any other source (there are none today,
+   * but the type does not promise that) degrades to a fresh walk instead of
+   * being interpreted in the wrong ordering.
+   */
+  const resumeCursor =
+    options.resume?.source === 'opensea' ? options.resume.cursor : undefined;
 
   if (!chainId) {
     // Robinhood Chain: its own explorer stays primary (the v1 bulk endpoint
@@ -1116,7 +1160,13 @@ async function getERC20Holders(
       } catch (error) {
         if (!secondIndex || !process.env.OPENSEA_API_KEY) throw error;
         try {
-          return await fetchHoldersOpenSea(address, chain, limit, deadlineMs);
+          return await fetchHoldersOpenSea(
+            address,
+            chain,
+            limit,
+            deadlineMs,
+            resumeCursor
+          );
         } catch (secondError) {
           // First failure stays primary, same reasoning as the metered path.
           if (error instanceof Error) error.cause = secondError;
@@ -1127,7 +1177,13 @@ async function getERC20Holders(
     // HyperEVM: the second index is the only ERC-20 index the chain has.
     // Before it, token import here was refused outright as CHAIN_NO_ERC20_SUPPORT.
     if (secondIndex) {
-      return fetchHoldersOpenSea(address, chain, limit, deadlineMs);
+      return fetchHoldersOpenSea(
+        address,
+        chain,
+        limit,
+        deadlineMs,
+        resumeCursor
+      );
     }
     throw new Error('CHAIN_NO_ERC20_SUPPORT');
   }
@@ -1169,7 +1225,13 @@ async function getERC20Holders(
         `Metered holder index failed on ${chain} (${reason}); trying the second index.`
       );
       try {
-        return await fetchHoldersOpenSea(address, chain, limit, deadlineMs);
+        return await fetchHoldersOpenSea(
+          address,
+          chain,
+          limit,
+          deadlineMs,
+          resumeCursor
+        );
       } catch (secondError) {
         console.error(
           `Second holder index also failed on ${chain}:`,
@@ -1410,12 +1472,15 @@ async function fetchHoldersOpenSea(
   address: string,
   chain: SupportedChain,
   limit: number,
-  deadlineMs: number
+  deadlineMs: number,
+  /** Resume the walk from a bookmark this function returned earlier. */
+  startCursor?: string
 ): Promise<{
   wallets: string[];
   totalHolders: number;
   balances: Map<string, string>;
   balancesAreDisplayUnits: true;
+  continuation?: HolderWalkContinuation;
 }> {
   const slug = OPENSEA_CHAIN_SLUGS[chain];
   if (!slug) throw new Error('CHAIN_NO_ERC20_SUPPORT');
@@ -1424,7 +1489,19 @@ async function fetchHoldersOpenSea(
 
   const seen = new Map<string, string>();
   let totalHolders = 0;
-  let cursor: string | null = null;
+  let cursor: string | null = startCursor ?? null;
+  /**
+   * The bookmark to hand back, maintained page by page.
+   *
+   * Set to each page's `next` after that page parses, so whatever ends the
+   * loop — the limit, MAX_PAGES, the deadline, or a failed later page — it
+   * names the first row not yet imported. It goes null on the page that has
+   * no `next` and on an empty page (a continuation pointing at nothing would
+   * persist a walk that can never finish), which is what distinguishes
+   * "stopped at the cap" from "walked off the end of the list"; only the
+   * latter may clear a persisted walk.
+   */
+  let nextCursor: string | null = null;
   // Same shape as estimateRequests: the page count, plus one for the request
   // that discovers the end.
   const MAX_PAGES = Math.ceil(limit / 100) + 1;
@@ -1474,8 +1551,13 @@ async function fetchHoldersOpenSea(
       totalHolders = data.total_count;
     }
 
+    nextCursor = data.next ?? null;
+
     const rows = data.holders ?? [];
-    if (rows.length === 0) break;
+    if (rows.length === 0) {
+      nextCursor = null;
+      break;
+    }
     for (const row of rows) {
       const addr = row.owner_address?.toLowerCase();
       if (!addr?.startsWith('0x')) continue;
@@ -1483,8 +1565,8 @@ async function fetchHoldersOpenSea(
       if (seen.size >= limit) break;
     }
 
-    if (!data.next) break;
-    cursor = data.next;
+    if (!nextCursor) break;
+    cursor = nextCursor;
   }
 
   /**
@@ -1508,6 +1590,9 @@ async function fetchHoldersOpenSea(
     totalHolders,
     balances: new Map(wallets.map((w) => [w, seen.get(w) ?? ''])),
     balancesAreDisplayUnits: true,
+    ...(nextCursor
+      ? { continuation: { source: 'opensea' as const, cursor: nextCursor } }
+      : {}),
   };
 }
 
@@ -1640,6 +1725,7 @@ export async function getContractHolders(
     totalHolders: number;
     balances?: Map<string, string>;
     balancesAreDisplayUnits?: boolean;
+    continuation?: HolderWalkContinuation;
   };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
@@ -1703,6 +1789,7 @@ export async function getContractHolders(
     // complete list. Every caller must handle 0 as "unknown".
     totalHolders: holdersResult.totalHolders,
     appliedLimit: effectiveLimit,
+    continuation: holdersResult.continuation,
     /**
      * Two ways a list can be short, and both must set this flag.
      *

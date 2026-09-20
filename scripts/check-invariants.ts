@@ -5135,6 +5135,86 @@ async function main() {
       );
     }
 
+    // ------------------------------------------- the holder walk (2026-09-20)
+    // A re-seed used to re-import the same top slice by balance forever; the
+    // walk bookmark is what lets repeated slices reach a large token's tail.
+    // Everything here asserts the ways a bookmark can silently lie: handed to
+    // the wrong index, deleted with its progress, outranking new contracts,
+    // or surviving a walk that actually finished.
+    {
+      /**
+       * A cursor names a position in the ordering of the index that minted
+       * it. The only unwrap site is the source-guarded const, and every
+       * fetcher call passes that const; a second unwrap of `resume.cursor`
+       * anywhere in the ladder would be a path around the guard.
+       */
+      ok(
+        'a resume cursor is unwrapped once, behind its source guard',
+        holders.includes(
+          "options.resume?.source === 'opensea' ? options.resume.cursor"
+        ) &&
+          (holders.match(/options\.resume\.cursor/g) ?? []).length === 1 &&
+          (
+            holders.match(
+              /fetchHoldersOpenSea\(\s*address,\s*chain,\s*limit,\s*deadlineMs,\s*resumeCursor\s*\)/g
+            ) ?? []
+          ).length === 3
+      );
+
+      /**
+       * An empty page must end the walk, not bookmark it: banking zero rows
+       * while returning a continuation makes the contract
+       * continuation-eligible forever, a slot spent daily on nothing.
+       */
+      const walkLoop = sliceBetween(
+        holders,
+        'let nextCursor: string | null = null;',
+        'if (!nextCursor) break;'
+      );
+      ok(
+        'an empty page ends the walk instead of bookmarking it',
+        /if \(rows\.length === 0\) \{\s*nextCursor = null;\s*break;/.test(
+          walkLoop
+        )
+      );
+
+      /** Breadth before depth: a continuation never outranks a new contract. */
+      ok(
+        'never-seeded candidates outrank continuations in selection',
+        seed.includes('[...novel, ...continuations')
+      );
+
+      /**
+       * The squeeze path must not destroy progress. unmarkSeedAttempt exists
+       * to restore eligibility after a budget squeeze, and for a cursorless
+       * row deletion does that; for a walk row the same DELETE would erase
+       * every slice already walked, so it is fenced to NULL bookmarks and the
+       * walk row is backdated instead.
+       */
+      ok(
+        'a squeezed attempt never deletes a walk bookmark',
+        /DELETE FROM seeded_contracts[\s\S]{0,200}?holders_imported = 0[\s\S]{0,80}?resume_state IS NULL/.test(
+          seed
+        ) &&
+          /UPDATE seeded_contracts[\s\S]{0,300}?resume_state IS NOT NULL/.test(
+            seed
+          )
+      );
+
+      /**
+       * A finished walk clears its bookmark. recordSeed writes the state from
+       * this run's continuation or NULL, and the upsert must carry it: an ON
+       * CONFLICT branch that forgot resume_state would freeze every walk at
+       * its first bookmark while reporting progress.
+       */
+      ok(
+        'recordSeed writes the bookmark on both insert and update, clearing it when the walk is done',
+        /holders\.continuation\s*\?\s*JSON\.stringify[\s\S]{0,300}?:\s*null/.test(
+          seed
+        ) && seed.includes('resume_state = EXCLUDED.resume_state')
+      );
+    }
+
     /**
      * And no version of that gate may take Robinhood with it.
      *

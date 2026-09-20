@@ -58,6 +58,20 @@ const HOLDER_CAP = 2000;
 // Don't re-seed a successfully seeded contract within this window
 const NOVELTY_DAYS = 30;
 
+/**
+ * How soon an UNFINISHED holder walk may continue.
+ *
+ * One day, not thirty: a contract whose last seed returned a continuation
+ * cursor has more holders waiting, and making it sit out the full novelty
+ * window would re-import nothing in the meantime — before cursors existed,
+ * every 30-day re-seed re-fetched the same top slice by balance, so a
+ * 1.7M-holder token could never get past its exchanges and whales. The walk
+ * still never outranks a never-seeded contract (see selectNovelCandidates),
+ * so breadth comes first and the tail fills in on the days a chain has
+ * nothing new.
+ */
+const CONTINUE_AFTER_DAYS = 1;
+
 // Failed attempts get a much shorter lockout: long enough that a broken
 // contract can't wedge its chain's queue, short enough that a transient
 // Alchemy/Moralis blip doesn't cost a top collection a whole month
@@ -351,7 +365,23 @@ export async function discoverTokenCandidates(
 // Novelty-aware selection
 // ============================================================================
 
-/** Candidates not seeded (or attempted) within NOVELTY_DAYS, in rank order. */
+/**
+ * Candidates worth seeding today, in priority order: never-seeded (or
+ * refresh-due) contracts first in their rank order, then contracts with an
+ * unfinished holder walk, oldest walk first.
+ *
+ * The two tiers are the whole coverage policy. Breadth first: a contract with
+ * no holders at all beats deepening one that already has its top slice,
+ * because the searchable surface grows per contract, not per wallet. Then
+ * depth: on a day the chain has nothing new, the slot continues the oldest
+ * unfinished walk instead of idling ("no novel candidates" used to be that
+ * day's entire output).
+ *
+ * Lockouts are unchanged: a success without a walk sits out NOVELTY_DAYS, a
+ * failed attempt (holders_imported = 0) sits out FAILURE_RETRY_DAYS — with
+ * its cursor intact, so the retry continues rather than restarts — and a walk
+ * continues no sooner than CONTINUE_AFTER_DAYS after its last slice.
+ */
 export async function selectNovelCandidates(
   candidates: SeedCandidate[]
 ): Promise<SeedCandidate[]> {
@@ -360,24 +390,60 @@ export async function selectNovelCandidates(
 
   const addresses = candidates.map((c) => c.address);
   const chain = candidates[0].chain;
-  // Successes lock out for the full novelty window; failed attempts
-  // (holders_imported = 0) only for the short retry window
   const result = (await db.execute(sql`
-    SELECT address FROM seeded_contracts
+    SELECT address,
+           holders_imported,
+           (resume_state IS NOT NULL) AS has_walk,
+           last_seeded_at > now() - make_interval(days => ${NOVELTY_DAYS}) AS in_novelty_window,
+           last_seeded_at > now() - make_interval(days => ${FAILURE_RETRY_DAYS}) AS in_retry_window,
+           last_seeded_at > now() - make_interval(days => ${CONTINUE_AFTER_DAYS}) AS walked_recently,
+           extract(epoch from last_seeded_at) AS seeded_epoch
+    FROM seeded_contracts
     WHERE chain = ${chain}
-      AND (
-        (holders_imported > 0 AND last_seeded_at > now() - make_interval(days => ${NOVELTY_DAYS}))
-        OR
-        (holders_imported = 0 AND last_seeded_at > now() - make_interval(days => ${FAILURE_RETRY_DAYS}))
-      )
       AND address IN (${sql.join(
         addresses.map((a) => sql`${a}`),
         sql`, `
       )})
-  `)) as unknown as { rows: Array<{ address: string }> };
+  `)) as unknown as {
+    rows: Array<{
+      address: string;
+      holders_imported: number;
+      has_walk: boolean;
+      in_novelty_window: boolean;
+      in_retry_window: boolean;
+      walked_recently: boolean;
+      seeded_epoch: string;
+    }>;
+  };
 
-  const recentlySeeded = new Set(result.rows.map((r) => r.address));
-  return candidates.filter((c) => !recentlySeeded.has(c.address));
+  const byAddress = new Map(result.rows.map((r) => [r.address, r]));
+  const novel: SeedCandidate[] = [];
+  const continuations: Array<{ candidate: SeedCandidate; epoch: number }> = [];
+
+  for (const candidate of candidates) {
+    const row = byAddress.get(candidate.address);
+    if (!row) {
+      novel.push(candidate);
+      continue;
+    }
+    if (row.holders_imported === 0) {
+      // A failed or squeezed attempt. The short lockout applies whether or
+      // not a walk is pending; outside it, the contract competes as novel
+      // again (and seedContract still resumes from any surviving cursor).
+      if (!row.in_retry_window) novel.push(candidate);
+      continue;
+    }
+    if (row.has_walk) {
+      if (!row.walked_recently) {
+        continuations.push({ candidate, epoch: Number(row.seeded_epoch) });
+      }
+      continue;
+    }
+    if (!row.in_novelty_window) novel.push(candidate);
+  }
+
+  continuations.sort((a, b) => a.epoch - b.epoch);
+  return [...novel, ...continuations.map((c) => c.candidate)];
 }
 
 /** Back-compat single-pick helper (first novel candidate). */
@@ -418,10 +484,24 @@ async function markSeedAttempt(candidate: SeedCandidate): Promise<void> {
 async function unmarkSeedAttempt(candidate: SeedCandidate): Promise<void> {
   const db = getDb();
   if (!db) return;
+  // A row carrying a walk cursor must never be deleted: the bookmark is the
+  // accumulated progress of every slice so far, and dropping it because one
+  // attempt got squeezed restarts a possibly weeks-long walk from the top.
+  // Instead the attempt marker is backdated out of the retry window, which
+  // restores exactly what deletion restores for a cursorless row — eligibility
+  // tomorrow — while the cursor survives for seedContract to resume from.
   await db.execute(sql`
     DELETE FROM seeded_contracts
     WHERE address = ${candidate.address} AND chain = ${candidate.chain}
       AND holders_imported = 0
+      AND resume_state IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE seeded_contracts
+    SET last_seeded_at = now() - make_interval(days => ${FAILURE_RETRY_DAYS})
+    WHERE address = ${candidate.address} AND chain = ${candidate.chain}
+      AND holders_imported = 0
+      AND resume_state IS NOT NULL
   `);
 }
 
@@ -429,22 +509,74 @@ async function unmarkSeedAttempt(candidate: SeedCandidate): Promise<void> {
 // Seeding one contract
 // ============================================================================
 
+/**
+ * The persisted shape of an unfinished holder walk, in
+ * `seeded_contracts.resume_state`. `walked` is the cumulative wallets
+ * imported across every slice of this walk, kept for observability; the
+ * wallet_holdings edges are the ground truth.
+ */
+interface SeedWalkState {
+  source: string;
+  cursor: string;
+  walked: number;
+}
+
+async function readWalkState(
+  candidate: SeedCandidate
+): Promise<SeedWalkState | null> {
+  const db = getDb();
+  if (!db) return null;
+  const result = (await db.execute(sql`
+    SELECT resume_state FROM seeded_contracts
+    WHERE address = ${candidate.address} AND chain = ${candidate.chain}
+  `)) as unknown as { rows: Array<{ resume_state: unknown }> };
+  const raw = result.rows[0]?.resume_state;
+  if (!raw || typeof raw !== 'object') return null;
+  const state = raw as Partial<SeedWalkState>;
+  // Validated field by field: this column is old data by definition, and a
+  // malformed bookmark must degrade to a fresh walk, not a crashed seed.
+  if (typeof state.source !== 'string' || typeof state.cursor !== 'string')
+    return null;
+  return {
+    source: state.source,
+    cursor: state.cursor,
+    walked: typeof state.walked === 'number' ? state.walked : 0,
+  };
+}
+
 async function recordSeed(
   candidate: SeedCandidate,
-  holders: HolderResult
+  holders: HolderResult,
+  priorWalked: number
 ): Promise<void> {
   const db = getDb();
   if (!db) return;
 
+  /**
+   * The walk bookmark is written on success and ONLY from what this run's
+   * source returned. No continuation means the walk is done (or the serving
+   * source cannot resume), and the state must clear rather than hold a stale
+   * cursor: a bookmark into an ordering nobody is walking anymore would make
+   * this contract continuation-eligible forever.
+   */
+  const walkState = holders.continuation
+    ? JSON.stringify({
+        source: holders.continuation.source,
+        cursor: holders.continuation.cursor,
+        walked: priorWalked + holders.wallets.length,
+      })
+    : null;
+
   await db.execute(sql`
-    INSERT INTO seeded_contracts (address, chain, contract_type, name, symbol, holders_imported, total_holders)
-    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${holders.wallets.length}, ${holders.totalHolders})
+    INSERT INTO seeded_contracts (address, chain, contract_type, name, symbol, holders_imported, total_holders, resume_state)
+    VALUES (${candidate.address}, ${candidate.chain}, ${holders.contractType}, ${holders.tokenName}, ${holders.tokenSymbol}, ${holders.wallets.length}, ${holders.totalHolders}, ${walkState}::jsonb)
     ON CONFLICT (address, chain) DO UPDATE
     SET holders_imported = EXCLUDED.holders_imported,
         total_holders = EXCLUDED.total_holders,
         contract_type = EXCLUDED.contract_type,
         name = EXCLUDED.name,
         symbol = EXCLUDED.symbol,
+        resume_state = EXCLUDED.resume_state,
         last_seeded_at = now()
   `);
 
@@ -526,12 +658,26 @@ export async function seedContract(
    * ERC-20 index that chain has, not a fallback, so this flag never applies to
    * it. The rule is about *borrowing* an alternative, not about explorers.
    */
+  /**
+   * An unfinished walk resumes where the last slice stopped. The stored
+   * bookmark is source-tagged and getContractHolders only honors it when the
+   * same source serves this call, so a walk bookmarked on the second index
+   * degrades to a fresh top slice if the first index ever revives — correct,
+   * if slightly wasteful, and self-healing on the next slice.
+   */
+  const walkBefore =
+    candidate.kind === 'erc20' ? await readWalkState(candidate) : null;
+
   const holders = await getContractHolders(
     candidate.address,
     candidate.chain,
     HOLDER_CAP,
     {
       allowPublicFallback: false,
+      resume:
+        walkBefore?.source === 'opensea'
+          ? { source: 'opensea', cursor: walkBefore.cursor }
+          : undefined,
     }
   );
 
@@ -546,7 +692,7 @@ export async function seedContract(
   // make the same top contracts novel again every couple of days and stall the
   // walk down the list. Skipped wallets are not lost: wallet_holdings keeps
   // every edge, so a later pass can resolve them without re-importing.
-  await recordSeed(candidate, holders);
+  await recordSeed(candidate, holders, walkBefore?.walked ?? 0);
 
   // One job per contract so each seeded collection gets its own match-rate
   // stats (feeds the content pipeline). Deliberately NOT hidden: replaces
