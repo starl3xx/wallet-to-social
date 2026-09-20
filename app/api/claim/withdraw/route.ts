@@ -127,17 +127,14 @@ export async function POST(request: NextRequest) {
    * the callback requires both.
    */
   const found = (await db.execute(sql`
-    SELECT id, x_handle
+    SELECT count(*)::int AS n
     FROM identity_attestations
     WHERE user_id = ${session.user.id}
       AND wallet = ${wallet}
       AND status = 'completed'
-    ORDER BY completed_at DESC
-    LIMIT 1
-  `)) as unknown as { rows: Array<{ id: string; x_handle: string | null }> };
+  `)) as unknown as { rows: Array<{ n: number }> };
 
-  const claim = found.rows[0];
-  if (!claim) {
+  if ((found.rows[0]?.n ?? 0) === 0) {
     return NextResponse.json(
       {
         error: 'not_found',
@@ -171,18 +168,35 @@ export async function POST(request: NextRequest) {
   const erased = await eraseIdentifier(db, 'wallet', wallet);
 
   /**
-   * The row stays, marked. "Somebody claimed this and then withdrew" is a
+   * EVERY row for this wallet, not the most recent one.
+   *
+   * `start` inserts unconditionally and nothing unique-constrains a completed
+   * pair, so one wallet can carry several rows. Withdrawing the newest left
+   * the earlier ones holding the handle, the account id and the signature,
+   * which is the opposite of what withdrawing means.
+   *
+   * `awaiting_x` rows go too, and that half matters more: a claim opened
+   * before the withdrawal could otherwise come back through the callback
+   * afterwards and re-complete the pairing that was just removed. Cancelling
+   * them here closes that window from this side, and the callback closes it
+   * from the other by refusing a suppressed wallet.
+   *
+   * The rows stay, marked. "Somebody claimed this and then withdrew" is a
    * true thing worth being able to see, and what makes it harmless is that
    * the erase above took the identifiers out of every table that serves them.
    */
   await db.execute(sql`
     UPDATE identity_attestations
-    SET status       = 'withdrawn',
-        x_user_id    = NULL,
-        x_handle     = NULL,
-        signature    = NULL,
-        updated_at   = now()
-    WHERE id = ${claim.id}::uuid
+    SET status        = 'withdrawn',
+        x_user_id     = NULL,
+        x_handle      = NULL,
+        signature     = NULL,
+        code_verifier = NULL,
+        state_nonce   = NULL,
+        updated_at    = now()
+    WHERE user_id = ${session.user.id}
+      AND wallet = ${wallet}
+      AND status IN ('completed', 'awaiting_x')
   `);
 
   return NextResponse.json({

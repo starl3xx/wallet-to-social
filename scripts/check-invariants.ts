@@ -1473,6 +1473,46 @@ async function main() {
           /\[\{ kind: 'wallet', identifier: wallet \}\]/.test(withdraw) &&
             !/kind: 'twitter'/.test(withdraw)
         );
+        /**
+         * A withdrawal covers every row for that wallet, and the callback
+         * cannot undo it afterwards.
+         *
+         * `start` inserts unconditionally and nothing unique-constrains a
+         * completed pair, so a wallet can carry several rows. Withdrawing the
+         * most recent left the earlier ones holding the handle, the account
+         * id and the signature, which is the opposite of what withdrawing
+         * means.
+         *
+         * The second half is the one with a moving part: a claim opened
+         * BEFORE the withdrawal could still arrive at the callback after it
+         * and re-complete the pairing. The triggers would refuse the graph
+         * write, so the index would stay clean while the row said `completed`
+         * and the page said the address was claimed. The gap between what we
+         * tell somebody and what we did is the thing being closed.
+         */
+        ok(
+          'a withdrawal covers every row for that wallet, not just the newest',
+          /WHERE user_id = \$\{session\.user\.id\} AND wallet = \$\{wallet\} AND status IN \('completed', 'awaiting_x'\)/.test(
+            withdraw
+          ) && !/LIMIT 1/.test(withdraw)
+        );
+        {
+          // The CALL SITE, not the identifier: `X_TOKEN_URL` appears in the
+          // import first, so anchoring on the bare name compares against the
+          // top of the file and the position means nothing. That mistake was
+          // made twice in this file already and both times it failed loudly,
+          // which is the only reason it is not in the code.
+          const suppressCheck = cb.indexOf("isSuppressed('wallet'");
+          const exchange = cb.indexOf('fetch(X_TOKEN_URL');
+          ok(
+            'a claim opened before a withdrawal cannot complete after it',
+            // Before the token exchange, so a withdrawn claim costs no round
+            // trip to X and mints no credential for a flow that cannot
+            // finish.
+            suppressCheck > 0 && exchange > 0 && suppressCheck < exchange
+          );
+        }
+
         ok(
           'a withdrawal clears the identity but keeps the grant key',
           // The HMAC outliving the identity is what stops the grant being

@@ -40,6 +40,7 @@ import {
 import { getSiteUrl } from '@/lib/site-url';
 import { ingestLinks, type LinkSource } from '@/lib/attested-links';
 import { grantCredits } from '@/lib/credits';
+import { isSuppressed } from '@/lib/suppression';
 import {
   walletPredatesCutoff,
   ATTESTATION_GRANT_MATCHES,
@@ -253,6 +254,32 @@ export async function completeClaimCallback(input: {
     !secretEquals(claim.state_nonce, input.nonce)
   ) {
     return back('not_found');
+  }
+
+  /**
+   * Suppressed since the claim was opened, which includes withdrawn.
+   *
+   * A withdrawal suppresses the wallet and cancels this account's pending
+   * claims, but a claim opened before it could still arrive here afterwards
+   * and re-complete the pairing that was just removed. The triggers would
+   * refuse the graph write, so the index would stay clean, and the row would
+   * still say `completed` and the page would still say the address was
+   * claimed. That gap between what we tell somebody and what we did is the
+   * thing worth closing.
+   *
+   * Checked before the token exchange rather than after, so a withdrawn claim
+   * costs no round trip to X and no credential is minted for a flow that
+   * cannot finish.
+   */
+  try {
+    const hits = await isSuppressed('wallet', [claim.wallet]);
+    if (hits.size > 0) return back('not_found', claim.id);
+  } catch (error) {
+    // Failure closed: the suppression read is the one query that must not
+    // fall through to "carry on", which is the posture lib/suppression.ts
+    // states for every caller.
+    console.error('claim suppression read failed; refusing:', error);
+    return back('unavailable', claim.id);
   }
 
   // --- exchange -------------------------------------------------------------
