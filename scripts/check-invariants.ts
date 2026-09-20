@@ -1620,7 +1620,9 @@ async function main() {
           ok(
             'the page can actually reach the withdrawal',
             /'\/api\/claim\/withdraw'/.test(flow) &&
-              /setMode\('withdraw'\)/.test(flow)
+              // Through `switchMode`, which is the single door the mode
+              // changes by: see the refusal further down that keeps it so.
+              /switchMode\('withdraw'\)/.test(flow)
           );
           /**
            * And it withdraws with a wallet the person PICKED.
@@ -1706,6 +1708,52 @@ async function main() {
             'the flow reads the eligibility the challenge already answered',
             /challenge\.earns_credits/.test(flow) &&
               /challenge\.grant_matches/.test(flow)
+          );
+
+          /**
+           * …and reports it as eligibility rather than as payment.
+           *
+           * `earns_credits` is `walletPredatesCutoff` and nothing else, while
+           * `maybeGrant` can still refuse on the per-account unique index or
+           * on the budget. The first version of that line said the claim
+           * "credits N matches once it completes", so a second pre-cutoff
+           * address claimed with an X account that had already been paid was
+           * promised money and then not paid. A false statement about a
+           * grant, written inside the change whose whole subject was a false
+           * statement about a grant.
+           *
+           * Both halves: it must not read as a completion promise, and the
+           * condition the response cannot see has to be named rather than
+           * left out.
+           */
+          ok(
+            'the worth line promises eligibility, not payment',
+            /qualifies for \$\{challenge\.grant_matches\}/.test(flow) &&
+              /per X account/.test(flow) &&
+              !/credits \$\{challenge\.grant_matches\} matches once it completes/.test(
+                flow
+              )
+          );
+
+          /**
+           * And it does not survive the action it belongs to.
+           *
+           * `worth` was cleared at the start of `run` and nowhere else, so a
+           * cancelled claim left its credit sentence on screen and switching
+           * to withdraw put it directly above a flow that pays nothing. The
+           * comment on the setter already forbade that; there was simply a
+           * second path to the same screen that never asked.
+           *
+           * Asserted as the refusal, because the fix is a single door: no
+           * `setMode` outside `switchMode`, so a later control cannot change
+           * the mode without carrying what goes with it.
+           */
+          ok(
+            'nothing changes the mode without clearing what belonged to it',
+            /const switchMode = useCallback/.test(flow) &&
+              /switchMode\('withdraw'\)/.test(flow) &&
+              /switchMode\('claim'\)/.test(flow) &&
+              !/onClick=\{\(\) => setMode\(/.test(flow)
           );
 
           ok(

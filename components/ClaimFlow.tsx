@@ -125,6 +125,28 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
   const [worth, setWorth] = useState<string | null>(null);
 
   /**
+   * The only way the mode changes, so what belongs to the old one goes with
+   * it.
+   *
+   * `worth` was cleared at the start of `run` and nowhere else, so a claim
+   * that failed or was cancelled left its credit sentence on screen, and
+   * switching to withdraw put "qualifies for 250 matches" directly above a
+   * flow that pays nothing. The comment on `setWorth` already said a
+   * withdrawal must not quote a reward; the code just had a second path to
+   * the same screen that never asked it.
+   *
+   * The error and the outcome go too. Both describe the action that was on
+   * screen a moment ago, and carrying "you cancelled that" into the other
+   * mode attributes it to the wrong thing.
+   */
+  const switchMode = useCallback((to: 'claim' | 'withdraw') => {
+    setMode(to);
+    setWorth(null);
+    setError(null);
+    setDone(null);
+  }, []);
+
+  /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
    * the listener goes up before the request goes out.
    *
@@ -220,11 +242,23 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
          * Claims only. A withdrawal earns nothing and is not meant to, so
          * quoting a reward beside it would be answering a question nobody
          * asked while taking something back.
+         *
+         * QUALIFIES, never "credits". `earns_credits` is `walletPredatesCutoff`
+         * and nothing else, while `maybeGrant` can still refuse on the
+         * per-account unique index or the budget. The first version of this
+         * line said the claim "credits N matches once it completes", so a
+         * second pre-cutoff address claimed with an X account that had
+         * already been paid was promised money and then not paid: a false
+         * statement about a grant, inside the change whose whole subject is
+         * a false statement about a grant. The address test is the only part
+         * this response can answer, so it is the only part this sentence
+         * asserts, and the condition it cannot see is named rather than
+         * omitted.
          */
         if (mode === 'claim') {
           setWorth(
             challenge.earns_credits
-              ? `We already knew this address, so this claim credits ${challenge.grant_matches} matches once it completes.`
+              ? `We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
               : 'We first saw this address after the cutoff, so this claim earns no credits. It still corrects the record.'
           );
         }
@@ -428,7 +462,7 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
                 variant="link"
                 size="inline"
                 disabled={busy}
-                onClick={() => setMode('withdraw')}
+                onClick={() => switchMode('withdraw')}
               >
                 Withdraw instead
               </Button>
@@ -441,7 +475,7 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
                 variant="link"
                 size="inline"
                 disabled={busy}
-                onClick={() => setMode('claim')}
+                onClick={() => switchMode('claim')}
               >
                 Go back to claiming
               </Button>

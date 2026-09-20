@@ -25,6 +25,17 @@ All notable changes to walletlink.social. Newest first.
   the one moment the answer was useful passed in silence. The flow shows it on
   connect, before there is anything to approve, in `muted` rather than
   `attested`: it is what a claim would be worth, not a measured outcome.
+- It says the address **qualifies**, never that the claim credits.
+  `earns_credits` is `walletPredatesCutoff` and nothing else, while
+  `maybeGrant` can still refuse on the per-account unique index or the budget,
+  so the first version of that line promised money to a second pre-cutoff
+  address claimed with an X account that had already been paid: a false
+  statement about a grant, written inside the change whose whole subject was a
+  false statement about a grant.
+- The mode now changes through one function that clears what belonged to the
+  old one. `worth` was cleared at the start of a run and nowhere else, so a
+  cancelled claim left its credit sentence above a withdrawal that pays
+  nothing, which the setter's own comment already forbade.
 
 ### 2026-09-20 (signing in from a claim comes back to the claim)
 
