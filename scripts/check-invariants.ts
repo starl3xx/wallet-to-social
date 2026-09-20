@@ -1414,6 +1414,24 @@ async function main() {
           /if \(!addsAccountId\) return;/.test(callback)
         );
         ok(
+          'the no-credit copy never claims we hold an account number',
+          /**
+           * `adds_account_id` is false in four cases: we hold a number
+           * already, the address carries no handle, there is no row at all,
+           * or the gap read failed. Copy that reads it as the first was a
+           * false statement about our own index in the other three, shown at
+           * the moment somebody is asked to sign.
+           *
+           * Asserted as the refusal of the sentence rather than as the
+           * presence of a replacement, because the defect is a claim being
+           * made, and any number of honest sentences could stand in its
+           * place.
+           */
+          !/already hold the account number/.test(
+            withoutComments(readFileSync('components/ClaimFlow.tsx', 'utf8'))
+          )
+        );
+        ok(
           'the paying gap and the quoted gap are the same gap',
           /**
            * Both sides require a handle. Without it the callback counted any
