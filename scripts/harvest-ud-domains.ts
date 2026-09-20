@@ -284,6 +284,16 @@ async function fetchNewUriLogs(
 // Stage 2: profile reads (the budgeted resource)
 // ============================================================================
 
+/**
+ * How many consecutive refused-name responses mean the endpoint is refusing
+ * US, not the names. One flagged domain is an outcome; the wall this ran
+ * into was 39,994 of 39,996 reads answering 406 (2026-09-20, the evening
+ * the provider's profile endpoint stopped answering this kind of client at
+ * all), while the checkpoints marched past 40,000 domains nobody read.
+ * Fifty ordinary names in a row do not all trip a content filter.
+ */
+const SYSTEMIC_REFUSAL_LIMIT = 50;
+
 type Outcome =
   | 'invalidName'
   | 'noProfile'
@@ -347,18 +357,39 @@ async function readProfile(
   }
 }
 
-/** A small worker pool: WORKERS readers, each pausing PAUSE_MS per read. */
+/**
+ * A small worker pool: WORKERS readers, each pausing PAUSE_MS per read.
+ *
+ * The consecutive-refusal counter is shared across workers on purpose: a
+ * systemic wall answers every worker the same way, and the run must stop
+ * BEFORE its window completes, so the checkpoint never advances past
+ * domains the wall swallowed. The throw aborts the window; per-window
+ * checkpointing does the rest.
+ */
 async function readProfiles(
   domains: MintedDomain[],
   counts: Record<Outcome, number>
 ): Promise<Array<{ domain: MintedDomain; handle: string }>> {
   const hits: Array<{ domain: MintedDomain; handle: string }> = [];
   let next = 0;
+  let consecutiveRefusals = 0;
   async function worker() {
     while (next < domains.length) {
       const domain = domains[next++];
       const { handle, outcome } = await readProfile(domain.name);
       counts[outcome]++;
+      if (outcome === 'invalidName') {
+        consecutiveRefusals++;
+        if (consecutiveRefusals >= SYSTEMIC_REFUSAL_LIMIT) {
+          throw new Error(
+            `UD API refused ${SYSTEMIC_REFUSAL_LIMIT} names in a row (last: ${domain.name}): ` +
+              'the endpoint is refusing this client, not these names. ' +
+              'Aborting so the checkpoint stays behind the unread domains.'
+          );
+        }
+      } else {
+        consecutiveRefusals = 0;
+      }
       if (handle) hits.push({ domain, handle });
       await new Promise((r) => setTimeout(r, PAUSE_MS));
     }
