@@ -1638,6 +1638,29 @@ async function main() {
             !/providers\[0\]/.test(flow) &&
               /run\(p\.provider, mode\)/.test(flow)
           );
+
+          /**
+           * And neither is offered before we know there is a session.
+           *
+           * Both routes require one and the challenge answers 401 without
+           * it, correctly, but that refusal used to arrive AFTER the wallet
+           * prompt: somebody signed out pressed their wallet, approved a
+           * connection, and only then learned an account was required. A
+           * connection approval is a real thing to ask of a person, and this
+           * page spent one to deliver a fact it already held.
+           *
+           * Asserted as the ordering, because the defect is an ordering: the
+           * signed-out branch has to come before anything that offers a
+           * wallet. The withdraw switch is checked separately since it sits
+           * outside that chain and was the half that stayed reachable.
+           */
+          ok(
+            'no wallet is offered before the session is known',
+            flow.indexOf('!user ?') < flow.indexOf('providers === null ?') &&
+              flow.indexOf('!user ?') > -1 &&
+              // The switch is its own element, so its own gate.
+              /\{user && providers !== null/.test(flow)
+          );
         }
 
         /**

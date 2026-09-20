@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the wallet stops being asked first)
+
+- **`/claim` says an account is needed before it asks for a wallet.** Both
+  routes behind the page require a session and the challenge answers 401
+  without one, correctly, but that refusal arrived after the wallet prompt:
+  somebody signed out pressed their wallet, approved a connection, and only
+  then learned an account was required. A connection approval is a real thing
+  to ask of a person, and the page spent one delivering a fact it already held.
+- The signed-out state offers a Sign in that opens the modal in place, on the
+  `LookupHistory` precedent and at `soft` weight rather than filled, because
+  the header already carries one. `AuthProvider` refreshes the session without
+  a navigation, so the wallet buttons replace the card and nothing read on the
+  way down is lost.
+- **The session-loading state gets its own branch**, for the reason
+  `providers === null` has one: "not answered yet" is not "answered no", and
+  rendering the signed-out card during the session fetch would tell a signed-in
+  person to sign in.
+- The withdraw switch is behind the session too. It sits outside the branch
+  chain and stayed reachable, which would have offered a second action ending
+  at the same 401 as the first.
+
 ### 2026-09-20 (the claim page had no way in)
 
 - **`/claim` is linked from the footer, the sitemap and the privacy policy.** It
