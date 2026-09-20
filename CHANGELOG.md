@@ -31,6 +31,69 @@ All notable changes to walletlink.social. Newest first.
   is a table the boundary check cannot see. Verified by renaming the table so
   it fell outside the argument, and confirming the check names it as uncovered.
 
+### 2026-09-20 (the claim challenge, and the gate that cannot be bought)
+
+- `lib/attestation.ts`: the wallet-signature half of `/claim`. The shape is
+  copied from `lib/x402-recovery.ts` because the hard parts were solved there
+  the expensive way: the HMAC is checked before the expiry so timing leaks
+  nothing, and `issuedAt` is a parameter so a check can exercise the real
+  function rather than reimplementing it.
+- **The secret and the message text are its own, and that is the point.** Two
+  flows now ask a wallet to sign, and they authorise different things: one
+  hands out an API key, the other writes an identity into the index. The text
+  differs so a person approving it in a wallet can tell them apart, and the
+  HMAC input is prefixed so the signed bytes differ even if both secrets
+  leaked. Both halves are asserted, because either alone is a single point of
+  failure.
+- **The eligibility cutoff is a committed literal, never the clock.** A
+  signed-in free account can put a thousand addresses into the graph every
+  thirty days at no cost, so graph membership is abundant going forward and
+  scarce only retroactively. A cutoff that moved with the clock would make
+  every wallet eligible once it had aged, which is the same as having no gate
+  while looking like one.
+- Stated plainly in the module, because it would be easy to oversell: this gate
+  cannot be bought and cannot be moved by the feature that reads it, and it
+  still does nothing against somebody who already controls pre-cutoff wallets.
+  It is the cheap first filter in front of the per-account limit and the
+  budget, not the security story.
+- A failed eligibility read **throws rather than answering false**. The two are
+  not the same: false denies a grant somebody earned, silently, on the one path
+  where the person is watching.
+- Four of these assertions were silently skipping on the first run, because
+  `ATTESTATION_SECRET` was unset and the challenge issuer returns null without
+  it. That is how a check reports clean over code it never ran, so the checker
+  now stubs it, with a different value from the recovery secret so the HMAC
+  prefix is actually exercised.
+
+### 2026-09-20 (the owner-attested source exists before anything writes it)
+
+- Declares `owner_attested`, the source a wallet signature plus an account
+  sign-in taken on our own page will write. Nothing writes it yet and no row
+  carries it, which is the point: the declaration is four coordinated edits
+  and an existing invariant already forces them into one change, so landing it
+  alone means the flow that follows is only a flow.
+- **Quality 45, the same as its peers, and that is arguable.** Every other
+  source in that group is a vendor's report of the same two proofs, while this
+  one is the proofs themselves and the only route yielding an account id we
+  control rather than one we were handed. That is a case for scoring it higher.
+  It gets 45 anyway: inventing a second trust tier for one source splits the
+  band the public class derives from, and the claim being made is identical.
+  Provenance and durability are not strength.
+- Named in `isTwitterVerified` for the reason every entry there exists:
+  `lib/attested-links.ts` writes `twitter_verified = true` for what it ingests,
+  so a source missing from that list is silently unverified by the next live
+  lookup that merges the row. That is the ethos defect, and it replays once per
+  source that forgets the line.
+- Public class `attested-social`, not a class of its own. The class names the
+  mechanism, and the mechanism is the same one every other entry with that
+  class describes. That we took the proofs ourselves is provenance, which the
+  class deliberately does not carry.
+- Carries `no-docs-needed`, which the docs-freshness gate's own message
+  sanctions for a change invisible to API consumers. Checked rather than
+  assumed: `docs-site/openapi.yaml` publishes an enum of evidence **classes**
+  and contains no raw source id at all, the class this maps to already exists
+  in it, and no row carries the source.
+
 ### 2026-09-20 (the docs said we never pick a winner, and we do)
 
 - **`docs-site/concepts/data-quality.mdx` claimed "we do not overwrite one with

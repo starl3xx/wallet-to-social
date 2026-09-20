@@ -1484,8 +1484,8 @@ const MUTATIONS: Mutation[] = [
     // as the index improves.
     name: 'an attested source is dropped from the published-share list',
     file: 'scripts/check-published-figures.ts',
-    from: "'opensea_profile','basename_record']",
-    to: "'opensea_profile']",
+    from: "'basename_record','owner_attested']",
+    to: "'basename_record']",
   },
   {
     // The opposite direction, and the one that matters more now that the two
@@ -1495,8 +1495,8 @@ const MUTATIONS: Mutation[] = [
     // inflating a published claim that the owner attested those rows.
     name: 'a correlated source is counted towards the published owner-attested share',
     file: 'scripts/check-published-figures.ts',
-    from: "'opensea_profile','basename_record']",
-    to: "'opensea_profile','basename_record','zora_profile']",
+    from: "'basename_record','owner_attested']",
+    to: "'basename_record','owner_attested','zora_profile']",
   },
   {
     // The refused platform gets somewhere to land. Nothing else has to change
