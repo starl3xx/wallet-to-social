@@ -9,17 +9,20 @@ import {
   ModalDescription,
 } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { InlineError } from '@/components/ui/inline-error';
-import { XMark } from '@/components/ui/brand-marks';
 import {
   Check,
   CircleNotch as Loader2,
+  ArrowRight,
+  CaretDown,
   Lightning,
   Rocket,
   TrendUp,
   Stack,
+  Receipt,
+  Prohibit,
+  CalendarBlank,
 } from '@phosphor-icons/react';
 import {
   PACKS,
@@ -72,18 +75,6 @@ function approxWallets(matches: number): string {
  */
 const DEFAULT_SUGGESTION: PackId = 'campaign';
 
-/**
- * One icon per pack, in a tinted enclosure.
- *
- * A pack card carries four short lines and nothing else, because the features
- * are shared and stating them four times would imply a difference that does not
- * exist. That left the cards thin. An icon gives each one something to lead
- * with, which is what the two-tier modal this replaces had and what it was
- * missing.
- *
- * The enclosure matters: per the affordance table an icon inside one reads as a
- * control, and an icon beside bare text reads as identification. These identify.
- */
 const PACK_ICON: Record<PackId, typeof Lightning> = {
   trial: Lightning,
   campaign: Rocket,
@@ -91,14 +82,12 @@ const PACK_ICON: Record<PackId, typeof Lightning> = {
   index: Stack,
 };
 
-/**
- * The platform mark inside running copy, sized and aligned the way the home
- * page sets it. Never the literal 𝕏 character: Söhne has no U+1D54F, so it
- * fell back to another face and rendered thinner and narrower than the words
- * around it. `label` makes it read as "X" to a screen reader, because here the
- * mark stands in for the word.
- */
-const X_IN_COPY = <XMark className="inline h-3 w-3 align-[-0.1em]" label="X" />;
+const X_IN_COPY = (
+  <>
+    <span className="sr-only">X</span>
+    <span aria-hidden="true">𝕏</span>
+  </>
+);
 
 /**
  * What every pack includes, said once below the cards. Keyed because one
@@ -142,12 +131,18 @@ export function UpgradeModal({
 }: UpgradeModalProps) {
   const { user } = useAuth();
   const [email, setEmail] = useState('');
+  const [selected, setSelected] = useState<PackId | null>(null);
+  const [emailInvalid, setEmailInvalid] = useState(false);
   const [loading, setLoading] = useState<PackId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const selectedPackRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
+      setSelected(null);
+      setError(null);
+      setEmailInvalid(false);
       Analytics.upgradeModalViewed(
         trigger ?? (walletCount ? 'limit' : 'feature'),
         currentTier
@@ -165,7 +160,8 @@ export function UpgradeModal({
   }, [open, user?.email]);
 
   const handleBuy = async (pack: PackId) => {
-    if (!email || !email.includes('@')) {
+    if (!email.trim() || !emailRef.current?.validity.valid) {
+      setEmailInvalid(true);
       setError('Please enter a valid email address');
       // Focus lands on the field the error is about, not on the Buy button
       // three cards away from it.
@@ -173,6 +169,7 @@ export function UpgradeModal({
       return;
     }
 
+    setEmailInvalid(false);
     setLoading(pack);
     setError(null);
     Analytics.checkoutStarted(pack);
@@ -181,7 +178,7 @@ export function UpgradeModal({
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, pack }),
+        body: JSON.stringify({ email: email.trim(), pack }),
       });
 
       const data = await response.json();
@@ -236,220 +233,272 @@ export function UpgradeModal({
     ? (fitting ?? PACK_IDS[PACK_IDS.length - 1])
     : DEFAULT_SUGGESTION;
 
+  const chosen = selected ?? suggested;
+  const chosenPack = PACKS[chosen];
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent className="max-w-5xl">
-        <ModalHeader className="flex-none">
+      <ModalContent
+        className="max-w-4xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          selectedPackRef.current?.focus();
+        }}
+        footer={
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!loading) void handleBuy(chosen);
+            }}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-2">
+                <label
+                  htmlFor="buy-credits-email"
+                  className="text-sm font-medium"
+                >
+                  Email for your credits and receipt
+                </label>
+                <Input
+                  ref={emailRef}
+                  id="buy-credits-email"
+                  type="email"
+                  name="email"
+                  required
+                  autoComplete="email"
+                  spellCheck={false}
+                  placeholder="you@example.com"
+                  value={email}
+                  disabled={loading !== null}
+                  aria-invalid={emailInvalid || undefined}
+                  aria-describedby={
+                    error
+                      ? 'buy-credits-error buy-credits-note'
+                      : 'buy-credits-note'
+                  }
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setEmailInvalid(false);
+                    if (error) setError(null);
+                  }}
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={loading !== null}
+                className="w-full sm:w-auto sm:min-w-48"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Opening checkout…
+                  </>
+                ) : (
+                  <>
+                    Continue · {price(chosenPack.priceCents)}
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </>
+                )}
+              </Button>
+            </div>
+            {error && (
+              <div id="buy-credits-error">
+                <InlineError>{error}</InlineError>
+              </div>
+            )}
+            <p id="buy-credits-note" className="text-xs text-muted-foreground">
+              {chosenPack.name} · {chosenPack.matches.toLocaleString()} matches.
+              Card details come next, on Stripe.
+            </p>
+          </form>
+        }
+      >
+        <ModalHeader className="flex-none pr-6">
           <ModalTitle className="text-2xl font-light tracking-[var(--tracking-title)]">
-            Buy credits
+            Choose a credit pack
           </ModalTitle>
           <ModalDescription>
-            {walletCount ? (
-              <>
-                Your file has {walletCount.toLocaleString()} wallets. You are
-                charged only for the ones we resolve to an {X_IN_COPY} or
-                Farcaster account.
-              </>
-            ) : (
-              <>
-                You are charged only for the wallets we resolve to an{' '}
-                {X_IN_COPY} or Farcaster account. Misses are free.
-              </>
-            )}
+            <span className="font-medium text-foreground">
+              1 match = 1 wallet
+            </span>{' '}
+            linked to a {X_IN_COPY} or Farcaster account. Only pay for matches.
+            Misses are free.
           </ModalDescription>
         </ModalHeader>
 
-        <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
-          <div className="flex-none space-y-2">
-            <label htmlFor="buy-credits-email" className="text-sm font-medium">
-              Email address
-            </label>
-            {/* Says what the field is for, because without it the modal reads
-                as a payment form: it is titled "Buy credits", it lists prices,
-                and it has buttons that say Buy. The first person to use it
-                typed a card number here. Card details are collected by Stripe
-                on the next page, and this address is only how credits find an
-                account. */}
-            <p className="text-sm text-muted-foreground">
-              Where your credits and receipt go. Card details come next, on
-              Stripe.
+        <div className="space-y-4">
+          <ul className="grid grid-cols-3 divide-x divide-border rounded-lg bg-fill-well py-3">
+            {[
+              { icon: Receipt, title: 'One-time', detail: 'purchase' },
+              {
+                icon: Prohibit,
+                title: 'No subscription',
+                detail: 'No recurring fees',
+              },
+              {
+                icon: CalendarBlank,
+                title: `${CREDIT_LIFETIME_MONTHS} months`,
+                detail: 'to use your credits',
+              },
+            ].map(({ icon: Icon, title, detail }) => (
+              <li
+                key={title}
+                className="flex flex-col items-center gap-2 px-2 text-center sm:flex-row sm:justify-center sm:gap-3 sm:px-4 sm:text-left"
+              >
+                <Icon
+                  className="h-5 w-5 flex-none text-accent-brand"
+                  aria-hidden
+                />
+                <span className="text-xs">
+                  <span className="block font-medium text-foreground">
+                    {title}
+                  </span>
+                  <span className="block text-muted-foreground">{detail}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {walletCount ? (
+            <p className="rounded-lg bg-accent-brand-tint p-3 text-sm">
+              Your list:{' '}
+              <strong className="font-medium tabular-nums">
+                {walletCount.toLocaleString()} wallets
+              </strong>
+              .{' '}
+              {fitting
+                ? `${PACKS[suggested].name} covers the estimated matches.`
+                : 'Our largest pack is the closest fit; your list may need more credits or smaller batches.'}
             </p>
-            <Input
-              ref={emailRef}
-              id="buy-credits-email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              spellCheck={false}
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (error) setError(null);
-              }}
-            />
-            {error && <InlineError>{error}</InlineError>}
-          </div>
+          ) : null}
 
-          {/* Four packs. One column on a phone, two from `sm`, four from `lg`,
-              because four cards at tablet width leave each one too narrow to
-              hold a price and a match count on separate lines.
-
-              No `overflow-y-auto` here. It made this grid a clipping context,
-              and the badge that sits above the suggested card's top edge was
-              cut in half by it. The modal body already scrolls, which is where
-              scrolling belongs; `pt-3` is the room the badge needs. */}
-          <div className="grid gap-3 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            {PACK_IDS.map((id) => {
-              const pack = PACKS[id];
-              const isSuggested = suggested === id;
-              const Icon = PACK_ICON[id];
-
-              return (
-                <div
-                  key={id}
-                  className={cn(
-                    'relative flex flex-col gap-4 rounded-lg border p-4',
-                    // One hairline carries separation, and colour tells the
-                    // suggested card apart. `border-2` is banned outside a
-                    // dashed dropzone.
-                    isSuggested ? 'border-accent-brand' : 'border-border'
-                  )}
-                >
-                  {/* A badge, so it is the Badge primitive: mono, upper, tint,
-                      no border. It was a filled sentence-case pill, which is
-                      the treatment reserved for actions, and it sat directly
-                      above a button wearing the same clothes. `max-w-none`
-                      because "Fits your list" is 14ch and the primitive caps
-                      at 12ch for values it cannot trust; this one it can. */}
-                  {isSuggested && (
-                    <Badge
-                      tone="brand"
-                      className="absolute -top-2.5 left-4 max-w-none"
-                    >
-                      {!walletCount
-                        ? 'Recommended'
-                        : fitting
-                          ? 'Fits your list'
-                          : 'Closest fit'}
-                    </Badge>
-                  )}
-
-                  <div>
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="rounded-sm bg-accent-brand-tint p-1.5">
-                        <Icon
-                          className="h-4 w-4 text-accent-brand"
-                          weight="fill"
-                        />
-                      </span>
-                      <h3 className="text-sm font-semibold">{pack.name}</h3>
-                    </div>
-                    {/* The figure treatment from `Figure`: weight 200 at title
-                        tracking, the hero-figure weight everywhere a figure
-                        stands alone at 24px and up. It was `font-bold`, then
-                        `font-medium`, which is the weight of the button label
-                        directly beneath it, so price and button read at one
-                        weight. */}
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className="text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
-                        {price(pack.priceCents)}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        once
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium tabular-nums">
-                      {pack.matches.toLocaleString()} matches
-                    </p>
-                    {/* Secondary and muted on purpose. The match count is what
-                        is sold and what is billed; the wallet figure is a
-                        translation for someone holding a file. */}
-                    <p className="tabular-nums text-muted-foreground">
-                      ≈ {approxWallets(pack.matches)} wallets
-                    </p>
-                    {/* The ladder, made visible. The cards showed price and
-                        match count and left the buyer to divide; nobody
-                        divides, so a steep discount read as "bigger number,
-                        bigger price". Derived from PACKS so it cannot drift
-                        from the price sheet. Nothing renders on the baseline
-                        pack, where the honest answer is no saving. */}
-                    <p className="text-sm text-muted-foreground">
-                      {(centsPerMatch(pack.id) / 100).toFixed(3)}¢ per match
-                      {savingsVsSmallestPack(pack.id) > 0 && (
-                        <span className="ml-2 font-semibold text-attested">
-                          {savingsVsSmallestPack(pack.id)}% cheaper per match
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  <p className="flex-1 text-sm text-muted-foreground">
-                    {pack.fits}
-                  </p>
-
-                  <Button
-                    className="w-full flex-none"
-                    variant={isSuggested ? 'default' : 'soft'}
-                    onClick={() => handleBuy(id)}
-                    disabled={loading !== null}
+          <fieldset disabled={loading !== null}>
+            <legend className="sr-only">Select a credit pack</legend>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {PACK_IDS.map((id) => {
+                const pack = PACKS[id];
+                const PackIcon = PACK_ICON[id];
+                const isSelected = chosen === id;
+                const saving = savingsVsSmallestPack(id);
+                return (
+                  <label
+                    key={id}
+                    className={cn(
+                      'relative flex cursor-pointer flex-col rounded-lg border p-4 transition-control focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring',
+                      isSelected
+                        ? 'border-accent-brand bg-accent-brand-tint'
+                        : 'border-input hover:bg-fill-subtle',
+                      loading !== null && 'cursor-wait'
+                    )}
                   >
-                    {/* The key remount is what lets `fade-in-fast` fire on the
-                        label-to-spinner swap, so the state change crossfades
-                        instead of hard-cutting; `w-full` above already keeps
-                        the width from jumping. Opacity only: blur is neither
-                        transform nor opacity, which the motion rules allow. */}
-                    <span
-                      key={loading === id ? 'loading' : 'idle'}
-                      className="fade-in-fast inline-flex items-center gap-2"
-                    >
-                      {loading === id ? (
-                        <>
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden
-                          />
-                          Processing…
-                        </>
-                      ) : (
-                        `Buy ${pack.name}`
-                      )}
+                    <input
+                      type="radio"
+                      ref={isSelected ? selectedPackRef : undefined}
+                      name="credit-pack"
+                      value={id}
+                      checked={isSelected}
+                      onChange={() => setSelected(id)}
+                      className="sr-only"
+                    />
+                    <span className="mb-3 flex min-h-4 items-center justify-between gap-2 text-xs">
+                      <span
+                        className={
+                          id === suggested
+                            ? 'text-accent-brand'
+                            : 'text-muted-foreground'
+                        }
+                      >
+                        {id === suggested
+                          ? !walletCount
+                            ? 'Recommended'
+                            : fitting
+                              ? 'Fits your list'
+                              : 'Closest fit'
+                          : saving > 0
+                            ? `Save ${saving}%`
+                            : 'Start small'}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'flex h-4 w-4 flex-none items-center justify-center rounded-full border',
+                          isSelected
+                            ? 'border-accent-brand bg-accent-brand text-accent-brand-foreground'
+                            : 'border-input'
+                        )}
+                      >
+                        {isSelected && <Check className="h-3 w-3" />}
+                      </span>
                     </span>
-                  </Button>
-                </div>
-              );
-            })}
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <span
+                        className={cn(
+                          'flex h-7 w-7 flex-none items-center justify-center rounded-sm transition-control',
+                          isSelected
+                            ? 'bg-accent-brand text-accent-brand-foreground'
+                            : 'bg-accent-brand-tint text-accent-brand'
+                        )}
+                      >
+                        <PackIcon className="h-4 w-4" aria-hidden />
+                      </span>
+                      {pack.name}
+                    </span>
+                    <span className="mt-2 text-3xl font-extralight tabular-nums tracking-[var(--tracking-title)]">
+                      {price(pack.priceCents)}
+                    </span>
+                    <span className="mt-4 text-sm font-semibold tabular-nums">
+                      {pack.matches.toLocaleString()} matches
+                    </span>
+                    <span className="mt-1 text-xs tabular-nums text-muted-foreground">
+                      {centsPerMatch(id).toFixed(1)}¢ / match
+                    </span>
+                    <span className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+                      {pack.fits}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">
+                {chosenPack.matches.toLocaleString()} matches
+              </span>{' '}
+              cover approximately {approxWallets(chosenPack.matches)} wallets at
+              our measured {(MEASURED_MATCH_RATE * 100).toFixed(1)}% match rate.
+              Your results will vary.
+            </p>
+            <p className="min-h-4 text-attested">
+              {savingsVsSmallestPack(chosen) > 0
+                ? `${savingsVsSmallestPack(chosen)}% less per match than Trial.`
+                : 'Our smallest pack. Same full toolkit.'}
+            </p>
           </div>
 
-          {/* Said once, below the cards, rather than repeated as a feature
-              bullet on all four. Every pack carries every one of these, so
-              listing them per card would be four identical lists and would
-              imply a difference between the rungs that does not exist.
-
-              The check is `attested`, the one green, at UI scale with no disc.
-              It wore `success-light` and `success-foreground`, a pair kept in
-              globals.css for this list alone and tuned a step away from
-              `attested`, so the product shipped two greens and said it had
-              one.
-
-              The panel is `bg-fill-well` at `p-4`, the one named wash for
-              interior panels at the one inset padding. It was `bg-muted/40`,
-              an unnamed tint; the well token is the named version of the same
-              idea and cannot self-erase on a muted context. */}
-          <div className="flex-none rounded-lg bg-fill-well p-4">
-            <p className="mb-2 text-sm font-medium">Every pack includes</p>
-            <ul className="grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
-              {INCLUDED.map((item) => (
-                <li key={item.key} className="flex items-center gap-2">
-                  <Check className="h-4 w-4 flex-none text-attested" />
-                  {item.label}
+          <details className="group rounded-lg bg-fill-well">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <span>Every pack includes the full toolkit</span>
+              <CaretDown
+                className="h-4 w-4 flex-none transition-transform group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <ul className="grid gap-x-6 gap-y-2 px-4 pb-4 text-sm text-muted-foreground sm:grid-cols-2">
+              {INCLUDED.filter((item) => item.key !== 'expiry').map((item) => (
+                <li key={item.key} className="flex items-start gap-2">
+                  <Check
+                    className="mt-0.5 h-4 w-4 flex-none text-attested"
+                    aria-hidden
+                  />
+                  <span>{item.label}</span>
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
         </div>
       </ModalContent>
     </Modal>

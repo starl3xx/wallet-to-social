@@ -2,6 +2,15 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (Clearer credit-pack checkout)
+
+- Redesigned the credit modal around selectable packs and one checkout action,
+  with a persistent email and checkout footer on small screens.
+- Clarified matches, purchase terms, savings, and credit expiry; restored pack
+  icons with a contrasting selected state and made shared features expandable.
+- Corrected per-match cent labels without changing pack prices or credit counts.
+- Campaign now describes its use as an airdrop or NFT collection.
+
 ### 2026-09-20 (BNB token import comes back through a third index)
 
 - **A third metered ERC-20 holder index** in the ladder
