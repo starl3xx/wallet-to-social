@@ -19,6 +19,26 @@ All notable changes to walletlink.social. Newest first.
   primary now matches the indexed `lindaxie` identity. The opening
   five-wallet lookup keeps Jesse, Vitalik, and Dan as its anchors.
 
+### 2026-09-20 (the API pipeline applies the entitlement it was already given)
+
+- **`inngest/functions/wallet-lookup.ts` had no paid-field handling at all**,
+  while `lib/job-processor.ts` stripped `fc_followers` and `priority_score` for
+  a job the credits do not cover. `options.paidData` was always correct:
+  `app/api/v1/jobs/route.ts` derives it exactly as the web route does. The
+  worker simply never read it.
+- **The half that reached a customer was `fc_followers`.**
+  `app/api/v1/jobs/[id]/route.ts` serves `r.fc_followers ?? null` with no gate
+  of its own, and the published docs say a job run on the free allowance
+  reports `farcaster.followers` as `null`, "the same as a free lookup in the
+  app". That sentence was false; a free-allowance job reported the real number.
+  `docs-site` now carries the dated correction.
+- **`priority_score` reaches nobody**: that read route never emits it. Gating it
+  changes no response. It is done because a value derived from paid inputs
+  should not sit on a free job's row, and because the score is a function of
+  the two follower counts, so leaving it would hand back what the strip removed.
+- Both carried in the step's delta, because the strip can now CLEAR a field and
+  a replay that reapplied only additions would put the count back.
+
 ### 2026-09-20 (the priority score counts X reach)
 
 - **`priority_score` ignored X followers**, on a product sold on X reach. It

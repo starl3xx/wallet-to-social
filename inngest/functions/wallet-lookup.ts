@@ -465,28 +465,45 @@ export const walletLookup = inngest.createFunction(
       await stampReachability(all);
 
       /**
-       * The paid strip, before the score reads the field.
+       * The paid strip, mirroring `lib/job-processor.ts` field for field.
        *
-       * `x_followers` is a paid field everywhere else, and it is new here, so
-       * removing it for a free job takes nothing away that anybody had. Doing
-       * it BEFORE the score means a free job's score is computed from the
-       * same inputs it always was, and a paid job's gains the X term.
+       * This pipeline had no paid-field handling at all, while the app
+       * stripped `fc_followers` and `priority_score` for a job the credits
+       * do not cover. `options.paidData` was always set correctly by
+       * `app/api/v1/jobs/route.ts`, which derives it exactly as the web route
+       * does; the worker simply never read it.
        *
-       * `priority_score` itself is deliberately left ungated here, unlike the
-       * app pipeline which strips it. That divergence predates this change
-       * and removing the field would take it from API callers who have it
-       * today, which is not this commit's decision to make.
+       * `fc_followers` is the half that reached a customer.
+       * `app/api/v1/jobs/[id]/route.ts` serves `r.fc_followers ?? null`
+       * without a gate of its own, and `docs-site/api-reference/jobs.mdx`
+       * states plainly that "a job run on pack credits carries
+       * `farcaster.followers`; one run on the free allowance reports it as
+       * `null`, the same as a free lookup in the app." That sentence was
+       * false: a free-allowance job reported the real number. A published
+       * promise with nothing enforcing it, which is the shape
+       * `scripts/check-invariants.ts` exists for.
+       *
+       * `priority_score` is the other half and reaches nobody. That read
+       * route never emits it, so gating it changes no response; it is done
+       * because a stored value derived from paid inputs should not sit on a
+       * free job's row, and because two pipelines disagreeing about one rule
+       * is how the next reader learns the wrong one.
+       *
+       * The strip runs BEFORE the score so a free job's score is computed
+       * from the inputs it is entitled to, and then the score itself goes.
        */
-      if (!jobGetsPaidFields(options)) {
-        for (const r of all) r.x_followers = undefined;
+      const paid = jobGetsPaidFields(options);
+      if (!paid) {
+        for (const r of all) {
+          r.x_followers = undefined;
+          r.fc_followers = undefined;
+        }
       }
 
       for (const r of all) {
-        r.priority_score = calculatePriorityScore(
-          r.holdings,
-          r.fc_followers,
-          r.x_followers
-        );
+        r.priority_score = paid
+          ? calculatePriorityScore(r.holdings, r.fc_followers, r.x_followers)
+          : undefined;
       }
 
       // The delta, not the rows. See the note above the step.
@@ -494,6 +511,7 @@ export const walletLookup = inngest.createFunction(
         wallet: r.wallet,
         twitter_reachability: r.twitter_reachability,
         x_followers: r.x_followers,
+        fc_followers: r.fc_followers,
         priority_score: r.priority_score,
       }));
     });
@@ -503,6 +521,9 @@ export const walletLookup = inngest.createFunction(
       if (!row) continue;
       row.twitter_reachability = d.twitter_reachability;
       row.x_followers = d.x_followers;
+      // Carried in the delta because the strip above can CLEAR it, and a
+      // replay that reapplied only the additions would put the count back.
+      row.fc_followers = d.fc_followers;
       row.priority_score = d.priority_score;
     }
 

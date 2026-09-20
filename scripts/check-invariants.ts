@@ -2847,6 +2847,33 @@ async function main() {
           );
           if (worker.startsWith('inngest/')) {
             ok(
+              'the API pipeline strips the same paid fields the app does',
+              /**
+               * The half that reached a customer.
+               * `docs-site/api-reference/jobs.mdx` says a job run on the free
+               * allowance reports `farcaster.followers` as null, "the same as
+               * a free lookup in the app", and
+               * `app/api/v1/jobs/[id]/route.ts` serves `r.fc_followers ?? null`
+               * with no gate of its own. This pipeline had no paid-field
+               * handling at all, so that published sentence was false: a
+               * free-allowance job reported the real number.
+               *
+               * `options.paidData` was always correct here. The submit route
+               * derives it exactly as the web route does; the worker simply
+               * never read it.
+               */
+              /r\.fc_followers = undefined;/.test(src) &&
+                /r\.x_followers = undefined;/.test(src)
+            );
+            ok(
+              'and a free job keeps no score derived from fields it cannot see',
+              // `priority_score` is computed from both follower counts, so
+              // leaving it on a stripped row hands back a function of the
+              // fields just removed. The app has always stripped it; this
+              // pipeline never did.
+              /priority_score = paid/.test(src) && /: undefined;/.test(src)
+            );
+            ok(
               'the Inngest scoring step returns a bounded delta, not rows and not nothing',
               /**
                * `step.run` memoises its RESULT. On a replay the callback does

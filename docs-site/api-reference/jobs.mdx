@@ -174,7 +174,7 @@ is delivered and not charged for, and only a genuine overshoot is locked.
 Two things about completed results are worth knowing:
 
 - **Reachability is read at poll time.** The X reachability fields and `twitter.also` come from the same wallet-keyed reads every other endpoint uses, at the moment you poll, not from a stamp stored with the job. A repeat poll can differ where the daily reachability check has moved a handle, and that is the poll telling you the truth.
-- **Follower counts follow your entitlement.** A job run on pack credits carries `farcaster.followers`; one run on the free allowance reports it as `null`, the same as a free lookup in the app.
+- **Follower counts follow your entitlement.** A job run on pack credits carries `farcaster.followers`; one run on the free allowance reports it as `null`, the same as a free lookup in the app. <Note>This became true on 20 September 2026. Before that the asynchronous pipeline applied no entitlement to result fields, so a job on the free allowance reported the real follower count rather than `null`. If you read `farcaster.followers` on free-allowance jobs, it now returns `null` as documented.</Note>
 
 ## Failure
 
