@@ -1124,6 +1124,12 @@ export const seededContracts = pgTable(
     symbol: text('symbol'),
     holdersImported: integer('holders_imported').default(0).notNull(),
     totalHolders: integer('total_holders'),
+    /**
+     * Unfinished holder-walk bookmark: `{source, cursor, walked}` (see
+     * SeedWalkState in lib/seed-collections.ts), NULL when no walk is in
+     * progress. Written only by recordSeed, cleared when a walk completes.
+     */
+    resumeState: jsonb('resume_state'),
     firstSeededAt: timestamp('first_seeded_at').defaultNow().notNull(),
     lastSeededAt: timestamp('last_seeded_at').defaultNow().notNull(),
   },

@@ -31,11 +31,15 @@ async function main() {
       symbol text,
       holders_imported integer NOT NULL DEFAULT 0,
       total_holders integer,
+      resume_state jsonb,
       first_seeded_at timestamp NOT NULL DEFAULT now(),
       last_seeded_at timestamp NOT NULL DEFAULT now(),
       PRIMARY KEY (address, chain)
     )
   `;
+  // Added 2026-09-20 (scripts/migrate-seed-resume.ts); here too so a fresh
+  // environment gets the full shape from this one script.
+  await sql`ALTER TABLE seeded_contracts ADD COLUMN IF NOT EXISTS resume_state jsonb`;
   console.log('table seeded_contracts: ok');
 
   await sql`
