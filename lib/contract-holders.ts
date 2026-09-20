@@ -1087,7 +1087,12 @@ async function getERC20Holders(
     // 100 at a time), with the second index behind it as a rescue.
     if (explorer) {
       try {
-        return await getERC20HoldersBlockscout(address, chain, limit, deadlineMs);
+        return await getERC20HoldersBlockscout(
+          address,
+          chain,
+          limit,
+          deadlineMs
+        );
       } catch (error) {
         if (!secondIndex || !process.env.OPENSEA_API_KEY) throw error;
         try {

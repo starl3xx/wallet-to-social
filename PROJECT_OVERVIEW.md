@@ -990,16 +990,16 @@ signup.
 
 ## Supported Chains (contract import)
 
-| Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order)  |
-| --------------- | -------- | ----------------- | ----------------------------------- |
-| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
-| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
-| Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea                |
-| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
-| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
-| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
-| BNB Chain       | 56       | Alchemy NFT API   | Moralis only (no fallback exists)   |
-| HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)     |
+| Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order) |
+| --------------- | -------- | ----------------- | ---------------------------------- |
+| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
+| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
+| Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea               |
+| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
+| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
+| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Blockscout     |
+| BNB Chain       | 56       | Alchemy NFT API   | Moralis only (no fallback exists)  |
+| HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)    |
 
 The Blockscout column is the public-explorer fallback and is refused to
 background seeding (`allowPublicFallback: false`); OpenSea is a second metered
