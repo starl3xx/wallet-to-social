@@ -133,11 +133,21 @@ one only a source that actually looked can make.
 way a name is not. Routes that carry one let us follow a rename instead of
 losing it, and `attested-social` is the route that carries one today.
 
-**We record disagreements rather than settling them.** When two owner-attested
-routes name different accounts for one wallet, that is evidence something moved.
-We do not overwrite one with the other and we do not silently pick a winner: the
-record keeps the handle it had, the conflicting account id is not written beside
-a handle it does not belong to, and the disagreement is queued for review.
+**We record every disagreement, and settle only the one kind that is not a
+judgment call.** When two owner-attested routes name different accounts for one
+wallet, that is evidence something moved. The conflicting account id is never
+written beside a handle it does not belong to, and the disagreement is kept.
+
+Where both accounts still reach someone, we keep the handle the record already
+had and settle nothing. Measured on real cases, when both are live the handle we
+hold usually belongs to somebody who does not claim the wallet, so picking a
+winner there would be a guess.
+
+Where the handle we hold reaches nobody and the other one is live, and both of
+those were checked recently, we follow the rename: the live handle becomes the
+record, and the handle it replaced is kept so the change can be explained rather
+than appearing as a correction out of nowhere. That is the whole of what we
+settle automatically.
 
 If you are running outreach on a list you enriched a while ago, re-check it
 rather than assuming a handle that was attested is still live. `meta.stale` and
