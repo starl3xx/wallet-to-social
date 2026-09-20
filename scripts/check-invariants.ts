@@ -1369,6 +1369,43 @@ async function main() {
             )
         );
 
+        /**
+         * Every outcome the callback can redirect with is one the page can
+         * say out loud.
+         *
+         * This failure has now happened twice in this codebase. The X list
+         * banner reported a sixteen-minute job to a view the redirect had
+         * already destroyed, and the first version of `/claim` ignored its
+         * own return parameters entirely: somebody who had signed a message
+         * and consented on x.com was shown the start form again, with nothing
+         * saying whether anything was recorded.
+         *
+         * Derived rather than listed. The outcomes are read out of the
+         * callback's own `back(...)` calls, so adding a ninth refusal there
+         * fails this until the page learns to explain it, which is the whole
+         * point: the list cannot drift because it is not a list.
+         */
+        const cbSrc = readFileSync('lib/claim-callback.ts', 'utf8');
+        const outcomes = new Set(
+          [...cbSrc.matchAll(/back\(\s*'([a-z_]+)'/g)].map((m) => m[1])
+        );
+        const panel = readFileSync('components/ClaimOutcome.tsx', 'utf8');
+        const unexplained = [...outcomes].filter(
+          (o) => !new RegExp(`\\b${o}:`).test(panel)
+        );
+        ok(
+          `every claim outcome has something the page can say (unexplained: ${unexplained.join(', ') || 'none'})`,
+          // The parser must find outcomes at all, or "nothing unexplained"
+          // would pass by matching nothing.
+          outcomes.size >= 5 && unexplained.length === 0
+        );
+        ok(
+          'the page reads the outcome and clears it, so a refresh cannot replay one',
+          /params\.get\('claim'\)/.test(panel) &&
+            /params\.delete\('claim'\)/.test(panel) &&
+            /params\.delete\('claim_id'\)/.test(panel)
+        );
+
         ok(
           'the claim callback never stores the access token',
           !/access_token\s*=/.test(cb) &&

@@ -22,6 +22,7 @@ import type { Metadata } from 'next';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { ClaimFlow } from '@/components/ClaimFlow';
+import { ClaimOutcome } from '@/components/ClaimOutcome';
 import { CURRENT_CONSENT } from '@/lib/attestation-consent';
 import { ATTESTATION_GRANT_MATCHES } from '@/lib/attestation';
 
@@ -36,6 +37,10 @@ export default function ClaimPage() {
   return (
     <PageShell>
       <div className="mx-auto max-w-[68ch] py-12">
+        {/* Above everything, because somebody arriving from x.com is here
+            for one answer and should not have to find it. */}
+        <ClaimOutcome />
+
         <Eyebrow className="text-muted-foreground">Your record</Eyebrow>
         <h1 className="mt-3 text-4xl font-extralight leading-[1.02] tracking-[var(--tracking-display)]">
           Claim your address

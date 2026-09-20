@@ -49,14 +49,48 @@ interface Announced {
 
 type Stage = 'idle' | 'connecting' | 'signing' | 'starting';
 
+/**
+ * What to say when the WALLET refused, which is not the same as a failure.
+ *
+ * EIP-1193 gives a user rejection code 4001. Telling somebody their signature
+ * failed when they pressed Cancel is the kind of message that teaches people
+ * to distrust the next prompt, so a rejection says it was a rejection and
+ * says nothing was recorded.
+ */
+function walletFailure(e: unknown, step: 'connect' | 'sign'): string {
+  if ((e as { code?: number })?.code === 4001) {
+    return step === 'connect'
+      ? 'You closed your wallet without connecting. Nothing was recorded.'
+      : 'You cancelled that. Nothing was recorded.';
+  }
+  return step === 'connect'
+    ? 'That wallet could not connect.'
+    : 'That wallet could not complete the signature.';
+}
+
 export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
-  const [providers, setProviders] = useState<Announced[]>([]);
+  /**
+   * `null` means "not asked yet", which is a different state from "asked and
+   * nobody answered" and has to render differently.
+   *
+   * An empty array from the first paint told every visitor to install a
+   * wallet, including the ones who had one: this is a client component, so
+   * the static HTML and the first client render both happen before discovery
+   * can have run. On a slow load that message sat there long enough to be
+   * believed and acted on.
+   */
+  const [providers, setProviders] = useState<Announced[] | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
    * the listener goes up before the request goes out.
+   *
+   * Announcements are synchronous in practice, but the empty result is only
+   * COMMITTED after a turn of the event loop: a provider that announces a
+   * tick late would otherwise be reported as absent and then appear, which
+   * reads as the page changing its mind.
    */
   useEffect(() => {
     const seen = new Map<string, Announced>();
@@ -68,25 +102,48 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
     };
     window.addEventListener('eip6963:announceProvider', onAnnounce);
     window.dispatchEvent(new Event('eip6963:requestProvider'));
-    return () =>
+    const settle = window.setTimeout(() => {
+      setProviders((current) => current ?? [...seen.values()]);
+    }, 300);
+    return () => {
+      window.clearTimeout(settle);
       window.removeEventListener('eip6963:announceProvider', onAnnounce);
+    };
   }, []);
 
   const claim = useCallback(
     async (provider: Eip1193Provider) => {
       setError(null);
       setStage('connecting');
+
+      /**
+       * The wallet calls get their own try, and nothing else is inside it.
+       *
+       * One try around the whole path reported a failed fetch, a bad JSON
+       * body and anything after a successful signature as "that wallet could
+       * not complete the signature", which is wrong in the most confusing
+       * direction: it blames the wallet for our own network, and it says the
+       * signature failed in cases where it succeeded.
+       */
+      let wallet: string;
       try {
         const accounts = (await provider.request({
           method: 'eth_requestAccounts',
         })) as string[];
-        const wallet = accounts?.[0]?.toLowerCase();
-        if (!wallet) {
+        const first = accounts?.[0]?.toLowerCase();
+        if (!first) {
           setError('That wallet did not return an address.');
           setStage('idle');
           return;
         }
+        wallet = first;
+      } catch (e) {
+        setError(walletFailure(e, 'connect'));
+        setStage('idle');
+        return;
+      }
 
+      try {
         const challengeRes = await fetch(
           `/api/claim/challenge?wallet=${encodeURIComponent(wallet)}`
         );
@@ -102,11 +159,21 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
          * `personal_sign` takes the message first and the address second,
          * which is the opposite of `eth_sign` and a common way to get a
          * confusing refusal from the wallet rather than a signature.
+         *
+         * Its own try, so a rejection here is reported as a rejection and a
+         * failure after it is not reported as one.
          */
-        const signature = (await provider.request({
-          method: 'personal_sign',
-          params: [challenge.message, wallet],
-        })) as string;
+        let signature: string;
+        try {
+          signature = (await provider.request({
+            method: 'personal_sign',
+            params: [challenge.message, wallet],
+          })) as string;
+        } catch (e) {
+          setError(walletFailure(e, 'sign'));
+          setStage('idle');
+          return;
+        }
 
         setStage('starting');
         const startRes = await fetch('/api/claim/start', {
@@ -134,19 +201,14 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
          * full size with the address bar showing.
          */
         window.location.href = started.authorize_url;
-      } catch (e) {
+      } catch {
         /**
-         * A rejected signature is a decision, not a fault. EIP-1193 gives it
-         * code 4001, and telling somebody their signature failed when they
-         * pressed Cancel is the kind of message that makes people distrust
-         * the next one.
+         * Everything in this try is ours: a fetch, a JSON body, a redirect.
+         * None of it is the wallet's doing, so none of it says the wallet
+         * failed. Nothing has been recorded at this point either, and saying
+         * so is what stops somebody worrying about a half-written claim.
          */
-        const code = (e as { code?: number })?.code;
-        setError(
-          code === 4001
-            ? 'You cancelled that. Nothing was recorded.'
-            : 'That wallet could not complete the signature.'
-        );
+        setError('We could not reach the server. Nothing was recorded.');
         setStage('idle');
       }
     },
@@ -164,7 +226,14 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         proves the account, and the record needs the pair.
       </p>
 
-      {providers.length === 0 ? (
+      {providers === null ? (
+        /* Asked, not yet answered. Saying nothing here is the point: the
+           alternative told everybody to install a wallet before discovery
+           had run. */
+        <p className="mt-4 text-sm text-muted-foreground">
+          Looking for a wallet…
+        </p>
+      ) : providers.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
           No browser wallet announced itself. Install one, or open this page in
           a wallet&rsquo;s own browser. Smart-contract wallets are not supported
