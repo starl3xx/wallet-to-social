@@ -2874,6 +2874,50 @@ async function main() {
               /priority_score = paid/.test(src) && /: undefined;/.test(src)
             );
             ok(
+              'both delta applies survive a step memoised before the delta existed',
+              /**
+               * Inngest memoises by step id. A run that completed either step
+               * under the previous code has `undefined` recorded against it,
+               * so a replay landing on a build that iterates the result would
+               * throw and fail the job outright: a worse outcome than either
+               * defect these deltas were added to fix, and one that only
+               * appears in the window around a deploy.
+               *
+               * Asserted on both, because they were introduced in separate
+               * changes and only the second one was reviewed for it.
+               */
+              /for \(const d of enriched \?\? \[\]\)/.test(src) &&
+                /for \(const d of scored \?\? \[\]\)/.test(src)
+            );
+            ok(
+              'the Inngest enrichment step returns a delta too, so a replay keeps it',
+              /**
+               * The last instance of the same shape in this file. It mutated
+               * `resultsMap` in place and returned nothing, so every retry of
+               * a later step dropped the graph enrichment: a replayed job came
+               * back with fewer identities and with `twitter_verified` and
+               * `farcaster_verified` unset, blanking the attested marking.
+               *
+               * It billed correctly throughout, because `chargeForJob` counts
+               * the same degraded map in `finalize`. The customer got less and
+               * paid less, so no number disagreed with another and nothing
+               * caught it.
+               *
+               * The delta is DIFFED against a snapshot rather than written
+               * branch by branch, because the fill rules are order-dependent:
+               * the verification copy reads the handle the fill above may have
+               * just set. A hand-written delta would restate that order and
+               * could drift from it.
+               */
+              /const enriched = await step\.run\('enrich-social-graph'/.test(
+                src
+              ) &&
+                /return deltas;/.test(src) &&
+                /Object\.assign\(row, d\)/.test(src) &&
+                // The diff, not a restatement of the branches.
+                /result\[key\] !== before\[key\]/.test(src)
+            );
+            ok(
               'the Inngest scoring step returns a bounded delta, not rows and not nothing',
               /**
                * `step.run` memoises its RESULT. On a replay the callback does
