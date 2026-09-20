@@ -170,6 +170,42 @@ async function maybeGrant(
   }
 }
 
+/**
+ * Abandoned consent screens, and what they leave behind.
+ *
+ * Exactly the problem `cleanupAbandonedListJobs` was written for, one flow
+ * over. A row is created `awaiting_x` holding the wallet signature, the PKCE
+ * verifier and the state nonce, and only a completed callback or a withdrawal
+ * clears any of that. Somebody who opens the X consent screen and closes the
+ * tab reaches neither, so a signature and a live verifier sit in the table
+ * indefinitely. Not keeping material longer than the job needs it is the one
+ * thing this design is for, and the abandoned case quietly did the opposite.
+ *
+ * Thirty minutes matches what the callback enforces at read time, so the sweep
+ * clears the payload rather than defining the deadline. The row is cancelled
+ * rather than deleted, because "you started a claim and did not finish it" is
+ * a true thing worth being able to see, and what makes it harmless is that
+ * the payload is gone rather than that the row is.
+ */
+export async function cleanupAbandonedClaims(): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  const purged = (await db.execute(sql`
+    UPDATE identity_attestations
+    SET status        = 'cancelled',
+        error         = 'authorization never completed',
+        signature     = NULL,
+        code_verifier = NULL,
+        state_nonce   = NULL,
+        completed_at  = now(),
+        updated_at    = now()
+    WHERE status = 'awaiting_x'
+      AND created_at < now() - interval '30 minutes'
+    RETURNING id
+  `)) as unknown as { rows: Array<{ id: string }> };
+  return purged.rows.length;
+}
+
 function back(outcome: string, claimId?: string): NextResponse {
   const url = new URL(getSiteUrl());
   url.pathname = '/claim';

@@ -1488,6 +1488,32 @@ async function main() {
           );
         }
 
+        /**
+         * An abandoned claim does not keep a signature for ever.
+         *
+         * The same problem `cleanupAbandonedListJobs` was written for, one
+         * flow over: a row born `awaiting_x` holds the wallet signature, the
+         * PKCE verifier and the state nonce, and only a completed callback or
+         * a withdrawal clears them. Somebody who closes the consent tab
+         * reaches neither.
+         *
+         * Both halves asserted, because the sweep existing and the sweep
+         * RUNNING are different facts and this repo has shipped the first
+         * without the second: `lib/auth.ts` carried three cleanup functions
+         * that nothing called, which is why the cleanup cron exists at all.
+         */
+        ok(
+          'an abandoned claim is swept, and the sweep is actually called',
+          /export async function cleanupAbandonedClaims/.test(cb) &&
+            /signature = NULL/.test(cb) &&
+            /code_verifier = NULL/.test(cb) &&
+            /await cleanupAbandonedClaims\(\)/.test(
+              withoutComments(
+                readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+              )
+            )
+        );
+
         ok(
           'a withdrawal suppresses BEFORE it erases',
           // The triggers stop a suppressed identifier landing again, so
