@@ -36,6 +36,22 @@ All notable changes to walletlink.social. Newest first.
   now stubs it, with a different value from the recovery secret so the HMAC
   prefix is actually exercised.
 
+### 2026-09-20 (the docs said we never pick a winner, and we do)
+
+- **`docs-site/concepts/data-quality.mdx` claimed "we do not overwrite one with
+  the other and we do not silently pick a winner".** `lib/conflict-resolution.ts`
+  has been doing exactly that on a daily cron since 2026-08-22, with no human in
+  it. The docs are a contract with paying customers and they fail silently:
+  nothing breaks when they drift, they just start lying.
+- Corrected to the rule the code actually implements, which is narrower than
+  the sentence it replaces and worth stating precisely. Where both accounts
+  still reach someone, nothing is settled, because measured on real cases the
+  handle we hold usually belongs to somebody who does not claim the wallet.
+  Where ours reaches nobody, the other is live, and both were checked recently,
+  the rename is followed and the replaced handle is kept.
+- Found while planning `/claim`, whose whole premise is owner attestation, so
+  this sentence would have been the first thing an attestation contradicted.
+
 ### 2026-09-20 (a settled rename finally says so)
 
 - **`twitter_renamed_from` has been written since 2026-08-22, carries 2,208
