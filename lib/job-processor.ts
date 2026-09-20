@@ -103,7 +103,11 @@ export interface JobOptions {
  * `paidData ?? tier` is how one of them comes to disagree with the other,
  * and the direction it would fail is toward giving paid data away.
  */
-function jobGetsPaidFields(options: JobOptions): boolean {
+/**
+ * Exported so the Inngest pipeline reads the same rule rather than its own.
+ * The two have diverged once already, when that one billed nothing at all.
+ */
+export function jobGetsPaidFields(options: JobOptions): boolean {
   return (
     options.paidData ?? (options.tier === 'pro' || options.tier === 'unlimited')
   );
@@ -1117,6 +1121,35 @@ async function finalizeJobWithResults(
    */
   if (!jobGetsPaidFields(options)) {
     for (const r of results) r.x_followers = undefined;
+  }
+
+  /**
+   * The priority score, recomputed here because this is the first moment its
+   * inputs all exist.
+   *
+   * The mid-pipeline pass above sets it from holdings and Farcaster followers
+   * alone, and it has to: `x_followers` arrives from `stampReachability`
+   * several hundred lines later. So the column a customer sorts and exports
+   * by ignored X reach entirely, on a product sold on X reach.
+   *
+   * AFTER the strip immediately above, not before. A free job has had
+   * `x_followers` removed by then, so its score is computed from the same
+   * inputs it always was, and a paid job keeps both terms. Computing before
+   * the strip would fold a paid signal into a free row's score, which is the
+   * quiet half of giving a paid field away.
+   *
+   * Guarded, because a free job's `priority_score` was already set to
+   * undefined mid-pipeline and recomputing it here would hand the field back
+   * to exactly the accounts the strip took it from.
+   */
+  if (jobGetsPaidFields(options)) {
+    for (const r of results) {
+      r.priority_score = calculatePriorityScore(
+        r.holdings,
+        r.fc_followers,
+        r.x_followers
+      );
+    }
   }
 
   /**

@@ -20,6 +20,8 @@ import {
   parseHoldingsValue,
   calculatePriorityScore,
 } from '@/lib/csv-parser';
+import { stampReachability } from '@/lib/handle-reachability';
+import { jobGetsPaidFields } from '@/lib/job-processor';
 import type { WalletSocialResult } from '@/lib/types';
 import { asSourceList } from '@/lib/api-sources';
 import { trackEvent } from '@/lib/analytics';
@@ -421,16 +423,88 @@ export const walletLookup = inngest.createFunction(
       }
     });
 
-    // Step 6: Calculate priority scores
-    await step.run('calculate-scores', async () => {
-      for (const [wallet, result] of resultsMap) {
-        result.priority_score = calculatePriorityScore(
-          result.holdings,
-          result.fc_followers
-        );
-        resultsMap.set(wallet, result);
+    /**
+     * Step 6: reachability, then priority scores.
+     *
+     * RETURNS what it produced, and the caller applies it outside the step.
+     *
+     * Two constraints pull against each other here and the delta satisfies
+     * both. `step.run` memoises its RESULT, so on a replay the callback does
+     * not execute: a step that mutates `resultsMap` in place and returns
+     * nothing does nothing on the second pass, and `finalize` persists the
+     * pre-stamp map with no `x_followers` and a score that still ignores X
+     * reach. But a step result is capped at 4MiB, and by this point the rows
+     * carry handles, bios and URLs, so returning whole rows the way
+     * `build-initial-results` safely does with near-empty ones would fail a
+     * large job AFTER every lookup had already succeeded. The first version
+     * mutated in place; the second returned everything.
+     *
+     * So it returns the four values this step actually creates: the wallet to
+     * key on, the two fields `stampReachability` writes, and the score. That
+     * is tens of bytes a row rather than hundreds, and it is replay-safe
+     * because applying it is idempotent.
+     *
+     * `enrich-social-graph` above still mutates in place and returns nothing.
+     * It predates this change and is left alone here, but it loses its
+     * enrichment on a replay for the same reason and is worth fixing
+     * separately.
+     */
+    const scored = await step.run('calculate-scores', async () => {
+      const all = Array.from(resultsMap.values());
+
+      /**
+       * Stamped here because the score needs it, and this pipeline never did.
+       *
+       * `lib/job-processor.ts` stamps reachability in its finalize step and
+       * this one did not stamp at all, so `x_followers` did not exist on the
+       * API path. Adding X reach to the score without this would have given
+       * an API caller a score computed from one platform and the app a score
+       * computed from two, for the same wallet. The rule this file states a
+       * few lines down is that a change to one pipeline is made to both.
+       */
+      await stampReachability(all);
+
+      /**
+       * The paid strip, before the score reads the field.
+       *
+       * `x_followers` is a paid field everywhere else, and it is new here, so
+       * removing it for a free job takes nothing away that anybody had. Doing
+       * it BEFORE the score means a free job's score is computed from the
+       * same inputs it always was, and a paid job's gains the X term.
+       *
+       * `priority_score` itself is deliberately left ungated here, unlike the
+       * app pipeline which strips it. That divergence predates this change
+       * and removing the field would take it from API callers who have it
+       * today, which is not this commit's decision to make.
+       */
+      if (!jobGetsPaidFields(options)) {
+        for (const r of all) r.x_followers = undefined;
       }
+
+      for (const r of all) {
+        r.priority_score = calculatePriorityScore(
+          r.holdings,
+          r.fc_followers,
+          r.x_followers
+        );
+      }
+
+      // The delta, not the rows. See the note above the step.
+      return all.map((r) => ({
+        wallet: r.wallet,
+        twitter_reachability: r.twitter_reachability,
+        x_followers: r.x_followers,
+        priority_score: r.priority_score,
+      }));
     });
+
+    for (const d of scored) {
+      const row = resultsMap.get(d.wallet);
+      if (!row) continue;
+      row.twitter_reachability = d.twitter_reachability;
+      row.x_followers = d.x_followers;
+      row.priority_score = d.priority_score;
+    }
 
     // Step 7: Finalize job
     await step.run('finalize', async () => {

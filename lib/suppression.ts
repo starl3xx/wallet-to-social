@@ -301,11 +301,36 @@ export function scrubResultRow(
     next.source = [];
   }
 
+  /**
+   * The score is recomputed from what SURVIVES, not from a hardcoded absence.
+   *
+   * It reads both follower counts now, so leaving it alone after removing an
+   * X handle leaves the removed audience encoded in it. The arithmetic is
+   * invertible and the customer supplied the holdings, so
+   * `reach = 10^(score / holdings) - 1` recovers the follower count of the
+   * account that asked to be erased. That is exactly what the comment above
+   * `delete next.x_followers` refuses: a number precise enough to identify
+   * somebody, whose presence also proves the account existed.
+   *
+   * `twitterSuppressed` therefore joins the condition. It was absent because
+   * the score could not contain an X term when this was written.
+   *
+   * And the recompute reads `next`, after the deletes above, rather than
+   * passing `undefined` by hand. Passing it explicitly was right when one
+   * term existed and became wrong the moment there were two: suppressing
+   * Farcaster dropped the X audience from the score as well, which is not a
+   * leak but is a wrong number. Reading the scrubbed row cannot drift,
+   * because the fields are absent exactly where they were removed.
+   */
   if (
     row.priority_score !== undefined &&
-    (walletSuppressed || farcasterSuppressed)
+    (walletSuppressed || farcasterSuppressed || twitterSuppressed)
   ) {
-    next.priority_score = calculatePriorityScore(next.holdings, undefined);
+    next.priority_score = calculatePriorityScore(
+      next.holdings,
+      next.fc_followers,
+      next.x_followers
+    );
   }
 
   return next;

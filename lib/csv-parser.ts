@@ -213,17 +213,42 @@ export function parseHoldingsValue(value: string | undefined): number | null {
  * without being told. It also never said which followers. Both are said here.
  */
 export const PRIORITY_EXPLANATION =
-  'Holdings multiplied by the base-10 logarithm of Farcaster followers plus one. ' +
-  'The logarithm is deliberate: it keeps a very large audience from swamping ' +
-  'the size of the position. A row missing either input counts it as one.';
+  'Holdings multiplied by the base-10 logarithm of combined Farcaster and X ' +
+  'followers plus one. The logarithm is deliberate: it keeps a very large ' +
+  'audience from swamping the size of the position. A row missing an input ' +
+  'counts it as zero, and a row with no audience at all counts as one.';
 
+/**
+ * Holdings against reach, with reach summed across both platforms.
+ *
+ * X followers were absent from this for one reason and it was not a decision:
+ * the score was computed mid-pipeline and `x_followers` does not exist until
+ * `stampReachability` runs in the finalize step, so the input was unavailable
+ * at the only moment anybody looked. A product sold on X reach ranked on
+ * Farcaster reach alone, and 1,048,530 wallets carry an X handle against
+ * 4.7M carrying a Farcaster id, so the two are not interchangeable.
+ *
+ * SUMMED rather than maximised. The audiences overlap, certainly, but a
+ * person reachable on both platforms is more reachable than the same person
+ * on one, and the logarithm compresses the double-count to almost nothing:
+ * ten thousand on each scores 4.30 against 4.00 for ten thousand on one.
+ * Taking the maximum would have thrown the second platform away entirely.
+ *
+ * The floor moved from one follower to zero, and only the all-zero case keeps
+ * a floor. `fcFollowers || 1` treated a wallet with no Farcaster account as
+ * though it had one follower, which was harmless while that was the only
+ * term and is wrong now: it would have added a phantom follower to every X
+ * account's reach. A row with neither still scores `h * log10(2)`, exactly as
+ * before, so nothing that had no audience moves.
+ */
 export function calculatePriorityScore(
   holdings: number | undefined,
-  fcFollowers: number | undefined
+  fcFollowers: number | undefined,
+  xFollowers?: number | undefined
 ): number {
   const h = holdings || 1;
-  const f = fcFollowers || 1;
-  return h * Math.log10(f + 1);
+  const reach = (fcFollowers || 0) + (xFollowers || 0);
+  return h * Math.log10(Math.max(reach, 1) + 1);
 }
 
 export function exportToCSV(

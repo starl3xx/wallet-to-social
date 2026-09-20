@@ -2787,6 +2787,104 @@ async function main() {
       }
 
       /**
+       * The priority score counts X reach, and both pipelines count it the
+       * same way.
+       *
+       * X followers were missing from this for an ordering reason rather than
+       * a decision: the score was computed mid-pipeline and `x_followers`
+       * does not exist until `stampReachability` runs in finalize, so the
+       * input was unavailable at the only moment anybody read it. A product
+       * sold on X reach ranked on Farcaster reach alone.
+       *
+       * Asserted through the real function, and on both workers, because
+       * `inngest/functions/wallet-lookup.ts` states the rule itself: the two
+       * pipelines have diverged once already, so a change to one is made to
+       * both. An API caller and a web caller must not get different scores
+       * for one wallet.
+       */
+      {
+        const { calculatePriorityScore, PRIORITY_EXPLANATION } =
+          await import('@/lib/csv-parser');
+        ok(
+          'X followers move the priority score',
+          // The defect stated as a comparison: an X-only audience used to
+          // score the same as no audience at all.
+          calculatePriorityScore(10, 0, 10_000) >
+            calculatePriorityScore(10, 0, 0) &&
+            calculatePriorityScore(10, 0, 10_000) ===
+              calculatePriorityScore(10, 10_000, 0)
+        );
+        ok(
+          'reach is summed across the platforms, not maximised',
+          // Both platforms beats either alone. `max` would discard the second
+          // entirely, which is the other obvious shape and the wrong one.
+          calculatePriorityScore(1, 10_000, 10_000) >
+            calculatePriorityScore(1, 10_000, 0)
+        );
+        ok(
+          'a row with no audience scores exactly what it always did',
+          // The floor moved from one follower to zero so an absent Farcaster
+          // account stops adding a phantom follower to an X account's reach.
+          // The all-zero case keeps its old value, so nothing without an
+          // audience moves.
+          calculatePriorityScore(7, undefined, undefined) === 7 * Math.log10(2)
+        );
+        ok(
+          'the published explanation names both platforms',
+          // The sentence sits beside the arithmetic precisely so the two move
+          // together; it named Farcaster alone while the code read both.
+          /Farcaster and X/.test(PRIORITY_EXPLANATION)
+        );
+
+        for (const worker of [
+          'lib/job-processor.ts',
+          'inngest/functions/wallet-lookup.ts',
+        ]) {
+          const src = withoutComments(readFileSync(worker, 'utf8'));
+          ok(
+            `${worker} scores from X followers as well as Farcaster`,
+            /x_followers\s*\n?\s*\)/.test(src)
+          );
+          if (worker.startsWith('inngest/')) {
+            ok(
+              'the Inngest scoring step returns a bounded delta, not rows and not nothing',
+              /**
+               * `step.run` memoises its RESULT. On a replay the callback does
+               * not execute, so a step that mutates `resultsMap` in place and
+               * returns nothing does nothing on the second pass, and
+               * `finalize` persists the pre-stamp map: no `x_followers` and a
+               * score that still ignores X reach.
+               *
+               * The file's own working steps return data and rebuild the map
+               * outside (`build-initial-results`, `check-cache`), so this
+               * asserts that shape rather than the absence of the broken one.
+               */
+              /const scored = await step\.run\('calculate-scores'/.test(src) &&
+                // A DELTA, not the rows. Returning whole rows is replay-safe
+                // and can exceed the 4MiB step-result cap on a large job,
+                // after every lookup has already succeeded; returning nothing
+                // is small and does nothing on a replay. The four values this
+                // step creates satisfy both.
+                /return all\.map\(\(r\) => \(\{/.test(src) &&
+                /priority_score: r\.priority_score,/.test(src) &&
+                !/return all;/.test(src) &&
+                /resultsMap\.get\(d\.wallet\)/.test(src)
+            );
+          }
+
+          ok(
+            `${worker} stamps reachability before it scores`,
+            // `x_followers` is produced by the stamp. Scoring first reads a
+            // field that does not exist yet, which is exactly how X reach
+            // came to be missing from this number.
+            src.indexOf('stampReachability(') > -1 &&
+              src.lastIndexOf('stampReachability(') <
+                src.lastIndexOf('calculatePriorityScore(')
+          );
+        }
+      }
+
+      /**
        * And what was left out is shown before the consent screen.
        *
        * The route returned `dropped` and `unresolved` from the first version
@@ -7683,8 +7781,20 @@ async function main() {
      * disagree, and the direction that fails is toward giving paid data away.
      */
     ok(
-      'both paid-field gates read the same entitlement helper',
-      (flat.match(/jobGetsPaidFields\(options\)/g) ?? []).length === 2 &&
+      'every paid-field gate reads the same entitlement helper',
+      /**
+       * The weight is on the SECOND clause. Exactly one place may spell
+       * `paidData ?? tier`; everywhere else asks the helper. A second copy of
+       * that expression is how two gates come to disagree, and the direction
+       * that fails is toward giving paid data away.
+       *
+       * The call count was pinned at two and is now a floor. Two was the
+       * number of gates that happened to exist, not a rule, and adding a
+       * third legitimate one (the priority score, which must not be
+       * recomputed for a free job) failed an assertion about hand-rolled
+       * copies by counting correct uses of the helper.
+       */
+      (flat.match(/jobGetsPaidFields\(options\)/g) ?? []).length >= 2 &&
         (flat.match(/options\.paidData \?\?/g) ?? []).length === 1
     );
 
@@ -7766,6 +7876,58 @@ async function main() {
         (scrubResultRow(row as any, new Map() as any) as any).x_followers ===
           12345 && scrubbed.fc_followers === 99
       );
+
+      /**
+       * And the SCORE does not keep what the row gave up.
+       *
+       * `priority_score` reads both follower counts, and the arithmetic is
+       * invertible: the customer supplied the holdings, so
+       * `reach = 10^(score / holdings) - 1` recovers the follower count of an
+       * account that asked to be erased. Deleting `x_followers` while leaving
+       * the score is therefore the same disclosure in a harder-to-read form,
+       * and the condition that recomputed it did not fire on an X
+       * suppression at all, because no X term existed when it was written.
+       *
+       * Checked through the real function against a real recomputation, not
+       * against a magic number, so the expectation cannot drift from the
+       * formula.
+       */
+      {
+        const { calculatePriorityScore } = await import('@/lib/csv-parser');
+        const scored = {
+          wallet: '0x2222222222222222222222222222222222222222',
+          holdings: 10,
+          twitter_handle: 'removedperson',
+          x_followers: 10_000,
+          farcaster: 'someoneelse',
+          fc_followers: 50,
+          priority_score: calculatePriorityScore(10, 50, 10_000),
+          source: ['graph'],
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const afterX = scrubResultRow(scored as any, sets as any) as any;
+        ok(
+          'suppressing an X handle takes its reach out of the priority score',
+          afterX.x_followers === undefined &&
+            afterX.priority_score === calculatePriorityScore(10, 50, undefined)
+        );
+
+        const fcSets = new Map<string, Set<string>>();
+        for (const k of SUPPRESSION_KINDS) fcSets.set(k, new Set());
+        fcSets.get('farcaster')!.add('someoneelse');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const afterFc = scrubResultRow(scored as any, fcSets as any) as any;
+        ok(
+          'and suppressing Farcaster keeps the X reach that survives it',
+          // The other half of the same mistake: recomputing with a hardcoded
+          // absence dropped an audience that was never suppressed, which is
+          // not a leak but is a wrong number on a column people sort by.
+          afterFc.fc_followers === undefined &&
+            afterFc.x_followers === 10_000 &&
+            afterFc.priority_score ===
+              calculatePriorityScore(10, undefined, 10_000)
+        );
+      }
 
       /**
        * The other withholding path. A locked row is a match the free
