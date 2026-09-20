@@ -1620,7 +1620,9 @@ async function main() {
           ok(
             'the page can actually reach the withdrawal',
             /'\/api\/claim\/withdraw'/.test(flow) &&
-              /setMode\('withdraw'\)/.test(flow)
+              // Through `switchMode`, which is the single door the mode
+              // changes by: see the refusal further down that keeps it so.
+              /switchMode\('withdraw'\)/.test(flow)
           );
           /**
            * And it withdraws with a wallet the person PICKED.
@@ -1669,6 +1671,134 @@ async function main() {
            * never leaves the browser: the card has to ASK for the return
            * path, and the modal has to SEND it.
            */
+          /**
+           * The page's money sentence names the gate that exists.
+           *
+           * It used to say the grant was paid when a claim "adds something we
+           * did not already hold", and nothing anywhere implemented that:
+           * `ingestLinks`' result is discarded and `maybeGrant` reads
+           * `walletPredatesCutoff`. So somebody confirming a handle we
+           * already held correctly, on a pre-cutoff wallet, was paid while
+           * the page told them it earned nothing. A false sentence about
+           * money, next to a true one two paragraphs above saying that
+           * confirming DOES add the account id.
+           *
+           * Asserted against the page as rendered, with the cutoff read
+           * through the shared constant so the date cannot be written twice.
+           *
+           * The outcome banner is checked with it, because the invented
+           * condition had THREE homes and fixing the two on the page would
+           * have left the one a person reads last, after the trip to X, at
+           * the moment they are actually wondering whether they were paid.
+           * The phrase is matched wherever it appears rather than per file,
+           * so a fourth copy cannot arrive quietly.
+           */
+          for (const copyFile of [
+            'app/claim/page.tsx',
+            'components/ClaimOutcome.tsx',
+          ]) {
+            ok(
+              `${copyFile} does not describe a grant condition nothing implements`,
+              !/add(s|ed) something/.test(
+                withoutComments(readFileSync(copyFile, 'utf8'))
+              )
+            );
+          }
+          ok(
+            'the page states the grant condition that the code actually applies',
+            /ATTESTATION_CUTOFF_HUMAN/.test(
+              withoutComments(readFileSync('app/claim/page.tsx', 'utf8'))
+            )
+          );
+
+          /**
+           * The once-per-account limit counts PAID claims, not claims.
+           *
+           * The partial unique index is on `x_user_id_hmac` WHERE
+           * `grant_claimed_at IS NOT NULL`, so a row that never earned
+           * anything does not occupy the slot. Somebody whose first claim was
+           * a post-cutoff address earned nothing and is still owed the grant
+           * on a qualifying one later.
+           *
+           * The banner said "this was the first claim for your X account",
+           * which is a different rule and wrong in the direction that tells
+           * somebody they were not paid when they were. Asserted as the
+           * refusal of that phrasing plus the presence of the real one,
+           * across both surfaces that state it, because the flow line had it
+           * right while the banner did not and nothing compared them.
+           */
+          for (const copyFile of [
+            'components/ClaimFlow.tsx',
+            'components/ClaimOutcome.tsx',
+          ]) {
+            const copy = withoutComments(readFileSync(copyFile, 'utf8'));
+            ok(
+              `${copyFile} counts paid claims rather than claims`,
+              /been paid/.test(copy) && !/first claim/.test(copy)
+            );
+          }
+
+          /**
+           * And the per-address answer reaches the person.
+           *
+           * The challenge route computes `earns_credits` and `grant_matches`
+           * and says in its own comment that it does so before anyone signs.
+           * Both fields arrived and nothing read them, so the rule was stated
+           * on the page while the answer for the address in hand was thrown
+           * away. The rule alone cannot tell anybody which side they are on.
+           */
+          ok(
+            'the flow reads the eligibility the challenge already answered',
+            /challenge\.earns_credits/.test(flow) &&
+              /challenge\.grant_matches/.test(flow)
+          );
+
+          /**
+           * …and reports it as eligibility rather than as payment.
+           *
+           * `earns_credits` is `walletPredatesCutoff` and nothing else, while
+           * `maybeGrant` can still refuse on the per-account unique index or
+           * on the budget. The first version of that line said the claim
+           * "credits N matches once it completes", so a second pre-cutoff
+           * address claimed with an X account that had already been paid was
+           * promised money and then not paid. A false statement about a
+           * grant, written inside the change whose whole subject was a false
+           * statement about a grant.
+           *
+           * Both halves: it must not read as a completion promise, and the
+           * condition the response cannot see has to be named rather than
+           * left out.
+           */
+          ok(
+            'the worth line promises eligibility, not payment',
+            /qualifies for \$\{challenge\.grant_matches\}/.test(flow) &&
+              /per X account/.test(flow) &&
+              !/credits \$\{challenge\.grant_matches\} matches once it completes/.test(
+                flow
+              )
+          );
+
+          /**
+           * And it does not survive the action it belongs to.
+           *
+           * `worth` was cleared at the start of `run` and nowhere else, so a
+           * cancelled claim left its credit sentence on screen and switching
+           * to withdraw put it directly above a flow that pays nothing. The
+           * comment on the setter already forbade that; there was simply a
+           * second path to the same screen that never asked.
+           *
+           * Asserted as the refusal, because the fix is a single door: no
+           * `setMode` outside `switchMode`, so a later control cannot change
+           * the mode without carrying what goes with it.
+           */
+          ok(
+            'nothing changes the mode without clearing what belonged to it',
+            /const switchMode = useCallback/.test(flow) &&
+              /switchMode\('withdraw'\)/.test(flow) &&
+              /switchMode\('claim'\)/.test(flow) &&
+              !/onClick=\{\(\) => setMode\(/.test(flow)
+          );
+
           ok(
             'signing in from the claim card returns to the claim page',
             /next="\/claim"/.test(flow) &&

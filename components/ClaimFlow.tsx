@@ -114,6 +114,37 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
    */
   const { user, isLoading: authLoading } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  /**
+   * Whether THIS address earns the grant, once the challenge has answered.
+   *
+   * Its own state rather than part of `done` or `error`, because it is
+   * neither: a claim that earns nothing is not a failure and must not be
+   * rendered as one, which is what the challenge route's own comment says
+   * about the field this reads.
+   */
+  const [worth, setWorth] = useState<string | null>(null);
+
+  /**
+   * The only way the mode changes, so what belongs to the old one goes with
+   * it.
+   *
+   * `worth` was cleared at the start of `run` and nowhere else, so a claim
+   * that failed or was cancelled left its credit sentence on screen, and
+   * switching to withdraw put "qualifies for 250 matches" directly above a
+   * flow that pays nothing. The comment on `setWorth` already said a
+   * withdrawal must not quote a reward; the code just had a second path to
+   * the same screen that never asked it.
+   *
+   * The error and the outcome go too. Both describe the action that was on
+   * screen a moment ago, and carrying "you cancelled that" into the other
+   * mode attributes it to the wrong thing.
+   */
+  const switchMode = useCallback((to: 'claim' | 'withdraw') => {
+    setMode(to);
+    setWorth(null);
+    setError(null);
+    setDone(null);
+  }, []);
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -147,6 +178,9 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
     async (provider: Eip1193Provider, mode: 'claim' | 'withdraw') => {
       setError(null);
       setDone(null);
+      // Cleared with the rest, so a second attempt with a different wallet
+      // cannot leave the first wallet's answer on screen beside it.
+      setWorth(null);
       setStage('connecting');
 
       /**
@@ -192,6 +226,41 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           setError(challenge.message ?? 'We could not start a claim.');
           setStage('idle');
           return;
+        }
+
+        /**
+         * What this claim is worth, on screen before anything is approved.
+         *
+         * The challenge route computes `earns_credits` and `grant_matches`
+         * and says in its own comment that it does so "before anyone signs",
+         * which was true of the response and not of the page: both fields
+         * arrived and nothing read them, so the one moment the answer was
+         * useful passed in silence. The page states the rule; this states
+         * which side of it THIS address falls on, which the rule alone
+         * cannot tell anybody.
+         *
+         * Claims only. A withdrawal earns nothing and is not meant to, so
+         * quoting a reward beside it would be answering a question nobody
+         * asked while taking something back.
+         *
+         * QUALIFIES, never "credits". `earns_credits` is `walletPredatesCutoff`
+         * and nothing else, while `maybeGrant` can still refuse on the
+         * per-account unique index or the budget. The first version of this
+         * line said the claim "credits N matches once it completes", so a
+         * second pre-cutoff address claimed with an X account that had
+         * already been paid was promised money and then not paid: a false
+         * statement about a grant, inside the change whose whole subject is
+         * a false statement about a grant. The address test is the only part
+         * this response can answer, so it is the only part this sentence
+         * asserts, and the condition it cannot see is named rather than
+         * omitted.
+         */
+        if (mode === 'claim') {
+          setWorth(
+            challenge.earns_credits
+              ? `We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
+              : 'We first saw this address after the cutoff, so this claim earns no credits. It still corrects the record.'
+          );
         }
 
         setStage('signing');
@@ -393,7 +462,7 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
                 variant="link"
                 size="inline"
                 disabled={busy}
-                onClick={() => setMode('withdraw')}
+                onClick={() => switchMode('withdraw')}
               >
                 Withdraw instead
               </Button>
@@ -406,7 +475,7 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
                 variant="link"
                 size="inline"
                 disabled={busy}
-                onClick={() => setMode('claim')}
+                onClick={() => switchMode('claim')}
               >
                 Go back to claiming
               </Button>
@@ -419,6 +488,17 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
       {done && (
         <p role="status" className="mt-3 text-sm text-attested">
           {done}
+        </p>
+      )}
+
+      {/* Above the stage line, because it is the thing worth reading while
+          the wallet prompt is open, and `muted` rather than `attested`: this
+          is what a claim WOULD be worth, not a measured outcome, and green
+          here would mark an expectation as a fact on the one page whose
+          subject is that distinction. */}
+      {worth && (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
+          {worth}
         </p>
       )}
 

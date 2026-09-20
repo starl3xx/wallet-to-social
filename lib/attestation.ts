@@ -67,6 +67,37 @@ export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const ATTESTATION_CUTOFF = '2026-09-20T00:00:00Z';
 
 /**
+ * The same moment as a person reads it, DERIVED rather than written again.
+ *
+ * `/claim` states the cutoff, because it is the whole condition on the grant
+ * and a page that describes a money rule without naming its date is asking to
+ * be trusted. Writing it out a second time is how the page and the gate
+ * eventually disagree, and the page is the half nobody runs.
+ *
+ * Formatted by hand rather than through `toLocaleDateString`, which depends
+ * on the ICU data present in the runtime and can quietly differ between a
+ * build machine and a serverless function. In UTC, because the literal is.
+ */
+const CUTOFF_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+export const ATTESTATION_CUTOFF_HUMAN = (() => {
+  const d = new Date(ATTESTATION_CUTOFF);
+  return `${d.getUTCDate()} ${CUTOFF_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+})();
+
+/**
  * Matches granted for a claim that adds something, once per X account, ever.
  *
  * The Trial pack's quantity rather than the Campaign pack's, for a reason that

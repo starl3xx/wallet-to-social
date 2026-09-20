@@ -24,7 +24,10 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { ClaimFlow } from '@/components/ClaimFlow';
 import { ClaimOutcome } from '@/components/ClaimOutcome';
 import { CURRENT_CONSENT } from '@/lib/attestation-consent';
-import { ATTESTATION_GRANT_MATCHES } from '@/lib/attestation';
+import {
+  ATTESTATION_GRANT_MATCHES,
+  ATTESTATION_CUTOFF_HUMAN,
+} from '@/lib/attestation';
 
 export const metadata: Metadata = {
   title: 'Claim your address',
@@ -89,10 +92,19 @@ export default function ClaimPage() {
               the pair and stops us collecting it again.
             </p>
             <p>
-              If the claim adds something we did not already hold, we credit
-              your account with {ATTESTATION_GRANT_MATCHES} matches. Confirming
-              something we have right is still worth doing, and it earns
-              nothing: we would rather say that than pretend otherwise.
+              If we already knew about your address before{' '}
+              {ATTESTATION_CUTOFF_HUMAN}, we credit your account with{' '}
+              {ATTESTATION_GRANT_MATCHES} matches, once per X account. That is
+              the whole condition, and it is about us rather than about you: an
+              address we had indexed before we asked anyone to claim one was
+              recorded for reasons that had nothing to do with earning credits,
+              which is what makes it evidence we cannot be sold.
+            </p>
+            <p>
+              A newer address earns nothing, and the claim is still written,
+              because a correction from the owner is worth having whether or not
+              we pay for it. Which of the two yours is appears as soon as you
+              connect the wallet, before there is anything to approve.
             </p>
           </div>
         </section>
