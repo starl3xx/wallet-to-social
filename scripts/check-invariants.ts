@@ -8829,6 +8829,140 @@ async function main() {
     );
   }
 
+  // ------------------ Every attested writer records what it disagreed with
+  /**
+   * `lib/conflict-resolution.ts` opens by saying `handle_conflicts` rows "are
+   * written by every attested ingest", and PROJECT_OVERVIEW said the same.
+   * Both were false, and false in the flattering direction: only the
+   * `ingestLinks` callers wrote them.
+   *
+   * Two attested writers of `social_graph.twitter_handle` sat outside that
+   * path. `lib/ens-harvest.ts` writes `ens_onchain`, the strongest class in
+   * the product, and dropped every disagreement silently. `lib/farcaster-sweep.ts`
+   * did worse: it OVERWROTE the stored handle, including one an owner had
+   * just signed for through `/claim`, left `owner_attested` sitting in
+   * `sources` beside a handle that owner never gave, and recorded nothing.
+   *
+   * Asserted as the property rather than as two file names: every writer that
+   * sets a twitter handle outside `ingestLinks` must call `recordConflicts`.
+   * A third writer added later fails this until it does the same, which is
+   * the whole point — the claim in those two files is repo-wide, so the check
+   * has to be too.
+   */
+  {
+    const ATTESTED_WRITERS = [
+      'lib/ens-harvest.ts',
+      'lib/farcaster-sweep.ts',
+    ] as const;
+    for (const file of ATTESTED_WRITERS) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} records the disagreement it found`,
+        /recordConflicts\(/.test(src)
+      );
+      ok(
+        `${file} records it BEFORE it writes`,
+        // The comparison is against the handle currently stored, so running
+        // it after the upsert compares the incoming handle with itself and
+        // finds nothing. `ingestLinks` orders it the same way and says so.
+        src.indexOf('recordConflicts(') < src.indexOf('onConflictDoUpdate')
+      );
+    }
+
+    const sweep = withoutComments(
+      readFileSync('lib/farcaster-sweep.ts', 'utf8')
+    );
+    ok(
+      'the Farcaster sweep yields to attested evidence it does not speak for',
+      // A Farcaster username is a name captured once with no account id and
+      // no recheck; `owner_attested` is a signature taken in a session. The
+      // guard is derived from the classification rather than hand-listed,
+      // because a hand-copied list is how two reachability queries in this
+      // repo already came to disagree.
+      /OTHER_ATTESTED_SQL/.test(sweep) &&
+        /ATTESTED_SOURCE_IDS/.test(sweep) &&
+        // Ordering, not absence. The overwrite arm is still there and still
+        // correct for a row no other attested source wrote; what matters is
+        // that the guard is reached FIRST, because a CASE takes the first arm
+        // that matches. Asserting the old line was gone failed here, on code
+        // that was right.
+        // Anchored on the GUARD, not on `OTHER_ATTESTED_SQL`. Once the
+        // predicate moved into a helper, that constant's first occurrence was
+        // its own definition near the top of the file, so this comparison
+        // stopped describing the CASE and passed for the wrong reason.
+        sweep.indexOf('YIELDS_TO_ATTESTED_SQL(') <
+          sweep.indexOf(
+            'WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle'
+          )
+    );
+
+    const sourcesModule2 = await import('@/lib/api-sources');
+    ok(
+      'the attested id set excludes the aggregated source and the class aliases',
+      // `zora_profile` is `aggregated`: its wallet half carries no evidence,
+      // so a writer asking "did an attested source supply this" must not
+      // match it. The class names are identity entries that exist so
+      // `publicSources` composes with itself, and never appear in a row.
+      !sourcesModule2.ATTESTED_SOURCE_IDS.has('zora_profile') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('onchain') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('farcaster') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('owner_attested') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('ens_onchain')
+    );
+    ok(
+      'the curated source survives the alias filter',
+      /**
+       * `manual` is both a class and a real `sources` value, which the
+       * classification table says in as many words. Dropping identity
+       * mappings by the rule `cls === id` therefore took out the strongest
+       * row in the table, and `isAttestedSourceId('manual')` answered false:
+       * every writer asking whether attested evidence held a handle would
+       * have been told an admin-curated one did not.
+       *
+       * Asserted positively AND through the helper, because the set and the
+       * predicate are what callers actually use.
+       */
+      sourcesModule2.ATTESTED_SOURCE_IDS.has('manual') &&
+        sourcesModule2.isAttestedSourceId('manual') &&
+        !sourcesModule2.isAttestedSourceId('zora_profile')
+    );
+    ok(
+      'yielding requires a handle to yield to, so an empty row still fills',
+      /**
+       * The guard fired on any row carrying an attested label, including rows
+       * with no X handle at all: a `com.github`-only ENS harvest writes
+       * `ens_onchain` and no handle. The sweep therefore refused to FILL
+       * those, and the conflict query (which does require a handle) recorded
+       * nothing either, so the majority attested route was dropped on exactly
+       * the rows with the most room for it.
+       *
+       * Yielding is about not overwriting; filling an empty column overwrites
+       * nothing. One predicate, used at all four sites, so the CASE arms and
+       * the timestamp guard cannot disagree about what "yield" means.
+       */
+      /const YIELDS_TO_ATTESTED_SQL/.test(sweep) &&
+        /IS NOT NULL\)`/.test(sweep) &&
+        // Every use goes through it: three CASE arms and the lastUpdatedAt
+        // guard. A fifth spelling is the drift this replaced.
+        (sweep.match(/YIELDS_TO_ATTESTED_SQL\(/g) ?? []).length === 4
+    );
+    ok(
+      'the sweep binds its wallet list as one array parameter',
+      /**
+       * `= ANY(${array})` without `sql.param` expands to one placeholder per
+       * element, so `ANY` never receives an array and Postgres rejects the
+       * statement. The surrounding try/catch then swallows it and the sweep
+       * records no conflicts at all: the feature reads as working and does
+       * nothing, which is the shape the `members -> $1` defect had.
+       *
+       * The repo's own pattern, in lib/clanker.ts and lib/suppression.ts.
+       */
+      /ANY\(\$\{sql\.param\(/.test(
+        readFileSync('lib/farcaster-sweep.ts', 'utf8')
+      )
+    );
+  }
+
   // ------------------ The attested set is written down in two places, in step
   /**
    * `scripts/check-published-figures.ts` carries a hand-written list of the
@@ -10701,7 +10835,20 @@ async function main() {
         /export async function countRevocationCandidates/.test(sweep) &&
         // One in the helper, one in the UPDATE. A third means somebody kept a
         // private copy of the predicate again.
-        (sweepSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 2 &&
+        //
+        // Counted by SHAPE, not by the keyword. Counting bare `NOT EXISTS`
+        // assumed this file had exactly one subject, and it stopped being
+        // true the moment the sweep grew an unrelated `NOT EXISTS` to ask
+        // whether an attested source holds the handle. That tripped this
+        // assertion on code with no private copy of anything, which is a
+        // check reporting the wrong defect rather than no defect. The
+        // correlated equality against the seen table is what makes one of
+        // these the revocation predicate.
+        (
+          sweepSql.match(
+            /NOT EXISTS\s*\([\s\S]{0,200}?s\.wallet = social_graph\.wallet/g
+          ) ?? []
+        ).length === 2 &&
         (cleanupSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 1
     );
 

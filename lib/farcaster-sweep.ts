@@ -25,6 +25,8 @@
 
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
+import { ATTESTED_SOURCE_IDS } from './api-sources';
+import { recordConflicts, type AttestedLink } from './attested-links';
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { checkBackgroundBudget, recordSpend } from './neynar-budget';
 /**
@@ -231,6 +233,55 @@ function usersToRows(users: NeynarUser[]): SweepRow[] {
  * Upsert sweep rows. Farcaster fields are authoritative from the sweep;
  * everything else is untouched. last_updated_at moves only on identity change.
  */
+/**
+ * Attested sources this sweep does not speak for, as a SQL array literal.
+ *
+ * Farcaster's own two ids are removed, because they ARE this sweep: guarding
+ * against them would stop it ever updating a handle it wrote itself, which is
+ * the job. Everything else attested outranks a Farcaster username, and the
+ * asymmetry is the evidence rather than a preference: Farcaster stores a
+ * verified X account as a NAME, captured once, with no account id and no
+ * later check, while `owner_attested` is a signature taken in a session and
+ * `ens_onchain` is a record only the name's owner can set.
+ *
+ * Derived from `ATTESTED_SOURCE_IDS` rather than typed out, because a
+ * hand-copied list is how the two reachability queries in this repo already
+ * came to disagree. The ids are our own constants and are asserted to be
+ * bare identifiers before being inlined, so the literal cannot carry a quote.
+ */
+const OTHER_ATTESTED_SQL = (() => {
+  const ids = [...ATTESTED_SOURCE_IDS].filter(
+    (id) => id !== 'farcaster_sweep' && id !== 'neynar'
+  );
+  for (const id of ids) {
+    if (!/^[a-z0-9_]+$/.test(id)) {
+      throw new Error(`source id is not a bare identifier: ${id}`);
+    }
+  }
+  return `ARRAY[${ids.map((id) => `'${id}'`).join(', ')}]::text[]`;
+})();
+
+/**
+ * When this sweep must leave the stored handle alone.
+ *
+ * TWO conditions, and the second was missing. An attested source we do not
+ * speak for holds the handle AND there is actually a handle to hold. Without
+ * the null test the guard fired on rows that carry an attested label and no X
+ * account at all — a `com.github`-only ENS harvest writes `ens_onchain` and no
+ * handle — so the sweep refused to FILL them and the conflict query, which
+ * does require a handle, recorded nothing either. The majority attested route
+ * was dropped on exactly the rows with the most room for it.
+ *
+ * Yielding is about not OVERWRITING. Filling an empty column overwrites
+ * nothing.
+ *
+ * Written once and interpolated at all four sites, because this predicate
+ * disagreeing with itself across a CASE is the failure it was just fixed for.
+ */
+const YIELDS_TO_ATTESTED_SQL = (sources: string, handle: string) =>
+  `(EXISTS (SELECT 1 FROM unnest(COALESCE(${sources}, ARRAY[]::text[])) AS s ` +
+  `WHERE s = ANY(${OTHER_ATTESTED_SQL})) AND ${handle} IS NOT NULL)`;
+
 async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
   const db = getDb();
   if (!db || rows.length === 0) return 0;
@@ -240,6 +291,79 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
   const byWallet = new Map<string, SweepRow>();
   for (const r of rows) byWallet.set(r.wallet, r);
   const deduped = Array.from(byWallet.values());
+
+  /**
+   * The disagreement is written down BEFORE the upsert, and now it happens at
+   * all.
+   *
+   * `lib/conflict-resolution.ts` says `handle_conflicts` rows "are written by
+   * every attested ingest" and PROJECT_OVERVIEW said the same. This sweep is
+   * an attested ingest by that file's own classification (`farcaster_sweep`
+   * maps to the `farcaster` class) and it wrote none: an X handle from
+   * Farcaster that contradicted a stored one used to overwrite it outright,
+   * leaving no row for the resolver, the admin queue or `twitter.also` to
+   * ever see. Now the sweep declines to overwrite other attested evidence and
+   * records what it saw instead, which is the same shape every `ingestLinks`
+   * caller has.
+   *
+   * Before the write, for the reason `ingestLinks` orders it that way: the
+   * comparison is against the handle currently stored, so running it
+   * afterwards would compare the incoming handle against itself and find
+   * nothing.
+   *
+   * No `twitterUserId`: Farcaster records a verified X account as a bare
+   * username, so these rows can only ever settle on the liveness rule.
+   */
+  const candidates: AttestedLink[] = deduped
+    .filter((r) => r.twitterHandle)
+    .map((r) => ({ wallet: r.wallet, handle: r.twitterHandle as string }));
+  if (candidates.length > 0) {
+    try {
+      /**
+       * Only the wallets this sweep is about to YIELD on.
+       *
+       * The first version recorded a conflict for every disagreement, which
+       * is right for `ingestLinks` because it is fill-only for everyone, and
+       * wrong here because this sweep still overwrites a handle no other
+       * attested source wrote. Those rows landed with `ours` equal to a
+       * handle the very next statement replaced, so the conflict was already
+       * settled the moment it was written: the resolver and `twitter.also`
+       * both require `ours` to match what is served, so it could never be
+       * resolved, surfaced or closed, and simply accumulated in the admin
+       * queue. That is the inert class `closeBothDead` exists to argue
+       * against, manufactured on purpose.
+       *
+       * A conflict is worth recording exactly where the disagreement
+       * SURVIVES the write, which is where an attested source we do not
+       * speak for holds the handle. The same predicate as the CASE below,
+       * asked once in advance.
+       */
+      const held = (await db.execute(sql`
+        SELECT wallet
+        FROM social_graph
+        WHERE wallet = ANY(${sql.param(candidates.map((c) => c.wallet))}::text[])
+          AND twitter_handle IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM unnest(COALESCE(sources, ARRAY[]::text[])) AS s
+            WHERE s = ANY(${sql.raw(OTHER_ATTESTED_SQL)})
+          )
+      `)) as unknown as { rows: Array<{ wallet: string }> };
+      const yielding = new Set(held.rows.map((r) => r.wallet));
+      const attestedLinks = candidates.filter((c) => yielding.has(c.wallet));
+      if (attestedLinks.length > 0) {
+        // `recordConflicts` applies the handle-differs test itself, so this
+        // only has to narrow the set to rows whose handle we will keep.
+        await recordConflicts(attestedLinks, {
+          id: 'farcaster_sweep',
+          quality: 65,
+        });
+      }
+    } catch (error) {
+      // A conflict row is a record, not a gate. Losing one must not cost the
+      // sweep the Farcaster identities it came to write.
+      console.error('farcaster sweep conflict recording failed:', error);
+    }
+  }
 
   const now = new Date();
   let upserted = 0;
@@ -293,6 +417,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterHandle: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterHandle}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterHandle}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterHandle}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterHandle}
@@ -300,6 +425,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterUrl: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterUrl}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterUrl}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterUrl}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_url
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN NULL
             ELSE ${socialGraph.twitterUrl}
@@ -307,6 +433,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
           twitterVerified: sql`CASE
             WHEN 'manual' = ANY(COALESCE(${socialGraph.sources}, ARRAY[]::text[])) THEN ${socialGraph.twitterVerified}
             WHEN lower(EXCLUDED.twitter_handle) = lower(${socialGraph.twitterRenamedFrom}) THEN ${socialGraph.twitterVerified}
+            WHEN ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))} THEN ${socialGraph.twitterVerified}
             WHEN EXCLUDED.twitter_handle IS NOT NULL THEN true
             WHEN COALESCE(${socialGraph.sources}, ARRAY[]::text[]) = ARRAY['farcaster_sweep']::text[] THEN false
             ELSE ${socialGraph.twitterVerified}
@@ -336,6 +463,7 @@ async function upsertSweepRows(rows: SweepRow[]): Promise<number> {
               OR ${socialGraph.fcFid} IS DISTINCT FROM EXCLUDED.fc_fid
               OR (EXCLUDED.twitter_handle IS NOT NULL
                   AND lower(EXCLUDED.twitter_handle) IS DISTINCT FROM lower(${socialGraph.twitterRenamedFrom})
+                  AND NOT ${sql.raw(YIELDS_TO_ATTESTED_SQL('social_graph.sources', 'social_graph.twitter_handle'))}
                   AND ${socialGraph.twitterHandle} IS DISTINCT FROM EXCLUDED.twitter_handle)
             THEN EXCLUDED.last_updated_at ELSE ${socialGraph.lastUpdatedAt} END`,
         },
