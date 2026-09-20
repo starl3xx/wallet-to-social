@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the priority score counts X reach)
+
+- **`priority_score` ignored X followers**, on a product sold on X reach. It
+  ranked on `holdings × log₁₀(fcFollowers + 1)` alone.
+- The cause was ordering, not judgement. The score is computed mid-pipeline and
+  `x_followers` does not exist until `stampReachability` runs in the finalize
+  step, so the input was unavailable at the only moment anything read it. The
+  comment four lines above the call said so and nothing acted on it.
+- Reach is now **summed** across both platforms: `holdings × log₁₀(fc + x + 1)`.
+  The audiences overlap, but somebody reachable on both is more reachable than
+  on one, and the logarithm compresses the double-count to almost nothing.
+  Taking the maximum would have thrown the second platform away.
+- **Recomputed after the paid-field strip**, so a free job's score is built from
+  the inputs it always had and a paid signal never folds into a free row.
+- **Both pipelines changed**, per the rule
+  `inngest/functions/wallet-lookup.ts` states about itself. That one never
+  called `stampReachability` at all, so it had no X followers to score from; it
+  now stamps, strips the new paid field for a free job, then scores. Without
+  that an API caller and a web caller would get different scores for one wallet.
+- The floor moved from one follower to zero so an absent Farcaster account stops
+  adding a phantom follower to an X account's reach. A row with no audience at
+  all scores exactly what it did before.
+- `priority_score` remains ungated on the API pipeline, unlike the app, which is
+  a divergence that predates this and is left alone: removing the field would
+  take it from callers who have it today.
+
 ### 2026-09-20 (the grant pays for the thing only a claim can supply)
 
 - **A claim now earns credits only when it adds an account number we lacked**,

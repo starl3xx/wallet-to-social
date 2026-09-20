@@ -2787,6 +2787,77 @@ async function main() {
       }
 
       /**
+       * The priority score counts X reach, and both pipelines count it the
+       * same way.
+       *
+       * X followers were missing from this for an ordering reason rather than
+       * a decision: the score was computed mid-pipeline and `x_followers`
+       * does not exist until `stampReachability` runs in finalize, so the
+       * input was unavailable at the only moment anybody read it. A product
+       * sold on X reach ranked on Farcaster reach alone.
+       *
+       * Asserted through the real function, and on both workers, because
+       * `inngest/functions/wallet-lookup.ts` states the rule itself: the two
+       * pipelines have diverged once already, so a change to one is made to
+       * both. An API caller and a web caller must not get different scores
+       * for one wallet.
+       */
+      {
+        const { calculatePriorityScore, PRIORITY_EXPLANATION } =
+          await import('@/lib/csv-parser');
+        ok(
+          'X followers move the priority score',
+          // The defect stated as a comparison: an X-only audience used to
+          // score the same as no audience at all.
+          calculatePriorityScore(10, 0, 10_000) >
+            calculatePriorityScore(10, 0, 0) &&
+            calculatePriorityScore(10, 0, 10_000) ===
+              calculatePriorityScore(10, 10_000, 0)
+        );
+        ok(
+          'reach is summed across the platforms, not maximised',
+          // Both platforms beats either alone. `max` would discard the second
+          // entirely, which is the other obvious shape and the wrong one.
+          calculatePriorityScore(1, 10_000, 10_000) >
+            calculatePriorityScore(1, 10_000, 0)
+        );
+        ok(
+          'a row with no audience scores exactly what it always did',
+          // The floor moved from one follower to zero so an absent Farcaster
+          // account stops adding a phantom follower to an X account's reach.
+          // The all-zero case keeps its old value, so nothing without an
+          // audience moves.
+          calculatePriorityScore(7, undefined, undefined) === 7 * Math.log10(2)
+        );
+        ok(
+          'the published explanation names both platforms',
+          // The sentence sits beside the arithmetic precisely so the two move
+          // together; it named Farcaster alone while the code read both.
+          /Farcaster and X/.test(PRIORITY_EXPLANATION)
+        );
+
+        for (const worker of [
+          'lib/job-processor.ts',
+          'inngest/functions/wallet-lookup.ts',
+        ]) {
+          const src = withoutComments(readFileSync(worker, 'utf8'));
+          ok(
+            `${worker} scores from X followers as well as Farcaster`,
+            /x_followers\s*\n?\s*\)/.test(src)
+          );
+          ok(
+            `${worker} stamps reachability before it scores`,
+            // `x_followers` is produced by the stamp. Scoring first reads a
+            // field that does not exist yet, which is exactly how X reach
+            // came to be missing from this number.
+            src.indexOf('stampReachability(') > -1 &&
+              src.lastIndexOf('stampReachability(') <
+                src.lastIndexOf('calculatePriorityScore(')
+          );
+        }
+      }
+
+      /**
        * And what was left out is shown before the consent screen.
        *
        * The route returned `dropped` and `unresolved` from the first version
@@ -7683,8 +7754,20 @@ async function main() {
      * disagree, and the direction that fails is toward giving paid data away.
      */
     ok(
-      'both paid-field gates read the same entitlement helper',
-      (flat.match(/jobGetsPaidFields\(options\)/g) ?? []).length === 2 &&
+      'every paid-field gate reads the same entitlement helper',
+      /**
+       * The weight is on the SECOND clause. Exactly one place may spell
+       * `paidData ?? tier`; everywhere else asks the helper. A second copy of
+       * that expression is how two gates come to disagree, and the direction
+       * that fails is toward giving paid data away.
+       *
+       * The call count was pinned at two and is now a floor. Two was the
+       * number of gates that happened to exist, not a rule, and adding a
+       * third legitimate one (the priority score, which must not be
+       * recomputed for a free job) failed an assertion about hand-rolled
+       * copies by counting correct uses of the helper.
+       */
+      (flat.match(/jobGetsPaidFields\(options\)/g) ?? []).length >= 2 &&
         (flat.match(/options\.paidData \?\?/g) ?? []).length === 1
     );
 
