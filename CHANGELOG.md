@@ -36,6 +36,31 @@ All notable changes to walletlink.social. Newest first.
 - The new assertion is written for **every** attested writer rather than the two
   that were found, because the claim in those two files is repo-wide.
 
+### 2026-09-20 (the page could not tell you what it holds)
+
+- **`GET /api/claim/mine`**, and a panel on `/claim` that shows the addresses
+  you have claimed. There were three routes (challenge, start, withdraw) and
+  none of them could answer "have I claimed", so the page showed an identical
+  card to somebody who had claimed an hour earlier and somebody who never had.
+- It was promising otherwise in two places: "control of your own row", and
+  twice that a claim can be withdrawn "from this same page with the same
+  wallet" — an instruction naming a wallet the page declined to tell you.
+- **The only confirmation that ever existed was one-shot.** `ClaimOutcome`
+  reads `?claim=completed` and strips it with `replaceState` in the same
+  effect, which is right for a banner and wrong as the only record: one reload
+  and there was no way to learn what happened, while the row sat in the
+  database saying `completed`. Found by claiming an address in production and
+  seeing nothing afterwards.
+- Completed rows only. `awaiting_x` is a claim in flight and would report a
+  pairing that does not exist yet; `withdrawn` is the case whose whole point is
+  that the answer became nothing.
+- Scoped by the session cookie and never by a parameter, because an endpoint
+  taking a user id would let anybody enumerate which wallets belong to which
+  account. It returns no signature, verifier or nonce: the panel needs none of
+  them, and the callback's argument for keeping no access token applies here.
+- A withdrawal refetches the panel, so the removed pairing cannot stay on
+  screen beside the sentence saying it was removed.
+
 ### 2026-09-20 (Unstoppable Domains profile harvest)
 
 - **New attested source `ud_profile`** (`scripts/harvest-ud-profiles.ts`):

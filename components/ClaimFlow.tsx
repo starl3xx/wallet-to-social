@@ -52,6 +52,38 @@ interface Announced {
 
 type Stage = 'idle' | 'connecting' | 'signing' | 'starting';
 
+/** One completed pairing, as `GET /api/claim/mine` reports it. */
+interface Held {
+  wallet: string;
+  handle: string | null;
+  granted_matches: number;
+  completed_at: string | null;
+}
+
+/**
+ * An address in the shape a person can compare against their wallet.
+ *
+ * Both ends kept, never a prefix: the first four characters of an address are
+ * shared by a great many of them, and the point of showing it at all is that
+ * somebody can tell WHICH of their wallets this is.
+ */
+function shortWallet(wallet: string): string {
+  return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+}
+
+/** The day it happened, or nothing, rather than a guess. */
+function heldOn(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+}
+
 /**
  * What to say when the WALLET refused, which is not the same as a failure.
  *
@@ -123,6 +155,65 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
    * about the field this reads.
    */
   const [worth, setWorth] = useState<string | null>(null);
+  /**
+   * What we already hold for this account.
+   *
+   * `null` is "not asked yet", the same distinction `providers` draws and for
+   * the same reason: an empty array renders "you have not claimed anything",
+   * which is a statement, and making it before the fetch answers would be
+   * telling somebody who claimed an hour ago that they had not.
+   *
+   * It lives here rather than in a sibling component so that a withdrawal can
+   * refetch it. A list owned elsewhere would still be showing the pairing
+   * that was just removed, on the same screen as the sentence saying it was
+   * removed, which is the kind of contradiction this flow keeps being audited
+   * for.
+   */
+  const [held, setHeld] = useState<Held[] | null>(null);
+
+  /**
+   * A failed read leaves what we already knew, and never invents an answer.
+   *
+   * The first version set `null` on failure, which is right for the first
+   * load (no panel, because nothing was learned) and wrong for every later
+   * one: a refetch that failed after a withdrawal hid EVERY remaining claim,
+   * so removing one pairing could make somebody's other addresses vanish.
+   * Leaving the previous array alone is the smaller error, and the withdrawal
+   * path below drops the removed wallet itself rather than relying on this.
+   */
+  const loadHeld = useCallback(async () => {
+    try {
+      const res = await fetch('/api/claim/mine');
+      if (!res.ok) return;
+      const json = await res.json();
+      if (Array.isArray(json.claims)) setHeld(json.claims);
+    } catch {
+      // Same reasoning: keep what we had.
+    }
+  }, []);
+
+  /**
+   * Only once there is a session to read them for.
+   *
+   * Signing out clears nothing here on purpose: the panel is gated on `user`
+   * where it renders, so a stale array cannot reach the screen. Changing
+   * account refires this (the dependency is the user) and the fetch replaces
+   * the array with the new session's.
+   *
+   * The disable is the narrow one `ClaimOutcome` already carries, and for a
+   * reason the rule itself states: its second permitted shape is to
+   * "subscribe for updates from some external system, calling setState in a
+   * callback function". `loadHeld` sets state after an await, so nothing here
+   * is synchronous and no cascading render is possible; the lint cannot see
+   * through the async boundary to tell. Restructuring to satisfy it would
+   * mean fetching somewhere that is not mount, which is worse code to quiet
+   * a rule that is not describing this.
+   */
+  useEffect(() => {
+    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    void loadHeld();
+  }, [user, loadHeld]);
 
   /**
    * The only way the mode changes, so what belongs to the old one goes with
@@ -308,10 +399,34 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
             setStage('idle');
             return;
           }
+          /**
+           * The panel loses this pairing BEFORE the sentence claiming it did.
+           *
+           * Refetch-then-announce still put the removed address on screen
+           * beside "Withdrawn" for the length of a round trip, and a refetch
+           * that failed left it there indefinitely. Dropping it locally
+           * first makes the panel agree with the message at the moment the
+           * message appears, and owes nothing to a second request; the
+           * refetch that follows only reconciles the rest.
+           */
+          setHeld((current) =>
+            current ? current.filter((h) => h.wallet !== wallet) : current
+          );
           setDone(
             'Withdrawn. The pair is out of the index, and this address will not be collected again.'
           );
           setStage('idle');
+          /**
+           * Reconciled after the fact, and deliberately not awaited.
+           *
+           * Awaiting it put a GET on the success path: a slow or hung
+           * `/api/claim/mine` left the card reading "Checking the signature…"
+           * with every control disabled, for a withdrawal that had already
+           * succeeded. The panel is already correct without it, because the
+           * line above drops the removed pair locally; this only catches
+           * anything else that moved, so it can take as long as it likes.
+           */
+          void loadHeld();
           return;
         }
 
@@ -357,13 +472,55 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
         setStage('idle');
       }
     },
-    [consentVersion]
+    [consentVersion, loadHeld]
   );
 
   const busy = stage !== 'idle';
 
   return (
     <div className="rounded-lg border border-border bg-fill-well p-5">
+      {/* What we hold, above the thing that asks for more.
+
+          Until this existed the page showed an identical card to somebody
+          who had claimed an hour earlier and somebody who never had, and the
+          only confirmation that ever appeared was a banner whose URL
+          parameter is stripped as it is read. One reload and there was no
+          way to learn what happened, while the row sat in the database
+          saying completed.
+
+          `attested` is right here and is right nowhere else on this card: a
+          completed claim is a measured fact, published by the owner, which is
+          exactly what that token is reserved for. The eligibility line above
+          stays muted because it is an expectation. */}
+      {user && held && held.length > 0 && (
+        <div className="mb-5 rounded-lg border border-attested bg-attested-tint p-4">
+          <p className="text-sm font-medium">
+            {held.length === 1
+              ? 'You have claimed one address'
+              : `You have claimed ${held.length} addresses`}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {held.map((h) => (
+              <li key={h.wallet} className="text-sm text-muted-foreground">
+                <span className="font-mono">{shortWallet(h.wallet)}</span>
+                {h.handle ? ` names @${h.handle}` : ' is claimed'}
+                {heldOn(h.completed_at) ? `, ${heldOn(h.completed_at)}` : ''}
+                {/* Said only where it happened. A claim that earned nothing
+                    is not a failure, and printing "0 matches" beside it
+                    would read as one. */}
+                {h.granted_matches > 0
+                  ? `, and earned ${h.granted_matches} matches`
+                  : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm text-muted-foreground">
+            To remove one, switch to withdrawing below and sign with that same
+            address.
+          </p>
+        </div>
+      )}
+
       {/* The heading and the description follow the mode, because the two
           modes take different steps and describing the wrong one is how a
           person ends up waiting for a trip to X that a withdrawal never
