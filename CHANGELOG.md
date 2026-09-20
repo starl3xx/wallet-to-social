@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the attestation adapter reads two more schemas)
+
+- **The KOL schema joins the onchain attestation sweep** (`string
+twitterHandle, address kol`, Optimism + Base): the same issuer and the
+  same trust shape as the cyberID schema already read, and even the same
+  decode, since the field is also named `twitterHandle`. Verified live
+  before listing: 249 attestations, and 247 of the wallets were not in the
+  graph at all, which is the same barely-touching-populations property the
+  original EAS measurement found.
+- **The same issuer's ORG schema was examined and rejected**: it binds a
+  member's wallet to the ORGANIZATION'S X handle, so ingesting its 884 rows
+  would stamp one org account onto every employee wallet. A handle on a row
+  is a claim about who is behind the wallet; those rows make no such claim.
+  The rejection is recorded in the adapter beside the schemas it does read.
+
 ### 2026-09-20 (Clearer credit-pack checkout)
 
 - Redesigned the credit modal around selectable packs and one checkout action,
