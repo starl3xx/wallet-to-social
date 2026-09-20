@@ -434,6 +434,10 @@ const RESULT_STRIP: Record<SuppressionKind, readonly string[]> = {
     'twitter_verified',
     'twitter_reachability',
     'twitter_also',
+    // A removed wallet's previous handle is as much an identity as its
+    // current one, and this column is the one place the old string survives
+    // the swap that replaced it.
+    'twitter_renamed_from',
     'farcaster',
     'farcaster_url',
     'fc_followers',
@@ -458,6 +462,13 @@ const RESULT_STRIP: Record<SuppressionKind, readonly string[]> = {
     'twitter_verified',
     'twitter_reachability',
     'twitter_also',
+    // The previous handle is the same person: `twitter_renamed_from` means
+    // THIS row's account changed name, so removing the current handle and
+    // leaving the one it changed from leaves the identity behind. The reverse
+    // direction is deliberately NOT symmetric, and the blank pass below says
+    // why: a match ON the old handle clears only that column, because it must
+    // not take the live handle beside it.
+    'twitter_renamed_from',
   ],
   farcaster: [
     'farcaster',

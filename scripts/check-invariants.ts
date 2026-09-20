@@ -7034,6 +7034,52 @@ async function main() {
     const tableSrc = withoutComments(
       readFileSync('components/ResultsTable.tsx', 'utf8')
     );
+    /**
+     * A previous handle is still a handle, so every path that withholds an
+     * identity has to withhold this one.
+     *
+     * Adding a field to `WalletSocialResult` is the cheap half. Three separate
+     * paths strip identities from a row and each carries its own list, so a
+     * field absent from any one of them is served: `LOCKED_FIELDS` on a row
+     * the customer has not paid for, `RESULT_STRIP` on a right-to-removal
+     * erase, and `scrubResultRow` on the way out of a job.
+     *
+     * Withholding the current handle while naming the one it changed FROM
+     * withholds nothing, because `twitter_renamed_from` means this same
+     * account changed name. Caught in review before it shipped.
+     */
+    ok(
+      'a previous handle is withheld everywhere the current one is',
+      /'twitter_renamed_from',/.test(
+        withoutComments(readFileSync('lib/match-gate.ts', 'utf8'))
+      ) &&
+        // BOTH kinds in RESULT_STRIP. The wallet erase and the handle erase
+        // carry separate lists, and one alone leaves the other path serving
+        // the string.
+        (
+          withoutComments(readFileSync('lib/removal-admin.ts', 'utf8')).match(
+            /'twitter_renamed_from',/g
+          ) ?? []
+        ).length === 2 &&
+        /delete next\.twitter_renamed_from;/.test(
+          withoutComments(readFileSync('lib/suppression.ts', 'utf8'))
+        )
+    );
+
+    /**
+     * And the scrub tests the column itself, not only the live handle.
+     *
+     * A removal naming the OLD handle matches nothing in the current-handle
+     * check, so without its own test the one string it was meant to erase is
+     * the one thing left on the row.
+     */
+    ok(
+      'a removal naming only the previous handle still erases it',
+      /kindHit\(sets, 'twitter', row\.twitter_renamed_from\)/.test(
+        withoutComments(readFileSync('lib/suppression.ts', 'utf8'))
+      )
+    );
+
     ok(
       'a settled rename survives the graph read, the merge and the panel',
       /twitter_renamed_from: record\.twitterRenamedFrom/.test(graphSrc) &&

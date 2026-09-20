@@ -19,6 +19,18 @@ All notable changes to walletlink.social. Newest first.
   earlier the same day, with three writers filling it and all four readers
   dropping it. The assertion covers the read, the merge and the panel
   together, and was verified by removing the merge line.
+- **A previous handle is still a handle**, so all three paths that withhold an
+  identity learned about it: `LOCKED_FIELDS` for a row the customer has not
+  paid for, `RESULT_STRIP` for a right-to-removal erase, and `scrubResultRow`
+  on the way out of a job. Adding a field to the result type is the cheap
+  half; each of those carries its own list, and a field absent from any one of
+  them is served. Withholding the current handle while naming the one it
+  changed from withholds nothing.
+- The two directions are deliberately not symmetric, mirroring the erasure
+  policy already in `lib/removal-admin.ts`: removing the current handle takes
+  the previous one with it, because the column means this same account changed
+  name, while a removal matching only the OLD handle clears just that column
+  and must not take the live handle beside it.
 - **Deliberately not on `/v1`.** Publishing it is a response-shape change
   across every reverse and lookup route, and `docs-site` and `openapi.yaml`
   would move with it. A second assertion keeps it off the public shape so it

@@ -206,6 +206,21 @@ export function scrubResultRow(
 
   const twitterSuppressed =
     walletSuppressed || kindHit(sets, 'twitter', row.twitter_handle);
+  /**
+   * The handle this row changed FROM, checked separately from the one it
+   * serves now.
+   *
+   * Two directions, and they are deliberately not symmetric, mirroring the
+   * erasure policy in `lib/removal-admin.ts`. Removing the current handle
+   * takes the previous one with it, because `twitter_renamed_from` means this
+   * same account changed name and leaving the old string leaves the identity.
+   * A removal matching only the OLD handle clears just that column and must
+   * not take the live handle beside it.
+   */
+  const renamedFromSuppressed =
+    walletSuppressed ||
+    twitterSuppressed ||
+    kindHit(sets, 'twitter', row.twitter_renamed_from);
   const alsoSuppressed =
     row.twitter_also !== undefined &&
     (walletSuppressed || kindHit(sets, 'twitter', row.twitter_also.handle));
@@ -219,6 +234,7 @@ export function scrubResultRow(
   const touched =
     walletSuppressed ||
     (twitterSuppressed && row.twitter_handle !== undefined) ||
+    (renamedFromSuppressed && row.twitter_renamed_from !== undefined) ||
     alsoSuppressed ||
     (farcasterSuppressed && row.farcaster !== undefined) ||
     (ensSuppressed && row.ens_name !== undefined) ||
@@ -227,6 +243,13 @@ export function scrubResultRow(
   if (!touched) return row;
 
   const next: WalletSocialResult = { ...row };
+
+  // Before the block below, because that one is conditional on the CURRENT
+  // handle and this column has to go even when only the old handle was the
+  // one removed.
+  if (renamedFromSuppressed) {
+    delete next.twitter_renamed_from;
+  }
 
   if (twitterSuppressed || walletSuppressed) {
     delete next.twitter_handle;
