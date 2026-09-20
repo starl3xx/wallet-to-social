@@ -207,6 +207,20 @@ export function usesMeteredHolderIndex(chain: SupportedChain): boolean {
 }
 
 /**
+ * Can the second metered index serve this chain's ERC-20 holders right now?
+ *
+ * Both halves checked, because a call needs both: a chain the provider serves
+ * and a key to ask with. Exported for the seed cron's discovery gate, where
+ * the question is concrete: the first index has been dead since 2026-08-31,
+ * so a metered-chain seed walks into a certain 401 unless this answers true.
+ * BNB Chain is the one metered chain that answers false with the key present,
+ * and it stays retired from seeding for exactly that reason.
+ */
+export function hasSecondHolderIndex(chain: SupportedChain): boolean {
+  return chain in OPENSEA_CHAIN_SLUGS && !!process.env.OPENSEA_API_KEY;
+}
+
+/**
  * Does a spent metered allowance still have somewhere to go on this chain?
  *
  * Exported so the import route can tell the customer something true. Reaching
@@ -228,6 +242,40 @@ const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   polygon: '0x89',
   optimism: '0xa',
   bsc: '0x38',
+};
+
+/**
+ * The second metered ERC-20 holder index, keyed by its own chain slugs.
+ *
+ * A second *metered* index, which is the property that matters: it answers with
+ * our own API key against our own plan, so unlike the public explorers it is
+ * fair game for background seeding. `allowPublicFallback: false` never applies
+ * to it, for the same reason it never applied to the first index.
+ *
+ * Every slug below was verified live on 2026-09-19: the chain appears in the
+ * provider's `/chains` listing and a real token on it returned holders with a
+ * correct `total_count` (Toshi on base, 1.09M holders; Chainlink on ethereum,
+ * 912k; PURR on hyperevm, 11.4k).
+ *
+ * Two chains here have no entry in MORALIS_CHAIN_IDS, and they are the point:
+ * **hyperevm**, where this is the only ERC-20 index there is (the first index
+ * rejects the chain and Blockscout has no instance), and **robinhood**, where
+ * it stands behind the chain's own explorer as a rescue.
+ *
+ * **bsc is absent because the provider does not serve it**, verified against
+ * the same `/chains` listing. Adding it would not fail loudly: the holders
+ * endpoint answers an unknown chain with an error this module reads as "index
+ * failed", so a wrong entry silently converts every BNB import into its
+ * fallback-less error path. An invariant asserts the absence.
+ */
+const OPENSEA_CHAIN_SLUGS: Partial<Record<SupportedChain, string>> = {
+  ethereum: 'ethereum',
+  base: 'base',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon',
+  optimism: 'optimism',
+  robinhood: 'robinhood',
+  hyperevm: 'hyperevm',
 };
 
 /**
@@ -1022,18 +1070,39 @@ async function getERC20Holders(
   wallets: string[];
   totalHolders: number;
   balances: Map<string, string>;
+  balancesAreDisplayUnits?: boolean;
 }> {
   // Chain coverage is checked before the API key: on a chain Moralis does not index
   // at all, "no support for this chain" is the accurate error, and configuring a key
   // would not help. Checking the key first would mask that with a config error.
   const chainId = MORALIS_CHAIN_IDS[chain];
   const explorer = BLOCKSCOUT_BASE_URLS[chain];
+  const secondIndex = OPENSEA_CHAIN_SLUGS[chain];
   const deadlineMs =
     options.deadlineMs ?? Date.now() + DEFAULT_HOLDER_BUDGET_MS;
 
   if (!chainId) {
+    // Robinhood Chain: its own explorer stays primary (the v1 bulk endpoint
+    // returns 5,000 holders in one request where the second index would page
+    // 100 at a time), with the second index behind it as a rescue.
     if (explorer) {
-      return getERC20HoldersBlockscout(address, chain, limit, deadlineMs);
+      try {
+        return await getERC20HoldersBlockscout(address, chain, limit, deadlineMs);
+      } catch (error) {
+        if (!secondIndex || !process.env.OPENSEA_API_KEY) throw error;
+        try {
+          return await fetchHoldersOpenSea(address, chain, limit, deadlineMs);
+        } catch (secondError) {
+          // First failure stays primary, same reasoning as the metered path.
+          if (error instanceof Error) error.cause = secondError;
+          throw error;
+        }
+      }
+    }
+    // HyperEVM: the second index is the only ERC-20 index the chain has.
+    // Before it, token import here was refused outright as CHAIN_NO_ERC20_SUPPORT.
+    if (secondIndex) {
+      return fetchHoldersOpenSea(address, chain, limit, deadlineMs);
     }
     throw new Error('CHAIN_NO_ERC20_SUPPORT');
   }
@@ -1059,11 +1128,38 @@ async function getERC20Holders(
      * second-guessing every empty result would double the load we put on free
      * public infrastructure for the common case of a genuinely dead token.
      */
+    const reason = error instanceof Error ? error.message : String(error);
+
+    /**
+     * The second metered index comes before the public explorer, and unlike
+     * the explorer it is NOT gated on `allowPublicFallback`. That flag exists
+     * so background seeding cannot redirect a spent allowance onto free public
+     * infrastructure; this index is our own key on our own plan, the same
+     * standing as the first, so the seed cron may use it. This line is what
+     * reopened ERC-20 seeding after 2026-08-31, when the first index paused
+     * and the seed path (correctly) refused to borrow the explorers.
+     */
+    if (secondIndex && process.env.OPENSEA_API_KEY) {
+      console.warn(
+        `Metered holder index failed on ${chain} (${reason}); trying the second index.`
+      );
+      try {
+        return await fetchHoldersOpenSea(address, chain, limit, deadlineMs);
+      } catch (secondError) {
+        console.error(
+          `Second holder index also failed on ${chain}:`,
+          secondError instanceof Error ? secondError.message : secondError
+        );
+        // Chained under the first error, so a failed rescue stays observable
+        // for the same reason the explorer's failure does below.
+        if (error instanceof Error) error.cause = secondError;
+      }
+    }
+
     if (!explorer || options.allowPublicFallback === false) throw error;
 
-    const reason = error instanceof Error ? error.message : String(error);
     console.warn(
-      `Metered holder index failed on ${chain} (${reason}); falling back to the public explorer.`
+      `Falling back to the public explorer on ${chain} (${reason}).`
     );
 
     try {
@@ -1090,7 +1186,13 @@ async function getERC20Holders(
         `Public explorer fallback also failed on ${chain}:`,
         fallbackError instanceof Error ? fallbackError.message : fallbackError
       );
-      if (error instanceof Error) error.cause = fallbackError;
+      // Appended to the chain rather than assigned: `cause` may already hold
+      // the second index's failure, and overwriting it would erase the only
+      // evidence that rescue ran. The chain reads first → second → explorer.
+      if (error instanceof Error) {
+        if (error.cause instanceof Error) error.cause.cause = fallbackError;
+        else error.cause = fallbackError;
+      }
       throw error;
     }
   }
@@ -1262,6 +1364,112 @@ async function fetchHoldersMetered(
 }
 
 /**
+ * ERC-20 holders from the second metered index.
+ *
+ * Pages of 100 sorted by balance descending, an opaque `cursor`, and a real
+ * `total_count` on every page. Two things differ from the first index and are
+ * worth knowing before touching this:
+ *
+ * - **`quantity` arrives in display units, not raw token units.** The value is
+ *   already divided by the token's decimals upstream, so the result carries
+ *   `balancesAreDisplayUnits` and `toBagSizes` must not divide again. This is
+ *   also why the Bag survives here even when our own `decimals()` call failed:
+ *   there is nothing left to convert.
+ * - **The pagination parameter is `cursor`, not `next`.** The response names
+ *   its cursor field `next`, and passing it back under that name is silently
+ *   ignored: the request succeeds and returns the first page again, verified
+ *   live on 2026-09-19. A wrong param here is an infinite first page, not an
+ *   error.
+ */
+async function fetchHoldersOpenSea(
+  address: string,
+  chain: SupportedChain,
+  limit: number,
+  deadlineMs: number
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+  balancesAreDisplayUnits: true;
+}> {
+  const slug = OPENSEA_CHAIN_SLUGS[chain];
+  if (!slug) throw new Error('CHAIN_NO_ERC20_SUPPORT');
+  const apiKey = process.env.OPENSEA_API_KEY;
+  if (!apiKey) throw new Error('OPENSEA_NOT_CONFIGURED');
+
+  const seen = new Map<string, string>();
+  let totalHolders = 0;
+  let cursor: string | null = null;
+  // Same shape as estimateRequests: the page count, plus one for the request
+  // that discovers the end.
+  const MAX_PAGES = Math.ceil(limit / 100) + 1;
+
+  for (let page = 0; page < MAX_PAGES && seen.size < limit; page++) {
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0) break;
+
+    const url = new URL(
+      `https://api.opensea.io/api/v2/chain/${slug}/token/${address}/holders`
+    );
+    url.searchParams.set('limit', '100');
+    if (cursor) url.searchParams.set('cursor', cursor);
+
+    let data: {
+      holders?: Array<{ owner_address?: string; quantity?: string }>;
+      total_count?: number;
+      next?: string | null;
+    };
+    try {
+      const res = await withTimeout(
+        fetch(url.toString(), {
+          headers: { Accept: 'application/json', 'x-api-key': apiKey },
+        }),
+        Math.min(15_000, Math.max(2_000, remaining)),
+        'Second holder index timed out'
+      );
+      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(
+          `Second holder index error: ${res.status} - ${body.slice(0, 200)}`
+        );
+      }
+      data = await res.json();
+    } catch (error) {
+      // A page that fails after holders are collected should not lose them; the
+      // list is correctly marked truncated by the total already captured. Only
+      // a first-page failure is fatal, where there is nothing to return.
+      if (seen.size > 0) break;
+      throw error;
+    }
+
+    if (typeof data.total_count === 'number' && totalHolders === 0) {
+      totalHolders = data.total_count;
+    }
+
+    const rows = data.holders ?? [];
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      const addr = row.owner_address?.toLowerCase();
+      if (!addr?.startsWith('0x')) continue;
+      seen.set(addr, row.quantity ?? '');
+      if (seen.size >= limit) break;
+    }
+
+    if (!data.next) break;
+    cursor = data.next;
+  }
+
+  const wallets = Array.from(seen.keys()).slice(0, limit);
+  return {
+    wallets,
+    totalHolders,
+    balances: new Map(wallets.map((w) => [w, seen.get(w) ?? ''])),
+    balancesAreDisplayUnits: true,
+  };
+}
+
+/**
  * Main entry point: Get all holders for a contract
  */
 /**
@@ -1282,18 +1490,28 @@ async function fetchHoldersMetered(
 function toBagSizes(
   raw: Map<string, string> | undefined,
   contractType: ContractType,
-  decimals: number
+  decimals: number,
+  /**
+   * True when the source already divided by the token's decimals. The second
+   * holder index sends "64481699964.672", not the raw integer, so putting it
+   * through the BigInt path would either throw on the decimal point or, worse,
+   * divide a number that was already divided. Display units also need no
+   * `decimals`, so the suppression rule above them does not apply.
+   */
+  displayUnits = false
 ): Record<string, number> | undefined {
   if (!raw || raw.size === 0) return undefined;
 
   const isNft = contractType === 'ERC-721' || contractType === 'ERC-1155';
-  if (!isNft && (decimals < 0 || !Number.isFinite(decimals))) return undefined;
+  const needsDecimals = !isNft && !displayUnits;
+  if (needsDecimals && (decimals < 0 || !Number.isFinite(decimals)))
+    return undefined;
 
   const out: Record<string, number> = {};
   for (const [wallet, value] of raw) {
     if (!value) continue;
     let n: number;
-    if (isNft) {
+    if (isNft || displayUnits) {
       n = Number(value);
     } else {
       /**
@@ -1379,6 +1597,7 @@ export async function getContractHolders(
     wallets: string[];
     totalHolders: number;
     balances?: Map<string, string>;
+    balancesAreDisplayUnits?: boolean;
   };
 
   if (contractType === 'ERC-721' || contractType === 'ERC-1155') {
@@ -1427,7 +1646,12 @@ export async function getContractHolders(
 
   return {
     wallets: holdersResult.wallets,
-    balances: toBagSizes(holdersResult.balances, contractType, decimals),
+    balances: toBagSizes(
+      holdersResult.balances,
+      contractType,
+      decimals,
+      holdersResult.balancesAreDisplayUnits === true
+    ),
     tokenName,
     tokenSymbol,
     contractType,

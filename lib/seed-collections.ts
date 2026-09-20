@@ -31,6 +31,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import {
   getContractHolders,
+  hasSecondHolderIndex,
   usesMeteredHolderIndex,
   type HolderResult,
 } from './contract-holders';
@@ -104,13 +105,14 @@ const GECKO_NETWORKS: Record<SupportedChain, string> = {
   optimism: 'optimism',
   bsc: 'bsc',
   // The id this source publishes for HyperEVM in its own network list, where
-  // it sits beside a separate `hyperliquid` entry. Which of the two carries
-  // chain 999's pools was NOT established: both returned an empty page when
-  // probed on 2026-08-31. The value is unread today, because the token slot
-  // below is gated off for any chain outside ERC20_SUPPORTED_CHAINS and this
-  // chain has no ERC-20 holder source at all. Confirm it against a real pool
-  // before that gate is ever opened; polygon_pos two lines up is the standing
-  // proof that this map's ids are not guessable from the chain name.
+  // it sits beside a separate `hyperliquid` entry. Both returned empty pages
+  // when probed on 2026-08-31; re-probed 2026-09-19 with chain 999 live and
+  // the split is now visible: `hyperevm` returns EVM pools whose base tokens
+  // are real 20-byte contract addresses, while `hyperliquid` carries
+  // HyperCore's own 16-byte internal ids, which are not EVM contracts and
+  // would poison the candidate list if that entry were ever used here.
+  // polygon_pos above is the standing proof that this map's ids are not
+  // guessable from the chain name.
   hyperevm: 'hyperevm',
 };
 
@@ -821,54 +823,53 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     }
 
     // Token, on every chain that has an ERC-20 holder source: Robinhood's
-    // resolves through its Blockscout explorer, and GeckoTerminal indexes the
-    // chain for discovery.
+    // resolves through its Blockscout explorer, HyperEVM's through the second
+    // metered index (since 2026-09-19), and GeckoTerminal indexes both for
+    // discovery.
     //
-    // HyperEVM has neither, and the guard has to be this list rather than
-    // `usesMeteredHolderIndex`, which is the trap here: that helper answers
-    // false for a chain absent from MORALIS_CHAIN_IDS, so it reads the same for
-    // "billed elsewhere" (Robinhood) as for "nowhere to ask" (HyperEVM). Left
-    // to it, the budget check at seedContract is skipped and the run walks into
-    // a certain CHAIN_NO_ERC20_SUPPORT, which seedFirstViable records as a
+    // The guard has to be this list rather than `usesMeteredHolderIndex`,
+    // which is the trap here: that helper answers false for a chain absent
+    // from MORALIS_CHAIN_IDS, so it reads the same for "billed elsewhere"
+    // (Robinhood, HyperEVM) as for "nowhere to ask" (a future chain with no
+    // index at all). Left to it, the run walks into a certain
+    // CHAIN_NO_ERC20_SUPPORT, which seedFirstViable records as a
     // holders_imported = 0 row that then locks the address out for
     // FAILURE_RETRY_DAYS. A daily failure that also poisons the retry.
     if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {
       continue;
     }
     /**
-     * ERC-20 seeding through the metered index is retired (2026-09-18).
+     * ERC-20 seeding on a metered chain runs only where the second holder
+     * index stands behind the first.
      *
-     * Moralis has answered `401 "Your Moralis Free usage is paused"` since
-     * 2026-08-31 and we are not paying to restore it, so every seed on a
-     * metered chain since that date has spent a slot to receive a 401 and
-     * written a `holders_imported = 0` row that nothing counted. Three weeks
-     * of a job failing daily with no one told, which is the same silent-zero
-     * shape the Farcaster sweep was carrying until this week.
+     * This gate retired ERC-20 seeding outright on 2026-09-18: Moralis has
+     * answered `401 "Your Moralis Free usage is paused"` since 2026-08-31, so
+     * every metered-chain seed for three weeks spent a slot to receive a 401
+     * and wrote a `holders_imported = 0` row that nothing counted. The
+     * un-retirement on 2026-09-19 is not a change of mind about that: it is
+     * the second metered index landing in `getContractHolders`, which catches
+     * the 401 and serves the holders from our own key on our own plan. The
+     * `allowPublicFallback: false` policy below survives untouched, because
+     * that flag is about free public infrastructure and the second index is
+     * neither.
      *
-     * The gate is `usesMeteredHolderIndex` and not the chain list above,
-     * because the two answer different questions and the difference is the
-     * whole point here: the list says "an ERC-20 index exists for this chain",
-     * this says "that index is the metered one". Robinhood Chain is in the
-     * list and answers false, because its explorer is the only ERC-20 index it
-     * has rather than a fallback, so it keeps seeding. That is exactly what
-     * "concentrate on NFTs and Robinhood, which work" means
-     * (docs/GROWTH.md).
+     * The condition keeps yesterday's refusal for every case where the rescue
+     * cannot happen: **BNB Chain**, which the second index's provider does not
+     * serve, and any deploy missing the index's key. Both walk into the same
+     * certain 401 the retirement existed to stop, so they stay refused at
+     * discovery, where a candidate never selected spends no slot, writes no
+     * attempt marker, and cannot leave a zero-holder row that locks a healthy
+     * token out for FAILURE_RETRY_DAYS.
      *
-     * Refused here, at discovery, rather than inside seedContract: a candidate
-     * that is never selected spends no slot, writes no attempt marker, and
-     * cannot leave a zero-holder row that locks a healthy token out of the
-     * pool for FAILURE_RETRY_DAYS. A path that cannot succeed should say so
-     * once, not fail quietly every day.
-     *
-     * Reversible in one line if the public-explorer option is ever taken: it
-     * recovers 11 of 42 recognized tokens, at the cost of the
-     * `allowPublicFallback: false` policy that keeps background work from
-     * spending free infrastructure on jobs nobody asked for.
+     * Robinhood Chain never had a stake in any of this: its explorer is its
+     * own primary index, `usesMeteredHolderIndex` answers false, and it seeded
+     * straight through the retirement.
      */
-    if (usesMeteredHolderIndex(chain)) {
+    if (usesMeteredHolderIndex(chain) && !hasSecondHolderIndex(chain)) {
       console.log(
-        `ERC-20 seeding skipped on ${chain}: the metered holder index is retired, ` +
-          `so this would spend a slot to receive a 401 (docs/GROWTH.md).`
+        `ERC-20 seeding skipped on ${chain}: the metered holder index is dead ` +
+          `and no second index serves this chain, so a seed would spend a ` +
+          `slot to receive a 401 (docs/GROWTH.md).`
       );
       continue;
     }

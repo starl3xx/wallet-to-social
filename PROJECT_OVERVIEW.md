@@ -657,6 +657,8 @@ DATABASE_URL=postgres://...              # Neon PostgreSQL
 NEYNAR_API_KEY=...                       # Farcaster data
 WEB3BIO_API_KEY=...                      # Higher rate limits
 ALCHEMY_KEY=...                          # Onchain name records, Ethereum and Base
+MORALIS_API_KEY=...                      # First ERC-20 holder index (paused since 2026-08-31)
+OPENSEA_API_KEY=...                      # Second ERC-20 holder index + profile enrichment
 
 # Stripe
 STRIPE_SECRET_KEY=...
@@ -988,11 +990,21 @@ signup.
 
 ## Supported Chains (contract import)
 
-| Chain           | Chain ID | NFT holders     | ERC-20 holders                   |
-| --------------- | -------- | --------------- | -------------------------------- |
-| Ethereum        | 1        | Alchemy NFT API | Moralis                          |
-| Base            | 8453     | Alchemy NFT API | Moralis                          |
-| Robinhood Chain | 4663     | Alchemy NFT API | Not available (no Moralis index) |
+| Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order)  |
+| --------------- | -------- | ----------------- | ----------------------------------- |
+| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
+| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
+| Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea                |
+| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
+| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
+| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Blockscout      |
+| BNB Chain       | 56       | Alchemy NFT API   | Moralis only (no fallback exists)   |
+| HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)     |
+
+The Blockscout column is the public-explorer fallback and is refused to
+background seeding (`allowPublicFallback: false`); OpenSea is a second metered
+index on our own key, so seeding may use it. Moralis has been paused (401)
+since 2026-08-31, so in practice OpenSea is serving the ERC-20 imports.
 
 Chain constants live in `lib/chains.ts`, deliberately free of dependencies so client
 components can import them without pulling `ethers` (imported by `lib/contract-holders.ts`)

@@ -178,6 +178,29 @@ was only ever about **background** seeding: a user asking for a specific
 contract is a job somebody did ask for, and that path is unaffected either
 way.
 
+**Superseded by Jake 2026-09-19, one day later, by an option the 2026-09-16
+survey missed: a second metered ERC-20 holder index.** Verified live that day
+against real contracts on five chains plus HyperEVM (Toshi on Base returned
+1.09M holders with a correct total; Base was the chain the public explorer
+served worst). The key was already in the repo for the profile-enrichment
+cron, so the fix is option 1's coverage at option 3's price. None of the three
+recorded options is what shipped:
+
+- `getContractHolders` now hands the 401 off to the second index before the
+  public-explorer question ever arises. The `allowPublicFallback: false`
+  policy stands untouched, because the second index is our own key on our own
+  plan, not free public infrastructure: the policy's own test, applied, not
+  waived.
+- The discovery gate narrows from "every metered chain" to "every metered
+  chain the second index cannot rescue": **BSC stays retired** (the provider
+  does not serve it), the other five metered chains seed again.
+- **HyperEVM gains token import and token seeding for the first time**, since
+  the second index is the only ERC-20 index that chain has ever had.
+
+The searchable surface is uncapped from 22: of the 42 recognized ERC-20
+contracts, the 31 on rescued chains (plus Robinhood's 2, which never stopped)
+can seed again, and the 9 on BSC stay out, knowingly.
+
 ## Two funnels, never added together
 
 `purchases` and `revenue` in the report mean packs bought by people. The x402

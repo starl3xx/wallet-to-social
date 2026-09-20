@@ -449,6 +449,39 @@ All notable changes to walletlink.social. Newest first.
   the audience for this file is the agent: **ask the user for a key instead of
   retrying the connection.** An agent that reads it can now resolve this
   without the user diagnosing anything.
+### 2026-09-19 (a second ERC-20 holder index, and seeding un-retires)
+
+- **OpenSea's OS2.0 token API is a second metered ERC-20 holder index**, slotted
+  into `getContractHolders` between Moralis and the public explorer. Verified
+  live before wiring: Toshi on Base returned 1,088,243 holders with a correct
+  total (Base was the chain the explorer fallback served worst), Chainlink on
+  Ethereum 912,096, PURR on HyperEVM 11,362. The key was already in the repo
+  for the weekly profile-enrichment cron.
+- **Yesterday's retirement narrows instead of reversing.** The discovery gate
+  becomes `usesMeteredHolderIndex(chain) && !hasSecondHolderIndex(chain)`: the
+  five metered chains OpenSea serves seed again, **BSC stays retired** (OpenSea
+  does not serve it, verified against the live `/chains` listing), and a deploy
+  missing the key refuses exactly as yesterday's gate did. The
+  `allowPublicFallback: false` policy stands untouched, because the second
+  index is our own key on our own plan, not free public infrastructure.
+- **HyperEVM gains token import and token seeding**, the first ERC-20 source
+  that chain has ever had. `ERC20_SUPPORTED_CHAINS` includes it, the modal
+  warning disappears by derivation, and the GeckoTerminal `hyperevm` network id
+  was confirmed against real pools (its `hyperliquid` sibling carries
+  HyperCore's 16-byte internal ids, which are not EVM contracts).
+- Two traps recorded in the fetcher for whoever touches it next: the provider's
+  `quantity` arrives in **display units** (a `balancesAreDisplayUnits` marker
+  keeps `toBagSizes` from dividing again, and the Bag now survives a failed
+  `decimals()` read on this path), and the pagination parameter is `cursor`
+  while the response field is named `next`; passing it back as `next` is
+  silently ignored and returns the first page forever.
+- `scripts/check-holder-fallback.ts` now unsets `OPENSEA_API_KEY` beside
+  `MORALIS_API_KEY`, or every probe would be answered by the second index and
+  the explorer canary would report green for coverage it never tested.
+- Docs: `docs-site/app/lookups.mdx` drops the HyperEVM token exclusion and
+  describes the three-source ladder; `docs/GROWTH.md` records the supersession
+  of the 2026-09-18 option-3 decision; the chain table in PROJECT_OVERVIEW.md
+  was rebuilt from the code (it still said Robinhood had no ERC-20 source).
 
 ### 2026-09-18 (ERC-20 seeding is retired, and stops failing daily)
 

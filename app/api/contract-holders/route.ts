@@ -231,6 +231,16 @@ export async function POST(request: NextRequest) {
         message: 'Token holder lookup service not configured',
         status: 503,
       },
+      /**
+       * The second holder index's missing-key error. Reachable as a primary
+       * failure only on HyperEVM, where that index is the chain's sole ERC-20
+       * source; everywhere else a missing key just moves the ladder along and
+       * the first index's own error surfaces instead.
+       */
+      OPENSEA_NOT_CONFIGURED: {
+        message: 'Token holder lookup service not configured',
+        status: 503,
+      },
       UNSUPPORTED_CHAIN: {
         message: `Unsupported network. Choose one of: ${SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]).join(', ')}`,
         status: 400,
