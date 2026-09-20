@@ -79,6 +79,22 @@ export const X_LIST_DESCRIPTION_MAX = 100;
 export const X_LIST_MEMBER_MAX = 5000;
 
 /**
+ * Our own X account, added to every list the tool builds.
+ *
+ * The numeric id, not the handle, and that is the whole point of storing it
+ * this way: a handle is a string its owner can change, and the one thing this
+ * codebase keeps establishing is that an id survives a rename while a handle
+ * does not. Hardcoding the handle would mean a rename quietly adding a
+ * stranger to every customer list we build.
+ *
+ * Read from `x_accounts` on 2026-09-20, where it resolves live. The handle
+ * beside it is for display and for the job row to be readable by a person;
+ * nothing is looked up by it.
+ */
+export const WALLETLINK_X_USER_ID = '2014216494800936960';
+export const WALLETLINK_X_HANDLE = 'walletlinketh';
+
+/**
  * Member additions allowed per fifteen minutes on user auth, one member each.
  *
  * The worker's whole shape comes from this number. A 319-member list is 319

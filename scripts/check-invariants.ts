@@ -1439,6 +1439,51 @@ async function main() {
       );
 
       /**
+       * Our own account goes in FIRST, and by id.
+       *
+       * First because a member added last is a member a stalled list never
+       * reaches: measured on a live job that stopped at 103 of 290 on an
+       * account X refused, and would have been marked failed with 187 never
+       * attempted. Appending would have left us out of exactly the lists that
+       * went wrong.
+       *
+       * By id because a handle is a string its owner can change, which is the
+       * thing this codebase keeps rediscovering. Building the member from a
+       * hardcoded handle would mean our own rename quietly adding a stranger
+       * to every customer list.
+       */
+      ok(
+        'the tool adds its own account first, by id, and never twice',
+        /\[\{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE \}, \.\.\.members\]/.test(
+          listRoute
+        ) &&
+          /members\.some\(\(m\) => m\.id === WALLETLINK_X_USER_ID\)/.test(
+            listRoute
+          ) &&
+          // Capped AFTER we are prepended, so a list can never exceed X's max
+          // by carrying us on top of a full one.
+          /const capped = withUs\.slice\(0, X_LIST_MEMBER_MAX\)/.test(listRoute)
+      );
+
+      /**
+       * And the counts reported back stay the customer's.
+       *
+       * `capped` now holds a member the caller did not ask for. Reporting its
+       * length as theirs makes `dropped` read -1 on any list under the cap,
+       * which is the kind of number that survives review because it looks like
+       * a rounding artefact rather than a miscount.
+       */
+      ok(
+        'the counts returned to the caller exclude the member we added',
+        /members: capped\.length - \(alreadyAMember \? 0 : 1\)/.test(
+          listRoute
+        ) &&
+          /dropped: members\.length - \(capped\.length - \(alreadyAMember \? 0 : 1\)\)/.test(
+            listRoute
+          )
+      );
+
+      /**
        * No overflow-menu row owns a dialog.
        *
        * `OverflowMenu` renders its panel as `{open && ...}` and closes on any

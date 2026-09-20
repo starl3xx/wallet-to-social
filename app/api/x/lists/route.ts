@@ -45,6 +45,8 @@ import {
   X_LIST_NAME_MAX,
   X_LIST_DESCRIPTION_MAX,
   X_LIST_MEMBER_MAX,
+  WALLETLINK_X_USER_ID,
+  WALLETLINK_X_HANDLE,
 } from '@/lib/x-oauth';
 
 export const runtime = 'nodejs';
@@ -218,7 +220,29 @@ export async function POST(request: NextRequest) {
    * of 8,000 and calling it the community is the number you set out to get
    * rather than the number that came back.
    */
-  const capped = members.slice(0, X_LIST_MEMBER_MAX);
+  /**
+   * Our own account rides along, first.
+   *
+   * First rather than last for a reason measured on a live job: a list of 290
+   * stalled at member 103 on an account X refused, and a member added last is
+   * a member a stalled list never reaches. First means it is in the list as
+   * soon as the list exists.
+   *
+   * It takes one of X's slots rather than being added on top of them, so a
+   * list can never exceed the cap. Skipped when the account is already a
+   * holder, because X refuses a duplicate and the refusal would be counted
+   * against the customer's own numbers.
+   *
+   * Disclosed in the dialog before anyone authorizes, not discovered
+   * afterwards: it is the customer's list, and a guest in it they did not ask
+   * for is something they should be told about while they can still decide.
+   */
+  const alreadyAMember = members.some((m) => m.id === WALLETLINK_X_USER_ID);
+  const withUs = alreadyAMember
+    ? members
+    : [{ id: WALLETLINK_X_USER_ID, handle: WALLETLINK_X_HANDLE }, ...members];
+
+  const capped = withUs.slice(0, X_LIST_MEMBER_MAX);
 
   const verifier = randomBytes(32).toString('base64url');
   const nonce = randomBytes(16).toString('base64url');
@@ -260,10 +284,21 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     job_id: jobId,
     authorize_url: authorize.toString(),
-    members: capped.length,
+    /**
+     * The customer's own count, ours excluded from every number here.
+     *
+     * Computed by subtraction rather than taken from `capped.length`, which
+     * now carries a member the caller did not ask for: reporting that as
+     * theirs would make `dropped` read -1 on any list under the cap, and a
+     * negative truncation is the kind of number nobody questions because it
+     * looks like a rounding artefact.
+     */
+    members: capped.length - (alreadyAMember ? 0 : 1),
     // Said rather than implied: the caller asked for more than X allows, and
     // the list will be short by this many.
-    dropped: members.length - capped.length,
+    dropped: members.length - (capped.length - (alreadyAMember ? 0 : 1)),
     unresolved: handles.length - members.length,
+    /** So the dialog can say so before anyone authorizes. */
+    includes_walletlink: !alreadyAMember,
   });
 }
