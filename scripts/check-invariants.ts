@@ -1316,6 +1316,68 @@ async function main() {
     );
 
     /**
+     * One member X will not accept must not cost the list everyone behind it.
+     *
+     * Measured on a live job on 2026-09-20. A list of 290 stopped at 103 and
+     * sat there: the cursor is added + skipped + failed, a transient failure
+     * deliberately leaves it in place, and member 103 was an account X
+     * refused every time. Every tick retried the same account and achieved
+     * nothing, and the job was fifteen minutes from `failed` with 187 members
+     * never attempted.
+     *
+     * The step-over has to be POSITIONAL, which is the whole content of the
+     * fix. A bare counter cannot tell "failed three times at member 103" from
+     * "failed once each at 103, 104 and 105", and only the first is evidence
+     * about a member rather than about X.
+     */
+    ok(
+      'an unaddable member is stepped over, and only after repeated attempts at the same position',
+      /const MAX_MEMBER_ATTEMPTS = \d+;/.test(worker) &&
+        // Positional: the attempt count only continues when the cursor this
+        // tick stopped at is the one already under suspicion. Without the
+        // stuck_cursor comparison this degrades to the bare counter that
+        // cannot distinguish a bad member from a bad service.
+        /const sameSpot = stalled && job\.stuck_cursor === cursorAfter;/.test(
+          flatWorker
+        ) &&
+        /const attempts = stalled \? \(sameSpot \? job\.member_attempts \+ 1 : 1\) : 0;/.test(
+          flatWorker
+        ) &&
+        /const stepOver = attempts >= MAX_MEMBER_ATTEMPTS;/.test(flatWorker) &&
+        // And it actually advances the cursor, by counting that member failed.
+        /failed_count = failed_count \+ \$\{failed\} \+ \$\{stepOver \? 1 : 0\}/.test(
+          flatWorker
+        )
+    );
+
+    /**
+     * A step-over must NOT reset the job-level counter.
+     *
+     * This is the refusal that matters, and the happy path cannot see it. If
+     * X is down rather than one member being unacceptable, every position
+     * fails, and a step-over that cleared `transient_failures` would let the
+     * job walk the entire list marking real people permanently unaddable,
+     * one every MAX_MEMBER_ATTEMPTS ticks, for ever. Leaving the counter
+     * running bounds the damage at MAX_TRANSIENT_FAILURES /
+     * MAX_MEMBER_ATTEMPTS members before the job stops and says so.
+     *
+     * Asserted as the absence of a reset on the step-over branch, because the
+     * defect is something being added, not something missing: any
+     * `transient_failures = 0` or `nextTransient = 0` reachable from
+     * `stepOver` reintroduces it.
+     */
+    ok(
+      'stepping over a member does not clear the counter that catches an outage',
+      /const nextTransient = transient && added === 0 \? job\.transient_failures \+ 1 : 0;/.test(
+        flatWorker
+      ) &&
+        !/stepOver[^;]*transient_failures = 0/.test(flatWorker) &&
+        !/if \(stepOver\) \{ nextTransient/.test(flatWorker) &&
+        // The persisted value is the unmodified counter, not a reset one.
+        /transient_failures = \$\{nextTransient\}/.test(flatWorker)
+    );
+
+    /**
      * Every path that leaves a job runnable releases the lease.
      *
      * The lease covers a tick in flight; it is not a pacing mechanism. A tick
