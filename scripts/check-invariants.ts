@@ -1669,6 +1669,45 @@ async function main() {
            * never leaves the browser: the card has to ASK for the return
            * path, and the modal has to SEND it.
            */
+          /**
+           * The page's money sentence names the gate that exists.
+           *
+           * It used to say the grant was paid when a claim "adds something we
+           * did not already hold", and nothing anywhere implemented that:
+           * `ingestLinks`' result is discarded and `maybeGrant` reads
+           * `walletPredatesCutoff`. So somebody confirming a handle we
+           * already held correctly, on a pre-cutoff wallet, was paid while
+           * the page told them it earned nothing. A false sentence about
+           * money, next to a true one two paragraphs above saying that
+           * confirming DOES add the account id.
+           *
+           * Asserted against the page as rendered, with the cutoff read
+           * through the shared constant so the date cannot be written twice.
+           */
+          const claimPage = withoutComments(
+            readFileSync('app/claim/page.tsx', 'utf8')
+          );
+          ok(
+            'the page states the grant condition that the code actually applies',
+            /ATTESTATION_CUTOFF_HUMAN/.test(claimPage) &&
+              !/adds something we did not already hold/.test(claimPage)
+          );
+
+          /**
+           * And the per-address answer reaches the person.
+           *
+           * The challenge route computes `earns_credits` and `grant_matches`
+           * and says in its own comment that it does so before anyone signs.
+           * Both fields arrived and nothing read them, so the rule was stated
+           * on the page while the answer for the address in hand was thrown
+           * away. The rule alone cannot tell anybody which side they are on.
+           */
+          ok(
+            'the flow reads the eligibility the challenge already answered',
+            /challenge\.earns_credits/.test(flow) &&
+              /challenge\.grant_matches/.test(flow)
+          );
+
           ok(
             'signing in from the claim card returns to the claim page',
             /next="\/claim"/.test(flow) &&

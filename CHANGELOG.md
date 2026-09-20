@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the page said the wrong thing about money)
+
+- **`/claim` described a grant condition nothing implements.** It said credits
+  are paid when a claim "adds something we did not already hold", and offered
+  the matching reassurance that confirming something we have right "earns
+  nothing". Neither is what the code does: `ingestLinks`' result is discarded
+  and `maybeGrant` gates on `walletPredatesCutoff`, the budget and one grant
+  per X account. Somebody confirming a handle we already held correctly, on a
+  pre-cutoff address, was paid while the page told them it was not.
+- The page now states the condition that exists, with the date read through a
+  new `ATTESTATION_CUTOFF_HUMAN` derived from the frozen literal rather than
+  written out a second time. A date written twice is a date that eventually
+  disagrees, and the page is the half nobody runs.
+- It also contradicted itself, which is the part worth remembering: two
+  paragraphs above, the same page says confirming "adds the account id, which
+  is the part that survives a rename". Confirming does add something, so the
+  reassurance was the wrong half rather than the grant being wrong.
+- **The per-address answer now reaches the person.** `/api/claim/challenge`
+  computes `earns_credits` and `grant_matches` and says in its own comment that
+  it does so before anyone signs; both fields arrived and nothing read them, so
+  the one moment the answer was useful passed in silence. The flow shows it on
+  connect, before there is anything to approve, in `muted` rather than
+  `attested`: it is what a claim would be worth, not a measured outcome.
+
 ### 2026-09-20 (signing in from a claim comes back to the claim)
 
 - **`/claim` is the second path a sign-in link may return to.** The card above

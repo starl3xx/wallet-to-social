@@ -114,6 +114,15 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
    */
   const { user, isLoading: authLoading } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  /**
+   * Whether THIS address earns the grant, once the challenge has answered.
+   *
+   * Its own state rather than part of `done` or `error`, because it is
+   * neither: a claim that earns nothing is not a failure and must not be
+   * rendered as one, which is what the challenge route's own comment says
+   * about the field this reads.
+   */
+  const [worth, setWorth] = useState<string | null>(null);
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -147,6 +156,9 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
     async (provider: Eip1193Provider, mode: 'claim' | 'withdraw') => {
       setError(null);
       setDone(null);
+      // Cleared with the rest, so a second attempt with a different wallet
+      // cannot leave the first wallet's answer on screen beside it.
+      setWorth(null);
       setStage('connecting');
 
       /**
@@ -192,6 +204,29 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           setError(challenge.message ?? 'We could not start a claim.');
           setStage('idle');
           return;
+        }
+
+        /**
+         * What this claim is worth, on screen before anything is approved.
+         *
+         * The challenge route computes `earns_credits` and `grant_matches`
+         * and says in its own comment that it does so "before anyone signs",
+         * which was true of the response and not of the page: both fields
+         * arrived and nothing read them, so the one moment the answer was
+         * useful passed in silence. The page states the rule; this states
+         * which side of it THIS address falls on, which the rule alone
+         * cannot tell anybody.
+         *
+         * Claims only. A withdrawal earns nothing and is not meant to, so
+         * quoting a reward beside it would be answering a question nobody
+         * asked while taking something back.
+         */
+        if (mode === 'claim') {
+          setWorth(
+            challenge.earns_credits
+              ? `We already knew this address, so this claim credits ${challenge.grant_matches} matches once it completes.`
+              : 'We first saw this address after the cutoff, so this claim earns no credits. It still corrects the record.'
+          );
         }
 
         setStage('signing');
@@ -419,6 +454,17 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
       {done && (
         <p role="status" className="mt-3 text-sm text-attested">
           {done}
+        </p>
+      )}
+
+      {/* Above the stage line, because it is the thing worth reading while
+          the wallet prompt is open, and `muted` rather than `attested`: this
+          is what a claim WOULD be worth, not a measured outcome, and green
+          here would mark an expectation as a fact on the one page whose
+          subject is that distinction. */}
+      {worth && (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
+          {worth}
         </p>
       )}
 
