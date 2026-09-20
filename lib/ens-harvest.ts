@@ -27,6 +27,7 @@ import { ethers } from 'ethers';
 import { getDb, socialGraph } from '@/db';
 import { sql } from 'drizzle-orm';
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { recordConflicts, type AttestedLink } from './attested-links';
 
 // First TextChanged events with these keys appear ~2019; earlier blocks are empty
 export const ENS_SCAN_START_BLOCK = 7_000_000;
@@ -391,6 +392,45 @@ async function upsertHarvestedRecords(
   const entries = Array.from(byWallet.entries()).filter(
     ([, v]) => v.twitter || v.github
   );
+
+  /**
+   * Record the disagreement before overwriting nothing.
+   *
+   * This harvest is fill-only for the handle and always has been, which is
+   * right, but it means an onchain text record naming a DIFFERENT account
+   * than the one we serve was simply dropped: no fill, no row, nothing for
+   * `lib/conflict-resolution.ts` to settle, nothing in the admin queue, and
+   * nothing for `twitter.also` to surface. That is the strongest attested
+   * class in the product (`ens_onchain` is `onchain`: only the name's owner
+   * can set the text value) losing the one thing it is best placed to tell us.
+   *
+   * `lib/conflict-resolution.ts` and PROJECT_OVERVIEW both said conflicts are
+   * "written by every attested ingest". This file is one and wrote none, so
+   * the claim was false in the direction that flatters us.
+   *
+   * It calls `recordConflicts` rather than routing through `ingestLinks`,
+   * because `AttestedLink` carries no github field and this harvest fills
+   * `github_username` too: a wholesale move would silently drop that half.
+   *
+   * Before the upsert, for the ordering reason `ingestLinks` gives: the
+   * comparison is against the stored handle, so afterwards there is nothing
+   * left to disagree with.
+   *
+   * Quality 50 matches what `calculateQualityScore(['ens_onchain'], …)`
+   * already computes for these rows, so the floor cannot drift from the score
+   * the same rows get written with.
+   */
+  const attestedLinks: AttestedLink[] = entries
+    .filter(([, v]) => v.twitter)
+    .map(([wallet, v]) => ({ wallet, handle: v.twitter as string }));
+  if (attestedLinks.length > 0) {
+    try {
+      await recordConflicts(attestedLinks, { id: 'ens_onchain', quality: 50 });
+    } catch (error) {
+      // A record, not a gate: losing it must not cost the harvest its fills.
+      console.error('ens harvest conflict recording failed:', error);
+    }
+  }
 
   for (let i = 0; i < entries.length; i += 500) {
     const batch = entries.slice(i, i + 500).map(([wallet, v]) => ({

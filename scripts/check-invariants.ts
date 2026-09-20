@@ -1937,6 +1937,105 @@ async function main() {
               !/onClick=\{\(\) => setMode\(/.test(flow)
           );
 
+          /**
+           * The page can say what it already holds.
+           *
+           * Until this existed, `/claim` had three routes (challenge, start,
+           * withdraw) and none of them could answer "have I claimed". So it
+           * showed an identical card to somebody who had claimed an hour
+           * earlier and somebody who never had, while promising "control of
+           * your own row" and telling them to withdraw "with the same
+           * wallet" without naming which. The only confirmation that ever
+           * appeared was a banner whose URL parameter `ClaimOutcome` strips
+           * as it reads, so one reload erased it while the row sat in the
+           * database saying `completed`.
+           *
+           * Three halves, because each alone leaves the promise unkept: the
+           * route exists, the flow reads it, and a withdrawal refetches so
+           * the panel cannot keep showing a pairing that was just removed.
+           */
+          const mineRoute = withoutComments(
+            readFileSync('app/api/claim/mine/route.ts', 'utf8')
+          ).replace(/\s+/g, ' ');
+          ok(
+            'the page can read back what it holds for this account',
+            /'\/api\/claim\/mine'/.test(flow) &&
+              /export async function GET/.test(mineRoute)
+          );
+          ok(
+            'and a withdrawal drops the removed pair before it says it did',
+            // Locally first, so the panel agrees with the sentence at the
+            // moment the sentence appears and owes nothing to a second
+            // request that can fail. Ordering asserted, because announcing
+            // first is exactly what put the removed address on screen beside
+            // the word "Withdrawn".
+            /setHeld\(\(current\) =>/.test(flow) &&
+              // Fired, never awaited. Awaiting it put a GET on the success
+              // path, so a hung `/api/claim/mine` held the card on "Checking
+              // the signature…" for a withdrawal that had already succeeded.
+              // The local drop above is what makes the panel correct; this
+              // only reconciles whatever else moved.
+              /void loadHeld\(\)/.test(flow) &&
+              !/await loadHeld\(\)/.test(flow) &&
+              // Against the withdrawal's OWN sentence, not a bare `setDone(`:
+              // the first of those in this file is the `setDone(null)` reset
+              // at the top of `run`, which precedes everything and made this
+              // comparison pass while proving nothing.
+              flow.indexOf('setHeld((current) =>') <
+                flow.indexOf('Withdrawn. The pair is out of the index')
+          );
+          ok(
+            'a failed read of the panel keeps what it had rather than emptying it',
+            // Setting null on a refetch failure hid every remaining claim, so
+            // withdrawing one address could make the others disappear.
+            !/setHeld\(null\)/.test(flow)
+          );
+          ok(
+            'the panel lists one row per address, not one per claim',
+            // `start` inserts unconditionally and nothing unique-constrains a
+            // completed pair, so a corrected claim leaves the old row
+            // standing. Serving both counts one address as two and names a
+            // pairing that has been superseded.
+            /DISTINCT ON \(wallet\)/.test(mineRoute)
+          );
+
+          /**
+           * It reports completed pairings and nothing else.
+           *
+           * `awaiting_x` is a claim in flight, so naming it would report a
+           * pairing that does not exist yet, and `withdrawn` is the case
+           * whose whole point is that the answer became nothing. Asserted as
+           * the refusal, because the wrong filter here publishes a pairing
+           * somebody asked us to stop holding, back to them, as though we
+           * still did.
+           */
+          ok(
+            'the claims it reports are the completed ones only',
+            /status = 'completed'/.test(mineRoute) &&
+              !/awaiting_x/.test(mineRoute) &&
+              !/'withdrawn'/.test(mineRoute)
+          );
+
+          /**
+           * Scoped by the session, never by a parameter, and carrying no
+           * credential.
+           *
+           * A user id taken from the request would let anybody enumerate
+           * which wallets belong to which account, which is the pairing this
+           * product sells. And the panel needs no signature, verifier or
+           * nonce, so returning one would be putting a credential somewhere
+           * it has no reason to be: the same argument the callback makes for
+           * keeping no access token.
+           */
+          ok(
+            'it reads the session for the account and returns no credential',
+            /user_id = \$\{session\.user\.id\}/.test(mineRoute) &&
+              !/searchParams/.test(mineRoute) &&
+              !/signature/.test(mineRoute) &&
+              !/code_verifier/.test(mineRoute) &&
+              !/state_nonce/.test(mineRoute)
+          );
+
           ok(
             'signing in from the claim card returns to the claim page',
             /next="\/claim"/.test(flow) &&
@@ -8868,6 +8967,140 @@ async function main() {
     );
   }
 
+  // ------------------ Every attested writer records what it disagreed with
+  /**
+   * `lib/conflict-resolution.ts` opens by saying `handle_conflicts` rows "are
+   * written by every attested ingest", and PROJECT_OVERVIEW said the same.
+   * Both were false, and false in the flattering direction: only the
+   * `ingestLinks` callers wrote them.
+   *
+   * Two attested writers of `social_graph.twitter_handle` sat outside that
+   * path. `lib/ens-harvest.ts` writes `ens_onchain`, the strongest class in
+   * the product, and dropped every disagreement silently. `lib/farcaster-sweep.ts`
+   * did worse: it OVERWROTE the stored handle, including one an owner had
+   * just signed for through `/claim`, left `owner_attested` sitting in
+   * `sources` beside a handle that owner never gave, and recorded nothing.
+   *
+   * Asserted as the property rather than as two file names: every writer that
+   * sets a twitter handle outside `ingestLinks` must call `recordConflicts`.
+   * A third writer added later fails this until it does the same, which is
+   * the whole point — the claim in those two files is repo-wide, so the check
+   * has to be too.
+   */
+  {
+    const ATTESTED_WRITERS = [
+      'lib/ens-harvest.ts',
+      'lib/farcaster-sweep.ts',
+    ] as const;
+    for (const file of ATTESTED_WRITERS) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} records the disagreement it found`,
+        /recordConflicts\(/.test(src)
+      );
+      ok(
+        `${file} records it BEFORE it writes`,
+        // The comparison is against the handle currently stored, so running
+        // it after the upsert compares the incoming handle with itself and
+        // finds nothing. `ingestLinks` orders it the same way and says so.
+        src.indexOf('recordConflicts(') < src.indexOf('onConflictDoUpdate')
+      );
+    }
+
+    const sweep = withoutComments(
+      readFileSync('lib/farcaster-sweep.ts', 'utf8')
+    );
+    ok(
+      'the Farcaster sweep yields to attested evidence it does not speak for',
+      // A Farcaster username is a name captured once with no account id and
+      // no recheck; `owner_attested` is a signature taken in a session. The
+      // guard is derived from the classification rather than hand-listed,
+      // because a hand-copied list is how two reachability queries in this
+      // repo already came to disagree.
+      /OTHER_ATTESTED_SQL/.test(sweep) &&
+        /ATTESTED_SOURCE_IDS/.test(sweep) &&
+        // Ordering, not absence. The overwrite arm is still there and still
+        // correct for a row no other attested source wrote; what matters is
+        // that the guard is reached FIRST, because a CASE takes the first arm
+        // that matches. Asserting the old line was gone failed here, on code
+        // that was right.
+        // Anchored on the GUARD, not on `OTHER_ATTESTED_SQL`. Once the
+        // predicate moved into a helper, that constant's first occurrence was
+        // its own definition near the top of the file, so this comparison
+        // stopped describing the CASE and passed for the wrong reason.
+        sweep.indexOf('YIELDS_TO_ATTESTED_SQL(') <
+          sweep.indexOf(
+            'WHEN EXCLUDED.twitter_handle IS NOT NULL THEN EXCLUDED.twitter_handle'
+          )
+    );
+
+    const sourcesModule2 = await import('@/lib/api-sources');
+    ok(
+      'the attested id set excludes the aggregated source and the class aliases',
+      // `zora_profile` is `aggregated`: its wallet half carries no evidence,
+      // so a writer asking "did an attested source supply this" must not
+      // match it. The class names are identity entries that exist so
+      // `publicSources` composes with itself, and never appear in a row.
+      !sourcesModule2.ATTESTED_SOURCE_IDS.has('zora_profile') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('onchain') &&
+        !sourcesModule2.ATTESTED_SOURCE_IDS.has('farcaster') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('owner_attested') &&
+        sourcesModule2.ATTESTED_SOURCE_IDS.has('ens_onchain')
+    );
+    ok(
+      'the curated source survives the alias filter',
+      /**
+       * `manual` is both a class and a real `sources` value, which the
+       * classification table says in as many words. Dropping identity
+       * mappings by the rule `cls === id` therefore took out the strongest
+       * row in the table, and `isAttestedSourceId('manual')` answered false:
+       * every writer asking whether attested evidence held a handle would
+       * have been told an admin-curated one did not.
+       *
+       * Asserted positively AND through the helper, because the set and the
+       * predicate are what callers actually use.
+       */
+      sourcesModule2.ATTESTED_SOURCE_IDS.has('manual') &&
+        sourcesModule2.isAttestedSourceId('manual') &&
+        !sourcesModule2.isAttestedSourceId('zora_profile')
+    );
+    ok(
+      'yielding requires a handle to yield to, so an empty row still fills',
+      /**
+       * The guard fired on any row carrying an attested label, including rows
+       * with no X handle at all: a `com.github`-only ENS harvest writes
+       * `ens_onchain` and no handle. The sweep therefore refused to FILL
+       * those, and the conflict query (which does require a handle) recorded
+       * nothing either, so the majority attested route was dropped on exactly
+       * the rows with the most room for it.
+       *
+       * Yielding is about not overwriting; filling an empty column overwrites
+       * nothing. One predicate, used at all four sites, so the CASE arms and
+       * the timestamp guard cannot disagree about what "yield" means.
+       */
+      /const YIELDS_TO_ATTESTED_SQL/.test(sweep) &&
+        /IS NOT NULL\)`/.test(sweep) &&
+        // Every use goes through it: three CASE arms and the lastUpdatedAt
+        // guard. A fifth spelling is the drift this replaced.
+        (sweep.match(/YIELDS_TO_ATTESTED_SQL\(/g) ?? []).length === 4
+    );
+    ok(
+      'the sweep binds its wallet list as one array parameter',
+      /**
+       * `= ANY(${array})` without `sql.param` expands to one placeholder per
+       * element, so `ANY` never receives an array and Postgres rejects the
+       * statement. The surrounding try/catch then swallows it and the sweep
+       * records no conflicts at all: the feature reads as working and does
+       * nothing, which is the shape the `members -> $1` defect had.
+       *
+       * The repo's own pattern, in lib/clanker.ts and lib/suppression.ts.
+       */
+      /ANY\(\$\{sql\.param\(/.test(
+        readFileSync('lib/farcaster-sweep.ts', 'utf8')
+      )
+    );
+  }
+
   // ------------------ The attested set is written down in two places, in step
   /**
    * `scripts/check-published-figures.ts` carries a hand-written list of the
@@ -10740,7 +10973,20 @@ async function main() {
         /export async function countRevocationCandidates/.test(sweep) &&
         // One in the helper, one in the UPDATE. A third means somebody kept a
         // private copy of the predicate again.
-        (sweepSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 2 &&
+        //
+        // Counted by SHAPE, not by the keyword. Counting bare `NOT EXISTS`
+        // assumed this file had exactly one subject, and it stopped being
+        // true the moment the sweep grew an unrelated `NOT EXISTS` to ask
+        // whether an attested source holds the handle. That tripped this
+        // assertion on code with no private copy of anything, which is a
+        // check reporting the wrong defect rather than no defect. The
+        // correlated equality against the seen table is what makes one of
+        // these the revocation predicate.
+        (
+          sweepSql.match(
+            /NOT EXISTS\s*\([\s\S]{0,200}?s\.wallet = social_graph\.wallet/g
+          ) ?? []
+        ).length === 2 &&
         (cleanupSql.match(/NOT EXISTS\s*\(/g) ?? []).length === 1
     );
 

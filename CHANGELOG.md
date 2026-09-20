@@ -50,6 +50,65 @@ All notable changes to walletlink.social. Newest first.
   and -1 precedes every real index: the same defect this repo already records
   three times, reintroduced by hand and caught by breaking it.
 
+### 2026-09-20 (every attested ingest records its disagreements, finally)
+
+- **`lib/conflict-resolution.ts` said conflict rows "are written by every
+  attested ingest" and PROJECT_OVERVIEW said the same. Both were false**, and
+  false in the flattering direction: only the `ingestLinks` callers wrote them.
+- **`lib/ens-harvest.ts` now records conflicts.** It is fill-only and always
+  was, which is right, but it meant an onchain text record naming a different
+  account than the one we serve was dropped: no fill, no row, nothing for the
+  resolver, the admin queue or `twitter.also` to see. That is the strongest
+  attested class in the product (`ens_onchain` is `onchain`, settable only by
+  the name's owner) losing the thing it is best placed to tell us.
+- **`lib/farcaster-sweep.ts` stops overwriting attested evidence.** It was the
+  one X-handle writer that was not fill-only: it replaced any non-`manual`
+  handle, including one an owner had just signed for through `/claim` minutes
+  earlier, and left `owner_attested` sitting in `sources` beside a handle that
+  owner never gave. It now yields to attested sources it does not speak for and
+  records the disagreement instead.
+- The guard is **derived** from the evidence classification through a new
+  `ATTESTED_SOURCE_IDS`, not hand-listed, because a hand-copied list is how two
+  reachability queries in this repo already came to disagree. Farcaster's own
+  two ids are excluded from it, since guarding against those would stop the
+  sweep ever updating a handle it wrote itself.
+- **`isTwitterVerified` was missing `neynar` and `farcaster_sweep`.** The sweep
+  writes `twitter_verified = true` directly, so the same Farcaster-verified
+  handle stored `true` when the sweep wrote the row and `false` when a live
+  lookup merged it: provenance decided by which code path arrived last.
+- Deriving that list wholesale was tried and reverted. The column does not mean
+  "attested class": it means a source that writes `verified = true` ingested
+  the row, which is why `zora_profile` belongs in it and is deliberately absent
+  from the published attested-share figure. The invariant block pinning that
+  divergence is what caught the attempt.
+- The new assertion is written for **every** attested writer rather than the two
+  that were found, because the claim in those two files is repo-wide.
+
+### 2026-09-20 (the page could not tell you what it holds)
+
+- **`GET /api/claim/mine`**, and a panel on `/claim` that shows the addresses
+  you have claimed. There were three routes (challenge, start, withdraw) and
+  none of them could answer "have I claimed", so the page showed an identical
+  card to somebody who had claimed an hour earlier and somebody who never had.
+- It was promising otherwise in two places: "control of your own row", and
+  twice that a claim can be withdrawn "from this same page with the same
+  wallet" — an instruction naming a wallet the page declined to tell you.
+- **The only confirmation that ever existed was one-shot.** `ClaimOutcome`
+  reads `?claim=completed` and strips it with `replaceState` in the same
+  effect, which is right for a banner and wrong as the only record: one reload
+  and there was no way to learn what happened, while the row sat in the
+  database saying `completed`. Found by claiming an address in production and
+  seeing nothing afterwards.
+- Completed rows only. `awaiting_x` is a claim in flight and would report a
+  pairing that does not exist yet; `withdrawn` is the case whose whole point is
+  that the answer became nothing.
+- Scoped by the session cookie and never by a parameter, because an endpoint
+  taking a user id would let anybody enumerate which wallets belong to which
+  account. It returns no signature, verifier or nonce: the panel needs none of
+  them, and the callback's argument for keeping no access token applies here.
+- A withdrawal refetches the panel, so the removed pairing cannot stay on
+  screen beside the sentence saying it was removed.
+
 ### 2026-09-20 (Unstoppable Domains profile harvest)
 
 - **New attested source `ud_profile`** (`scripts/harvest-ud-profiles.ts`):

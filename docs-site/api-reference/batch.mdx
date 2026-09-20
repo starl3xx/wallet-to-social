@@ -133,6 +133,16 @@ alone, which meant a multi-address caller received an account without the class
 of evidence behind it. Every match carries its evidence, and that has to hold on
 the route that resolves the most of them.
 
+<Note>
+  **`twitter.verified` widened on 20 September 2026.** An X handle that came
+  from a Farcaster account's verified accounts now reports `true`. It already
+  did when our Farcaster sweep wrote the row, and reported `false` when a live
+  lookup did, so the same evidence gave two answers depending on which path
+  reached the address last. If you treat `verified` as a filter, expect more
+  rows to pass it; none of them are new evidence, only evidence that was already
+  there being reported consistently.
+</Note>
+
 The reachability fields and `twitter.also` are present here on the same terms
 as on single lookup.
 
