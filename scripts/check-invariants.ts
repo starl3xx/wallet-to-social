@@ -1285,6 +1285,108 @@ async function main() {
           /state', `claim:\$\{claimId\}\.\$\{nonce\}`/.test(start)
       );
 
+      /**
+       * One redirect URI, two flows, and the state decides which table is
+       * read before anything reads one.
+       *
+       * Getting this wrong is quiet: the list branch would look for a claim
+       * id in `x_list_jobs`, find nothing, and answer `not_found` to somebody
+       * whose authorization actually succeeded. The parse is in one place so
+       * the two callers cannot disagree about what a state looks like.
+       */
+      {
+        const oauth = await import('@/lib/x-oauth');
+        ok(
+          'a claim state routes to the claim flow and a list state does not',
+          oauth.parseCallbackState('claim:abc.def')?.flow === 'claim' &&
+            oauth.parseCallbackState('abc.def')?.flow === 'list' &&
+            oauth.parseCallbackState('claim:abc.def')?.id === 'abc' &&
+            oauth.parseCallbackState('abc.def')?.id === 'abc'
+        );
+        ok(
+          'a state missing either half is refused rather than half-parsed',
+          oauth.parseCallbackState('claim:') === null &&
+            oauth.parseCallbackState('.nonce') === null &&
+            oauth.parseCallbackState('abc') === null &&
+            oauth.parseCallbackState('abc.') === null
+        );
+
+        /**
+         * The claim callback keeps no credential, and there is nowhere to put
+         * one.
+         *
+         * The list callback stores a sealed token because it spends sixteen
+         * minutes adding members. This flow reads the account once and is
+         * finished, so the token is a liability rather than an asset.
+         * Asserted as the refusal: no write of it, and no column on the table
+         * that could accept one.
+         */
+        const cb = withoutComments(
+          readFileSync('lib/claim-callback.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        /**
+         * A claim is routed before any shared refusal runs.
+         *
+         * X echoes `state` on an authorization error as well as on success,
+         * so every refusal in the shared route is reachable by a claim. When
+         * they ran first, somebody who cancelled a claim landed on the
+         * homepage carrying `x_list`, which is the wrong page and the wrong
+         * vocabulary, and the config gate refused the flow for a missing
+         * secret-box key it never uses while `claim/start` checked no such
+         * thing: a flow that starts and then cannot finish.
+         *
+         * Asserted positionally, because the defect is ordering rather than
+         * absence. Every one of these was present and simply ran too early.
+         */
+        const shared = withoutComments(
+          readFileSync('app/api/x/callback/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const claimBranch = shared.indexOf("parsed?.flow === 'claim'");
+        const boxGate = shared.indexOf('boxConfigured()');
+        const cancelRefusal = shared.indexOf("'cancelled' : 'refused'");
+        const invalidRefusal = shared.indexOf("back('invalid')");
+        ok(
+          'a claim is routed before the shared config gate and the shared refusals',
+          // Each marker must EXIST before its position means anything. An
+          // indexOf that matched nothing returns -1, and `x < -1` is false,
+          // so a mistyped marker fails loudly rather than passing over a
+          // check it never performed.
+          claimBranch > 0 &&
+            boxGate > 0 &&
+            cancelRefusal > 0 &&
+            invalidRefusal > 0 &&
+            claimBranch < boxGate &&
+            claimBranch < cancelRefusal &&
+            claimBranch < invalidRefusal
+        );
+        ok(
+          'the claim flow answers its own cancel, and does not require the box',
+          /input\.denied === 'access_denied' \? 'cancelled' : 'refused'/.test(
+            withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+          ) &&
+            !/boxConfigured/.test(
+              withoutComments(readFileSync('lib/claim-callback.ts', 'utf8'))
+            )
+        );
+
+        ok(
+          'the claim callback never stores the access token',
+          !/access_token\s*=/.test(cb) &&
+            !/seal\(/.test(cb) &&
+            !/access_token/.test(
+              withoutComments(
+                readFileSync('scripts/migrate-identity-attestations.ts', 'utf8')
+              )
+            )
+        );
+        ok(
+          'and it clears the nonce in the same statement that records the account',
+          /state_nonce = NULL/.test(cb) &&
+            /code_verifier = NULL/.test(cb) &&
+            /AND status = 'awaiting_x'/.test(cb)
+        );
+      }
+
       ok(
         'the claim surface has its own rate-limit bucket',
         /'\/api\/claim': \{ limit: \d+, windowHours: \d+ \}/.test(
