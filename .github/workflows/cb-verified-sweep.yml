@@ -1,0 +1,36 @@
+# Weekly full resync of the KYC-attested wallet set: the exchange's
+# verified-account attestations on Base, read from easscan and mirrored into
+# cb_verified_wallets. A FULL walk each run, no checkpoint, so revocations
+# leave and late graph arrivals join; the whole set is ~723 pages of 1,000.
+#
+# Required repository secrets: DATABASE_URL. The migration grants the sweep
+# role the table's write set (scripts/migrate-add-cb-verified.ts).
+name: cb-verified-sweep
+
+on:
+  schedule:
+    - cron: '10 7 * * 0' # Sunday 07:10 UTC, after the other Sunday harvests
+  workflow_dispatch: {}
+
+concurrency:
+  group: cb-verified-sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # ~723 pages at 150ms plus upserts is well under 30 minutes.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/sweep-cb-verified.ts --commit
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

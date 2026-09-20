@@ -106,6 +106,19 @@ export async function GET(request: NextRequest) {
       rows: Array<{ status: string; handles: number }>;
     };
 
+    // The KYC-attested set is a quality signal, not an identity link: its
+    // own table, resynced weekly, joined here rather than stamped on rows.
+    const kyc = (await db.execute(sql`
+      SELECT
+        count(*)::int AS attested,
+        count(*) FILTER (WHERE EXISTS (
+          SELECT 1 FROM social_graph g WHERE g.wallet = v.wallet
+        ))::int AS in_graph
+      FROM cb_verified_wallets v
+    `)) as unknown as {
+      rows: Array<{ attested: number; in_graph: number }>;
+    };
+
     const sources = perSource.rows.map((r) => {
       const mapped: PublicSource | 'unmapped' =
         publicSources([r.source])?.[0] ?? 'unmapped';
@@ -119,6 +132,7 @@ export async function GET(request: NextRequest) {
       topline: topline.rows[0],
       sources,
       xByStatus,
+      kyc: kyc.rows[0] ?? { attested: 0, in_graph: 0 },
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
