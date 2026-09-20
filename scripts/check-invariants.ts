@@ -1131,6 +1131,48 @@ async function main() {
           attestationSrc
         )
     );
+    /**
+     * The challenge route refuses in the right order and for the right
+     * reasons.
+     *
+     * Three refusals, and the ORDER of the first is the point. A suppressed
+     * wallet is refused before a challenge exists, not after a signature
+     * arrives: issuing one and refusing later means asking somebody to prove
+     * control of an address so we can tell them we will not use it.
+     *
+     * The second is the one a happy path cannot see. `walletPredatesCutoff`
+     * throws on a failed read precisely so the caller cannot quietly serve
+     * `earns_credits: false`, which would tell somebody their claim earns
+     * nothing because a query failed, with no way for them to know.
+     */
+    {
+      const route = withoutComments(
+        readFileSync('app/api/claim/challenge/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'a suppressed wallet is refused before a challenge is issued',
+        /isSuppressed\('wallet', \[wallet\]\)/.test(route) &&
+          route.indexOf('isSuppressed(') < route.indexOf('issueClaimChallenge(')
+      );
+      ok(
+        'a failed eligibility read refuses, rather than serving earns_credits false',
+        // The catch answers 503. A `catch { eligible = false }` would be the
+        // silent wrong answer, and it reads as the more forgiving branch.
+        /catch \{ return NextResponse\.json\( \{ error: 'unavailable'/.test(
+          route
+        ) && !/catch \{ eligible = false/.test(route)
+      );
+      ok(
+        'the claim surface has its own rate-limit bucket',
+        /'\/api\/claim': \{ limit: \d+, windowHours: \d+ \}/.test(
+          withoutComments(readFileSync('lib/ip-rate-limiter.ts', 'utf8'))
+        ) &&
+          /checkIpRateLimit\(getClientIp\(request\), '\/api\/claim'\)/.test(
+            route
+          )
+      );
+    }
+
     ok(
       'an unreadable eligibility check refuses rather than answering false',
       // The throw is the refusal. Answering false on a failed read would deny
