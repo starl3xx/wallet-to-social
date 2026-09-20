@@ -34,7 +34,7 @@ export type ContractType = 'ERC-20' | 'ERC-721' | 'ERC-1155';
  * but the index that minted it. Nothing may hand one to a different source.
  */
 export interface HolderWalkContinuation {
-  source: 'opensea';
+  source: 'opensea' | 'chainbase';
   cursor: string;
 }
 
@@ -76,6 +76,18 @@ export interface HolderResult {
   totalHolders: number;
   truncated: boolean;
   chain: SupportedChain;
+}
+
+/**
+ * Append a failure to the end of an error's `cause` chain, wherever the end
+ * is. The rescue ladder is three rungs deep behind the primary, and every
+ * fixed-depth append here has eventually overwritten the evidence that a
+ * middle rung ran.
+ */
+function appendCause(error: Error, next: unknown): void {
+  let tail: Error = error;
+  while (tail.cause instanceof Error) tail = tail.cause;
+  tail.cause = next;
 }
 
 // Constants
@@ -304,6 +316,33 @@ const MORALIS_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
   polygon: '0x89',
   optimism: '0xa',
   bsc: '0x38',
+};
+
+/**
+ * The third metered ERC-20 holder index, keyed by decimal chain id.
+ *
+ * Same standing as the second: our own key against our own plan, so
+ * `allowPublicFallback: false` never applies to it and the seed cron may use
+ * it. It is tried after the second index, and **bsc is the reason it
+ * exists**: the first index has been answering 401 there since 2026-08-31,
+ * the second index does not serve the chain, and there is no public explorer
+ * instance, so BNB token import was dead outright. This entry is what
+ * un-retires it.
+ *
+ * bsc and base were verified live on 2026-09-20 with a real key: CAKE on bsc
+ * answered 1,911,884 holders balance-descending, BRETT on base answered the
+ * same shape. The other four are the provider's published ids for chains the
+ * token API serves; each fails loudly as an index error if that ever stops
+ * being true, and the ladder falls through exactly as it does for any other
+ * index failure.
+ */
+const CHAINBASE_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
+  ethereum: '1',
+  base: '8453',
+  arbitrum: '42161',
+  polygon: '137',
+  optimism: '10',
+  bsc: '56',
 };
 
 /**
@@ -1153,6 +1192,11 @@ async function getERC20Holders(
    */
   const resumeCursor =
     options.resume?.source === 'opensea' ? options.resume.cursor : undefined;
+  // The same unwrap for the third index's bookmark: page numbers and opaque
+  // cursors must never cross, so each fetcher sees only cursors it minted.
+  const chainbaseCursor =
+    options.resume?.source === 'chainbase' ? options.resume.cursor : undefined;
+  const thirdIndex = CHAINBASE_CHAIN_IDS[chain];
 
   if (!chainId) {
     // Robinhood Chain: its own explorer stays primary (the v1 bulk endpoint
@@ -1252,6 +1296,38 @@ async function getERC20Holders(
       }
     }
 
+    /**
+     * The third metered index, behind the second and before the public
+     * explorer, and like the second it is NOT gated on `allowPublicFallback`:
+     * our own key on our own plan. On bsc it is the only line in this catch
+     * that can fire (no second-index slug, no explorer instance), which is
+     * what revived BNB token import on 2026-09-20 after three weeks dead.
+     */
+    if (thirdIndex && process.env.CHAINBASE_API_KEY) {
+      console.warn(
+        `Falling through to the third holder index on ${chain} (${reason}).`
+      );
+      try {
+        return await fetchHoldersChainbase(
+          address,
+          chain,
+          limit,
+          deadlineMs,
+          chainbaseCursor
+        );
+      } catch (thirdError) {
+        console.error(
+          `Third holder index also failed on ${chain}:`,
+          thirdError instanceof Error ? thirdError.message : thirdError
+        );
+        // Appended to the END of the chain, walking it, because the chain
+        // can now be three links deep and a fixed two-level append would
+        // overwrite the second index's failure. It must read
+        // first -> second -> third.
+        if (error instanceof Error) appendCause(error, thirdError);
+      }
+    }
+
     if (!explorer || options.allowPublicFallback === false) throw error;
 
     console.warn(
@@ -1282,13 +1358,11 @@ async function getERC20Holders(
         `Public explorer fallback also failed on ${chain}:`,
         fallbackError instanceof Error ? fallbackError.message : fallbackError
       );
-      // Appended to the chain rather than assigned: `cause` may already hold
-      // the second index's failure, and overwriting it would erase the only
-      // evidence that rescue ran. The chain reads first → second → explorer.
-      if (error instanceof Error) {
-        if (error.cause instanceof Error) error.cause.cause = fallbackError;
-        else error.cause = fallbackError;
-      }
+      // Appended to the END of the chain rather than assigned: `cause` may
+      // already hold the second and third indexes' failures, and a fixed-depth
+      // append overwrote the deepest one once there were three. The chain
+      // reads first → second → third → explorer.
+      if (error instanceof Error) appendCause(error, fallbackError);
       throw error;
     }
   }
@@ -1477,6 +1551,151 @@ async function fetchHoldersMetered(
  *   live on 2026-09-19. A wrong param here is an infinite first page, not an
  *   error.
  */
+/**
+ * Get ERC-20 token holders from the third metered index.
+ *
+ * The same contract as the second index's fetcher, with the differences the
+ * provider forces: pagination is a page NUMBER rather than an opaque cursor
+ * (the continuation stores it stringified, tagged 'chainbase' so only this
+ * function ever interprets it), pages are 100 rows, ordering is balance
+ * descending from /token/top-holders, and the `amount` field is display
+ * units, declared as such so `toBagSizes` never double-divides.
+ */
+async function fetchHoldersChainbase(
+  address: string,
+  chain: SupportedChain,
+  limit: number,
+  deadlineMs: number,
+  /** Resume the walk from a bookmark this function returned earlier. */
+  startCursor?: string
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+  balancesAreDisplayUnits: true;
+  resumeConsumed: boolean;
+  continuation?: HolderWalkContinuation;
+}> {
+  const chainId = CHAINBASE_CHAIN_IDS[chain];
+  if (!chainId) throw new Error('CHAIN_NO_ERC20_SUPPORT');
+  const apiKey = process.env.CHAINBASE_API_KEY;
+  if (!apiKey) throw new Error('CHAINBASE_NOT_CONFIGURED');
+
+  const startPage = startCursor ? Number.parseInt(startCursor, 10) : 1;
+  // A cursor this function did not mint, or one that rotted in storage,
+  // degrades to a fresh walk rather than an NaN page the provider would
+  // answer with page one anyway, silently re-importing the top slice while
+  // resumeConsumed claimed otherwise.
+  const firstPage =
+    Number.isInteger(startPage) && startPage >= 1 ? startPage : 1;
+
+  const seen = new Map<string, string>();
+  let totalHolders = 0;
+  let nextPage: number | null = null;
+  const MAX_PAGES = Math.ceil(limit / 100) + 1;
+  let pagesFetched = 0;
+
+  for (
+    let page = firstPage;
+    page < firstPage + MAX_PAGES && seen.size < limit;
+  ) {
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0) break;
+
+    const url = new URL('https://api.chainbase.online/v1/token/top-holders');
+    url.searchParams.set('chain_id', chainId);
+    url.searchParams.set('contract_address', address);
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('limit', '100');
+
+    let data: {
+      code?: number;
+      message?: string;
+      data?: Array<{ wallet_address?: string; amount?: string }>;
+      next_page?: number | null;
+      count?: number;
+    };
+    try {
+      const res = await withTimeout(
+        fetch(url.toString(), {
+          headers: { Accept: 'application/json', 'x-api-key': apiKey },
+        }),
+        Math.min(15_000, Math.max(2_000, remaining)),
+        'Third holder index timed out'
+      );
+      if (res.status === 429) throw new Error('RATE_LIMIT');
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(
+          `Third holder index error: ${res.status} - ${body.slice(0, 200)}`
+        );
+      }
+      data = await res.json();
+      // The provider wraps failures in a 200 with a nonzero code, so the
+      // envelope is checked as if it were the status line.
+      if (data.code !== 0) {
+        throw new Error(
+          `Third holder index error: code ${data.code} - ${(data.message ?? '').slice(0, 200)}`
+        );
+      }
+      pagesFetched++;
+    } catch (error) {
+      // A page that fails after holders are collected should not lose them;
+      // only a first-page failure is fatal, where there is nothing to return.
+      if (seen.size > 0) break;
+      throw error;
+    }
+
+    if (typeof data.count === 'number' && totalHolders === 0) {
+      totalHolders = data.count;
+    }
+
+    nextPage = typeof data.next_page === 'number' ? data.next_page : null;
+
+    const rows = data.data ?? [];
+    if (rows.length === 0) {
+      nextPage = null;
+      break;
+    }
+    for (const row of rows) {
+      const addr = row.wallet_address?.toLowerCase();
+      if (!addr?.startsWith('0x')) continue;
+      seen.set(addr, row.amount ?? '');
+      if (seen.size >= limit) break;
+    }
+
+    if (nextPage === null) break;
+    page = nextPage;
+  }
+
+  // Zero pages is a non-attempt, never an answer: same reasoning as the
+  // second index's fetcher, which documents it at length.
+  if (pagesFetched === 0) {
+    throw new Error('Third holder index had no time before the deadline');
+  }
+
+  const wallets = Array.from(seen.keys()).slice(0, limit);
+  return {
+    wallets,
+    totalHolders,
+    balances: new Map(wallets.map((w) => [w, seen.get(w) ?? ''])),
+    balancesAreDisplayUnits: true,
+    resumeConsumed: startCursor !== undefined && firstPage > 1,
+    // Minted whenever the walk stopped short of the end, whatever stopped it
+    // (the limit, MAX_PAGES, the deadline): callers clear persisted walk
+    // state when the continuation is absent, so minting only on a full page
+    // would make a deadline-stopped slice erase its own bookmark.
+    ...(nextPage !== null
+      ? {
+          continuation: {
+            source: 'chainbase' as const,
+            cursor: String(nextPage),
+          },
+        }
+      : {}),
+  };
+}
+
 async function fetchHoldersOpenSea(
   address: string,
   chain: SupportedChain,

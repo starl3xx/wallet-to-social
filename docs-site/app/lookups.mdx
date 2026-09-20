@@ -48,14 +48,12 @@ We cover eight networks: **Ethereum, Base, Robinhood Chain, Arbitrum, Polygon, O
 </Note>
 
 Token holder lists have more than one index behind them. If the primary one is
-unavailable, the import is served from a second index, and behind that a public
-backup, so a spent daily ceiling no longer stops the feature. Two networks sit
-outside the full arrangement, for different reasons: **BNB Chain** has a
-primary index and no backup, so token import there is unavailable until the
-ceiling resets, and **HyperEVM** has exactly one index, so a problem with it
-pauses token import on that network rather than falling back. NFT collections
-are unaffected by a spent ceiling on every network, because they do not resolve
-through those indexes.
+unavailable, the import is served from a second index, behind that a third,
+and behind those a public backup, so a spent daily ceiling no longer stops the
+feature. One network sits outside the full arrangement: **HyperEVM** has
+exactly one index, so a problem with it pauses token import on that network
+rather than falling back. NFT collections are unaffected by a spent ceiling on
+every network, because they do not resolve through those indexes.
 
 The backup is slower and returns fewer holders, so a list served from it is more
 often partial. It is marked truncated exactly as any other partial list is, so

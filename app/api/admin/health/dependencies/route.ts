@@ -261,7 +261,13 @@ export async function GET(request: NextRequest) {
     dependency(
       'ERC-20 holder index',
       ['MORALIS_API_KEY'],
-      'Token import falls back to public explorers on five of six chains; BNB Chain stops.',
+      'Token import falls through to the second and third indexes.',
+      'degrades'
+    ),
+    dependency(
+      'Third ERC-20 holder index',
+      ['CHAINBASE_API_KEY'],
+      'BNB Chain token import stops; the other chains lose a rescue rung.',
       'degrades'
     ),
     dependency(
