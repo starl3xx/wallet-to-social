@@ -809,3 +809,11 @@
 .animate-slide {
   animation: slide 1.5s ease-in-out infinite;
 }
+
+/* The dark graph sits softly against the light page without fading its content. */
+html:not(.dark) .identity-hero {
+  border-color: color-mix(in srgb, var(--accent-brand) 16%, transparent);
+  box-shadow:
+    0 4px 24px 2px color-mix(in srgb, var(--accent-brand) 18%, transparent),
+    0 0 40px 6px color-mix(in srgb, var(--accent-brand) 12%, transparent);
+}

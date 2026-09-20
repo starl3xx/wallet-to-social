@@ -164,3 +164,25 @@ Short form only; `CLAUDE.md` is the authority on each.
 - Published numbers: never type one; add it to `lib/public-figures.ts` and the
   figures registry in the same change.
 - The agent surface has its own design authority: `docs/AGENT-SYSTEM.md`.
+
+## Landing graph hero (2026-09-20)
+
+Implemented locally; deployment is still pending. The production landing component
+uses `/api/hero`, with a materialized `ingest_state` row named
+`landing_identity_hero_v1`. The local configured database has been bootstrapped.
+For another database, run `npx tsx --env-file=.env.local scripts/refresh-landing-hero.ts`
+once before launch. This only replaces that snapshot; it does not mutate graph
+records or run paid wallet lookups.
+
+The Vercel schedule refreshes daily at 09:20 UTC after deployment. Configure the
+existing `CRON_SECRET` in the deployment environment; missing or wrong credentials
+return 401 (local `.env.local` currently has no cron secret). Portrait refresh uses
+the existing X resolver configuration. A failed graph refresh returns 503 and
+preserves the previous dated snapshot. Seven days without a successful refresh
+makes the read endpoint unavailable; the upload flow remains usable. Public reads
+check current suppression entries and fail closed on suppression-read failures.
+
+Manual checks: `npx tsx scripts/check-identity-hero.ts`, `npm run typecheck`,
+`VERCEL_ENV=preview npm run build`. Inspect `/api/hero` for `checkedAt`, account
+counts and sample eligibility. Avoid adding static public identity JSON fallbacks;
+they bypass removal checks. Historical mockups are local research artifacts and are not shipped.

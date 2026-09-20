@@ -1,4 +1,5 @@
 import { Eyebrow } from '@/components/ui/eyebrow';
+import type { ReactNode } from 'react';
 
 /**
  * One proof figure with its caption.
@@ -40,7 +41,7 @@ export function Figure({
   attested,
   variant = 'display',
 }: {
-  value: string;
+  value: ReactNode;
   label: string;
   /** The green dot: this figure is a measured fact, not an estimate. */
   attested?: boolean;

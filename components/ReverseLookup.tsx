@@ -94,7 +94,7 @@ export function ReverseLookup({
     if (!value) {
       setError(
         platform === 'twitter'
-          ? 'Enter an X handle to look up.'
+          ? 'Enter an 𝕏 handle to look up.'
           : 'Enter a Farcaster username to look up.'
       );
       setEmpty(null);
@@ -249,7 +249,7 @@ export function ReverseLookup({
           options={[
             {
               value: 'twitter',
-              label: 'X',
+              label: '𝕏',
               content: <XMark className="h-3.5 w-3.5" />,
               // The selected platform takes that platform's own colours: the one
               // named exception to violet being the only interactive hue.
@@ -295,7 +295,7 @@ export function ReverseLookup({
           autoCapitalize="none"
           autoCorrect="off"
           aria-label={
-            platform === 'twitter' ? 'X handle' : 'Farcaster username'
+            platform === 'twitter' ? '𝕏 handle' : 'Farcaster username'
           }
           aria-invalid={fieldInvalid}
         />

@@ -1,0 +1,38 @@
+.number {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+.reels {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+}
+.window {
+  display: inline-block;
+  height: 1em;
+  width: 1ch;
+  overflow: hidden;
+}
+.track {
+  display: block;
+  transform: translateY(var(--roll-end));
+  animation: roll 1100ms cubic-bezier(0.16, 1, 0.3, 1) var(--roll-delay) both;
+}
+.digit {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+@keyframes roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(var(--roll-end));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    animation: none;
+  }
+}

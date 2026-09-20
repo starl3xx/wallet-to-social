@@ -181,7 +181,7 @@ export const RecentWins = memo(function RecentWins() {
               <div className="flex items-center gap-3 text-sm mb-3">
                 <div
                   className="flex items-center gap-2"
-                  title="X accounts found"
+                  title="𝕏 accounts found"
                 >
                   <XMark
                     className="h-3.5 w-3.5 text-muted-foreground"

@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-20T17:28:42.013Z",
+  "source": "Read-only walletlink social_graph wallet lookup",
+  "rows": [
+    {
+      "address": "0x2211d1d0020daea8039e46cf1367962070d77da9",
+      "handle": "jessepollak",
+      "xAttested": true,
+      "synthetic": false
+    },
+    {
+      "address": "0x46960d116427a03ff05c6a0defe35e9dc29c0a69",
+      "handle": "jessepollak",
+      "xAttested": true,
+      "synthetic": false
+    },
+    {
+      "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "handle": "vitalikbuterin",
+      "xAttested": true,
+      "synthetic": false
+    },
+    {
+      "address": "0x6ce09ed5526de4afe4a981ad86d17b2f5c92fea5",
+      "handle": "dwr",
+      "xAttested": true,
+      "synthetic": false
+    },
+    {
+      "address": "0x7e0c48a53f941ea3462b8221b91d475032ca68e9",
+      "handle": null,
+      "xAttested": false,
+      "synthetic": true
+    }
+  ]
+}
