@@ -368,19 +368,26 @@ async function readProfile(
  */
 async function readProfiles(
   domains: MintedDomain[],
-  counts: Record<Outcome, number>
+  counts: Record<Outcome, number>,
+  /**
+   * Run-level, threaded through every window of every registry, because the
+   * wall is client-level: a run whose windows each hold fewer domains than
+   * the limit would otherwise reset the count at every window boundary and
+   * never trip, advancing checkpoints past unread names with a green
+   * conclusion (Bugbot, on the very change that added the breaker).
+   */
+  refusals: { consecutive: number }
 ): Promise<Array<{ domain: MintedDomain; handle: string }>> {
   const hits: Array<{ domain: MintedDomain; handle: string }> = [];
   let next = 0;
-  let consecutiveRefusals = 0;
   async function worker() {
     while (next < domains.length) {
       const domain = domains[next++];
       const { handle, outcome } = await readProfile(domain.name);
       counts[outcome]++;
       if (outcome === 'invalidName') {
-        consecutiveRefusals++;
-        if (consecutiveRefusals >= SYSTEMIC_REFUSAL_LIMIT) {
+        refusals.consecutive++;
+        if (refusals.consecutive >= SYSTEMIC_REFUSAL_LIMIT) {
           throw new Error(
             `UD API refused ${SYSTEMIC_REFUSAL_LIMIT} names in a row (last: ${domain.name}): ` +
               'the endpoint is refusing this client, not these names. ' +
@@ -388,7 +395,7 @@ async function readProfiles(
           );
         }
       } else {
-        consecutiveRefusals = 0;
+        refusals.consecutive = 0;
       }
       if (handle) hits.push({ domain, handle });
       await new Promise((r) => setTimeout(r, PAUSE_MS));
@@ -516,7 +523,8 @@ async function walkRegistry(
   cfg: RegistryConfig,
   args: Args,
   totals: Totals,
-  remainingReads: () => number
+  remainingReads: () => number,
+  refusals: { consecutive: number }
 ): Promise<'exhausted' | 'budget'> {
   const provider = getProvider(cfg);
   const head = await provider.getBlockNumber();
@@ -568,7 +576,7 @@ async function walkRegistry(
     }
 
     if (domains.length > 0) {
-      const hits = await readProfiles(domains, totals.counts);
+      const hits = await readProfiles(domains, totals.counts, refusals);
       totals.reads += domains.length;
       totals.domains += domains.length;
 
@@ -653,8 +661,11 @@ async function main() {
   const remainingReads = () => args.maxReads - totals.reads;
 
   let stopped: 'exhausted' | 'budget' = 'exhausted';
+  // One refusal streak for the whole run: the wall is client-level, so a
+  // registry boundary must not grant it a fresh count either.
+  const refusals = { consecutive: 0 };
   for (const cfg of registries) {
-    stopped = await walkRegistry(cfg, args, totals, remainingReads);
+    stopped = await walkRegistry(cfg, args, totals, remainingReads, refusals);
     if (stopped === 'budget') break;
   }
 
