@@ -232,8 +232,16 @@ const ROW_HEIGHT = 38;
  * list starts and that number has to be the one the header actually renders
  * at. Two lines is a deliberate ceiling, not wrapping-as-it-falls; a label
  * needing three is a label to shorten.
+ *
+ * Sized by the tallest header, which is the locked one: it stacks a two-line
+ * label over an Unlock control, and at 50px that stack overflowed onto the
+ * first body row where it could take a click meant for the row. Measured in a
+ * browser against the compiled stylesheet rather than reasoned about, because
+ * the sum of a padding, a clamped line box and a control is exactly the thing
+ * a grep over the classes gets confidently wrong: the locked header renders
+ * 53px with the line box below, the sort header 34px.
  */
-const HEADER_HEIGHT = 50;
+const HEADER_HEIGHT = 58;
 
 /** The attestation gutter: one dot wide. Also the wallet column's sticky offset. */
 const GUTTER_WIDTH = 18;
@@ -390,11 +398,14 @@ function LockedHeader({
     /* Stacked, not side by side. Side by side, the label and the Unlock
        control had to fit on one line, which is why a locked column was wider
        than the same column unlocked: the column was sized by a control rather
-       than by its data. Under the label they share the same 50px the wrapped
-       headers already use. */
+       than by its data. Stacking trades that width for height, so this is the
+       tallest header on the row and HEADER_HEIGHT is sized to it: the label
+       carries the same `leading-[1.15]` SortHeader uses, both so the two
+       wrapped headers share a line box side by side and because without it
+       the stack rendered 57px into a 50px row. */
     <div
       role="columnheader"
-      className="flex flex-col items-start justify-start gap-1 px-4 pt-2"
+      className="flex flex-col items-start justify-start gap-1 px-4 pt-2 leading-[1.15]"
     >
       {/* Two lines here as well. One line meant a locked "Farcaster followers"
           truncated to an unreadable fragment in a track sized for the

@@ -7,18 +7,20 @@ All notable changes to walletlink.social. Newest first.
 - **"FARCASTER FOLLOWERS" is 169px on one line, which made a column of
   four-digit numbers 220px wide.** The widest thing in that column was never
   the data, and the priority score was pushed off the right edge as a result.
-- The header row wraps to two lines (34px to 50px, still fixed, because the
+- The header row wraps to two lines (34px to 58px, still fixed, because the
   virtualiser is told where the list starts and that number has to be the one
   the header actually renders at). A locked column stacks its Unlock control
   **under** the label rather than beside it, so a locked column is no longer
   wider than the same column unlocked: it was being sized by a control instead
-  of by its figures.
-- Figure columns are now the widest realistic value plus padding: 96px for X
-  followers, 112px for Farcaster followers, 104px for priority. The minimum
-  table width drops from 1,192px to 994px, and those ~200px go to the columns
-  with no length bound.
+  of by its figures. The row is sized by that stacked header, which is the
+  tallest of them: measured in a browser at 53px, where a sort header is 34px.
+- Figure columns are now the widest realistic value plus padding: 128px for X
+  followers, 128px for Farcaster followers, 124px for priority. The minimum
+  table width drops from 1,192px to 1,098px, and those ~94px go to the columns
+  with no length bound, which also take the wallet track from 140px to 176px.
 - Two lines is a ceiling (`line-clamp-2`), not wrapping-as-it-falls. A label
-  needing three lines is a label to shorten.
+  needing three lines is a label to shorten. Every header label was measured
+  against its own track to confirm none of them hits that ceiling and clips.
 - Note for anyone reading an older saved lookup: **X followers will be blank
   on any lookup run before that column existed.** The value is stamped at job
   time and stored with the results, so it cannot appear retroactively. Re-run
