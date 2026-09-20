@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (conflict resolution grows three rungs and a bigger budget)
+
+- **Two new swap rungs** in `lib/conflict-resolution.ts`, each re-tested
+  inside the statement that writes: `reassigned` (ours is live but resolves
+  to a different numeric account than the one the graph holds, so the string
+  was freed and re-registered; challenger id required and confirmed) and
+  `id-anchored` (the graph holds no id beside ours and the challenger's
+  supplied id equals the id its handle resolves to today; no condition on
+  ours at all, which is what lets 658 queued rows close without spending a
+  lookup on our side). Where both sides are live and id-consistent, nothing
+  acts: two owner statements disagree and neither outweighs the other.
+- **A second inert-row closure**: challenger dead while ours is live closes
+  as `ours stands`, nothing chosen, with the same reopen-on-revival rule as
+  the both-dead pass and for the same reason: liveness never touches
+  `handle_conflicts`, so nothing else would requeue a revived challenger.
+- **`DEFAULT_RECHECK_CREDITS` 300 to 3,000.** The old cap bought ~16 looks a
+  day, sized for one small bucket; the widened queue was measured at ~2,900
+  handles needing a fresh reading (2026-09-20), a two-hundred-day drain. The
+  new cap is ~166 looks and about three cents a day, and drains it in under
+  three weeks.
+- Live dry run before shipping: 3,435 candidates, 2 eligible immediately
+  (id-anchored rows whose checks were already fresh), the rest gated behind
+  2,223 unchecked and 1,203 stale challenger readings that the budget now
+  actually reaches. docs-site's data-quality page updated in step: the
+  settled set is three rungs, and the both-live-id-consistent residue is
+  still never guessed.
+
 ### 2026-09-20 (BNB token import comes back through a third index)
 
 - **A third metered ERC-20 holder index** in the ladder

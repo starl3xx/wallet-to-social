@@ -24,17 +24,22 @@
  *     both live                                637
  *     one side never checked                   494
  *
- * Only the first bucket is resolved here. Our handle reaches nobody: a
- * customer who sends to it reaches nobody, so there is nothing to protect by
- * keeping it. Theirs is live, it was attested by the wallet owner, and in 1,598
- * of the 1,602 the source also supplied the numeric id of the account it meant,
- * which matches the id the live handle resolves to. That is not a guess about
- * a rename. It is the owner's own statement, confirmed against the account.
+ * The first bucket was the original rule, and its logic is unchanged: our
+ * handle reaches nobody, a customer who sends to it reaches nobody, so there
+ * is nothing to protect by keeping it. Theirs is live, it was attested by the
+ * wallet owner, and in 1,598 of the 1,602 the source also supplied the numeric
+ * id of the account it meant, which matches the id the live handle resolves
+ * to. That is not a guess about a rename. It is the owner's own statement,
+ * confirmed against the account.
  *
- * The second bucket is surfaced beside our handle and never swapped, because
- * both accounts reach somebody and the evidence does not say which one the
- * customer wants. The third is not in scope beyond what the first needs: where
- * ours is dead and theirs has never been checked, theirs is checked.
+ * The second bucket was measured again on 2026-09-20 before the rules below
+ * widened: of 841 both-live rows, 658 had a bare string on our side against an
+ * id-confirmed challenger, 12 had ours resolving to a different account than
+ * the one the graph holds, and only 18 were genuinely two id-consistent live
+ * accounts. The first two shapes are decided by evidence and the rungs below
+ * now settle them; the 18 are a judgment call and are still never swapped.
+ * The third bucket is a lookup backlog, not a category, and the recheck
+ * budget was resized to actually reach it.
  *
  * ## The rule, exactly
  *
@@ -44,11 +49,30 @@
  *   1. it is unresolved, on platform `twitter`, and the graph still serves the
  *      handle the conflict calls ours (a row edited since is a different fact);
  *   2. the row is not admin-curated (`'manual'` in `sources` always wins);
- *   3. ours is `not_found` or `unavailable` on a check no older than
- *      `RECHECK_DAYS`;
- *   4. theirs is `live`, with an id, on a check no older than `RECHECK_DAYS`;
- *   5. where the source supplied an account id, it equals the id theirs
- *      resolves to now. A source with no id (EAS) qualifies on liveness.
+ *   3. theirs is `live`, with an id, on a check no older than `RECHECK_DAYS`;
+ *   4. one of three rungs holds on our side (2026-09-20 widened this from the
+ *      first alone):
+ *
+ *      `unreachable`   ours is `not_found` or `unavailable` on a check no
+ *                      older than `RECHECK_DAYS`. Where the source supplied
+ *                      an account id it must equal the id theirs resolves to
+ *                      now; a source with no id (EAS) qualifies on liveness,
+ *                      because a dead ours protects nothing.
+ *      `reassigned`    ours is live on a fresh check but resolves to a
+ *                      different numeric account than the one the graph
+ *                      holds: the string was freed and re-registered, so
+ *                      "live" is true of the name and false of the person.
+ *                      Challenger id required and confirmed.
+ *      `id-anchored`   the graph holds no account id beside ours, and the
+ *                      challenger's supplied id equals the id its handle
+ *                      resolves to now: an id-anchored, live-confirmed owner
+ *                      statement against a bare string. No condition on ours
+ *                      at all.
+ *
+ *      Where both sides are id-consistent (ours live and resolving to the id
+ *      the graph holds, theirs id-confirmed), nothing acts: that residue is
+ *      a judgment call between two live owner statements, and it stays on
+ *      the queue for eyes.
  *
  * A check older than the window is re-run first, through the same sweep the
  * reachability cron uses, within a credit cap. Freshness is not decoration: a
@@ -88,14 +112,51 @@ import {
 /** How recent a reachability check must be before it is acted on. */
 export const RECHECK_DAYS = 7;
 
-/** Credits one daily run may spend on rechecks, unless the env var says otherwise. */
-export const DEFAULT_RECHECK_CREDITS = 300;
+/**
+ * Credits one daily run may spend on rechecks, unless the env var says
+ * otherwise. It was 300, sized when the job settled one small bucket. At 18
+ * credits a lookup that was about sixteen looks a day, and once the job also
+ * qualified live-ours rows the queue behind it was measured at ~2,900 handles
+ * (2026-09-20): a two-hundred-day drain. 3,000 credits is ~166 looks and
+ * about three cents a day at the reseller's rate, and drains the same queue
+ * in under three weeks.
+ */
+export const DEFAULT_RECHECK_CREDITS = 3000;
 
 /**
- * Written to `handle_conflicts.resolution`. A constant, so anything that
- * later groups resolutions by this string finds one spelling of it.
+ * Written to `handle_conflicts.resolution`. Constants, so anything that
+ * later groups resolutions by these strings finds one spelling of each.
  */
 export const RESOLUTION = 'accepted-theirs: ours unreachable';
+
+/**
+ * Our handle string still resolves, but to a different numeric account than
+ * the one the owner attested: the string was freed and re-registered, so
+ * "live" is true of the name and false of the person. Theirs is live and
+ * id-confirmed. The swap is the same correction as `RESOLUTION`, seen one
+ * step earlier.
+ */
+export const RESOLUTION_REASSIGNED =
+  'accepted-theirs: ours reassigned to another account';
+
+/**
+ * Both live, but only one side is anchored: theirs carries the owner's
+ * numeric account id and that id is what the handle resolves to today, while
+ * our side is a bare string no id ever confirmed. An id-anchored,
+ * live-confirmed owner statement outweighs an unanchored string. Where BOTH
+ * sides are id-consistent, nothing here acts: that residue is a judgment
+ * call and stays on the queue.
+ */
+export const RESOLUTION_ID_ANCHORED =
+  'accepted-theirs: id-anchored over bare string';
+
+/**
+ * The challenger reaches nobody. Nothing can ever swap to it, so the row is
+ * inert the same way a both-dead row is: closed as bookkeeping, ours stands,
+ * nothing chosen. Reopened by the same pass if the challenger comes back.
+ */
+export const RESOLUTION_CHALLENGER_DEAD =
+  'closed: challenger unreachable, ours stands';
 
 /**
  * `sweepHandles` reserves three lookups before it starts a handle, and runs a
@@ -123,7 +184,16 @@ export type BlockedReason =
   | 'ours-unchecked'
   | 'theirs-unchecked'
   | 'ours-stale'
-  | 'theirs-stale';
+  | 'theirs-stale'
+  /** Both live and only liveness known: a swap from a live handle needs an id anchor. */
+  | 'challenger-no-id'
+  /** Both live, both id-consistent. The genuine judgment call; no rule acts. */
+  | 'both-live-ambiguous'
+  /** Theirs is fresh-dead while ours is live; the closure pass owns it. */
+  | 'challenger-dead';
+
+/** Which acceptance rule a qualified row goes through. */
+export type SwapRung = 'unreachable' | 'reassigned' | 'id-anchored';
 
 export interface ResolveSample {
   wallet: string;
@@ -141,11 +211,14 @@ export interface ResolveOutcome {
   /** Qualified under the rule, after any recheck. */
   eligible: number;
   /**
-   * Conflicts closed. Always 0 on a dry run. Below `eligible` where two
-   * sources both qualify for one wallet with different handles: one is taken
-   * and the other reopens in its new shape on the next ingest.
+   * Conflicts closed by swap, all rungs together. Always 0 on a dry run.
+   * Below `eligible` where two sources both qualify for one wallet with
+   * different handles: one is taken and the other reopens in its new shape
+   * on the next ingest.
    */
   accepted: number;
+  /** `accepted`, split by which rule closed each conflict. */
+  acceptedByRung: Record<SwapRung, number>;
   /** Graph rows rewritten. Below `accepted` when two sources named one account. */
   walletsUpdated: number;
   cacheRowsDeleted: number;
@@ -156,6 +229,13 @@ export interface ResolveOutcome {
   closedBothDead: number;
   /** Inert closures put back on the queue because a side is live again. */
   reopenedBothDead: number;
+  /**
+   * Conflicts closed because the challenger reaches nobody while ours is
+   * live: ours stands, nothing chosen. See `closeChallengerDead`.
+   */
+  closedChallengerDead: number;
+  /** Challenger-dead closures put back on the queue because theirs is live again. */
+  reopenedChallengerDead: number;
   blocked: Record<BlockedReason, number>;
   recheck: {
     /** Distinct handles that need a look before their row can qualify. */
@@ -190,6 +270,10 @@ interface CandidateRow {
   last_seen_at: string;
   ours_status: string | null;
   ours_fresh: boolean | null;
+  /** The account id our handle string resolves to, from its last live check. */
+  ours_user_id: string | null;
+  /** The account id the graph row holds beside our handle, where a source supplied one. */
+  graph_user_id: string | null;
   theirs_status: string | null;
   theirs_fresh: boolean | null;
   theirs_user_id: string | null;
@@ -197,6 +281,8 @@ interface CandidateRow {
 
 interface Classified {
   row: CandidateRow;
+  /** Set exactly when `reason` is null: which acceptance rule the row goes through. */
+  rung: SwapRung | null;
   reason: BlockedReason | null;
   /** Handles a lookup would have to resolve before this row can qualify. */
   needs: string[];
@@ -205,12 +291,15 @@ interface Classified {
 const DEAD = new Set(['not_found', 'unavailable']);
 
 /**
- * Every open conflict whose our-side is not known to be live.
+ * Every open twitter conflict the graph still serves.
  *
- * A live ours, fresh or stale, is excluded on purpose. Re-checking live
- * handles on a cycle is the reachability sweep's job, and a cap of a few
- * hundred credits spent confirming that live handles are still live would
- * starve the rows this job exists for.
+ * Live-ours rows used to be excluded here, and the exclusion was right while
+ * the only rule was "ours dead, theirs live". Two of the rungs added on
+ * 2026-09-20 act on a live ours: a reassigned string (live, wrong account)
+ * and an id-anchored challenger against a bare string. Both decide on the
+ * challenger's evidence, so their rechecks are mostly the challenger's, and
+ * `recheckList` still spends the budget on the closest-to-closing rows
+ * first.
  */
 async function loadCandidates(recheckDays: number): Promise<CandidateRow[]> {
   const db = getDb();
@@ -220,6 +309,8 @@ async function loadCandidates(recheckDays: number): Promise<CandidateRow[]> {
       c.wallet, c.ours, c.theirs, c.their_source, c.their_user_id, c.last_seen_at,
       ox.status AS ours_status,
       (ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)) AS ours_fresh,
+      ox.user_id AS ours_user_id,
+      g.twitter_user_id AS graph_user_id,
       tx.status AS theirs_status,
       (tx.checked_at >= now() - make_interval(days => ${recheckDays}::int)) AS theirs_fresh,
       tx.user_id AS theirs_user_id
@@ -232,46 +323,110 @@ async function loadCandidates(recheckDays: number): Promise<CandidateRow[]> {
       AND g.twitter_handle IS NOT NULL
       AND lower(g.twitter_handle) = lower(c.ours)
       AND NOT ('manual' = ANY(COALESCE(g.sources, ARRAY[]::text[])))
-      AND (ox.status IS NULL OR ox.status <> 'live')
     ORDER BY c.last_seen_at DESC, c.wallet
   `)) as unknown as { rows: CandidateRow[] };
   return result.rows;
 }
 
+/**
+ * One reading per row, in an order where every earlier test would decide the
+ * row whatever a later lookup said.
+ *
+ * The challenger is examined first, because every rung needs it live and
+ * fresh: an unchecked or stale theirs blocks everything, a fresh-dead theirs
+ * is terminal (closure when ours is live, `theirs-not-live` otherwise), and a
+ * supplied id that disagrees with what the handle resolves to is terminal
+ * everywhere. Only then does the state of ours pick the rung:
+ *
+ *   ours fresh-dead                              -> 'unreachable' (id optional)
+ *   graph holds no id, challenger id-confirmed   -> 'id-anchored' (ours state
+ *                                                   irrelevant: the decision
+ *                                                   rests on the challenger)
+ *   ours fresh-live, ids known and different     -> 'reassigned'
+ *   ours fresh-live, ids known and equal         -> both-live-ambiguous
+ *   ours fresh-live, challenger has no id        -> challenger-no-id
+ *
+ * The id-anchored rung deliberately skips the ours lookup: whether the bare
+ * string is live or dead changes nothing about which side carries evidence,
+ * and not looking is what lets 658 queued rows (measured 2026-09-20) close
+ * without spending a lookup on our side of each.
+ */
 function classify(row: CandidateRow): Classified {
   const oursFresh = row.ours_fresh === true;
   const theirsFresh = row.theirs_fresh === true;
   const theirsLive =
     row.theirs_status === 'live' && row.theirs_user_id !== null;
-
-  if (theirsFresh && !theirsLive) {
-    return { row, reason: 'theirs-not-live', needs: [] };
-  }
-
-  // Terminal whatever the state of ours: no lookup on our side can make the
-  // source's id agree with the account theirs resolves to.
-  if (
-    theirsFresh &&
-    row.their_user_id !== null &&
-    row.their_user_id !== row.theirs_user_id
-  ) {
-    return { row, reason: 'id-mismatch', needs: [] };
-  }
+  const theirsAnchored =
+    row.their_user_id !== null && row.their_user_id === row.theirs_user_id;
 
   const needs: string[] = [];
   if (!oursFresh) needs.push(row.ours.toLowerCase());
   if (!theirsFresh) needs.push(row.theirs.toLowerCase());
 
-  if (row.ours_status === null) return { row, reason: 'ours-unchecked', needs };
-  if (row.theirs_status === null)
-    return { row, reason: 'theirs-unchecked', needs };
-  if (!oursFresh) return { row, reason: 'ours-stale', needs };
-  if (!theirsFresh) return { row, reason: 'theirs-stale', needs };
+  if (row.theirs_status === null) {
+    return { row, rung: null, reason: 'theirs-unchecked', needs };
+  }
+  if (!theirsFresh) {
+    return { row, rung: null, reason: 'theirs-stale', needs };
+  }
 
-  // Fresh on both sides, ours dead, theirs live, ids agree or none supplied.
-  if (DEAD.has(row.ours_status)) return { row, reason: null, needs: [] };
+  if (!theirsLive) {
+    // Fresh and not live. Against a live ours the row is inert and the
+    // closure pass owns it; otherwise it waits exactly as before.
+    if (row.ours_status === 'live') {
+      return { row, rung: null, reason: 'challenger-dead', needs: [] };
+    }
+    return { row, rung: null, reason: 'theirs-not-live', needs: [] };
+  }
+
+  // Terminal whatever the state of ours: no lookup on our side can make the
+  // source's id agree with the account theirs resolves to.
+  if (row.their_user_id !== null && row.their_user_id !== row.theirs_user_id) {
+    return { row, rung: null, reason: 'id-mismatch', needs: [] };
+  }
+
+  if (row.ours_status !== null && oursFresh && DEAD.has(row.ours_status)) {
+    return { row, rung: 'unreachable', reason: null, needs: [] };
+  }
+
+  if (row.graph_user_id === null && theirsAnchored) {
+    return { row, rung: 'id-anchored', reason: null, needs: [] };
+  }
+
+  if (row.ours_status === null) {
+    return { row, rung: null, reason: 'ours-unchecked', needs };
+  }
+  if (!oursFresh) {
+    return { row, rung: null, reason: 'ours-stale', needs };
+  }
+
+  if (row.ours_status === 'live') {
+    if (!theirsAnchored) {
+      return { row, rung: null, reason: 'challenger-no-id', needs: [] };
+    }
+    if (row.graph_user_id !== null && row.ours_user_id !== null) {
+      if (row.ours_user_id !== row.graph_user_id) {
+        return { row, rung: 'reassigned', reason: null, needs: [] };
+      }
+      return { row, rung: null, reason: 'both-live-ambiguous', needs: [] };
+    }
+    // Live with no id on record from its last live check: an internal shape
+    // this module does not expect. Ask for a fresh look rather than guess.
+    return {
+      row,
+      rung: null,
+      reason: 'ours-stale',
+      needs: [row.ours.toLowerCase()],
+    };
+  }
+
   // An internal status this module does not know. Report nothing rather than guess.
-  return { row, reason: 'ours-unchecked', needs: [row.ours.toLowerCase()] };
+  return {
+    row,
+    rung: null,
+    reason: 'ours-unchecked',
+    needs: [row.ours.toLowerCase()],
+  };
 }
 
 /**
@@ -322,6 +477,9 @@ function emptyBlocked(): Record<BlockedReason, number> {
     'theirs-unchecked': 0,
     'ours-stale': 0,
     'theirs-stale': 0,
+    'challenger-no-id': 0,
+    'both-live-ambiguous': 0,
+    'challenger-dead': 0,
   };
 }
 
@@ -343,11 +501,47 @@ function distinctNeeded(classified: Classified[]): number {
  */
 async function acceptBatch(
   keys: Array<{ wallet: string; theirSource: string }>,
-  recheckDays: number
+  recheckDays: number,
+  rung: SwapRung
 ): Promise<{ wallets: number; conflicts: number; cacheRows: number }> {
   const db = getDb();
   if (!db || keys.length === 0)
     return { wallets: 0, conflicts: 0, cacheRows: 0 };
+
+  /**
+   * The per-rung qualification, re-tested in-statement like every other
+   * condition here. Three rules, one shape:
+   *
+   *   unreachable  ours fresh-dead; the challenger's id optional, because a
+   *                dead ours protects nothing.
+   *   reassigned   ours fresh-live but resolving to a different account than
+   *                the one the graph holds; challenger id-confirmed.
+   *   id-anchored  the graph holds no id beside ours; challenger
+   *                id-confirmed. No condition on ours at all: the decision
+   *                rests entirely on the challenger's evidence, which is why
+   *                the ox join is LEFT for this rung.
+   */
+  const oursRule =
+    rung === 'unreachable'
+      ? sql`ox.status IN ('not_found', 'unavailable')
+        AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)
+        AND (c.their_user_id IS NULL OR c.their_user_id = tx.user_id)`
+      : rung === 'reassigned'
+        ? sql`ox.status = 'live'
+        AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)
+        AND ox.user_id IS NOT NULL
+        AND g.twitter_user_id IS NOT NULL
+        AND ox.user_id <> g.twitter_user_id
+        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`
+        : sql`g.twitter_user_id IS NULL
+        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;
+
+  const resolution =
+    rung === 'unreachable'
+      ? RESOLUTION
+      : rung === 'reassigned'
+        ? RESOLUTION_REASSIGNED
+        : RESOLUTION_ID_ANCHORED;
 
   const result = (await db.execute(sql`
     WITH keys AS (
@@ -362,18 +556,16 @@ async function acceptBatch(
       JOIN handle_conflicts c
         ON c.wallet = k.wallet AND c.their_source = k.their_source AND c.platform = 'twitter'
       JOIN social_graph g ON g.wallet = c.wallet
-      JOIN x_accounts ox ON ox.handle = lower(c.ours)
+      LEFT JOIN x_accounts ox ON ox.handle = lower(c.ours)
       JOIN x_accounts tx ON tx.handle = lower(c.theirs)
       WHERE c.resolved_at IS NULL
         AND g.twitter_handle IS NOT NULL
         AND lower(g.twitter_handle) = lower(c.ours)
         AND NOT ('manual' = ANY(COALESCE(g.sources, ARRAY[]::text[])))
-        AND ox.status IN ('not_found', 'unavailable')
-        AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)
         AND tx.status = 'live'
         AND tx.user_id IS NOT NULL
         AND tx.checked_at >= now() - make_interval(days => ${recheckDays}::int)
-        AND (c.their_user_id IS NULL OR c.their_user_id = tx.user_id)
+        AND ${oursRule}
     ),
     chosen AS (
       SELECT DISTINCT ON (wallet) *
@@ -399,7 +591,7 @@ async function acceptBatch(
     closed AS (
       UPDATE handle_conflicts c SET
         resolved_at = now(),
-        resolution  = ${RESOLUTION}
+        resolution  = ${resolution}
       FROM chosen q
       JOIN qualified q2 ON q2.wallet = q.wallet AND lower(q2.theirs) = lower(q.theirs)
       WHERE c.wallet = q2.wallet AND c.their_source = q2.their_source AND c.platform = 'twitter'
@@ -474,10 +666,11 @@ export async function resolveUnreachableConflicts(
   }
 
   const blocked = emptyBlocked();
-  const eligible: CandidateRow[] = [];
+  const eligible: Array<{ row: CandidateRow; rung: SwapRung }> = [];
   for (const c of classified) {
-    if (c.reason === null) eligible.push(c.row);
-    else blocked[c.reason]++;
+    if (c.reason === null && c.rung !== null)
+      eligible.push({ row: c.row, rung: c.rung });
+    else if (c.reason !== null) blocked[c.reason]++;
   }
 
   const toAccept =
@@ -485,7 +678,7 @@ export async function resolveUnreachableConflicts(
       ? eligible.slice(0, Math.max(0, opts.limit))
       : eligible;
 
-  const sample: ResolveSample[] = toAccept.slice(0, 20).map((r) => ({
+  const sample: ResolveSample[] = toAccept.slice(0, 20).map(({ row: r }) => ({
     wallet: r.wallet,
     ours: r.ours,
     status: r.ours_status ?? 'unknown',
@@ -498,10 +691,13 @@ export async function resolveUnreachableConflicts(
     candidates: classified.length,
     eligible: eligible.length,
     accepted: 0,
+    acceptedByRung: { unreachable: 0, reassigned: 0, 'id-anchored': 0 },
     walletsUpdated: 0,
     cacheRowsDeleted: 0,
     closedBothDead: 0,
     reopenedBothDead: 0,
+    closedChallengerDead: 0,
+    reopenedChallengerDead: 0,
     blocked,
     recheck,
     sample,
@@ -510,21 +706,88 @@ export async function resolveUnreachableConflicts(
   // rechecks nothing: every one of those is a write.
   if (dryRun) return outcome;
 
-  for (let i = 0; i < toAccept.length; i += BATCH) {
-    const batch = toAccept.slice(i, i + BATCH);
-    const written = await acceptBatch(
-      batch.map((r) => ({ wallet: r.wallet, theirSource: r.their_source })),
-      recheckDays
-    );
-    outcome.accepted += written.conflicts;
-    outcome.walletsUpdated += written.wallets;
-    outcome.cacheRowsDeleted += written.cacheRows;
+  const RUNGS: SwapRung[] = ['unreachable', 'reassigned', 'id-anchored'];
+  for (const rung of RUNGS) {
+    const rows = toAccept.filter((e) => e.rung === rung).map((e) => e.row);
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const written = await acceptBatch(
+        batch.map((r) => ({ wallet: r.wallet, theirSource: r.their_source })),
+        recheckDays,
+        rung
+      );
+      outcome.accepted += written.conflicts;
+      outcome.acceptedByRung[rung] += written.conflicts;
+      outcome.walletsUpdated += written.wallets;
+      outcome.cacheRowsDeleted += written.cacheRows;
+    }
   }
+
+  const challengerDead = await closeChallengerDead(recheckDays);
+  outcome.closedChallengerDead = challengerDead.closed;
+  outcome.reopenedChallengerDead = challengerDead.reopened;
 
   const inert = await closeBothDead(recheckDays);
   outcome.closedBothDead = inert.closed;
   outcome.reopenedBothDead = inert.reopened;
   return outcome;
+}
+
+/**
+ * Close the conflicts whose challenger reaches nobody while ours is live.
+ *
+ * The same shape as `closeBothDead`, for the same reason: acceptance requires
+ * a live challenger, so a row whose challenger is dead can never be acted on,
+ * only re-examined forever. Closing is not deciding; ours stays exactly where
+ * it is and the resolution string says so. And the reopen is this function's
+ * job for the reason `closeBothDead` documents at length: liveness never
+ * touches `handle_conflicts`, so nothing else would ever put a revived
+ * challenger back on the queue.
+ *
+ * The asymmetry between the two passes is also the same: closing demands a
+ * fresh reading of the challenger, reopening acts on any reading at all,
+ * because when the rules disagree the one that keeps a conflict visible wins.
+ * Ours must be live on its last reading, whatever its age: if ours has since
+ * died too, the both-dead pass owns the row, and a stale live reading of ours
+ * costs nothing here because nothing is written to the graph.
+ */
+async function closeChallengerDead(
+  recheckDays: number
+): Promise<{ closed: number; reopened: number }> {
+  const db = getDb();
+  if (!db) return { closed: 0, reopened: 0 };
+
+  const reopened = (await db.execute(sql`
+    UPDATE handle_conflicts c
+       SET resolved_at = NULL,
+           resolution  = NULL
+      FROM x_accounts t
+     WHERE t.handle = lower(c.theirs)
+       AND c.platform = 'twitter'
+       AND c.resolution = ${RESOLUTION_CHALLENGER_DEAD}
+       AND t.status = 'live'
+    RETURNING 1
+  `)) as unknown as { rows: unknown[] };
+
+  const result = (await db.execute(sql`
+    UPDATE handle_conflicts c
+       SET resolved_at = now(),
+           resolution  = ${RESOLUTION_CHALLENGER_DEAD}
+      FROM x_accounts o, x_accounts t
+     WHERE o.handle = lower(c.ours)
+       AND t.handle = lower(c.theirs)
+       AND c.platform = 'twitter'
+       AND c.resolved_at IS NULL
+       AND o.status = 'live'
+       AND t.status IN ('not_found', 'unavailable')
+       AND t.checked_at > now() - make_interval(days => ${recheckDays})
+    RETURNING 1
+  `)) as unknown as { rows: unknown[] };
+
+  return {
+    closed: result.rows?.length ?? 0,
+    reopened: reopened.rows?.length ?? 0,
+  };
 }
 
 /**
