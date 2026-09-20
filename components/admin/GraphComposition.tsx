@@ -33,7 +33,7 @@ interface Topline {
   with_x: number;
   with_fc: number;
   with_both: number;
-  x_verified: number;
+  x_attested: number;
   negatives: number;
 }
 
@@ -112,19 +112,19 @@ export function GraphComposition({ password }: { password: string }) {
           note={`${pct(t.with_any, t.total)} of the graph`}
         />
         <Stat
-          label="X handles"
+          label="Wallets with X"
           value={nf.format(t.with_x)}
-          note={`${nf.format(t.x_verified)} owner-attested`}
+          note={`${nf.format(t.x_attested)} owner-attested`}
         />
         <Stat
-          label="Farcaster"
+          label="Wallets with Farcaster"
           value={nf.format(t.with_fc)}
           note={`${nf.format(t.with_both)} carry both`}
         />
         <Stat
           label="Live X handles"
           value={nf.format(live)}
-          note={`${nf.format(unavailable + notFound)} dead or unclaimed`}
+          note={`of ${nf.format(live + unavailable + notFound)} distinct handles checked`}
         />
       </div>
 

@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
-import { publicSources, type PublicSource } from '@/lib/api-sources';
+import {
+  publicSources,
+  ATTESTED_SOURCE_IDS,
+  type PublicSource,
+} from '@/lib/api-sources';
 
 export const runtime = 'nodejs';
 // Two aggregate scans of a multi-million-row table. Fine for a button in the
@@ -57,8 +61,8 @@ export async function GET(request: NextRequest) {
         count(*) FILTER (WHERE farcaster IS NOT NULL)::int                   AS with_fc,
         count(*) FILTER (WHERE twitter_handle IS NOT NULL
                            AND farcaster IS NOT NULL)::int                   AS with_both,
-        count(*) FILTER (WHERE twitter_verified
-                           AND twitter_handle IS NOT NULL)::int              AS x_verified,
+        count(*) FILTER (WHERE twitter_handle IS NOT NULL
+                           AND sources && ${sql.param([...ATTESTED_SOURCE_IDS])}::text[])::int AS x_attested,
         count(*) FILTER (WHERE sources = ARRAY['none'])::int                 AS negatives
       FROM social_graph
     `)) as unknown as {
@@ -68,7 +72,7 @@ export async function GET(request: NextRequest) {
         with_x: number;
         with_fc: number;
         with_both: number;
-        x_verified: number;
+        x_attested: number;
         negatives: number;
       }>;
     };
@@ -77,7 +81,7 @@ export async function GET(request: NextRequest) {
       SELECT
         s                                                                    AS source,
         count(*)::int                                                        AS wallets,
-        count(*) FILTER (WHERE cardinality(g.sources) = 1)::int              AS sole,
+        count(*) FILTER (WHERE cardinality(array_remove(g.sources, 'none')) = 1)::int AS sole,
         count(*) FILTER (WHERE g.twitter_handle IS NOT NULL)::int            AS with_x,
         count(*) FILTER (WHERE g.farcaster IS NOT NULL)::int                 AS with_fc
       FROM social_graph g, unnest(g.sources) AS s
