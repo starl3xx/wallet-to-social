@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (Unstoppable Domains corpus harvest, domain side)
+
+- **`scripts/harvest-ud-domains.ts`**: the corpus path the address-side walk
+  pointed at. Enumerates `NewURI` mints off the registry contracts (Ethereum
+  CNS + UNS, Polygon UNS, Base UNS; addresses and deploy blocks from the
+  resolution library's published npm config, read 2026-09-20), profile-reads
+  each domain, keeps only registry-verified public X entries, resolves the
+  CURRENT owner via `ownerOf` through Multicall3 on the domain's own chain,
+  and ingests under the same `ud_profile` source id: identical mechanism,
+  different discovery direction.
+- Owner over `crypto.ETH.address`, deliberately: the record is a payment
+  pointer anyone can aim anywhere; ownership is what the verified flag was
+  earned with. Custody wallets holding many domains self-eliminate through
+  the contested-wallet drop, and across runs cost at most one conflict row.
+- Per-registry checkpoints (`ud_domain_enum_*`); a window's checkpoint only
+  advances after its domains are read and its links ingested. The read
+  budget is profile reads only; a window whose mints exceed the remaining
+  budget shrinks until it fits or the run stops in front of it.
+- The first probes each found a real 400 class in minutes: a mint with a
+  leading hyphen (`-unstoppabletestdomain001.crypto`) and a retired-TLD name
+  (`fontediterra.coin`, .coin sunset 2023). A 400 is the API refusing the
+  name, not failing the read, so it is an outcome now, not an abort.
+- Measured before scheduling, same rule as the address side. The oldest 575
+  CNS domains (2019 cohort): 2 verified handles, 2 owner links (0.35%). The
+  oldest 596 Polygon domains (2021 cohort): 11 verified handles, 11 owner
+  links (1.85%), 7 unverified skipped. Both samples predate the verified
+  flag, so they are the floor, and the floor already runs about 18 links per
+  1k reads on Polygon against the address-side walk's zero per 430.
+- Workflow `ud-domain-harvest.yml`, twice daily (02:15 and 14:15 UTC), 40k
+  reads per run: the full 4.2M-domain backfill is roughly seven weeks at
+  that cadence, deliberately prompt because the provider is mid-rebrand and
+  the keyless endpoints have no promised lifetime. `ALCHEMY_KEY` is
+  optional; without it the log scan uses public RPC endpoints.
+
 ### 2026-09-20 (the claim control stops being below the fold)
 
 - **`/claim` put three sections and about six hundred words above the claim
