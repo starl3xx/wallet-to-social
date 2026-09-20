@@ -60,6 +60,30 @@ export const X_SCOPES = [
 ] as const;
 
 /**
+ * The narrow set, for `/claim`.
+ *
+ * A separate constant rather than a parameter, because the two flows ask for
+ * genuinely different things and the difference should be readable at the
+ * declaration. The claim flow reads `/2/users/me` once and never writes
+ * anything, so it drops `list.read` and `list.write`: asking somebody
+ * improving their own profile to let us write lists to their account is
+ * asking for something we will never use.
+ *
+ * **`tweet.read` is NOT droppable, and the first version of this constant got
+ * that wrong.** It claimed X requires it only alongside `list.write`, which
+ * is what the neighbouring comment says about the other set, and reasoning by
+ * analogy is how a plausible sentence becomes a broken authorize URL.
+ *
+ * Checked against X's own OpenAPI description for `GET /2/users/me`, which
+ * declares `"OAuth2UserToken": ["users.read", "tweet.read"]`. Both scopes sit
+ * in ONE security requirement, so both are required for that endpoint: a
+ * token minted without `tweet.read` answers 403 to the single call this whole
+ * flow exists to make, and nothing would have failed until a real person
+ * reached the end of the consent screen.
+ */
+export const X_CLAIM_SCOPES = ['users.read', 'tweet.read'] as const;
+
+/**
  * X caps a list name at 25 characters and a description at 100.
  *
  * Here rather than at the call site because both are enforced twice: the table

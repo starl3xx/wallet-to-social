@@ -1059,7 +1059,8 @@ async function main() {
      */
     const claim = await import('@/lib/attestation');
     const at = Date.now();
-    const claimCh = claim.issueClaimChallenge(wallet, at);
+    const claimUser = 'invariant-check-user';
+    const claimCh = claim.issueClaimChallenge(wallet, claimUser, at);
     ok(
       'a claim challenge is issued, or the secret is simply unset',
       claim.isConfigured() ? claimCh !== null : claimCh === null
@@ -1077,6 +1078,7 @@ async function main() {
         !(
           await claim.verifyClaim({
             wallet,
+            userId: claimUser,
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, challengeMessage(wallet, at)),
@@ -1097,11 +1099,45 @@ async function main() {
         (
           await claim.verifyClaim({
             wallet,
+            userId: claimUser,
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, claimCh.message),
           })
         ).ok
+      );
+
+      /**
+       * A captured signature is useless to anybody else.
+       *
+       * Without the account in the HMAC a signature is a transferable bearer,
+       * which is how the first version of this was wrong: the start route
+       * does not spend the challenge, so ANY session presenting a captured
+       * signature inside the five-minute window could open a claim for
+       * somebody else's wallet. The signer does not choose which X account
+       * completes the pairing, so the replay binds their address to the
+       * replayer's profile, which is precisely the outcome the flow exists to
+       * make impossible.
+       *
+       * Asserted through the real verifier with a real signature over the
+       * real message: the ONLY thing different is the session.
+       */
+      ok(
+        'a claim challenge issued to one account does not verify under another',
+        !(
+          await claim.verifyClaim({
+            wallet,
+            userId: 'a-different-account',
+            issuedAt: at,
+            token: claimCh.token,
+            signature: await sign(buyer, claimCh.message),
+          })
+        ).ok
+      );
+      ok(
+        'and the token itself differs per account, so the binding is in the HMAC',
+        claim.issueClaimChallenge(wallet, claimUser, at)!.token !==
+          claim.issueClaimChallenge(wallet, 'somebody-else', at)!.token
       );
       ok(
         'the claim message says no funds move and no approval is granted',
@@ -1131,6 +1167,135 @@ async function main() {
           attestationSrc
         )
     );
+    /**
+     * The challenge route refuses in the right order and for the right
+     * reasons.
+     *
+     * Three refusals, and the ORDER of the first is the point. A suppressed
+     * wallet is refused before a challenge exists, not after a signature
+     * arrives: issuing one and refusing later means asking somebody to prove
+     * control of an address so we can tell them we will not use it.
+     *
+     * The second is the one a happy path cannot see. `walletPredatesCutoff`
+     * throws on a failed read precisely so the caller cannot quietly serve
+     * `earns_credits: false`, which would tell somebody their claim earns
+     * nothing because a query failed, with no way for them to know.
+     */
+    /**
+     * A shipped consent version is never edited, only added to.
+     *
+     * The record stores a version id and the sha256 of the exact text, and
+     * that only means something while historical entries are immutable.
+     * Editing one in place leaves every row pointing at words nobody agreed
+     * to, silently: the id still resolves, and the stored hash is only
+     * compared if somebody thinks to compare it.
+     *
+     * Pinned by hash here, so an edit to a shipped version fails the build
+     * rather than passing review as a wording improvement. Adding a NEW
+     * version never touches this assertion, which is the behaviour it wants:
+     * cheap to do the right thing, loud to do the wrong one.
+     */
+    {
+      const consent = await import('@/lib/attestation-consent');
+      ok(
+        'the shipped consent text is frozen, so a stored hash still means something',
+        consent.hashForVersion('2026-09-20.1') ===
+          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774'
+      );
+      ok(
+        'an unknown consent version is null rather than a throw',
+        consent.hashForVersion('never-shipped') === null
+      );
+    }
+
+    {
+      const route = withoutComments(
+        readFileSync('app/api/claim/challenge/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'a suppressed wallet is refused before a challenge is issued',
+        /isSuppressed\('wallet', \[wallet\]\)/.test(route) &&
+          route.indexOf('isSuppressed(') < route.indexOf('issueClaimChallenge(')
+      );
+      ok(
+        'a failed eligibility read refuses, rather than serving earns_credits false',
+        // The catch answers 503. A `catch { eligible = false }` would be the
+        // silent wrong answer, and it reads as the more forgiving branch.
+        /catch \{ return NextResponse\.json\( \{ error: 'unavailable'/.test(
+          route
+        ) && !/catch \{ eligible = false/.test(route)
+      );
+      /**
+       * The start route's refusals, which are the ones that cost something
+       * to get wrong.
+       */
+      const start = withoutComments(
+        readFileSync('app/api/claim/start/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+
+      ok(
+        'suppression is re-read at the signature, not trusted from the challenge',
+        // A removal can land inside the person's five-minute window, and the
+        // one refusal that has to be current is the one that would otherwise
+        // be served from a read taken before they signed.
+        /isSuppressed\('wallet', \[wallet\]\)/.test(start)
+      );
+      ok(
+        'a stale agreement is refused rather than silently upgraded',
+        // Agreeing to v1 is not agreeing to v2. A tab left open holds the old
+        // text, and accepting it would record a consent to words this build
+        // no longer shows anyone.
+        /body\.consent_version !== CURRENT_CONSENT\.id/.test(start) &&
+          /error: 'consent_stale'/.test(start)
+      );
+      ok(
+        'every verification failure answers the same way',
+        // A caller who can tell a bad token from a bad signature from an
+        // expired challenge grinds against whichever is cheapest. The reason
+        // is logged, never served: same rule as the X callback's not_found.
+        /console\.error\(`claim verification failed: \$\{verified\.reason\}`\)/.test(
+          start
+        ) && !/message: verified\.reason|reason: verified\.reason/.test(start)
+      );
+      /**
+       * The claim scope set is narrow, and `tweet.read` is not the part that
+       * makes it narrow.
+       *
+       * Both halves asserted, because the first version got the second one
+       * wrong in the direction that looks like tidying. It shipped
+       * `['users.read']` with a comment claiming X requires `tweet.read` only
+       * alongside `list.write`, reasoning by analogy from the other scope
+       * set's comment. X's own OpenAPI description for `GET /2/users/me`
+       * declares `["users.read", "tweet.read"]` in ONE security requirement,
+       * so a token minted without it answers 403 to the single call this
+       * whole flow exists to make, and nothing fails until a real person
+       * reaches the end of the consent screen.
+       */
+      ok(
+        'the claim scope set drops list access and keeps what /2/users/me needs',
+        /const X_CLAIM_SCOPES = \['users\.read', 'tweet\.read'\] as const;/.test(
+          withoutComments(readFileSync('lib/x-oauth.ts', 'utf8'))
+        ) && /X_CLAIM_SCOPES\.join\(' '\)/.test(start)
+      );
+      ok(
+        'the row is born unable to do anything',
+        // Same shape as x_list_jobs: a verifier and a nonce, and only the
+        // callback can move it out of awaiting_x.
+        /'awaiting_x'/.test(start) &&
+          /state', `claim:\$\{claimId\}\.\$\{nonce\}`/.test(start)
+      );
+
+      ok(
+        'the claim surface has its own rate-limit bucket',
+        /'\/api\/claim': \{ limit: \d+, windowHours: \d+ \}/.test(
+          withoutComments(readFileSync('lib/ip-rate-limiter.ts', 'utf8'))
+        ) &&
+          /checkIpRateLimit\(getClientIp\(request\), '\/api\/claim'\)/.test(
+            route
+          )
+      );
+    }
+
     ok(
       'an unreadable eligibility check refuses rather than answering false',
       // The throw is the refusal. Answering false on a failed read would deny

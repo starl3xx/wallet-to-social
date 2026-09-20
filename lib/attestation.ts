@@ -97,9 +97,30 @@ export function isConfigured(): boolean {
   return secret() !== null;
 }
 
-function sign(wallet: string, issuedAt: number, key: string): string {
+/**
+ * The token binds the account as well as the wallet and the moment.
+ *
+ * `userId` is in here because without it a signature is a transferable
+ * bearer, which is how the first version of this was wrong. The HMAC covered
+ * wallet and time only, and the start route never spends the challenge, so
+ * ANY session presenting a captured signature inside the five-minute window
+ * could open a claim for somebody else's wallet. The signer does not choose
+ * which X account completes the pairing, so a replay binds their address to
+ * the replayer's profile: the exact outcome this flow exists to make
+ * impossible.
+ *
+ * With the account in the HMAC, a token issued to one session simply fails to
+ * verify under another, so a leaked signature is useless without the session
+ * it was issued to.
+ */
+function sign(
+  wallet: string,
+  userId: string,
+  issuedAt: number,
+  key: string
+): string {
   return createHmac('sha256', key)
-    .update(`claim:${wallet.toLowerCase()}:${issuedAt}`)
+    .update(`claim:${userId}:${wallet.toLowerCase()}:${issuedAt}`)
     .digest('hex');
 }
 
@@ -144,6 +165,7 @@ export interface ClaimChallenge {
  */
 export function issueClaimChallenge(
   wallet: string,
+  userId: string,
   issuedAt: number = Date.now()
 ): ClaimChallenge | null {
   const key = secret();
@@ -151,7 +173,7 @@ export function issueClaimChallenge(
   return {
     message: claimMessage(wallet, issuedAt),
     issuedAt,
-    token: sign(wallet, issuedAt, key),
+    token: sign(wallet, userId, issuedAt, key),
     expiresAt: new Date(issuedAt + CHALLENGE_TTL_MS).toISOString(),
   };
 }
@@ -176,6 +198,11 @@ export type ClaimFailure =
  */
 export async function verifyClaim(input: {
   wallet: string;
+  /**
+   * The session presenting the signature. A challenge issued to one account
+   * must not verify under another: see `sign`.
+   */
+  userId: string;
   issuedAt: number;
   token: string;
   signature: string;
@@ -183,7 +210,7 @@ export async function verifyClaim(input: {
   const key = secret();
   if (!key) return { ok: false, reason: 'not_configured' };
 
-  const expected = sign(input.wallet, input.issuedAt, key);
+  const expected = sign(input.wallet, input.userId, input.issuedAt, key);
   const a = Buffer.from(expected);
   const b = Buffer.from(input.token);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {

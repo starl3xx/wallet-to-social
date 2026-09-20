@@ -94,6 +94,22 @@ export const IP_RATE_LIMITS = {
    */
   '/api/x402': { limit: 30, windowHours: 1 },
   /**
+   * The claim flow's own bucket, and it needs one for a reason the neighbour
+   * above does not have.
+   *
+   * Every route under it is session-authenticated, so an IP bound looks
+   * redundant. It is not: a magic-link account costs nothing to create, so the
+   * session proves a mailbox rather than a person, and the far side of this
+   * flow spends real money. The X round trip reads an account, and a grant
+   * writes credits.
+   *
+   * Tighter than the recovery bucket because there is no honest reason to run
+   * this often. A person claims a handful of wallets once. Somebody issuing
+   * challenges in a loop is grinding for a wallet whose signature they already
+   * hold, which is the shape this bounds.
+   */
+  '/api/claim': { limit: 10, windowHours: 1 },
+  /**
    * Dynamic client registration, which is an unauthenticated write.
    *
    * RFC 7591 is a table anybody may insert into by design, so the bound is
