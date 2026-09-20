@@ -220,8 +220,28 @@ const ROW_HEIGHT = 38;
  * `--h-ctl`: every cell in it is a sort button, and a control in a row
  * resolves to that height. A height derived from padding would drift the day
  * the label size changed, and every row would land a few pixels off.
+ *
+ * It was 34, one control height, and that forced every column to be at least
+ * as wide as its label on ONE line: "FARCASTER FOLLOWERS" is 169px of header
+ * above a column of four-digit numbers, so the widest thing in that column was
+ * never the data. Two lines at 50px buys back about 110px across the three
+ * figure columns, which is the difference between the priority score being on
+ * screen and being scrolled off it.
+ *
+ * Still fixed, for the reason it always was: the virtualiser is told where the
+ * list starts and that number has to be the one the header actually renders
+ * at. Two lines is a deliberate ceiling, not wrapping-as-it-falls; a label
+ * needing three is a label to shorten.
+ *
+ * Sized by the tallest header, which is the locked one: it stacks a two-line
+ * label over an Unlock control, and at 50px that stack overflowed onto the
+ * first body row where it could take a click meant for the row. Measured in a
+ * browser against the compiled stylesheet rather than reasoned about, because
+ * the sum of a padding, a clamped line box and a control is exactly the thing
+ * a grep over the classes gets confidently wrong: the locked header renders
+ * 53px with the line box below, the sort header 34px.
  */
-const HEADER_HEIGHT = 34;
+const HEADER_HEIGHT = 58;
 
 /** The attestation gutter: one dot wide. Also the wallet column's sticky offset. */
 const GUTTER_WIDTH = 18;
@@ -320,16 +340,20 @@ function SortHeader({
         type="button"
         onClick={() => onSort(field)}
         title={title}
-        className="transition-control flex h-full w-full items-center gap-1 px-4 text-left font-mono uppercase tracking-[var(--tracking-label)] outline-none hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="transition-control flex h-full w-full items-start gap-1 px-4 pt-2 text-left font-mono uppercase leading-[1.15] tracking-[var(--tracking-label)] outline-none hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        {label}
+        {/* `items-start` with `pt-2` rather than centring: a one-line label and
+            a two-line label have to share a baseline, and centring each in 50px
+            puts them on two different ones. `line-clamp-2` is the ceiling the
+            fixed header height depends on. */}
+        <span className="line-clamp-2">{label}</span>
         {/* One arrow, always mounted while sorted, rotating between the two
             directions: a selected state moves, it does not teleport. The rows
             beneath stay instant, so this is the one place a sort change shows. */}
         {isSorted && (
           <ArrowUp
             className={cn(
-              'sort-arrow h-3 w-3',
+              'sort-arrow h-3 w-3 shrink-0',
               sortDirection === 'desc' && 'rotate-180'
             )}
             aria-hidden
@@ -371,8 +395,22 @@ function LockedHeader({
   onUpgradeClick?: (source?: string) => void;
 }) {
   return (
-    <div role="columnheader" className="flex items-center gap-3 px-4">
-      <span className="truncate">{label}</span>
+    /* Stacked, not side by side. Side by side, the label and the Unlock
+       control had to fit on one line, which is why a locked column was wider
+       than the same column unlocked: the column was sized by a control rather
+       than by its data. Stacking trades that width for height, so this is the
+       tallest header on the row and HEADER_HEIGHT is sized to it: the label
+       carries the same `leading-[1.15]` SortHeader uses, both so the two
+       wrapped headers share a line box side by side and because without it
+       the stack rendered 57px into a 50px row. */
+    <div
+      role="columnheader"
+      className="flex flex-col items-start justify-start gap-1 px-4 pt-2 leading-[1.15]"
+    >
+      {/* Two lines here as well. One line meant a locked "Farcaster followers"
+          truncated to an unreadable fragment in a track sized for the
+          wrapped form, which is worse than the wide column it replaced. */}
+      <span className="line-clamp-2">{label}</span>
       <Button
         variant="link"
         size="inline"
@@ -952,14 +990,28 @@ export const ResultsTable = memo(function ResultsTable({
    * With a real width the frame gets a real `scrollWidth` instead.
    */
   const { gridTemplate, gridMinWidth, columnCount } = useMemo(() => {
-    /* The paid columns are measured, not guessed, because their headers are
-       the widest things in the row. In headless Chrome with Geist Mono at
-       12px, uppercase, 0.14em tracking: "FARCASTER FOLLOWERS" is 169px,
-       "X FOLLOWERS" 98px and "PRIORITY" 71px. Add 32px of cell padding, then
-       either the sort arrow (4px gap + 12px) when entitled, or the Unlock
-       control (12px gap + 12px lock + 8px gap + 37px "Unlock" in Söhne at
-       12px/500) when locked. The header row is a fixed 34px, so a label that
-       does not fit does not wrap, it clips.
+    /* The figure columns are no longer sized by their own headers.
+       "FARCASTER FOLLOWERS" is 169px on one line, which made a column of
+       four-digit numbers 220px wide: the widest thing in it was never the
+       data. The header wraps to two lines now and the locked variant stacks
+       its Unlock control under the label instead of beside it, so a figure
+       column is sized by its figures plus padding, and a locked column is no
+       longer wider than the same column unlocked.
+
+       128/128/124, and the first attempt at 96/112/104 was wrong because it
+       sized the tracks for the DATA and forgot the header still has to render
+       inside them. In the header face measured at the top of this comment,
+       "FARCASTER FOLLOWERS" is 169px, so a single word of it,
+       "FOLLOWERS" or "FARCASTER", is about 80px. Add 32px of cell padding and
+       the sort arrow that sits beside the label (4px gap + 12px) and the
+       header alone wants 128. "PRIORITY" is 71px by the same measure, so 119,
+       and its CONTENT wants more: a five-bar meter is 36px (five 4px bars,
+       four 4px gaps), plus an 8px gap, plus a score that is holdings times a
+       logarithm and reaches three integer digits and a decimal on a real
+       holder list, about 42px at 14px tabular. 118. So 124.
+
+       Still returns about 130px to the identity columns against the old
+       150/220/140, which is what this was for.
 
        Each track carries a growth factor beside its minimum, and a 0 means a
        fixed track. Every column used to grow at 1fr, which shares slack
@@ -971,10 +1023,13 @@ export const ResultsTable = memo(function ResultsTable({
        and no wider, and the identity columns divide what is left. */
     const tracks: Array<[min: number, grow: number]> = [
       [GUTTER_WIDTH, 0], // attestation gutter
-      // 140 rather than 120: an elided address is ~95px and the rows that
-      // carry an agent or whitelist badge need the rest. Measured against a
-      // live holder list, the wallet cell was one of the three that bled.
-      [140, 2], // wallet
+      /* 176, measured rather than picked, and 140 was not enough. The elided
+         address is 11 characters of 12px mono, about 79px, plus an 8px gap
+         and 32px of cell padding: at 140 that leaves 21px for a badge, which
+         is four characters of one. The agent rows are the only ones carrying
+         a badge and they are the rows this column exists to mark, so the
+         track is sized for the row that has something to say. */
+      [176, 2], // wallet
       [100, 2], // ENS
       // A bag is one to four digits. Fixed: it has no reason to stretch.
       ...(hasHoldings ? ([[100, 0]] as Array<[number, number]>) : []),
@@ -987,10 +1042,10 @@ export const ResultsTable = memo(function ResultsTable({
          the frame scrolls; on anything normal the growth factors below hand
          these columns far more than their minimum. */
       [140, 3], // X handle
-      [isPaidTier ? 150 : 200, 0], // X followers
+      [128, 0], // X followers
       [140, 3], // Farcaster
-      [isPaidTier ? 220 : 272, 0], // Farcaster followers
-      [isPaidTier ? 140 : 176, 0], // priority
+      [128, 0], // Farcaster followers
+      [124, 0], // priority
     ];
     return {
       // The details track is appended fixed, like the gutter leads fixed:
@@ -1512,7 +1567,19 @@ export const ResultsTable = memo(function ResultsTable({
                         {result.is_agent && (
                           <Badge
                             tone="brand"
-                            className="shrink-0"
+                            /* `min-w-0 shrink` rather than `shrink-0`, and the
+                               difference is whether this degrades legibly. The
+                               wallet cell is `overflow-hidden` so it cannot
+                               bleed into ENS, and a badge that refuses to
+                               shrink is simply cut by that clip: "HOWLR" came
+                               out as "HOWL", "Banksy" as "BANK" and "Mario is
+                               back" as "MARI", with no ellipsis to say
+                               anything had been cut. Four characters of an
+                               agent's name reads as a random token symbol,
+                               which is exactly how it was reported. Shrinking
+                               lets Badge's own inner truncate do the work and
+                               put the ellipsis where it belongs. */
+                            className="min-w-0 shrink"
                             title={[
                               result.agent_name,
                               result.agent_framework &&
