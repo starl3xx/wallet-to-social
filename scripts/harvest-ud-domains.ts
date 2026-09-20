@@ -108,7 +108,7 @@ const REGISTRIES: RegistryConfig[] = [
     address: '0xD1E5b0FF1287aA9f9A268759062E4Ab08b9Dacbe',
     deployBlock: 0x8a958b,
     alchemyHost: 'eth-mainnet.g.alchemy.com',
-    publicRpc: 'https://eth.llamarpc.com',
+    publicRpc: 'https://ethereum-rpc.publicnode.com',
     network: 1,
   },
   {
@@ -116,7 +116,7 @@ const REGISTRIES: RegistryConfig[] = [
     address: '0x049aba7510f45BA5b64ea9E658E342F904DB358D',
     deployBlock: 0xc2fede,
     alchemyHost: 'eth-mainnet.g.alchemy.com',
-    publicRpc: 'https://eth.llamarpc.com',
+    publicRpc: 'https://ethereum-rpc.publicnode.com',
     network: 1,
   },
   {
@@ -124,7 +124,7 @@ const REGISTRIES: RegistryConfig[] = [
     address: '0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f',
     deployBlock: 0x01272eb5,
     alchemyHost: 'polygon-mainnet.g.alchemy.com',
-    publicRpc: 'https://polygon.drpc.org',
+    publicRpc: 'https://polygon-bor-rpc.publicnode.com',
     network: 137,
   },
   {
