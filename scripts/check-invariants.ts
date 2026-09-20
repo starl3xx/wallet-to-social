@@ -7049,36 +7049,55 @@ async function main() {
      * account changed name. Caught in review before it shipped.
      */
     ok(
-      'a previous handle is withheld everywhere the current one is',
+      'a locked row withholds the previous handle like any other identity',
       /'twitter_renamed_from',/.test(
         withoutComments(readFileSync('lib/match-gate.ts', 'utf8'))
       ) &&
-        // BOTH kinds in RESULT_STRIP. The wallet erase and the handle erase
-        // carry separate lists, and one alone leaves the other path serving
-        // the string.
-        (
-          withoutComments(readFileSync('lib/removal-admin.ts', 'utf8')).match(
-            /'twitter_renamed_from',/g
-          ) ?? []
-        ).length === 2 &&
         /delete next\.twitter_renamed_from;/.test(
           withoutComments(readFileSync('lib/suppression.ts', 'utf8'))
         )
     );
 
     /**
-     * And the scrub tests the column itself, not only the live handle.
+     * The previous handle and the live one stay UNCOUPLED, in both
+     * directions, because they are frequently different people.
      *
-     * A removal naming the OLD handle matches nothing in the current-handle
-     * check, so without its own test the one string it was meant to erase is
-     * the one thing left on the row.
+     * `suppression_guard_row` states the rule in its own words: "a match on
+     * it must not clear the live handle beside it, and a match on the live
+     * handle must not clear it." The conflict resolver swaps when OUR handle
+     * reaches nobody and another source names a live account for the wallet,
+     * so the string left behind in `twitter_renamed_from` is frequently a
+     * handle that never belonged to this wallet's owner.
+     *
+     * Asserted as the REFUSAL, because the tempting change is the one that
+     * looks more private: coupling the two reads as "erase more", and it
+     * would erase a stranger's handle on somebody else's removal and put this
+     * file at odds with the trigger it mirrors. That coupling was written and
+     * removed once already.
      */
-    ok(
-      'a removal naming only the previous handle still erases it',
-      /kindHit\(sets, 'twitter', row\.twitter_renamed_from\)/.test(
-        withoutComments(readFileSync('lib/suppression.ts', 'utf8'))
-      )
-    );
+    {
+      const supp = withoutComments(
+        readFileSync('lib/suppression.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'removing the live handle does not erase the one it replaced',
+        // Its own test, on itself.
+        /kindHit\(sets, 'twitter', row\.twitter_renamed_from\)/.test(supp) &&
+          // And NOT taken along by the live handle's own flag.
+          !/const renamedFromSuppressed = [^;]*twitterSuppressed/.test(supp) &&
+          // The wallet is the one kind that does take everything, which is
+          // the trigger's RETURN NULL and is not a coupling of the two.
+          /const renamedFromSuppressed = walletSuppressed \|\|/.test(supp)
+      );
+      ok(
+        'and the erase map leaves it out of the handle kind for the same reason',
+        (
+          withoutComments(readFileSync('lib/removal-admin.ts', 'utf8')).match(
+            /'twitter_renamed_from',/g
+          ) ?? []
+        ).length === 1
+      );
+    }
 
     ok(
       'a settled rename survives the graph read, the merge and the panel',

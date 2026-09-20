@@ -207,20 +207,23 @@ export function scrubResultRow(
   const twitterSuppressed =
     walletSuppressed || kindHit(sets, 'twitter', row.twitter_handle);
   /**
-   * The handle this row changed FROM, checked separately from the one it
-   * serves now.
+   * The handle this row changed FROM, checked entirely on its own.
    *
-   * Two directions, and they are deliberately not symmetric, mirroring the
-   * erasure policy in `lib/removal-admin.ts`. Removing the current handle
-   * takes the previous one with it, because `twitter_renamed_from` means this
-   * same account changed name and leaving the old string leaves the identity.
-   * A removal matching only the OLD handle clears just that column and must
-   * not take the live handle beside it.
+   * Independent of the live handle in BOTH directions, which mirrors the
+   * `suppression_guard_row` trigger verbatim: "a match on it must not clear
+   * the live handle beside it, and a match on the live handle must not clear
+   * it."
+   *
+   * The reason is that the two strings are not reliably the same person. The
+   * conflict resolver swaps when OUR handle reaches nobody and another source
+   * names a live account for the wallet, so the string left in
+   * `twitter_renamed_from` is frequently a handle that never belonged to the
+   * wallet's owner at all. Coupling the two would erase a stranger's handle
+   * on one removal and, worse, make this file disagree with the trigger about
+   * what a suppression means.
    */
   const renamedFromSuppressed =
-    walletSuppressed ||
-    twitterSuppressed ||
-    kindHit(sets, 'twitter', row.twitter_renamed_from);
+    walletSuppressed || kindHit(sets, 'twitter', row.twitter_renamed_from);
   const alsoSuppressed =
     row.twitter_also !== undefined &&
     (walletSuppressed || kindHit(sets, 'twitter', row.twitter_also.handle));

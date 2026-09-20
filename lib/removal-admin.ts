@@ -462,13 +462,13 @@ const RESULT_STRIP: Record<SuppressionKind, readonly string[]> = {
     'twitter_verified',
     'twitter_reachability',
     'twitter_also',
-    // The previous handle is the same person: `twitter_renamed_from` means
-    // THIS row's account changed name, so removing the current handle and
-    // leaving the one it changed from leaves the identity behind. The reverse
-    // direction is deliberately NOT symmetric, and the blank pass below says
-    // why: a match ON the old handle clears only that column, because it must
-    // not take the live handle beside it.
-    'twitter_renamed_from',
+    // `twitter_renamed_from` is deliberately NOT here, and the trigger this
+    // map mirrors says why in its own words: a match on the live handle must
+    // not clear it, and a match on it must not clear the live handle. The two
+    // strings are frequently different people, because the conflict resolver
+    // swaps when OUR handle reaches nobody and another source names a live
+    // account, so the replaced string often never belonged to this wallet's
+    // owner. It has its own pass, keyed on itself.
   ],
   farcaster: [
     'farcaster',

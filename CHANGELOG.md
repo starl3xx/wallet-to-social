@@ -19,18 +19,24 @@ All notable changes to walletlink.social. Newest first.
   earlier the same day, with three writers filling it and all four readers
   dropping it. The assertion covers the read, the merge and the panel
   together, and was verified by removing the merge line.
-- **A previous handle is still a handle**, so all three paths that withhold an
-  identity learned about it: `LOCKED_FIELDS` for a row the customer has not
-  paid for, `RESULT_STRIP` for a right-to-removal erase, and `scrubResultRow`
-  on the way out of a job. Adding a field to the result type is the cheap
-  half; each of those carries its own list, and a field absent from any one of
-  them is served. Withholding the current handle while naming the one it
-  changed from withholds nothing.
-- The two directions are deliberately not symmetric, mirroring the erasure
-  policy already in `lib/removal-admin.ts`: removing the current handle takes
-  the previous one with it, because the column means this same account changed
-  name, while a removal matching only the OLD handle clears just that column
-  and must not take the live handle beside it.
+- **A previous handle is still a handle**, so the match gate withholds it on a
+  row the customer has not paid for, and the suppression scrub erases it when
+  it is itself removed. Adding a field to the result type is the cheap half:
+  each strip path carries its own list, and a field absent from one of them is
+  served.
+- **The previous handle and the live one stay uncoupled**, in both directions,
+  and that is the opposite of what the first version of this change did. The
+  `suppression_guard_row` trigger states the rule in its own words: "a match on
+  it must not clear the live handle beside it, and a match on the live handle
+  must not clear it." The reason is that the two strings are frequently
+  different people. The conflict resolver swaps when OUR handle reaches nobody
+  and another source names a live account for the wallet, so the replaced
+  string often never belonged to that wallet's owner at all. Coupling them
+  would erase a stranger's handle on somebody else's removal, and would put the
+  serve path at odds with the trigger it is documented to mirror.
+- That is asserted as the refusal rather than the behaviour, because the
+  tempting change is the one that looks more private: coupling reads as
+  "erase more". It was written once and removed.
 - **Deliberately not on `/v1`.** Publishing it is a response-shape change
   across every reverse and lookup route, and `docs-site` and `openapi.yaml`
   would move with it. A second assertion keeps it off the public shape so it
