@@ -1,0 +1,57 @@
+# Unstoppable Domains corpus harvest, domain side: enumerates NewURI mints
+# off the registry contracts (Ethereum CNS + UNS, Polygon UNS, Base UNS),
+# profile-reads each domain, and ingests only registry-verified X entries
+# through the shared attested-link ingest (source 'ud_profile', same id as
+# the address-side walk: same mechanism, different discovery direction).
+#
+# Twice daily with a large budget, deliberately: the address-side probe
+# showed this graph's wallets and the registry's barely overlap, so the
+# corpus lives here, and the provider is mid-rebrand with keyless endpoints
+# nobody promised to keep. Per-registry checkpoints in ingest_state
+# ('ud_domain_enum_*'); a window's checkpoint only advances after its
+# domains are read and its links ingested, so any stop loses nothing.
+#
+# Required repository secrets: DATABASE_URL (ingestLinks write set, already
+# granted to sweep_runner). Optional: ALCHEMY_KEY — without it the log scan
+# falls back to public RPC endpoints, which cap getLogs harder and slow the
+# enumeration, not the profile reads.
+name: ud-domain-harvest
+
+on:
+  schedule:
+    - cron: '15 2,14 * * *' # 02:15 and 14:15 UTC, clear of the morning cron train
+  workflow_dispatch:
+    inputs:
+      max_reads:
+        description: 'Profile-read budget'
+        required: false
+        default: '40000'
+        type: string
+
+concurrency:
+  group: ud-domain-harvest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    # 40k reads across 3 workers at a 250ms pause is roughly 3 hours.
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The input reaches the shell only through an env var, never by
+      # expression interpolation inside run: — that form is shell injection
+      # with secrets in scope. The script rejects a non-integer value.
+      - run: npx tsx scripts/harvest-ud-domains.ts --commit --max-reads "$MAX_READS"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
+          MAX_READS: ${{ inputs.max_reads || '40000' }}
