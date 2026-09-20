@@ -34,6 +34,7 @@
  */
 import type { Metadata } from 'next';
 import { PageShell } from '@/components/ui/page-shell';
+import { FOCUS_RING } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { ClaimFlow } from '@/components/ClaimFlow';
 import { ClaimOutcome } from '@/components/ClaimOutcome';
@@ -70,7 +71,19 @@ function Detail({
       {/* `list-none` plus the webkit marker rule removes the platform
           triangle, which is drawn differently in every browser and is the one
           element here that cannot be made to match the type scale. */}
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
+      {/* `FOCUS_RING`, the shared one, because a keyboard lands here as
+          readily as a pointer and every other disclosure on the site uses
+          it. Without it this fell back to the base outline, which is the
+          one the offset ring exists to replace.
+
+          Not `components/HomeFaq.tsx` reused wholesale: that takes no
+          props, carries the homepage entries and emits its own FAQPage
+          structured data, so using it here would publish this page's
+          disclosures as the homepage's questions. The shape is shared;
+          the content and the schema are not. */}
+      <summary
+        className={`flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium transition-control [&::-webkit-details-marker]:hidden ${FOCUS_RING}`}
+      >
         {question}
         {/* Rotates rather than swapping glyphs, so open and closed read as one
             control in two states rather than two controls. */}
