@@ -3619,6 +3619,56 @@ async function main() {
       footer.includes('/privacy')
     );
     ok('the privacy policy is in the sitemap', sitemap.includes('/privacy'));
+
+    /**
+     * The same test, applied to the page that acts on what the policy
+     * describes.
+     *
+     * `/claim` shipped with a canonical URL and nothing linking to it: not
+     * the footer, not the sitemap, and not the privacy section that tells
+     * somebody in the index what they can do about it. Every path to the one
+     * page where a person corrects or removes their own record went through
+     * knowing the URL already. Declaring a canonical is asking to be indexed,
+     * and the sitemap is where that request is actually made, so the two
+     * disagreed.
+     *
+     * The privacy link is asserted separately from the other two because it
+     * carries a different claim. The footer and the sitemap make the page
+     * reachable; that paragraph is the only place we tell somebody who wants
+     * to be removed that a faster route than email exists, and it sits in a
+     * section whose whole subject is what they can do.
+     */
+    /**
+     * Every one of these reads the markup with comments stripped, and the
+     * first version of this block did not.
+     *
+     * `footer.includes('/claim')` passed with the link deleted, because the
+     * comment above it explaining why the link is there also contains the
+     * path. The check was reading its own justification. That is the defect
+     * this file exists to catch, committed inside the file that catches it,
+     * and it was found by deleting the link rather than by rereading the
+     * assertion. Hence `href="/claim"` and `${baseUrl}/claim` rather than a
+     * bare path: an anchor that only the real thing can satisfy.
+     */
+    const noComments = (s: string) => withoutComments(s);
+    const privacyPage = readFileSync('app/privacy/page.tsx', 'utf8');
+    ok(
+      'the claim page is linked from the footer',
+      /href="\/claim"/.test(noComments(footer))
+    );
+    ok(
+      'the claim page is in the sitemap',
+      /\$\{baseUrl\}\/claim`/.test(noComments(sitemap))
+    );
+    ok(
+      'and the removal section offers it beside the email route',
+      /href="\/claim"/.test(noComments(privacyPage)) &&
+        // Beside, not instead of. Email asks nothing of the person and is the
+        // only route for a handle, for a key they no longer hold, and for
+        // leaving the index entirely, so a change that replaced it would be
+        // removing the accessible path in favour of one that needs a wallet.
+        noComments(privacyPage).includes('mailto:help@walletlink.social')
+    );
   }
 
   // ------------------------------------------- OAuth: what a restore contains

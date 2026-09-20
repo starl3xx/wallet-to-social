@@ -23,6 +23,7 @@
  * is the only place where this product does something a reader would not guess.
  */
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
@@ -230,6 +231,24 @@ export default function PrivacyPage() {
             a removal made in error (a mistyped address, somebody else’s handle)
             can be undone. After {QUARANTINE_RETENTION_DAYS} days that copy is
             deleted automatically.
+          </p>
+          <p>
+            <span className="text-foreground">
+              If you can sign for the address, you do not have to wait for us.
+            </span>{' '}
+            <Link
+              href="/claim"
+              className="text-accent-brand underline underline-offset-4"
+            >
+              Claim your address
+            </Link>{' '}
+            does the same two things without a person in the middle: it corrects
+            the account we hold against an address you control, or removes the
+            pair and adds the address to the same suppression list, so a later
+            sweep cannot put it back. Email stays the route that asks nothing of
+            you, and it is the only route for a handle, for an address whose key
+            you no longer have, and for asking to be removed from the index
+            entirely.
           </p>
           <p>
             Two things are beyond our reach whatever we build. A customer who

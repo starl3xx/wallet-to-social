@@ -525,6 +525,38 @@ path no key-based limit covers. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
 
+### Claiming an address
+
+`app/claim/page.tsx` is the page where an owner confirms or corrects the record
+we hold, at `/claim`, linked from the footer, the sitemap and the privacy
+policy's removal section. All three are asserted, because the page shipped with
+a canonical URL and nothing pointing at it: every route in was knowing the URL.
+
+It reads without signing in, deliberately. The page explains what the claim
+writes, what it earns and what we keep, in that order, before it asks for
+anything, because the first thing we ask a stranger should not be an account
+for a page whose subject is what we already hold about them.
+
+| File                                       | Does                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/attestation.ts`                       | The challenge a wallet signs, the frozen `ATTESTATION_CUTOFF` that is the entire grant gate, and `ClaimIntent`                 |
+| `lib/attestation-consent.ts`               | Hash-pinned consent versions. A correction ADDS a version, never edits one, so a row points at the words it actually agreed to |
+| `lib/claim-callback.ts`                    | The X half: reads the account once, keeps the numeric id, never the token. Also `cleanupAbandonedClaims`                       |
+| `components/ClaimFlow.tsx`                 | EIP-6963 discovery, the wallet signature, and the claim/withdraw mode toggle                                                   |
+| `app/api/claim/{challenge,start,withdraw}` | Issue, begin, and take back                                                                                                    |
+
+**A challenge carries an intent, in the signed text and in the HMAC prefix.**
+Claiming and withdrawing are opposite acts and were once proved by identical
+bytes, so a signature for either satisfied the other and somebody withdrawing
+was shown the claim text in their wallet. Each route states its own intent and
+never reads it from the request body. No function defaults it.
+
+**The suppression refusal on `/api/claim/challenge` is claim-only.** Withdrawal
+suppresses before it erases, so a failure between the two leaves the wallet
+suppressed with the pairing still served; refusing the retry told the person
+the address was already removed when it was not. A withdrawal of a suppressed
+wallet is finishing the suppression, not evading it.
+
 ### Privacy policy and retention
 
 `app/privacy/page.tsx` is the published policy, at `/privacy`, linked from the

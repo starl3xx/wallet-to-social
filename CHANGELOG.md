@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the claim page had no way in)
+
+- **`/claim` is linked from the footer, the sitemap and the privacy policy.** It
+  shipped with a canonical URL and nothing pointing at it anywhere on the site,
+  so every route in went through already knowing the URL. Declaring a canonical
+  asks to be indexed and the sitemap is where that request is made; the two
+  disagreed.
+- In the footer it sits under Project beside Privacy rather than under Product,
+  because it is not something to buy: it is the other half of what the privacy
+  page offers. That page tells somebody in the index to write in and wait for a
+  person to run the removal by hand, and this is the same control exercised by
+  themselves for an address they can sign for.
+- The privacy policy's removal section now says so, **beside the email route
+  and not instead of it.** Email asks nothing of the person and stays the only
+  route for a handle, for an address whose key is gone, and for leaving the
+  index entirely.
+- All three links are asserted, and the first version of that check was itself
+  the defect it exists to catch: `footer.includes('/claim')` passed with the
+  link deleted, because the comment explaining the link also contains the path.
+  It was reading its own justification. Found by deleting the link rather than
+  by rereading the assertion.
+- `PROJECT_OVERVIEW.md` gains the claim page and its files, which the systems
+  map had never mentioned: the table row existed and the page did not.
+
 ### 2026-09-20 (withdrawal, which the page had been promising)
 
 - **`POST /api/claim/withdraw`**, reachable from `/claim` itself. The page
