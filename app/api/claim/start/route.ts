@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
 
   const verified = await verifyClaim({
     wallet,
+    userId: session.user.id,
     issuedAt: Number(body.issued_at),
     token: typeof body.token === 'string' ? body.token : '',
     signature: typeof body.signature === 'string' ? body.signature : '',

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const challenge = issueClaimChallenge(wallet);
+  const challenge = issueClaimChallenge(wallet, session.user.id);
   if (!challenge) {
     return NextResponse.json(
       { error: 'not_configured', message: 'Claiming is unavailable.' },

@@ -1059,7 +1059,8 @@ async function main() {
      */
     const claim = await import('@/lib/attestation');
     const at = Date.now();
-    const claimCh = claim.issueClaimChallenge(wallet, at);
+    const claimUser = 'invariant-check-user';
+    const claimCh = claim.issueClaimChallenge(wallet, claimUser, at);
     ok(
       'a claim challenge is issued, or the secret is simply unset',
       claim.isConfigured() ? claimCh !== null : claimCh === null
@@ -1077,6 +1078,7 @@ async function main() {
         !(
           await claim.verifyClaim({
             wallet,
+            userId: claimUser,
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, challengeMessage(wallet, at)),
@@ -1097,11 +1099,45 @@ async function main() {
         (
           await claim.verifyClaim({
             wallet,
+            userId: claimUser,
             issuedAt: at,
             token: claimCh.token,
             signature: await sign(buyer, claimCh.message),
           })
         ).ok
+      );
+
+      /**
+       * A captured signature is useless to anybody else.
+       *
+       * Without the account in the HMAC a signature is a transferable bearer,
+       * which is how the first version of this was wrong: the start route
+       * does not spend the challenge, so ANY session presenting a captured
+       * signature inside the five-minute window could open a claim for
+       * somebody else's wallet. The signer does not choose which X account
+       * completes the pairing, so the replay binds their address to the
+       * replayer's profile, which is precisely the outcome the flow exists to
+       * make impossible.
+       *
+       * Asserted through the real verifier with a real signature over the
+       * real message: the ONLY thing different is the session.
+       */
+      ok(
+        'a claim challenge issued to one account does not verify under another',
+        !(
+          await claim.verifyClaim({
+            wallet,
+            userId: 'a-different-account',
+            issuedAt: at,
+            token: claimCh.token,
+            signature: await sign(buyer, claimCh.message),
+          })
+        ).ok
+      );
+      ok(
+        'and the token itself differs per account, so the binding is in the HMAC',
+        claim.issueClaimChallenge(wallet, claimUser, at)!.token !==
+          claim.issueClaimChallenge(wallet, 'somebody-else', at)!.token
       );
       ok(
         'the claim message says no funds move and no approval is granted',
@@ -1221,9 +1257,23 @@ async function main() {
           start
         ) && !/message: verified\.reason|reason: verified\.reason/.test(start)
       );
+      /**
+       * The claim scope set is narrow, and `tweet.read` is not the part that
+       * makes it narrow.
+       *
+       * Both halves asserted, because the first version got the second one
+       * wrong in the direction that looks like tidying. It shipped
+       * `['users.read']` with a comment claiming X requires `tweet.read` only
+       * alongside `list.write`, reasoning by analogy from the other scope
+       * set's comment. X's own OpenAPI description for `GET /2/users/me`
+       * declares `["users.read", "tweet.read"]` in ONE security requirement,
+       * so a token minted without it answers 403 to the single call this
+       * whole flow exists to make, and nothing fails until a real person
+       * reaches the end of the consent screen.
+       */
       ok(
-        'the claim asks X for the narrow scope set, not the list-writing one',
-        /const X_CLAIM_SCOPES = \['users\.read'\] as const;/.test(
+        'the claim scope set drops list access and keeps what /2/users/me needs',
+        /const X_CLAIM_SCOPES = \['users\.read', 'tweet\.read'\] as const;/.test(
           withoutComments(readFileSync('lib/x-oauth.ts', 'utf8'))
         ) && /X_CLAIM_SCOPES\.join\(' '\)/.test(start)
       );
