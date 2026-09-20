@@ -132,7 +132,9 @@ const REGISTRIES: RegistryConfig[] = [
     address: '0xF6c1b83977DE3dEffC476f5048A0a84d3375d498',
     deployBlock: 0x01215a53,
     alchemyHost: 'base-mainnet.g.alchemy.com',
-    publicRpc: 'https://mainnet.base.org',
+    // Not mainnet.base.org: this repo already measured it 403ing clients
+    // that send no named User-Agent, which an anonymous ethers provider is.
+    publicRpc: 'https://base-rpc.publicnode.com',
     network: 8453,
   },
 ];
@@ -397,10 +399,23 @@ async function multicallAdaptive(
   }
 }
 
+/**
+ * Addresses that hold tokens as infrastructure, never as an owner. A CNS
+ * domain migrated to UNS is locked in the UNS registry rather than burned,
+ * so its CNS ownerOf answers with the registry contract; binding a verified
+ * handle to that address would be a link to plumbing. Dropping it loses
+ * nothing: the migration minted the same domain on a UNS registry, whose own
+ * NewURI walk finds it with the real owner.
+ */
+const INFRA_ADDRESSES: ReadonlySet<string> = new Set(
+  REGISTRIES.map((r) => r.address.toLowerCase())
+);
+
 async function resolveOwners(
   provider: ethers.JsonRpcProvider,
   cfg: RegistryConfig,
-  hits: Array<{ domain: MintedDomain; handle: string }>
+  hits: Array<{ domain: MintedDomain; handle: string }>,
+  onInfraOwner: () => void
 ): Promise<AttestedLink[]> {
   const links: AttestedLink[] = [];
   const BATCH = 250;
@@ -426,10 +441,12 @@ async function resolveOwners(
           r.returnData
         );
         if (owner && owner !== ethers.ZeroAddress) {
-          links.push({
-            wallet: (owner as string).toLowerCase(),
-            handle: batch[j].handle,
-          });
+          const wallet = (owner as string).toLowerCase();
+          if (INFRA_ADDRESSES.has(wallet)) {
+            onInfraOwner();
+            continue;
+          }
+          links.push({ wallet, handle: batch[j].handle });
         }
       } catch {
         // Non-conforming return data: skip the domain, keep the run.
@@ -448,6 +465,8 @@ interface Totals {
   domains: number;
   reads: number;
   links: number;
+  /** Verified handles whose token sits in a registry contract (migration lock). */
+  infraOwners: number;
   counts: Record<Outcome, number>;
 }
 
@@ -512,7 +531,9 @@ async function walkRegistry(
       totals.domains += domains.length;
 
       if (hits.length > 0) {
-        const links = await resolveOwners(provider, cfg, hits);
+        const links = await resolveOwners(provider, cfg, hits, () => {
+          totals.infraOwners++;
+        });
         totals.links += links.length;
         if (args.commit && links.length > 0) {
           await ingestLinks(links, SOURCE);
@@ -576,6 +597,7 @@ async function main() {
     domains: 0,
     reads: 0,
     links: 0,
+    infraOwners: 0,
     counts: {
       invalidName: 0,
       noProfile: 0,
@@ -600,7 +622,7 @@ async function main() {
       `${c.noProfile} without a profile, ` +
       `${c.noSocial} without socials, ${c.unverified} unverified (skipped), ` +
       `${c.privateEntry} private (skipped), ${c.numericId} numeric-id (skipped), ` +
-      `${c.handle} with a verified handle, ${totals.links} owner links`
+      `${c.handle} with a verified handle, ${totals.infraOwners} lock-held (dropped), ${totals.links} owner links`
   );
   console.log(
     stopped === 'budget'
