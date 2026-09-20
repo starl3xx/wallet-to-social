@@ -272,10 +272,22 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           const invitation = challenge.adds_account_id
             ? 'We hold an X account for this address with no account number behind it, which is what tells a rename from a suspension. Confirming supplies it. '
             : '';
+          /**
+           * The no-credit sentence says WHICH of the two reasons applies.
+           *
+           * It used to offer both as alternatives, which contradicted the
+           * invitation directly above it: a post-cutoff address with a gap
+           * was told "either we saw this after the cutoff, or we already hold
+           * the account number", one sentence after being told we hold no
+           * account number for it. The two flags decide between them with no
+           * ambiguity left, so offering a choice was inventing one.
+           */
           setWorth(
             challenge.earns_credits
               ? `${invitation}We already knew this address, so it qualifies for ${challenge.grant_matches} matches. One claim is paid per X account, so this credits nothing if you have already been paid for one.`
-              : `${invitation}This claim earns no credits: either we first saw this address after the cutoff, or we already hold the account number for it. It still corrects the record.`
+              : challenge.adds_account_id
+                ? `${invitation}We first saw this address too recently for it to earn credits. It still corrects the record.`
+                : 'We already hold the account number for this address, so this claim earns no credits. It still confirms the record.'
           );
         }
 

@@ -1414,6 +1414,20 @@ async function main() {
           /if \(!addsAccountId\) return;/.test(callback)
         );
         ok(
+          'the paying gap and the quoted gap are the same gap',
+          /**
+           * Both sides require a handle. Without it the callback counted any
+           * pre-cutoff row with a null id, including FID-only rows, ENS-only
+           * rows and persisted negatives, while the challenge did not: the
+           * page told those people they would earn nothing and then paid
+           * them, out of a budget meant for the one thing a claim uniquely
+           * supplies. Two definitions of one condition, one shown and one
+           * enforced, is the shape that makes a money page lie.
+           */
+          /twitter_handle IS NOT NULL/.test(callback) &&
+            /twitter_handle IS NOT NULL/.test(route)
+        );
+        ok(
           'and the cutoff still applies, so a wallet made today cannot earn one',
           // Narrowing the grant must not have swapped the anti-sybil half for
           // the useful one. Both, or an address created this morning claims an

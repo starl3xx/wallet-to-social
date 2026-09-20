@@ -499,6 +499,14 @@ export async function completeClaimCallback(input: {
    * A missing row answers false, which is correct and not a fallback: a
    * wallet we have never seen cannot have an id we are missing, and the
    * cutoff below refuses it anyway.
+   *
+   * `twitter_handle IS NOT NULL` is load-bearing and matches the challenge
+   * route exactly. Without it, every pre-cutoff row with a null id qualified,
+   * including FID-only rows, ENS-only rows and persisted negatives: the page
+   * told those people they would earn nothing and then paid them, out of a
+   * budget meant for the one thing a claim uniquely supplies. A number on a
+   * handle we already serve can only come from an X sign-in. A brand new
+   * pairing cannot say the same, because a sweep may find it tomorrow.
    */
   let addsAccountId = false;
   try {
@@ -506,6 +514,7 @@ export async function completeClaimCallback(input: {
       SELECT twitter_user_id
       FROM social_graph
       WHERE wallet = ${claim.wallet}
+        AND twitter_handle IS NOT NULL
       LIMIT 1
     `)) as unknown as { rows: Array<{ twitter_user_id: string | null }> };
     addsAccountId =
