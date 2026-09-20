@@ -27,6 +27,73 @@ All notable changes to walletlink.social. Newest first.
 - A withdrawal refetches the panel, so the removed pairing cannot stay on
   screen beside the sentence saying it was removed.
 
+### 2026-09-20 (Unstoppable Domains profile harvest)
+
+- **New attested source `ud_profile`** (`scripts/harvest-ud-profiles.ts`):
+  reverse-resolves graph wallets missing an X handle to their Unstoppable
+  domain, reads the domain profile, and ingests the X entry only where the
+  registry marks it `verified` AND `public` (wallet sign-in plus platform
+  OAuth, both halves owner-established). Unverified owner-typed text is
+  counted and skipped at the adapter, so the source id never labels a weaker
+  claim. Fill-only through `lib/attested-links.ts`, quality 45, public class
+  `attested-social`.
+- Both endpoints are keyless and carry no published terms or limits: the
+  provider is mid-rebrand and its partner program is gone (the old dashboard
+  answers 410). Harvested now, deliberately, while the endpoints answer;
+  checkpointed in `ingest_state` (`ud_profile_harvest`) and budgeted per run
+  so an endpoint change mid-walk loses nothing. Daily workflow
+  `ud-profile-harvest.yml` (07:45 UTC) walks missing-X wallets; a targeted
+  mode (`--limit`/`--wallets`) mirrors the marketplace enrichment's
+  most-followed-first default.
+- The walk is address-side (up to two requests per wallet), and the probe
+  measured that arithmetic before the schedule was set: 300 of the graph's
+  most-followed missing-X wallets resolved to 1 domain (0.33%) and 0 verified
+  handles. This graph's population and the registry's barely overlap, so the
+  workflow runs weekly as a cheap incremental, and the corpus path is
+  domain-side enumeration off the registry contracts (the ENS harvest shape),
+  where every request lands on a real domain and unseen wallets arrive with
+  their handles. That is the follow-up, not this change.
+
+### 2026-09-20 (a pack stops being worth 2.37 times what it sold for)
+
+- **A paid job is now metered.** The match gate armed only when
+  `paidFrom === 'free'`, so a pack job was billed for every match it found,
+  `drawDown` collected what the lots held, and the remainder was given away.
+- The size of that was not incidental. `canSubmit` allows ten times the balance
+  in **wallets**, and ten times the wallets is **2.37 times the matches** at the
+  measured 23.7% rate, so a 250-match Trial could be shown about 593. The
+  anti-enumeration headroom and the overspend ceiling were the same number read
+  twice, and `lib/packs.ts` already said the multiplier was chosen so it "cannot
+  bite anyone whose list resembles a real one".
+- **The contract importer asked for exactly that ceiling**, so every import
+  landed on the worst case by construction rather than by accident. It now sizes
+  on `walletsCoveredBy(balance)` — what the credits can pay for — and says so in
+  the truncation notice, because a cut somebody cannot explain is the surprise
+  this is meant to avoid.
+- **A near miss is still free.** Both meters bill what the balance holds and
+  deliver a margin of 10% past it, because a match rate cannot be known before a
+  job runs and locking the 251st match on a 250-match pack punishes somebody for
+  arithmetic they could not have done. The margin is a fraction of the
+  _remaining_ balance, so it shrinks as a pack empties and an exhausted account
+  cannot pull a list through on it.
+- **`credit_ledger.goodwill_matches`** records what each job was shown and not
+  charged for. It was previously inferable from nothing: the ledger held the
+  full count, the lots paid what they had, `getBalance` floors at zero and the
+  draw clamps with `LEAST`, so the difference was invisible by construction.
+  `drawDown` returns its shortfall now instead of dropping it.
+- **The preflight card says what a list will cost**, not just how long it will
+  take. The arithmetic already existed in the buy modal, applied to packs for
+  sale and never to the pack already owned. It warns and never blocks: the
+  estimate can be wrong in both directions, and refusing a list somebody wanted
+  run partially is the angrier mistake. First real use of `caution` for
+  "approaching a limit", which CLAUDE.md defines and nothing implemented.
+- The results banner said "Your free allowance covered N" to everybody, which
+  could never be true of a buyer until this change made a buyer gateable.
+- **Published behavior changed**, so `docs-site` changed with it:
+  `api-reference/jobs.mdx` said "Jobs run on pack credits are never gated" and
+  now carries the dated note that they are, and `app/lookups.mdx` is scoped to
+  both meters rather than to the free allowance alone.
+
 ### 2026-09-20 (holder walks resume instead of repeating)
 
 - **`seeded_contracts.resume_state` bookmarks an unfinished ERC-20 holder

@@ -466,8 +466,22 @@ export const creditLedger = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id),
-    /** Matches debited. Positive. */
+    /** Matches debited. Positive, and never more than the balance held. */
     matches: integer('matches').notNull(),
+    /**
+     * Matches shown past `matches` and not charged for.
+     *
+     * A match rate cannot be known before a job runs, so a list sized
+     * honestly against a pack can still overshoot it and a near miss should
+     * not be locked. This column is what that costs, per job, so it is a
+     * number somebody can sum rather than a difference nobody can see: before
+     * it existed the ledger recorded the full match count, the lots paid what
+     * they held, and `drawDown` dropped the rest on the floor with no row,
+     * log or query able to surface it.
+     *
+     * Applied by scripts/migrate-credit-ledger-goodwill.ts.
+     */
+    goodwillMatches: integer('goodwill_matches').default(0).notNull(),
     /** Wallets submitted, for the record. Never charged for. */
     walletsSubmitted: integer('wallets_submitted').default(0).notNull(),
     /** 'free' when the rolling allowance paid, otherwise 'lots'. */

@@ -412,11 +412,21 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
           setHeld((current) =>
             current ? current.filter((h) => h.wallet !== wallet) : current
           );
-          await loadHeld();
           setDone(
             'Withdrawn. The pair is out of the index, and this address will not be collected again.'
           );
           setStage('idle');
+          /**
+           * Reconciled after the fact, and deliberately not awaited.
+           *
+           * Awaiting it put a GET on the success path: a slow or hung
+           * `/api/claim/mine` left the card reading "Checking the signature…"
+           * with every control disabled, for a withdrawal that had already
+           * succeeded. The panel is already correct without it, because the
+           * line above drops the removed pair locally; this only catches
+           * anything else that moved, so it can take as long as it likes.
+           */
+          void loadHeld();
           return;
         }
 

@@ -112,15 +112,25 @@ Without an account the same gate is per lookup: the first 50 matches are
 open, and everything past them is locked. An account is always the better
 deal, because the allowance meters matches, not lookups.
 
-### When a lookup finds more than the allowance covers
+### When a lookup finds more than your balance covers
 
 Because addresses are bounded at ten times your remaining matches, a
-high-hit-rate list on the free allowance can find more matches than the
-allowance has left. The lookup still runs in full. The matches your allowance
-covered are open in the result; the rest appear as **locked rows**: the wallet
-stays, along with anything never billed (an ENS name, a Lens or GitHub
-account), and the X handle or Farcaster account is withheld. You are charged
-only for the open matches.
+high-hit-rate list can find more matches than you have left. This is true of
+pack credits as well as the free allowance. The lookup still runs in full. The
+matches your balance covered are open in the result; the rest appear as
+**locked rows**: the wallet stays, along with anything never billed (an ENS
+name, a Lens or GitHub account), and the X handle or Farcaster account is
+withheld. You are charged only for the open matches.
+
+A little headroom is built in. A match rate cannot be known before a lookup
+runs, so a list sized honestly against a pack can still overshoot it; a small
+margin past your balance is delivered and not charged for, and only a real
+overshoot is locked.
+
+The count you are likely to need is shown next to your file before you start,
+so a list that will outrun your balance says so first. Importing holders from
+a contract stops at what your credits cover rather than at the address limit,
+and the import tells you when that is why it stopped.
 
 Locked matches stay with the lookup. Buy a pack and unlock them from the
 results view: the unlock draws one credit per locked match and opens the same

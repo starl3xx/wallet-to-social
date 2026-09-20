@@ -142,10 +142,11 @@ ship.
   and `next_offset` place the page.
 </ResponseField>
 
-### Locked matches on the free allowance
+### Locked matches when a job outruns your balance
 
-A job on the free allowance can find more matches than the allowance has left,
-because submission is bounded in addresses. The job still completes, and you
+A job can find more matches than your balance has left, because submission is
+bounded in addresses rather than in matches. This applies to pack credits as
+well as to the free allowance. The job still completes, and you
 are billed only for what the allowance covered. Those matches serve in full;
 every match past them serves as a **locked entry**: `{ wallet, locked: true }`
 plus anything never billed (`ens_name`, `lens`, `github`, `sources`), with the
@@ -153,11 +154,22 @@ X and Farcaster identities withheld. A locked entry counts in `found`; it is
 not `null`, because `null` is a checked negative and a locked match is the
 opposite claim.
 
-A gated job carries two extra `meta` fields: `matches_delivered` (what was
-billed and is open) and `matches_locked` (what is withheld). Unlocking is done
-from the app’s results view with pack credits; once unlocked, the same poll
-serves every entry in full and the two fields disappear. Jobs run on pack
-credits are never gated.
+A gated job carries two extra `meta` fields: `matches_delivered` (what is open)
+and `matches_locked` (what is withheld). Unlocking is done from the app’s
+results view with pack credits; once unlocked, the same poll serves every
+entry in full and the two fields disappear.
+
+`matches_delivered` is your remaining balance plus a small margin, not the
+balance exactly. A match rate cannot be known before a job runs, so a list
+sized honestly against a pack can still overshoot it by a little; that margin
+is delivered and not charged for, and only a genuine overshoot is locked.
+
+<Note>
+  Until 20 September 2026 a job paid from pack credits was never gated: it
+  served every match it found whatever the balance held. If you relied on that,
+  a large list against a small balance now returns locked entries where it
+  previously returned all of them. `matches_locked` tells you how many.
+</Note>
 
 Two things about completed results are worth knowing:
 

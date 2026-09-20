@@ -480,8 +480,12 @@ export const walletLookup = inngest.createFunction(
             allWallets.length,
             options.tier ?? 'free'
           );
-          if (charge.paidFrom === 'free' && charge.billed < anySocialFound) {
-            matchesDelivered = charge.billed;
+          // Both meters, on `delivered`, mirrored exactly from
+          // lib/job-processor.ts: the reasoning is written out there, and the
+          // two workers drifting on a money rule is the failure this comment
+          // exists to prevent.
+          if (charge.delivered < anySocialFound) {
+            matchesDelivered = charge.delivered;
             gateIsFresh = !charge.duplicate;
           }
         } catch (error) {
