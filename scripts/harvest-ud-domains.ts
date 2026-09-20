@@ -310,10 +310,21 @@ async function readProfile(
       continue;
     }
     if (res.status === 404) return { handle: null, outcome: 'noProfile' };
-    // 400 is the API refusing the NAME, not failing the read: the registry
-    // holds names the profile service will not parse, and one bad string
-    // must not abort a window whose other domains are fine.
-    if (res.status === 400) return { handle: null, outcome: 'invalidName' };
+    // Any other 4xx except auth is the API refusing THIS DOMAIN, not failing
+    // the read, and one refused name must not abort a window whose other
+    // domains are fine. Three flavors measured live on day one: 400 for a
+    // name it will not parse (a leading-hyphen test mint), 400 for a retired
+    // TLD (.coin), and 406 for a flagged name. 401/403 stay fatal on
+    // purpose: those would mean the keyless endpoint got keyed, which is a
+    // run-stopping fact someone should see, not a counter.
+    if (
+      res.status >= 400 &&
+      res.status < 500 &&
+      res.status !== 401 &&
+      res.status !== 403
+    ) {
+      return { handle: null, outcome: 'invalidName' };
+    }
     if (!res.ok) {
       throw new Error(
         `UD API ${res.status} on ${domain}: ${(await res.text()).slice(0, 300)}`
