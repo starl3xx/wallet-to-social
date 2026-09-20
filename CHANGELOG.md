@@ -34,6 +34,15 @@ All notable changes to walletlink.social. Newest first.
   the control that opens them is offered to every signed-in account rather than
   only to paying ones. Putting it inside the paid branch would have
   reintroduced the defect that route's comment describes.
+- **Signing in from the dashboard comes back to it.** `isAllowedReturnPath`
+  gains `/dashboard` as a third shape, a literal compared with `===` carrying
+  no query, exactly like `/claim`. The account surface is the one page where
+  the sign-in round trip is the normal entry rather than an edge, and landing
+  that person on the home page abandons the page they asked for. It widens
+  nothing: a literal supplies no caller-controlled data, and
+  `scripts/check-invariants.ts` now asserts the same eight near misses against
+  it that `/claim` already refuses (`/dashboards`, `//dashboard`,
+  `/dashboard?next=…`, `/dashboard/../admin` and the rest).
 - Deliberately absent, each with its reason recorded in `PROJECT_OVERVIEW.md`:
   the upload widget (needs the block lifted out of `app/page.tsx` first), a
   running-jobs and an X-lists module (`/api/jobs` and `/api/x/lists` export POST

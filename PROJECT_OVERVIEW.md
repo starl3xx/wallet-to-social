@@ -608,10 +608,11 @@ confirmation that existed was the `?claim=` banner, whose parameter
 **The page asks for an account before it asks for a wallet.** Both routes need
 a session and the challenge answers 401 without one, but that refusal used to
 arrive after the wallet prompt, spending a connection approval on a fact the
-page already held. Signing in from the card passes `next="/claim"`, which is
-the second and only other path `isAllowedReturnPath` in `lib/auth.ts` accepts:
-a literal compared with `===`, carrying no query, so tampering produces that
-exact page or a refusal and nothing else.
+page already held. Signing in from the card passes `next="/claim"`, one of two
+literal paths `isAllowedReturnPath` in `lib/auth.ts` accepts beside the consent
+shape (`/dashboard` is the other, added with the dashboard for the same
+reason). Each is compared with `===` and carries no query, so tampering
+produces that exact page or a refusal and nothing else.
 
 **The suppression refusal on `/api/claim/challenge` is claim-only.** Withdrawal
 suppresses before it erases, so a failure between the two leaves the wallet

@@ -357,9 +357,30 @@ const RETURN_PATH = /^\/oauth\/authorize\?req=[A-Za-z0-9-]{36}$/;
  */
 const CLAIM_RETURN_PATH = '/claim';
 
+/**
+ * The third shape, a literal for the same reason as the second.
+ *
+ * `/dashboard` has exactly the shape that earned `/claim` its entry, and has
+ * it more strongly. It is the account surface: a signed-out visitor who opens
+ * it is asked to sign in before it can show anything, so the round trip is its
+ * normal entry rather than an edge case, and landing that person on the home
+ * page afterwards abandons the one page they asked for.
+ *
+ * Widening this is the thing to be careful about, so nothing here widens: it
+ * is compared with `===` and carries no query, exactly like `/claim`. A
+ * literal supplies no caller-controlled data, which is the whole danger a
+ * return path carries, and `scripts/check-invariants.ts` asserts the same
+ * eight near misses against it that `/claim` already refuses.
+ */
+const DASHBOARD_RETURN_PATH = '/dashboard';
+
 export function isAllowedReturnPath(path: string | null): boolean {
   if (typeof path !== 'string') return false;
-  return path === CLAIM_RETURN_PATH || RETURN_PATH.test(path);
+  return (
+    path === CLAIM_RETURN_PATH ||
+    path === DASHBOARD_RETURN_PATH ||
+    RETURN_PATH.test(path)
+  );
 }
 
 // Cookie configuration

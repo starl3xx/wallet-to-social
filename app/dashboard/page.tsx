@@ -107,7 +107,15 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-        <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+        {/* The round trip comes back here rather than to the home page. This
+            is the account surface, so signing in from it is its normal entry,
+            and `/dashboard` is one of the three literals
+            `isAllowedReturnPath` accepts. */}
+        <AuthModal
+          open={authOpen}
+          onOpenChange={setAuthOpen}
+          next="/dashboard"
+        />
       </PageShell>
     );
   }

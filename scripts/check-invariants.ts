@@ -3623,6 +3623,32 @@ async function main() {
       );
     }
 
+    /**
+     * The third shape, and the same eight near misses.
+     *
+     * `/dashboard` is an account surface, so the sign-in round trip is its
+     * normal entry rather than an edge. It is a literal compared with `===`
+     * for the same reason `/claim` is, and it earns the same refusals: every
+     * one of these is a way a `startsWith` would have let caller-supplied data
+     * through a mailbox with our own authenticity attached.
+     */
+    ok('the dashboard is accepted', isAllowedReturnPath('/dashboard'));
+    for (const nearMiss of [
+      '/dashboard?next=https://evil.example.com',
+      '/dashboard/../admin',
+      '/dashboards',
+      '/dashboard.evil.example.com',
+      '//dashboard',
+      '/dashboard#@evil.example.com',
+      '/dashboard ',
+      'dashboard',
+    ]) {
+      ok(
+        `the sign-in return path refuses ${nearMiss}`,
+        !isAllowedReturnPath(nearMiss)
+      );
+    }
+
     for (const hostile of [
       'https://evil.example.com',
       '//evil.example.com',
