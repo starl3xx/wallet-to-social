@@ -1114,6 +1114,9 @@ export function socialGraphToResult(
     // left the client with no way to tell them apart.
     twitter_verified: record.twitterVerified ?? undefined,
     farcaster_verified: record.farcasterVerified ?? undefined,
+    // The rename this row already settled, so the change can be explained
+    // rather than looking like a mistake to somebody who exported last week.
+    twitter_renamed_from: record.twitterRenamedFrom ?? undefined,
     is_agent: record.isAgent ?? undefined,
     agent_name: record.agentName ?? undefined,
     agent_framework: record.agentFramework ?? undefined,

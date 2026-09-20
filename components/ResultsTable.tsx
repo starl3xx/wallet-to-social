@@ -619,6 +619,31 @@ const RowDetailModal = memo(function RowDetailModal({
               </div>
             </div>
           )}
+          {/* A settled rename, which is a measured fact rather than an
+              inference: we held the old handle, it stopped reaching anyone,
+              and a source the owner published named the new one. That is what
+              earns the attested mark here. Written since 2026-08-22 and shown
+              nowhere until now, so a customer who exported last week and sees
+              a different handle today could not tell a correction from a
+              mistake. */}
+          {result.twitter_renamed_from && (
+            <div className="flex gap-2">
+              <span className="flex h-5 w-4 flex-none items-center justify-center">
+                <span
+                  className="h-2 w-2 rounded-full bg-attested"
+                  aria-hidden
+                />
+              </span>
+              <div className="min-w-0">
+                <p className="font-medium">Handle changed</p>
+                <p className="break-words text-muted-foreground">
+                  This row used to read @{result.twitter_renamed_from}. The
+                  owner published the current handle, so the record follows the
+                  account rather than the old name.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <dl className="grid grid-cols-[max-content_1fr] items-start gap-x-4 gap-y-2">

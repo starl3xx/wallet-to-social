@@ -7010,6 +7010,64 @@ async function main() {
   }
 
   /**
+   * A settled rename reaches the reader, or the column is dead again.
+   *
+   * `twitter_renamed_from` has been written since 2026-08-22, carries 2,208
+   * rows, and was rendered nowhere. Surfacing it is only half the job: the
+   * graph read maps it, and `mergeGraphRow` then rebuilds the result with
+   * `...existing` and an explicit field list, so a field left off that list is
+   * read out of the database and dropped one function later.
+   *
+   * That is not a hypothetical shape. `agent_detection_source` failed exactly
+   * this way earlier the same day: three writers filled it and all four
+   * readers dropped it, so a value that was stored was indistinguishable from
+   * one that was never stored. Asserted as the whole trip rather than the
+   * mapping alone.
+   */
+  {
+    const graphSrc = withoutComments(
+      readFileSync('lib/social-graph.ts', 'utf8')
+    );
+    const jobSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    const tableSrc = withoutComments(
+      readFileSync('components/ResultsTable.tsx', 'utf8')
+    );
+    ok(
+      'a settled rename survives the graph read, the merge and the panel',
+      /twitter_renamed_from: record\.twitterRenamedFrom/.test(graphSrc) &&
+        /twitter_renamed_from:\s*stored\.twitter_renamed_from \?\? existing\.twitter_renamed_from/.test(
+          jobSrc
+        ) &&
+        /result\.twitter_renamed_from &&/.test(tableSrc)
+    );
+
+    /**
+     * And it stays out of the public shape.
+     *
+     * Not caution: adding it to `/v1` is a response-shape change across every
+     * reverse and lookup route, and `docs-site` plus `openapi.yaml` would have
+     * to move with it. That is a decision with its own PR, and the failure
+     * mode of doing it by accident is shipping an undocumented field to paying
+     * customers.
+     */
+    ok(
+      'the rename is not published on the v1 shape by accident',
+      !/twitter_renamed_from/.test(
+        withoutComments(readFileSync('lib/api-sources.ts', 'utf8'))
+      ) &&
+        !readdirSync('docs-site/api-reference', { recursive: true })
+          .filter((f) => typeof f === 'string' && f.endsWith('.mdx'))
+          .some((f) =>
+            readFileSync(`docs-site/api-reference/${f}`, 'utf8').includes(
+              'twitter_renamed_from'
+            )
+          )
+    );
+  }
+
+  /**
    * An outage must not be able to manufacture evidence.
    *
    * The batched-by-id resolve is the only question whose answer survives a

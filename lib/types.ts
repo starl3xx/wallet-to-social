@@ -69,6 +69,21 @@ export interface WalletSocialResult {
   twitter_verified?: boolean;
   farcaster_verified?: boolean;
   /**
+   * The handle this row used to serve, when a rename has been settled.
+   *
+   * Written since 2026-08-22 by the conflict resolver and, until now, rendered
+   * nowhere: 2,208 rows carry a value that nothing has ever shown anyone. A
+   * customer who exported a list last week and sees a different handle today
+   * has no way to tell a correction from a mistake, which is the one thing
+   * this column can explain.
+   *
+   * Deliberately NOT on the public `/v1` shape. That is a response-shape
+   * change across every reverse and lookup route, it drags `docs-site` and
+   * `openapi.yaml` with it, and it wants its own decision rather than riding
+   * along with a UI row.
+   */
+  twitter_renamed_from?: string;
+  /**
    * Whether the attested X handle still reaches anyone: 'live', 'suspended' or
    * 'unclaimed'.
    *

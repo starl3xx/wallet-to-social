@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (a settled rename finally says so)
+
+- **`twitter_renamed_from` has been written since 2026-08-22, carries 2,208
+  rows, and was rendered nowhere.** A customer who exported a list last week
+  and saw a different handle today had no way to tell a correction from a
+  mistake, which is the one thing that column can explain.
+- The row modal's Evidence panel now says it, with the attested mark: we held
+  the old handle, it stopped reaching anyone, and a source the owner published
+  named the new one. That is a measured fact rather than an inference, which
+  is what earns the green.
+- Carried through the whole trip, not just mapped. `mergeGraphRow` rebuilds a
+  result from `...existing` plus an explicit field list, so a field left off
+  that list is read out of the database and dropped one function later. That
+  is not hypothetical: `agent_detection_source` failed in exactly that shape
+  earlier the same day, with three writers filling it and all four readers
+  dropping it. The assertion covers the read, the merge and the panel
+  together, and was verified by removing the merge line.
+- **Deliberately not on `/v1`.** Publishing it is a response-shape change
+  across every reverse and lookup route, and `docs-site` and `openapi.yaml`
+  would move with it. A second assertion keeps it off the public shape so it
+  cannot get there by accident.
+
 ### 2026-09-20 (the batched resolve gets a timeout, a pure parser and one home)
 
 - **The by-id resolve had no request timeout.** `lib/clanker.ts` passed only
