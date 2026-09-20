@@ -60,6 +60,21 @@ export const X_SCOPES = [
 ] as const;
 
 /**
+ * The narrow set, for `/claim`.
+ *
+ * A separate constant rather than a parameter, because the two flows ask for
+ * genuinely different things and the difference should be readable at the
+ * declaration. The claim flow reads `/2/users/me` once and never writes
+ * anything, so three of the four scopes above would be permission it will
+ * never use: asking somebody improving their own profile to let us write
+ * lists to their account is asking for something we do not need.
+ *
+ * `tweet.read` is absent too. X requires it alongside `list.write`, which
+ * this set does not carry.
+ */
+export const X_CLAIM_SCOPES = ['users.read'] as const;
+
+/**
  * X caps a list name at 25 characters and a description at 100.
  *
  * Here rather than at the call site because both are enforced twice: the table

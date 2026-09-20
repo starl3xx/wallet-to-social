@@ -1189,6 +1189,52 @@ async function main() {
           route
         ) && !/catch \{ eligible = false/.test(route)
       );
+      /**
+       * The start route's refusals, which are the ones that cost something
+       * to get wrong.
+       */
+      const start = withoutComments(
+        readFileSync('app/api/claim/start/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+
+      ok(
+        'suppression is re-read at the signature, not trusted from the challenge',
+        // A removal can land inside the person's five-minute window, and the
+        // one refusal that has to be current is the one that would otherwise
+        // be served from a read taken before they signed.
+        /isSuppressed\('wallet', \[wallet\]\)/.test(start)
+      );
+      ok(
+        'a stale agreement is refused rather than silently upgraded',
+        // Agreeing to v1 is not agreeing to v2. A tab left open holds the old
+        // text, and accepting it would record a consent to words this build
+        // no longer shows anyone.
+        /body\.consent_version !== CURRENT_CONSENT\.id/.test(start) &&
+          /error: 'consent_stale'/.test(start)
+      );
+      ok(
+        'every verification failure answers the same way',
+        // A caller who can tell a bad token from a bad signature from an
+        // expired challenge grinds against whichever is cheapest. The reason
+        // is logged, never served: same rule as the X callback's not_found.
+        /console\.error\(`claim verification failed: \$\{verified\.reason\}`\)/.test(
+          start
+        ) && !/message: verified\.reason|reason: verified\.reason/.test(start)
+      );
+      ok(
+        'the claim asks X for the narrow scope set, not the list-writing one',
+        /const X_CLAIM_SCOPES = \['users\.read'\] as const;/.test(
+          withoutComments(readFileSync('lib/x-oauth.ts', 'utf8'))
+        ) && /X_CLAIM_SCOPES\.join\(' '\)/.test(start)
+      );
+      ok(
+        'the row is born unable to do anything',
+        // Same shape as x_list_jobs: a verifier and a nonce, and only the
+        // callback can move it out of awaiting_x.
+        /'awaiting_x'/.test(start) &&
+          /state', `claim:\$\{claimId\}\.\$\{nonce\}`/.test(start)
+      );
+
       ok(
         'the claim surface has its own rate-limit bucket',
         /'\/api\/claim': \{ limit: \d+, windowHours: \d+ \}/.test(
