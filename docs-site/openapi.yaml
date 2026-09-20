@@ -1594,15 +1594,25 @@ components:
         verified:
           type: boolean
           description: |
-            Narrower than the everyday word, and narrower than attestation.
-            True for the onchain, manual and attested-social routes, so a
-            handle the owner attested through a Farcaster verification, the
-            majority route, genuinely is owner-published and still reports
-            `false`. To judge attestation,
-            read `sources`: an identity is attested when the wallet owner
-            published the link themselves, through a Farcaster verification,
-            an onchain ENS record, an attested-social sign-in, or a manually
-            verified record. Anything else is correlated, and labeled so.
+            Narrower than the everyday word. True for the onchain,
+            farcaster, manual and attested-social routes, and false for
+            correlated evidence.
+
+            **Widened on 20 September 2026.** A handle attested through a
+            Farcaster verification, the majority route, previously reported
+            `false` here while the same evidence reported `true` when our
+            Farcaster sweep wrote the row rather than a live lookup: one
+            address could get either answer depending on which path reached
+            it last. It now reports `true` on both. If you filter on this
+            field, expect more rows to pass it. None of them are new
+            evidence, only evidence that was already there being reported
+            consistently.
+
+            To judge attestation, read `sources`: an identity is attested
+            when the wallet owner published the link themselves, through a
+            Farcaster verification, an onchain ENS record, an
+            attested-social sign-in, or a manually verified record. Anything
+            else is correlated, and labeled so.
             See the data-quality page.
         reachable:
           type: boolean
