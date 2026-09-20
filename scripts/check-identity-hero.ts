@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import sharp from 'sharp';
 import { filterHeroSnapshot } from '../lib/identity-hero/server';
 import {
   heroSnapshotSchema,
@@ -83,6 +84,49 @@ const oldKey = process.env.X_RESOLVER_API_KEY;
 process.env.X_RESOLVER_API_BASE = 'https://resolver.test';
 process.env.X_RESOLVER_API_KEY = 'test';
 try {
+  let source = await sharp({
+    create: { width: 400, height: 400, channels: 3, background: '#7354ab' },
+  })
+    .png()
+    .toBuffer();
+  let imageRequest = '';
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.startsWith('https://resolver.test/'))
+      return Response.json({
+        data: {
+          id: '18876842',
+          userName: 'jessepollak',
+          profilePicture:
+            'https://pbs.twimg.com/profile_images/123/avatar_normal.jpg',
+        },
+      });
+    imageRequest = url;
+    return new Response(new Uint8Array(source), {
+      headers: { 'content-type': 'image/png' },
+    });
+  };
+  const portrait = await refreshPortrait('jessepollak', '18876842', null);
+  assert.equal(
+    imageRequest,
+    'https://pbs.twimg.com/profile_images/123/avatar_400x400.jpg',
+    'fetch the high-resolution source instead of enlarging an X thumbnail'
+  );
+  assert.ok(portrait?.startsWith('data:image/webp;base64,'));
+  const encoded = Buffer.from(portrait!.split(',')[1], 'base64');
+  assert.equal((await sharp(encoded).metadata()).width, 320);
+  assert.ok(
+    encoded.length <= 30000,
+    'retina portraits retain the payload budget'
+  );
+  source = await sharp(source).resize(256, 256).png().toBuffer();
+  const smaller = await refreshPortrait('jessepollak', '18876842', null);
+  assert.equal(
+    (await sharp(Buffer.from(smaller!.split(',')[1], 'base64')).metadata())
+      .width,
+    256,
+    'smaller originals are not artificially enlarged'
+  );
   for (const payload of [
     {},
     { data: null },

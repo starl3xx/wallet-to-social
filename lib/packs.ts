@@ -74,7 +74,7 @@ export const PACKS: Record<PackId, Pack> = {
     priceCents: 9900,
     matches: 1500,
     // Keeps the $99 headline buyers have already seen on five comparison pages.
-    fits: 'A launch or an airdrop',
+    fits: 'An airdrop or NFT collection',
     priceEnvVar: 'STRIPE_PRICE_PACK_CAMPAIGN',
   },
   scale: {

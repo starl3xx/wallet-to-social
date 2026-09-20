@@ -7,7 +7,7 @@
     "wallet": "0x2211d1d0020daea8039e46cf1367962070d77da9",
     "fc": "jesse.base.eth",
     "xUserId": "18876842",
-    "xPhoto": "./avatars/jesse-x-0fe159179342.webp"
+    "xPhoto": "./avatars/jesse-x-67e8c09657b9.webp"
   },
   {
     "id": "vitalik",
@@ -17,7 +17,7 @@
     "wallet": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
     "fc": "vitalik.eth",
     "xUserId": "295218901",
-    "xPhoto": "./avatars/vitalik-x-d9e522a36a12.webp"
+    "xPhoto": "./avatars/vitalik-x-b1b499a50216.webp"
   },
   {
     "id": "dan",
@@ -27,7 +27,7 @@
     "wallet": "0x6ce09ed5526de4afe4a981ad86d17b2f5c92fea5",
     "fc": "dwr",
     "xUserId": "9615352",
-    "xPhoto": "./avatars/dan-x-9562a5373a65.webp"
+    "xPhoto": "./avatars/dan-x-ff13a1968990.webp"
   },
   {
     "id": "coop",
@@ -37,7 +37,7 @@
     "wallet": "0x5b93ff82faaf241c15997ea3975419dddd8362c5",
     "fc": "coopahtroopa.eth",
     "xUserId": "305830702",
-    "xPhoto": "./avatars/coop-x-e4432e631537.webp"
+    "xPhoto": "./avatars/coop-x-3eba677a7b27.webp"
   },
   {
     "id": "linda",
@@ -47,7 +47,7 @@
     "wallet": "0x5e349eca2dc61abcd9dd99ce94d04136151a09ee",
     "fc": "linda",
     "xUserId": "520770492",
-    "xPhoto": "./avatars/linda-x-52fb307b8a57.webp"
+    "xPhoto": "./avatars/linda-x-002e0e660a7a.webp"
   },
   {
     "id": "tim",
@@ -57,7 +57,7 @@
     "wallet": "0x10f5d45854e038071485ac9e402308cf80d2d2fe",
     "fc": "tim",
     "xUserId": "80722677",
-    "xPhoto": "./avatars/tim-x-817b7a687bd7.webp"
+    "xPhoto": "./avatars/tim-x-52b40efbc5a9.webp"
   },
   {
     "id": "balaji",
@@ -67,6 +67,6 @@
     "wallet": "0x1a21c1f29fabebce8cc160bd48f9802a30d9608e",
     "fc": "balajis.eth",
     "xUserId": "2178012643",
-    "xPhoto": "./avatars/balaji-x-a64ece912577.webp"
+    "xPhoto": "./avatars/balaji-x-c7018377e1fb.webp"
   }
 ]
