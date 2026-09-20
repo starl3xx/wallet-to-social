@@ -1145,6 +1145,33 @@ async function main() {
      * `earns_credits: false`, which would tell somebody their claim earns
      * nothing because a query failed, with no way for them to know.
      */
+    /**
+     * A shipped consent version is never edited, only added to.
+     *
+     * The record stores a version id and the sha256 of the exact text, and
+     * that only means something while historical entries are immutable.
+     * Editing one in place leaves every row pointing at words nobody agreed
+     * to, silently: the id still resolves, and the stored hash is only
+     * compared if somebody thinks to compare it.
+     *
+     * Pinned by hash here, so an edit to a shipped version fails the build
+     * rather than passing review as a wording improvement. Adding a NEW
+     * version never touches this assertion, which is the behaviour it wants:
+     * cheap to do the right thing, loud to do the wrong one.
+     */
+    {
+      const consent = await import('@/lib/attestation-consent');
+      ok(
+        'the shipped consent text is frozen, so a stored hash still means something',
+        consent.hashForVersion('2026-09-20.1') ===
+          '55f09df3aaa9f6bda212c1f28fda4e7567eae0d970424652069a9819fa9bc774'
+      );
+      ok(
+        'an unknown consent version is null rather than a throw',
+        consent.hashForVersion('never-shipped') === null
+      );
+    }
+
     {
       const route = withoutComments(
         readFileSync('app/api/claim/challenge/route.ts', 'utf8')
