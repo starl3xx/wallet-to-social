@@ -423,8 +423,23 @@ export const walletLookup = inngest.createFunction(
       }
     });
 
-    // Step 6: Reachability, then priority scores
-    await step.run('calculate-scores', async () => {
+    /**
+     * Step 6: reachability, then priority scores.
+     *
+     * RETURNS the rows, and the map is rebuilt from the return value outside
+     * the step. That is this file's own pattern (`build-initial-results` and
+     * `check-cache` both do it) and it is not a style choice: `step.run`
+     * memoises its RESULT, so on a replay the callback does not execute at
+     * all. A step that mutates `resultsMap` in place and returns nothing
+     * therefore does nothing on the second pass, and `finalize` persists the
+     * pre-stamp map: no `x_followers`, and a score that still ignores X
+     * reach. The first version of this step did exactly that.
+     *
+     * `enrich-social-graph` above still has that shape. It predates this
+     * change and is left alone here, but it loses its enrichment on a replay
+     * for the same reason and is worth fixing separately.
+     */
+    const scored = await step.run('calculate-scores', async () => {
       const all = Array.from(resultsMap.values());
 
       /**
@@ -456,15 +471,20 @@ export const walletLookup = inngest.createFunction(
         for (const r of all) r.x_followers = undefined;
       }
 
-      for (const [wallet, result] of resultsMap) {
-        result.priority_score = calculatePriorityScore(
-          result.holdings,
-          result.fc_followers,
-          result.x_followers
+      for (const r of all) {
+        r.priority_score = calculatePriorityScore(
+          r.holdings,
+          r.fc_followers,
+          r.x_followers
         );
-        resultsMap.set(wallet, result);
       }
+
+      return all;
     });
+
+    resultsMap = new Map<string, WalletSocialResult>(
+      scored.map((r) => [r.wallet, r])
+    );
 
     // Step 7: Finalize job
     await step.run('finalize', async () => {

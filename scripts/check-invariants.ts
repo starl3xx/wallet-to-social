@@ -2845,6 +2845,28 @@ async function main() {
             `${worker} scores from X followers as well as Farcaster`,
             /x_followers\s*\n?\s*\)/.test(src)
           );
+          if (worker.startsWith('inngest/')) {
+            ok(
+              'the Inngest scoring step returns its rows rather than mutating in place',
+              /**
+               * `step.run` memoises its RESULT. On a replay the callback does
+               * not execute, so a step that mutates `resultsMap` in place and
+               * returns nothing does nothing on the second pass, and
+               * `finalize` persists the pre-stamp map: no `x_followers` and a
+               * score that still ignores X reach.
+               *
+               * The file's own working steps return data and rebuild the map
+               * outside (`build-initial-results`, `check-cache`), so this
+               * asserts that shape rather than the absence of the broken one.
+               */
+              /const scored = await step\.run\('calculate-scores'/.test(src) &&
+                /return all;/.test(src) &&
+                /resultsMap = new Map<string, WalletSocialResult>\(\s*scored\.map/.test(
+                  src.replace(/\s+/g, ' ')
+                )
+            );
+          }
+
           ok(
             `${worker} stamps reachability before it scores`,
             // `x_followers` is produced by the stamp. Scoring first reads a
