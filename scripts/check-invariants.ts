@@ -7851,6 +7851,58 @@ async function main() {
       );
 
       /**
+       * And the SCORE does not keep what the row gave up.
+       *
+       * `priority_score` reads both follower counts, and the arithmetic is
+       * invertible: the customer supplied the holdings, so
+       * `reach = 10^(score / holdings) - 1` recovers the follower count of an
+       * account that asked to be erased. Deleting `x_followers` while leaving
+       * the score is therefore the same disclosure in a harder-to-read form,
+       * and the condition that recomputed it did not fire on an X
+       * suppression at all, because no X term existed when it was written.
+       *
+       * Checked through the real function against a real recomputation, not
+       * against a magic number, so the expectation cannot drift from the
+       * formula.
+       */
+      {
+        const { calculatePriorityScore } = await import('@/lib/csv-parser');
+        const scored = {
+          wallet: '0x2222222222222222222222222222222222222222',
+          holdings: 10,
+          twitter_handle: 'removedperson',
+          x_followers: 10_000,
+          farcaster: 'someoneelse',
+          fc_followers: 50,
+          priority_score: calculatePriorityScore(10, 50, 10_000),
+          source: ['graph'],
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const afterX = scrubResultRow(scored as any, sets as any) as any;
+        ok(
+          'suppressing an X handle takes its reach out of the priority score',
+          afterX.x_followers === undefined &&
+            afterX.priority_score === calculatePriorityScore(10, 50, undefined)
+        );
+
+        const fcSets = new Map<string, Set<string>>();
+        for (const k of SUPPRESSION_KINDS) fcSets.set(k, new Set());
+        fcSets.get('farcaster')!.add('someoneelse');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const afterFc = scrubResultRow(scored as any, fcSets as any) as any;
+        ok(
+          'and suppressing Farcaster keeps the X reach that survives it',
+          // The other half of the same mistake: recomputing with a hardcoded
+          // absence dropped an audience that was never suppressed, which is
+          // not a leak but is a wrong number on a column people sort by.
+          afterFc.fc_followers === undefined &&
+            afterFc.x_followers === 10_000 &&
+            afterFc.priority_score ===
+              calculatePriorityScore(10, undefined, 10_000)
+        );
+      }
+
+      /**
        * The other withholding path. A locked row is a match the free
        * allowance did not cover: the identity is stripped server-side, and a
        * follower count left behind describes the identity it withheld.
