@@ -218,9 +218,34 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the both-dead close swallows a row where theirs is still live',
     file: 'lib/conflict-resolution.ts',
-    from: "       AND t.status IN ('not_found', 'unavailable')",
-    to: '',
+    // The two-line pair, because the challenger-dead close (2026-09-20)
+    // carries the same t-side line and a one-line anchor seeded the defect
+    // into the wrong statement.
+    from: "       AND o.status IN ('not_found', 'unavailable')\n       AND t.status IN ('not_found', 'unavailable')",
+    to: "       AND o.status IN ('not_found', 'unavailable')",
   },
+  {
+    name: 'the challenger-dead close swallows a row where theirs is still live',
+    file: 'lib/conflict-resolution.ts',
+    from: "       AND o.status = 'live'\n       AND t.status IN ('not_found', 'unavailable')",
+    to: "       AND o.status = 'live'",
+  },
+  {
+    name: 'the reassigned rung swaps without confirming the challenger id',
+    file: 'lib/conflict-resolution.ts',
+    from: '        AND ox.user_id <> g.twitter_user_id\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`',
+    to: '        AND ox.user_id <> g.twitter_user_id`',
+  },
+  {
+    // The removed id-anchored rung, reintroduced exactly: a branch that
+    // swaps a live ours on the challenger's evidence alone. The refusal
+    // assertion must catch its return.
+    name: 'a swap branch appears with no condition on ours at all',
+    file: 'lib/conflict-resolution.ts',
+    from: "      : sql`ox.status = 'live'\n        AND ox.checked_at >= now() - make_interval(days => ${recheckDays}::int)\n        AND ox.user_id IS NOT NULL\n        AND g.twitter_user_id IS NOT NULL\n        AND ox.user_id <> g.twitter_user_id\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;",
+    to: '      : sql`g.twitter_user_id IS NULL\n        AND c.their_user_id IS NOT NULL AND c.their_user_id = tx.user_id`;',
+  },
+
   {
     name: 'a gifted pack silently ends the welcome sequence again',
     file: 'lib/welcome-sequence.ts',

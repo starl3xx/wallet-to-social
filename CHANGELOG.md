@@ -2,6 +2,35 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (conflict resolution grows three rungs and a bigger budget)
+
+- **A new swap rung** in `lib/conflict-resolution.ts`, re-tested inside the
+  statement that writes: `reassigned` (ours is live but resolves to a
+  different numeric account than the one the graph holds, so the string was
+  freed and re-registered; challenger id required and confirmed). A second
+  drafted rung, swapping a live bare-string ours for an id-anchored
+  challenger, was removed in review: every id-carrying attested route can be
+  driven by a wallet signature plus the attacker's own X account, so it
+  would have let a stolen key replace a working handle, the exact rewrite
+  the claim path records-instead-of-writes to prevent. A swap needs
+  evidence against ours, never just evidence for theirs; live-ours rows
+  that cannot be shown wrong stay on the queue.
+- **A second inert-row closure**: challenger dead while ours is live closes
+  as `ours stands`, nothing chosen, with the same reopen-on-revival rule as
+  the both-dead pass and for the same reason: liveness never touches
+  `handle_conflicts`, so nothing else would requeue a revived challenger.
+- **`DEFAULT_RECHECK_CREDITS` 300 to 3,000.** The old cap bought ~16 looks a
+  day, sized for one small bucket; the widened queue was measured at ~2,900
+  handles needing a fresh reading (2026-09-20), a two-hundred-day drain. The
+  new cap is ~166 looks and about three cents a day, and drains it in under
+  three weeks.
+- Live dry run before shipping: 3,435 candidates, 2 eligible immediately
+  (id-anchored rows whose checks were already fresh), the rest gated behind
+  2,223 unchecked and 1,203 stale challenger readings that the budget now
+  actually reaches. docs-site's data-quality page updated in step: the
+  settled set is three rungs, and the both-live-id-consistent residue is
+  still never guessed.
+
 ### 2026-09-20 (BNB token import comes back through a third index)
 
 - **A third metered ERC-20 holder index** in the ladder
