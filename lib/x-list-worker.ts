@@ -75,8 +75,34 @@ const LEASE_SECONDS = 300;
  * drops that person from the list for good. But retrying for ever is its own
  * failure mode, so the job stops and says so after this many in a row. Reset
  * to zero by any successful add.
+ *
+ * Deliberately NOT reset by a step-over. That is what keeps this counter
+ * meaning "nothing is working": if X were down, every position would fail and
+ * the job would step over member after member, marking real people
+ * unaddable. Letting this counter run across step-overs bounds that at
+ * MAX_TRANSIENT_FAILURES / MAX_MEMBER_ATTEMPTS members before the job stops
+ * and says so.
  */
 const MAX_TRANSIENT_FAILURES = 20;
+
+/**
+ * Attempts at ONE cursor position before that member is stepped over.
+ *
+ * Measured on a live job on 2026-09-20: a list of 290 stopped at 103 and sat
+ * there. Member 103 was an account X refused every time, and because a
+ * transient failure deliberately leaves the cursor in place, every tick
+ * retried the same account and achieved nothing. The job was fifteen minutes
+ * from being marked `failed` with 187 members never attempted.
+ *
+ * Three, not one, because the reason 403 is treated as transient at all is
+ * that X uses it for an app-level refusal as well as a member-level one, and
+ * a single refusal is not enough to tell those apart. Three consecutive
+ * failures at the SAME position, while the service is otherwise answering, is
+ * evidence about that member. The member is then counted as `failed`, which
+ * is the existing meaning of "attempted and could not be added", and the list
+ * continues.
+ */
+const MAX_MEMBER_ATTEMPTS = 3;
 
 export interface Member {
   id: string;
@@ -248,7 +274,7 @@ export async function runXListTick(): Promise<TickResult> {
     RETURNING id, user_id, x_user_id, access_token, access_expires_at, list_name,
               list_description, is_private, members, x_list_id, added_count,
               skipped_count, failed_count, status, create_attempted_at,
-              transient_failures
+              transient_failures, stuck_cursor, member_attempts
   `)) as unknown as {
     rows: Array<{
       id: string;
@@ -266,6 +292,8 @@ export async function runXListTick(): Promise<TickResult> {
       status: string;
       create_attempted_at: string | null;
       transient_failures: number;
+      stuck_cursor: number | null;
+      member_attempts: number;
     }>;
   };
 
@@ -550,6 +578,55 @@ export async function runXListTick(): Promise<TickResult> {
    */
   const nextTransient =
     transient && added === 0 ? job.transient_failures + 1 : 0;
+
+  /**
+   * Where this tick stopped, which is the position the next one will retry.
+   *
+   * Computed from the counters as they will be AFTER this tick's own
+   * increments, because that is the cursor `slice` will use next time. Read
+   * from the job row rather than recomputed from the members array: the
+   * cursor is defined by the three counters, so anything else would be a
+   * second definition free to drift from the first.
+   */
+  const cursorAfter =
+    job.added_count +
+    added +
+    job.skipped_count +
+    skipped +
+    job.failed_count +
+    failed;
+
+  /**
+   * Attempts at THIS position, which is the question the job-level counter
+   * cannot answer.
+   *
+   * Only a tick that both failed transiently and added nothing is evidence
+   * about a member: a tick that added nineteen and then met a timeout says
+   * nothing about the twentieth. `stuck_cursor` is what makes the count
+   * positional, so three failures spread across three different members do
+   * not accumulate into a step-over of the third.
+   */
+  const stalled = transient && added === 0;
+  const sameSpot = stalled && job.stuck_cursor === cursorAfter;
+  const attempts = stalled ? (sameSpot ? job.member_attempts + 1 : 1) : 0;
+
+  /**
+   * The step-over. One member counted as `failed`, which already means
+   * "attempted and could not be added", and the position released.
+   *
+   * `nextTransient` is deliberately NOT reset here. A step-over is not
+   * progress, and letting the job-level counter keep running is what stops a
+   * genuine outage from walking the whole list marking everybody unaddable:
+   * it can burn at most MAX_TRANSIENT_FAILURES / MAX_MEMBER_ATTEMPTS members
+   * before the job stops. Only a real add clears it.
+   */
+  const stepOver = attempts >= MAX_MEMBER_ATTEMPTS;
+  if (stepOver) {
+    console.error(
+      `X list ${job.id}: stepping over member at ${cursorAfter} after ${attempts} attempts`
+    );
+  }
+
   if (nextTransient >= MAX_TRANSIENT_FAILURES) {
     await finish(
       job.id,
@@ -570,8 +647,10 @@ export async function runXListTick(): Promise<TickResult> {
     UPDATE x_list_jobs
     SET added_count        = added_count + ${added},
         skipped_count      = skipped_count + ${skipped},
-        failed_count       = failed_count + ${failed},
+        failed_count       = failed_count + ${failed} + ${stepOver ? 1 : 0},
         transient_failures = ${nextTransient},
+        stuck_cursor       = ${stepOver || !stalled ? null : cursorAfter},
+        member_attempts    = ${stepOver ? 0 : attempts},
         retry_after        = ${retryAt ? retryAt.toISOString() : null},
         leased_until       = NULL,
         updated_at         = now()
@@ -582,9 +661,15 @@ export async function runXListTick(): Promise<TickResult> {
     jobId: job.id,
     added,
     skipped,
-    failed,
+    // The stepped-over member is reported here as well as persisted, so the
+    // tick's own result and the row agree about how many could not be added.
+    failed: failed + (stepOver ? 1 : 0),
     status: 'running',
-    note: retryAt ? 'rate limited' : undefined,
+    note: retryAt
+      ? 'rate limited'
+      : stepOver
+        ? 'stepped over an unaddable member'
+        : undefined,
   };
 }
 
