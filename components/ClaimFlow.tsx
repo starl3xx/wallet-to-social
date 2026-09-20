@@ -83,6 +83,18 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  /**
+   * Which action the wallet buttons perform.
+   *
+   * A mode rather than a second row of buttons, because BOTH actions need the
+   * person to choose a wallet and the choice is the same list either way.
+   * The first version hardcoded `providers[0]` for withdrawing, which is
+   * whichever extension announced first: exactly the thing this file's own
+   * header says is not a choice the person made, one function further down.
+   * Somebody who attested with a later-announced wallet could not withdraw
+   * that pairing at all.
+   */
+  const [mode, setMode] = useState<'claim' | 'withdraw'>('claim');
 
   /**
    * EIP-6963 discovery. Providers answer the request event by announcing, so
@@ -284,33 +296,51 @@ export function ClaimFlow({ consentVersion }: { consentVersion: string }) {
               key={p.info.uuid}
               variant="outline"
               disabled={busy}
-              onClick={() => run(p.provider, 'claim')}
+              onClick={() => run(p.provider, mode)}
             >
-              {p.info.name}
+              {mode === 'withdraw'
+                ? `Withdraw with ${p.info.name}`
+                : p.info.name}
             </Button>
           ))}
         </div>
       )}
 
-      {/* Withdrawing sits under the claim buttons rather than beside them,
-          and it is a link rather than a second button of equal weight: it is
-          the rarer action and the page should not present taking something
-          back as the same size of choice as giving it. It is still HERE,
-          because the page promises it twice and a promise whose control
-          lives somewhere else is most of the way to a promise nothing
-          keeps. */}
+      {/* A mode switch rather than a second control, so both actions get the
+          same wallet choice. It is a link rather than a button of equal
+          weight: the page should not present taking something back as the
+          same size of choice as giving it. It stays on THIS page because the
+          page promises withdrawal twice, and a promise whose control lives
+          elsewhere is barely a promise. */}
       {providers !== null && providers.length > 0 && (
         <p className="mt-4 text-sm text-muted-foreground">
-          Claimed before and changed your mind?{' '}
-          <Button
-            variant="link"
-            size="inline"
-            disabled={busy}
-            onClick={() => run(providers[0].provider, 'withdraw')}
-          >
-            Withdraw it
-          </Button>
-          , with the same wallet.
+          {mode === 'claim' ? (
+            <>
+              Claimed before and changed your mind?{' '}
+              <Button
+                variant="link"
+                size="inline"
+                disabled={busy}
+                onClick={() => setMode('withdraw')}
+              >
+                Withdraw instead
+              </Button>
+              , with the same wallet you used.
+            </>
+          ) : (
+            <>
+              Withdrawing removes the pair and stops us collecting it again.{' '}
+              <Button
+                variant="link"
+                size="inline"
+                disabled={busy}
+                onClick={() => setMode('claim')}
+              >
+                Go back to claiming
+              </Button>
+              .
+            </>
+          )}
         </p>
       )}
 

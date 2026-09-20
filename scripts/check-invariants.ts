@@ -1461,15 +1461,32 @@ async function main() {
          * withdrawal twice, so a route nobody can press would be most of the
          * way to a promise nothing keeps.
          */
-        ok(
-          'the page can actually reach the withdrawal',
-          /'\/api\/claim\/withdraw'/.test(
-            withoutComments(readFileSync('components/ClaimFlow.tsx', 'utf8'))
-          ) &&
-            /run\(providers\[0\]\.provider, 'withdraw'\)/.test(
-              withoutComments(readFileSync('components/ClaimFlow.tsx', 'utf8'))
-            )
-        );
+        {
+          const flow = withoutComments(
+            readFileSync('components/ClaimFlow.tsx', 'utf8')
+          );
+          ok(
+            'the page can actually reach the withdrawal',
+            /'\/api\/claim\/withdraw'/.test(flow) &&
+              /setMode\('withdraw'\)/.test(flow)
+          );
+          /**
+           * And it withdraws with a wallet the person PICKED.
+           *
+           * The first version passed `providers[0]`, whichever extension
+           * announced first, which is precisely what this file's own header
+           * says is not a choice the person made. Somebody who attested with
+           * a later-announced wallet could not withdraw that pairing at all.
+           * The assertion pinned it, so the check would have defended the
+           * bug: the same shape as the scope set that pinned a missing
+           * `tweet.read`.
+           */
+          ok(
+            'neither action picks a wallet by announcement order',
+            !/providers\[0\]/.test(flow) &&
+              /run\(p\.provider, mode\)/.test(flow)
+          );
+        }
 
         ok(
           'a withdrawal suppresses BEFORE it erases',
