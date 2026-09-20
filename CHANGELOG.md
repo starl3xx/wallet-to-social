@@ -31,6 +31,39 @@ All notable changes to walletlink.social. Newest first.
   recorded whether a given `ens_onchain` came from a real fill or a refused
   one, so it needs a re-derivation pass rather than a repair rule.
 
+### 2026-09-20 (one member X will not accept stops costing the list everyone behind them)
+
+- **A live list of 290 stopped at 103 and sat there.** The resume cursor is
+  `added + skipped + failed`, and a transient failure deliberately leaves it in
+  place so a network blip cannot silently drop somebody. Member 103 was an
+  account X refused every time, so every tick retried the same account, added
+  nothing, and moved nothing. The job was about fifteen minutes from `failed`
+  with 187 members never attempted.
+- The existing counter could not see this, and the reason is worth stating:
+  "twenty ticks in a row added nothing" is equally true when X is down and when
+  exactly one member is unacceptable, and the correct response is opposite in
+  each case. Wait, or step over.
+- The step-over is **positional**, which is the whole content of the fix. A
+  bare counter cannot distinguish three failures at member 103 from one failure
+  each at 103, 104 and 105, and only the first is evidence about a member
+  rather than about the service. `stuck_cursor` records where attempts are
+  accumulating; `member_attempts` counts them there. After three, that member
+  is counted `failed`, which already means "attempted and could not be added",
+  and the list continues.
+- Three rather than one, because 403 is treated as transient precisely because
+  X uses it for an app-level refusal as well as a member-level one. One refusal
+  cannot tell those apart; three at the same position, while the service is
+  otherwise answering, can.
+- **A step-over deliberately does not reset `transient_failures`.** That is the
+  half a happy-path test would miss: if X were down rather than one member
+  being bad, every position would fail, and a counter cleared on each step-over
+  would walk the whole list marking real people permanently unaddable. Leaving
+  it running bounds the damage at `MAX_TRANSIENT_FAILURES / MAX_MEMBER_ATTEMPTS`
+  members before the job stops and says so.
+- Two assertions, each broken against the real defect before being kept. The
+  outage one also tripped the pre-existing give-up assertion, which is the
+  correct blast radius for that change.
+
 ### 2026-09-19 (the figure columns stop being sized by their own headers)
 
 - **"FARCASTER FOLLOWERS" is 169px on one line, which made a column of
