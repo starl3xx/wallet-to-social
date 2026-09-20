@@ -1712,6 +1712,33 @@ async function main() {
           );
 
           /**
+           * The once-per-account limit counts PAID claims, not claims.
+           *
+           * The partial unique index is on `x_user_id_hmac` WHERE
+           * `grant_claimed_at IS NOT NULL`, so a row that never earned
+           * anything does not occupy the slot. Somebody whose first claim was
+           * a post-cutoff address earned nothing and is still owed the grant
+           * on a qualifying one later.
+           *
+           * The banner said "this was the first claim for your X account",
+           * which is a different rule and wrong in the direction that tells
+           * somebody they were not paid when they were. Asserted as the
+           * refusal of that phrasing plus the presence of the real one,
+           * across both surfaces that state it, because the flow line had it
+           * right while the banner did not and nothing compared them.
+           */
+          for (const copyFile of [
+            'components/ClaimFlow.tsx',
+            'components/ClaimOutcome.tsx',
+          ]) {
+            const copy = withoutComments(readFileSync(copyFile, 'utf8'));
+            ok(
+              `${copyFile} counts paid claims rather than claims`,
+              /been paid/.test(copy) && !/first claim/.test(copy)
+            );
+          }
+
+          /**
            * And the per-address answer reaches the person.
            *
            * The challenge route computes `earns_credits` and `grant_matches`

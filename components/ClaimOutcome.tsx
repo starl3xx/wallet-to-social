@@ -40,7 +40,7 @@ const OUTCOMES: Record<string, { tone: Tone; title: string; detail: string }> =
       tone: 'done',
       title: 'Your address is claimed',
       detail:
-        'Your proof is recorded. Where we held nothing, the record now names your account; where we held a different one, your disagreement is on file and settles when the handle we serve stops reaching anyone. If your address qualified and this was the first claim for your X account, the matches are on your balance.',
+        'Your proof is recorded. Where we held nothing, the record now names your account; where we held a different one, your disagreement is on file and settles when the handle we serve stops reaching anyone. If your address qualified and your X account had not been paid for a claim before, the matches are on your balance.',
     },
     cancelled: {
       tone: 'neutral',
