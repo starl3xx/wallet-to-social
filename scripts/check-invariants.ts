@@ -7758,6 +7758,131 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------- the API catalog, RFC 9727
+  // Asserted through the handler, not against its source. A regex over the
+  // literal would verify that the file says what it says; calling GET and
+  // parsing the bytes is the only way to know a client gets a document that
+  // conforms. The shape rules below are all MUSTs in RFC 9264 section 4.2,
+  // and every one of them is the kind a hand-written literal breaks while
+  // still parsing as JSON.
+  {
+    const { GET, HEAD } = await import('@/app/api/api-catalog/route');
+    const { PRODUCTION_URL, DOCS_URL } = await import('@/lib/site-url');
+    const res = GET();
+    const body = await res.clone().text();
+
+    ok(
+      'the catalog is served as a linkset carrying the RFC 9727 profile',
+      res.headers.get('content-type') ===
+        'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"'
+    );
+
+    /**
+     * Section 2 makes this a SHALL on HEAD specifically. Next derives HEAD
+     * from GET on its own, so the requirement would be met today by
+     * accident; the export is what stops a framework change from quietly
+     * removing it, and this is what stops the export being deleted as
+     * redundant.
+     */
+    ok(
+      'HEAD answers with the api-catalog link relation, as section 2 requires',
+      typeof HEAD === 'function' &&
+        /rel="api-catalog"/.test(HEAD().headers.get('link') ?? '')
+    );
+
+    const doc = JSON.parse(body) as Record<string, unknown>;
+    ok(
+      'linkset is the sole member of the document, as RFC 9264 requires',
+      Object.keys(doc).length === 1 && Array.isArray(doc.linkset)
+    );
+
+    const contexts = doc.linkset as Record<string, unknown>[];
+    ok('the catalog publishes at least one API', contexts.length > 0);
+
+    for (const context of contexts) {
+      const anchor = context.anchor;
+      ok(
+        'every link context object carries an absolute anchor',
+        typeof anchor === 'string' && anchor.startsWith('https://')
+      );
+
+      const relations = Object.keys(context).filter((key) => key !== 'anchor');
+      ok(
+        `${String(anchor)} declares at least one relation`,
+        relations.length > 0
+      );
+
+      for (const relation of relations) {
+        /**
+         * The single-element array is the trap this exists for. RFC 9264
+         * section 4.2.2 requires the value of a relation member to be an
+         * array "even if there is only one link target object", and two of
+         * the three APIs here have exactly one target per relation. Writing
+         * the object directly produces a document that parses, reads
+         * correctly to a person, and is not a linkset.
+         */
+        const targets = context[relation];
+        ok(
+          `${String(anchor)} states ${relation} as an array of link targets`,
+          Array.isArray(targets) && targets.length > 0
+        );
+        for (const target of targets as Record<string, unknown>[]) {
+          /**
+           * `href` is a MUST, and absolute is a SHOULD that this repo treats
+           * as a MUST: a relative reference in a document a client may have
+           * fetched from either origin resolves differently depending on
+           * which, which is the same class of defect as publishing a URL
+           * that redirects.
+           */
+          ok(
+            `${String(anchor)} ${relation} target is an absolute href`,
+            typeof target.href === 'string' &&
+              target.href.startsWith('https://')
+          );
+          /**
+           * Every host in the document is one this site controls. A typo in
+           * a hand-written URL is otherwise a silent redirect of a
+           * discovery client to somebody else's origin.
+           */
+          ok(
+            `${String(anchor)} ${relation} target stays on a declared origin`,
+            new URL(target.href as string).origin === PRODUCTION_URL ||
+              new URL(target.href as string).origin === DOCS_URL
+          );
+        }
+      }
+    }
+
+    /**
+     * The handler is unreachable at the specified URI without this rewrite,
+     * because the App Router will not route a dot-prefixed segment. Nothing
+     * errors when it is missing: `/api/api-catalog` keeps answering and
+     * `/.well-known/api-catalog` 404s, which is the half nobody requests
+     * directly and the half every client requests.
+     */
+    const config = withoutComments(readFileSync('next.config.ts', 'utf8'));
+    ok(
+      'the catalog is reachable at the well-known URI the RFC names',
+      /source: '\/\.well-known\/api-catalog',\s*destination: '\/api\/api-catalog',/.test(
+        config
+      )
+    );
+
+    /**
+     * Section 3's other half: a client holding only the origin finds the
+     * catalog by following a link from the page, not by guessing the
+     * well-known path. In the markup because a `Link` response header cannot
+     * survive the App Router's own on a page response.
+     */
+    const layout = withoutComments(readFileSync('app/layout.tsx', 'utf8'));
+    ok(
+      'every page points at the catalog, so it can be found without guessing',
+      /<link rel="api-catalog" href="\/\.well-known\/api-catalog" \/>/.test(
+        layout
+      )
+    );
+  }
+
   // ------------------------------------------- preview builds and Neon
   // docs/CI.md promises two things at once: a preview deployment never reads
   // the database at build time, and production behaves as if the frozen

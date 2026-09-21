@@ -1545,6 +1545,84 @@ const MUTATIONS: Mutation[] = [
     to: "const ALLOW = ['/api/public-stats', '/'];",
   },
   {
+    // RFC 9264 requires a relation's value to be an array "even if there is
+    // only one link target object". Written as the object it obviously is,
+    // the document still parses, still reads correctly to a person, and is
+    // not a linkset.
+    name: 'a single link target is written as an object rather than the array the format requires',
+    file: 'app/api/api-catalog/route.ts',
+    from:
+      "      'service-doc': [\n" +
+      '        {\n' +
+      '          href: `${DOCS_URL}/agent-pack`,\n' +
+      "          type: 'text/html',\n" +
+      "          title: 'Buying credits with USDC over x402, no account',\n" +
+      '        },\n' +
+      '      ],',
+    to:
+      "      'service-doc': {\n" +
+      '        href: `${DOCS_URL}/agent-pack`,\n' +
+      "        type: 'text/html',\n" +
+      "        title: 'Buying credits with USDC over x402, no account',\n" +
+      '      },',
+  },
+  {
+    // The media type is the specification. Served as application/json it is
+    // a JSON document that happens to look like a catalog, and nothing
+    // discovering it is obliged to treat it as one.
+    name: 'the catalog loses the linkset media type and the RFC 9727 profile',
+    file: 'app/api/api-catalog/route.ts',
+    from: '    \'Content-Type\': `application/linkset+json; profile="${CATALOG_PROFILE}"`,',
+    to: "    'Content-Type': 'application/json',",
+  },
+  {
+    // A SHALL in section 2. Next derives HEAD from GET on its own, so
+    // deleting the export leaves it working today and resting on a framework
+    // behavior that is not in the documentation.
+    name: 'the explicit HEAD handler the RFC requires is deleted as redundant',
+    file: 'app/api/api-catalog/route.ts',
+    from:
+      'export function HEAD(): Response {\n' +
+      '  return new Response(null, { headers: catalogHeaders() });\n' +
+      '}\n',
+    to: '',
+  },
+  {
+    // Nothing errors: /api/api-catalog keeps answering, and the well-known
+    // URI every client actually requests starts 404ing.
+    name: 'the catalog stops being reachable at the well-known URI',
+    file: 'next.config.ts',
+    from:
+      '      {\n' +
+      "        source: '/.well-known/api-catalog',\n" +
+      "        destination: '/api/api-catalog',\n" +
+      '      },\n',
+    to: '',
+  },
+  {
+    name: 'the pages stop pointing at the catalog, leaving it to be guessed',
+    file: 'app/layout.tsx',
+    from: '        <link rel="api-catalog" href="/.well-known/api-catalog" />\n',
+    to: '',
+  },
+  {
+    // A typo in a hand-written URL sends a discovery client to an origin
+    // this project does not control, and the document still validates.
+    name: 'a catalog href points at a host the project does not own',
+    file: 'app/api/api-catalog/route.ts',
+    from: '          href: `${DOCS_URL}/openapi.yaml`,',
+    to: "          href: 'https://docs.walletlink.example/openapi.yaml',",
+  },
+  {
+    // Relative references resolve against whichever origin the client
+    // fetched the document from, which is the same class of defect as
+    // publishing a URL that redirects.
+    name: 'a catalog href becomes a relative reference',
+    file: 'app/api/api-catalog/route.ts',
+    from: '          href: `${PRODUCTION_URL}/skill.md`,',
+    to: "          href: '/skill.md',",
+  },
+  {
     // Paragraph (c) of the policy makes deletion the dangerous edit: an
     // omitted signal is a refusal to answer, not a quiet no, so this reads
     // as tidying and is a withdrawal.

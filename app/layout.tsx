@@ -264,6 +264,18 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        {/* The API catalog, RFC 9727 section 3. The well-known URI is the
+            convention a client guesses; this is the one it can follow
+            without guessing, and the specification shows both.
+
+            In the markup rather than as a `Link` response header, because a
+            header cannot be put here reliably: `headers()` in
+            `next.config.ts` does apply, but the App Router sets its own
+            `Link` for preload hints on every page response, and a config
+            entry for the same field loses. Measured on `Vary` in the
+            markdown negotiation work, same mechanism. The markup is not
+            subject to that and is what the RFC's own example uses. */}
+        <link rel="api-catalog" href="/.well-known/api-catalog" />
         {/* The entity graph is site-wide because the entity is. The FAQPage
             that used to sit beside it is not: it shipped on all 165 URLs,
             `/privacy` included, and it now renders with the answers on the

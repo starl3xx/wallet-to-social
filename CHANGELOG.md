@@ -2,6 +2,47 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (three APIs, one place to find them)
+
+- **`/.well-known/api-catalog` now publishes an API catalog, RFC 9727.** It
+  lists the REST API, the MCP server and the x402 credit rail, each with an
+  `anchor` and the RFC 8631 relations: `service-desc` for the machine
+  description, `service-doc` for the human one, and `service-meta` on the MCP
+  entry for its OAuth protected resource metadata. Served as
+  `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`,
+  which is a MUST and a SHOULD respectively in section 4.2. Every page also
+  carries `<link rel="api-catalog">`, which is section 3's other half: a
+  client holding only the origin follows a link rather than guessing a path.
+- **The three APIs were discoverable three different ways and none of them
+  from the origin**: the REST API from the docs site, the MCP server from a
+  registry row, the x402 rail from a sentence in the agent pack.
+- **No `status` link.** RFC 9727 makes it optional and there is no public
+  health endpoint to point it at: `/api/admin/health/dependencies` is admin
+  gated and `/api/v1/stats` needs a key. `/api/public-stats` is keyless and
+  would resolve, but it reports index coverage rather than service health, and
+  a `status` relation pointing at it would describe it as something it is not.
+  Revisit by adding a real health check, not by relabeling that one.
+- **No `service-desc` on the x402 rail**, because it has no static machine
+  description: a POST with no payment answers 402 with a `PAYMENT-REQUIRED`
+  header describing what to pay. Section 4.1 contemplates exactly that.
+- **The catalog is asserted by calling it, not by reading its source.** A
+  regex over the literal would verify that the file says what it says.
+  `check-invariants.ts` imports the handler, parses the bytes, and checks the
+  RFC 9264 shape rules: `linkset` the sole member, an absolute `anchor` on
+  every context, and every relation an array of link targets **even when there
+  is one**. That last one is the trap the format sets: written as the object
+  it obviously is, the document still parses, still reads correctly to a
+  person, and is not a linkset. Seven new guard mutations, including that one.
+- Every URL in the catalog was checked to answer without a redirect in front
+  of it, because `lib/site-url.ts` records what a machine-to-machine URL
+  pointing at a redirect cost this product once already. Two of the three
+  anchors answer 405 to a GET, which is a POST-only endpoint saying it exists.
+- `DOCS_URL` joins `PRODUCTION_URL` in `lib/site-url.ts`. The docs origin was
+  written out by hand in eight places, two of them machine-to-machine:
+  `lib/oauth/metadata.ts` now reads the constant. The prose links in the
+  comparison pages still spell it out and were left alone, since a redirect
+  costs a clicking human nothing.
+
 ### 2026-09-21 (a key is not a spend, and the report could not see two products)
 
 - **Any signed-in account may now hold an API key.** The REST door refused one

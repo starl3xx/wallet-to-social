@@ -183,6 +183,38 @@ asserts the table holds exactly the set the MCP server registers, the same way
 the `/mcp` page is asserted, so a ninth tool fails there rather than being
 found missing by whoever pasted the URL into their agent.
 
+**The API catalog (2026-09-21) is the projection that lists the other
+projections.** `/.well-known/api-catalog` publishes an RFC 9727 catalog of the
+three APIs this product exposes: the REST API, the MCP server and the x402
+credit rail. Until it existed, each was discoverable a different way and none
+of them from the origin: the REST API from the docs site, the MCP server from
+a registry row, the rail from a sentence in the agent pack. A client holding
+only `walletlink.social` could not enumerate any of it.
+
+Each entry carries an `anchor` and the RFC 8631 relations: `service-desc` for
+the machine description, `service-doc` for the human one, and on the MCP entry
+`service-meta` for its RFC 9728 protected resource metadata. That is the layer
+rule again, in link form: the catalog **points at** L4's existing projections
+and restates none of them. The REST entry's `service-desc` is the OpenAPI file
+the docs already publish; the MCP entry's is `/skill.md`.
+
+Two omissions are decisions, not gaps. There is **no `status` relation**,
+because there is no public health endpoint and `/api/public-stats` reports
+index coverage rather than service health, so pointing `status` at it would
+describe it as something it is not. There is **no `service-desc` on the x402
+rail**, because a POST with no payment answers 402 with a `PAYMENT-REQUIRED`
+header describing what to pay, which RFC 9727 section 4.1 names as the right
+place for metadata a catalog does not carry.
+
+The format is where this one can go quietly wrong. RFC 9264 requires every
+relation's value to be an **array** of link targets even when there is one,
+and two of the three entries have exactly one target per relation. Written as
+the object it obviously is, the document still parses and still reads
+correctly to a person, and is not a linkset. `scripts/check-invariants.ts`
+therefore imports the handler and parses what it returns rather than reading
+its source, because that class of defect is invisible to a regex over a
+literal that says exactly what it means to say.
+
 ---
 
 ## The physics

@@ -76,6 +76,17 @@ const nextConfig: NextConfig = {
         source: '/.well-known/oauth-authorization-server',
         destination: '/api/oauth/metadata/authorization-server',
       },
+      /**
+       * The API catalog, RFC 9727, at the well-known URI the specification
+       * names. Here for the same reason as the three rules above: the App
+       * Router will not route a segment whose directory name begins with a
+       * dot, so the handler lives at `app/api/api-catalog` and this maps the
+       * public URL onto it.
+       */
+      {
+        source: '/.well-known/api-catalog',
+        destination: '/api/api-catalog',
+      },
     ];
   },
   experimental: {

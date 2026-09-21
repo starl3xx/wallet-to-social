@@ -11,6 +11,22 @@ https://walletlink.social/api/v1
 
 All endpoints are HTTPS only and return JSON. CORS is open, but see the warning under [Authentication](#authentication) before you call this from a browser.
 
+## Discovery
+
+If you are writing a client that should find this API rather than be told about
+it, start at the API catalog:
+
+```
+https://walletlink.social/.well-known/api-catalog
+```
+
+It is an [RFC 9727](https://www.rfc-editor.org/rfc/rfc9727) catalog served as
+`application/linkset+json`, and it lists all three APIs this product exposes:
+this REST API, the MCP server, and the x402 credit rail. Each entry carries the
+OpenAPI description, the documentation page, and for the MCP server its OAuth
+protected resource metadata. Every page on walletlink.social also links to it
+with `rel="api-catalog"`, so an origin is enough to find everything else.
+
 ## Authentication
 
 Pass your key in the `Authorization` header. Both forms work:

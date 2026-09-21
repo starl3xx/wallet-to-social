@@ -1185,6 +1185,16 @@ form of its model:
 A new agent-surface feature names its layer in `docs/AGENT-SYSTEM.md` before
 it ships, and must not restate a fact whose authority lives in another layer.
 
+**Three APIs, one place to find them.** `/.well-known/api-catalog` publishes an
+RFC 9727 catalog of the REST API, the MCP server and the x402 credit rail,
+served as `application/linkset+json` with the RFC 9727 profile, and every page
+carries `<link rel="api-catalog">` so a client holding only the origin follows
+a link instead of guessing a path. The handler is `app/api/api-catalog`, mapped
+onto the well-known URI by a rewrite for the same reason the three OAuth
+discovery documents are: the App Router will not route a dot-prefixed segment.
+Reasoning, and the two deliberate omissions (`status`, and `service-desc` on
+the rail), are in `docs/AGENT-SYSTEM.md` under L4.
+
 **What an agent may do with what it reads is declared separately from what it
 may read.** `/robots.txt` carries `Content-Signal: search=yes, ai-input=yes,
 ai-train=yes` above the Cloudflare Content Signals Policy verbatim. `Allow` and
